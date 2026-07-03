@@ -3,7 +3,7 @@ import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from '../types'
-import { resolvePiProviderInjection } from './modelInjection'
+import { assertPiProviderUsable } from './modelInjection'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
 
 /**
@@ -40,9 +40,9 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
     if (!agent?.model) {
       throw new Error(`pi agent ${session.agentId} has no model configured`)
     }
-    // Throws PiUnsupportedProviderError with a clear message when the selected
-    // model's provider has no pi API-family mapping (plan D2).
-    await resolvePiProviderInjection(agent.model)
+    // Side-effect free: dispatch validation must not consume API-key rotation;
+    // the concrete key is selected only when the runtime connection starts.
+    await assertPiProviderUsable(agent.model)
   }
 
   async listAvailableTools(_mcpIds: string[]): Promise<Tool[]> {

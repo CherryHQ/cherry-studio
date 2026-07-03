@@ -512,6 +512,14 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const
 
+  async prewarmSession(sessionId: string): Promise<void> {
+    await application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
+  }
+
+  closeSessionWarm(sessionId: string): void {
+    application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
+  }
+
   async validateSession(session: AgentSessionEntity): Promise<void> {
     const cwd = session.workspace?.path
     if (!cwd) {

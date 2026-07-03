@@ -49,6 +49,17 @@ export class PiUnsupportedProviderError extends Error {
   }
 }
 
+/** Thrown when Cherry has no usable API key for the selected pi provider. */
+export class PiMissingApiKeyError extends Error {
+  readonly providerId: string
+
+  constructor(providerId: string) {
+    super(`Provider "${providerId}" has no API key configured for pi agents`)
+    this.name = 'PiMissingApiKeyError'
+    this.providerId = providerId
+  }
+}
+
 export interface PiProviderInjection {
   /** pi provider name to register + target with `setRuntimeApiKey`. Cherry's provider id. */
   providerName: string
@@ -68,6 +79,8 @@ export interface PiProviderInjection {
  * @throws PiUnsupportedProviderError when the provider's endpoint has no pi mapping.
  */
 export function buildPiProviderInjection(provider: Provider, model: Model, apiKey: string): PiProviderInjection {
+  if (!apiKey.trim()) throw new PiMissingApiKeyError(provider.id)
+
   const api = resolvePiApi(provider, model)
   if (!api) {
     throw new PiUnsupportedProviderError(provider.id)
@@ -82,7 +95,6 @@ export function buildPiProviderInjection(provider: Provider, model: Model, apiKe
     baseUrl,
     apiKey: PI_PLACEHOLDER_API_KEY,
     api,
-    authHeader: true,
     models: [modelConfig]
   }
 
@@ -102,7 +114,25 @@ export async function resolvePiProviderInjection(uniqueModelId: UniqueModelId): 
     modelService.getByKey(providerId, modelId),
     providerService.getRotatedApiKey(providerId)
   ])
+  if (!apiKey.trim()) throw new PiMissingApiKeyError(providerId)
   return buildPiProviderInjection(provider, model, apiKey)
+}
+
+/**
+ * Validate pi compatibility without consuming ProviderService's round-robin API
+ * key rotation. Dispatch validation runs before every turn; selecting the key is
+ * a connect-time concern only.
+ */
+export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Promise<void> {
+  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  const [provider, model, apiKeys] = await Promise.all([
+    providerService.getByProviderId(providerId),
+    modelService.getByKey(providerId, modelId),
+    providerService.getApiKeys(providerId, { enabled: true })
+  ])
+
+  if (!apiKeys.some((entry) => entry.key.trim())) throw new PiMissingApiKeyError(providerId)
+  if (!resolvePiApi(provider, model)) throw new PiUnsupportedProviderError(providerId)
 }
 
 function buildPiModelConfig(model: Model, id: string, api: PiApi): ProviderModelConfig {

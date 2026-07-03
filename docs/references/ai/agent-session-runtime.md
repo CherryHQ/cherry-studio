@@ -180,6 +180,47 @@ change refreshes the snapshot's disabled set in place. A rejected update is
 failed closed by the host (the connection is torn down) rather than left
 running under the old policy.
 
+## pi driver resource boundary
+
+pi runs in-process through the SDK, but Cherry still owns the runtime boundary.
+The driver must not import the user's standalone pi setup from `~/.pi/agent`,
+and must not silently trust executable or prompt resources from a workspace.
+
+Allowed in v1:
+
+- Cherry-owned pi home for SDK runtime state: `application.getPath('feature.agents.pi.root')`,
+  exported to pi as `PI_CODING_AGENT_DIR`. This is not a prompt/skill import
+  surface in v1.
+- Cherry-owned pi sessions: `application.getPath('feature.agents.pi.sessions')`,
+  exported as `PI_CODING_AGENT_SESSION_DIR` and used as the only valid resume
+  token parent.
+- Cherry agent instructions from the agent record, via `systemPromptOverride`.
+- Inline Cherry-owned extensions required for the integration: provider
+  injection and tool approval/policy enforcement.
+
+Disallowed in v1 unless Cherry adds an explicit trust/import flow:
+
+- User-global pi resources under the standalone pi home (`~/.pi/agent`) or user
+  skill folders such as `~/.agents/skills`.
++- Disk prompts from any pi home, including Cherry-owned `SYSTEM.md` and
+  `APPEND_SYSTEM.md`; the agent record is the only persona source in v1.
+- Workspace project resources: `.pi/extensions`, `.pi/skills`, `.pi/prompts`,
+  `.pi/themes`, `.pi/SYSTEM.md`, `.pi/APPEND_SYSTEM.md`.
+- Workspace context files discovered from the cwd ancestry, including
+  `AGENTS.md`, `AGENTS.MD`, `CLAUDE.md`, and `CLAUDE.MD`.
+- Project `.agents/skills` discovered from the cwd ancestry.
+
+The implementation enforces this by creating pi `SettingsManager` with
+`projectTrusted: false`, passing empty `systemPrompt` / `appendSystemPrompt` so
+pi does not discover prompt files from disk, and constructing
+`DefaultResourceLoader` with `noExtensions`, `noSkills`, `noPromptTemplates`,
+`noThemes`, and `noContextFiles`. Inline extension factories still load because
+they are passed by Cherry code, not discovered from disk.
+
+If future work enables workspace pi resources, it must add a Cherry-owned trust
+prompt and persisted decision first, then selectively pass that decision into
+pi resource loading. Do not rely on pi's default `projectTrusted=true` behavior.
+
 ## Idle and shutdown
 
 After a turn reaches terminal state, the runtime entry becomes `idle`.

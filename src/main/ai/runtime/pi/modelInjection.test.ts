@@ -2,7 +2,12 @@ import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
-import { buildPiProviderInjection, PI_PLACEHOLDER_API_KEY, PiUnsupportedProviderError } from './modelInjection'
+import {
+  buildPiProviderInjection,
+  PI_PLACEHOLDER_API_KEY,
+  PiMissingApiKeyError,
+  PiUnsupportedProviderError
+} from './modelInjection'
 
 const REAL_KEY = 'sk-cherry-secret-key'
 
@@ -122,6 +127,7 @@ describe('buildPiProviderInjection', () => {
     expect(injection.apiKey).toBe(REAL_KEY)
     expect(injection.providerConfig.apiKey).toBe(PI_PLACEHOLDER_API_KEY)
     expect(injection.providerConfig.apiKey).not.toBe(REAL_KEY)
+    expect(injection.providerConfig.authHeader).toBeUndefined()
   })
 
   it('derives image input support from capabilities', () => {
@@ -135,6 +141,16 @@ describe('buildPiProviderInjection', () => {
 
     const multimodal = buildPiProviderInjection(provider, makeModel({ capabilities: ['image-recognition'] }), REAL_KEY)
     expect(multimodal.providerConfig.models?.[0]?.input).toEqual(['text', 'image'])
+  })
+
+  it('throws PiMissingApiKeyError when Cherry has no usable key', () => {
+    const provider = makeProvider({
+      id: 'anthropic',
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
+    })
+
+    expect(() => buildPiProviderInjection(provider, makeModel({}), '   ')).toThrow(PiMissingApiKeyError)
   })
 
   it('throws PiUnsupportedProviderError for a provider with no pi mapping', () => {

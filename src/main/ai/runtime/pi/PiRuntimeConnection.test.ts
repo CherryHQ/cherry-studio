@@ -27,9 +27,9 @@ const mocks = vi.hoisted(() => ({
   abort: vi.fn(),
   dispose: vi.fn(),
   getContextUsage: vi.fn(),
-  trustGet: vi.fn(),
   createOpts: undefined as Record<string, unknown> | undefined,
   loaderOpts: undefined as Record<string, unknown> | undefined,
+  settingsArgs: undefined as unknown[] | undefined,
   isStreaming: false,
   sessionFile: '/cherry/.pi/sessions/s.jsonl' as string | undefined
 }))
@@ -69,7 +69,12 @@ const fakePi = {
   ModelRegistry: {
     inMemory: () => ({ registerProvider: mocks.registerProvider, find: () => ({ id: 'm', provider: 'p' }) })
   },
-  SettingsManager: { inMemory: () => ({}) },
+  SettingsManager: {
+    inMemory: (...args: unknown[]) => {
+      mocks.settingsArgs = args
+      return {}
+    }
+  },
   SessionManager: { create: mocks.sessionCreate, open: mocks.sessionOpen },
   DefaultResourceLoader: class {
     reload = mocks.reload
@@ -77,10 +82,6 @@ const fakePi = {
       mocks.loaderOpts = opts
     }
   },
-  ProjectTrustStore: class {
-    get = mocks.trustGet
-  },
-  hasTrustRequiringProjectResources: () => false,
   createAgentSession: mocks.createAgentSession
 }
 
@@ -108,6 +109,7 @@ beforeEach(() => {
   mocks.subscribeCb = undefined
   mocks.createOpts = undefined
   mocks.loaderOpts = undefined
+  mocks.settingsArgs = undefined
   mocks.isStreaming = false
   mocks.sessionFile = SESSION_FILE
   delete process.env.PI_CODING_AGENT_DIR
@@ -126,7 +128,6 @@ beforeEach(() => {
   mocks.reload.mockResolvedValue(undefined)
   mocks.sessionCreate.mockReturnValue({})
   mocks.sessionOpen.mockReturnValue({})
-  mocks.trustGet.mockReturnValue(false)
   mocks.prompt.mockResolvedValue(undefined)
   mocks.abort.mockResolvedValue(undefined)
   mocks.getContextUsage.mockReturnValue(undefined)
@@ -147,15 +148,24 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.registerProvider).toHaveBeenCalledWith('p', expect.objectContaining({ apiKey: 'placeholder' }))
     expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS)
     expect(mocks.sessionOpen).not.toHaveBeenCalled()
-    // agent.instructions become the pi system prompt override.
+    // agent.instructions become the pi system prompt override; disk SYSTEM.md discovery is suppressed.
+    expect(mocks.loaderOpts).toMatchObject({ systemPrompt: '', appendSystemPrompt: [] })
     expect(typeof (mocks.loaderOpts as { systemPromptOverride?: () => string }).systemPromptOverride).toBe('function')
     expect((mocks.loaderOpts as { systemPromptOverride: () => string }).systemPromptOverride()).toBe('Be helpful.')
   })
 
   it('reopens the session file on resume', async () => {
-    await new PiRuntimeConnection({ ...input, resumeToken: '/prev/s.jsonl' }).start()
-    expect(mocks.sessionOpen).toHaveBeenCalledWith('/prev/s.jsonl', PI_SESSIONS, WORKSPACE)
+    await new PiRuntimeConnection({ ...input, resumeToken: `${PI_SESSIONS}/prev/s.jsonl` }).start()
+    expect(mocks.sessionOpen).toHaveBeenCalledWith(`${PI_SESSIONS}/prev/s.jsonl`, PI_SESSIONS, WORKSPACE)
     expect(mocks.sessionCreate).not.toHaveBeenCalled()
+  })
+
+  it('rejects resume tokens outside the Cherry-owned pi session dir', async () => {
+    await expect(new PiRuntimeConnection({ ...input, resumeToken: '/tmp/evil.jsonl' }).start()).rejects.toThrow(
+      'outside Cherry-owned session dir'
+    )
+    expect(mocks.sessionOpen).not.toHaveBeenCalled()
+    expect(mocks.createAgentSession).not.toHaveBeenCalled()
   })
 
   it('emits turn-complete only on agent_end, not per turn_end, plus a resume token', async () => {
@@ -307,14 +317,17 @@ describe('PiRuntimeConnection', () => {
     expect(done).toBe(true)
   })
 
-  it('fails closed on project trust until the workspace is trusted', async () => {
+  it('disables pi project/user resources until Cherry has a trust prompt/import model', async () => {
     await new PiRuntimeConnection(input).start()
-    const resolve = (mocks.reload.mock.calls[0][0] as { resolveProjectTrust: (i: unknown) => Promise<boolean> })
-      .resolveProjectTrust
-    mocks.trustGet.mockReturnValue(false)
-    await expect(resolve({ extensionsResult: { extensions: [] } })).resolves.toBe(false)
-    mocks.trustGet.mockReturnValue(true)
-    await expect(resolve({ extensionsResult: { extensions: [] } })).resolves.toBe(true)
+    expect(mocks.settingsArgs).toEqual([{}, { projectTrusted: false }])
+    expect(mocks.loaderOpts).toMatchObject({
+      noExtensions: true,
+      noSkills: true,
+      noPromptTemplates: true,
+      noThemes: true,
+      noContextFiles: true
+    })
+    expect(mocks.reload).toHaveBeenCalledWith()
   })
 
   it('wires both the provider and approval extensions and bakes disabledTools into excludeTools', async () => {
@@ -323,6 +336,7 @@ describe('PiRuntimeConnection', () => {
 
     const factories = (mocks.loaderOpts as { extensionFactories: unknown[] }).extensionFactories
     expect(factories).toHaveLength(2)
+    expect(mocks.createOpts?.tools).toEqual(['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write'])
     expect(mocks.createOpts?.excludeTools).toEqual(['bash', 'write'])
   })
 

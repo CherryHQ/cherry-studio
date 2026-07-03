@@ -1,12 +1,8 @@
+import path from 'node:path'
+
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import type {
-  AgentSession,
-  AgentSessionEvent,
-  CompactionResult,
-  ContextUsage,
-  LoadExtensionsResult
-} from '@earendil-works/pi-coding-agent'
+import type { AgentSession, AgentSessionEvent, CompactionResult, ContextUsage } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
 import { application } from '@main/core/application'
@@ -29,6 +25,7 @@ import { PiStreamAdapter } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
+const PI_BUILTIN_TOOL_NAMES = ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write'] as const
 
 /** Bridges pi's callback-based `subscribe` onto the `AsyncIterable` event contract. */
 class AsyncEventQueue<T> implements AsyncIterable<T> {
@@ -130,7 +127,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       throw new Error(`pi model ${injection.providerName}/${injection.modelId} could not be resolved after injection`)
     }
 
-    const settingsManager = pi.SettingsManager.inMemory()
+    const settingsManager = pi.SettingsManager.inMemory({}, { projectTrusted: false })
 
     const instructions = agent.instructions?.trim()
     const resourceLoader = new pi.DefaultResourceLoader({
@@ -139,6 +136,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       settingsManager,
       // Provider injection re-applies across reloads (plan D1); the approval/policy
       // gate enforces disabledTools/global-install/rtk/approval per turn (plan D4).
+      // Project-local and user-global pi resources are disabled for v1. Loading
+      // workspace `.pi/*`, `.agents/skills`, AGENTS.md/CLAUDE.md, or user
+      // ~/.agents requires an explicit Cherry trust/import model first.
+      noExtensions: true,
+      noSkills: true,
+      noPromptTemplates: true,
+      noThemes: true,
+      noContextFiles: true,
       extensionFactories: [
         createPiProviderExtension(injection.providerName, injection.providerConfig),
         createPiApprovalExtension({
@@ -148,30 +153,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
           isDisabled: (toolName) => this.disabledTools.has(toolName)
         })
       ],
-      // Cherry owns the persona: replace pi's discovered system prompt with the
-      // agent's instructions when present, else keep pi's base (plan Phase 2).
+      // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
+      // override runs; Cherry owns the persona from the agent record only.
+      systemPrompt: '',
+      appendSystemPrompt: [],
       ...(instructions ? { systemPromptOverride: () => instructions } : {})
     })
-    // Fail-closed project trust for executable workspace resources (plan D9).
-    const trustStore = new pi.ProjectTrustStore(agentDir)
-    await resourceLoader.reload({
-      resolveProjectTrust: async (loadInput: { extensionsResult: LoadExtensionsResult }) => {
-        const requiresTrust = pi.hasTrustRequiringProjectResources(workspacePath)
-        const decision = trustStore.get(workspacePath) === true
-        if (requiresTrust && !decision) {
-          logger.info('pi workspace carries trust-requiring resources; leaving them unloaded until trusted', {
-            sessionId: this.input.sessionId,
-            extensions: loadInput.extensionsResult.extensions.length
-          })
-        }
-        // Executable project resources load only when explicitly trusted; the
-        // user-facing prompt that writes the decision lands in Phase 5.
-        return decision
-      }
-    })
+    await resourceLoader.reload()
 
     const sessionManager = this.resumeToken
-      ? pi.SessionManager.open(this.resumeToken, sessionDir, workspacePath)
+      ? pi.SessionManager.open(assertResumeTokenInSessionDir(this.resumeToken, sessionDir), sessionDir, workspacePath)
       : pi.SessionManager.create(workspacePath, sessionDir)
 
     const { session: piSession } = await pi.createAgentSession({
@@ -183,6 +174,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       sessionManager,
       resourceLoader,
       model,
+      // pi defaults to read/bash/edit/write only; Cherry exposes grep/find/ls too,
+      // so opt into the full built-in set explicitly.
+      tools: [...PI_BUILTIN_TOOL_NAMES],
       // Bake disabled tools out of the session's tool set (plan capability matrix);
       // the approval gate also blocks them live so a mid-session disable is enforced.
       ...(this.disabledTools.size > 0 ? { excludeTools: [...this.disabledTools] } : {})
@@ -346,6 +340,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
  */
 function normalizeDisabledTools(disabledTools: string[] | undefined | null): Set<string> {
   return new Set((disabledTools ?? []).map((tool) => tool.toLowerCase()))
+}
+
+function assertResumeTokenInSessionDir(resumeToken: string, sessionDir: string): string {
+  const resolvedToken = path.resolve(resumeToken)
+  const resolvedSessionDir = path.resolve(sessionDir)
+  const relative = path.relative(resolvedSessionDir, resolvedToken)
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error('pi resume token points outside Cherry-owned session dir')
+  }
+  return resolvedToken
 }
 
 /** pi triggers `manual` on `compact()`, `threshold`/`overflow` automatically — Cherry's
