@@ -9,6 +9,8 @@
 // type-only imports keep this module side-effect-free (no runtime cycle): the
 // BackupScopedDb/BackupReadonlyDb classes live in contexts.ts and are referenced
 // here only as types (erased at compile time).
+import type { JobType } from '@main/core/job/jobRegistry'
+import type { EntityType } from '@shared/data/types/entityType'
 import type { FileRefSourceType } from '@shared/data/types/file'
 
 import type { BackupReadonlyDb, BackupScopedDb } from './contexts'
@@ -95,6 +97,13 @@ export interface RowScope {
   readonly table: DbTableName
   readonly ownerDomain: BackupDomain
   readonly filter: { readonly column: DbColumnName; readonly op: 'eq'; readonly value: string }
+  /**
+   * Per-JobType ownership assertion for the rows matched by filter (finalize
+   * exhaustiveness). A JobType not listed is implicitly 'excluded' — the
+   * contributor must either own it ('owned') or explicitly exclude it, so an
+   * unhandled JobType can never be silently dropped from backup.
+   */
+  readonly typeCoverage?: Readonly<Record<JobType, 'owned' | 'excluded'>>
 }
 
 /** How a file_ref.sourceType is owned and resourced (finalize #11). */
@@ -280,6 +289,25 @@ export interface EntityGraphSchema {
   readonly jsonSoftReferences: readonly JsonSoftReferencePolicy[]
   /** Shared-table row partitions (e.g. job_schedule.type='agent.task' → AGENTS). */
   readonly rowScopes?: readonly RowScope[]
+  /**
+   * JSON columns in schema.tables that are NOT soft-reference carriers and so are
+   * exempt from jsonSoftReferences coverage (finalize exhaustiveness). reason is
+   * required for each exemption (mirrors the reason-required pattern of
+   * omittedReferenceOverrides). A JSON column must appear in either
+   * jsonSoftReferences or exemptJsonCols, else finalize fails.
+   */
+  readonly exemptJsonCols?: readonly {
+    readonly table: DbTableName
+    readonly column: DbColumnName
+    readonly reason: string
+  }[]
+  /**
+   * Polymorphic entity-type → domain routing for shared polymorphic tables
+   * (entity_tag, pin, group). Maps each EntityType to the BackupDomain that owns
+   * its rows, or 'excluded' when that entity type is out of backup scope. Lets
+   * finalize verify every EntityType is routed (no silent drops).
+   */
+  readonly polymorphicEntityMap?: Readonly<Record<EntityType, BackupDomain | 'excluded'>>
 }
 
 /** Domain-level backup policy. */

@@ -23,7 +23,19 @@ export const MCP_SERVERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     primaryKeys: [mirrorPk('mcp_server')],
     aggregates: [{ root: table('mcp_server'), identityKey: columns(['id']), members: [], renamable: false }],
     fileRefSourcePolicies: [],
-    jsonSoftReferences: []
+    jsonSoftReferences: [],
+    // mcp_server JSON columns all hold server config/metadata — none carry
+    // embedded fileId/entityId soft refs (logoUrl is a URL string column, not JSON).
+    // Declared so finalize #12 exhaustiveness passes.
+    exemptJsonCols: [
+      { table: table('mcp_server'), column: column('args'), reason: 'no soft refs — holds stdio server launch argument list' },
+      { table: table('mcp_server'), column: column('env'), reason: 'no soft refs — holds stdio server environment variables' },
+      { table: table('mcp_server'), column: column('headers'), reason: 'no soft refs — holds HTTP server request headers' },
+      { table: table('mcp_server'), column: column('tags'), reason: 'no soft refs — holds freeform server tag strings' },
+      { table: table('mcp_server'), column: column('configSample'), reason: 'no soft refs — holds a sample config template for display' },
+      { table: table('mcp_server'), column: column('disabledTools'), reason: 'no soft refs — holds list of disabled tool-name strings' },
+      { table: table('mcp_server'), column: column('disabledAutoApproveTools'), reason: 'no soft refs — holds list of auto-approve-disabled tool names' }
+    ]
   },
   backupPolicy: {},
   // TODO(C/D track): DXT/MCPB package resources (codex review P2). An MCP server

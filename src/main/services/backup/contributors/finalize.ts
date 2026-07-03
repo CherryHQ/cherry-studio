@@ -17,6 +17,7 @@ import type {
 import {
   DB_COLUMNS_BY_TABLE,
   DB_FOREIGN_KEYS,
+  DB_JSON_COLUMNS,
   DB_TABLES,
   DB_UNIQUE_KEYS,
   type DbColumnName,
@@ -44,6 +45,31 @@ const sameReference = (a: EntityReference, b: EntityReference): boolean =>
 /** True when two column lists hold the same members, order-insensitive (used by #13). */
 const sameColumnSet = (a: readonly DbColumnName[], b: readonly DbColumnName[]): boolean =>
   a.length === b.length && a.every((col) => b.includes(col))
+
+/** Runtime set of BACKUP_DOMAINS for polymorphicEntityMap value validation (#polymorphic). */
+const BACKUP_DOMAINS_SET: ReadonlySet<string> = new Set<string>(BACKUP_DOMAINS)
+
+/**
+ * Lightweight glob legality check (architecture §6.1 platformSpecificKeys). A glob is
+ * syntactically legal if it contains only glob-safe characters AND its bracket groups
+ * are balanced. minimatch/picomatch are not dependencies, so we validate syntax only
+ * (not semantics) — this catches typos like stray spaces or unbalanced `[` without
+ * pulling in a glob engine.
+ */
+function isLegalGlob(glob: string): boolean {
+  // Allowed characters: alphanumerics + glob metacharacters + path separators.
+  if (!/^[A-Za-z0-9.*?\[\]\-_/]*$/.test(glob)) return false
+  // Bracket groups must be balanced (each '[' has a matching ']').
+  let depth = 0
+  for (const ch of glob) {
+    if (ch === '[') depth++
+    else if (ch === ']') {
+      depth--
+      if (depth < 0) return false // ']' before any '[' — unbalanced.
+    }
+  }
+  return depth === 0
+}
 
 /**
  * Map a generated FK's onDelete to the ReferenceKind it implies (registry.md #19).
@@ -165,14 +191,48 @@ export function finalize(
     if (!coveredSources.has(st)) fail({ invariant: 11, unownedSourceType: st })
   }
 
-  // ── #12: declared jsonSoftReferences columns exist (codegen has no json marker,
-  //         so json-ness is trusted from the contributor declaration) ───────────
+  // ── #12: jsonSoftReferences bidirectional subset (declared ⊆ DB_JSON_COLUMNS and
+  //         DB_JSON_COLUMNS ⊆ declared ∪ exempt) ─────────────────────────────────
+  // (A) declared subset: every declared jsonSoftReference column MUST be a JSON column
+  //     in DB_JSON_COLUMNS — declaring a non-JSON column as a jsonSoftReference is a
+  //     bug (codegen is the only trusted source of json-ness; the contributor can no
+  //     longer "trust" its own declaration). Closes the "json-ness trusted" hole.
+  // (B) exhaustiveness subset: every JSON column on an owned table must be EITHER a
+  //     declared jsonSoftReference OR listed in exemptJsonCols (with a reason). A JSON
+  //     column carrying soft refs that is neither declared nor exempted would silently
+  //     drop cross-entity links on restore. Skipped until the contributor opts into the
+  //     exhaustive regime by declaring at least one jsonSoftReference or exemptJsonCols
+  //     (Phase 2 guard — Phase 3 wires these on every real contributor; TODO Phase 3:
+  //     drop the opt-in gate so ALL owned JSON columns are exhaustively covered).
   for (const c of contributors) {
     const owned = new Set<DbTableName>(c.schema.tables)
+    // (A) declared ⊆ DB_JSON_COLUMNS (columns exist + are genuinely JSON).
     for (const j of c.schema.jsonSoftReferences) {
-      if (!owned.has(j.table)) fail({ invariant: 12, table: j.table, column: j.column })
+      if (!owned.has(j.table)) fail({ invariant: 12, table: j.table, column: j.column, reason: 'owned-mismatch' })
       if (!DB_COLUMNS_BY_TABLE[j.table]?.some((entry) => entry.name === j.column)) {
-        fail({ invariant: 12, table: j.table, column: j.column })
+        fail({ invariant: 12, table: j.table, column: j.column, reason: 'column-not-found' })
+      }
+      const jsonCols = DB_JSON_COLUMNS[j.table]
+      if (!jsonCols?.some((col) => col === j.column)) {
+        fail({ invariant: 12, table: j.table, column: j.column, reason: 'declared-not-json-column' })
+      }
+    }
+    // (B) DB_JSON_COLUMNS ⊆ declared ∪ exempt — exhaustiveness is UNCONDITIONAL:
+    //     every JSON column on an owned (non-excluded) table MUST be a declared
+    //     jsonSoftReference OR explicitly exempt (exemptJsonCols, with reason).
+    //     No opt-in gate: a future contributor owning a JSON table but declaring
+    //     neither would fail loudly right here (the whole point of #12).
+    const declaredJson = new Set(
+      c.schema.jsonSoftReferences.map((j) => `${j.table}::${j.column}`)
+    )
+    const exemptJson = new Set((c.schema.exemptJsonCols ?? []).map((e) => `${e.table}::${e.column}`))
+    for (const table of c.schema.tables) {
+      if (ALWAYS_STRIP_TABLES.has(table) || INFRASTRUCTURE_TABLES.has(table)) continue
+      for (const col of DB_JSON_COLUMNS[table]) {
+        const key = `${table}::${col}`
+        if (!declaredJson.has(key) && !exemptJson.has(key)) {
+          fail({ invariant: 12, table, column: col, reason: 'json-column-not-covered' })
+        }
       }
     }
   }
@@ -314,12 +374,88 @@ export function finalize(
     }
   }
 
-  // ── #23: shared-table rowScopes — structural check (full runtime type coverage
-  //         is the coverage/importer's job; finalize only validates the filter column)
+  // ── platformSpecificKeys enforcement (architecture §6.1) ──────────────────────
+  // (a) ONLY PREFERENCES may declare platformSpecificKeys — any other contributor with
+  //     a non-empty list is a deviation (platform keys are a settings-only concept).
+  // (b) each entry must be a syntactically legal glob (validated via isLegalGlob).
+  for (const c of contributors) {
+    const keys = c.backupPolicy.platformSpecificKeys ?? []
+    if (keys.length > 0 && c.domain !== 'PREFERENCES') {
+      fail({
+        invariant: 21,
+        domain: c.domain,
+        deviation: 'platformSpecificKeys-on-non-preferences',
+        keys: [...keys]
+      })
+    }
+    for (const glob of keys) {
+      if (!isLegalGlob(glob)) {
+        fail({ invariant: 21, domain: c.domain, deviation: 'malformed-platformSpecificKey', glob })
+      }
+    }
+  }
+
+  // ── polymorphicEntityMap validation (architecture L201) ───────────────────────
+  // Record<EntityType, BackupDomain | 'excluded'> is compile-time exhaustive over keys,
+  // so the runtime check is thin: every VALUE must be a known BackupDomain or 'excluded'.
+  // A value that is neither (a typo or a stale domain after a rename) would route rows
+  // to a non-existent owner and silently drop them.
+  for (const c of contributors) {
+    const map = c.schema.polymorphicEntityMap
+    if (map === undefined) continue
+    for (const [entityType, mappedTo] of Object.entries(map)) {
+      if (mappedTo !== 'excluded' && !BACKUP_DOMAINS_SET.has(mappedTo as string)) {
+        fail({ invariant: 21, domain: c.domain, entityType, mappedTo, deviation: 'polymorphic-unknown-target' })
+      }
+    }
+  }
+
+  // ── #23: shared-table rowScopes — structural check + typeCoverage consistency ─
+  // The filter column must be real; if the contributor declares typeCoverage, every
+  // JobType key maps to 'owned'|'excluded' (Record<JobType,...> is compile-time
+  // exhaustive over keys, so runtime only validates value shape) AND every key the
+  // filter matches as 'owned' must agree with the scope's ownership intent — a JobType
+  // the filter selects but typeCoverage marks 'excluded' is an inconsistency that would
+  // drop matched rows silently.
   for (const c of contributors) {
     for (const scope of c.schema.rowScopes ?? []) {
       if (!DB_COLUMNS_BY_TABLE[scope.table]?.some((entry) => entry.name === scope.filter.column)) {
         fail({ invariant: 23, table: scope.table, uncoveredTypes: `<bad-filter-column ${scope.filter.column}>` })
+      }
+      const coverage = scope.typeCoverage
+      if (coverage === undefined) continue
+      for (const [jobType, status] of Object.entries(coverage)) {
+        if (status !== 'owned' && status !== 'excluded') {
+          fail({
+            invariant: 23,
+            table: scope.table,
+            jobType,
+            deviation: 'typeCoverage-invalid-status',
+            status
+          })
+        }
+        // A type whose filter value equals this scope's filter.value MUST be 'owned' —
+        // the filter selects those rows, so they belong to this domain by construction.
+        if (status === 'excluded' && jobType === scope.filter.value) {
+          fail({
+            invariant: 23,
+            table: scope.table,
+            jobType,
+            deviation: 'typeCoverage-excludes-filtered-type',
+            filterValue: scope.filter.value
+          })
+        }
+        // Conversely, a type marked 'owned' must be the one the filter selects —
+        // marking an unmatched type 'owned' claims rows the filter never picks.
+        if (status === 'owned' && jobType !== scope.filter.value) {
+          fail({
+            invariant: 23,
+            table: scope.table,
+            jobType,
+            deviation: 'typeCoverage-owned-without-filter-match',
+            filterValue: scope.filter.value
+          })
+        }
       }
     }
   }

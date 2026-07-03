@@ -47,7 +47,14 @@ export const PREFERENCES_CONTRIBUTOR = deepFreeze<BackupContributor>({
       }
     ],
     fileRefSourcePolicies: [],
-    jsonSoftReferences: []
+    jsonSoftReferences: [],
+    // preference.value is the entire preference key-value store payload — arbitrary
+    // JSON with NO embedded entity-id/fileId soft refs (it is a settings bag, not a
+    // reference carrier). Declared so finalize #12 exhaustiveness passes. (note has
+    // no JSON columns.)
+    exemptJsonCols: [
+      { table: table('preference'), column: column('value'), reason: 'no soft refs — holds the preference key-value store payload (arbitrary settings JSON), not entity references' }
+    ]
   },
   backupPolicy: {
     // PREFERENCES-only: key patterns EXCLUDED at restore so a backup from another

@@ -61,7 +61,28 @@ export const TAGS_GROUPS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       }
     ],
     fileRefSourcePolicies: [],
-    jsonSoftReferences: []
+    jsonSoftReferences: [],
+    // entity_tag / pin are polymorphic tables keyed by EntityType. This map routes
+    // each EntityType to the BackupDomain that owns its rows (or 'excluded' when out
+    // of backup scope), so finalize can verify every EntityType is routed (no silent
+    // drops). Compile-time exhaustive over the EntityType union.
+    polymorphicEntityMap: {
+      // assistant → ASSISTANTS: a tag/pin on an assistant points at assistant.id.
+      assistant: 'ASSISTANTS',
+      // topic → TOPICS: a tag/pin on a chat topic points at topic.id.
+      topic: 'TOPICS',
+      // model → PROVIDERS: a pin on a model points at a user_model, which is owned by
+      // the PROVIDERS domain. Model pinning is a core backup scenario (users pin their
+      // favourite models), so it is routed, not excluded.
+      model: 'PROVIDERS',
+      // agent → AGENTS: a tag/pin on an agent points at agent.id.
+      agent: 'AGENTS',
+      // knowledge → KNOWLEDGE: a tag/pin on a knowledge base points at knowledge_base.id.
+      knowledge: 'KNOWLEDGE',
+      // session → AGENTS: a tag/pin on an agent session points at agent_session.id,
+      // which is owned by the AGENTS domain.
+      session: 'AGENTS'
+    }
   },
   backupPolicy: {},
   // TODO(C/D track): selected-domain filtering for the polymorphic tables (codex

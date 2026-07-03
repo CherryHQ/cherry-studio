@@ -842,6 +842,59 @@ export const DB_UNIQUE_KEYS = {
   user_provider: []
 } as const satisfies Readonly<Record<DbTableName, readonly UniqueKeyFact[]>>
 
+// 3c-bis. JSON columns — every text({ mode: 'json' }) column, so finalize can verify
+//         exhaustive JSON soft-reference coverage (every JSON column is either a
+//         declared jsonSoftReference, an exemptJsonCol with reason, or a confirmed
+//         structural-only JSON with no soft refs). Detected via the runtime marker
+//         column.dataType === 'json' (getSQLType() returns 'text' regardless).
+export const DB_JSON_COLUMNS = {
+  agent: ['disabledTools', 'configuration'],
+  agent_channel: ['workspace', 'config', 'activeChatIds'],
+  agent_channel_task: [],
+  agent_global_skill: ['tags'],
+  agent_mcp_server: [],
+  agent_session: [],
+  agent_session_message: ['data', 'modelSnapshot', 'stats'],
+  agent_skill: [],
+  agent_workspace: [],
+  app_state: ['value'],
+  assistant: ['settings'],
+  assistant_knowledge_base: [],
+  assistant_mcp_server: [],
+  chat_message_file_ref: [],
+  entity_tag: [],
+  file_entry: [],
+  group: [],
+  job: ['input', 'output', 'error', 'metadata'],
+  job_schedule: ['trigger', 'jobInputTemplate', 'catchUpPolicy', 'metadata'],
+  knowledge_base: [],
+  knowledge_item: ['data'],
+  mcp_server: ['args', 'env', 'headers', 'tags', 'configSample', 'disabledTools', 'disabledAutoApproveTools'],
+  message: ['data', 'modelSnapshot', 'stats'],
+  mini_app: ['supportedRegions', 'configuration'],
+  note: [],
+  painting: [],
+  painting_file_ref: [],
+  pin: [],
+  preference: ['value'],
+  prompt: [],
+  tag: [],
+  topic: [],
+  translate_history: [],
+  translate_language: [],
+  user_model: [
+    'capabilities',
+    'inputModalities',
+    'outputModalities',
+    'endpointTypes',
+    'reasoning',
+    'parameters',
+    'pricing',
+    'userOverrides'
+  ],
+  user_provider: ['endpointConfigs', 'apiKeys', 'authConfig', 'apiFeatures', 'providerSettings']
+} as const satisfies Readonly<Record<DbTableName, readonly DbColumnName[]>>
+
 // 3d. FTS5 virtual tables (content-table mapping). Keys are the FTS virtual table
 //     names (not in DB_TABLES, in ALWAYS_STRIP); values are content tables (in
 //     DB_TABLES). Parsed from the *_FTS_STATEMENTS content= clauses.
