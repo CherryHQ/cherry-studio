@@ -19,6 +19,7 @@ import {
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, or } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -412,6 +413,66 @@ describe('ModelService.create', () => {
       providerId: 'openai',
       modelId: 'custom-gpt'
     })
+  })
+
+  it('infers image-generation capability for OVMS image models with no registry match', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow(SystemProviderIds.ovms, 'OpenVINO Model Server'))
+
+    const [created] = await modelService.create([
+      {
+        dto: {
+          providerId: SystemProviderIds.ovms,
+          modelId: 'stable-diffusion-v1-5-int8-ov',
+          name: 'stable-diffusion-v1-5-int8-ov'
+        }
+      }
+    ])
+
+    expect(created.capabilities).toEqual([MODEL_CAPABILITY.IMAGE_GENERATION])
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(
+        and(
+          eq(userModelTable.providerId, SystemProviderIds.ovms),
+          eq(userModelTable.modelId, 'stable-diffusion-v1-5-int8-ov')
+        )
+      )
+
+    expect(row.capabilities).toEqual([MODEL_CAPABILITY.IMAGE_GENERATION])
+  })
+
+  it('does not infer image-generation for non-image OVMS models', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow(SystemProviderIds.ovms, 'OpenVINO Model Server'))
+
+    const [created] = await modelService.create([
+      {
+        dto: {
+          providerId: SystemProviderIds.ovms,
+          modelId: 'Qwen3-4B-int4-ov',
+          name: 'Qwen3-4B-int4-ov'
+        }
+      }
+    ])
+
+    expect(created.capabilities).toEqual([])
+  })
+
+  it('does not auto-infer image-generation for non-OVMS custom models', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+
+    const [created] = await modelService.create([
+      {
+        dto: {
+          providerId: 'openai',
+          modelId: 'stable-diffusion-xl',
+          name: 'stable-diffusion-xl'
+        }
+      }
+    ])
+
+    expect(created.capabilities).toEqual([])
   })
 
   it('translates duplicate model create into a 409 conflict', async () => {

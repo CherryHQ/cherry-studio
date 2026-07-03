@@ -3,15 +3,8 @@ import { promisify } from 'node:util'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import {
-  BaseService,
-  Conditional,
-  Injectable,
-  onCpuVendor,
-  onPlatform,
-  Phase,
-  ServicePhase
-} from '@main/core/lifecycle'
+import { BaseService, Conditional, Injectable, onPlatform, Phase, ServicePhase } from '@main/core/lifecycle'
+import { hasIntelGpu } from '@main/utils/system'
 import { IpcChannel } from '@shared/IpcChannel'
 import * as fs from 'fs-extra'
 import * as path from 'path'
@@ -37,11 +30,19 @@ interface OvmsConfig {
 
 @Injectable('OvmsManager')
 @ServicePhase(Phase.WhenReady)
-@Conditional(onPlatform('win32'), onCpuVendor('intel'))
+@Conditional(onPlatform('win32'))
 export class OvmsManager extends BaseService {
   private ovms: OvmsProcess | null = null
 
   protected async onInit() {
+    // OVMS requires an Intel GPU. The platform gate is handled by @Conditional;
+    // the GPU check is async (app.getGPUInfo), so it lives here rather than in the
+    // synchronous condition system. On non-Intel Windows the service registers but
+    // stays inert — no IPC handlers, so its operations are unreachable.
+    if (!(await hasIntelGpu())) {
+      logger.info('No Intel GPU detected; OVMS handlers not registered')
+      return
+    }
     this.registerIpcHandlers()
   }
 
@@ -397,6 +398,7 @@ export class OvmsManager extends BaseService {
 
       if (modelSource) {
         env.HF_ENDPOINT = modelSource
+        logger.info(`Set HF_ENDPOINT to ${modelSource}`)
       }
 
       logger.info(`Running command: ${command} from ${modelSource}`)

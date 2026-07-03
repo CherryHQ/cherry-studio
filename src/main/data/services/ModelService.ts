@@ -34,6 +34,8 @@ import type {
 } from '@shared/data/types/model'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { ReasoningFormatType } from '@shared/data/types/provider'
+import { inferImageGenerationFromModelId } from '@shared/utils/model'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
@@ -287,6 +289,29 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
   }
 }
 
+/**
+ * OVMS models are served dynamically and have no registry preset, so their
+ * capabilities can't be merged in from the registry — and the model editor
+ * exposes no image-generation toggle for users to set it manually. Infer it
+ * from the model id (e.g. `stable-diffusion-*`, `flux-*`) so OVMS image models
+ * surface in the painting model selector, which filters on this capability.
+ * Only fills capabilities the DTO left empty; never overrides explicit ones.
+ */
+function inferCustomModelCapabilities(
+  providerId: string,
+  modelId: string,
+  dtoCapabilities: ModelCapability[] | undefined
+): ModelCapability[] {
+  const capabilities = dtoCapabilities ?? []
+  if (capabilities.length > 0) {
+    return capabilities
+  }
+  if (providerId === SystemProviderIds.ovms && inferImageGenerationFromModelId(modelId)) {
+    return [MODEL_CAPABILITY.IMAGE_GENERATION]
+  }
+  return capabilities
+}
+
 /** Convert a merged Model back to an InsertUserModelRow for DB insert. */
 function mergedModelToNewUserModel(
   providerId: string,
@@ -369,7 +394,11 @@ class ModelService {
       return mergedModelToNewUserModel(dto.providerId, dto.modelId, presetModel.id, merged)
     }
 
-    return { ...dtoValues, presetModelId: dto.presetModelId ?? null }
+    return {
+      ...dtoValues,
+      capabilities: inferCustomModelCapabilities(dto.providerId, dto.modelId, dtoValues.capabilities),
+      presetModelId: dto.presetModelId ?? null
+    }
   }
 
   private filterReconcileRemovals(providerId: string, toRemove: string[], db: DbType): ReconcileRemovalFilterResult {
