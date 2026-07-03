@@ -169,7 +169,7 @@ export default function HealthCheckDrawer({
           {isChecking ? (
             <div className="px-4 pt-3 pb-2">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <span className="font-medium text-[13px] text-foreground/85">
+                <span className="text-(length:--font-size-body-sm) font-medium text-foreground/85">
                   {t('settings.models.check.pipeline_heading')}
                 </span>
                 <span className={drawerClasses.healthProgressMeta}>
@@ -242,7 +242,7 @@ export default function HealthCheckDrawer({
                   rightCell = (
                     <Tooltip
                       content={
-                        <span className="block max-w-full whitespace-pre-wrap text-left text-[12px] leading-snug">
+                        <span className="text-(length:--font-size-body-xs) block max-w-full whitespace-pre-wrap text-left leading-snug">
                           {skipReasonText}
                         </span>
                       }
@@ -250,7 +250,7 @@ export default function HealthCheckDrawer({
                       classNames={{
                         placeholder: 'block min-w-0 w-full max-w-full overflow-hidden'
                       }}>
-                      <span className="block w-full min-w-0 cursor-default truncate text-end text-[12px] text-muted-foreground/80">
+                      <span className="text-(length:--font-size-body-xs) block w-full min-w-0 cursor-default truncate text-end text-muted-foreground/80">
                         {t('settings.models.check.status_skipped')}
                       </span>
                     </Tooltip>
@@ -258,7 +258,7 @@ export default function HealthCheckDrawer({
                 } else if (checking) {
                   statusCell = <Loader2 className="size-4 shrink-0 animate-spin text-warning" aria-hidden />
                   rightCell = (
-                    <span className="shrink-0 font-medium text-[12px] text-warning">
+                    <span className="text-(length:--font-size-body-xs) shrink-0 font-medium text-warning">
                       {t('settings.models.check.status_checking')}
                     </span>
                   )
@@ -266,16 +266,16 @@ export default function HealthCheckDrawer({
                   statusCell = (
                     <span className="mx-auto block size-1.5 shrink-0 rounded-full bg-muted-foreground/35" aria-hidden />
                   )
-                  rightCell = <span className="shrink-0 text-[12px] text-muted-foreground/50" />
+                  rightCell = <span className="text-(length:--font-size-body-xs) shrink-0 text-muted-foreground/50" />
                 } else if (status === HealthStatus.SUCCESS) {
                   statusCell = <CheckCircle2 className="size-4 shrink-0 text-muted-foreground/70" aria-hidden />
                   rightCell =
                     latency != null ? (
-                      <span className="shrink-0 text-[12px] text-muted-foreground/80 tabular-nums">
+                      <span className="text-(length:--font-size-body-xs) shrink-0 text-muted-foreground/80 tabular-nums">
                         {Math.round(latency)}ms
                       </span>
                     ) : (
-                      <span className="shrink-0 text-[12px] text-muted-foreground/80">
+                      <span className="text-(length:--font-size-body-xs) shrink-0 text-muted-foreground/80">
                         {t('settings.models.check.passed')}
                       </span>
                     )
@@ -286,7 +286,7 @@ export default function HealthCheckDrawer({
                     errText !== '' ? (
                       <Tooltip
                         content={
-                          <span className="block max-w-full whitespace-pre-wrap break-all text-left text-[12px] leading-snug">
+                          <span className="text-(length:--font-size-body-xs) block max-w-full whitespace-pre-wrap break-all text-left leading-snug">
                             {errText}
                           </span>
                         }
@@ -294,12 +294,12 @@ export default function HealthCheckDrawer({
                         classNames={{
                           placeholder: 'block min-w-0 w-full max-w-full overflow-hidden'
                         }}>
-                        <span className="block w-full min-w-0 cursor-default truncate text-end text-[12px] text-destructive/85">
+                        <span className="text-(length:--font-size-body-xs) block w-full min-w-0 cursor-default truncate text-end text-destructive/85">
                           {errText}
                         </span>
                       </Tooltip>
                     ) : (
-                      <span className="shrink-0 text-[12px] text-destructive/85">
+                      <span className="text-(length:--font-size-body-xs) shrink-0 text-destructive/85">
                         {t('settings.models.check.failed')}
                       </span>
                     )
@@ -316,11 +316,11 @@ export default function HealthCheckDrawer({
                     {Icon ? (
                       <Icon.Avatar size={22} />
                     ) : (
-                      <Avatar className="size-5.5 shrink-0 rounded-md text-[10px]">
+                      <Avatar className="text-(length:--font-size-body-2xs) size-5.5 shrink-0 rounded-md">
                         <AvatarFallback className="rounded-md">{model.name?.[0]?.toUpperCase()}</AvatarFallback>
                       </Avatar>
                     )}
-                    <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-foreground/85">
+                    <span className="text-(length:--font-size-body-sm) min-w-0 flex-1 truncate font-mono text-foreground/85">
                       {model.name}
                     </span>
                     <div
@@ -388,7 +388,7 @@ export default function HealthCheckDrawer({
 
           {keyCheckMode === 'single' && hasMultipleKeys ? (
             <div className="space-y-3 rounded-xl border border-border-muted bg-muted/20 p-4">
-              <div className="font-medium text-[13px] text-foreground/85">
+              <div className="text-(length:--font-size-body-sm) font-medium text-foreground/85">
                 {t('settings.models.check.select_api_key')}
               </div>
               <RadioGroup
@@ -399,7 +399,9 @@ export default function HealthCheckDrawer({
                     key={`${key}-${index}`}
                     className="flex cursor-pointer items-center gap-3 rounded-lg border border-transparent px-2 py-1.5 hover:bg-accent/30">
                     <RadioGroupItem value={String(index)} size="sm" />
-                    <span className="truncate font-mono text-[12px] text-foreground/70">{maskApiKey(key)}</span>
+                    <span className="text-(length:--font-size-body-xs) truncate font-mono text-foreground/70">
+                      {maskApiKey(key)}
+                    </span>
                   </label>
                 ))}
               </RadioGroup>

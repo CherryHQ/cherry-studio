@@ -14,6 +14,7 @@ interface ModelBasicFieldsProps {
   modelIdDisabled?: boolean
   modelIdAction?: ReactNode
   endpointTypeError?: string
+  horizontal?: boolean
   onModelIdChange: (value: string) => void
   onNameChange: (value: string) => void
   onGroupChange: (value: string) => void
@@ -26,6 +27,7 @@ export function ModelBasicFields({
   modelIdDisabled = false,
   modelIdAction,
   endpointTypeError,
+  horizontal = false,
   onModelIdChange,
   onNameChange,
   onGroupChange,
@@ -38,8 +40,10 @@ export function ModelBasicFields({
       <ProviderField
         title={t('settings.models.add.model_id.label')}
         titleClassName={drawerClasses.fieldTitle}
-        className={drawerClasses.field}>
-        <div className={drawerClasses.valueRow}>
+        className={drawerClasses.field}
+        horizontal={horizontal}
+        controlClassName={horizontal ? 'w-60' : undefined}>
+        <div className={cn(drawerClasses.valueRow, horizontal && 'w-full')}>
           <Input
             required
             spellCheck={false}
@@ -58,7 +62,9 @@ export function ModelBasicFields({
       <ProviderField
         title={t('settings.models.add.model_name.label')}
         titleClassName={drawerClasses.fieldTitle}
-        className={drawerClasses.field}>
+        className={drawerClasses.field}
+        horizontal={horizontal}
+        controlClassName={horizontal ? 'w-60' : undefined}>
         <Input
           spellCheck={false}
           aria-label={t('settings.models.add.model_name.label')}
@@ -72,7 +78,9 @@ export function ModelBasicFields({
       <ProviderField
         title={t('settings.models.add.group_name.label')}
         titleClassName={drawerClasses.fieldTitle}
-        className={drawerClasses.field}>
+        className={drawerClasses.field}
+        horizontal={horizontal}
+        controlClassName={horizontal ? 'w-60' : undefined}>
         <Input
           spellCheck={false}
           aria-label={t('settings.models.add.group_name.label')}
@@ -88,6 +96,8 @@ export function ModelBasicFields({
           title={t('settings.models.add.endpoint_type.label')}
           titleClassName={drawerClasses.fieldTitle}
           className={drawerClasses.field}
+          horizontal={horizontal}
+          controlClassName={horizontal ? 'w-60' : undefined}
           help={endpointTypeError ? <div className={drawerClasses.errorText}>{endpointTypeError}</div> : null}>
           <div data-testid="provider-settings-model-endpoint-type-field">
             <ModelEndpointTypeChips value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />

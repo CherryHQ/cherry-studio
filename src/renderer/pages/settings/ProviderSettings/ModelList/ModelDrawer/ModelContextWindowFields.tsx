@@ -26,8 +26,10 @@ export function ModelContextWindowFields({
     <>
       <ProviderField
         title={t('settings.models.add.context_window.label')}
+        horizontal
+        className={drawerClasses.field}
         titleClassName={drawerClasses.fieldTitle}
-        className={drawerClasses.field}>
+        controlClassName="w-32">
         <Input
           type="number"
           min={1}
@@ -43,8 +45,10 @@ export function ModelContextWindowFields({
 
       <ProviderField
         title={t('settings.models.add.max_input_tokens.label')}
+        horizontal
+        className={drawerClasses.field}
         titleClassName={drawerClasses.fieldTitle}
-        className={drawerClasses.field}>
+        controlClassName="w-32">
         <Input
           type="number"
           min={1}
@@ -60,8 +64,10 @@ export function ModelContextWindowFields({
 
       <ProviderField
         title={t('settings.models.add.max_output_tokens.label')}
+        horizontal
+        className={drawerClasses.field}
         titleClassName={drawerClasses.fieldTitle}
-        className={drawerClasses.field}>
+        controlClassName="w-32">
         <Input
           type="number"
           min={1}

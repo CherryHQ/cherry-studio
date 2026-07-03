@@ -131,32 +131,32 @@ describe('ModelListSyncDrawer', () => {
     expect(searchInput).toBeInTheDocument()
     expect(screen.getByTestId('drawer-content')).toHaveClass('w-[min(calc(100vw-24px),520px)]')
     expect(screen.getByTestId('drawer-body')).toHaveClass('pt-0')
-    expect(screen.getByText('GPT 5')).toBeInTheDocument()
-    expect(screen.getByText('Claude Sonnet')).toBeInTheDocument()
-    expect(screen.getByText('Mistral Large')).toBeInTheDocument()
-    expect(screen.getByText('Legacy Model')).toBeInTheDocument()
+    expect(screen.getByText('gpt-5')).toBeInTheDocument()
+    expect(screen.getByText('claude-sonnet')).toBeInTheDocument()
+    expect(screen.getByText('mistral-large')).toBeInTheDocument()
+    expect(screen.getByText('legacy-model')).toBeInTheDocument()
 
     fireEvent.change(searchInput, { target: { value: 'claude' } })
 
-    expect(screen.queryByText('GPT 5')).not.toBeInTheDocument()
-    expect(screen.getByText('Claude Sonnet')).toBeInTheDocument()
-    expect(screen.queryByText('Mistral Large')).not.toBeInTheDocument()
-    expect(screen.queryByText('Legacy Model')).not.toBeInTheDocument()
+    expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()
+    expect(screen.getByText('claude-sonnet')).toBeInTheDocument()
+    expect(screen.queryByText('mistral-large')).not.toBeInTheDocument()
+    expect(screen.queryByText('legacy-model')).not.toBeInTheDocument()
   })
 
   it('clears pull-result search and restores rows', () => {
     render(<ModelListSyncDrawer open preview={preview} isApplying={false} onApply={vi.fn()} onClose={vi.fn()} />)
 
     fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'legacy-model' } })
-    expect(screen.getByText('Legacy Model')).toBeInTheDocument()
-    expect(screen.queryByText('GPT 5')).not.toBeInTheDocument()
+    expect(screen.getByText('legacy-model')).toBeInTheDocument()
+    expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.clear' }))
 
     expect(screen.getByPlaceholderText('models.search.placeholder')).toHaveValue('')
-    expect(screen.getByText('GPT 5')).toBeInTheDocument()
-    expect(screen.getByText('Claude Sonnet')).toBeInTheDocument()
-    expect(screen.getByText('Mistral Large')).toBeInTheDocument()
+    expect(screen.getByText('gpt-5')).toBeInTheDocument()
+    expect(screen.getByText('claude-sonnet')).toBeInTheDocument()
+    expect(screen.getByText('mistral-large')).toBeInTheDocument()
   })
 
   it('selects only visible added rows while preserving hidden selections', async () => {
@@ -170,7 +170,7 @@ describe('ModelListSyncDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.fetch_deselect_all_add' }))
     expect(screen.getByText('settings.models.manage.fetch_summary_add:0/3')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('GPT 5'))
+    fireEvent.click(screen.getByText('gpt-5'))
     expect(screen.getByText('settings.models.manage.fetch_summary_add:1/3')).toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'claude' } })
