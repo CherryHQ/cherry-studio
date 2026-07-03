@@ -1,4 +1,4 @@
-import { Button, ButtonGroup, Flex, InfoTooltip, Input, Label, Tooltip } from '@cherrystudio/ui'
+import { Button, Flex, InfoTooltip, Input, Label, Tooltip } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { WebSearchBasicAuthPatch } from '@renderer/hooks/useWebSearch'
 import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@renderer/utils/api'
@@ -23,7 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  SettingDivider,
+  SettingCard,
   SettingGroup,
   SettingHelpLink,
   SettingHelpText,
@@ -296,7 +296,9 @@ export const WebSearchProviderSetting: FC<Props> = ({
           <div className="min-w-0">
             <SettingTitle>
               <Flex className="min-w-0 items-center gap-2.5">
-                <span className="truncate font-semibold text-[17px] text-foreground">{provider.name}</span>
+                <span className="text-(length:--font-size-body-md) truncate font-semibold text-foreground">
+                  {provider.name}
+                </span>
                 {officialWebsite && (
                   <SettingTitleExternalLink href={officialWebsite}>
                     <ExternalLink size={13} />
@@ -320,135 +322,146 @@ export const WebSearchProviderSetting: FC<Props> = ({
             {isDefault ? t('settings.tool.websearch.is_default') : t('settings.tool.websearch.set_as_default')}
           </Button>
         </div>
-        <SettingDivider style={{ width: '100%', margin: '8px 0 12px' }} />
-
-        <div className={providerFormClassName}>
-          {usesLlmProviderApiKey && (
-            <div className={providerFieldClassName}>
-              <SettingSubtitle>{t('settings.provider.api_key.label')}</SettingSubtitle>
-              <Button variant="outline" size="sm" className="w-fit" onClick={openLlmProviderSettings}>
-                <ExternalLink size={14} />
-                {t('navigate.provider_settings')}
-              </Button>
-            </div>
-          )}
-
-          {showApiKeySettings && !usesLlmProviderApiKey && (
-            <div className={providerFieldClassName}>
-              <div className={providerFieldHeaderClassName}>
-                <SettingSubtitle>{t('settings.provider.api_key.label')}</SettingSubtitle>
-                <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-icon hover:text-foreground"
-                    aria-label={t('settings.provider.api.key.list.open')}
-                    onClick={openApiKeyList}>
-                    <List size={14} />
+        {(usesLlmProviderApiKey || showApiKeySettings || showApiHostSetting || supportsBasicAuth) && (
+          <SettingCard>
+            <div className={providerFormClassName}>
+              {usesLlmProviderApiKey && (
+                <div className={providerFieldClassName}>
+                  <SettingSubtitle>{t('settings.provider.api_key.label')}</SettingSubtitle>
+                  <Button variant="outline" size="sm" className="w-fit" onClick={openLlmProviderSettings}>
+                    <ExternalLink size={14} />
+                    {t('navigate.provider_settings')}
                   </Button>
-                </Tooltip>
-              </div>
-              <ButtonGroup className="w-full">
-                <Input
-                  type="password"
-                  value={apiKeysInput}
-                  placeholder={t('settings.provider.api_key.label')}
-                  onChange={(e) => setApiKeysInput(e.target.value)}
-                  onBlur={() => void persist(commitApiKeysDraft, 'Failed to save web search API keys')}
-                  spellCheck={false}
-                  autoFocus={provider.apiKeys.length === 0}
-                  className="min-w-0 flex-1"
-                />
-                <Button
-                  variant="outline"
-                  className="h-9 shrink-0 px-3 shadow-none"
-                  disabled={providerCheck.checking}
-                  onClick={() => void checkProvider()}>
-                  {t('settings.tool.websearch.check')}
-                </Button>
-              </ButtonGroup>
-              {apiKeyWebsite && (
-                <SettingHelpTextRow className={providerHelpRowClassName}>
-                  <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-                    {t('settings.provider.get_api_key')}
-                  </SettingHelpLink>
-                </SettingHelpTextRow>
+                </div>
+              )}
+
+              {showApiKeySettings && !usesLlmProviderApiKey && (
+                <div className={providerFieldClassName}>
+                  <div className={providerFieldHeaderClassName}>
+                    <SettingSubtitle>{t('settings.provider.api_key.label')}</SettingSubtitle>
+                    <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-foreground/80 hover:text-foreground [&_svg]:[stroke-width:1.6]"
+                        aria-label={t('settings.provider.api.key.list.open')}
+                        onClick={openApiKeyList}>
+                        <List size={14} />
+                      </Button>
+                    </Tooltip>
+                  </div>
+                  <div className="flex w-full min-w-0 items-center gap-1.25">
+                    <Input
+                      type="password"
+                      value={apiKeysInput}
+                      placeholder={t('settings.provider.api_key.label')}
+                      onChange={(e) => setApiKeysInput(e.target.value)}
+                      onBlur={() => void persist(commitApiKeysDraft, 'Failed to save web search API keys')}
+                      spellCheck={false}
+                      autoFocus={provider.apiKeys.length === 0}
+                      className="min-w-0 flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      className="h-8 shrink-0 rounded-lg"
+                      disabled={providerCheck.checking}
+                      onClick={() => void checkProvider()}>
+                      {t('settings.tool.websearch.check')}
+                    </Button>
+                  </div>
+                  {apiKeyWebsite && (
+                    <SettingHelpTextRow className={providerHelpRowClassName}>
+                      <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                        {t('settings.provider.get_api_key')}
+                      </SettingHelpLink>
+                    </SettingHelpTextRow>
+                  )}
+                </div>
+              )}
+
+              {showApiHostSetting && (
+                <div className={providerFieldClassName}>
+                  <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
+                  <div className="flex w-full min-w-0 items-center gap-1.25">
+                    <Input
+                      value={apiHostInput}
+                      placeholder={t('settings.provider.api_host')}
+                      onChange={(e) => setApiHostInput(e.target.value)}
+                      onBlur={() => void persist(commitApiHostDraft, 'Failed to save web search API host')}
+                      className="min-w-0 flex-1"
+                    />
+                    {showApiHostCheckButton && (
+                      <Button
+                        variant="outline"
+                        className="h-8 shrink-0 rounded-lg"
+                        disabled={providerCheck.checking}
+                        onClick={() => void checkProvider()}>
+                        {t('settings.tool.websearch.check')}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {supportsBasicAuth && (
+                <>
+                  <SettingSubtitle
+                    style={{
+                      marginTop: 5,
+                      marginBottom: 10,
+                      display: 'flex',
+                      flexDirection: 'row',
+                      alignItems: 'center'
+                    }}>
+                    {t('settings.provider.basic_auth.label')}
+                    <InfoTooltip
+                      placement="right"
+                      content={t('settings.provider.basic_auth.tip')}
+                      iconProps={{
+                        size: 16,
+                        color: 'var(--color-icon)',
+                        className: 'ml-1 cursor-pointer'
+                      }}
+                    />
+                  </SettingSubtitle>
+                  <div className="flex w-full flex-col gap-4">
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="websearch-basic-auth-username">
+                        {t('settings.provider.basic_auth.user_name.label')}
+                      </Label>
+                      <Input
+                        id="websearch-basic-auth-username"
+                        value={basicAuthUsernameInput}
+                        placeholder={t('settings.provider.basic_auth.user_name.tip')}
+                        onChange={(e) => setBasicAuthUsernameDraft(e.target.value)}
+                        onBlur={() =>
+                          void persist(commitBasicAuthDraft, 'Failed to save web search basic auth username')
+                        }
+                      />
+                    </div>
+                    {basicAuthUsernameInput && (
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="websearch-basic-auth-password">
+                          {t('settings.provider.basic_auth.password.label')}
+                        </Label>
+                        <Input
+                          id="websearch-basic-auth-password"
+                          type="password"
+                          value={basicAuthPasswordInput}
+                          placeholder={t('settings.provider.basic_auth.password.tip')}
+                          onChange={(e) => setBasicAuthPasswordInput(e.target.value)}
+                          onBlur={() =>
+                            void persist(commitBasicAuthDraft, 'Failed to save web search basic auth password')
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
-          )}
-
-          {showApiHostSetting && (
-            <div className={providerFieldClassName}>
-              <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
-              <ButtonGroup className="w-full">
-                <Input
-                  value={apiHostInput}
-                  placeholder={t('settings.provider.api_host')}
-                  onChange={(e) => setApiHostInput(e.target.value)}
-                  onBlur={() => void persist(commitApiHostDraft, 'Failed to save web search API host')}
-                  className="min-w-0 flex-1"
-                />
-                {showApiHostCheckButton && (
-                  <Button
-                    variant="outline"
-                    className="h-9 shrink-0 px-3 shadow-none"
-                    disabled={providerCheck.checking}
-                    onClick={() => void checkProvider()}>
-                    {t('settings.tool.websearch.check')}
-                  </Button>
-                )}
-              </ButtonGroup>
-            </div>
-          )}
-
-          {supportsBasicAuth && (
-            <>
-              <SettingDivider style={{ marginTop: 0, marginBottom: 0 }} />
-              <SettingSubtitle
-                style={{ marginTop: 5, marginBottom: 10, display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
-                {t('settings.provider.basic_auth.label')}
-                <InfoTooltip
-                  placement="right"
-                  content={t('settings.provider.basic_auth.tip')}
-                  iconProps={{
-                    size: 16,
-                    color: 'var(--color-icon)',
-                    className: 'ml-1 cursor-pointer'
-                  }}
-                />
-              </SettingSubtitle>
-              <div className="flex w-full flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="websearch-basic-auth-username">
-                    {t('settings.provider.basic_auth.user_name.label')}
-                  </Label>
-                  <Input
-                    id="websearch-basic-auth-username"
-                    value={basicAuthUsernameInput}
-                    placeholder={t('settings.provider.basic_auth.user_name.tip')}
-                    onChange={(e) => setBasicAuthUsernameDraft(e.target.value)}
-                    onBlur={() => void persist(commitBasicAuthDraft, 'Failed to save web search basic auth username')}
-                  />
-                </div>
-                {basicAuthUsernameInput && (
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="websearch-basic-auth-password">
-                      {t('settings.provider.basic_auth.password.label')}
-                    </Label>
-                    <Input
-                      id="websearch-basic-auth-password"
-                      type="password"
-                      value={basicAuthPasswordInput}
-                      placeholder={t('settings.provider.basic_auth.password.tip')}
-                      onChange={(e) => setBasicAuthPasswordInput(e.target.value)}
-                      onBlur={() => void persist(commitBasicAuthDraft, 'Failed to save web search basic auth password')}
-                    />
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+          </SettingCard>
+        )}
       </SettingGroup>
     </SettingsContentColumn>
   )

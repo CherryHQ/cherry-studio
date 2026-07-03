@@ -13,7 +13,7 @@ import { FolderOpen, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { SettingCard, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const MarkdownExportSettings: FC = () => {
   const { t } = useTranslation()
@@ -75,85 +75,73 @@ const MarkdownExportSettings: FC = () => {
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.markdown_export.title')}</SettingTitle>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.markdown_export.path')}</SettingRowTitle>
-        <RowFlex className="w-78.75 items-center gap-1.25">
-          <InputGroup className="h-8 w-62.5">
-            <InputGroupInput
-              type="text"
-              value={markdownExportPath || ''}
-              readOnly
-              placeholder={t('settings.data.markdown_export.path_placeholder')}
-            />
-            {markdownExportPath && (
-              <InputGroupAddon align="inline-end">
-                <InputGroupButton
-                  onClick={handleClearPath}
-                  size="icon-sm"
-                  className="text-destructive hover:text-destructive">
-                  <Trash2 size={14} />
-                </InputGroupButton>
-              </InputGroupAddon>
-            )}
-          </InputGroup>
-          <Button onClick={handleSelectFolder} variant="outline" className="h-8">
-            <FolderOpen size={14} />
-            {t('settings.data.markdown_export.select')}
-          </Button>
-        </RowFlex>
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.markdown_export.help')}</SettingHelpText>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.markdown_export.force_dollar_math.title')}</SettingRowTitle>
-        <Switch checked={forceDollarMathInMarkdown} onCheckedChange={handleToggleForceDollarMath} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.markdown_export.force_dollar_math.help')}</SettingHelpText>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.message_title.use_topic_naming.title')}</SettingRowTitle>
-        <Switch checked={useTopicNamingForMessageTitle} onCheckedChange={handleToggleTopicNaming} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.message_title.use_topic_naming.help')}</SettingHelpText>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.markdown_export.show_model_name.title')}</SettingRowTitle>
-        <Switch checked={showModelNameInExport} onCheckedChange={handleToggleShowModelName} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.markdown_export.show_model_name.help')}</SettingHelpText>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.markdown_export.show_model_provider.title')}</SettingRowTitle>
-        <Switch checked={showModelProviderInMarkdown} onCheckedChange={handleToggleShowModelProvider} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.markdown_export.show_model_provider.help')}</SettingHelpText>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.markdown_export.exclude_citations.title')}</SettingRowTitle>
-        <Switch checked={excludeCitationsInExport} onCheckedChange={handleToggleExcludeCitations} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.markdown_export.exclude_citations.help')}</SettingHelpText>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.markdown_export.standardize_citations.title')}</SettingRowTitle>
-        <Switch checked={standardizeCitationsInExport} onCheckedChange={handleToggleStandardizeCitations} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.markdown_export.standardize_citations.help')}</SettingHelpText>
-      </SettingRow>
+      <SettingCard>
+        <SettingRow>
+          <SettingRowTitle tip={t('settings.data.markdown_export.help')}>
+            {t('settings.data.markdown_export.path')}
+          </SettingRowTitle>
+          <RowFlex className="min-w-0 max-w-78.75 flex-1 items-center justify-end gap-1.25">
+            <InputGroup className="h-8 min-w-0 flex-1">
+              <InputGroupInput
+                type="text"
+                value={markdownExportPath || ''}
+                readOnly
+                placeholder={t('settings.data.markdown_export.path_placeholder')}
+              />
+              {markdownExportPath && (
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    onClick={handleClearPath}
+                    size="icon-sm"
+                    className="text-destructive hover:text-destructive">
+                    <Trash2 size={14} />
+                  </InputGroupButton>
+                </InputGroupAddon>
+              )}
+            </InputGroup>
+            <Button onClick={handleSelectFolder} variant="outline" className="h-8">
+              <FolderOpen size={14} />
+              {t('settings.data.markdown_export.select')}
+            </Button>
+          </RowFlex>
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle tip={t('settings.data.markdown_export.force_dollar_math.help')}>
+            {t('settings.data.markdown_export.force_dollar_math.title')}
+          </SettingRowTitle>
+          <Switch checked={forceDollarMathInMarkdown} onCheckedChange={handleToggleForceDollarMath} />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle tip={t('settings.data.message_title.use_topic_naming.help')}>
+            {t('settings.data.message_title.use_topic_naming.title')}
+          </SettingRowTitle>
+          <Switch checked={useTopicNamingForMessageTitle} onCheckedChange={handleToggleTopicNaming} />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle tip={t('settings.data.markdown_export.show_model_name.help')}>
+            {t('settings.data.markdown_export.show_model_name.title')}
+          </SettingRowTitle>
+          <Switch checked={showModelNameInExport} onCheckedChange={handleToggleShowModelName} />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle tip={t('settings.data.markdown_export.show_model_provider.help')}>
+            {t('settings.data.markdown_export.show_model_provider.title')}
+          </SettingRowTitle>
+          <Switch checked={showModelProviderInMarkdown} onCheckedChange={handleToggleShowModelProvider} />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle tip={t('settings.data.markdown_export.exclude_citations.help')}>
+            {t('settings.data.markdown_export.exclude_citations.title')}
+          </SettingRowTitle>
+          <Switch checked={excludeCitationsInExport} onCheckedChange={handleToggleExcludeCitations} />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle tip={t('settings.data.markdown_export.standardize_citations.help')}>
+            {t('settings.data.markdown_export.standardize_citations.title')}
+          </SettingRowTitle>
+          <Switch checked={standardizeCitationsInExport} onCheckedChange={handleToggleStandardizeCitations} />
+        </SettingRow>
+      </SettingCard>
     </SettingGroup>
   )
 }
