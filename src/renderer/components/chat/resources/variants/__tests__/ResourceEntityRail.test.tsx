@@ -75,7 +75,8 @@ vi.mock('@renderer/components/VirtualList', () => {
     renderItem,
     role,
     scrollerProps,
-    scrollElementRef
+    scrollElementRef,
+    dragCapabilities
   }) => {
     const rows = buildGroupedVirtualRows(groups, Boolean(renderGroupHeader), Boolean(renderGroupFooter))
 
@@ -93,6 +94,7 @@ vi.mock('@renderer/components/VirtualList', () => {
         role={role}
         className={className}
         data-draggable={dragEnabled ? 'true' : 'false'}
+        data-drag-capabilities={JSON.stringify(dragCapabilities ?? null)}
         {...scrollerProps}>
         {rows.map((row, index) => {
           if (row.type === 'group-header') {
@@ -380,7 +382,14 @@ describe('ResourceEntityRail', () => {
     // The flat default "Assistants" header never appears while grouping by tag.
     expect(screen.queryByText('Assistants')).not.toBeInTheDocument()
     expect(screen.getByTestId('work-a-icon')).toBeInTheDocument()
-    expect(screen.getByRole('listbox', { name: 'Assistants list' })).toHaveAttribute('data-draggable', 'false')
+    const listbox = screen.getByRole('listbox', { name: 'Assistants list' })
+    expect(listbox).toHaveAttribute('data-draggable', 'true')
+    expect(JSON.parse(listbox.getAttribute('data-drag-capabilities') ?? '{}')).toMatchObject({
+      groups: false,
+      items: true,
+      itemSameGroup: true,
+      itemCrossGroup: false
+    })
   })
 
   it('renders tag section headers with the shared hover and collapse affordance', () => {

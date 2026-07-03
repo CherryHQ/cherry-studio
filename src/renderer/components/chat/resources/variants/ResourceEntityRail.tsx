@@ -70,8 +70,8 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   defaultGroupLabel?: string
   /**
    * Group the non-pinned entities by their `tag` into collapsible sections (the pinned section stays
-   * on top). Drag-reorder is disabled while on, since `orderKey` is a single flat order. Off → the
-   * flat "助手"/"智能体" section.
+   * on top). Drag-reorder still updates the flat orderKey; it does not change the entity tag.
+   * Off → the flat "助手"/"智能体" section.
    */
   groupByTag?: boolean
   emptyFallback?: ReactNode
@@ -136,9 +136,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   items
 }: ResourceEntityRailProps<T, TActionContext>) {
   const { t } = useTranslation()
-  // Tag grouping splits the flat order across sections, so dragging an item between tags would have
-  // no meaningful `orderKey` target — disable reorder entirely while grouping by tag.
-  const reorderEnabled = !!onReorder && !groupByTag
+  const reorderEnabled = !!onReorder
   const fallbackListRef = useRef<HTMLDivElement>(null)
   const effectiveListRef = listRef ?? fallbackListRef
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
@@ -285,8 +283,11 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         itemCrossGroup: false
       }}
       canDragItem={({ item }) => reorderEnabled && !item.pinned}
-      canDropItem={({ activeItem, targetGroupId }) =>
-        reorderEnabled && !activeItem.pinned && targetGroupId !== ENTITY_RAIL_PINNED_GROUP_ID
+      canDropItem={({ activeItem, sourceGroupId, targetGroupId }) =>
+        reorderEnabled &&
+        !activeItem.pinned &&
+        targetGroupId !== ENTITY_RAIL_PINNED_GROUP_ID &&
+        sourceGroupId === targetGroupId
       }
       onReorder={reorderEnabled ? onReorder : undefined}>
       <ResourceList.Frame className="h-full min-h-0" data-testid={`${variant}-entity-rail`}>

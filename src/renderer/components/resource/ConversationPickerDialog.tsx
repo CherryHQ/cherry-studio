@@ -134,7 +134,7 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
               {/* Pinned at the top, but hidden while searching so the query's first match keeps the
                   default keyboard highlight instead of this row. */}
               {createAction && !query.trim() ? (
-                <CommandGroup className="px-0 py-0 **:[[cmdk-group-items]]:space-y-1">
+                <CommandGroup className="px-0 py-0 [&_[cmdk-group-items]]:space-y-1">
                   <CommandItem
                     value="__conversation_picker_create_new__"
                     className="group h-9 cursor-pointer gap-2.5 rounded-md px-2.5"
