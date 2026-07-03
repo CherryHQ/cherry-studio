@@ -2,7 +2,7 @@
 title: Soul Mode (Autonomous Mode) toggle removed — always on for all agents
 category: removed
 severity: notice
-introduced_in_pr: 2ff0a021be
+introduced_in_pr: #16726
 date: 2026-07-03
 ---
 
@@ -32,9 +32,9 @@ autonomy tools can restrict individual tools via the agent's tool settings.
 
 ## Notes for release manager
 
-- Spans commits `2ff0a021be` (unconditional soul-mode behavior in main),
-  `05c8ee2007` (renderer/schema flag removal), and `36fee3ac4e` (CherryClaw
-  branding removal).
+- Spans the four commits of PR #16726: unconditional soul-mode behavior in
+  main, renderer/schema flag removal, CherryClaw branding removal, and the
+  i18n cleanup.
 - Related earlier entry: `2026-06-18-agent-create-defaults-bypass-soul.md` —
   the create-flow default it describes is superseded for the soul half
   (`soul_enabled` no longer exists); merge when aggregating.
