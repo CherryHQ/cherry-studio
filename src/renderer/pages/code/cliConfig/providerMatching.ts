@@ -24,13 +24,18 @@ export function cliConfigConnectionMatchesProvider(
   cliTool: string,
   connection: CliConfigConnection | null,
   provider: Provider,
-  apiKeys: ApiKeyEntry[] | undefined
+  apiKeys: ApiKeyEntry[] | undefined,
+  expectedModel?: string
 ): boolean {
   if (!connection) return true
   const baseUrl = normalizeUrl(connection.baseUrl)
   if (!baseUrl) return false
 
   if (!providerBaseUrls(provider, cliTool).includes(baseUrl)) {
+    return false
+  }
+
+  if (expectedModel && connection.model !== expectedModel) {
     return false
   }
 

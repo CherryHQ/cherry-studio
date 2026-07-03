@@ -29,7 +29,6 @@ export interface TerminalConfig {
   id: string
   name: string
   bundleId?: string
-  customPath?: string
 }
 
 export interface TerminalConfigWithCommand extends TerminalConfig {

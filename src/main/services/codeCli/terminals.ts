@@ -101,7 +101,6 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
   {
     id: TerminalApp.ALACRITTY,
     name: 'Alacritty',
-    customPath: '',
     command: (_: string, fullCommand: string) => ({
       command: 'alacritty',
       args: ['-e', 'cmd', '/c', fullCommand]
@@ -110,7 +109,6 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
   {
     id: TerminalApp.WEZTERM,
     name: 'WezTerm',
-    customPath: '',
     command: (_: string, fullCommand: string) => ({
       command: 'wezterm',
       args: ['start', '--', 'cmd', '/c', fullCommand]

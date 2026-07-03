@@ -16,8 +16,7 @@ const codeToolsRunResultSchema = z.object({
 const terminalConfigSchema = z.object({
   id: z.string(),
   name: z.string(),
-  bundleId: z.string().optional(),
-  customPath: z.string().optional()
+  bundleId: z.string().optional()
 })
 
 // ── Request schemas ──
@@ -28,7 +27,6 @@ export const codeCliRequestSchemas = {
       model: z.string(),
       providerId: z.string(),
       directory: z.string(),
-      env: z.record(z.string(), z.string()).optional().default({}),
       options: z
         .object({
           autoUpdateToLatest: z.boolean().optional(),
@@ -42,24 +40,5 @@ export const codeCliRequestSchemas = {
   'code_cli.get_available_terminals': defineRoute({
     input: z.void(),
     output: z.array(terminalConfigSchema)
-  }),
-  'code_cli.set_custom_terminal_path': defineRoute({
-    input: z.object({
-      terminalId: z.string(),
-      path: z.string()
-    }),
-    output: z.void()
-  }),
-  'code_cli.get_custom_terminal_path': defineRoute({
-    input: z.object({
-      terminalId: z.string()
-    }),
-    output: z.string().optional()
-  }),
-  'code_cli.remove_custom_terminal_path': defineRoute({
-    input: z.object({
-      terminalId: z.string()
-    }),
-    output: z.void()
   })
 }

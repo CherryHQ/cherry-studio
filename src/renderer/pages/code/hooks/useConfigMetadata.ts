@@ -8,7 +8,7 @@ import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@shared/uti
 import { isCherryAIProvider } from '@shared/utils/provider'
 import { useCallback, useMemo } from 'react'
 
-import { CLI_TOOL_PROVIDER_MAP } from '../constants/cliTools'
+import { CLI_TOOL_PROVIDER_MAP, modelSupportsCliTool } from '../constants/cliTools'
 
 /**
  * Provider/model resolution for the code-CLI page: builds the per-tool enabled
@@ -22,10 +22,11 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
     const map = new Map<string, UniqueModelId>()
     for (const model of allModels) {
       if (isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) continue
+      if (!modelSupportsCliTool(selectedCliTool, model)) continue
       if (!map.has(model.providerId)) map.set(model.providerId, model.id)
     }
     return map
-  }, [allModels])
+  }, [allModels, selectedCliTool])
 
   const filterProviders = useCallback(
     (providers: Provider[]): Provider[] => {
@@ -40,9 +41,10 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
     (providerId: string) =>
       (model: Model): boolean => {
         if (isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) return false
+        if (!modelSupportsCliTool(selectedCliTool, model)) return false
         return model.providerId === providerId
       },
-    []
+    [selectedCliTool]
   )
 
   const resolveProviderMeta = useCallback(

@@ -7,8 +7,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
-import type { UniqueModelId } from '@shared/data/types/model'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { useNavigate } from '@tanstack/react-router'
@@ -56,6 +55,14 @@ const toMeta = (tool: CliToolOption): CodeToolMeta => ({
   label: tool.label,
   icon: tool.icon
 })
+
+function parseConfiguredModelId(modelId: string | undefined): { providerId: string; modelId: string } | null {
+  const result = UniqueModelIdSchema.safeParse(modelId)
+  if (!result.success) {
+    return null
+  }
+  return parseUniqueModelId(result.data)
+}
 
 const CodeCliPage: FC = () => {
   const { t } = useTranslation()
@@ -217,6 +224,12 @@ const CodeCliPage: FC = () => {
         // the provider's first enabled model when the user hasn't configured one.
         let cfg = providerConfigs[provider.id]
         let modelId = cfg?.modelId
+        const configuredModelId = parseConfiguredModelId(modelId)
+        if (modelId && !configuredModelId) {
+          await upsertProviderConfig(provider.id, { modelId: '' })
+          window.toast.error(t('code.launch.validation_error'))
+          return
+        }
         if (!modelId) {
           const firstModel = firstModelByProvider.get(provider.id)
           if (!firstModel) {
@@ -269,9 +282,14 @@ const CodeCliPage: FC = () => {
         return
       }
       const apiKeys = await readProviderApiKeys(enabledProvider.id)
+      const expectedModel = currentProviderConfig?.modelId
+        ? parseConfiguredModelId(currentProviderConfig.modelId)?.modelId
+        : undefined
       if (cancelled) return
       setCurrentCliConfigConnection(
-        cliConfigConnectionMatchesProvider(selectedCliTool, connection, enabledProvider, apiKeys) ? null : connection
+        cliConfigConnectionMatchesProvider(selectedCliTool, connection, enabledProvider, apiKeys, expectedModel)
+          ? null
+          : connection
       )
     })().catch((error) => {
       logger.error('Failed to read current CLI config connection:', error as Error)
@@ -281,7 +299,7 @@ const CodeCliPage: FC = () => {
     return () => {
       cancelled = true
     }
-  }, [enabledProvider, selectedCliTool])
+  }, [enabledProvider, selectedCliTool, currentProviderConfig])
 
   const handleSelectFolder = useCallback(async () => {
     try {
@@ -300,10 +318,45 @@ const CodeCliPage: FC = () => {
       window.toast.error(t('code.folder_placeholder'))
       return
     }
-    const { providerId, modelId: rawModelId } =
-      currentProviderConfig && isUniqueModelId(currentProviderConfig.modelId)
-        ? parseUniqueModelId(currentProviderConfig.modelId)
-        : { providerId: '', modelId: currentProviderConfig?.modelId ?? '' }
+    if (isProviderless) {
+      try {
+        setLaunching(true)
+        const runResult = await ipcApi.request('code_cli.run', {
+          cliTool: selectedCliTool,
+          model: '',
+          providerId: '',
+          directory,
+          options: { terminal: selectedTerminal ?? undefined }
+        })
+        if (!runResult.success) {
+          window.toast.error(runResult.message)
+          return
+        }
+        setLaunchOpen(false)
+      } catch (err) {
+        logger.error('Failed to launch CLI tool:', err as Error)
+        window.toast.error(t('code.launch.error'))
+      } finally {
+        setLaunching(false)
+      }
+      return
+    }
+
+    const parsedModelId = parseConfiguredModelId(currentProviderConfig?.modelId)
+    if (!parsedModelId) {
+      logger.error('Invalid CLI model id configured for launch', {
+        modelId: currentProviderConfig?.modelId,
+        toolId: selectedCliTool,
+        providerId: enabledProvider?.id
+      })
+      if (enabledProvider) {
+        await upsertProviderConfig(enabledProvider.id, { modelId: '' })
+      }
+      await setCurrentProvider(null)
+      window.toast.error(t('code.launch.validation_error'))
+      return
+    }
+    const { providerId, modelId: rawModelId } = parsedModelId
     try {
       setLaunching(true)
       const runResult = await ipcApi.request('code_cli.run', {
@@ -311,7 +364,6 @@ const CodeCliPage: FC = () => {
         model: rawModelId,
         providerId,
         directory,
-        env: {},
         options: { terminal: selectedTerminal ?? undefined }
       })
       if (!runResult.success) {
@@ -325,7 +377,17 @@ const CodeCliPage: FC = () => {
     } finally {
       setLaunching(false)
     }
-  }, [enabledProvider, currentProviderConfig, directory, selectedCliTool, selectedTerminal, t])
+  }, [
+    currentProviderConfig,
+    directory,
+    enabledProvider,
+    upsertProviderConfig,
+    selectedCliTool,
+    selectedTerminal,
+    setLaunching,
+    setCurrentProvider,
+    t
+  ])
 
   const handleOpenClawLaunch = useCallback(async () => {
     if (!enabledProvider || !currentProviderConfig?.modelId) {
@@ -333,9 +395,19 @@ const CodeCliPage: FC = () => {
       return
     }
 
-    const { providerId, modelId: rawModelId } = isUniqueModelId(currentProviderConfig.modelId)
-      ? parseUniqueModelId(currentProviderConfig.modelId)
-      : { providerId: enabledProvider.id, modelId: currentProviderConfig.modelId }
+    const parsedModelId = parseConfiguredModelId(currentProviderConfig.modelId)
+    if (!parsedModelId) {
+      logger.error('Invalid OpenClaw model id configured', {
+        modelId: currentProviderConfig.modelId,
+        toolId: selectedCliTool,
+        providerId: enabledProvider.id
+      })
+      await upsertProviderConfig(enabledProvider.id, { modelId: '' })
+      await setCurrentProvider(null)
+      window.toast.error(t('openclaw.error.select_provider_model'))
+      return
+    }
+    const { providerId, modelId: rawModelId } = parsedModelId
 
     try {
       setLaunching(true)
@@ -369,7 +441,15 @@ const CodeCliPage: FC = () => {
     } finally {
       setLaunching(false)
     }
-  }, [currentProviderConfig, enabledProvider, openSmartMiniApp, t])
+  }, [
+    currentProviderConfig,
+    enabledProvider,
+    openSmartMiniApp,
+    selectedCliTool,
+    setCurrentProvider,
+    upsertProviderConfig,
+    t
+  ])
 
   const handleOpenClawStop = useCallback(async () => {
     try {

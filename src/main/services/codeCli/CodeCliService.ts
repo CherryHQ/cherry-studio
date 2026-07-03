@@ -60,7 +60,6 @@ export class CodeCliService extends BaseService {
     terminals: TerminalConfig[]
     timestamp: number
   } | null = null
-  private customTerminalPaths: Map<string, string> = new Map() // Store user-configured terminal paths
   private readonly CACHE_DURATION = 1000 * 60 * 30 // 30 minutes cache
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
 
@@ -73,7 +72,6 @@ export class CodeCliService extends BaseService {
   protected async onStop(): Promise<void> {
     this.versionCache.clear()
     this.terminalsCache = null
-    this.customTerminalPaths.clear()
   }
 
   /**
@@ -193,7 +191,7 @@ export class CodeCliService extends BaseService {
   }
 
   /**
-   * Check Windows terminal availability (simplified - user configured paths)
+   * Check Windows terminal availability.
    */
   private async checkWindowsTerminalAvailability(terminal: TerminalConfig): Promise<TerminalConfig | null> {
     try {
@@ -237,8 +235,7 @@ export class CodeCliService extends BaseService {
           }
 
         default:
-          // For other terminals (Alacritty, WezTerm), check if user has configured custom path
-          return await this.checkCustomTerminalPath(terminal)
+          return await this.checkPathTerminalAvailability(terminal)
       }
     } catch (error) {
       logger.debug(`Windows terminal ${terminal.id} not available:`, error as Error)
@@ -246,22 +243,7 @@ export class CodeCliService extends BaseService {
     }
   }
 
-  /**
-   * Check if user has configured custom path for terminal
-   */
-  private async checkCustomTerminalPath(terminal: TerminalConfig): Promise<TerminalConfig | null> {
-    // Check if user has configured custom path
-    const customPath = this.customTerminalPaths.get(terminal.id)
-    if (customPath && fs.existsSync(customPath)) {
-      try {
-        await execAsync(`"${customPath}" --version`, { timeout: 3000 })
-        return { ...terminal, customPath }
-      } catch {
-        return null
-      }
-    }
-
-    // Fallback to PATH check
+  private async checkPathTerminalAvailability(terminal: TerminalConfig): Promise<TerminalConfig | null> {
     try {
       const command = terminal.id === TerminalApp.ALACRITTY ? 'alacritty' : 'wezterm'
       await execAsync(`${command} --version`, { timeout: 3000 })
@@ -269,33 +251,6 @@ export class CodeCliService extends BaseService {
     } catch {
       return null
     }
-  }
-
-  /**
-   * Set custom path for a terminal (called from settings UI)
-   */
-  public setCustomTerminalPath(terminalId: string, path: string): void {
-    logger.info(`Setting custom path for terminal ${terminalId}: ${path}`)
-    this.customTerminalPaths.set(terminalId, path)
-    // Clear terminals cache to force refresh
-    this.terminalsCache = null
-  }
-
-  /**
-   * Get custom path for a terminal
-   */
-  public getCustomTerminalPath(terminalId: string): string | undefined {
-    return this.customTerminalPaths.get(terminalId)
-  }
-
-  /**
-   * Remove custom path for a terminal
-   */
-  public removeCustomTerminalPath(terminalId: string): void {
-    logger.info(`Removing custom path for terminal ${terminalId}`)
-    this.customTerminalPaths.delete(terminalId)
-    // Clear terminals cache to force refresh
-    this.terminalsCache = null
   }
 
   /**
@@ -364,16 +319,11 @@ export class CodeCliService extends BaseService {
     const defaultTerminal = isWin ? TerminalApp.CMD : TerminalApp.SYSTEM_DEFAULT
 
     if (terminalId) {
-      let requestedTerminal = terminalCommands.find(
+      const requestedTerminal = terminalCommands.find(
         (t) => t.id === terminalId && availableTerminals.some((at) => at.id === t.id)
       )
 
       if (requestedTerminal) {
-        // Apply custom path if configured
-        const customPath = this.customTerminalPaths.get(terminalId)
-        if (customPath && isWin) {
-          requestedTerminal = this.applyCustomPath(requestedTerminal, customPath)
-        }
         return requestedTerminal
       } else {
         logger.warn(`Requested terminal ${terminalId} not available, falling back to system default`)
@@ -396,23 +346,6 @@ export class CodeCliService extends BaseService {
 
     // Last resort fallback
     return terminalCommands.find((t) => t.id === defaultTerminal)!
-  }
-
-  /**
-   * Apply custom path to terminal configuration
-   */
-  private applyCustomPath(terminal: TerminalConfigWithCommand, customPath: string): TerminalConfigWithCommand {
-    return {
-      ...terminal,
-      customPath,
-      command: (directory: string, fullCommand: string) => {
-        const originalCommand = terminal.command(directory, fullCommand)
-        return {
-          ...originalCommand,
-          command: customPath // Replace command with custom path
-        }
-      }
-    }
   }
 
   /**
@@ -585,33 +518,37 @@ export class CodeCliService extends BaseService {
     model: string,
     providerId: string,
     directory: string,
-    env: Record<string, string>,
     options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
   ): Promise<CodeToolsRunResult> {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
-    env = { ...getBinaryExecutionEnv(), ...env }
+    const env: Record<string, string> = { ...getBinaryExecutionEnv() }
     logger.debug(`Environment variables:`, Object.keys(env))
     logger.debug(`Options:`, options)
+    if (cliTool === CodeCli.OPENCLAW) {
+      const message = 'OpenClaw is managed through openclaw.* IPC, not code_cli.run'
+      logger.error(message)
+      return { success: false, message, command: '' }
+    }
 
-    // OpenClaw runs as a background gateway and opens in an in-app tab, so it
-    // does not need a project directory.
-    if (cliTool !== CodeCli.OPENCLAW && (!directory || !fs.existsSync(directory))) {
+    const isProviderlessCli = cliTool === CodeCli.QODER_CLI || cliTool === CodeCli.GITHUB_COPILOT_CLI
+    if (!isProviderlessCli && providerId.trim().length === 0) {
+      const message = `Provider ID is required for ${cliTool}`
+      logger.error(message)
+      return { success: false, message, command: '' }
+    }
+    if (!isProviderlessCli && model.trim().length === 0) {
+      const message = `Model is required for ${cliTool}`
+      logger.error(message)
+      return { success: false, message, command: '' }
+    }
+
+    if (!directory || !fs.existsSync(directory)) {
       const errorMessage = `Directory does not exist: ${directory}`
       logger.error(errorMessage)
       return {
         success: false,
         message: errorMessage,
         command: ''
-      }
-    }
-
-    if (cliTool === CodeCli.OPENCLAW) {
-      try {
-        await application.get('OpenClawService').syncConfig(`${providerId}::${model}`)
-      } catch (error) {
-        const message = `Failed to write ${cliTool} config: ${error instanceof Error ? error.message : String(error)}`
-        logger.error(message, error as Error)
-        return { success: false, message, command: '' }
       }
     }
 
@@ -646,23 +583,6 @@ export class CodeCliService extends BaseService {
       const message = `${cliTool} is not available after install`
       logger.error(message)
       return { success: false, message, command: '' }
-    }
-
-    // OpenClaw starts as a background gateway, not a terminal process
-    if (cliTool === CodeCli.OPENCLAW) {
-      try {
-        const gatewayResult = await application.get('OpenClawService').startGateway()
-        if (!gatewayResult.success) {
-          return { success: false, message: gatewayResult.message || 'Failed to start OpenClaw gateway', command: '' }
-        }
-        const dashboardUrl = application.get('OpenClawService').getDashboardUrl()
-        logger.info(`OpenClaw gateway started, dashboard: ${dashboardUrl}`)
-        return { success: true, message: 'OpenClaw gateway started', command: dashboardUrl }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
-        logger.error('Failed to start OpenClaw gateway:', error as Error)
-        return { success: false, message: `Failed to start OpenClaw gateway: ${errorMessage}`, command: '' }
-      }
     }
 
     // Optional auto-update
@@ -839,14 +759,8 @@ export class CodeCliService extends BaseService {
         const fullCommand = batFilePath
         const { command: cmd, args } = terminalConfig.command(directory, fullCommand)
 
-        // Override if it's a custom terminal with a custom path
-        if (terminalConfig.customPath) {
-          terminalCommand = terminalConfig.customPath
-          terminalArgs = args
-        } else {
-          terminalCommand = cmd
-          terminalArgs = args
-        }
+        terminalCommand = cmd
+        terminalArgs = args
 
         // Add to cleanup set
         CodeCliService.pendingBatCleanups.add(batFilePath)

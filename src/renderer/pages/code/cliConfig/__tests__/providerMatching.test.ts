@@ -47,4 +47,28 @@ describe('cliConfigConnectionMatchesProvider', () => {
       )
     ).toBe(false)
   })
+
+  it('rejects a connection for the same provider when the configured model differs from the expected model', () => {
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.GEMINI_CLI,
+        { baseUrl: 'https://aihubmix.com/gemini', apiKey: 'sk-secret', model: 'gemini-2.5-flash' },
+        aihubmixProvider,
+        apiKeys,
+        'gemini-2.5-pro'
+      )
+    ).toBe(false)
+  })
+
+  it('accepts a connection for the same provider when the configured model matches the expected model', () => {
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.GEMINI_CLI,
+        { baseUrl: 'https://aihubmix.com/gemini', apiKey: 'sk-secret', model: 'gemini-2.5-pro' },
+        aihubmixProvider,
+        apiKeys,
+        'gemini-2.5-pro'
+      )
+    ).toBe(true)
+  })
 })

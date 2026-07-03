@@ -79,10 +79,12 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   const displayedEndpointUrl = cliConfigSelection?.baseUrl ?? endpointUrl
 
   const connectionMatchesProvider = useCallback(
-    (connection: CliConfigConnection | null): boolean => {
-      return cliConfigConnectionMatchesProvider(cliTool, connection, provider, apiKeysData?.keys)
+    (connection: CliConfigConnection | null, expectedModelId = modelId): boolean => {
+      const expectedModel =
+        expectedModelId && isUniqueModelId(expectedModelId) ? parseUniqueModelId(expectedModelId).modelId : undefined
+      return cliConfigConnectionMatchesProvider(cliTool, connection, provider, apiKeysData?.keys, expectedModel)
     },
-    [apiKeysData, cliTool, provider]
+    [apiKeysData, cliTool, modelId, provider]
   )
 
   const loadCliConfig = useCallback(
@@ -102,7 +104,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
         if (options?.preserveUnknown && !files?.length) {
           const rawFiles = await readCliConfigFiles(cliTool)
           const connection = extractConnectionFromCliConfigDraft(cliTool, rawFiles)
-          if (connection && !connectionMatchesProvider(connection)) {
+          if (connection && !connectionMatchesProvider(connection, nextModelId)) {
             if (loadId !== loadIdRef.current) return
             setCliConfigSelection(connection)
             setCliConfigError('')
