@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 
 import { KnowledgeDialogFooter } from '../../components/KnowledgeDialogLayout'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
-import { useKnowledgeRagConfig } from '../../hooks'
+import { useEmbeddingDimensions, useKnowledgeRagConfig } from '../../hooks'
 import {
   buildKnowledgeSearchModeOptions,
   getKnowledgeBaseFailureReason,
@@ -24,6 +24,9 @@ export interface KnowledgeRestoreBaseInitialValues {
 
 interface RagConfigPanelProps {
   base: KnowledgeBase
+  // Undefined means unknown (e.g. items are still loading) and is treated as
+  // "not empty" so the safer restore flow is offered until it is confirmed 0.
+  itemCount?: number
   onRestoreBase: (base: KnowledgeBase, initialValues?: KnowledgeRestoreBaseInitialValues) => void
 }
 
@@ -50,9 +53,10 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
   )
 }
 
-const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
+const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanelProps) => {
   const { t } = useTranslation()
   const { initialValues, fileProcessorOptions, save, isLoading } = useKnowledgeRagConfig(base)
+  const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
   const [values, setValues] = useState(initialValues)
 
   useEffect(() => {
@@ -68,9 +72,14 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
   )
   const formState = useMemo(() => getKnowledgeRagConfigFormState(initialValues, values), [initialValues, values])
   const { validationErrorCodes, isDirty, canSave } = formState
-  // Changing the embedding model re-embeds existing content, so it routes through the
-  // restore flow (which auto-detects the new model's dimensions) instead of a plain save.
   const embeddingModelChanged = values.embeddingModelId !== initialValues.embeddingModelId
+  // Changing the embedding model re-embeds existing content, so it normally routes
+  // through the restore flow (which auto-detects the new model's dimensions) instead
+  // of a plain save. A base with no items yet has nothing to re-embed, so the change
+  // can be saved in place — itemCount is undefined while unknown/loading, which is
+  // treated as "not empty" so the safer restore flow stays the default.
+  const canSaveEmbeddingModelDirectly = embeddingModelChanged && itemCount === 0
+  const requiresRestore = embeddingModelChanged && !canSaveEmbeddingModelDirectly
   const canSubmit = canSave || embeddingModelChanged
 
   const handleSave = async () => {
@@ -78,8 +87,29 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
       return
     }
 
-    if (embeddingModelChanged) {
+    if (requiresRestore) {
       onRestoreBase(base, { embeddingModelId: values.embeddingModelId })
+      return
+    }
+
+    if (canSaveEmbeddingModelDirectly) {
+      let dimensions: number | null = null
+
+      if (values.embeddingModelId) {
+        try {
+          dimensions = await fetchDimensions(values.embeddingModelId)
+        } catch (error) {
+          window.toast.error(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+          return
+        }
+      }
+
+      try {
+        await save(values, { embeddingModelId: values.embeddingModelId, dimensions })
+        window.toast.success(t('knowledge.rag.saved'))
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
+      }
       return
     }
 
@@ -163,8 +193,13 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
           <RotateCcw />
           {t('knowledge.rag.reset_action')}
         </Button>
-        <Button type="button" variant="emphasis" loading={isLoading} disabled={!canSubmit} onClick={handleSave}>
-          {embeddingModelChanged ? t('knowledge.restore.submit') : t('knowledge.rag.save_action')}
+        <Button
+          type="button"
+          variant="emphasis"
+          loading={isLoading || isFetchingDimensions}
+          disabled={!canSubmit}
+          onClick={handleSave}>
+          {requiresRestore ? t('knowledge.restore.submit') : t('knowledge.rag.save_action')}
         </Button>
       </KnowledgeDialogFooter>
     </KnowledgePanelShell>

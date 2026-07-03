@@ -53,6 +53,23 @@ describe('KnowledgeBaseService', () => {
     ])
   }
 
+  /** A second embedding model FK target, for tests that switch a base's embeddingModelId. */
+  async function seedSecondEmbeddingModel() {
+    const [embedModel2Key] = generateOrderKeySequence(1)
+    await dbh.db.insert(userModelTable).values([
+      {
+        id: createUniqueModelId('openai', 'embed-model-2'),
+        providerId: 'openai',
+        modelId: 'embed-model-2',
+        presetModelId: 'embed-model-2',
+        name: 'embed-model-2',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: embedModel2Key
+      }
+    ])
+  }
+
   async function seedKnowledgeBase(overrides: Partial<typeof knowledgeBaseTable.$inferInsert> = {}) {
     const values: typeof knowledgeBaseTable.$inferInsert = {
       id: KNOWLEDGE_BASE_ID,
@@ -911,6 +928,85 @@ describe('KnowledgeBaseService', () => {
             chunkSeparator: ['Separator is required when chunk strategy is delimiter']
           }
         }
+      })
+    })
+
+    describe('embeddingModelId', () => {
+      it('allows changing the embedding model and dimensions on a base with no items', async () => {
+        await seedKnowledgeBase({ embeddingModelId: null, dimensions: null, searchMode: 'bm25' })
+        await seedSecondEmbeddingModel()
+
+        const result = service.update(KNOWLEDGE_BASE_ID, {
+          embeddingModelId: createUniqueModelId('openai', 'embed-model-2'),
+          dimensions: 768
+        })
+
+        expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model-2'))
+        expect(result.dimensions).toBe(768)
+
+        const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+        expect(row.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model-2'))
+        expect(row.dimensions).toBe(768)
+      })
+
+      it('rejects changing the embedding model on a base that already has items', async () => {
+        await seedKnowledgeBase()
+        await seedSecondEmbeddingModel()
+        await seedFileKnowledgeItem()
+
+        let err: unknown
+        try {
+          service.update(KNOWLEDGE_BASE_ID, {
+            embeddingModelId: createUniqueModelId('openai', 'embed-model-2'),
+            dimensions: 768
+          })
+        } catch (e) {
+          err = e
+        }
+        expect(err).toMatchObject({
+          code: ErrorCode.VALIDATION_ERROR,
+          details: {
+            fieldErrors: {
+              embeddingModelId: ['Cannot change the embedding model of a knowledge base that already has items']
+            }
+          }
+        })
+
+        const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+        expect(row.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
+      })
+
+      it('ignores deleting items when deciding whether a base is still empty', async () => {
+        await seedKnowledgeBase({ embeddingModelId: null, dimensions: null, searchMode: 'bm25' })
+        await seedSecondEmbeddingModel()
+        await seedFileKnowledgeItem({ status: 'deleting', error: null })
+
+        const result = service.update(KNOWLEDGE_BASE_ID, {
+          embeddingModelId: createUniqueModelId('openai', 'embed-model-2'),
+          dimensions: 768
+        })
+
+        expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model-2'))
+      })
+
+      it('rejects changing dimensions alone on a base that already has items', async () => {
+        await seedKnowledgeBase()
+        await seedFileKnowledgeItem()
+
+        let err: unknown
+        try {
+          service.update(KNOWLEDGE_BASE_ID, { dimensions: 768 })
+        } catch (e) {
+          err = e
+        }
+        expect(err).toMatchObject({
+          code: ErrorCode.VALIDATION_ERROR,
+          details: {
+            fieldErrors: {
+              embeddingModelId: ['Cannot change the embedding model of a knowledge base that already has items']
+            }
+          }
+        })
       })
     })
   })

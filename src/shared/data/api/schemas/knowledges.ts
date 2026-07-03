@@ -18,6 +18,8 @@ import * as z from 'zod'
 const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
   name: true,
   groupId: true,
+  embeddingModelId: true,
+  dimensions: true,
   rerankModelId: true,
   fileProcessorId: true,
   chunkSize: true,
@@ -30,10 +32,12 @@ const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
   hybridAlpha: true
 } as const
 
-// `embeddingModelId` and `dimensions` are intentionally excluded: changing either
-// on a vector base invalidates its existing vectors, and adding a model to a
-// BM25-only base has no vectors to invalidate but still needs a full embedding
-// backfill — both go through the restore-into-a-new-base flow, not a PATCH.
+// `embeddingModelId` and `dimensions` are mutable here only while the base has
+// zero items — KnowledgeBaseService.update() enforces that server-side. Once
+// items exist, changing either must go through the restore-into-a-new-base flow
+// instead: changing either on a vector base invalidates its existing vectors,
+// and adding a model to a BM25-only base still needs a full embedding backfill
+// for those items.
 export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDGE_BASE_MUTABLE_FIELDS)
   .partial()
   .extend({
@@ -43,6 +47,18 @@ export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDG
     threshold: KnowledgeBaseEntitySchema.shape.threshold,
     documentCount: KnowledgeBaseEntitySchema.shape.documentCount,
     hybridAlpha: KnowledgeBaseEntitySchema.shape.hybridAlpha
+  })
+  .superRefine((value, ctx) => {
+    // Paired like create/restore: a vector base needs both, a BM25-only base
+    // needs neither. Only enforced when the caller is actually touching one of
+    // them — omitting both leaves the existing pairing untouched.
+    if ((value.embeddingModelId !== undefined) !== (value.dimensions !== undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['dimensions'],
+        message: 'Embedding model and dimensions must be provided together'
+      })
+    }
   })
 export type UpdateKnowledgeBaseDto = z.input<typeof UpdateKnowledgeBaseSchema>
 

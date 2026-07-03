@@ -13,8 +13,14 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }
 }))
 
-const renderRagConfigPanel = (onRestoreBase = vi.fn(), baseOverrides: Partial<KnowledgeBase> = {}) => {
-  return render(<RagConfigPanel base={createKnowledgeBase(baseOverrides)} onRestoreBase={onRestoreBase} />)
+const renderRagConfigPanel = (
+  onRestoreBase = vi.fn(),
+  baseOverrides: Partial<KnowledgeBase> = {},
+  itemCount?: number
+) => {
+  return render(
+    <RagConfigPanel base={createKnowledgeBase(baseOverrides)} itemCount={itemCount} onRestoreBase={onRestoreBase} />
+  )
 }
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -429,7 +435,7 @@ describe('RagConfigPanel', () => {
     expect(mockSave).not.toHaveBeenCalled()
   })
 
-  it('opens the rebuild flow when the embedding model changes', () => {
+  it('opens the rebuild flow when the embedding model changes (itemCount omitted defaults to "not empty")', () => {
     const onRestoreBase = vi.fn()
 
     renderRagConfigPanel(onRestoreBase)
@@ -490,6 +496,43 @@ describe('RagConfigPanel', () => {
     expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
       embeddingModelId: 'openai::text-embedding-3-small'
     })
+  })
+
+  it('saves the embedding model directly instead of rebuilding when the base has no items', async () => {
+    const onRestoreBase = vi.fn()
+
+    renderRagConfigPanel(onRestoreBase, {}, 0)
+
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'voyage::voyage-3-large' } })
+    expect(screen.getByRole('button', { name: '保存' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '重建' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalledWith(expect.objectContaining({ embeddingModelId: 'voyage::voyage-3-large' }), {
+        embeddingModelId: 'voyage::voyage-3-large',
+        dimensions: 2048
+      })
+    })
+    expect(onRestoreBase).not.toHaveBeenCalled()
+    expect(window.toast.success).toHaveBeenCalledWith('已保存')
+  })
+
+  it('shows a dimension-fetch failure toast and does not save when saving the embedding model directly fails', async () => {
+    mockEmbedMany.mockRejectedValueOnce(new Error('probe failed'))
+    const onRestoreBase = vi.fn()
+
+    renderRagConfigPanel(onRestoreBase, {}, 0)
+
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'voyage::voyage-3-large' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('获取嵌入维度失败: probe failed')
+    })
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).not.toHaveBeenCalled()
   })
 
   it('renders hover hint tooltip content for RAG field labels', () => {
