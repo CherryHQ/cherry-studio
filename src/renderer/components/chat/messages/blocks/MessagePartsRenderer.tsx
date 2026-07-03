@@ -821,7 +821,20 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
     [message.id, renderableEntries, showPreview]
   )
   const elapsedMs = usePlaceholderElapsedMs(showLiveProgress, message.createdAt, 1000)
-  const elapsedText = showLiveProgress ? formatPlaceholderElapsed(elapsedMs, t) : undefined
+  const completedElapsedMs = useMemo(() => {
+    if (showLiveProgress || isProcessing || !message.updatedAt) return undefined
+    const startedAt = Date.parse(message.createdAt)
+    const finishedAt = Date.parse(message.updatedAt)
+    if (!Number.isFinite(startedAt) || !Number.isFinite(finishedAt) || finishedAt < startedAt) return undefined
+    return finishedAt - startedAt
+  }, [isProcessing, message.createdAt, message.updatedAt, showLiveProgress])
+  const elapsedText = showLiveProgress
+    ? formatPlaceholderElapsed(elapsedMs, t)
+    : completedElapsedMs !== undefined
+      ? formatPlaceholderElapsed(completedElapsedMs, t)
+      : undefined
+  const resolvedSummary =
+    !isProcessing && toolCount > 0 && completedElapsedMs !== undefined ? t('message.tools.processed') : summary
   const activityLabel =
     showDynamicHeader && hasStreamingReasoningAfterLastTool(entries) ? t('message.tools.thinkingHeader') : undefined
   const showBottomCollapseButton = isExpanded && toolCount > BOTTOM_COLLAPSE_TOOL_COUNT_THRESHOLD
@@ -891,7 +904,7 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
           items={toolItems}
           activityLabel={activityLabel}
           elapsedText={elapsedText}
-          summary={summary}
+          summary={resolvedSummary}
           isLiveProgress={showDynamicHeader}
           preferSummary={isExpanded || showPreview}
           showLatestWhenComplete={showDynamicHeader && !showPreview}

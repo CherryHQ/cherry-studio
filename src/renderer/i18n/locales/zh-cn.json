@@ -3832,6 +3832,7 @@
         "usingTools": "正在处理任务"
       },
       "preview": "预览",
+      "processed": "已处理",
       "raw": "原始",
       "runningCount": "{{count}} 个工具运行中",
       "runningHeader": "执行中…",

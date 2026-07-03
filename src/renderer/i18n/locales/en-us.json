@@ -3832,6 +3832,7 @@
         "usingTools": "Working on the task"
       },
       "preview": "Preview",
+      "processed": "Processed",
       "raw": "Raw",
       "runningCount": "{{count}} tools running",
       "runningHeader": "Working…",

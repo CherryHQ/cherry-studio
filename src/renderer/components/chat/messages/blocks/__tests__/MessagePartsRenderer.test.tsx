@@ -60,6 +60,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'message.tools.groupHeader') {
         return `${params?.count} tool calls`
       }
+      if (key === 'message.tools.processed') return 'Processed'
       if (key === 'message.tools.runningHeader') return 'Working…'
       if (key === 'message.tools.thinkingHeader') return 'Thinking...'
       if (key === 'common.preview') return 'Preview'
@@ -1435,6 +1436,23 @@ describe('MessagePartsRenderer', () => {
     const updatedFoldButton = screen.getByRole('button', { name: 'read · 1 second' })
     expect(updatedFoldButton.querySelector('[data-prefer-summary="true"]')).toBeNull()
     expect(updatedFoldButton.querySelector('[data-show-latest="true"]')).toBeInTheDocument()
+  })
+
+  it('shows a processed header with elapsed time when tool history is complete', () => {
+    renderParts(
+      [
+        { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+        { type: 'dynamic-tool', toolCallId: 'b', toolName: 'read', state: 'output-available', output: {} },
+        { type: 'text', text: 'final answer' }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'success', updatedAt: '2026-01-01T00:00:01Z' })
+    )
+
+    const foldButton = screen.getByRole('button', { name: 'Processed · 1 second' })
+    expect(foldButton).toHaveAttribute('aria-expanded', 'false')
+    expect(foldButton.querySelector('[data-live="false"]')).toBeInTheDocument()
+    expect(foldButton.querySelector('[data-show-latest="false"]')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /read/ })).toBeNull()
   })
 
   it('renders active tool runs directly inside the expanded fold while streaming', () => {
