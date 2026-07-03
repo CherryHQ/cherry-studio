@@ -644,8 +644,7 @@ export class KnowledgeIngestionService {
       errorMessage: message,
       failedStatusError: `Failed to schedule knowledge item job: ${message}`,
       logger,
-      logMessage: 'Failed to mark unscheduled knowledge item after addItems scheduling failure',
-      logContextKey: 'scheduleError'
+      logMessage: 'Failed to mark unscheduled knowledge item after addItems scheduling failure'
     })
   }
 }

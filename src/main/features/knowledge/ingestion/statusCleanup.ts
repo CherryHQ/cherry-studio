@@ -10,7 +10,6 @@ type MarkFailedInput = {
   failedStatusError: string
   logger: LoggerService
   logMessage: string
-  logContextKey: string
 }
 
 export function markUnscheduledKnowledgeItemsFailed(input: MarkFailedInput): void {
@@ -33,7 +32,7 @@ export function markUnscheduledKnowledgeItemsFailed(input: MarkFailedInput): voi
         {
           baseId: input.baseId,
           itemId: item.id,
-          [input.logContextKey]: input.errorMessage
+          scheduleError: input.errorMessage
         }
       )
     }
@@ -50,7 +49,7 @@ export function markUnscheduledKnowledgeItemsFailed(input: MarkFailedInput): voi
         {
           baseId: input.baseId,
           itemId: item.id,
-          [input.logContextKey]: input.errorMessage
+          scheduleError: input.errorMessage
         }
       )
     }

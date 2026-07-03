@@ -190,7 +190,6 @@ function markUnscheduledLeafItemsFailed(
     errorMessage: message,
     failedStatusError: `Failed to schedule knowledge child item job: ${message}`,
     logger,
-    logMessage: 'Failed to mark unscheduled knowledge child item after prepare-root scheduling failure',
-    logContextKey: 'scheduleError'
+    logMessage: 'Failed to mark unscheduled knowledge child item after prepare-root scheduling failure'
   })
 }

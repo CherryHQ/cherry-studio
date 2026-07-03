@@ -112,8 +112,7 @@ describe('markUnscheduledKnowledgeItemsFailed integration', () => {
           info: vi.fn(),
           warn: vi.fn()
         } as unknown as LoggerService,
-        logMessage: 'Failed to mark unscheduled item',
-        logContextKey: 'scheduleError'
+        logMessage: 'Failed to mark unscheduled item'
       })
     } finally {
       updateStatusSpy.mockRestore()
