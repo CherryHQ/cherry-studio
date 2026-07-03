@@ -9,10 +9,10 @@ import {
   buildAxisLayout,
   cellAddress,
   colName,
+  DEFAULT_FONT_SIZE_PX,
   mergeRectPx,
   mergesInView,
   type PxRectLike,
-  scaledFontSizePx,
   type ViewportRect,
   WRAP_LINE_HEIGHT,
   wrapClampLines
@@ -30,7 +30,7 @@ export interface XlsxGridProps {
   styles: CellStyle[]
   /** imageId → object URL;生命周期由面板管理(创建/revoke) */
   imageUrls: Record<number, string>
-  /** 1 = 100%。缩放实现:布局尺寸乘系数(含字号),不用 CSS transform */
+  /** 1 = 100%。缩放实现:布局/字号恒为 zoom=1,内容整体 CSS transform scale(照片式放大,元素不重排) */
   zoom: number
   onSelectCell?: (info: SelectedCellInfo | null) => void
   /** 图表渲染注入点;返回清理函数。面板传入 ChartRenderer 实现 */
@@ -91,9 +91,9 @@ const V_ALIGN_TO_ITEMS: Record<NonNullable<CellStyle['vAlign']>, React.CSSProper
   bottom: 'flex-end'
 }
 
-/** CellStyle → inline style(不含定位/尺寸,由调用方叠加)。v1 简化:文本溢出一律 overflow hidden(wrap 除外),不做 Excel 的相邻空单元格溢出流。 */
-const cellStyleToCss = (style: CellStyle | undefined, zoom: number): React.CSSProperties => {
-  const css: React.CSSProperties = { fontSize: scaledFontSizePx(style?.fontSizePx, zoom) }
+/** CellStyle → inline style(zoom=1 坐标系,不含定位/尺寸,由调用方叠加)。v1 简化:文本溢出一律 overflow hidden(wrap 除外),不做 Excel 的相邻空单元格溢出流。 */
+const cellStyleToCss = (style: CellStyle | undefined): React.CSSProperties => {
+  const css: React.CSSProperties = { fontSize: style?.fontSizePx ?? DEFAULT_FONT_SIZE_PX }
   if (!style) return css
   if (style.fontFamily) css.fontFamily = style.fontFamily
   if (style.bold) css.fontWeight = 'bold'
@@ -109,7 +109,7 @@ const cellStyleToCss = (style: CellStyle | undefined, zoom: number): React.CSSPr
     css.whiteSpace = 'normal'
     css.wordBreak = 'break-word'
   }
-  if (style.indent) css.paddingLeft = style.indent * 8 * zoom
+  if (style.indent) css.paddingLeft = style.indent * 8
   const borderRight = borderEdgeToCss(style.borderRight)
   const borderBottom = borderEdgeToCss(style.borderBottom)
   const borderTop = borderEdgeToCss(style.borderTop)
@@ -124,7 +124,6 @@ const cellStyleToCss = (style: CellStyle | undefined, zoom: number): React.CSSPr
 interface CellViewProps {
   cell: CellRenderModel | undefined
   style: CellStyle | undefined
-  zoom: number
   /** 首行/首列补画 top/left 网格线,避免相邻格重叠加粗(见 05 文档) */
   isFirstRow: boolean
   isFirstCol: boolean
@@ -149,8 +148,8 @@ const cellTextStyle = (cell: CellRenderModel, clampLines: number | undefined): R
 }
 
 /** 普通/合并单元格共用的渲染体。合并覆盖但非 master 的单元格由调用方传入 cell=undefined 只保留背景。 */
-const CellView = memo(function CellView({ cell, style, zoom, isFirstRow, isFirstCol, positionStyle }: CellViewProps) {
-  const css = cellStyleToCss(style, zoom)
+const CellView = memo(function CellView({ cell, style, isFirstRow, isFirstCol, positionStyle }: CellViewProps) {
+  const css = cellStyleToCss(style)
   const hAlign = style?.hAlign ?? (cell ? defaultHAlign(cell) : 'left')
   // wrap 格:格高放不下全部换行内容时只显示放得下的整行(默认行高即一行),完整内容由选中弹层展示
   const clampLines =
@@ -188,8 +187,7 @@ const CellView = memo(function CellView({ cell, style, zoom, isFirstRow, isFirst
 interface SelectedCellOverlayProps {
   cell: CellRenderModel | undefined
   style: CellStyle | undefined
-  zoom: number
-  /** 被选中单元格(或其合并区)的像素矩形,相对网格原点 */
+  /** 被选中单元格(或其合并区)的像素矩形,zoom=1 坐标,相对网格原点 */
   rect: PxRectLike
 }
 
@@ -197,8 +195,8 @@ interface SelectedCellOverlayProps {
  * 选中格弹层:在原格位置覆盖展示完整内容(被格高/格宽裁剪的文本全部可见),
  * 绝对定位浮于网格之上,只遮挡不挤压——网格布局不因选中而变化。
  */
-const SelectedCellOverlay = ({ cell, style, zoom, rect }: SelectedCellOverlayProps) => {
-  const css = cellStyleToCss(style, zoom)
+const SelectedCellOverlay = ({ cell, style, rect }: SelectedCellOverlayProps) => {
+  const css = cellStyleToCss(style)
   const hAlign = style?.hAlign ?? (cell ? defaultHAlign(cell) : 'left')
 
   const finalCss: React.CSSProperties = {
@@ -208,7 +206,7 @@ const SelectedCellOverlay = ({ cell, style, zoom, rect }: SelectedCellOverlayPro
     left: rect.x,
     minWidth: rect.width,
     minHeight: rect.height,
-    maxWidth: SELECTED_OVERLAY_MAX_WIDTH_PX * zoom,
+    maxWidth: SELECTED_OVERLAY_MAX_WIDTH_PX,
     width: 'max-content',
     display: 'flex',
     justifyContent: css.justifyContent ?? H_ALIGN_TO_JUSTIFY[hAlign],
@@ -280,29 +278,33 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
   const rowCount = Math.max(sheet.rowCount, Math.ceil(viewportHeight / (sheet.defaultRowHeightPx * zoom))) + EXTRA_ROWS
   const colCount = Math.max(sheet.colCount, Math.ceil(viewportWidth / (sheet.defaultColWidthPx * zoom))) + EXTRA_COLS
 
+  // 布局恒为 zoom=1;缩放由内容层整体 transform scale 完成(照片式放大,元素不重排)
   const rowLayout: AxisLayout = useMemo(
-    () => buildAxisLayout(rowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx, zoom),
-    [rowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx, zoom]
+    () => buildAxisLayout(rowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx, 1),
+    [rowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx]
   )
   const colLayout: AxisLayout = useMemo(
-    () => buildAxisLayout(colCount, sheet.defaultColWidthPx, sheet.colWidthsPx, zoom),
-    [colCount, sheet.defaultColWidthPx, sheet.colWidthsPx, zoom]
+    () => buildAxisLayout(colCount, sheet.defaultColWidthPx, sheet.colWidthsPx, 1),
+    [colCount, sheet.defaultColWidthPx, sheet.colWidthsPx]
   )
 
-  const rowHeaderWidth = ROW_HEADER_WIDTH_PX * zoom
-  const colHeaderHeight = COL_HEADER_HEIGHT_PX * zoom
+  // 滚动坐标系(× zoom)中的表头尺寸;transform 层内部一律用 zoom=1 坐标
+  const scaledHeaderWidth = ROW_HEADER_WIDTH_PX * zoom
+  const scaledHeaderHeight = COL_HEADER_HEIGHT_PX * zoom
+  const zoomTransform: React.CSSProperties = { transform: `scale(${zoom})`, transformOrigin: 'top left' }
 
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => scrollElRef.current,
-    estimateSize: (index) => rowLayout.sizes[index],
+    // 虚拟化在滚动坐标系工作,尺寸 × zoom;渲染坐标由 rowLayout/colLayout(zoom=1)提供
+    estimateSize: (index) => rowLayout.sizes[index] * zoom,
     overscan: OVERSCAN
   })
   const colVirtualizer = useVirtualizer({
     horizontal: true,
     count: colCount,
     getScrollElement: () => scrollElRef.current,
-    estimateSize: (index) => colLayout.sizes[index],
+    estimateSize: (index) => colLayout.sizes[index] * zoom,
     overscan: OVERSCAN
   })
 
@@ -338,9 +340,19 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     return () => observer.disconnect()
   }, [readViewport])
 
+  // 合并层可视计算在 zoom=1 坐标系进行:滚动视口先除以 zoom 折算回内容坐标
+  const contentViewport = useMemo<ViewportRect>(
+    () => ({
+      top: viewport.top / zoom,
+      left: viewport.left / zoom,
+      bottom: viewport.bottom / zoom,
+      right: viewport.right / zoom
+    }),
+    [viewport, zoom]
+  )
   const mergesVisible = useMemo(
-    () => mergesInView(sheet.merges, viewport, rowLayout, colLayout),
-    [sheet.merges, viewport, rowLayout, colLayout]
+    () => mergesInView(sheet.merges, contentViewport, rowLayout, colLayout),
+    [sheet.merges, contentViewport, rowLayout, colLayout]
   )
 
   const getCell = useCallback((row: number, col: number) => sheet.cells[`${row}:${col}`], [sheet.cells])
@@ -385,8 +397,8 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     }
   }, [selected, findMerge, rowLayout, colLayout])
 
-  const totalWidth = colLayout.totalSize + rowHeaderWidth
-  const totalHeight = rowLayout.totalSize + colHeaderHeight
+  const totalWidth = colLayout.totalSize * zoom + scaledHeaderWidth
+  const totalHeight = rowLayout.totalSize * zoom + scaledHeaderHeight
 
   const virtualRows = rowVirtualizer.getVirtualItems()
   const virtualCols = colVirtualizer.getVirtualItems()
@@ -402,158 +414,172 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       }}
       tabIndex={0}>
       <div className="relative" style={{ width: totalWidth, height: totalHeight }}>
-        {/* 列表头(sticky top):A B C… */}
+        {/* 列表头(sticky top):A B C…。盒子在滚动坐标系定位,内容整体缩放 */}
         <div
           className="sticky top-0 z-20 border-border border-b bg-muted"
-          style={{ height: colHeaderHeight, marginLeft: rowHeaderWidth, width: colLayout.totalSize }}>
-          {virtualCols.map((vc) => (
-            <div
-              key={vc.key}
-              className="absolute flex items-center justify-center border-border border-r text-foreground-muted text-xs"
-              style={{ left: vc.start, width: vc.size, height: colHeaderHeight }}>
-              {colName(vc.index + 1)}
-            </div>
-          ))}
+          style={{ height: scaledHeaderHeight, marginLeft: scaledHeaderWidth, width: colLayout.totalSize * zoom }}>
+          <div className="absolute" style={zoomTransform}>
+            {virtualCols.map((vc) => (
+              <div
+                key={vc.key}
+                className="absolute flex items-center justify-center border-border border-r text-foreground-muted text-xs"
+                style={{
+                  left: axisOffset(colLayout, vc.index),
+                  width: colLayout.sizes[vc.index],
+                  height: COL_HEADER_HEIGHT_PX
+                }}>
+                {colName(vc.index + 1)}
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* 行表头(sticky left):1 2 3… */}
         <div
           className="sticky left-0 z-20 border-border border-r bg-muted"
-          style={{ width: rowHeaderWidth, height: rowLayout.totalSize, top: colHeaderHeight }}>
-          {virtualRows.map((vr) => (
-            <div
-              key={vr.key}
-              className="absolute flex items-center justify-center border-border border-b text-foreground-muted text-xs"
-              style={{ top: vr.start, height: vr.size, width: rowHeaderWidth }}>
-              {vr.index + 1}
-            </div>
-          ))}
+          style={{ width: scaledHeaderWidth, height: rowLayout.totalSize * zoom, top: scaledHeaderHeight }}>
+          <div className="absolute" style={zoomTransform}>
+            {virtualRows.map((vr) => (
+              <div
+                key={vr.key}
+                className="absolute flex items-center justify-center border-border border-b text-foreground-muted text-xs"
+                style={{
+                  top: axisOffset(rowLayout, vr.index),
+                  height: rowLayout.sizes[vr.index],
+                  width: ROW_HEADER_WIDTH_PX
+                }}>
+                {vr.index + 1}
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* 单元格层:双向虚拟滚动。任何被合并覆盖的单元格(含 master)在此层置空内容——
-            master 的内容+样式由下方独立的合并层渲染,避免重复;这里只保留背景占位。 */}
-        <div className="absolute" style={{ top: colHeaderHeight, left: rowHeaderWidth }}>
-          {virtualRows.map((vr) =>
-            virtualCols.map((vc) => {
-              const row = vr.index + 1
-              const col = vc.index + 1
-              const isCovered = Boolean(findMerge(row, col))
-              const cell = isCovered ? undefined : getCell(row, col)
-              const style = isCovered ? undefined : getStyle(cell)
-              const isSelected = !isCovered && selected?.row === row && selected?.col === col
+        {/* 内容缩放层:单元格/合并/浮动/选中弹层全部以 zoom=1 坐标渲染,整体 transform 放大 */}
+        <div
+          className="absolute"
+          data-testid="xlsx-grid-zoom-layer"
+          style={{ top: scaledHeaderHeight, left: scaledHeaderWidth, ...zoomTransform }}>
+          {/* 单元格层:双向虚拟滚动。任何被合并覆盖的单元格(含 master)在此层置空内容——
+              master 的内容+样式由下方独立的合并层渲染,避免重复;这里只保留背景占位。 */}
+          <div className="absolute">
+            {virtualRows.map((vr) =>
+              virtualCols.map((vc) => {
+                const row = vr.index + 1
+                const col = vc.index + 1
+                const isCovered = Boolean(findMerge(row, col))
+                const cell = isCovered ? undefined : getCell(row, col)
+                const style = isCovered ? undefined : getStyle(cell)
+                const isSelected = !isCovered && selected?.row === row && selected?.col === col
+                return (
+                  <div
+                    key={`${vr.key}:${vc.key}`}
+                    onClick={() => selectCell(row, col)}
+                    role="gridcell"
+                    aria-selected={isSelected}>
+                    <CellView
+                      cell={cell}
+                      style={style}
+                      isFirstRow={row === 1}
+                      isFirstCol={col === 1}
+                      positionStyle={{
+                        position: 'absolute',
+                        top: axisOffset(rowLayout, vr.index),
+                        left: axisOffset(colLayout, vc.index),
+                        width: colLayout.sizes[vc.index],
+                        height: rowLayout.sizes[vr.index]
+                      }}
+                    />
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          {/* 合并层:独立于单元格虚拟化,master 滚出视口但合并区与视口相交时依然渲染;命中测试优先于单元格层(DOM 顺序在后) */}
+          <div className="absolute">
+            {mergesVisible.map(({ merge, masterRow, masterCol, rect }) => {
+              const cell = getCell(masterRow, masterCol)
+              const style = getStyle(cell)
+              const isSelected = selected?.row === masterRow && selected?.col === masterCol
               return (
                 <div
-                  key={`${vr.key}:${vc.key}`}
-                  onClick={() => selectCell(row, col)}
+                  key={`merge:${merge.top}:${merge.left}:${merge.bottom}:${merge.right}`}
+                  onClick={() => selectCell(masterRow, masterCol)}
                   role="gridcell"
-                  aria-selected={isSelected}>
+                  aria-selected={isSelected}
+                  data-testid="xlsx-grid-merge-cell">
                   <CellView
                     cell={cell}
                     style={style}
-                    zoom={zoom}
-                    isFirstRow={row === 1}
-                    isFirstCol={col === 1}
+                    isFirstRow={masterRow === 1}
+                    isFirstCol={masterCol === 1}
                     positionStyle={{
                       position: 'absolute',
-                      top: vr.start,
-                      left: vc.start,
-                      width: vc.size,
-                      height: vr.size
+                      top: rect.y,
+                      left: rect.x,
+                      width: rect.width,
+                      height: rect.height
                     }}
                   />
                 </div>
               )
-            })
-          )}
-        </div>
+            })}
+          </div>
 
-        {/* 合并层:独立于单元格虚拟化,master 滚出视口但合并区与视口相交时依然渲染;命中测试优先于单元格层(DOM 顺序在后) */}
-        <div className="absolute" style={{ top: colHeaderHeight, left: rowHeaderWidth }}>
-          {mergesVisible.map(({ merge, masterRow, masterCol, rect }) => {
-            const cell = getCell(masterRow, masterCol)
-            const style = getStyle(cell)
-            const isSelected = selected?.row === masterRow && selected?.col === masterCol
-            return (
-              <div
-                key={`merge:${merge.top}:${merge.left}:${merge.bottom}:${merge.right}`}
-                onClick={() => selectCell(masterRow, masterCol)}
-                role="gridcell"
-                aria-selected={isSelected}
-                data-testid="xlsx-grid-merge-cell">
-                <CellView
-                  cell={cell}
-                  style={style}
-                  zoom={zoom}
-                  isFirstRow={masterRow === 1}
-                  isFirstCol={masterCol === 1}
-                  positionStyle={{
-                    position: 'absolute',
-                    top: rect.y,
-                    left: rect.x,
-                    width: rect.width,
-                    height: rect.height
+          {/* 浮动层:图片 + 图表,按 PxRect(zoom=1)绝对定位;视觉缩放由外层 transform 完成,
+              图表容器 layout 尺寸不随 zoom 变化,ECharts 不会因缩放而重排 */}
+          <div className="pointer-events-none absolute">
+            {sheet.floatingImages.map((img) => {
+              const src = imageUrls[img.imageId]
+              if (!src) return null
+              return (
+                <img
+                  key={`img:${img.imageId}`}
+                  src={src}
+                  alt=""
+                  data-testid="xlsx-grid-floating-image"
+                  className="pointer-events-auto absolute object-contain"
+                  style={{
+                    top: img.rect.y,
+                    left: img.rect.x,
+                    width: img.rect.width,
+                    height: img.rect.height
                   }}
                 />
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+            {sheet.charts.map((chart, i) => {
+              const positionStyle: React.CSSProperties = {
+                top: chart.rect.y,
+                left: chart.rect.x,
+                width: chart.rect.width,
+                height: chart.rect.height
+              }
+              return (
+                <div
+                  key={`chart:${i}`}
+                  className="pointer-events-auto absolute"
+                  style={positionStyle}
+                  data-testid="xlsx-grid-chart">
+                  {chart.type === 'unsupported' || !renderChart ? (
+                    <UnsupportedChartPlaceholder chart={chart} />
+                  ) : (
+                    <ChartHost chart={chart} renderChart={renderChart} />
+                  )}
+                </div>
+              )
+            })}
+          </div>
 
-        {/* 浮动层:图片 + 图表,按 PxRect * zoom 绝对定位 */}
-        <div className="pointer-events-none absolute" style={{ top: colHeaderHeight, left: rowHeaderWidth }}>
-          {sheet.floatingImages.map((img) => {
-            const src = imageUrls[img.imageId]
-            if (!src) return null
-            return (
-              <img
-                key={`img:${img.imageId}`}
-                src={src}
-                alt=""
-                data-testid="xlsx-grid-floating-image"
-                className="pointer-events-auto absolute object-contain"
-                style={{
-                  top: img.rect.y * zoom,
-                  left: img.rect.x * zoom,
-                  width: img.rect.width * zoom,
-                  height: img.rect.height * zoom
-                }}
-              />
-            )
-          })}
-          {sheet.charts.map((chart, i) => {
-            const positionStyle: React.CSSProperties = {
-              top: chart.rect.y * zoom,
-              left: chart.rect.x * zoom,
-              width: chart.rect.width * zoom,
-              height: chart.rect.height * zoom
-            }
-            return (
-              <div
-                key={`chart:${i}`}
-                className="pointer-events-auto absolute"
-                style={positionStyle}
-                data-testid="xlsx-grid-chart">
-                {chart.type === 'unsupported' || !renderChart ? (
-                  <UnsupportedChartPlaceholder chart={chart} />
-                ) : (
-                  <ChartHost chart={chart} renderChart={renderChart} />
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-        {/* 选中格弹层:覆盖展示完整内容,DOM 序在最后、z-10 低于 sticky 表头(z-20) */}
-        {selected && selectedRect && (
-          <div className="absolute" style={{ top: colHeaderHeight, left: rowHeaderWidth }}>
+          {/* 选中格弹层:覆盖展示完整内容,DOM 序在最后、z-10 低于 sticky 表头(z-20) */}
+          {selected && selectedRect && (
             <SelectedCellOverlay
               cell={getCell(selected.row, selected.col)}
               style={getStyle(getCell(selected.row, selected.col))}
-              zoom={zoom}
               rect={selectedRect}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )

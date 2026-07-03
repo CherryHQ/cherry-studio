@@ -154,10 +154,6 @@ export const findCoveringMerge = <M extends MergeRangeLike>(merges: M[], row: nu
 /** Excel 默认字号 11pt → px(zoom=1),与 CellStyle.fontSizePx 未设置时的默认一致 */
 export const DEFAULT_FONT_SIZE_PX = ptToPx(11)
 
-/** 字号(px,zoom=1)按 zoom 缩放 */
-export const scaledFontSizePx = (fontSizePx: number | undefined, zoom: number): number =>
-  (fontSizePx ?? DEFAULT_FONT_SIZE_PX) * zoom
-
 /** wrap 单元格文本的行高系数(无量纲,乘字号) */
 export const WRAP_LINE_HEIGHT = 1.3
 

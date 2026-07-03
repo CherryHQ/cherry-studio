@@ -275,7 +275,7 @@ describe('XlsxGrid — merged cells', () => {
 })
 
 describe('XlsxGrid — zoom', () => {
-  it('doubles cell position/size and font size when zoom goes from 1 to 2', () => {
+  it('scales photographically: cell layout stays at zoom=1 and only the transform changes', () => {
     setRangeFromCounts(
       [1],
       [0],
@@ -296,9 +296,28 @@ describe('XlsxGrid — zoom', () => {
     )
     rerender(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={2} />)
 
+    // Cell 2:1 keeps its zoom=1 geometry (row 1 override 36 → top, col A 110 wide, row 2 default 20 tall)
     const cell = screen.getByText('季度')
     const cellDiv = cell.closest('div') as HTMLElement
-    expect(cellDiv).toHaveStyle({ top: '40px', left: '0px', width: '128px', height: '40px' })
+    expect(cellDiv).toHaveStyle({ top: '36px', left: '0px', width: '110px', height: '20px' })
+    // The whole content layer is scaled as one image instead
+    expect(screen.getByTestId('xlsx-grid-zoom-layer')).toHaveStyle({ transform: 'scale(2)' })
+  })
+
+  it('feeds the virtualizer scroll-space (scaled) sizes while rendering unscaled coordinates', () => {
+    setRangeFromCounts(
+      [0],
+      [0],
+      () => 72,
+      () => 220,
+      () => 0,
+      () => 0
+    )
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={2} />)
+
+    // Row 1 has a 36px override, col A a 110px override — scroll space doubles them at zoom 2.
+    expect(mocks.lastRowOptions.estimateSize(0)).toBe(72)
+    expect(mocks.lastColOptions.estimateSize(0)).toBe(220)
   })
 })
 
@@ -395,7 +414,7 @@ describe('XlsxGrid — selected cell overlay', () => {
 })
 
 describe('XlsxGrid — floating layer', () => {
-  it('renders a floating image at its scaled position with the resolved object URL', () => {
+  it('renders a floating image at its zoom=1 rect and lets the transform layer scale it', () => {
     setRangeFromCounts(
       [0],
       [0],
@@ -408,8 +427,10 @@ describe('XlsxGrid — floating layer', () => {
 
     const img = screen.getByTestId('xlsx-grid-floating-image') as HTMLImageElement
     expect(img.src).toContain('blob:mock-url')
-    // floatingImages[0].rect = { x: 340, y: 44, width: 160, height: 90 }, zoom=2
-    expect(img).toHaveStyle({ top: '88px', left: '680px', width: '320px', height: '180px' })
+    // floatingImages[0].rect = { x: 340, y: 44, width: 160, height: 90 } stays unscaled;
+    // the ancestor zoom layer's transform applies the visual scaling.
+    expect(img).toHaveStyle({ top: '44px', left: '340px', width: '160px', height: '90px' })
+    expect(screen.getByTestId('xlsx-grid-zoom-layer')).toHaveStyle({ transform: 'scale(2)' })
   })
 
   it('does not render an image when its object URL has not been resolved yet', () => {

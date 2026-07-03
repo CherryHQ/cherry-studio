@@ -8,7 +8,6 @@ import {
   findCoveringMerge,
   mergeRectPx,
   mergesInView,
-  scaledFontSizePx,
   WRAP_LINE_HEIGHT,
   wrapClampLines
 } from '../gridLayout'
@@ -149,20 +148,6 @@ describe('findCoveringMerge', () => {
   it('returns undefined for a cell outside every merge', () => {
     expect(findCoveringMerge(merges, 1, 1)).toBeUndefined()
     expect(findCoveringMerge(merges, 5, 5)).toBeUndefined()
-  })
-})
-
-describe('scaledFontSizePx', () => {
-  it('falls back to the Excel default (11pt) when fontSizePx is undefined', () => {
-    expect(scaledFontSizePx(undefined, 1)).toBeCloseTo(DEFAULT_FONT_SIZE_PX)
-  })
-
-  it('scales an explicit font size by the zoom factor', () => {
-    expect(scaledFontSizePx(16, 2)).toBe(32)
-  })
-
-  it('scales the default font size by the zoom factor too', () => {
-    expect(scaledFontSizePx(undefined, 2)).toBeCloseTo(DEFAULT_FONT_SIZE_PX * 2)
   })
 })
 
