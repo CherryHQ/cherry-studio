@@ -1,51 +1,31 @@
+import fs, { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import type * as LifecycleModule from '@main/core/lifecycle'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
   type KnowledgeBase
 } from '@shared/data/types/knowledge'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   loggerDebugMock,
   loggerErrorMock,
   loggerInfoMock,
   loggerWarnMock,
-  openDriverMock,
-  createSchemaMock,
-  resetSchemaMock,
-  ensureIndexMetaMock,
-  readIndexSchemaVersionMock,
-  hasAnyMaterialMock,
   getItemsByBaseIdMock,
-  indexStoreCtorMock,
   getPathSyncMock,
-  deleteDirMock,
-  statMock
+  deleteDirMock
 } = vi.hoisted(() => ({
   loggerDebugMock: vi.fn(),
   loggerErrorMock: vi.fn(),
   loggerInfoMock: vi.fn(),
   loggerWarnMock: vi.fn(),
-  openDriverMock: vi.fn(),
-  createSchemaMock: vi.fn(),
-  resetSchemaMock: vi.fn(),
-  ensureIndexMetaMock: vi.fn(),
-  readIndexSchemaVersionMock: vi.fn(),
-  hasAnyMaterialMock: vi.fn(),
   getItemsByBaseIdMock: vi.fn(),
-  indexStoreCtorMock: vi.fn(),
   getPathSyncMock: vi.fn(),
-  deleteDirMock: vi.fn(),
-  statMock: vi.fn()
-}))
-
-/** Mirrors KNOWLEDGE_INDEX_SCHEMA_VERSION in schema.ts; the service test pins the open-time
- *  branching (rebuild vs create), while schema.test.ts pins the real constant's value. */
-const MOCK_SCHEMA_VERSION = 2
-
-vi.mock('node:fs', () => ({
-  default: { promises: { stat: statMock } }
+  deleteDirMock: vi.fn()
 }))
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
@@ -70,30 +50,11 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../indexStore/KnowledgeIndexStore', () => ({
-  KnowledgeIndexStore: indexStoreCtorMock
-}))
-
-vi.mock('../indexStore/BetterSqlite3Driver', () => ({
-  openBetterSqlite3IndexDriver: openDriverMock
-}))
-
-vi.mock('../indexStore/BetterSqlite3VectorIndex', () => ({
-  betterSqlite3VectorIndex: { kind: 'better-sqlite3' }
-}))
-
-vi.mock('../indexStore/schema', () => ({
-  createKnowledgeIndexSchema: createSchemaMock,
-  resetKnowledgeIndexSchema: resetSchemaMock,
-  KNOWLEDGE_INDEX_SCHEMA_VERSION: MOCK_SCHEMA_VERSION
-}))
-
-vi.mock('../indexStore/indexMeta', () => ({
-  ensureIndexMeta: ensureIndexMetaMock,
-  readIndexSchemaVersion: readIndexSchemaVersionMock,
-  hasAnyMaterial: hasAnyMaterialMock
-}))
-
+// The app-DB boundary: everything under indexStore/ (driver, schema, meta, store) runs
+// for real against a temp-dir SQLite file, so these tests exercise the real DDL/meta
+// contract instead of pinning mock call shapes. `pathStorage`'s path resolver is
+// redirected into the temp dir; `deleteKnowledgeBaseDir` stays mocked (its own removeDir
+// behavior is covered by pathStorage's own tests).
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: { getItemsByBaseId: getItemsByBaseIdMock }
 }))
@@ -104,6 +65,11 @@ vi.mock('../../../pathStorage', () => ({
 }))
 
 const { KnowledgeVectorStoreService } = await import('../KnowledgeVectorStoreService')
+const { KnowledgeIndexStore } = await import('../indexStore/KnowledgeIndexStore')
+const { BetterSqlite3Driver, openBetterSqlite3IndexDriver } = await import('../indexStore/BetterSqlite3Driver')
+const schemaModule = await import('../indexStore/schema')
+const indexMetaModule = await import('../indexStore/indexMeta')
+const { KNOWLEDGE_INDEX_SCHEMA_VERSION } = schemaModule
 
 function createBase(id = 'kb-1'): KnowledgeBase {
   return {
@@ -118,47 +84,52 @@ function createBase(id = 'kb-1'): KnowledgeBase {
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
     chunkStrategy: 'structured',
     chunkSeparator: '\\n\\n',
+    searchMode: 'hybrid',
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
 }
 
-/** The store instance built by the most recent `new KnowledgeIndexStore(...)` call. */
-function lastStore() {
-  const results = indexStoreCtorMock.mock.results
-  return results[results.length - 1]?.value as { close: ReturnType<typeof vi.fn> }
+function createFailedBase(): KnowledgeBase {
+  return {
+    ...createBase(),
+    dimensions: null,
+    embeddingModelId: null,
+    status: 'failed',
+    error: 'missing_embedding_model'
+  }
+}
+
+/** Opens (and immediately closes) a store for `base` so its file exists on disk at the current schema version. */
+async function primeStoreOnDisk(base: KnowledgeBase): Promise<void> {
+  const store = await new KnowledgeVectorStoreService().getIndexStore(base)
+  store.close()
+}
+
+/** Opens a fresh raw driver directly on `base`'s file (bypassing the service/cache) to inspect or mutate it. */
+function withRawDriver<T>(base: KnowledgeBase, fn: (driver: InstanceType<typeof BetterSqlite3Driver>) => T): T {
+  const driver = openBetterSqlite3IndexDriver(getPathSyncMock(base.id))
+  try {
+    return fn(driver)
+  } finally {
+    driver.close()
+  }
 }
 
 describe('KnowledgeVectorStoreService', () => {
+  let tempDir: string
+
   beforeEach(() => {
     vi.clearAllMocks()
-    getPathSyncMock.mockImplementation((baseId: string) => `/tmp/${baseId}/index.sqlite`)
-    // Each open returns a fresh closeable driver so failure paths can assert close().
-    // The real driver port is synchronous (see BetterSqlite3Driver) — these mocks
-    // must return plain values, not promises, or the store under test would try to
-    // call .execute() on a Promise object.
-    openDriverMock.mockImplementation(() => ({
-      kind: 'driver',
-      close: vi.fn()
-    }))
-    createSchemaMock.mockReturnValue(undefined)
-    resetSchemaMock.mockReturnValue(undefined)
-    ensureIndexMetaMock.mockReturnValue(undefined)
-    // Default: a fresh/blank file has no stored version → the open path takes the normal
-    // create branch (no rebuild). Mismatch tests override this per-case.
-    readIndexSchemaVersionMock.mockReturnValue(null)
-    // A non-empty material probe keeps the invisible-contents diagnostic quiet
-    // unless a test opts in.
-    hasAnyMaterialMock.mockReturnValue(true)
+    tempDir = mkdtempSync(join(tmpdir(), 'cs-knowledge-vsstore-'))
+    getPathSyncMock.mockImplementation((baseId: string) => join(tempDir, `${baseId}.sqlite`))
     getItemsByBaseIdMock.mockReturnValue([])
     deleteDirMock.mockResolvedValue(undefined)
-    indexStoreCtorMock.mockImplementation(() => ({
-      close: vi.fn().mockResolvedValue(undefined),
-      // The real store's hasAnyMaterial() delegates to the free indexMeta probe; mirror that here so
-      // the invisible-contents diagnostic (now run via the factory's afterOpen hook, on the store
-      // rather than the raw driver) reads through the same hasAnyMaterialMock.
-      hasAnyMaterial: hasAnyMaterialMock
-    }))
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    rmSync(tempDir, { recursive: true, force: true })
   })
 
   it('opens an index store on first request and caches it per base', async () => {
@@ -169,205 +140,212 @@ describe('KnowledgeVectorStoreService', () => {
     const second = await service.getIndexStore(base)
 
     expect(first).toBe(second)
-    expect(indexStoreCtorMock).toHaveBeenCalledTimes(1)
-    expect(openDriverMock).toHaveBeenCalledTimes(1)
-    expect(createSchemaMock).toHaveBeenCalledTimes(1)
+    expect(first).toBeInstanceOf(KnowledgeIndexStore)
     expect(loggerInfoMock).toHaveBeenCalledWith('Opened knowledge index store', { baseId: base.id, cacheSize: 1 })
     expect(loggerDebugMock).toHaveBeenCalledWith('Reusing cached knowledge index store', { baseId: base.id })
   })
 
-  it('shares a single open across concurrent callers for the same base (single-flight)', async () => {
+  it('synchronous open makes a second concurrent call observe the already-cached store', async () => {
+    // Opening a store (better-sqlite3 connect + schema + meta) is fully synchronous, so
+    // the first call's cache write completes before the second call starts — there is no
+    // in-flight promise for the second call to join. Pinned via a call-count assertion so
+    // a future refactor that reintroduces an async open cannot silently double-open.
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
+    const createSchemaSpy = vi.spyOn(schemaModule, 'createKnowledgeIndexSchema')
 
-    // Both calls are issued before the first open resolves; the second must join
-    // the first's in-flight open rather than starting its own (which would leak a
-    // store no one closes).
     const [first, second] = await Promise.all([service.getIndexStore(base), service.getIndexStore(base)])
 
     expect(first).toBe(second)
-    expect(openDriverMock).toHaveBeenCalledTimes(1)
-    expect(indexStoreCtorMock).toHaveBeenCalledTimes(1)
+    expect(createSchemaSpy).toHaveBeenCalledTimes(1)
   })
 
   it('evicts a failed open so a later call retries instead of re-awaiting the failure', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
-    openDriverMock.mockImplementationOnce(() => {
-      throw new Error('open failed')
-    })
+    // A regular file where the index dir must go makes the real mkdirSync in
+    // openBetterSqlite3IndexDriver fail with ENOTDIR before any Database is opened.
+    const blockerPath = join(tempDir, 'blocked-open')
+    writeFileSync(blockerPath, 'not a directory')
+    getPathSyncMock.mockReturnValueOnce(join(blockerPath, 'index.sqlite'))
 
-    await expect(service.getIndexStore(base)).rejects.toThrow('open failed')
+    await expect(service.getIndexStore(base)).rejects.toThrow()
 
     const store = await service.getIndexStore(base)
-    expect(store).toBe(lastStore())
-    expect(openDriverMock).toHaveBeenCalledTimes(2)
-    expect(indexStoreCtorMock).toHaveBeenCalledTimes(1)
+    expect(store).toBeInstanceOf(KnowledgeIndexStore)
   })
 
   it('stamps and verifies the meta identity row before handing out the store', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
+    const ensureIndexMetaSpy = vi.spyOn(indexMetaModule, 'ensureIndexMeta')
 
     await service.getIndexStore(base)
 
-    expect(ensureIndexMetaMock).toHaveBeenCalledTimes(1)
-    expect(ensureIndexMetaMock).toHaveBeenCalledWith(expect.objectContaining({ kind: 'driver' }), {
-      baseId: base.id
-    })
+    expect(ensureIndexMetaSpy).toHaveBeenCalledTimes(1)
+    expect(ensureIndexMetaSpy).toHaveBeenCalledWith(expect.anything(), { baseId: base.id })
   })
 
   it('creates the schema normally when the stored version matches (no rebuild)', async () => {
-    const service = new KnowledgeVectorStoreService()
     const base = createBase()
-    readIndexSchemaVersionMock.mockReturnValueOnce(MOCK_SCHEMA_VERSION)
+    await primeStoreOnDisk(base)
+    const createSchemaSpy = vi.spyOn(schemaModule, 'createKnowledgeIndexSchema')
+    const resetSchemaSpy = vi.spyOn(schemaModule, 'resetKnowledgeIndexSchema')
+    const service = new KnowledgeVectorStoreService()
 
     await service.getIndexStore(base)
 
-    expect(createSchemaMock).toHaveBeenCalledTimes(1)
-    expect(resetSchemaMock).not.toHaveBeenCalled()
+    expect(createSchemaSpy).toHaveBeenCalledTimes(1)
+    expect(resetSchemaSpy).not.toHaveBeenCalled()
   })
 
   it('rebuilds the derived index when an existing index.sqlite is at a stale schema version', async () => {
-    const service = new KnowledgeVectorStoreService()
     const base = createBase()
-    readIndexSchemaVersionMock.mockReturnValueOnce(MOCK_SCHEMA_VERSION - 1)
+    await primeStoreOnDisk(base)
+    // Leave a marker row and stamp a stale version directly, so the rebuild below is
+    // verified against real DDL (dropped tables), not a mocked branch decision.
+    withRawDriver(base, (driver) => {
+      driver.execute('INSERT INTO content (content_hash, text, created_at) VALUES (?, ?, ?)', ['marker', 'x', 0])
+      driver.execute('UPDATE meta SET schema_version = ?', [KNOWLEDGE_INDEX_SCHEMA_VERSION - 1])
+    })
+    const createSchemaSpy = vi.spyOn(schemaModule, 'createKnowledgeIndexSchema')
+    const resetSchemaSpy = vi.spyOn(schemaModule, 'resetKnowledgeIndexSchema')
+    const ensureIndexMetaSpy = vi.spyOn(indexMetaModule, 'ensureIndexMeta')
+    const service = new KnowledgeVectorStoreService()
 
     await service.getIndexStore(base)
 
     // Drop+recreate via resetKnowledgeIndexSchema, NOT the plain create — an old layout
     // (e.g. pre-fts_rowid) cannot be retrofitted by CREATE ... IF NOT EXISTS.
-    expect(resetSchemaMock).toHaveBeenCalledTimes(1)
-    expect(createSchemaMock).not.toHaveBeenCalled()
+    expect(resetSchemaSpy).toHaveBeenCalledTimes(1)
+    expect(createSchemaSpy).not.toHaveBeenCalled()
     // Warn so the wipe-and-reindex is diagnosable.
     expect(loggerWarnMock).toHaveBeenCalledWith(
       'Knowledge index schema version mismatch — rebuilding the derived index',
       expect.objectContaining({
         baseId: base.id,
-        storedVersion: MOCK_SCHEMA_VERSION - 1,
-        expectedVersion: MOCK_SCHEMA_VERSION
+        storedVersion: KNOWLEDGE_INDEX_SCHEMA_VERSION - 1,
+        expectedVersion: KNOWLEDGE_INDEX_SCHEMA_VERSION
       })
     )
     // The reset drops meta, so the open path still restamps it afterwards.
-    expect(ensureIndexMetaMock).toHaveBeenCalledTimes(1)
+    expect(ensureIndexMetaSpy).toHaveBeenCalledTimes(1)
+    // The rebuild really dropped and recreated the schema: the marker inserted before
+    // the stale-version stamp is gone, and the restamped version is current.
+    expect(
+      withRawDriver(base, (driver) => driver.execute('SELECT 1 FROM content WHERE content_hash = ?', ['marker']).rows)
+    ).toEqual([])
+    expect(withRawDriver(base, (driver) => indexMetaModule.readIndexSchemaVersion(driver))).toBe(
+      KNOWLEDGE_INDEX_SCHEMA_VERSION
+    )
   })
 
   it('also rebuilds when the stored version is NEWER than this build (downgrade)', async () => {
     // The guard is `!==`, not `<` — a file written by a newer build (user downgraded the app) is
     // just as incompatible a layout and must be rebuilt, not opened as-is. Pins that semantics so a
     // future refactor to `<` does not silently start mounting newer files.
-    const service = new KnowledgeVectorStoreService()
     const base = createBase()
-    readIndexSchemaVersionMock.mockReturnValueOnce(MOCK_SCHEMA_VERSION + 1)
+    await primeStoreOnDisk(base)
+    withRawDriver(base, (driver) => {
+      driver.execute('UPDATE meta SET schema_version = ?', [KNOWLEDGE_INDEX_SCHEMA_VERSION + 1])
+    })
+    const createSchemaSpy = vi.spyOn(schemaModule, 'createKnowledgeIndexSchema')
+    const resetSchemaSpy = vi.spyOn(schemaModule, 'resetKnowledgeIndexSchema')
+    const service = new KnowledgeVectorStoreService()
 
     await service.getIndexStore(base)
 
-    expect(resetSchemaMock).toHaveBeenCalledTimes(1)
-    expect(createSchemaMock).not.toHaveBeenCalled()
+    expect(resetSchemaSpy).toHaveBeenCalledTimes(1)
+    expect(createSchemaSpy).not.toHaveBeenCalled()
   })
 
   it('closes the driver and aborts the open when meta verification fails (wrong/corrupt base)', async () => {
+    const base = createBase('kb-shared')
+    const otherBase = createBase('kb-other')
+    // Both bases resolve to the same on-disk file, so the second open's meta
+    // identity check genuinely finds a mismatched base_id.
+    getPathSyncMock.mockImplementation(() => join(tempDir, 'shared.sqlite'))
+    await primeStoreOnDisk(base)
+    const closeSpy = vi.spyOn(BetterSqlite3Driver.prototype, 'close')
     const service = new KnowledgeVectorStoreService()
-    const base = createBase()
-    let openedDriver: { close: ReturnType<typeof vi.fn> } | undefined
-    openDriverMock.mockImplementationOnce(() => {
-      openedDriver = { kind: 'driver', close: vi.fn().mockResolvedValue(undefined) } as never
-      return openedDriver
-    })
-    ensureIndexMetaMock.mockImplementationOnce(() => {
-      throw new Error('belongs to a different base')
-    })
 
-    await expect(service.getIndexStore(base)).rejects.toThrow('belongs to a different base')
+    await expect(service.getIndexStore(otherBase)).rejects.toThrow('belongs to a different base')
 
-    expect(openedDriver?.close).toHaveBeenCalledTimes(1)
-    expect(indexStoreCtorMock).not.toHaveBeenCalled()
+    expect(closeSpy).toHaveBeenCalledTimes(1)
   })
 
   it('closes the driver when schema creation fails so the file handle is not leaked', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
-    let openedDriver: { close: ReturnType<typeof vi.fn> } | undefined
-    openDriverMock.mockImplementationOnce(() => {
-      openedDriver = { kind: 'driver', close: vi.fn().mockResolvedValue(undefined) } as never
-      return openedDriver
-    })
-    createSchemaMock.mockImplementationOnce(() => {
+    const closeSpy = vi.spyOn(BetterSqlite3Driver.prototype, 'close')
+    vi.spyOn(schemaModule, 'createKnowledgeIndexSchema').mockImplementationOnce(() => {
       throw new Error('disk full')
     })
 
     await expect(service.getIndexStore(base)).rejects.toThrow('disk full')
 
-    expect(openedDriver?.close).toHaveBeenCalledTimes(1)
-    expect(indexStoreCtorMock).not.toHaveBeenCalled()
+    expect(closeSpy).toHaveBeenCalledTimes(1)
   })
 
   it('returns undefined from getIndexStoreIfExists when no backing file exists', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
-    statMock.mockRejectedValueOnce(Object.assign(new Error('missing'), { code: 'ENOENT' }))
 
     await expect(service.getIndexStoreIfExists(base)).resolves.toBeUndefined()
 
-    expect(indexStoreCtorMock).not.toHaveBeenCalled()
     expect(loggerDebugMock).toHaveBeenCalledWith('Knowledge index store does not exist on disk', { baseId: base.id })
   })
 
   it('opens an existing store from disk when getIndexStoreIfExists detects a backing file', async () => {
-    const service = new KnowledgeVectorStoreService()
     const base = createBase()
-    statMock.mockResolvedValueOnce({ isFile: () => true })
+    await primeStoreOnDisk(base)
+    const service = new KnowledgeVectorStoreService()
 
     const store = await service.getIndexStoreIfExists(base)
 
-    expect(store).toBe(lastStore())
-    expect(indexStoreCtorMock).toHaveBeenCalledTimes(1)
+    expect(store).toBeInstanceOf(KnowledgeIndexStore)
   })
 
   it('returns the cached store from getIndexStoreIfExists without probing disk', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
-
     const created = await service.getIndexStore(base)
+    const statSpy = vi.spyOn(fs.promises, 'stat')
 
     await expect(service.getIndexStoreIfExists(base)).resolves.toBe(created)
-    expect(statMock).not.toHaveBeenCalled()
+    expect(statSpy).not.toHaveBeenCalled()
   })
 
   it('closes the cached store and removes the base directory on deleteStore', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
+    const closeSpy = vi.spyOn(BetterSqlite3Driver.prototype, 'close')
 
     const store = await service.getIndexStore(base)
     await service.deleteStore(base.id)
 
-    expect(store.close).toHaveBeenCalledTimes(1)
+    expect(closeSpy).toHaveBeenCalledTimes(1)
     expect(deleteDirMock).toHaveBeenCalledWith(base.id)
     // Close must precede directory removal — on Windows a still-open sqlite
     // handle makes the directory deletion fail.
-    expect((store.close as unknown as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]).toBeLessThan(
-      deleteDirMock.mock.invocationCallOrder[0]
-    )
+    expect(closeSpy.mock.invocationCallOrder[0]).toBeLessThan(deleteDirMock.mock.invocationCallOrder[0])
 
     // Cache was evicted: the next open builds a fresh instance.
     const reopened = await service.getIndexStore(base)
     expect(reopened).not.toBe(store)
-    expect(indexStoreCtorMock).toHaveBeenCalledTimes(2)
   })
 
   it('deleteStore removes the directory even when no store was ever opened for the base', async () => {
     // Opening a store (see openIndexStore) is fully synchronous — it either completes and
-    // caches a store, or throws before caching anything. There is no longer an in-flight
-    // state deleteStore could observe mid-open, so this covers the remaining "nothing
-    // cached" case: deleteStore must still close-if-present (a no-op here) and remove
-    // the directory.
+    // caches a store, or throws before caching anything. There is no in-flight state
+    // deleteStore could observe mid-open, so this covers the "nothing cached" case:
+    // deleteStore must still close-if-present (a no-op here) and remove the directory.
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
 
     await service.deleteStore(base.id)
 
     expect(deleteDirMock).toHaveBeenCalledWith(base.id)
-    expect(indexStoreCtorMock).not.toHaveBeenCalled()
   })
 
   it('evicts the cached store even when directory removal fails', async () => {
@@ -380,7 +358,6 @@ describe('KnowledgeVectorStoreService', () => {
 
     const reopened = await service.getIndexStore(base)
     expect(reopened).not.toBe(store)
-    expect(indexStoreCtorMock).toHaveBeenCalledTimes(2)
   })
 
   it('closes all cached stores during stop and continues when one close throws', async () => {
@@ -389,14 +366,15 @@ describe('KnowledgeVectorStoreService', () => {
     const first = await service.getIndexStore(createBase('kb-1'))
     const second = await service.getIndexStore(createBase('kb-2'))
     const closeError = new Error('close failed')
-    ;(first.close as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+    const firstCloseSpy = vi.spyOn(first, 'close').mockImplementationOnce(() => {
       throw closeError
     })
+    const secondCloseSpy = vi.spyOn(second, 'close')
 
-    await expect((service as any).onStop()).resolves.toBeUndefined()
+    await expect((service as unknown as { onStop: () => Promise<void> }).onStop()).resolves.toBeUndefined()
 
-    expect(first.close).toHaveBeenCalledTimes(1)
-    expect(second.close).toHaveBeenCalledTimes(1)
+    expect(firstCloseSpy).toHaveBeenCalledTimes(1)
+    expect(secondCloseSpy).toHaveBeenCalledTimes(1)
     expect(loggerErrorMock).toHaveBeenCalledWith('Failed to close knowledge index store', closeError, {
       baseId: 'kb-1'
     })
@@ -410,57 +388,34 @@ describe('KnowledgeVectorStoreService', () => {
 
   it('rejects bases that are not ready before touching disk', async () => {
     const service = new KnowledgeVectorStoreService()
-    const base = {
-      ...createBase(),
-      dimensions: null,
-      embeddingModelId: null,
-      status: 'failed',
-      error: 'missing_embedding_model'
-    } satisfies KnowledgeBase
+    const base = createFailedBase()
+    const statSpy = vi.spyOn(fs.promises, 'stat')
 
     await expect(service.getIndexStore(base)).rejects.toThrow('not ready for vector store operations')
 
-    expect(indexStoreCtorMock).not.toHaveBeenCalled()
+    expect(statSpy).not.toHaveBeenCalled()
   })
 
   it('lets cleanup on a failed base proceed: getIndexStoreIfExists returns undefined instead of asserting', async () => {
-    const service = new KnowledgeVectorStoreService()
-    const base = {
-      ...createBase(),
-      dimensions: null,
-      embeddingModelId: null,
-      status: 'failed',
-      error: 'missing_embedding_model'
-    } satisfies KnowledgeBase
     // Failed bases never get a store file (the vector migrator skips them and
     // getIndexStore asserts), so the existence probe is the path cleanup takes.
-    statMock.mockRejectedValueOnce(Object.assign(new Error('missing'), { code: 'ENOENT' }))
+    const service = new KnowledgeVectorStoreService()
+    const base = createFailedBase()
 
     await expect(service.getIndexStoreIfExists(base)).resolves.toBeUndefined()
-
-    expect(indexStoreCtorMock).not.toHaveBeenCalled()
   })
 
   it('still asserts readiness when a failed base unexpectedly has a store file on disk', async () => {
     const service = new KnowledgeVectorStoreService()
-    const base = {
-      ...createBase(),
-      dimensions: null,
-      embeddingModelId: null,
-      status: 'failed',
-      error: 'missing_embedding_model'
-    } satisfies KnowledgeBase
-    statMock.mockResolvedValueOnce({ isFile: () => true })
+    const base = createFailedBase()
+    writeFileSync(getPathSyncMock(base.id), '')
 
     await expect(service.getIndexStoreIfExists(base)).rejects.toThrow('not ready for vector store operations')
-
-    expect(indexStoreCtorMock).not.toHaveBeenCalled()
   })
 
   it('logs an error when an empty index mounts under a base with completed items', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
-    hasAnyMaterialMock.mockReturnValueOnce(false)
     getItemsByBaseIdMock.mockReturnValueOnce([
       { id: 'item-1', type: 'directory', status: 'completed' },
       { id: 'item-2', type: 'file', status: 'completed' }
@@ -468,7 +423,7 @@ describe('KnowledgeVectorStoreService', () => {
 
     const store = await service.getIndexStore(base)
 
-    expect(store).toBe(lastStore())
+    expect(store).toBeInstanceOf(KnowledgeIndexStore)
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.stringContaining('zero materials while the base has completed items'),
       expect.objectContaining({ baseId: base.id })
@@ -478,7 +433,6 @@ describe('KnowledgeVectorStoreService', () => {
   it('stays quiet when an empty index mounts under a base with no completed indexable items', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
-    hasAnyMaterialMock.mockReturnValueOnce(false)
     // A completed empty directory is legitimate without materials; in-flight leaves are too.
     getItemsByBaseIdMock.mockReturnValueOnce([
       { id: 'item-1', type: 'directory', status: 'completed' },
@@ -493,12 +447,7 @@ describe('KnowledgeVectorStoreService', () => {
   it('fails the open and closes the driver when the empty-index diagnostic cannot read the base items', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
-    let openedDriver: { close: ReturnType<typeof vi.fn> } | undefined
-    openDriverMock.mockImplementationOnce(() => {
-      openedDriver = { kind: 'driver', close: vi.fn().mockResolvedValue(undefined) } as never
-      return openedDriver
-    })
-    hasAnyMaterialMock.mockReturnValueOnce(false)
+    const closeSpy = vi.spyOn(BetterSqlite3Driver.prototype, 'close')
     getItemsByBaseIdMock.mockImplementationOnce(() => {
       throw new Error('app database unavailable')
     })
@@ -508,10 +457,6 @@ describe('KnowledgeVectorStoreService', () => {
     // lookup's NOT_FOUND is what makes that loud instead of caching an empty store).
     await expect(service.getIndexStore(base)).rejects.toThrow('app database unavailable')
 
-    // The factory builds the store, then runs the diagnostic through its afterOpen hook — so the
-    // store IS constructed before the probe throws. The throw is caught inside the factory's
-    // close-on-throw region, which closes the driver so the index.sqlite handle is not leaked.
-    expect(indexStoreCtorMock).toHaveBeenCalledTimes(1)
-    expect(openedDriver?.close).toHaveBeenCalledTimes(1)
+    expect(closeSpy).toHaveBeenCalledTimes(1)
   })
 })
