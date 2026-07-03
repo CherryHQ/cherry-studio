@@ -63,6 +63,11 @@ describe('index-documents job handler', () => {
     )
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
     expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null })).toBe('base.kb-1')
+    // README's lock-boundary contract: embedding (paid API call) must run before the
+    // mutation lock is taken, never inside it.
+    expect(embedKnowledgeTextsMock.mock.invocationCallOrder[0]).toBeLessThan(
+      knowledgeLockManager.withBaseMutationLock.mock.invocationCallOrder[0]
+    )
   })
 
   it('pairs every embedding vector with the hash of the body it was computed from', async () => {
@@ -331,6 +336,11 @@ describe('index-documents job handler', () => {
     // item-id virtual placeholder — so it points at the bytes captureUrlSnapshotFile
     // wrote and agrees with what the v1→v2 migrator stamps for the same url.
     expect(lastRebuildInput().material.relativePath).toBe('example-page.md')
+    // README's lock-boundary contract: the network fetch must complete before the
+    // (first) mutation lock is taken, never inside it.
+    expect(fetchKnowledgeWebPageMock.mock.invocationCallOrder[0]).toBeLessThan(
+      knowledgeLockManager.withBaseMutationLock.mock.invocationCallOrder[0]
+    )
   })
 
   it('does not fetch a URL that already has a captured snapshot', async () => {
