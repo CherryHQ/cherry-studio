@@ -1,17 +1,21 @@
 import {
   Button,
+  Center,
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   EmptyState,
   SearchInput,
-  SegmentedControl
+  SegmentedControl,
+  Spinner,
+  Tooltip
 } from '@cherrystudio/ui'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
 import type { SkillSearchResult, SkillSearchSource } from '@shared/types/skill'
-import { Check, Download, ExternalLink, Loader2, Star } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Check, Code2, Download, Loader2, Star } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type Props = {
@@ -21,6 +25,7 @@ type Props = {
 }
 
 const SEARCH_SOURCES: SkillSearchSource[] = ['claude-plugins.dev', 'skills.sh', 'clawhub.ai']
+const SKILL_SEARCH_RESULT_ROW_ESTIMATE_PX = 64
 
 export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Props) {
   const { t } = useTranslation()
@@ -29,12 +34,14 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
   const [query, setQuery] = useState('')
   const [activeSource, setActiveSource] = useState<SkillSearchSource>('claude-plugins.dev')
   const [installedSources, setInstalledSources] = useState<Set<string>>(() => new Set())
+  const pendingInstallSourcesRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (open) return
     setQuery('')
     setActiveSource('claude-plugins.dev')
     setInstalledSources(new Set())
+    pendingInstallSourcesRef.current.clear()
     clear()
   }, [clear, open])
 
@@ -65,18 +72,29 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
 
   const handleInstall = useCallback(
     async (result: SkillSearchResult) => {
-      if (installedSources.has(result.installSource) || isInstalling()) return
-
-      const { skill, error: installError } = await install(result.installSource)
-      if (!skill) {
-        const message = t('settings.skills.installFailed', { name: result.name })
-        window.toast.error(installError ? `${message}: ${installError}` : message)
+      if (
+        installedSources.has(result.installSource) ||
+        pendingInstallSourcesRef.current.has(result.installSource) ||
+        isInstalling(result.installSource)
+      ) {
         return
       }
 
-      setInstalledSources((current) => new Set(current).add(result.installSource))
-      window.toast.success(t('settings.skills.installSuccess', { name: skill.name }))
-      onInstalled?.()
+      pendingInstallSourcesRef.current.add(result.installSource)
+      try {
+        const { skill, error: installError } = await install(result.installSource)
+        if (!skill) {
+          const message = t('settings.skills.installFailed', { name: result.name })
+          window.toast.error(installError ? `${message}: ${installError}` : message)
+          return
+        }
+
+        setInstalledSources((current) => new Set(current).add(result.installSource))
+        window.toast.success(t('settings.skills.installSuccess', { name: skill.name }))
+        onInstalled?.()
+      } finally {
+        pendingInstallSourcesRef.current.delete(result.installSource)
+      }
     },
     [install, installedSources, isInstalling, onInstalled, t]
   )
@@ -94,7 +112,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent
-        closeOnOverlayClick={!isInstalling()}
+        closeOnOverlayClick
         size="xl"
         className="flex h-[min(640px,82vh)] flex-col gap-0 overflow-hidden p-0"
         data-testid="skill-marketplace-dialog">
@@ -103,19 +121,12 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
             <DialogTitle>{t('library.skill_marketplace.title')}</DialogTitle>
           </DialogHeader>
 
-          <div className="mt-4 flex flex-col gap-3">
-            <SearchInput
-              value={query}
-              onChange={(event) => handleSearchChange(event.target.value)}
-              placeholder={t('library.skill_marketplace.search_placeholder')}
-              onClear={clearQuery}
-              clearLabel={t('common.clear')}
-            />
+          <div className="mt-3 flex items-center gap-3">
             <SegmentedControl<SkillSearchSource>
               size="sm"
               value={activeSource}
               onValueChange={setActiveSource}
-              className="self-start"
+              className="shrink-0"
               options={SEARCH_SOURCES.map((source) => {
                 const count = tabCounts.get(source) ?? 0
                 return {
@@ -129,10 +140,19 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
                 }
               })}
             />
+            <div className="ml-auto min-w-0 max-w-[560px] flex-1">
+              <SearchInput
+                value={query}
+                onChange={(event) => handleSearchChange(event.target.value)}
+                placeholder={t('library.skill_marketplace.search_placeholder')}
+                onClear={clearQuery}
+                clearLabel={t('common.clear')}
+              />
+            </div>
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
+        <div className="flex min-h-0 flex-1 flex-col">
           <SkillSearchBody
             query={query}
             error={error}
@@ -166,6 +186,13 @@ function SkillSearchBody({
   onInstall: (result: SkillSearchResult) => void
 }) {
   const { t } = useTranslation()
+  const getResultKey = useCallback(
+    (index: number) => {
+      const result = results[index]
+      return result ? `${result.sourceRegistry}:${result.slug}` : index
+    },
+    [results]
+  )
 
   if (!query.trim()) {
     return (
@@ -173,22 +200,21 @@ function SkillSearchBody({
         preset="no-resource"
         title={t('library.skill_marketplace.empty_title')}
         description={t('library.skill_marketplace.empty_description')}
-        className="h-full"
+        className="min-h-0 flex-1"
       />
     )
   }
 
   if (searching) {
     return (
-      <div className="flex h-full items-center justify-center text-foreground-muted text-sm">
-        <Loader2 size={16} className="mr-2 animate-spin" />
-        {t('common.loading')}
-      </div>
+      <Center className="min-h-0 flex-1 text-foreground-muted text-sm">
+        <Spinner text={t('common.loading')} />
+      </Center>
     )
   }
 
   if (error) {
-    return <EmptyState preset="no-result" title={t('common.error')} description={error} className="h-full" />
+    return <EmptyState preset="no-result" title={t('common.error')} description={error} className="min-h-0 flex-1" />
   }
 
   if (results.length === 0) {
@@ -197,93 +223,106 @@ function SkillSearchBody({
         preset="no-result"
         title={t('library.skill_marketplace.no_results_title')}
         description={t('library.skill_marketplace.no_results_description')}
-        className="h-full"
+        className="min-h-0 flex-1"
       />
     )
   }
 
   return (
-    <div className="divide-y divide-border-muted">
-      {results.map((result) => (
+    <DynamicVirtualList
+      list={results}
+      size="100%"
+      estimateSize={() => SKILL_SEARCH_RESULT_ROW_ESTIMATE_PX}
+      overscan={6}
+      getItemKey={getResultKey}
+      role="list"
+      className="[&::-webkit-scrollbar]:!w-0.75 box-border px-6 pt-1 pb-1 [&::-webkit-scrollbar-thumb]:rounded-full">
+      {(result, index) => (
         <SkillSearchResultRow
-          key={`${result.sourceRegistry}:${result.slug}`}
           result={result}
+          last={index === results.length - 1}
           installed={installedSources.has(result.installSource)}
           installing={isInstalling(result.installSource)}
-          disabled={isInstalling()}
           onInstall={() => onInstall(result)}
         />
-      ))}
-    </div>
+      )}
+    </DynamicVirtualList>
   )
 }
 
 function SkillSearchResultRow({
   result,
+  last,
   installed,
   installing,
-  disabled,
   onInstall
 }: {
   result: SkillSearchResult
+  last: boolean
   installed: boolean
   installing: boolean
-  disabled: boolean
   onInstall: () => void
 }) {
   const { t } = useTranslation()
+  const hasMeta = Boolean(result.author || result.stars > 0 || result.downloads > 0)
 
   return (
-    <div className="flex items-start gap-4 px-6 py-3.5 transition-colors hover:bg-accent">
+    <div
+      role="listitem"
+      className={`mx-auto flex min-h-[56px] w-full max-w-3xl items-center gap-4 px-2 py-2 ${last ? '' : 'border-border-muted border-b'}`}>
       <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2 text-sm leading-5">
-          <div className="truncate font-medium text-foreground">{result.name}</div>
+        <div className="flex h-4 min-w-0 items-center gap-1.5 text-[13px] leading-4">
+          <div className="min-w-0 truncate font-semibold text-foreground leading-4">{result.name}</div>
+          {result.sourceUrl ? (
+            <Tooltip content={t('settings.skills.viewSource')} delay={300}>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('settings.skills.viewSource')}
+                onClick={() => window.open(result.sourceUrl!)}
+                className="inline-flex size-4 shrink-0 items-center justify-center rounded-sm p-0 text-foreground-muted shadow-none hover:bg-accent hover:text-foreground">
+                <Code2 className="size-3 translate-y-px" />
+              </Button>
+            </Tooltip>
+          ) : null}
         </div>
         {result.description ? (
-          <div className="mt-1 line-clamp-2 max-w-[560px] text-foreground-secondary text-sm leading-6">
+          <div className="mt-0.5 w-full truncate text-[12px] text-foreground-secondary leading-4">
             {result.description}
           </div>
         ) : null}
-        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-foreground-muted text-xs">
-          {result.author ? <span className="truncate">{result.author}</span> : null}
-          <span className="truncate">{result.sourceRegistry}</span>
-          {result.stars > 0 ? (
-            <span className="flex shrink-0 items-center gap-1">
-              <Star size={11} />
-              {result.stars}
-            </span>
-          ) : null}
-          {result.downloads > 0 ? (
-            <span className="flex shrink-0 items-center gap-1">
-              <Download size={11} />
-              {result.downloads}
-            </span>
-          ) : null}
-        </div>
+        {hasMeta ? (
+          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-foreground-muted leading-[14px]">
+            {result.author ? <span className="truncate">{result.author}</span> : null}
+            {result.stars > 0 ? (
+              <span className="flex shrink-0 items-center gap-0.5">
+                <Star className="size-3" />
+                {result.stars}
+              </span>
+            ) : null}
+            {result.downloads > 0 ? (
+              <span className="flex shrink-0 items-center gap-0.5">
+                <Download className="size-3" />
+                {result.downloads}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-1 pt-0.5">
-        {result.sourceUrl ? (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t('settings.skills.viewSource')}
-            onClick={() => window.open(result.sourceUrl!)}
-            className="text-foreground-muted hover:text-foreground">
-            <ExternalLink size={13} />
-          </Button>
-        ) : null}
         <Button
-          variant={installed ? 'ghost' : 'secondary'}
+          variant={installed ? 'ghost' : 'outline'}
           size="sm"
           onClick={onInstall}
-          disabled={installed || disabled}
-          className="min-w-20 justify-center">
+          disabled={installed || installing}
+          aria-busy={installing || undefined}
+          className="h-7 min-h-0 min-w-[64px] justify-center gap-1 rounded-lg border-border-muted bg-background px-2 text-xs shadow-none hover:bg-accent">
           {installing ? (
-            <Loader2 size={12} className="animate-spin" />
+            <Loader2 className="size-3.5 animate-spin" />
           ) : installed ? (
-            <Check size={12} />
+            <Check className="size-3.5" />
           ) : (
-            <Download size={12} />
+            <Download className="size-3.5" />
           )}
           <span>{installed ? t('settings.skills.installed') : t('settings.skills.install')}</span>
         </Button>

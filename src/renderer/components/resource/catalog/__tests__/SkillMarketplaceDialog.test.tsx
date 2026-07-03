@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { SkillSearchResult } from '@shared/types/skill'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -69,7 +69,14 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, size, variant, ...props }: ComponentProps<'button'> & { size?: string; variant?: string }) => {
+  Button: ({
+    children,
+    loading,
+    size,
+    variant,
+    ...props
+  }: ComponentProps<'button'> & { loading?: boolean; size?: string; variant?: string }) => {
+    void loading
     void size
     void variant
     return (
@@ -78,6 +85,7 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
+  Center: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
   DialogContent: ({
     children,
@@ -88,10 +96,9 @@ vi.mock('@cherrystudio/ui', () => ({
     closeOnOverlayClick?: boolean
     size?: string
   }) => {
-    void closeOnOverlayClick
     void size
     return (
-      <div role="dialog" {...props}>
+      <div role="dialog" data-close-on-overlay-click={closeOnOverlayClick ? 'true' : 'false'} {...props}>
         {children}
       </div>
     )
@@ -134,6 +141,28 @@ vi.mock('@cherrystudio/ui', () => ({
         </button>
       ))}
     </div>
+  ),
+  Spinner: ({ text }: { text: ReactNode }) => <div>{text}</div>,
+  Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>
+}))
+
+vi.mock('@renderer/components/VirtualList', () => ({
+  DynamicVirtualList: ({
+    children,
+    className,
+    role,
+    list
+  }: {
+    children: (item: SkillSearchResult, index: number) => ReactNode
+    className?: string
+    list: SkillSearchResult[]
+    role?: string
+  }) => (
+    <div className={className} data-testid="skill-results-virtual-list" role={role}>
+      {list.map((item, index) => (
+        <div key={item.installSource}>{children(item, index)}</div>
+      ))}
+    </div>
   )
 }))
 
@@ -159,6 +188,15 @@ function renderDialog(props: Partial<ComponentProps<typeof SkillMarketplaceDialo
 describe('SkillMarketplaceDialog', () => {
   it('renders source tabs and filters results by selected source', async () => {
     const user = userEvent.setup()
+    skillSearchState.results = [
+      ...resultsFixture,
+      {
+        ...resultsFixture[0],
+        slug: 'markdown-converter',
+        name: 'Markdown Converter',
+        installSource: 'claude-plugins:anthropic/skills/markdown-converter'
+      }
+    ]
     renderDialog()
 
     await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'react')
@@ -166,19 +204,33 @@ describe('SkillMarketplaceDialog', () => {
     expect(searchMock).toHaveBeenLastCalledWith('react')
     expect(screen.getByRole('radio', { name: /claude-plugins.dev/ })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /skills.sh/ })).toBeInTheDocument()
+    expect(screen.getByTestId('skill-results-virtual-list')).toHaveClass('px-6', 'pt-1', 'pb-1')
+    expect(screen.getByTestId('skill-results-virtual-list')).toHaveClass('[&::-webkit-scrollbar]:!w-0.75')
+    expect(screen.getAllByRole('listitem')[0]).toHaveClass('min-h-[56px]', 'border-b')
+    expect(screen.getAllByRole('listitem')[0].className).not.toContain('hover:bg-accent')
     expect(screen.getByText('Code Review')).toBeInTheDocument()
+    expect(within(screen.getAllByRole('listitem')[0]).getByText('Review code changes')).toHaveClass(
+      'w-full',
+      'truncate'
+    )
+    const titleRow = screen.getByText('Code Review').parentElement
+    expect(titleRow).not.toBeNull()
+    expect(within(titleRow!).getByLabelText('settings.skills.viewSource')).toHaveClass('size-4')
     expect(screen.queryByText('React Skill')).not.toBeInTheDocument()
+    expect(within(screen.getAllByRole('listitem')[0]).queryByText('claude-plugins.dev')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('radio', { name: /skills.sh/ }))
 
     expect(screen.getByText('React Skill')).toBeInTheDocument()
     expect(screen.queryByText('Code Review')).not.toBeInTheDocument()
+    expect(within(screen.getByRole('listitem')).queryByText('skills.sh')).not.toBeInTheDocument()
   })
 
-  it('installs a marketplace skill and notifies the parent', async () => {
+  it('installs a marketplace skill, keeps the dialog open, and notifies the parent', async () => {
     const user = userEvent.setup()
     const onInstalled = vi.fn()
-    renderDialog({ onInstalled })
+    const onOpenChange = vi.fn()
+    renderDialog({ onInstalled, onOpenChange })
 
     await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'code')
     await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
@@ -187,8 +239,82 @@ describe('SkillMarketplaceDialog', () => {
       expect(installMock).toHaveBeenCalledWith('claude-plugins:anthropic/skills/code-review')
     })
     expect(onInstalled).toHaveBeenCalledTimes(1)
+    expect(onOpenChange).not.toHaveBeenCalled()
     expect(toastSuccess).toHaveBeenCalledWith('settings.skills.installSuccess:Installed Skill')
     expect(await screen.findByText('settings.skills.installed')).toBeInTheDocument()
+  })
+
+  it('keeps other install buttons enabled while one install is in progress', async () => {
+    const user = userEvent.setup()
+    skillSearchState.results = [
+      resultsFixture[0],
+      {
+        ...resultsFixture[0],
+        slug: 'markdown-converter',
+        name: 'Markdown Converter',
+        installSource: 'claude-plugins:anthropic/skills/markdown-converter'
+      }
+    ]
+    isInstallingMock.mockImplementation((key?: string) =>
+      key ? key === 'claude-plugins:anthropic/skills/code-review' : true
+    )
+    renderDialog()
+
+    await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'code')
+
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-close-on-overlay-click', 'true')
+    const installButtons = screen.getAllByRole('button', { name: /settings.skills.install/ })
+    expect(installButtons[0]).toBeDisabled()
+    expect(installButtons[1]).not.toBeDisabled()
+  })
+
+  it('starts installs for multiple marketplace skills without waiting for the first one', async () => {
+    const user = userEvent.setup()
+    skillSearchState.results = [
+      resultsFixture[0],
+      {
+        ...resultsFixture[0],
+        slug: 'markdown-converter',
+        name: 'Markdown Converter',
+        installSource: 'claude-plugins:anthropic/skills/markdown-converter'
+      }
+    ]
+    isInstallingMock.mockImplementation((key?: string) => (key ? false : true))
+    renderDialog()
+
+    await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'code')
+    const installButtons = screen.getAllByRole('button', { name: /settings.skills.install/ })
+    await user.click(installButtons[0])
+    await user.click(installButtons[1])
+
+    await waitFor(() => {
+      expect(installMock).toHaveBeenCalledWith('claude-plugins:anthropic/skills/code-review')
+      expect(installMock).toHaveBeenCalledWith('claude-plugins:anthropic/skills/markdown-converter')
+    })
+  })
+
+  it('ignores duplicate clicks for the same marketplace skill while it is pending', async () => {
+    const user = userEvent.setup()
+    let resolveInstall!: (value: { skill: { id: string; name: string } }) => void
+    installMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveInstall = resolve
+        })
+    )
+    renderDialog()
+
+    await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'code')
+    const installButton = screen.getByRole('button', { name: /settings.skills.install/ })
+    await user.click(installButton)
+    await user.click(installButton)
+
+    expect(installMock).toHaveBeenCalledTimes(1)
+
+    resolveInstall({ skill: { id: 'skill-1', name: 'Installed Skill' } })
+    await waitFor(() => {
+      expect(toastSuccess).toHaveBeenCalledWith('settings.skills.installSuccess:Installed Skill')
+    })
   })
 
   it('shows an error toast when marketplace install fails without closing', async () => {
