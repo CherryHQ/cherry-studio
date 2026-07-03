@@ -587,20 +587,29 @@ describe('ComposerSurface', () => {
   })
 
   it('supports keyboard resizing through the horizontal separator', () => {
+    mocks.focus.mockImplementation(() => {
+      const activeElement = document.activeElement
+      if (activeElement instanceof HTMLElement) activeElement.blur()
+    })
     render(<Harness />)
 
     const resizeHandle = screen.getByRole('separator', { name: 'chat.input.resize_height' })
     const editorContainer = screen.getByTestId('editor-content').parentElement as HTMLElement
     const expandedHeight = Math.max(220, Math.round(window.innerHeight * 0.5))
 
+    resizeHandle.focus()
+    expect(resizeHandle).toHaveFocus()
+
     fireEvent.keyDown(resizeHandle, { key: 'End' })
     expect(editorContainer).toHaveStyle({ height: `${expandedHeight}px` })
     expect(screen.getByRole('button', { name: 'chat.input.restore' })).toBeInTheDocument()
+    expect(resizeHandle).toHaveFocus()
 
-    fireEvent.keyDown(resizeHandle, { key: 'ArrowDown' })
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'ArrowDown' })
     expect(editorContainer).toHaveStyle({ height: `${expandedHeight - 16}px` })
+    expect(resizeHandle).toHaveFocus()
 
-    fireEvent.keyDown(resizeHandle, { key: 'Home' })
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Home' })
     expect(editorContainer).toHaveStyle({ height: '46px' })
   })
 

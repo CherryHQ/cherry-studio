@@ -191,9 +191,8 @@ export function useComposerEditorFrameSizing({
       event.preventDefault()
       if (isExpanded) onExpandedChange(false)
       setClampedManualHeight(nextHeight)
-      focusEditor()
     },
-    [focusEditor, getCurrentHeight, isExpanded, maxHeight, minHeight, onExpandedChange, setClampedManualHeight]
+    [getCurrentHeight, isExpanded, maxHeight, minHeight, onExpandedChange, setClampedManualHeight]
   )
 
   const toggleExpanded = useCallback(
