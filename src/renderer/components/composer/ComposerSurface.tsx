@@ -1426,7 +1426,7 @@ export default function ComposerSurface({
         isEditingBorderHighlighted && !isDragging && 'border-primary ring-2 ring-primary/20',
         isDragging &&
           "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
-        hasCustomHeight && 'expanded'
+        isExpanded && 'expanded'
       )}>
       <div
         data-composer-resize-handle=""

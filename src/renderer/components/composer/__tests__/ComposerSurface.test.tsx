@@ -424,6 +424,7 @@ describe('ComposerSurface', () => {
     const editorContent = screen.getByTestId('editor-content')
     const editor = screen.getByTestId('composer-editor')
     const editorContainer = editorContent.parentElement
+    const inputbar = document.getElementById('inputbar')
     const expandedHeight = `${Math.max(220, Math.round(window.innerHeight * 0.5))}px`
 
     expect(editorContainer).toHaveStyle({ minHeight: '46px' })
@@ -449,6 +450,7 @@ describe('ComposerSurface', () => {
     )
     expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('height: 100%')
     expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('overflow-y: auto')
+    expect(inputbar).toHaveClass('expanded')
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.input.restore' }))
 
@@ -458,6 +460,7 @@ describe('ComposerSurface', () => {
     expect(screen.getByRole('button', { name: 'chat.input.expand' })).toHaveAttribute('aria-pressed', 'false')
     expect(editorContent).not.toHaveStyle({ height: '100%' })
     expect(editor.getAttribute('data-editor-style')).toContain('max-height: max(220px, 40vh)')
+    expect(inputbar).not.toHaveClass('expanded')
   })
 
   it('renders the resize handle and expand control in the inputbar corner', () => {
@@ -527,6 +530,7 @@ describe('ComposerSurface', () => {
     const resizeHandle = screen.getByRole('separator', { name: 'chat.input.resize_height' })
     const editorContent = screen.getByTestId('editor-content')
     const editorContainer = editorContent.parentElement as HTMLElement
+    const inputbar = document.getElementById('inputbar')
 
     fireEvent.mouseDown(resizeHandle, { clientY: 200 })
     expect(document.body.style.cursor).toBe('row-resize')
@@ -538,6 +542,7 @@ describe('ComposerSurface', () => {
     expect(screen.getByTestId('composer-editor').className).toContain('max-h-[max(220px,50vh)]')
     expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('max-height: 146px')
     expect(screen.getByRole('button', { name: 'chat.input.restore' })).toHaveAttribute('aria-pressed', 'true')
+    expect(inputbar).not.toHaveClass('expanded')
 
     fireEvent.mouseUp(document)
     expect(document.body.style.cursor).toBe('')
