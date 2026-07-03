@@ -89,6 +89,29 @@ describe('PrintService', () => {
     expect(html).toContain('@page')
   })
 
+  it('includes CJK-capable font fallbacks for printable documents', () => {
+    const html = buildPrintableHtml({
+      title: '会议记录',
+      source: {
+        type: 'markdown',
+        markdown: '# 标题\n\n中文正文'
+      }
+    })
+
+    expect(html).toContain('<html>')
+    expect(html).not.toContain('lang="zh-CN"')
+    expect(html).toContain('@font-face')
+    expect(html).toContain('local("PingFang SC")')
+    expect(html).toContain('local("SimSun")')
+    expect(html).toContain('local("Arial Unicode MS")')
+    expect(html).toContain('<h1 class="printable-title">会议记录</h1>')
+    expect(html).toContain('<h1>标题</h1>')
+    expect(html).toContain('<p>中文正文</p>')
+    expect(html).toContain('"PingFang SC"')
+    expect(html).toContain('"Microsoft YaHei"')
+    expect(html).toContain('"Noto Sans CJK SC"')
+  })
+
   it('reports success after exporting a printable document to PDF through a WindowManager-owned print window', async () => {
     const service = new PrintService()
 
@@ -104,6 +127,8 @@ describe('PrintService', () => {
     )
     expect(open).toHaveBeenCalledWith(WindowType.Print)
     expect(loadURL).toHaveBeenCalledWith(expect.stringMatching(/^data:text\/html;charset=utf-8,/))
+    expect(executeJavaScript).toHaveBeenCalledWith(expect.stringContaining('document.fonts.ready'), true)
+    expect(executeJavaScript.mock.invocationCallOrder[0]).toBeLessThan(printToPDF.mock.invocationCallOrder[0])
     expect(printToPDF).toHaveBeenCalledWith({
       margins: { marginType: 'default' },
       pageSize: 'A4',
@@ -160,18 +185,25 @@ describe('PrintService', () => {
 
   it('prints from the renderer page without flashing the print host window', async () => {
     let finishPrint!: () => void
-    executeJavaScript.mockReturnValue(new Promise<void>((resolve) => (finishPrint = resolve)))
+    executeJavaScript.mockImplementation((script: string) => {
+      if (script.includes('document.fonts.ready')) {
+        return Promise.resolve()
+      }
+      return new Promise<void>((resolve) => (finishPrint = resolve))
+    })
     const service = new PrintService()
 
     const printPromise = service.print(payload)
-    await Promise.resolve()
-    await Promise.resolve()
+    for (let i = 0; i < 5; i += 1) {
+      await Promise.resolve()
+    }
 
     expect(open).toHaveBeenCalledWith(WindowType.Print)
     expect(loadURL).toHaveBeenCalledWith(expect.stringMatching(/^data:text\/html;charset=utf-8,/))
     expect(showInactive).not.toHaveBeenCalled()
     expect(print).not.toHaveBeenCalled()
-    expect(executeJavaScript).toHaveBeenCalledWith(expect.stringContaining('window.print()'), true)
+    expect(executeJavaScript).toHaveBeenNthCalledWith(1, expect.stringContaining('document.fonts.ready'), true)
+    expect(executeJavaScript).toHaveBeenNthCalledWith(2, expect.stringContaining('window.print()'), true)
     expect(close).not.toHaveBeenCalled()
 
     finishPrint()

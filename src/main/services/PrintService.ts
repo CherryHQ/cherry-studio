@@ -29,6 +29,34 @@ const markdownIt = new MarkdownIt({
   typographer: false
 })
 
+const PRINT_CJK_FONT_LOCAL_NAMES = [
+  'PingFang SC',
+  'Hiragino Sans GB',
+  'Heiti SC',
+  'STHeiti',
+  'Songti SC',
+  'Microsoft YaHei',
+  'Microsoft YaHei UI',
+  'Microsoft JhengHei',
+  'SimSun',
+  'SimHei',
+  'Noto Sans CJK SC',
+  'Noto Sans SC',
+  'Source Han Sans SC',
+  'WenQuanYi Micro Hei',
+  'WenQuanYi Zen Hei',
+  'Arial Unicode MS'
+]
+
+const PRINT_CJK_FONT_FACE = '"Cherry Studio Print CJK"'
+const PRINT_CJK_FONT_SOURCES = PRINT_CJK_FONT_LOCAL_NAMES.map((fontName) => `local("${fontName}")`).join(', ')
+
+const PRINT_TEXT_FONT_FAMILY = `${PRINT_CJK_FONT_FACE}, "PingFang SC", "Hiragino Sans GB", "Heiti SC", "STHeiti", "Songti SC", "Microsoft YaHei", "Microsoft YaHei UI", "Microsoft JhengHei", "SimSun", "SimHei", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "WenQuanYi Micro Hei", "WenQuanYi Zen Hei", "Arial Unicode MS", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif`
+
+const PRINT_CODE_FONT_FAMILY = `ui-monospace, SFMono-Regular, Menlo, Consolas, "Sarasa Mono SC", "Noto Sans Mono CJK SC", ${PRINT_CJK_FONT_FACE}, "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei", "PingFang SC", monospace`
+
+const PRINT_RENDER_READY_TIMEOUT_MS = 3000
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -92,6 +120,43 @@ new Promise((resolve, reject) => {
 })`
 }
 
+function buildRendererReadyScript(): string {
+  return `
+new Promise((resolve) => {
+  let settled = false
+  let timeoutId = 0
+  let frameTimeoutId = 0
+
+  const finish = () => {
+    if (settled) return
+    settled = true
+    if (timeoutId) {
+      window.clearTimeout(timeoutId)
+    }
+    if (frameTimeoutId) {
+      window.clearTimeout(frameTimeoutId)
+    }
+    resolve(undefined)
+  }
+
+  const finishAfterRenderFrame = () => {
+    if (settled) return
+    frameTimeoutId = window.setTimeout(finish, 50)
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(finish)
+    })
+  }
+
+  timeoutId = window.setTimeout(finish, ${PRINT_RENDER_READY_TIMEOUT_MS})
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(finishAfterRenderFrame, finishAfterRenderFrame)
+  } else {
+    finishAfterRenderFrame()
+  }
+})`
+}
+
 export function buildPrintableHtml({ title, source, sourcePath }: PrintableDocumentPayload): string {
   const renderedContent = markdownIt.render(source.markdown)
   const escapedTitle = escapeHtml(title.trim() || 'Untitled')
@@ -107,6 +172,25 @@ export function buildPrintableHtml({ title, source, sourcePath }: PrintableDocum
   ${baseTag}
   <title>${escapedTitle}</title>
   <style>
+    @font-face {
+      font-family: ${PRINT_CJK_FONT_FACE};
+      src: ${PRINT_CJK_FONT_SOURCES};
+      unicode-range:
+        U+2E80-2EFF,
+        U+2F00-2FDF,
+        U+3000-303F,
+        U+31C0-31EF,
+        U+3400-4DBF,
+        U+4E00-9FFF,
+        U+F900-FAFF,
+        U+FF00-FFEF,
+        U+20000-2A6DF,
+        U+2A700-2B73F,
+        U+2B740-2B81F,
+        U+2B820-2CEAF,
+        U+2CEB0-2EBEF;
+    }
+
     @page {
       size: A4;
       margin: 18mm;
@@ -120,7 +204,7 @@ export function buildPrintableHtml({ title, source, sourcePath }: PrintableDocum
       margin: 0;
       background: #fff;
       color: #1f2328;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: ${PRINT_TEXT_FONT_FAMILY};
       font-size: 12pt;
       line-height: 1.55;
     }
@@ -175,7 +259,7 @@ export function buildPrintableHtml({ title, source, sourcePath }: PrintableDocum
     code {
       border-radius: 3px;
       background: #f6f8fa;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-family: ${PRINT_CODE_FONT_FAMILY};
       font-size: 0.9em;
       padding: 0.1em 0.25em;
     }
@@ -244,6 +328,7 @@ export class PrintService {
 
     try {
       await window.loadURL(toDataUrl(buildPrintableHtml(payload)))
+      await window.webContents.executeJavaScript(buildRendererReadyScript(), true)
       return { windowId, window }
     } catch (error) {
       windowManager.close(windowId)
