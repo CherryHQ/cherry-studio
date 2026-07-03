@@ -29,11 +29,7 @@ const AgentChatNavbar = ({
   })
 
   return (
-    <NavbarHeader
-      className={cn(
-        'agent-navbar relative h-(--navbar-height) after:pointer-events-none after:absolute after:top-full after:right-0 after:left-0 after:z-10 in-data-conversation-shell-topbar:after:hidden after:h-3 after:bg-linear-to-b after:from-background after:to-transparent after:content-[""]',
-        className
-      )}>
+    <NavbarHeader className={cn('agent-navbar relative h-(--navbar-height)', className)}>
       <div className="-mx-1 flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
         <AgentContent
           activeAgent={activeAgent}
