@@ -3008,6 +3008,27 @@ describe('ComposerSurface', () => {
     expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
   })
 
+  it('intercepts file-only clipboard paste synchronously', async () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn(() => ''),
+        files: [{ name: 'test.png', type: 'image/png' }],
+        items: [{ kind: 'file', type: 'image/png' }]
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
+  })
+
   it('truncates pasted text to the remaining maximum text length', async () => {
     render(<ComposerSurface {...baseProps} text={'a'.repeat(39999)} />)
 

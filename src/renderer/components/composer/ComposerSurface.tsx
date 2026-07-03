@@ -1474,6 +1474,12 @@ export default function ComposerSurface({
         return true
       }
 
+      if (!pastedText && hasClipboardFiles(event.clipboardData)) {
+        event.preventDefault()
+        void handlePaste(event)
+        return true
+      }
+
       void handlePaste(event)
       return false
     },
@@ -1885,4 +1891,10 @@ export default function ComposerSurface({
       </div>
     </NarrowLayout>
   )
+}
+
+function hasClipboardFiles(data: DataTransfer | null | undefined) {
+  if (!data) return false
+  if (data.files?.length > 0) return true
+  return Array.from(data.items ?? []).some((item) => item.kind === 'file')
 }
