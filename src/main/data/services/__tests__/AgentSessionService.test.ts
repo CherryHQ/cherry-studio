@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
-import { agentSessionContextUsageTable, agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionStateTable, agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
@@ -339,8 +339,8 @@ describe('AgentSessionService', () => {
     expect(agentSessionService.getById(session.id).lastContextUsage?.usage).toMatchObject(updatedUsage)
     const rows = await dbh.db
       .select()
-      .from(agentSessionContextUsageTable)
-      .where(eq(agentSessionContextUsageTable.sessionId, session.id))
+      .from(agentSessionStateTable)
+      .where(eq(agentSessionStateTable.sessionId, session.id))
     expect(rows).toHaveLength(1)
   })
 

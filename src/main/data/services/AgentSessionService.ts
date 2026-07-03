@@ -3,9 +3,9 @@ import { randomBytes } from 'node:crypto'
 import { application } from '@application'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import {
-  type AgentSessionContextUsageRow as ContextUsageRow,
-  agentSessionContextUsageTable,
   type AgentSessionRow as SessionRow,
+  type AgentSessionStateRow as StateRow,
+  agentSessionStateTable,
   agentSessionTable as sessionsTable
 } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -50,7 +50,7 @@ type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
 type JoinedSessionRow = {
   session: SessionRow
   workspace: AgentWorkspaceRow
-  contextUsage?: ContextUsageRow | null
+  state?: StateRow | null
 }
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
@@ -60,9 +60,9 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
     workspace: rowToAgentWorkspace(row.workspace),
-    // Context usage is a detail-only field: only reads that join the side table (getById) carry it.
-    // List projections leave `contextUsage` undefined and omit the field rather than ship the blob per row.
-    ...(row.contextUsage !== undefined ? { lastContextUsage: row.contextUsage?.snapshot ?? null } : {}),
+    // Context usage is a detail-only field: only reads that join the state table (getById) carry it.
+    // List projections leave `state` undefined and omit the field rather than ship the blob per row.
+    ...(row.state !== undefined ? { lastContextUsage: row.state?.lastContextUsage ?? null } : {}),
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)
   }
@@ -188,10 +188,10 @@ export class AgentSessionService {
   getById(id: string): AgentSessionEntity {
     const db = application.get('DbService').getDb()
     const [row] = db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable, contextUsage: agentSessionContextUsageTable })
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable, state: agentSessionStateTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .leftJoin(agentSessionContextUsageTable, eq(sessionsTable.id, agentSessionContextUsageTable.sessionId))
+      .leftJoin(agentSessionStateTable, eq(sessionsTable.id, agentSessionStateTable.sessionId))
       .where(eq(sessionsTable.id, id))
       .limit(1)
       .all()
@@ -371,11 +371,11 @@ export class AgentSessionService {
         application
           .get('DbService')
           .getDb()
-          .insert(agentSessionContextUsageTable)
-          .values({ sessionId, snapshot })
+          .insert(agentSessionStateTable)
+          .values({ sessionId, lastContextUsage: snapshot })
           .onConflictDoUpdate({
-            target: agentSessionContextUsageTable.sessionId,
-            set: { snapshot }
+            target: agentSessionStateTable.sessionId,
+            set: { lastContextUsage: snapshot }
           })
           .run(),
       {
