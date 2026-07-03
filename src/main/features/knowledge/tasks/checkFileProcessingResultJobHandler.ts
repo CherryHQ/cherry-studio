@@ -14,8 +14,8 @@ import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/job
 
 import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
 import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
-import { knowledgeQueueName, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import { toKnowledgeRelativePath } from '../pathStorage'
+import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgeCheckFileProcessingResultPayload } from './jobTypes'
 import { cancelJobOrThrow } from './utils/cancel'
 import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
@@ -59,13 +59,13 @@ export function createCheckFileProcessingResultJobHandler(
 
       if (!snapshot) {
         markItemFailed(itemId, `File processing job not found: ${fileProcessingJobId}`)
-        ctx.reportProgress(100, { stage: 'failed' })
+        reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
         return
       }
 
       if (!isExpectedFileProcessingJob(snapshot, itemId)) {
         markItemFailed(itemId, `Invalid file processing job for knowledge item: ${fileProcessingJobId}`)
-        ctx.reportProgress(100, { stage: 'failed' })
+        reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
         return
       }
 
@@ -73,7 +73,7 @@ export function createCheckFileProcessingResultJobHandler(
         if (Date.now() - firstScheduledAt >= FILE_PROCESSING_MAX_WAIT_MS) {
           await cancelJobOrThrow(fileProcessingJobId, 'knowledge-file-processing-timeout')
           markItemFailed(itemId, `File processing job ${fileProcessingJobId} did not finish within 30 minutes`)
-          ctx.reportProgress(100, { stage: 'failed' })
+          reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
           return
         }
 
@@ -97,14 +97,14 @@ export function createCheckFileProcessingResultJobHandler(
           itemId,
           `File processing job ${fileProcessingJobId} ${snapshot.status}: ${getFileProcessingFailureMessage(snapshot)}`
         )
-        ctx.reportProgress(100, { stage: 'failed' })
+        reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
         return
       }
 
       const indexedRelativePath = parseMarkdownArtifactRelativePathOrNull(baseId, snapshot)
       if (!indexedRelativePath) {
         markItemFailed(itemId, `Invalid file processing result for job ${fileProcessingJobId}`)
-        ctx.reportProgress(100, { stage: 'failed' })
+        reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
         return
       }
 
@@ -124,7 +124,7 @@ export function createCheckFileProcessingResultJobHandler(
       if (!canContinue) {
         return
       }
-      ctx.reportProgress(100, { stage: 'done' })
+      reportKnowledgeProgress(ctx, 100, { stage: 'done' })
     },
 
     async onSettled(event) {
@@ -144,11 +144,11 @@ function reportWaitingProgress(
 ): void {
   const childProgress = application.get('CacheService').getShared(`${JOB_PROGRESS_KEY_PREFIX}${fileProcessingJobId}`)
   if (!childProgress) {
-    ctx.reportProgress(0, { stage: 'waiting', pollRound })
+    reportKnowledgeProgress(ctx, 0, { stage: 'waiting', pollRound })
     return
   }
 
-  ctx.reportProgress(childProgress.progress, {
+  reportKnowledgeProgress(ctx, childProgress.progress, {
     stage: 'waiting',
     pollRound,
     fileProcessingJobId,
