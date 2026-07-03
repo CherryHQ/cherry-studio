@@ -316,12 +316,12 @@ describe('AgentSessionService', () => {
       .from(agentSessionTable)
       .where(eq(agentSessionTable.id, session.id))
 
-    agentSessionService.upsertContextUsageSnapshot(session.id, usage)
+    agentSessionService.upsertContextUsageSnapshot(session.id, usage, '2026-06-09T12:00:00.000Z')
 
     const loaded = agentSessionService.getById(session.id)
     expect(loaded.lastContextUsage).toMatchObject({
       usage,
-      capturedAt: expect.any(String)
+      capturedAt: '2026-06-09T12:00:00.000Z'
     })
     // Context usage is detail-only: list projections omit it to avoid shipping the blob per row.
     const listed = agentSessionService.listByCursor().items.find((item) => item.id === session.id)
@@ -334,9 +334,14 @@ describe('AgentSessionService', () => {
     expect(after.updatedAt).toBe(before.updatedAt)
 
     const updatedUsage = { ...usage, totalTokens: 64, percentage: 64 }
-    agentSessionService.upsertContextUsageSnapshot(session.id, updatedUsage)
+    agentSessionService.upsertContextUsageSnapshot(session.id, updatedUsage, '2026-06-09T12:01:00.000Z')
 
     expect(agentSessionService.getById(session.id).lastContextUsage?.usage).toMatchObject(updatedUsage)
+    agentSessionService.upsertContextUsageSnapshot(session.id, usage, '2026-06-09T11:59:00.000Z')
+    expect(agentSessionService.getById(session.id).lastContextUsage).toMatchObject({
+      usage: updatedUsage,
+      capturedAt: '2026-06-09T12:01:00.000Z'
+    })
     const rows = await dbh.db
       .select()
       .from(agentSessionStateTable)

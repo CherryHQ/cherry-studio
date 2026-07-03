@@ -362,24 +362,35 @@ export class AgentSessionService {
     return row
   }
 
-  upsertContextUsageSnapshot(sessionId: string, usage: AgentSessionContextUsage): void {
+  upsertContextUsageSnapshot(
+    sessionId: string,
+    usage: AgentSessionContextUsage,
+    capturedAt = new Date().toISOString()
+  ): void {
     const snapshot = {
       usage,
-      capturedAt: new Date().toISOString()
+      capturedAt
     }
 
     withSqliteErrors(
       () =>
-        application
-          .get('DbService')
-          .getDb()
-          .insert(agentSessionStateTable)
-          .values({ sessionId, contextUsage: snapshot })
-          .onConflictDoUpdate({
-            target: agentSessionStateTable.sessionId,
-            set: { contextUsage: snapshot }
-          })
-          .run(),
+        application.get('DbService').withWriteTx((tx) => {
+          const [current] = tx
+            .select({ contextUsage: agentSessionStateTable.contextUsage })
+            .from(agentSessionStateTable)
+            .where(eq(agentSessionStateTable.sessionId, sessionId))
+            .limit(1)
+            .all()
+          if (current?.contextUsage?.capturedAt && current.contextUsage.capturedAt > snapshot.capturedAt) return
+
+          tx.insert(agentSessionStateTable)
+            .values({ sessionId, contextUsage: snapshot })
+            .onConflictDoUpdate({
+              target: agentSessionStateTable.sessionId,
+              set: { contextUsage: snapshot }
+            })
+            .run()
+        }),
       {
         ...defaultHandlersFor('Session context usage', sessionId),
         foreignKey: () => DataApiErrorFactory.notFound('Session', sessionId)

@@ -1433,7 +1433,7 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() =>
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
     )
-    expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', usage)
+    expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', usage, expect.any(String))
 
     events.push({ type: 'turn-complete' })
     await expect(reader.read()).resolves.toMatchObject({ done: true })
@@ -1669,7 +1669,91 @@ describe('AgentSessionRuntimeService', () => {
     ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'context-usage', usage })
 
     expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
-    expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', usage)
+    expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', usage, expect.any(String))
+  })
+
+  it('drops stale context usage refreshes that resolve after a newer sample', async () => {
+    const olderUsage = {
+      categories: [],
+      totalTokens: 24,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage: 24,
+      gridRows: [],
+      model: 'claude-sonnet-4-5',
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      isAutoCompactEnabled: true,
+      apiUsage: null
+    }
+    const newerUsage = { ...olderUsage, totalTokens: 64, percentage: 64 }
+    const older = createDeferred<typeof olderUsage | null>()
+    const newer = createDeferred<typeof newerUsage | null>()
+    const connection = {
+      getContextUsage: vi.fn().mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise),
+      send: vi.fn(),
+      close: vi.fn(),
+      events: []
+    }
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.connection = connection
+
+    ;(service as any).refreshContextUsage(entry, connection)
+    ;(service as any).refreshContextUsage(entry, connection)
+    newer.resolve(newerUsage)
+
+    await vi.waitFor(() =>
+      expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', newerUsage, expect.any(String))
+    )
+    mocks.upsertContextUsageSnapshot.mockClear()
+    mocks.cacheSetShared.mockClear()
+
+    older.resolve(olderUsage)
+    await Promise.resolve()
+
+    expect(mocks.upsertContextUsageSnapshot).not.toHaveBeenCalled()
+    expect(mocks.cacheSetShared).not.toHaveBeenCalledWith('agent.session.context_usage.session-1', olderUsage)
+  })
+
+  it('ignores driver context usage events after turn-complete when the host owns the final refresh', () => {
+    const usage = {
+      categories: [],
+      totalTokens: 24,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage: 24,
+      gridRows: [],
+      model: 'claude-sonnet-4-5',
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      isAutoCompactEnabled: true,
+      apiUsage: null
+    }
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.connection = {
+      getContextUsage: vi.fn().mockResolvedValue(null),
+      send: vi.fn(),
+      close: vi.fn(),
+      events: []
+    }
+
+    ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+    mocks.upsertContextUsageSnapshot.mockClear()
+    mocks.cacheSetShared.mockClear()
+    ;(service as any).handleRuntimeEvent(entry, {
+      type: 'context-usage',
+      usage,
+      capturedAt: '2026-06-09T12:00:00.000Z'
+    })
+
+    expect(mocks.upsertContextUsageSnapshot).not.toHaveBeenCalled()
+    expect(mocks.cacheSetShared).not.toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
   })
 
   it('settles compaction without clearing last context usage when closing a session', () => {
@@ -1932,9 +2016,24 @@ describe('AgentSessionRuntimeService', () => {
 
   it('closes the runtime session when the active turn is aborted by the user', async () => {
     const events = createAsyncQueue<any>()
+    const finalUsage = {
+      categories: [],
+      totalTokens: 32,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage: 32,
+      gridRows: [],
+      model: 'claude-sonnet-4-5',
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      isAutoCompactEnabled: true,
+      apiUsage: null
+    }
     const connection = {
       events: events.iterable,
       send: vi.fn(),
+      getContextUsage: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(finalUsage),
       close: vi.fn()
     }
     runtimeDriverRegistry.register({
@@ -1958,10 +2057,20 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() =>
       expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: false })
     )
+    mocks.cacheSetShared.mockClear()
+    mocks.upsertContextUsageSnapshot.mockClear()
+    connection.getContextUsage.mockClear()
 
     controller.abort('user-requested')
 
     await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
+    await vi.waitFor(() =>
+      expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', finalUsage, expect.any(String))
+    )
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', {
+      usage: finalUsage,
+      capturedAt: expect.any(String)
+    })
     expect(service.inspect('session-1')).toBeUndefined()
     await reader.cancel().catch(() => undefined)
   })

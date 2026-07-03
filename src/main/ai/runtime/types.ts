@@ -56,7 +56,7 @@ export type AgentRuntimeEvent =
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
   | { type: 'compaction-error'; error: string }
-  | { type: 'context-usage'; usage: AgentSessionContextUsage }
+  | { type: 'context-usage'; usage: AgentSessionContextUsage; capturedAt?: string }
   /** The SDK pushed a fresh slash-command catalog mid-session (`system / commands_changed`) — e.g.
    *  skills discovered as the agent works in a subdirectory. `supportedCommands()` is captured at
    *  init and never reflects this, so the host REPLACES its cached list from `commands`. */
