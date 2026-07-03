@@ -81,47 +81,58 @@ describe('useProviderAutoModelSync', () => {
     expect(useProviderModelSyncMock).toHaveBeenCalledWith('openai', { existingModels: [] })
   })
 
-  it('enables a disabled provider when auto sync returns at least one model', async () => {
-    syncProviderModelsMock.mockResolvedValueOnce([{ id: 'openai::gpt-4o' }])
-
+  it('skips auto sync for API-key providers (uses pull reconcile instead)', async () => {
     renderHook(() => useProviderAutoModelSync('openai'))
 
-    await waitFor(() => expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true }))
+    await waitFor(() =>
+      expect(loggerInfoMock).toHaveBeenCalledWith('Skipping provider auto model sync', {
+        providerId: 'openai',
+        reason: 'uses_pull_reconcile'
+      })
+    )
+    expect(syncProviderModelsMock).not.toHaveBeenCalled()
   })
 
-  it('keeps a disabled provider disabled when auto sync returns zero models', async () => {
-    syncProviderModelsMock.mockResolvedValueOnce([])
-
-    renderHook(() => useProviderAutoModelSync('openai'))
-
-    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
-    await Promise.resolve()
-    expect(updateProviderMock).not.toHaveBeenCalled()
-  })
-
-  it('does not patch an already enabled provider after successful auto sync', async () => {
+  it('auto syncs for non-key providers (e.g. Ollama) when models are missing', async () => {
+    syncProviderModelsMock.mockResolvedValueOnce([{ id: 'ollama::llama3.2' }])
     useProviderMock.mockReturnValue({
       provider: {
-        id: 'openai',
-        isEnabled: true,
-        defaultChatEndpoint: 'openai_chat_completions',
+        id: 'ollama',
+        isEnabled: false,
+        defaultChatEndpoint: 'ollama_chat',
         endpointConfigs: {
-          openai_chat_completions: { baseUrl: 'https://api.openai.com/v1' }
+          ollama_chat: { baseUrl: 'http://localhost:11434' }
         }
       },
       updateProvider: updateProviderMock
     })
-    syncProviderModelsMock.mockResolvedValueOnce([{ id: 'openai::gpt-4o' }])
+    useProviderApiKeysMock.mockReturnValue({
+      data: { keys: [] }
+    })
 
-    renderHook(() => useProviderAutoModelSync('openai'))
+    renderHook(() => useProviderAutoModelSync('ollama'))
 
-    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
-    await Promise.resolve()
-    expect(updateProviderMock).not.toHaveBeenCalled()
+    await waitFor(() => expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true }))
   })
 
-  it('syncs only once for the same initial eligible configuration', async () => {
-    const { rerender } = renderHook(() => useProviderAutoModelSync('openai'))
+  it('syncs only once for the same initial eligible configuration (non-key provider)', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'ollama',
+        isEnabled: false,
+        defaultChatEndpoint: 'ollama_chat',
+        endpointConfigs: {
+          ollama_chat: { baseUrl: 'http://localhost:11434' }
+        }
+      },
+      updateProvider: updateProviderMock
+    })
+    useProviderApiKeysMock.mockReturnValue({
+      data: { keys: [] }
+    })
+    syncProviderModelsMock.mockResolvedValue([])
+
+    const { rerender } = renderHook(() => useProviderAutoModelSync('ollama'))
 
     await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
 
@@ -136,9 +147,23 @@ describe('useProviderAutoModelSync', () => {
     // without the synchronous re-entrancy guard this fires two concurrent /models
     // mutations, one of which SWR discards as `undefined` and the caller spreads
     // ("created is not iterable"). The guard must collapse them to one launch.
-    syncProviderModelsMock.mockResolvedValueOnce([{ id: 'openai::gpt-4o' }])
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'ollama',
+        isEnabled: false,
+        defaultChatEndpoint: 'ollama_chat',
+        endpointConfigs: {
+          ollama_chat: { baseUrl: 'http://localhost:11434' }
+        }
+      },
+      updateProvider: updateProviderMock
+    })
+    useProviderApiKeysMock.mockReturnValue({
+      data: { keys: [] }
+    })
+    syncProviderModelsMock.mockResolvedValueOnce([{ id: 'ollama::llama3.2' }])
 
-    renderHook(() => useProviderAutoModelSync('openai'), { wrapper: StrictMode })
+    renderHook(() => useProviderAutoModelSync('ollama'), { wrapper: StrictMode })
 
     await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
     await Promise.resolve()
@@ -232,19 +257,18 @@ describe('useProviderAutoModelSync', () => {
     expect(updateProviderMock).not.toHaveBeenCalled()
   })
 
-  it('logs auto sync failures and allows retrying when the same signature becomes eligible again', async () => {
-    const syncError = new Error('sync down')
-    syncProviderModelsMock.mockRejectedValueOnce(syncError).mockResolvedValueOnce([])
-
+  it('skips auto sync for API-key provider even after key rotation (pull reconcile handles it)', async () => {
     const { rerender } = renderHook(() => useProviderAutoModelSync('openai'))
 
+    // First render with keys → uses_pull_reconcile
     await waitFor(() =>
-      expect(loggerErrorMock).toHaveBeenCalledWith('Provider auto model sync failed', {
+      expect(loggerInfoMock).toHaveBeenCalledWith('Skipping provider auto model sync', {
         providerId: 'openai',
-        error: syncError
+        reason: 'uses_pull_reconcile'
       })
     )
 
+    // Keys removed
     useProviderApiKeysMock.mockReturnValue({
       data: { keys: [] }
     })
@@ -257,12 +281,18 @@ describe('useProviderAutoModelSync', () => {
       })
     )
 
+    // Keys restored — still uses pull reconcile, no direct sync
     useProviderApiKeysMock.mockReturnValue({
       data: { keys: [{ id: 'key-1', key: 'sk-test', isEnabled: true }] }
     })
     rerender()
 
-    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(2))
-    expect(updateProviderMock).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(loggerInfoMock).toHaveBeenCalledWith('Skipping provider auto model sync', {
+        providerId: 'openai',
+        reason: 'uses_pull_reconcile'
+      })
+    )
+    expect(syncProviderModelsMock).not.toHaveBeenCalled()
   })
 })

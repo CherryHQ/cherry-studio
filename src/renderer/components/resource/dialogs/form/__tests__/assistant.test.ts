@@ -69,9 +69,9 @@ describe('initialAssistantFormState', () => {
     })
   })
 
-  it('extracts tag names from embedded tag rows', () => {
+  it('extracts a single tag name from embedded tag rows', () => {
     const assistant = createAssistant({ tags: [tag('t1', 'alpha', '#f00'), tag('t2', 'beta', '#0f0')] })
-    expect(initialAssistantFormState(assistant).tags).toEqual(['alpha', 'beta'])
+    expect(initialAssistantFormState(assistant).tagName).toBe('alpha')
   })
 })
 
@@ -128,22 +128,24 @@ describe('diffAssistantUpdate', () => {
     expect(result?.dto.settings).toMatchObject({ reasoning_effort: 'high' })
   })
 
-  it('flags tag changes and passes form.tags through as tagNames', () => {
+  it('flags tag changes and passes one form tag through as tagNames', () => {
     const assistant = createAssistant({ tags: [tag('t1', 'alpha', '#f00')] })
     const baseline = initialAssistantFormState(assistant)
-    const form = { ...baseline, tags: ['alpha', 'new'] }
+    const form = { ...baseline, tagName: 'new' }
 
     const result = diffAssistantUpdate(form, baseline, assistant)
     expect(result?.tagsChanged).toBe(true)
-    expect(result?.tagNames).toEqual(['alpha', 'new'])
+    expect(result?.tagNames).toEqual(['new'])
   })
 
-  it('treats tag reorder (same set) as unchanged', () => {
+  it('flags clearing the assistant tag', () => {
     const assistant = createAssistant({ tags: [tag('t1', 'alpha', '#f00'), tag('t2', 'beta', '#0f0')] })
     const baseline = initialAssistantFormState(assistant)
-    const form = { ...baseline, tags: ['beta', 'alpha'] }
+    const form = { ...baseline, tagName: null }
 
-    expect(diffAssistantUpdate(form, baseline, assistant)).toBeNull()
+    const result = diffAssistantUpdate(form, baseline, assistant)
+    expect(result?.tagsChanged).toBe(true)
+    expect(result?.tagNames).toEqual([])
   })
 
   it('emits knowledgeBaseIds only when the set changes, ignoring order', () => {
@@ -187,12 +189,12 @@ describe('diffAssistantSaveIntent', () => {
   it('wraps update diffs for the edit dialog save handler', () => {
     const assistant = createAssistant({ tags: [tag('t1', 'alpha')] })
     const baseline = initialAssistantFormState(assistant)
-    const form = { ...baseline, tags: ['alpha', 'beta'] }
+    const form = { ...baseline, tagName: 'beta' }
 
     expect(diffAssistantSaveIntent(form, baseline, assistant)).toEqual({
       kind: 'update',
       payload: {},
-      tagNames: ['alpha', 'beta'],
+      tagNames: ['beta'],
       tagsChanged: true
     })
   })

@@ -48,11 +48,12 @@ import { application } from '@main/core/application'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
+import { getBinaryPath } from '@main/utils/binaryResolver'
+import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathStatus, type PathStatus } from '@main/utils/file/pathStatus'
 import { getAppLanguage, t } from '@main/utils/language'
-import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
-import getLoginShellEnvironment from '@main/utils/shell-env'
+import { getShellEnv } from '@main/utils/shellEnv'
 import {
   CHANNEL_SECURITY_PROMPT,
   REPORT_ARTIFACTS_PROMPT,
@@ -462,7 +463,7 @@ function workspacePathErrorMessage(path: string, status: PathStatus): string {
 }
 
 async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise<Record<string, string | undefined>> {
-  const loginShellEnv = await getLoginShellEnvironment()
+  const loginShellEnv = await getShellEnv()
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
   const bunPath = await getBinaryPath('bun')
 
@@ -963,7 +964,7 @@ export function buildMcpServers(
         throw new Error(`Unsupported workspace type: ${String(exhaustive)}`)
       }
     }
-    const clawServer = new ClawServer(agent.id, workspaceSource, sourceChannelId)
+    const clawServer = new ClawServer(agent.id, workspaceSource, session.workspace.path, sourceChannelId)
     mcpList.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
 
     // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the CherryClaw prompt and the

@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { cleanup, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const tabs = [{ id: 'home', type: 'route', url: '/home', title: 'Home' }]
@@ -30,6 +31,19 @@ async function renderSubWindowAppShell() {
   vi.doMock('@renderer/utils/routeTitle', () => ({
     getDefaultRouteTitle: (url: string) => url,
     isPageTitledRoute: () => false
+  }))
+  vi.doMock('@renderer/components/chat/shell/WindowFrameContext', () => ({
+    WindowFrameProvider: ({ children }: { children: ReactNode }) => <>{children}</>
+  }))
+  vi.doMock('@renderer/components/layout/SubWindowControls', () => ({
+    SubWindowControls: () => <div data-testid="sub-window-controls" />
+  }))
+  vi.doMock('@renderer/components/layout/SubWindowTitle', () => ({
+    SubWindowTitle: () => <div data-testid="sub-window-title" />
+  }))
+  vi.doMock('@renderer/components/WindowControls', () => ({
+    default: () => <div data-testid="window-controls" />,
+    useHasWindowControls: () => false
   }))
   vi.doMock('../SubWindowTitleBar', () => ({
     SubWindowTitleBar: () => <header data-testid="sub-window-title-bar" />

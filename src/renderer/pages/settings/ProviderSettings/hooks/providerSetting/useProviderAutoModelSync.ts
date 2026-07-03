@@ -85,6 +85,13 @@ export function useProviderAutoModelSync(providerId: string) {
       } as const
     }
 
+    if (requiresApiKeyForModelSync) {
+      return {
+        shouldSync: false,
+        reason: 'uses_pull_reconcile'
+      } as const
+    }
+
     if (!initialModelSyncSignature) {
       return {
         shouldSync: false,

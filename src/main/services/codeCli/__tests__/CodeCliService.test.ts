@@ -32,19 +32,20 @@ vi.mock('@main/core/platform', () => ({
   isWin: false
 }))
 
-// Default export is the login-shell env probe; mocked so checkClaudeLogin never
-// execs a real shell. `removeEnvProxy` is the named export used by the runner.
-vi.mock('@main/utils/shell-env', () => ({
-  default: vi.fn().mockResolvedValue({}),
+vi.mock('@main/utils/processRunner', () => ({
   removeEnvProxy: vi.fn()
+}))
+
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: vi.fn().mockResolvedValue({})
 }))
 
 vi.mock('@main/services/RegionService', () => ({
   regionService: { isInChina: vi.fn().mockResolvedValue(false) }
 }))
 
-vi.mock('@main/utils/process', () => ({
-  getBinaryName: vi.fn().mockResolvedValue('bun'),
+vi.mock('@main/utils/binaryResolver', () => ({
+  getBinaryName: vi.fn().mockReturnValue('bun'),
   getBinaryPath: vi.fn().mockResolvedValue('/mock/bin/tool'),
   isBinaryExists: vi.fn().mockResolvedValue(false)
 }))
@@ -136,13 +137,13 @@ describe('CodeCliService', () => {
   })
 
   // Linux/Windows: the credential lives in <CLAUDE_CONFIG_DIR>/.credentials.json. The probe must
-  // resolve CLAUDE_CONFIG_DIR from the login shell (what the runtime uses), not raw process.env —
+  // resolve CLAUDE_CONFIG_DIR from the shell env (what the runtime uses), not raw process.env —
   // a GUI Electron process doesn't inherit rc-exported vars.
-  it('checkClaudeLogin (non-mac) probes the login-shell CLAUDE_CONFIG_DIR', async () => {
+  it('checkClaudeLogin (non-mac) probes the shell CLAUDE_CONFIG_DIR', async () => {
     vi.doMock('@main/core/platform', () => ({ isMac: false, isWin: false }))
     try {
-      const shellEnv = (await import('@main/utils/shell-env')).default
-      vi.mocked(shellEnv).mockResolvedValue({ CLAUDE_CONFIG_DIR: '/home/me/.claude' })
+      const { getShellEnv } = await import('@main/utils/shellEnv')
+      vi.mocked(getShellEnv).mockResolvedValue({ CLAUDE_CONFIG_DIR: '/home/me/.claude' })
       const fs = (await import('node:fs')).default
       vi.mocked(fs.existsSync).mockReturnValue(true)
 
@@ -155,14 +156,14 @@ describe('CodeCliService', () => {
     }
   })
 
-  // A broken rc file makes the login-shell probe throw. That is NOT "not signed
+  // A broken rc file makes the shell env probe throw. That is NOT "not signed
   // in" — it must be logged, not silently swallowed, or a signed-in user is
   // stuck on a "not signed in" card with no diagnostic trail.
-  it('checkClaudeLogin (non-mac) logs a warning and returns false when the login-shell probe throws', async () => {
+  it('checkClaudeLogin (non-mac) logs a warning and returns false when the shell env probe throws', async () => {
     vi.doMock('@main/core/platform', () => ({ isMac: false, isWin: false }))
     try {
-      const shellEnv = (await import('@main/utils/shell-env')).default
-      vi.mocked(shellEnv).mockRejectedValue(new Error('broken rc file'))
+      const { getShellEnv } = await import('@main/utils/shellEnv')
+      vi.mocked(getShellEnv).mockRejectedValue(new Error('broken rc file'))
 
       const { codeCliService } = await loadModules()
 

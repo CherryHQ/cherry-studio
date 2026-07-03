@@ -16,10 +16,10 @@ describe('KnowledgeIndexStore.search', () => {
   let driver: BetterSqlite3Driver
   let store: KnowledgeIndexStore
 
-  beforeEach(async () => {
+  beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-knowledge-search-'))
-    driver = await openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
-    await createKnowledgeIndexSchema(driver)
+    driver = openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
+    createKnowledgeIndexSchema(driver)
     store = new KnowledgeIndexStore(driver, betterSqlite3VectorIndex)
   })
 
@@ -34,6 +34,7 @@ describe('KnowledgeIndexStore.search', () => {
       material: { relativePath },
       content: { text },
       units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: text.length }],
+      usesEmbeddings: true,
       embeddings: [{ embeddingTextHash: hashEmbeddingText(text), vector }]
     })
 
@@ -67,6 +68,24 @@ describe('KnowledgeIndexStore.search', () => {
     const matches = await store.search({ queryText: 'banana', mode: 'bm25', topK: 10 })
 
     expect(matches.map((m) => m.materialId)).toEqual(['m2'])
+  })
+
+  it('indexes a BM25-only material (usesEmbeddings: false, no embeddings) and finds it via bm25 search', async () => {
+    // The rebuild path's false branch (no vectors written, no coverage check) has never
+    // been exercised against a real store — every other test in this file goes through
+    // `indexMaterial`, which always supplies a vector.
+    const text = 'lexical only content with no embedding model'
+    await store.rebuildMaterial('m1', {
+      material: { relativePath: 'a.md' },
+      content: { text },
+      units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: text.length }],
+      usesEmbeddings: false,
+      embeddings: []
+    })
+
+    const matches = await store.search({ queryText: 'lexical', mode: 'bm25', topK: 10 })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1'])
   })
 
   it('bm25 mode returns nothing when the query has no usable token', async () => {

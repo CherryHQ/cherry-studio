@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   listChannels: vi.fn(),
   applicationGet: vi.fn(),
   applicationGetPath: vi.fn(),
-  getLoginShellEnvironment: vi.fn(),
+  getShellEnv: vi.fn(),
   getBinaryPath: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getPathStatus: vi.fn(),
@@ -141,17 +141,20 @@ vi.mock('@main/utils/language', () => ({
   }
 }))
 
-vi.mock('@main/utils/process', () => ({
-  autoDiscoverGitBash: vi.fn(() => null),
+vi.mock('@main/utils/binaryResolver', () => ({
   getBinaryPath: mocks.getBinaryPath
+}))
+
+vi.mock('@main/utils/commandResolver', () => ({
+  autoDiscoverGitBash: vi.fn(() => null)
 }))
 
 vi.mock('@main/utils/rtk', () => ({
   rtkRewrite: vi.fn()
 }))
 
-vi.mock('@main/utils/shell-env', () => ({
-  default: mocks.getLoginShellEnvironment
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: mocks.getShellEnv
 }))
 
 vi.mock('../ToolApprovalRegistry', () => ({
@@ -204,7 +207,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
     mocks.platform.isMac = false
-    mocks.getLoginShellEnvironment.mockResolvedValue({})
+    mocks.getShellEnv.mockResolvedValue({})
     mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
@@ -654,7 +657,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     it('strips every inherited Anthropic credential channel and points CLAUDE_CONFIG_DIR at the shell config dir', async () => {
-      mocks.getLoginShellEnvironment.mockResolvedValue({
+      mocks.getShellEnv.mockResolvedValue({
         ANTHROPIC_API_KEY: 'sk-shell',
         ANTHROPIC_AUTH_TOKEN: 'tok-shell',
         ANTHROPIC_BASE_URL: 'https://shell.example',
@@ -680,7 +683,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
 
     it('falls back CLAUDE_CONFIG_DIR to ~/.claude when the shell does not set it', async () => {
-      mocks.getLoginShellEnvironment.mockResolvedValue({ ANTHROPIC_API_KEY: 'sk-shell' })
+      mocks.getShellEnv.mockResolvedValue({ ANTHROPIC_API_KEY: 'sk-shell' })
 
       const settings = await buildClaudeCodeSessionSettings(
         session as never,
@@ -695,7 +698,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     it('falls back CLAUDE_CONFIG_DIR to ~/.claude when the shell exports it empty', async () => {
       // An empty CLAUDE_CONFIG_DIR must not pass through (it would point the SDK at /.credentials.json);
       // the fallback uses || so it matches CodeCliService's login probe rather than diverging from it.
-      mocks.getLoginShellEnvironment.mockResolvedValue({ CLAUDE_CONFIG_DIR: '' })
+      mocks.getShellEnv.mockResolvedValue({ CLAUDE_CONFIG_DIR: '' })
 
       const settings = await buildClaudeCodeSessionSettings(
         session as never,
@@ -707,7 +710,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     it('leaves CLAUDE_CONFIG_DIR unset on macOS so the Agent SDK can read the Keychain login', async () => {
       mocks.platform.isMac = true
-      mocks.getLoginShellEnvironment.mockResolvedValue({ CLAUDE_CONFIG_DIR: '/Users/me/.claude' })
+      mocks.getShellEnv.mockResolvedValue({ CLAUDE_CONFIG_DIR: '/Users/me/.claude' })
 
       const settings = await buildClaudeCodeSessionSettings(
         session as never,
@@ -721,7 +724,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       // env_vars come from the *agent* config, not the provider. CLAUDE_CODE_USE_VERTEX
       // is a runtime-forced routing flag (like CLAUDE_CODE_USE_BEDROCK) an agent must not
       // flip on; a non-reserved key must still pass through.
-      mocks.getLoginShellEnvironment.mockResolvedValue({})
+      mocks.getShellEnv.mockResolvedValue({})
       mocks.getAgent.mockReturnValue({
         id: 'agent-1',
         type: 'claude-code',
@@ -744,7 +747,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
 
     it('leaves inherited Anthropic credentials intact for a non-login provider', async () => {
-      mocks.getLoginShellEnvironment.mockResolvedValue({ ANTHROPIC_API_KEY: 'sk-shell' })
+      mocks.getShellEnv.mockResolvedValue({ ANTHROPIC_API_KEY: 'sk-shell' })
 
       const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'anthropic' } as never)
 

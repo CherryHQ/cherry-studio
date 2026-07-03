@@ -22,9 +22,11 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
+import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { getFunctionalKeys, parseJSONC } from '@main/utils/jsonc'
-import { getBinaryExecutionEnv, getBinaryPath, isBinaryExists } from '@main/utils/process'
-import getLoginShellEnvironment, { removeEnvProxy } from '@main/utils/shell-env'
+import { removeEnvProxy } from '@main/utils/processRunner'
+import { getShellEnv } from '@main/utils/shellEnv'
 import { IpcChannel } from '@shared/IpcChannel'
 import { CodeCli, TerminalApp, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
@@ -125,10 +127,10 @@ export class CodeCliService extends BaseService {
     }
     try {
       // Resolve from the same source the runtime uses (settingsBuilder reads the
-      // login-shell CLAUDE_CONFIG_DIR), not raw process.env: a GUI-launched
-      // Electron process does not inherit rc-exported vars, but the login shell
-      // does — so probing process.env alone falsely reports "not signed in".
-      const shellEnv = await getLoginShellEnvironment()
+      // shell CLAUDE_CONFIG_DIR), not raw process.env: a GUI-launched Electron
+      // process does not inherit rc-exported vars, so probing process.env alone
+      // falsely reports "not signed in".
+      const shellEnv = await getShellEnv()
       const configDir =
         shellEnv.CLAUDE_CONFIG_DIR ||
         process.env.CLAUDE_CONFIG_DIR ||
