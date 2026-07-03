@@ -62,7 +62,9 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     workspace: rowToAgentWorkspace(row.workspace),
     // Context usage is a detail-only field: only reads that join the state table (getById) carry it.
     // List projections leave `state` undefined and omit the field rather than ship the blob per row.
-    ...(row.state !== undefined ? { lastContextUsage: row.state?.lastContextUsage ?? null } : {}),
+    // Entity keeps the `lastContextUsage` name (persisted snapshot vs the renderer's live value); the
+    // column is just `context_usage` since a single per-session row has no "last vs all" to disambiguate.
+    ...(row.state !== undefined ? { lastContextUsage: row.state?.contextUsage ?? null } : {}),
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)
   }
@@ -372,10 +374,10 @@ export class AgentSessionService {
           .get('DbService')
           .getDb()
           .insert(agentSessionStateTable)
-          .values({ sessionId, lastContextUsage: snapshot })
+          .values({ sessionId, contextUsage: snapshot })
           .onConflictDoUpdate({
             target: agentSessionStateTable.sessionId,
-            set: { lastContextUsage: snapshot }
+            set: { contextUsage: snapshot }
           })
           .run(),
       {

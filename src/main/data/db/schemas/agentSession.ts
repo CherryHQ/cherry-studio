@@ -39,7 +39,7 @@ export const agentSessionStateTable = sqliteTable('agent_session_state', {
     .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
   // Latest context-usage snapshot. Nullable: a state row may exist for other per-session state
   // before/without a usage snapshot.
-  lastContextUsage: text({ mode: 'json' }).$type<AgentSessionContextUsageSnapshot>(),
+  contextUsage: text({ mode: 'json' }).$type<AgentSessionContextUsageSnapshot>(),
   ...createUpdateTimestamps
 })
 
