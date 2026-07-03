@@ -1,5 +1,3 @@
-import '@renderer/i18n'
-
 import ApiHost from '@renderer/pages/settings/ProviderSettings/ConnectionSettings/ApiHost'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'

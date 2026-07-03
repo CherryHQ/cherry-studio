@@ -2,7 +2,7 @@
 // ExportService
 
 import { loggerService } from '@logger'
-import { t } from '@main/utils/language'
+import { t } from '@main/i18n'
 import {
   AlignmentType,
   BorderStyle,

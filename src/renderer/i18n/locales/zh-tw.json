@@ -604,9 +604,7 @@
         "select_failed": "選擇資料夾失敗。"
       },
       "workspace_status": {
-        "inaccessible": "工作區路徑無法存取：{{path}}",
-        "missing": "工作區路徑不存在：{{path}}",
-        "not_directory": "工作區路徑不是目錄：{{path}}"
+        "inaccessible": "工作區路徑無法存取：{{path}}"
       }
     },
     "settings": {
@@ -1083,41 +1081,6 @@
       "stopped": "已停止"
     },
     "title": "API 閘道"
-  },
-  "appMenu": {
-    "about": "關於",
-    "close": "關閉視窗",
-    "copy": "複製",
-    "cut": "剪下",
-    "delete": "刪除",
-    "documentation": "文件",
-    "edit": "編輯",
-    "feedback": "回饋",
-    "file": "檔案",
-    "forceReload": "強制重新載入",
-    "front": "全部置於頂層",
-    "help": "幫助",
-    "hide": "隱藏",
-    "hideOthers": "隱藏其他",
-    "minimize": "最小化",
-    "paste": "貼上",
-    "quit": "結束",
-    "redo": "重做",
-    "releases": "版本發布",
-    "reload": "重新載入",
-    "resetZoom": "實際大小",
-    "selectAll": "全選",
-    "services": "服務",
-    "toggleDevTools": "切換開發者工具",
-    "toggleFullscreen": "切換全螢幕",
-    "undo": "復原",
-    "unhide": "全部顯示",
-    "view": "檢視",
-    "website": "網站",
-    "window": "視窗",
-    "zoom": "縮放",
-    "zoomIn": "放大",
-    "zoomOut": "縮小"
   },
   "assistants": {
     "abbr": "助手",
@@ -2074,7 +2037,6 @@
     "copy_failed": "複製失敗",
     "create_success": "已成功建立",
     "current": "目前",
-    "cut": "剪下",
     "default": "預設",
     "delete": "刪除",
     "delete_confirm": "確定要刪除嗎？",
@@ -2112,7 +2074,6 @@
     "image_preview": "圖片預覽",
     "image_url": "圖片網址",
     "image_url_or_upload": "輸入圖片網址或上傳檔案",
-    "inspect": "檢查",
     "invalid_value": "無效值",
     "knowledge_base": "知識庫",
     "language": "語言",
@@ -2133,7 +2094,6 @@
     "open_in": "在 {{name}} 中開啟",
     "open_in_new_tab": "在新分頁中開啟",
     "open_sidebar": "開啟側邊欄",
-    "paste": "貼上",
     "placeholders": {
       "select": {
         "model": "選擇模型"
@@ -2188,18 +2148,6 @@
     "warning": "警告",
     "yesterday": "昨天",
     "you": "您"
-  },
-  "dialog": {
-    "all_files": "所有檔案",
-    "html_files": "HTML 檔案",
-    "open_file": "開啟檔案",
-    "pdf_files": "PDF 檔案",
-    "png_image": "PNG 影像",
-    "save_as_html": "儲存為 HTML",
-    "save_as_pdf": "儲存為 PDF",
-    "save_file": "儲存檔案",
-    "select_folder": "選擇資料夾",
-    "word_document": "Word 文件"
   },
   "docs": {
     "title": "說明文件"
@@ -6322,12 +6270,6 @@
         "usage": "用法",
         "version": "版本"
       },
-      "oauth": {
-        "callback": {
-          "message": "關閉此頁面後即可回到 Cherry Studio",
-          "title": "認證成功"
-        }
-      },
       "prompts": {
         "arguments": "參數",
         "availablePrompts": "可用提示",
@@ -7837,11 +7779,6 @@
     "tooltip": {
       "newline": "換行"
     }
-  },
-  "tray": {
-    "quit": "結束",
-    "show_quick_assistant": "快捷助手",
-    "show_window": "顯示視窗"
   },
   "update": {
     "install": "立即安裝",

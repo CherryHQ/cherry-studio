@@ -51,13 +51,6 @@ vi.mock('@main/services/RegionService', () => ({
   regionService: { getCountry: vi.fn(() => 'US') }
 }))
 
-vi.mock('@main/utils/language', () => ({
-  locales: {
-    en: { translation: { update: {} } },
-    'zh-CN': { translation: { update: {} } }
-  }
-}))
-
 vi.mock('@main/utils/systemInfo', () => ({
   generateUserAgent: vi.fn(() => 'test-user-agent'),
   getClientId: vi.fn(() => 'test-client-id')

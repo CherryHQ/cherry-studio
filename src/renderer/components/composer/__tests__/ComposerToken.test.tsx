@@ -1102,7 +1102,7 @@ describe('ComposerToken', () => {
 
     await waitFor(() => expect(container.querySelector('[data-popover-trigger="true"]')).toBeInTheDocument())
     openTokenPopover(container, 'knowledge')
-    fireEvent.click(screen.getByRole('button', { name: 'appMenu.delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
 
     await waitFor(() => expect(serializeComposerDocument(editor!).tokens).toEqual([]))
   })
