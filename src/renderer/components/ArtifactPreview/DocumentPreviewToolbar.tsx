@@ -1,4 +1,5 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import ChevronLeft from 'lucide-react/dist/esm/icons/chevron-left'
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right'
 import RotateCcw from 'lucide-react/dist/esm/icons/rotate-ccw'
@@ -12,10 +13,12 @@ interface DocumentPreviewToolbarProps {
   zoomLabel: string
   pageIndicatorTestId?: string
   zoomIndicatorTestId?: string
+  className?: string
   canPreviousPage: boolean
   canNextPage: boolean
   canZoomOut?: boolean
   canZoomIn?: boolean
+  canResetZoom?: boolean
   onPreviousPage: () => void
   onNextPage: () => void
   onZoomOut: () => void
@@ -29,10 +32,12 @@ const DocumentPreviewToolbar = ({
   zoomLabel,
   pageIndicatorTestId,
   zoomIndicatorTestId,
+  className,
   canPreviousPage,
   canNextPage,
   canZoomOut = true,
   canZoomIn = true,
+  canResetZoom = true,
   onPreviousPage,
   onNextPage,
   onZoomOut,
@@ -43,7 +48,10 @@ const DocumentPreviewToolbar = ({
 
   return (
     <div
-      className="absolute top-2 right-3 z-10 flex items-center gap-1 rounded-lg border border-border-subtle bg-popover p-1 text-popover-foreground shadow-md"
+      className={cn(
+        'absolute top-2 right-3 z-10 flex items-center gap-1 rounded-lg border border-border-subtle bg-popover p-1 text-popover-foreground shadow-md',
+        className
+      )}
       role="toolbar"
       aria-label={t('agent.preview_pane.preview')}>
       <Tooltip content={t('common.previous')} delay={800}>
@@ -112,6 +120,7 @@ const DocumentPreviewToolbar = ({
           size="icon-sm"
           className="text-muted-foreground hover:text-foreground"
           aria-label={t('preview.reset')}
+          disabled={!canResetZoom}
           onClick={onResetZoom}>
           <RotateCcw size={14} />
         </Button>

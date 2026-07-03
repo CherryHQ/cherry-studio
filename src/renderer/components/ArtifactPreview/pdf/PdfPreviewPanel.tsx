@@ -1,7 +1,8 @@
 import 'pdfjs-dist/web/pdf_viewer.css'
 
+import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { EmptyState, LoadingState } from '@renderer/components/chat'
+import { LoadingState } from '@renderer/components/chat/primitives'
 import { AlertCircle } from 'lucide-react'
 import { getDocument, GlobalWorkerOptions, type PDFDocumentLoadingTask, type PDFDocumentProxy } from 'pdfjs-dist'
 // oxlint-disable-next-line import/default -- Vite exposes ?url imports as default asset URLs.
@@ -10,7 +11,8 @@ import { EventBus, PDFLinkService, PDFViewer } from 'pdfjs-dist/web/pdf_viewer.m
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import DocumentPreviewToolbar from './DocumentPreviewToolbar'
+import DocumentPreviewToolbar from '../DocumentPreviewToolbar'
+import { toUint8Array } from '../toUint8Array'
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
@@ -56,13 +58,6 @@ const resolveThemeBackground = (element: HTMLElement | null): string | null => {
 
   const backgroundColor = getComputedStyle(document.documentElement).backgroundColor
   return isEffectiveBackground(backgroundColor) ? backgroundColor : null
-}
-
-const toPdfData = (data: unknown): Uint8Array => {
-  if (data instanceof Uint8Array) return data
-  if (data instanceof ArrayBuffer) return new Uint8Array(data)
-  if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
-  return data as Uint8Array
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
@@ -215,10 +210,10 @@ const PdfPreviewPanel = ({ filePath, fileName, refreshKey }: PdfPreviewPanelProp
 
     void (async () => {
       try {
-        const data = toPdfData(await window.api.fs.read(filePath))
+        const pdfData = toUint8Array(await window.api.fs.read(filePath))
         if (cancelled) return
 
-        loadingTask = getDocument({ data })
+        loadingTask = getDocument({ data: pdfData })
         const nextDocument = await loadingTask.promise
         if (cancelled) {
           void nextDocument.destroy()
