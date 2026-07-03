@@ -30,7 +30,7 @@ vi.mock('@main/core/platform', () => ({
   isWin: false
 }))
 
-vi.mock('@main/utils/shell-env', () => ({
+vi.mock('@main/utils/processRunner', () => ({
   removeEnvProxy: vi.fn()
 }))
 
@@ -38,8 +38,8 @@ vi.mock('@main/services/RegionService', () => ({
   regionService: { isInChina: vi.fn().mockResolvedValue(false) }
 }))
 
-vi.mock('@main/utils/process', () => ({
-  getBinaryName: vi.fn().mockResolvedValue('bun'),
+vi.mock('@main/utils/binaryResolver', () => ({
+  getBinaryName: vi.fn().mockReturnValue('bun'),
   getBinaryPath: vi.fn().mockResolvedValue('/mock/bin/tool'),
   isBinaryExists: vi.fn().mockResolvedValue(false)
 }))

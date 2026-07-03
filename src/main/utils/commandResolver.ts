@@ -1,137 +1,19 @@
-import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import chardet from 'chardet'
-import { type ChildProcess, execFileSync, spawn, type SpawnOptions } from 'child_process'
+import { execFileSync, spawn } from 'child_process'
 import fs from 'fs'
-import iconv from 'iconv-lite'
 import path from 'path'
 
-import getShellEnv, { refreshShellEnv } from './shell-env'
-
-const logger = loggerService.withContext('Utils:Process')
-
-export function runInstallScript(scriptPath: string, extraEnv?: Record<string, string>): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    const installScriptPath = path.join(application.getPath('app.root.resources.scripts'), scriptPath)
-    logger.info(`Running script at: ${installScriptPath}`)
-
-    const nodeProcess = spawn(process.execPath, [installScriptPath], {
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ...extraEnv }
-    })
-
-    nodeProcess.stdout.on('data', (data) => {
-      logger.debug(`Script output: ${data}`)
-    })
-
-    nodeProcess.stderr.on('data', (data) => {
-      logger.error(`Script error: ${data}`)
-    })
-
-    nodeProcess.on('close', (code) => {
-      if (code === 0) {
-        logger.debug('Script completed successfully')
-        resolve()
-      } else {
-        logger.warn(`Script exited with code ${code}`)
-        reject(new Error(`Process exited with code ${code}`))
-      }
-    })
-  })
-}
-
-export async function getBinaryName(name: string): Promise<string> {
-  if (isWin) {
-    return `${name}.exe`
-  }
-  return name
-}
+import { getShellEnv } from './shellEnv'
 
 /**
- * Directories that hold Cherry-managed binaries, in resolution order:
- * mise shims first (user-installed wins), then `cherry.bin` (bundled fallback).
- *
- * Single source of truth for the binary path layout — both `getBinaryPath()`
- * and the PATH-appending logic in `shell-env.ts` consume this. Do not hand-join
- * `cherry.bin` / `feature.binary.data` elsewhere.
+ * Resolution for arbitrary executables in the user's environment — locating
+ * commands (npx, uvx, git, …) in the captured shell env, with Windows-specific
+ * fallbacks (`where.exe`, mise) and Git Bash discovery. Distinct from
+ * `binaryResolver.ts`, which resolves Cherry's own managed binaries.
  */
-export function getBinarySearchDirs(): string[] {
-  return [path.join(application.getPath('feature.binary.data'), 'shims'), application.getPath('cherry.bin')]
-}
 
-/**
- * Env injected into every process that *runs* a managed binary (the CLIs, the
- * mise shims, ripgrep, …). Carries only `MISE_*` so the shims resolve against
- * Cherry's isolated mise data dir.
- *
- * Deliberately does NOT relocate `HOME`/`XDG_*`: the tools we launch
- * (claude/codex/gemini/qwen, the OpenClaw gateway) must read the user's real
- * home for their config and credentials. HOME/XDG isolation belongs only to the
- * mise *install* subprocess — see `getBinaryIsolatedHomeEnv()`.
- */
-export function getBinaryExecutionEnv(): Record<string, string> {
-  const dataDir = application.getPath('feature.binary.data')
-  return {
-    MISE_DATA_DIR: dataDir,
-    MISE_CONFIG_DIR: path.join(dataDir, 'config'),
-    MISE_CACHE_DIR: path.join(dataDir, 'cache'),
-    MISE_STATE_DIR: path.join(dataDir, 'state'),
-    MISE_SHIMS_DIR: path.join(dataDir, 'shims'),
-    MISE_YES: '1',
-    MISE_NO_ANALYTICS: '1',
-    MISE_EXPERIMENTAL: '1'
-  }
-}
-
-/**
- * `HOME`/`XDG_*` relocated into Cherry's isolated binary data dir. Used ONLY by
- * the mise install subprocess (`BinaryManager.buildIsolatedEnv`) so mise and the
- * package managers it drives cannot read user-level config/creds
- * (`~/.npmrc`, `~/.netrc`, …). Never fold this into the shared execution env, or
- * the launched CLIs read their config/creds from the isolated dir and appear
- * logged-out on every run.
- */
-export function getBinaryIsolatedHomeEnv(): Record<string, string> {
-  const dataDir = application.getPath('feature.binary.data')
-  return {
-    HOME: path.join(dataDir, 'home'),
-    XDG_CONFIG_HOME: path.join(dataDir, 'xdg', 'config'),
-    XDG_CACHE_HOME: path.join(dataDir, 'xdg', 'cache'),
-    XDG_STATE_HOME: path.join(dataDir, 'xdg', 'state')
-  }
-}
-
-export function mergeBinaryExecutionEnv(env: Record<string, string>): Record<string, string> {
-  const binaryEnv = getBinaryExecutionEnv()
-  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') || (isWin ? 'Path' : 'PATH')
-  const pathSeparator = isWin ? ';' : path.delimiter
-  const pathValue = [binaryEnv.MISE_SHIMS_DIR, env[pathKey] || env.PATH || ''].filter(Boolean).join(pathSeparator)
-  const merged = { ...env, ...binaryEnv, [pathKey]: pathValue }
-  if (!isWin) merged.PATH = pathValue
-  return merged
-}
-
-export async function getBinaryPath(name?: string): Promise<string> {
-  const searchDirs = getBinarySearchDirs()
-  if (!name) {
-    // Legacy: no-arg returns the cherry.bin directory (extract target).
-    return application.getPath('cherry.bin')
-  }
-
-  const binaryName = await getBinaryName(name)
-  for (const dir of searchDirs) {
-    const candidate = path.join(dir, binaryName)
-    if (fs.existsSync(candidate)) {
-      return candidate
-    }
-  }
-  return binaryName
-}
-
-export async function isBinaryExists(name: string): Promise<boolean> {
-  const cmd = await getBinaryPath(name)
-  return fs.existsSync(cmd)
-}
+const logger = loggerService.withContext('Utils:CommandResolver')
 
 // Timeout for command lookup operations (in milliseconds)
 const COMMAND_LOOKUP_TIMEOUT_MS = 5000
@@ -145,7 +27,7 @@ const MAX_OUTPUT_SIZE = 10240
 /**
  * Check if a command is available in the user's login shell environment
  * @param command - Command name to check (e.g., 'npx', 'uvx')
- * @param loginShellEnv - The login shell environment from getLoginShellEnvironment()
+ * @param loginShellEnv - The login shell environment from getShellEnv()
  * @returns Full path to the command if found, null otherwise
  */
 export async function findCommandInShellEnv(
@@ -357,10 +239,6 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
   }
 }
 
-// ============================================================================
-// Unified Shell Environment Utilities
-// ============================================================================
-
 /** Timeout for mise operations (in milliseconds) */
 const MISE_TIMEOUT_MS = 5000
 
@@ -476,107 +354,6 @@ export async function findExecutableInEnv(name: string): Promise<string | null> 
 }
 
 /**
- * Spawn a process with proper Windows handling for .cmd files and npm shims.
- * On Windows, .cmd/.bat files need `shell: true` so Node.js delegates quoting
- * to cmd.exe via `/d /s /c "..."`. Manually constructing `cmd.exe /c` args
- * breaks when both the command path and arguments contain spaces (cmd.exe's
- * quote-stripping rule 2 kicks in and mangles the command line).
- */
-export function crossPlatformSpawn(
-  command: string,
-  args: string[],
-  options: SpawnOptions & { env: Record<string, string> }
-): ChildProcess {
-  // Always hide console window on Windows
-  const baseOptions: SpawnOptions = { ...options, windowsHide: true, stdio: options.stdio ?? 'pipe' }
-
-  if (isWin && !command.toLowerCase().endsWith('.exe')) {
-    // When shell: true, Node passes the command to cmd.exe as:
-    //   cmd /d /s /c "command arg1 arg2"
-    // If the command path contains spaces (e.g. C:\Program Files\nodejs\npm.cmd),
-    // cmd.exe splits on the space. Wrapping in quotes fixes this:
-    //   cmd /d /s /c ""C:\Program Files\nodejs\npm.cmd" arg1 arg2"
-    const quotedCommand = command.includes(' ') && !command.startsWith('"') ? `"${command}"` : command
-    return spawn(quotedCommand, args, { ...baseOptions, shell: true })
-  }
-  return spawn(command, args, baseOptions)
-}
-
-/**
- * Decode a Buffer from a shell process.
- * On Chinese Windows, cmd.exe outputs in the OEM code page (typically GBK/CP936).
- * Uses chardet to detect the actual encoding and iconv-lite to decode.
- */
-export function decodeBufferFromShell(buf: Buffer): string {
-  if (!isWin) return buf.toString('utf8')
-  const detected = chardet.detect(buf)
-  if (detected && detected !== 'UTF-8') {
-    try {
-      return iconv.decode(buf, detected)
-    } catch {
-      return buf.toString('utf8')
-    }
-  }
-  return buf.toString('utf8')
-}
-
-/**
- * Execute a command and return its output.
- * Uses crossPlatformSpawn internally for proper Windows .cmd handling.
- * If no env is provided, automatically uses the shell environment.
- */
-export async function executeCommand(
-  command: string,
-  args: string[],
-  options?: {
-    /** Capture and return stdout (default: false) */
-    capture?: boolean
-    /** Environment variables (defaults to getShellEnv()) */
-    env?: Record<string, string>
-    /** Timeout in milliseconds */
-    timeout?: number
-  }
-): Promise<string> {
-  const env = options?.env ?? (await getShellEnv())
-
-  return new Promise<string>((resolve, reject) => {
-    const child = crossPlatformSpawn(command, args, { env })
-    let stdout = ''
-    let stderr = ''
-
-    child.stdout?.on('data', (chunk) => {
-      stdout += chunk.toString()
-    })
-
-    child.stderr?.on('data', (chunk) => {
-      stderr += chunk.toString()
-    })
-
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
-    if (options?.timeout) {
-      timeoutId = setTimeout(() => {
-        child.kill('SIGKILL')
-        reject(new Error(`Command timed out after ${options.timeout}ms`))
-      }, options.timeout)
-    }
-
-    child.on('error', (err) => {
-      if (timeoutId) clearTimeout(timeoutId)
-      reject(err)
-    })
-
-    child.on('close', (code) => {
-      if (timeoutId) clearTimeout(timeoutId)
-      if (code === 0) {
-        resolve(options?.capture ? stdout : '')
-      } else {
-        reject(new Error(stderr || `Command failed with code ${code}`))
-      }
-    })
-  })
-}
-
-/**
  * Common Git installation root directories on Windows
  * Used by findExecutable() (git special case) and findGitBash() to check fallback paths
  */
@@ -586,18 +363,6 @@ function getCommonGitRoots(): string[] {
     path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Git'),
     ...(process.env.LOCALAPPDATA ? [path.join(process.env.LOCALAPPDATA, 'Programs', 'Git')] : [])
   ]
-}
-
-/**
- * Check if git is available in the user's environment
- * Refreshes shell env cache to detect newly installed Git
- * @returns Object with availability status and path to git executable
- */
-export async function checkGitAvailable(): Promise<{ available: boolean; path: string | null }> {
-  await refreshShellEnv()
-  const gitPath = await findExecutableInEnv('git')
-  logger.debug(`git check result: ${gitPath ? `found at ${gitPath}` : 'not found'}`)
-  return { available: gitPath !== null, path: gitPath }
 }
 
 /**

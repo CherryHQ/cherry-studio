@@ -3,7 +3,7 @@
  * location and would therefore leak across agent sessions.
  *
  * The agent runtime keeps the user's real HOME (so the launched CLIs read their
- * config/creds — see process.ts `getBinaryExecutionEnv`), which means a global
+ * config/creds — see binaryEnv.ts `getBinaryExecutionEnv`), which means a global
  * install lands in `~/.bun`, `~/.local/share/uv`, etc. — shared by every agent
  * and polluting the user's machine. Project-local installs (cwd `node_modules` /
  * `.venv`, isolated per workspace) and ephemeral runners (`bun x` / `uvx`) are
