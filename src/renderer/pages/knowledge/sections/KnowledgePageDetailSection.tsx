@@ -24,9 +24,7 @@ const KnowledgePageDetailSection = () => {
     openRecallTestDrawer,
     handleRagConfigDrawerOpenChange,
     handleRecallTestDrawerOpenChange,
-    openRenameBaseDialog,
-    openRestoreBaseDialog,
-    deleteBase
+    openRestoreBaseDialog
   } = useKnowledgePage()
   const {
     items: selectedBaseItems,
@@ -49,8 +47,6 @@ const KnowledgePageDetailSection = () => {
         base={selectedBase}
         onOpenRagConfig={openRagConfigDrawer}
         onOpenRecallTest={openRecallTestDrawer}
-        onRenameBase={openRenameBaseDialog}
-        onDeleteBase={deleteBase}
         onRebuild={() => openRestoreBaseDialog(selectedBase)}
       />
 
@@ -80,7 +76,11 @@ const KnowledgePageDetailSection = () => {
         title={t('knowledge.tabs.rag_config')}
         closeLabel={t('common.close')}
         bodyClassName="px-0 py-0">
-        <RagConfigPanel base={selectedBase} onRestoreBase={openRestoreBaseDialog} />
+        <RagConfigPanel
+          base={selectedBase}
+          itemCount={isItemsLoading ? undefined : selectedBaseItemsTotal}
+          onRestoreBase={openRestoreBaseDialog}
+        />
       </PageSidePanel>
 
       <PageSidePanel

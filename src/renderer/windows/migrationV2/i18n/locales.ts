@@ -15,16 +15,10 @@ export const zhCN = {
     title: '数据迁移向导',
     stages: {
       introduction: '介绍',
-      backup: '备份',
       migration: '迁移',
       completed: '完成'
     },
     buttons: {
-      back: '返回',
-      next: '下一步',
-      create_backup: '创建新备份',
-      already_backed_up: '已有备份',
-      confirm_and_continue: '确认并继续',
       start_migration: '开始迁移',
       restart: '重启应用',
       retry: '重试',
@@ -87,26 +81,6 @@ export const zhCN = {
       confirm: '已知晓风险，跳过并重启',
       confirm_countdown: '已知晓风险，跳过并重启 ({{seconds}}s)'
     },
-    backup_required: {
-      title: '创建数据备份',
-      description: '迁移前必须创建数据备份以确保数据安全。请选择备份位置或确认已有最新备份。',
-      recommended: '推荐',
-      create_desc: '为旧版数据创建一份完整备份，再开始迁移。',
-      existing_desc: '我已在别处备份过旧版数据，直接继续迁移。',
-      failure: '备份失败：{{reason}}'
-    },
-    backup_progress: {
-      title: '正在备份 V1 数据…',
-      description: '正在创建旧版数据的完整备份，请勿关闭应用…',
-      compressing: '压缩中，请勿关闭应用…',
-      compressing_long: '备份文件较大，压缩仍在继续，请保持应用打开…'
-    },
-    backup_confirmed: {
-      created_title: '备份成功',
-      created_description: '数据备份已完成，现在可以安全地开始迁移。',
-      existing_title: '已有备份',
-      existing_description: '你已确认已有可用的 V1 数据备份，可以开始迁移。'
-    },
     migration: {
       title: '正在迁移数据...',
       do_not_close: '迁移进行中，请勿关闭应用…'
@@ -132,7 +106,6 @@ export const zhCN = {
       steps_label: '步骤已完成',
       items_label: '迁移项',
       duration_label: '迁移耗时',
-      backup_heading: 'V1 备份',
       warning_heading: '{{count}} 条迁移提示',
       warning_description: '数据已迁移完成，但以下内容需要注意。'
     },
@@ -168,16 +141,10 @@ export const enUS = {
     title: 'Data Migration Wizard',
     stages: {
       introduction: 'Introduction',
-      backup: 'Backup',
       migration: 'Migration',
       completed: 'Completed'
     },
     buttons: {
-      back: 'Back',
-      next: 'Next',
-      create_backup: 'Create new backup',
-      already_backed_up: 'Already backed up',
-      confirm_and_continue: 'Confirm and continue',
       start_migration: 'Start Migration',
       restart: 'Restart App',
       retry: 'Retry',
@@ -241,27 +208,6 @@ export const enUS = {
       confirm: 'I understand the risk, skip and restart',
       confirm_countdown: 'I understand the risk, skip and restart ({{seconds}}s)'
     },
-    backup_required: {
-      title: 'Create Data Backup',
-      description:
-        'A data backup must be created before migration to ensure data safety. Please select a backup location or confirm you have a recent backup.',
-      recommended: 'Recommended',
-      create_desc: 'Create a full backup of your legacy data before migrating.',
-      existing_desc: 'I already backed up my legacy data elsewhere; continue to migration.',
-      failure: 'Backup failed: {{reason}}'
-    },
-    backup_progress: {
-      title: 'Backing up V1 data…',
-      description: 'Creating a full backup of your legacy data — please do not close the app…',
-      compressing: 'Compressing, please do not close the app…',
-      compressing_long: 'The backup is large, so compression is still running. Please keep the app open…'
-    },
-    backup_confirmed: {
-      created_title: 'Backup successful',
-      created_description: 'Data backup has been completed. You can now safely start the migration.',
-      existing_title: 'Already backed up',
-      existing_description: 'You confirmed that you already have a usable V1 data backup. You can start migration.'
-    },
     migration: {
       title: 'Migrating Data...',
       do_not_close: 'Migration in progress, please do not close the app…'
@@ -287,7 +233,6 @@ export const enUS = {
       steps_label: 'Steps completed',
       items_label: 'Migration items',
       duration_label: 'Migration time',
-      backup_heading: 'V1 backup',
       warning_heading: '{{count}} migration notice(s)',
       warning_description: 'Migration completed, but the following items need attention.'
     },

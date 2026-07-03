@@ -1,17 +1,6 @@
 import '@renderer/components/composer/tools'
 
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-  Tooltip
-} from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
-import {
   ComposerToolDerivedStateProvider,
   type ComposerToolDispatch,
   ComposerToolProvider,
@@ -38,16 +27,13 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
-import { ChevronRightIcon, Plus } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Plus } from 'lucide-react'
+import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ComposerUnifiedPanelControl } from './quickPanel'
 import type { ComposerSerializedToken } from './tokens'
 import type { ComposerToolLauncher, ComposerToolLauncherActionOptions } from './toolLauncher'
-
-const TOOL_MENU_CONTENT_CLASS = 'min-w-52 w-max max-w-[calc(100vw-2rem)]'
-const TOOL_SUBMENU_CONTENT_CLASS = 'min-w-44 w-max max-w-[calc(100vw-2rem)] data-[state=closed]:hidden'
-const TOOL_MENU_BADGE_CLASS = 'shrink-0 whitespace-nowrap text-muted-foreground text-xs'
 
 interface ComposerToolRuntimeActions {
   addNewTopic: () => void
@@ -209,28 +195,6 @@ export { ComposerToolDerivedStateProvider }
 
 const NOOP_LAUNCHER: ToolRenderContext<any, any>['launcher'] = { registerLaunchers: () => () => undefined }
 
-interface ComposerToolMenuItemContentProps {
-  icon?: React.ReactNode
-  children: React.ReactNode
-  badge?: React.ReactNode
-  hasSubmenu?: boolean
-}
-
-function ComposerToolMenuItemContent({ icon, children, badge, hasSubmenu }: ComposerToolMenuItemContentProps) {
-  return (
-    <>
-      <span className="flex min-w-max items-center gap-2">
-        {icon && <span className="size-4 shrink-0">{icon}</span>}
-        <span className="whitespace-nowrap">{children}</span>
-      </span>
-      <span className="ml-auto flex shrink-0 items-center gap-1">
-        {badge}
-        {hasSubmenu && <ChevronRightIcon className="size-4 text-muted-foreground" />}
-      </span>
-    </>
-  )
-}
-
 interface ReconcileContextInputs {
   toolState: ComposerToolState
   dispatch: ComposerToolDispatch
@@ -322,20 +286,6 @@ const getSortedLaunchers = (
   )
 }
 
-const launcherSupportsSource = (launcher: ComposerToolLauncher, source: ComposerToolLauncherActionOptions['source']) =>
-  !launcher.sources || launcher.sources.includes(source)
-
-type ComposerToolMenuEntry = {
-  launcher: ComposerToolLauncher
-  source: ComposerToolLauncherActionOptions['source']
-}
-
-const getToolMenuEntries = (triggers: ReturnType<typeof useComposerToolProviderLaunchers>) => {
-  const popoverLaunchers = getSortedLaunchers(triggers, 'popover')
-
-  return popoverLaunchers.map((launcher): ComposerToolMenuEntry => ({ launcher, source: 'popover' }))
-}
-
 export function useComposerToolLauncherController() {
   const triggers = useComposerToolProviderLaunchers()
   const quickPanel = useQuickPanel()
@@ -383,8 +333,13 @@ export function useComposerToolLauncherActions() {
   return { getLaunchers, dispatchLauncher }
 }
 
+export function useComposerToolLauncherVersion() {
+  return useComposerToolProviderLaunchers().version
+}
+
 interface ComposerToolMenuProps {
   inputAdapter?: QuickPanelInputAdapter
+  unifiedPanelControl?: ComposerUnifiedPanelControl
 }
 
 export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuProps) => {
@@ -419,196 +374,17 @@ export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuPro
   )
 }
 
-export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
+export const ComposerToolMenu = ({ unifiedPanelControl }: ComposerToolMenuProps) => {
   const { t } = useTranslation()
-  const quickPanel = useQuickPanel()
-  const { dispatchLauncher } = useComposerToolLauncherController()
-  const triggers = useComposerToolProviderLaunchers()
-  const [open, setOpen] = useState(false)
-  const [activeTooltipId, setActiveTooltipId] = useState<string | null>(null)
-  const keepComposerFocusAfterMenuCloseRef = useRef(false)
-  const entries = useMemo(() => getToolMenuEntries(triggers), [triggers])
-
-  const visibleEntries = useMemo(() => entries.filter(({ launcher }) => !launcher.hidden), [entries])
-
-  const handleOpenChange = useCallback((nextOpen: boolean) => {
-    setOpen(nextOpen)
-    if (nextOpen) {
-      keepComposerFocusAfterMenuCloseRef.current = false
-      return
-    }
-    setActiveTooltipId(null)
-  }, [])
-
-  const closeToolMenu = useCallback(() => {
-    setActiveTooltipId(null)
-    setOpen(false)
-  }, [])
-
-  const prepareToolMenuCloseAutoFocus = useCallback((launcher: ComposerToolLauncher) => {
-    keepComposerFocusAfterMenuCloseRef.current = launcher.kind === 'panel'
-  }, [])
-
-  const handleToolMenuCloseAutoFocus = useCallback(
-    (event: Event) => {
-      if (!keepComposerFocusAfterMenuCloseRef.current) return
-
-      keepComposerFocusAfterMenuCloseRef.current = false
-      if (!inputAdapter) return
-
-      event.preventDefault()
-      inputAdapter.focus()
-    },
-    [inputAdapter]
-  )
-
-  if (visibleEntries.length === 0) return null
+  if (!unifiedPanelControl?.available) return null
 
   return (
-    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex size-[30px] shrink-0 items-center justify-center rounded-full text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground"
-          aria-label={t('common.add')}>
-          <Plus size={18} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        side="top"
-        sideOffset={4}
-        className={TOOL_MENU_CONTENT_CLASS}
-        onCloseAutoFocus={handleToolMenuCloseAutoFocus}>
-        {visibleEntries.map(({ launcher, source }) => {
-          const tooltipContent = launcher.disabled
-            ? (launcher.disabledReason ?? launcher.tooltip ?? launcher.description)
-            : launcher.tooltip
-          const submenuItems = (launcher.submenu ?? []).filter(
-            (item) => !item.hidden && launcherSupportsSource(item, source)
-          )
-          const hasSubmenu = !launcher.disabled && submenuItems.length > 0
-          const itemClassName = cn(
-            !launcher.disabled && launcher.active && 'bg-accent text-accent-foreground',
-            tooltipContent && 'data-[disabled]:pointer-events-auto'
-          )
-          const suffixBadge = launcher.suffix ? (
-            <span className={TOOL_MENU_BADGE_CLASS}>{launcher.suffix}</span>
-          ) : undefined
-
-          if (hasSubmenu) {
-            return (
-              <DropdownMenuSub key={launcher.id}>
-                <DropdownMenuSubTrigger
-                  aria-label={typeof launcher.label === 'string' ? launcher.label : undefined}
-                  className={cn(!launcher.disabled && launcher.active && 'bg-accent text-accent-foreground')}>
-                  <ComposerToolMenuItemContent icon={launcher.icon} badge={suffixBadge}>
-                    {launcher.label}
-                  </ComposerToolMenuItemContent>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className={TOOL_SUBMENU_CONTENT_CLASS}>
-                  {submenuItems.map((item) => {
-                    const tooltipId = `${launcher.id}:${item.id}`
-                    const itemTooltipContent = item.disabled
-                      ? (item.disabledReason ?? item.tooltip ?? item.description)
-                      : item.tooltip
-                    const itemSuffixBadge = item.suffix ? (
-                      <span className={TOOL_MENU_BADGE_CLASS}>{item.suffix}</span>
-                    ) : undefined
-                    const submenuItem = (
-                      <DropdownMenuItem
-                        key={item.id}
-                        aria-label={typeof item.label === 'string' ? item.label : undefined}
-                        disabled={item.disabled}
-                        className={cn(
-                          !item.disabled && item.active && 'bg-accent text-accent-foreground',
-                          itemTooltipContent && 'data-[disabled]:pointer-events-auto'
-                        )}
-                        onMouseMove={() => setActiveTooltipId(itemTooltipContent ? tooltipId : null)}
-                        onMouseLeave={() => {
-                          if (activeTooltipId === tooltipId) setActiveTooltipId(null)
-                        }}
-                        onSelect={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          prepareToolMenuCloseAutoFocus(item)
-                          closeToolMenu()
-                          dispatchLauncher(item, { source: 'popover', inputAdapter, quickPanel })
-                        }}>
-                        <ComposerToolMenuItemContent icon={item.icon} badge={itemSuffixBadge}>
-                          {item.label}
-                        </ComposerToolMenuItemContent>
-                      </DropdownMenuItem>
-                    )
-
-                    if (!itemTooltipContent) return submenuItem
-
-                    return (
-                      <Tooltip
-                        key={item.id}
-                        content={itemTooltipContent}
-                        placement="right"
-                        sideOffset={8}
-                        isOpen={activeTooltipId === tooltipId}
-                        onOpenChange={(nextOpen) => {
-                          if (!nextOpen && activeTooltipId === tooltipId) setActiveTooltipId(null)
-                        }}
-                        classNames={{ placeholder: 'block' }}
-                        showArrow>
-                        {submenuItem}
-                      </Tooltip>
-                    )
-                  })}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            )
-          }
-
-          const menuItem = (
-            <DropdownMenuItem
-              key={launcher.id}
-              aria-label={typeof launcher.label === 'string' ? launcher.label : undefined}
-              disabled={launcher.disabled}
-              className={itemClassName}
-              onMouseMove={() => setActiveTooltipId(tooltipContent ? launcher.id : null)}
-              onMouseLeave={() => {
-                if (activeTooltipId === launcher.id) setActiveTooltipId(null)
-              }}
-              onSelect={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                prepareToolMenuCloseAutoFocus(launcher)
-                closeToolMenu()
-                dispatchLauncher(launcher, { source, inputAdapter, quickPanel })
-              }}>
-              <ComposerToolMenuItemContent
-                icon={launcher.icon}
-                badge={suffixBadge}
-                hasSubmenu={launcher.kind === 'panel' ? true : undefined}>
-                {launcher.label}
-              </ComposerToolMenuItemContent>
-            </DropdownMenuItem>
-          )
-
-          if (!tooltipContent) return menuItem
-
-          return (
-            <Tooltip
-              key={launcher.id}
-              content={tooltipContent}
-              placement="right"
-              sideOffset={8}
-              isOpen={activeTooltipId === launcher.id}
-              onOpenChange={(nextOpen) => {
-                if (!nextOpen && activeTooltipId === launcher.id) setActiveTooltipId(null)
-              }}
-              classNames={{ placeholder: 'block' }}
-              showArrow>
-              {menuItem}
-            </Tooltip>
-          )
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <button
+      type="button"
+      className="flex size-[30px] shrink-0 items-center justify-center rounded-full text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground"
+      aria-label={t('settings.quickPanel.title')}
+      onClick={() => unifiedPanelControl.open()}>
+      <Plus size={18} />
+    </button>
   )
 }

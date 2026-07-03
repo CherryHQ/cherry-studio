@@ -170,8 +170,6 @@ export class CherryInOauthService extends BaseService implements Activatable {
   }
 
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.CherryIN_SaveToken, this.saveToken)
-    this.ipcHandle(IpcChannel.CherryIN_HasToken, this.hasToken)
     this.ipcHandle(IpcChannel.CherryIN_GetBalance, this.getBalance)
     this.ipcHandle(IpcChannel.CherryIN_Logout, this.logout)
     this.ipcHandle(IpcChannel.CherryIN_StartOAuthFlow, this.startOAuthFlow)
