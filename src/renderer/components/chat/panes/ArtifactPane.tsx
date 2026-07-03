@@ -6,22 +6,30 @@ import type { OfficePreviewPanelProps } from '@renderer/components/ArtifactPrevi
 import { EmptyState, LoadingState } from '@renderer/components/chat'
 import HtmlPreviewFrame from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
-import { FileTree } from '@renderer/components/FileTree'
+import type { CommandContextMenuExtraItem } from '@renderer/components/command'
+import { FileTree, type FileTreeNode } from '@renderer/components/FileTree'
+import { FinderIcon } from '@renderer/components/Icons/SvgIcon'
+import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import { type FileSizeState, useFileSize } from '@renderer/hooks/useFileSize'
 import { type IsTextState, useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
+import { buildEditorUrl, getEditorIcon } from '@renderer/utils/editorUtils'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
+import { isMac, isWin } from '@renderer/utils/platform'
 import type { FilePath } from '@shared/types/file/common'
 import { toFileUrl } from '@shared/utils/file/url'
-import { AlertCircle, FileText, Folder, FolderOpen, Maximize2, Minimize2, RotateCw, Sparkles } from 'lucide-react'
+import { AlertCircle, FileText, Folder, FolderOpen, Maximize2, Minimize2, RotateCw, Sparkles, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import {
   type ComponentType,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState
 } from 'react'
@@ -29,6 +37,7 @@ import { useTranslation } from 'react-i18next'
 
 import { CHAT_SHELL_TRANSITION } from '../shell/paneLayout'
 import { getVerticalSplitterProps } from '../shell/splitterA11y'
+import { type ArtifactPaneFileSelection, WORKSPACE_ROOT_ID } from './artifactPanePath'
 import OpenExternalAppButton from './OpenExternalAppButton'
 import { type ArtifactFileTreeModel, isSelectableFileNode, useArtifactFileTreeModel } from './useArtifactFileTreeModel'
 
@@ -48,6 +57,9 @@ const ARTIFACT_FILE_TREE_MAX_WIDTH_OFFSET = 140
 export interface ArtifactPaneProps {
   workspacePath?: string
   maximized?: boolean
+  previewMode?: 'split' | 'overlay'
+  previewFileSelection?: ArtifactPaneFileSelection | null
+  onPreviewClose?: () => void
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
   selectedFile?: string | null
@@ -95,6 +107,23 @@ const isMarkdownFile = (name: string) => MARKDOWN_EXT.has(extOf(name))
 const isHtmlFile = (name: string) => HTML_EXT.has(extOf(name))
 const isPdfFile = (name: string) => PDF_EXT.has(extOf(name))
 export const isOfficeDocumentFile = (name: string) => OFFICE_DOCUMENT_EXT.has(extOf(name))
+
+function getPreviewFileTitle(filePath: string): string {
+  const segments = filePath
+    .trim()
+    .split(/[/\\]+/)
+    .filter(Boolean)
+  return segments.at(-1) ?? filePath
+}
+
+function getFileTreeNodeTargetPath(workspacePath: string | undefined, node: { id: string }): string | null {
+  if (!workspacePath) return null
+  return node.id === WORKSPACE_ROOT_ID ? workspacePath : joinPath(workspacePath, node.id)
+}
+
+function renderFileManagerIcon(): ReactNode {
+  return isMac ? <FinderIcon className="size-4" /> : <FolderOpen size={16} />
+}
 
 type PdfPreviewPanelComponent = ComponentType<{
   filePath: string
@@ -474,6 +503,9 @@ export function ArtifactFilePreview({
 interface ArtifactPaneViewProps {
   workspacePath?: string
   maximized?: boolean
+  previewMode?: 'split' | 'overlay'
+  previewFileSelection?: ArtifactPaneFileSelection | null
+  onPreviewClose?: () => void
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
   enableFileSearch?: boolean
@@ -499,6 +531,9 @@ interface ArtifactPaneViewProps {
 export function ArtifactPaneView({
   workspacePath,
   maximized = false,
+  previewMode = 'split',
+  previewFileSelection = null,
+  onPreviewClose,
   pdfLayoutPending = false,
   pdfLayoutRefreshKey = 0,
   enableFileSearch = false,
@@ -512,6 +547,7 @@ export function ArtifactPaneView({
   onSearchKeywordChange
 }: ArtifactPaneViewProps) {
   const { t } = useTranslation()
+  const { data: externalApps } = useExternalApps({ enabled: previewMode === 'overlay' })
   const {
     artifactPaneRef,
     isResizing: isFileTreeResizing,
@@ -539,6 +575,24 @@ export function ArtifactPaneView({
   }, [workspacePath])
 
   const trimmedFileSearch = enableFileSearch ? searchKeyword.trim() : ''
+  const isOverlayMode = previewMode === 'overlay'
+  const overlaySelection =
+    isOverlayMode && previewFileSelection
+      ? previewFileSelection
+      : isOverlayMode && workspacePath && selectedFile
+        ? { workspacePath, filePath: selectedFile }
+        : null
+  const previewWorkspacePath = overlaySelection?.workspacePath ?? workspacePath
+  const previewFilePath = overlaySelection?.filePath ?? selectedFile
+  const availableEditors = useMemo(
+    () => externalApps?.filter((app) => app.tags.includes('code-editor')) ?? [],
+    [externalApps]
+  )
+  const fileManagerName = useMemo(() => {
+    if (isMac) return t('agent.session.file_manager.finder')
+    if (isWin) return t('agent.session.file_manager.file_explorer')
+    return t('agent.session.file_manager.files')
+  }, [t])
 
   const handleSelectedChange = useCallback(
     (id: string | null) => {
@@ -551,27 +605,142 @@ export function ArtifactPaneView({
     [model.nodeById, onSelectedFileChange]
   )
 
-  const isPdfSelection = selectedFile ? isPdfFile(selectedFile) : false
-  const isOfficeDocumentSelection = selectedFile ? isOfficeDocumentFile(selectedFile) : false
+  const isPdfSelection = previewFilePath ? isPdfFile(previewFilePath) : false
+  const isOfficeDocumentSelection = previewFilePath ? isOfficeDocumentFile(previewFilePath) : false
   const shouldSniffSelectedFile = !isPdfSelection && !isOfficeDocumentSelection
-  const sniffedIsText = useIsTextFile(workspacePath, selectedFile, { enabled: shouldSniffSelectedFile })
+  const sniffedIsText = useIsTextFile(previewWorkspacePath, previewFilePath, { enabled: shouldSniffSelectedFile })
   const isText = shouldSniffSelectedFile ? sniffedIsText : 'binary'
-  const fileSize = useFileSize(workspacePath, selectedFile)
+  const fileSize = useFileSize(previewWorkspacePath, previewFilePath)
 
   const handleRefresh = useCallback(() => {
     refresh()
     if (treeOpen) {
       reloadExpandedDirectories()
     }
-    if (workspacePath && selectedFile && (isText === 'text' || isOfficeDocumentSelection)) {
+    if (!isOverlayMode && workspacePath && selectedFile && (isText === 'text' || isOfficeDocumentSelection)) {
       setContentRefreshToken((v) => v + 1)
     }
-  }, [refresh, reloadExpandedDirectories, selectedFile, treeOpen, workspacePath, isText, isOfficeDocumentSelection])
+  }, [
+    isOverlayMode,
+    refresh,
+    reloadExpandedDirectories,
+    selectedFile,
+    treeOpen,
+    workspacePath,
+    isText,
+    isOfficeDocumentSelection
+  ])
 
-  const isSelectedHtmlPreview = selectedFile ? isHtmlFile(selectedFile) : false
+  const handleClosePreview = useCallback(() => {
+    onPreviewClose?.()
+    onSelectedFileChange(null)
+  }, [onPreviewClose, onSelectedFileChange])
+
+  const handleOverlayKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== 'Escape') return
+      event.stopPropagation()
+      handleClosePreview()
+    },
+    [handleClosePreview]
+  )
+
+  const openPath = useCallback(
+    async (path: string) => {
+      try {
+        await window.api.file.openPath(path)
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path })))
+      }
+    },
+    [t]
+  )
+
+  const showInFolder = useCallback(
+    async (path: string) => {
+      try {
+        await window.api.file.showInFolder(path)
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path })))
+      }
+    },
+    [t]
+  )
+
+  const getFileTreeMenuItems = useCallback(
+    (node: FileTreeNode): readonly CommandContextMenuExtraItem[] => {
+      if (!isOverlayMode) return []
+
+      const targetPath = getFileTreeNodeTargetPath(workspacePath, node)
+      if (!targetPath) return []
+
+      if (node.kind === 'file') {
+        return [
+          {
+            type: 'item',
+            id: 'open-default-app',
+            label: t('agent.preview_pane.default_app'),
+            icon: <FileText size={16} />,
+            onSelect: () => void openPath(targetPath)
+          },
+          {
+            type: 'item',
+            id: 'show-in-folder',
+            label: fileManagerName,
+            icon: renderFileManagerIcon(),
+            onSelect: () => void showInFolder(targetPath)
+          },
+          ...availableEditors.map<CommandContextMenuExtraItem>((app) => ({
+            type: 'item',
+            id: `open-editor-${app.id}`,
+            label: app.name,
+            icon: getEditorIcon(app),
+            onSelect: () => window.open(buildEditorUrl(app, targetPath))
+          }))
+        ]
+      }
+
+      return [
+        {
+          type: 'item',
+          id: 'open-file-manager',
+          label: fileManagerName,
+          icon: renderFileManagerIcon(),
+          onSelect: () => void openPath(targetPath)
+        },
+        ...availableEditors.map<CommandContextMenuExtraItem>((app) => ({
+          type: 'item',
+          id: `open-editor-${app.id}`,
+          label: app.name,
+          icon: getEditorIcon(app),
+          onSelect: () => window.open(buildEditorUrl(app, targetPath))
+        }))
+      ]
+    },
+    [availableEditors, fileManagerName, isOverlayMode, openPath, showInFolder, t, workspacePath]
+  )
+
+  const searchToolbar = isOverlayMode ? (
+    <div className="flex shrink-0 items-center gap-1">
+      <Tooltip content={t('agent.preview_pane.refresh')} delay={800}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label={t('agent.preview_pane.refresh')}
+          onClick={handleRefresh}>
+          <RotateCw size={16} />
+        </Button>
+      </Tooltip>
+      {workspacePath && <OpenExternalAppButton workdir={workspacePath} />}
+    </div>
+  ) : undefined
+
+  const isSelectedHtmlPreview = previewFilePath ? isHtmlFile(previewFilePath) : false
   const isSelectedPdfPreview = isPdfSelection
   const isSelectedOfficePreview = isOfficeDocumentSelection
-  const openableFilePath = isOfficeDocumentSelection ? selectedFile : null
+  const openableFilePath = !isOverlayMode && isOfficeDocumentSelection ? selectedFile : null
 
   const maximizeLabel = t(maximized ? 'agent.preview_pane.minimize' : 'agent.preview_pane.maximize')
   const FileTreeIcon = treeOpen ? FolderOpen : Folder
@@ -603,11 +772,110 @@ export function ArtifactPaneView({
     )
   }
 
+  const renderOverlay = () => {
+    if (!overlaySelection) return null
+
+    return (
+      <div
+        data-testid="artifact-file-preview-overlay"
+        tabIndex={-1}
+        onKeyDown={handleOverlayKeyDown}
+        className={cn(
+          'absolute inset-0 z-20 flex min-h-0 flex-col bg-card text-card-foreground',
+          isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview ? 'overflow-hidden' : 'overflow-auto'
+        )}>
+        <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-3">
+          <div className="min-w-0 truncate font-medium text-foreground text-sm">
+            {getPreviewFileTitle(overlaySelection.filePath)}
+          </div>
+          <Tooltip content={t('agent.preview_pane.close')} delay={800}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label={t('agent.preview_pane.close')}
+              onClick={handleClosePreview}>
+              <X size={16} />
+            </Button>
+          </Tooltip>
+        </div>
+        <div className="min-h-0 flex-1">
+          <ArtifactFilePreview
+            workspacePath={overlaySelection.workspacePath}
+            filePath={overlaySelection.filePath}
+            isText={isText}
+            fileSize={fileSize}
+            pdfLayoutPending={pdfLayoutPending}
+            pdfLayoutRefreshKey={pdfLayoutRefreshKey}
+            contentRefreshKey={contentRefreshToken}
+            officeActions={
+              isOfficeDocumentSelection ? (
+                <OpenExternalAppButton workdir={overlaySelection.workspacePath} filePath={overlaySelection.filePath} />
+              ) : undefined
+            }
+          />
+        </div>
+      </div>
+    )
+  }
+
   const headerToggleClass = (active: boolean) =>
     cn(
       'text-muted-foreground hover:bg-accent hover:text-foreground',
       active && 'bg-accent text-foreground hover:text-foreground'
     )
+
+  const renderFileTree = () =>
+    model.isLoading ? (
+      <LoadingState variant="skeleton" rows={4} />
+    ) : (
+      <FileTree
+        nodes={model.filteredTree}
+        expandedIds={model.effectiveExpandedIds}
+        onExpandedChange={model.setExpandedIds}
+        selectedId={selectedFile}
+        onSelectedChange={handleSelectedChange}
+        showSearch={enableFileSearch}
+        searchKeyword={searchKeyword}
+        onSearchKeywordChange={onSearchKeywordChange}
+        searchPlaceholder={t('agent.preview_pane.search_placeholder')}
+        searchToolbar={searchToolbar}
+        searchClearLabel={t('common.clear')}
+        getMenuItems={getFileTreeMenuItems}
+        emptyState={
+          <div className="px-2 py-3 text-muted-foreground text-xs">
+            {model.error
+              ? t('common.error')
+              : trimmedFileSearch
+                ? t('agent.preview_pane.no_search_results')
+                : workspacePath
+                  ? t('agent.preview_pane.empty.title')
+                  : t('agent.preview_pane.empty.description')}
+          </div>
+        }
+      />
+    )
+
+  if (isOverlayMode) {
+    return (
+      <div
+        ref={artifactPaneRef}
+        className={cn(
+          'flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground',
+          maximized && 'rounded-lg border border-border-subtle shadow-sm'
+        )}>
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <aside className="flex h-full w-full flex-col overflow-hidden">
+            <div data-artifact-file-tree-scroll-region className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+              {renderFileTree()}
+            </div>
+          </aside>
+          {renderOverlay()}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -633,32 +901,7 @@ export function ArtifactPaneView({
                 <div
                   data-artifact-file-tree-scroll-region
                   className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-1 py-2">
-                  {model.isLoading ? (
-                    <LoadingState variant="skeleton" rows={4} />
-                  ) : (
-                    <FileTree
-                      nodes={model.filteredTree}
-                      expandedIds={model.effectiveExpandedIds}
-                      onExpandedChange={model.setExpandedIds}
-                      selectedId={selectedFile}
-                      onSelectedChange={handleSelectedChange}
-                      showSearch={enableFileSearch}
-                      searchKeyword={searchKeyword}
-                      onSearchKeywordChange={onSearchKeywordChange}
-                      searchPlaceholder={t('agent.preview_pane.search_placeholder')}
-                      emptyState={
-                        <div className="px-2 py-3 text-muted-foreground text-xs">
-                          {model.error
-                            ? t('common.error')
-                            : trimmedFileSearch
-                              ? t('agent.preview_pane.no_search_results')
-                              : workspacePath
-                                ? t('agent.preview_pane.empty.title')
-                                : t('agent.preview_pane.empty.description')}
-                        </div>
-                      }
-                    />
-                  )}
+                  {renderFileTree()}
                 </div>
               </aside>
               <div
@@ -749,6 +992,9 @@ export function ArtifactPaneView({
 const ArtifactPane = ({
   workspacePath,
   maximized = false,
+  previewMode = 'split',
+  previewFileSelection,
+  onPreviewClose,
   pdfLayoutPending = false,
   pdfLayoutRefreshKey = 0,
   selectedFile: selectedFileProp,
@@ -764,12 +1010,19 @@ const ArtifactPane = ({
 }: ArtifactPaneProps) => {
   const [internalFileTreeOpen, setInternalFileTreeOpen] = useState(false)
   const [internalSelectedFile, setInternalSelectedFile] = useState<string | null>(null)
+  const [internalPreviewFileSelection, setInternalPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(
+    null
+  )
   const [internalFileTreeExpandedIds, setInternalFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [internalFileTreeSearchKeyword, setInternalFileTreeSearchKeyword] = useState('')
   const previousWorkspacePathRef = useRef(workspacePath)
   const hasMountedRef = useRef(false)
   const selectedFileControlled = selectedFileProp !== undefined
   const selectedFile = selectedFileControlled ? selectedFileProp : internalSelectedFile
+  const previewFileSelectionControlled = previewFileSelection !== undefined
+  const effectivePreviewFileSelection = previewFileSelectionControlled
+    ? previewFileSelection
+    : internalPreviewFileSelection
   const fileTreeOpenControlled = fileTreeOpenProp !== undefined
   const treeOpen = fileTreeOpenProp ?? internalFileTreeOpen
   const fileTreeExpandedIdsControlled = fileTreeExpandedIdsProp !== undefined
@@ -780,10 +1033,17 @@ const ArtifactPane = ({
   const setSelectedFile = useCallback(
     (file: string | null) => {
       if (!selectedFileControlled) setInternalSelectedFile(file)
+      if (previewMode === 'overlay' && !previewFileSelectionControlled) {
+        setInternalPreviewFileSelection(file && workspacePath ? { workspacePath, filePath: file } : null)
+      }
       onSelectedFileChange?.(file)
     },
-    [onSelectedFileChange, selectedFileControlled]
+    [onSelectedFileChange, previewFileSelectionControlled, previewMode, selectedFileControlled, workspacePath]
   )
+  const clearSelectedFileOnly = useCallback(() => {
+    if (!selectedFileControlled) setInternalSelectedFile(null)
+    onSelectedFileChange?.(null)
+  }, [onSelectedFileChange, selectedFileControlled])
   const setTreeOpen = useCallback(
     (open: boolean) => {
       if (!fileTreeOpenControlled) setInternalFileTreeOpen(open)
@@ -822,6 +1082,7 @@ const ArtifactPane = ({
     const workspaceChanged = previousWorkspacePathRef.current !== workspacePath
     if (workspaceChanged) {
       if (!selectedFileControlled) setSelectedFile(null)
+      if (!previewFileSelectionControlled) setInternalPreviewFileSelection(null)
       resetLazyChildren()
     }
     previousWorkspacePathRef.current = workspacePath
@@ -834,6 +1095,7 @@ const ArtifactPane = ({
   }, [
     fileTreeExpandedIdsControlled,
     fileTreeSearchKeywordControlled,
+    previewFileSelectionControlled,
     selectedFileControlled,
     setExpandedIdsState,
     setFileSearchKeyword,
@@ -845,13 +1107,16 @@ const ArtifactPane = ({
   useEffect(() => {
     if (!selectedFile || !model.hasLoaded) return
     if (isSelectableFileNode(model.nodeById, selectedFile)) return
-    setSelectedFile(null)
-  }, [model.hasLoaded, model.nodeById, selectedFile, setSelectedFile])
+    clearSelectedFileOnly()
+  }, [clearSelectedFileOnly, model.hasLoaded, model.nodeById, selectedFile])
 
   return (
     <ArtifactPaneView
       workspacePath={workspacePath}
       maximized={maximized}
+      previewMode={previewMode}
+      previewFileSelection={effectivePreviewFileSelection}
+      onPreviewClose={onPreviewClose}
       pdfLayoutPending={pdfLayoutPending}
       pdfLayoutRefreshKey={pdfLayoutRefreshKey}
       enableFileSearch={enableFileSearch}
