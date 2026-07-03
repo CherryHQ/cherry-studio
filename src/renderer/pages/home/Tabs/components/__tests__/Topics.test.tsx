@@ -1473,7 +1473,6 @@ describe('Topics', () => {
 
     // The assistant header exposes a direct history button and no bulk-action menu.
     expect(screen.getByRole('button', { name: 'History' })).toBeInTheDocument()
-    expect(screen.queryByText('Display mode')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Collapse all' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Expand all' })).not.toBeInTheDocument()
   })
@@ -1602,24 +1601,46 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('renders the topic header history action without display mode controls', () => {
+  it('renders the topic header display mode and history actions in the shared menu', () => {
     const { onOpenHistoryRecords } = renderTopicList()
 
     expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search conversations')).not.toBeInTheDocument()
 
     expect(screen.queryByLabelText('Manage topics')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Display mode')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Display mode'))
+    expect(screen.getByText('Display mode')).toBeInTheDocument()
+    const displayModeMenu = screen.getByText('Display mode').closest('[data-testid="menu-list"]')
+    expect(displayModeMenu).not.toBeNull()
+    expect(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Time' })).toBeInTheDocument()
+    expect(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Assistant' })).toBeInTheDocument()
+    expect(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'History' })).toBeInTheDocument()
 
-    // The assistant header shows a direct history button (no options popover / display-mode controls).
-    const historyButton = screen.getByRole('button', { name: 'History' })
-    expect(historyButton.querySelector('svg')).not.toBeNull()
-    expect(historyButton).not.toHaveClass('text-[11px]')
-    expect(screen.queryByText('Display mode')).not.toBeInTheDocument()
+    fireEvent.click(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Time' }))
+    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
 
-    fireEvent.click(historyButton)
+    fireEvent.click(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'History' }))
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
+  })
+
+  it('expands assistant topic groups when switching to assistant display mode from the menu', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
+    setTopicGroupExpansionCache({
+      time: ['topic:time:yesterday'],
+      assistant: ['topic:assistant:assistant-1']
+    })
+
+    renderTopicList()
+
+    fireEvent.click(screen.getByLabelText('Display mode'))
+    const displayModeMenu = screen.getByText('Display mode').closest('[data-testid="menu-list"]')
+    expect(displayModeMenu).not.toBeNull()
+
+    fireEvent.click(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Assistant' }))
+
     expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('assistant')
+    expect(getTopicGroupExpansionCache().assistant).toEqual([])
+    expect(getTopicGroupExpansionCache().time).toEqual(['topic:time:yesterday'])
   })
 
   it('keeps assistant grouped topics in the generic loading state until all pages are ready', () => {

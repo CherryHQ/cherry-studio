@@ -76,6 +76,7 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   groupByTag?: boolean
   emptyFallback?: ReactNode
   getContextMenuActions?: (item: T) => readonly ResolvedAction<TActionContext>[]
+  headerActions?: ReactNode
   listRef?: RefObject<HTMLDivElement | null>
   onAdd: () => void | Promise<void>
   /** When provided, a history-records button sits next to the add button. */
@@ -117,6 +118,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   groupByTag = false,
   emptyFallback,
   getContextMenuActions,
+  headerActions,
   listRef,
   onAdd,
   onOpenHistoryRecords,
@@ -280,15 +282,20 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
             aria-label={addLabel}
             onClick={() => void onAdd()}
             actions={
-              onOpenHistoryRecords ? (
-                <Tooltip title={t('history.records.shortTitle')} delay={500}>
-                  <ResourceList.HeaderActionButton
-                    type="button"
-                    aria-label={t('history.records.shortTitle')}
-                    onClick={() => onOpenHistoryRecords()}>
-                    <History className="block" />
-                  </ResourceList.HeaderActionButton>
-                </Tooltip>
+              headerActions || onOpenHistoryRecords ? (
+                <>
+                  {headerActions}
+                  {onOpenHistoryRecords && (
+                    <Tooltip title={t('history.records.shortTitle')} delay={500}>
+                      <ResourceList.HeaderActionButton
+                        type="button"
+                        aria-label={t('history.records.shortTitle')}
+                        onClick={() => onOpenHistoryRecords()}>
+                        <History className="block" />
+                      </ResourceList.HeaderActionButton>
+                    </Tooltip>
+                  )}
+                </>
               ) : undefined
             }
           />

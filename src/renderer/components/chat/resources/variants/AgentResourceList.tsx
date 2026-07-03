@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import EmojiIcon from '@renderer/components/EmojiIcon'
@@ -14,6 +15,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ConversationResourceMenuItem } from '../ConversationResourceMenu'
+import { SessionListOptionsMenu } from '../SessionListOptionsMenu'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
 import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'
@@ -55,6 +57,7 @@ export function AgentResourceList({
   onActiveAgentDeleted
 }: AgentResourceListProps) {
   const { t } = useTranslation()
+  const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
     sessions,
@@ -265,7 +268,13 @@ export function AgentResourceList({
         addIcon={<Plus />}
         addLabel={t('agent.add.title')}
         onAdd={onAddAgent ?? (() => onStartMissingAgentDraft?.())}
-        onOpenHistoryRecords={onOpenHistoryRecords}
+        headerActions={
+          <SessionListOptionsMenu
+            mode={sessionDisplayMode}
+            onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
+            onOpenHistoryRecords={onOpenHistoryRecords}
+          />
+        }
         resourceMenuItems={resourceMenuItems}
         onSelect={handleSelect}
         onReorder={handleReorder}

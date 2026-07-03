@@ -1,6 +1,7 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ResourceEntityRailItem } from '@renderer/components/chat/resources/variants/ResourceEntityRail'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentResourceList } from '../AgentResourceList'
@@ -18,8 +19,29 @@ const agentDataMocks = vi.hoisted(() => ({
 }))
 
 const preferenceMocks = vi.hoisted(() => ({
+  setPreference: vi.fn(),
   sortType: 'list' as 'list' | 'tags',
-  setSortType: vi.fn()
+  setSortType: vi.fn(),
+  values: new Map<string, unknown>()
+}))
+
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, onClick, ...props }: { children?: ReactNode; onClick?: () => void }) => (
+    <button {...props} type="button" onClick={onClick}>
+      {children}
+    </button>
+  ),
+  MenuItem: ({ icon, label, onClick }: { icon?: ReactNode; label: ReactNode; onClick?: () => void }) => (
+    <button type="button" onClick={onClick}>
+      {icon}
+      {label}
+    </button>
+  ),
+  MenuDivider: () => <hr />,
+  MenuList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  Popover: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  PopoverContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  PopoverTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>
 }))
 
 vi.mock('react-i18next', () => ({
@@ -29,7 +51,29 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => [preferenceMocks.sortType, preferenceMocks.setSortType]
+  usePreference: (key: string) => {
+    if (key === 'assistant.tab.sort_type') {
+      return [
+        preferenceMocks.sortType,
+        (value: unknown) => {
+          preferenceMocks.sortType = value as 'list' | 'tags'
+          preferenceMocks.setSortType(value)
+          preferenceMocks.setPreference(key, value)
+        }
+      ]
+    }
+
+    const defaultValue =
+      key === 'topic.tab.display_mode' ? 'assistant' : key === 'agent.session.display_mode' ? 'agent' : undefined
+
+    return [
+      preferenceMocks.values.get(key) ?? defaultValue,
+      (value: unknown) => {
+        preferenceMocks.values.set(key, value)
+        preferenceMocks.setPreference(key, value)
+      }
+    ]
+  }
 }))
 
 vi.mock('@logger', () => ({
@@ -63,14 +107,17 @@ vi.mock('@renderer/components/chat/resources/variants/useResourceEntityRail', ()
 vi.mock('@renderer/components/chat/resources/variants/ResourceEntityRail', () => ({
   ResourceEntityRail: ({
     getContextMenuActions,
+    headerActions,
     items,
     onContextMenuAction
   }: {
     getContextMenuActions?: (item: ResourceEntityRailItem) => readonly ResolvedAction[]
+    headerActions?: ReactNode
     items: readonly ResourceEntityRailItem[]
     onContextMenuAction?: (item: ResourceEntityRailItem, action: ResolvedAction) => void | Promise<void>
   }) => (
     <div>
+      {headerActions}
       {items.map((item) => {
         const actions = getContextMenuActions?.(item) ?? []
 
@@ -202,6 +249,8 @@ vi.mock('@renderer/utils/error', () => ({
 describe('classic layout entity resource list actions', () => {
   beforeEach(() => {
     preferenceMocks.sortType = 'list'
+    preferenceMocks.values.clear()
+    preferenceMocks.setPreference.mockClear()
     preferenceMocks.setSortType.mockClear()
     assistantDataMocks.deleteAssistant.mockResolvedValue(undefined)
     assistantDataMocks.refreshTopics.mockResolvedValue(undefined)
@@ -277,6 +326,33 @@ describe('classic layout entity resource list actions', () => {
     expect(preferenceMocks.setSortType).toHaveBeenCalledWith('list')
   })
 
+  it('lets the classic assistant rail switch back to the time topic view', () => {
+    render(
+      <AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onStartDraftAssistant={vi.fn()} />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.topics.display.time' }))
+
+    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.display_mode', 'time')
+  })
+
+  it('keeps classic assistant rail history in the shared display menu', () => {
+    const onOpenHistoryRecords = vi.fn()
+
+    render(
+      <AssistantResourceList
+        activeAssistantId="assistant-1"
+        onOpenHistoryRecords={onOpenHistoryRecords}
+        onSelectTopic={vi.fn()}
+        onStartDraftAssistant={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'history.records.shortTitle' }))
+
+    expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
+  })
+
   it('uses delete-agent actions for the classic layout agent context and more menus', async () => {
     const onStartMissingAgentDraft = vi.fn()
     const onActiveAgentDeleted = vi.fn()
@@ -310,5 +386,40 @@ describe('classic layout entity resource list actions', () => {
     // Classic layout resets via the dedicated callback, never the draft compose.
     await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1'))
     expect(onStartMissingAgentDraft).not.toHaveBeenCalled()
+  })
+
+  it('lets the classic agent rail switch back to the workdir session view', () => {
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        onSelectSession={vi.fn()}
+        onStartDraftAgent={vi.fn()}
+        onStartMissingAgentDraft={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.session.display.workdir' }))
+
+    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
+  })
+
+  it('keeps classic agent rail history in the shared display menu without section toggles', () => {
+    const onOpenHistoryRecords = vi.fn()
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        onOpenHistoryRecords={onOpenHistoryRecords}
+        onSelectSession={vi.fn()}
+        onStartDraftAgent={vi.fn()}
+        onStartMissingAgentDraft={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'history.records.shortTitle' }))
+
+    expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('agent.session.group.expand_all')).not.toBeInTheDocument()
+    expect(screen.queryByText('agent.session.group.collapse_all')).not.toBeInTheDocument()
   })
 })

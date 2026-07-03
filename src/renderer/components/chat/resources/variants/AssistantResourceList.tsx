@@ -15,6 +15,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ConversationResourceMenuItem } from '../ConversationResourceMenu'
+import { TopicListOptionsMenu } from '../TopicListOptionsMenu'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
 import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'
@@ -52,6 +53,7 @@ export function AssistantResourceList({
 }: AssistantResourceListProps) {
   const { t } = useTranslation()
   const [assistantSortType, setAssistantSortType] = usePreference('assistant.tab.sort_type')
+  const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const isTagGrouping = assistantSortType === 'tags'
   const {
     assistants,
@@ -287,7 +289,13 @@ export function AssistantResourceList({
         addIcon={<Plus />}
         addLabel={t('chat.add.assistant.title')}
         onAdd={onAddAssistant ?? (() => onStartDraftAssistant(null))}
-        onOpenHistoryRecords={onOpenHistoryRecords}
+        headerActions={
+          <TopicListOptionsMenu
+            mode={topicDisplayMode}
+            onChange={(nextMode) => void setTopicDisplayMode(nextMode)}
+            onOpenHistoryRecords={onOpenHistoryRecords}
+          />
+        }
         resourceMenuItems={resourceMenuItems}
         onSelect={handleSelect}
         onReorder={handleReorder}

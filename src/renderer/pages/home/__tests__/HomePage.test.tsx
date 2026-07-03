@@ -652,7 +652,7 @@ describe('HomePage', () => {
   })
 
   it('renders the assistant resource list with the resource pane open by default', () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
 
     render(<HomePage />)
 
@@ -662,6 +662,16 @@ describe('HomePage', () => {
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
+  })
+
+  it('renders the modern topic sidebar when topic display mode is time', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('home-tabs')).toBeInTheDocument()
+    expect(screen.queryByTestId('assistant-resource-list')).not.toBeInTheDocument()
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-tab', 'branch')
   })
 
   it('renders the assistant resource view in the chat center', () => {
@@ -675,7 +685,7 @@ describe('HomePage', () => {
   })
 
   it('keeps the assistant resource view open while opening the classic-layout assistant picker', () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
 
     render(<HomePage />)
 
@@ -688,7 +698,7 @@ describe('HomePage', () => {
   })
 
   it('keeps the assistant resource view open until the selected assistant topic is ready', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     let resolveCreateTopic!: (topic: Topic) => void
     homeMocks.createTopic.mockReturnValue(
       new Promise<Topic>((resolve) => {
@@ -752,7 +762,7 @@ describe('HomePage', () => {
   })
 
   it('creates an empty classic-layout topic from the inline assistant catalog go-to-chat action', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
 
@@ -767,13 +777,16 @@ describe('HomePage', () => {
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
   })
 
-  it('restores and records the classic-layout topic right pane open state from cache', () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+  it('auto-opens the classic-layout topic right pane once and records manual close state', async () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.persistCacheValues.set('ui.chat.right_pane_open', false)
 
     render(<HomePage />)
 
-    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'false')
+    await waitFor(() =>
+      expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'true')
+    )
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open', true)
 
     fireEvent.click(screen.getByRole('button', { name: 'Close topic right pane' }))
 
@@ -781,7 +794,7 @@ describe('HomePage', () => {
   })
 
   it('passes the current assistant topic count to the classic-layout top button', () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
       { ...historyTopic, id: 'topic-a' },
       { ...historyTopic, id: 'topic-b' },
@@ -797,7 +810,7 @@ describe('HomePage', () => {
 
   it('selects the latest historical topic by default when entering classic layout without a route topic', async () => {
     homeMocks.locationState = undefined
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
       { ...historyTopic, id: 'topic-older', updatedAt: '2026-01-01T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
@@ -812,7 +825,7 @@ describe('HomePage', () => {
 
   it('selects the latest remaining topic after deleting the active assistant (classic layout, never draft)', async () => {
     homeMocks.locationState = undefined
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-b-old', assistantId: 'assistant-b', updatedAt: '2026-01-01T00:00:00.000Z' },
@@ -833,7 +846,7 @@ describe('HomePage', () => {
   })
 
   it('creates and activates an empty topic after selecting an existing assistant from the classic-layout picker', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
 
     render(<HomePage />)
@@ -848,7 +861,7 @@ describe('HomePage', () => {
   })
 
   it('adds a catalog assistant before creating an empty topic from the classic-layout picker', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-created' })
 
     render(<HomePage />)
@@ -869,7 +882,7 @@ describe('HomePage', () => {
   })
 
   it('reuses an existing assistant whose name matches the catalog preset instead of duplicating it', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-existing', name: 'Catalog Preset' }]
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-existing' })
 
@@ -884,7 +897,7 @@ describe('HomePage', () => {
   })
 
   it('reuses the assistant latest empty topic instead of creating another one in the classic-layout picker', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
       {
         id: 'topic-empty-latest',
@@ -913,7 +926,7 @@ describe('HomePage', () => {
   })
 
   it('reuses the latest empty topic when an older candidate has an invalid timestamp', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
       {
         id: 'topic-empty-invalid',
@@ -941,7 +954,7 @@ describe('HomePage', () => {
   })
 
   it('reuses the current assistant empty topic from the classic-layout composer button', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
     homeMocks.classicLayoutTopics = [
       {
@@ -963,7 +976,7 @@ describe('HomePage', () => {
   })
 
   it('creates and activates a fresh empty topic from the classic-layout composer button when no empty topic exists', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
     homeMocks.classicLayoutTopics = [
       {
@@ -990,7 +1003,7 @@ describe('HomePage', () => {
   })
 
   it('creates a new topic when the assistant latest topic is chatted-in with a blank name (auto-naming off) in the classic-layout picker', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     // Auto-naming off keeps the name blank, but updatedAt has moved past createdAt — this is a real
     // conversation that must NOT be reopened as a reusable empty placeholder (#16434).
     homeMocks.classicLayoutTopics = [
@@ -1013,7 +1026,7 @@ describe('HomePage', () => {
   })
 
   it('ignores a rapid double-click on the classic-layout composer new-topic action', () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
     homeMocks.classicLayoutTopics = []
     // Never resolves: the first create stays in flight so the re-entry guard must drop the second click.
@@ -1029,7 +1042,7 @@ describe('HomePage', () => {
   })
 
   it('focuses the existing tab instead of duplicating a reused topic already open elsewhere', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.focusExistingTab.mockReturnValue(true)
     homeMocks.classicLayoutTopics = [
       {
@@ -1056,7 +1069,7 @@ describe('HomePage', () => {
   })
 
   it('toasts and leaves the active topic untouched when classic-layout picker topic creation fails', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = []
     homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
     const toastError = vi.fn()
@@ -1073,7 +1086,7 @@ describe('HomePage', () => {
   })
 
   it('toasts when the classic-layout composer empty-topic creation fails', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
     homeMocks.classicLayoutTopics = []
     homeMocks.createTopic.mockRejectedValue(new Error('create failed'))

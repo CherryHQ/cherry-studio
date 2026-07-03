@@ -15,6 +15,7 @@ import {
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
+  TopicListOptionsMenu,
   TopicResourceList,
   useResourceListActions,
   useResourceListPinnedState,
@@ -46,7 +47,7 @@ import { cn } from '@renderer/utils/style'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
 import { findIndex } from 'es-toolkit/compat'
-import { Bot, History, MoreHorizontal, PinIcon, SquarePen, Trash2, XIcon } from 'lucide-react'
+import { Bot, MoreHorizontal, PinIcon, SquarePen, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -138,23 +139,6 @@ function resolveAssistantIdForTopicGroup(
   return assistantId
 }
 
-function TopicHistoryButton({ onOpenHistoryRecords }: { onOpenHistoryRecords?: () => void }) {
-  const { t } = useTranslation()
-
-  if (!onOpenHistoryRecords) return null
-
-  return (
-    <Tooltip title={t('history.records.shortTitle')} delay={500}>
-      <ResourceList.HeaderActionButton
-        type="button"
-        aria-label={t('history.records.shortTitle')}
-        onClick={onOpenHistoryRecords}>
-        <History className="block" />
-      </ResourceList.HeaderActionButton>
-    </Tooltip>
-  )
-}
-
 function AssistantGroupMoreMenu({
   assistantId,
   deleteTopicsDisabled,
@@ -222,7 +206,7 @@ export function Topics({
     deleteTopicsByAssistantId,
     refreshTopics
   } = useTopicMutations()
-  const [topicDisplayMode] = usePreference('topic.tab.display_mode')
+  const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const [topicExpansionTime, setTopicExpansionTime] = usePersistCache('ui.topic.expansion.time')
   const [topicExpansionAssistant, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const [renamingTopics] = useCache('topic.renaming')
@@ -899,6 +883,15 @@ export function Topics({
     },
     [isAssistantDisplayMode, isRightPanel, setTopicExpansionAssistant, setTopicExpansionTime]
   )
+  const handleTopicDisplayModeChange = useCallback(
+    (nextMode: TopicDisplayMode) => {
+      if (nextMode === 'assistant') {
+        setTopicExpansionAssistant([])
+      }
+      void setTopicDisplayMode(nextMode)
+    },
+    [setTopicDisplayMode, setTopicExpansionAssistant]
+  )
   const canDragTopicItem = useCallback(
     ({ item }: { item: Topic }) => isAssistantDisplayMode && !item.pinned,
     [isAssistantDisplayMode]
@@ -1089,7 +1082,15 @@ export function Topics({
                 icon={<SquarePen />}
                 label={t('chat.conversation.new')}
                 onClick={() => void onNewTopic?.(headerCreateTopicPayload)}
-                actions={<TopicHistoryButton onOpenHistoryRecords={onOpenHistoryRecords} />}
+                actions={
+                  <>
+                    <TopicListOptionsMenu
+                      mode={displayMode}
+                      onChange={handleTopicDisplayModeChange}
+                      onOpenHistoryRecords={onOpenHistoryRecords}
+                    />
+                  </>
+                }
               />
               <ConversationResourceMenu items={resourceMenuItems} />
             </>

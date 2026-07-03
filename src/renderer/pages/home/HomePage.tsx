@@ -125,10 +125,11 @@ const HomePage: FC = () => {
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
-  const [topicLayout] = usePreference('topic.layout')
-  const isClassicTopicLayout = topicLayout === 'classic'
+  const [topicDisplayMode] = usePreference('topic.tab.display_mode')
+  const isClassicTopicLayout = topicDisplayMode === 'assistant'
   // Classic-layout right-pane open state, cached on the assistant surface's own key.
   const [topicPaneOpen, setTopicPaneOpen] = useClassicLayoutRightPaneOpen('chat', isClassicTopicLayout)
+  const hasAutoOpenedClassicTopicPaneRef = useRef(false)
   // Classic layout shares this full-topics source with the rail; modern layout leaves it disabled (no fetch).
   // The picker uses it to reuse an empty placeholder topic instead of stacking new ones.
   const {
@@ -140,6 +141,17 @@ const HomePage: FC = () => {
     !isClassicTopicLayout || (!isClassicTopicLayoutLoading && isClassicTopicLayoutFullyLoaded)
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
+
+  useEffect(() => {
+    if (!isClassicTopicLayout) {
+      hasAutoOpenedClassicTopicPaneRef.current = false
+      return
+    }
+
+    if (hasAutoOpenedClassicTopicPaneRef.current) return
+    hasAutoOpenedClassicTopicPaneRef.current = true
+    setTopicPaneOpen(true)
+  }, [isClassicTopicLayout, setTopicPaneOpen])
 
   const location = useLocation()
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)

@@ -1702,10 +1702,12 @@ describe('Sessions', () => {
 
     const displayModeContent = openSessionListOptions()
     expect(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Time' })).toBeInTheDocument()
-    expect(within(displayModeContent as HTMLElement).queryByRole('button', { name: 'Agent' })).not.toBeInTheDocument()
-    fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Work directory' }))
+    expect(
+      within(displayModeContent as HTMLElement).getByRole('button', { name: 'Work directory' })
+    ).toBeInTheDocument()
+    fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Agent' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
+    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'agent')
   })
 
   it('blocks cross-workspace groups from drag start while preserving same-workspace reorder', async () => {
