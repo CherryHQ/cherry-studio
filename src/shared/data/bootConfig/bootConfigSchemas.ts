@@ -62,7 +62,7 @@ export interface BootConfigSchema {
    * Consumer: src/main/core/preboot/userDataLocation.ts
    */
   // preboot/transient/userDataRelocation
-  'temp.user_data_relocation': 
+  'temp.user_data_relocation':
     | { status: 'pending'; from: string; to: string }
     | { status: 'failed'; from: string; to: string; error: string; failedAt: string }
     | null
