@@ -341,87 +341,96 @@ export const ResourceGrid: FC<Props> = ({
         </div>
 
         {showTagToolbar && (
-          <div className="flex items-center gap-1.5 overflow-x-auto px-5 pb-3 [&::-webkit-scrollbar]:h-0">
-            <Tag size={12} className="mr-0.5 shrink-0 text-foreground-muted" />
-            {visibleTags.map((tag) => (
-              <ContextMenu key={tag.id}>
-                <ContextMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    onClick={() => onTagFilter(activeTag === tag.name ? null : tag.name)}
-                    className={`flex h-6 min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs shadow-none ${
-                      activeTag === tag.name
-                        ? 'border-border-active bg-secondary text-foreground hover:bg-secondary-hover hover:text-foreground'
-                        : 'border-border-subtle text-foreground-muted hover:border-border-hover hover:bg-accent hover:text-foreground'
-                    }`}>
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
-                    <span>{tag.name}</span>
-                    <span className="text-foreground-muted text-xs tabular-nums">{tag.count}</span>
-                  </Button>
-                </ContextMenuTrigger>
-                <ContextMenuContent className="min-w-32">
-                  <ContextMenuItem onSelect={() => handleOpenRenameTag(tag)}>
-                    <ContextMenuItemContent icon={<Pencil size={12} />}>{t('common.rename')}</ContextMenuItemContent>
-                  </ContextMenuItem>
-                  <ContextMenuItem variant="destructive" onSelect={() => setDeletingTag(tag)}>
-                    <ContextMenuItemContent icon={<Trash2 size={12} />}>
-                      {t('assistants.tags.delete')}
-                    </ContextMenuItemContent>
-                  </ContextMenuItem>
-                </ContextMenuContent>
-              </ContextMenu>
-            ))}
+          <div className="flex items-center overflow-x-auto px-2 pt-1 pb-2 [&::-webkit-scrollbar]:h-0">
+            <div
+              className={
+                toolbarLeading
+                  ? 'flex size-[30px] shrink-0 items-center justify-center'
+                  : 'flex size-3 shrink-0 items-center'
+              }>
+              <Tag size={14} className="text-foreground-muted" />
+            </div>
+            <div className="ml-2 flex shrink-0 items-center gap-1.5">
+              {visibleTags.map((tag) => (
+                <ContextMenu key={tag.id}>
+                  <ContextMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      onClick={() => onTagFilter(activeTag === tag.name ? null : tag.name)}
+                      className={`flex h-6 min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs shadow-none ${
+                        activeTag === tag.name
+                          ? 'border-border-active bg-secondary text-foreground hover:bg-secondary-hover hover:text-foreground'
+                          : 'border-border-subtle text-foreground-muted hover:border-border-hover hover:bg-accent hover:text-foreground'
+                      }`}>
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
+                      <span>{tag.name}</span>
+                      <span className="text-foreground-muted text-xs tabular-nums">{tag.count}</span>
+                    </Button>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent className="min-w-32">
+                    <ContextMenuItem onSelect={() => handleOpenRenameTag(tag)}>
+                      <ContextMenuItemContent icon={<Pencil size={12} />}>{t('common.rename')}</ContextMenuItemContent>
+                    </ContextMenuItem>
+                    <ContextMenuItem variant="destructive" onSelect={() => setDeletingTag(tag)}>
+                      <ContextMenuItemContent icon={<Trash2 size={12} />}>
+                        {t('assistants.tags.delete')}
+                      </ContextMenuItemContent>
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              ))}
 
-            {unusedTags.length > 0 && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t('library.toolbar.all_tags')}
-                title={t('library.toolbar.all_tags')}
-                onClick={() => setShowAllTags((value) => !value)}
-                className="size-6 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground">
-                {showAllTags ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
-              </Button>
-            )}
-
-            {showAddTag ? (
-              <div className="flex shrink-0 items-center gap-1">
-                <Input
-                  autoFocus
-                  maxLength={64}
-                  value={newTagName}
-                  onChange={(e) => setNewTagName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void handleAddTag()
-                    if (e.key === 'Escape') {
-                      setShowAddTag(false)
-                      setNewTagName('')
-                    }
-                  }}
-                  onBlur={() => {
-                    if (!newTagName.trim() && !addingTag) setShowAddTag(false)
-                  }}
-                  disabled={addingTag}
-                  placeholder={t('library.toolbar.add_tag_placeholder')}
-                  className="h-6 w-20 rounded-full border-input bg-background px-2 text-xs placeholder:text-foreground-muted"
-                />
+              {unusedTags.length > 0 && (
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  onClick={() => void handleAddTag()}
-                  disabled={addingTag || !newTagName.trim()}
-                  className="size-6 text-foreground-muted hover:text-foreground">
-                  <Plus size={12} />
+                  aria-label={t('library.toolbar.all_tags')}
+                  title={t('library.toolbar.all_tags')}
+                  onClick={() => setShowAllTags((value) => !value)}
+                  className="size-6 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground">
+                  {showAllTags ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
                 </Button>
-              </div>
-            ) : (
-              <Button
-                variant="ghost"
-                onClick={() => setShowAddTag(true)}
-                className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-muted border-dashed px-2 text-foreground-muted text-xs shadow-none hover:border-border-hover hover:bg-accent hover:text-foreground">
-                <Plus size={11} /> {t('library.toolbar.tag_button')}
-              </Button>
-            )}
+              )}
+
+              {showAddTag ? (
+                <div className="flex shrink-0 items-center gap-1">
+                  <Input
+                    autoFocus
+                    maxLength={64}
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void handleAddTag()
+                      if (e.key === 'Escape') {
+                        setShowAddTag(false)
+                        setNewTagName('')
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!newTagName.trim() && !addingTag) setShowAddTag(false)
+                    }}
+                    disabled={addingTag}
+                    placeholder={t('library.toolbar.add_tag_placeholder')}
+                    className="h-6 w-20 rounded-full border-input bg-background px-2 text-xs placeholder:text-foreground-muted"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => void handleAddTag()}
+                    disabled={addingTag || !newTagName.trim()}
+                    className="size-6 text-foreground-muted hover:text-foreground">
+                    <Plus size={12} />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowAddTag(true)}
+                  className="flex h-6 min-h-0 shrink-0 items-center gap-1 rounded-full border border-border-muted border-dashed px-2 text-foreground-muted text-xs shadow-none hover:border-border-hover hover:bg-accent hover:text-foreground">
+                  <Plus size={11} /> {t('library.toolbar.tag_button')}
+                </Button>
+              )}
+            </div>
           </div>
         )}
         <Dialog
