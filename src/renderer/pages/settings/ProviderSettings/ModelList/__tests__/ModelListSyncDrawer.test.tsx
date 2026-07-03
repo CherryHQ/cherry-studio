@@ -127,8 +127,8 @@ describe('ModelListSyncDrawer', () => {
   it('renders fetched model rows by model id only', () => {
     render(<ModelListSyncDrawer open preview={preview} isApplying={false} onApply={vi.fn()} onClose={vi.fn()} />)
 
-    expect(screen.getByText('gpt-5')).toHaveClass('text-sm')
-    expect(screen.getByText('legacy-model')).toHaveClass('text-sm', 'line-through')
+    expect(screen.getByText('gpt-5')).toHaveClass('text-[length:var(--font-size-body-sm)]')
+    expect(screen.getByText('legacy-model')).toHaveClass('text-[length:var(--font-size-body-sm)]', 'line-through')
     expect(screen.queryByText('GPT 5')).not.toBeInTheDocument()
     expect(screen.queryByText('Claude Sonnet')).not.toBeInTheDocument()
     expect(screen.queryByText('Mistral Large')).not.toBeInTheDocument()

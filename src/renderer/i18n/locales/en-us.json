@@ -6996,6 +6996,7 @@
         "sign_in_success": "Signed in to OpenAI Codex",
         "signing_in": "Waiting for browser…"
       },
+      "connection_title": "Connections",
       "copilot": {
         "add_request_header": "Add header",
         "auth_failed": "Github Copilot authentication failed.",

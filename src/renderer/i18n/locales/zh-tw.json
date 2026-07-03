@@ -6996,6 +6996,7 @@
         "sign_in_success": "已登入 OpenAI Codex",
         "signing_in": "等待瀏覽器授權…"
       },
+      "connection_title": "服務連線",
       "copilot": {
         "add_request_header": "新增請求標頭",
         "auth_failed": "GitHub Copilot 認證失敗",
