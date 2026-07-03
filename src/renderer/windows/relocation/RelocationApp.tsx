@@ -19,45 +19,47 @@ const RelocationApp = () => {
   const stage = progress?.stage
 
   return (
-    <div className="flex h-full flex-col bg-background p-6 pt-10">
-      <h1 className="text-center text-lg font-semibold text-foreground">{t('relocation.title')}</h1>
+    <div className="flex h-full flex-col items-center bg-background px-8 py-8">
+      <div className="flex h-full w-full max-w-[420px] flex-col">
+        <h1 className="text-center text-lg font-semibold text-foreground">{t('relocation.title')}</h1>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-4">
-        {!progress && <Loader2 className="animate-spin text-foreground-muted" size={28} />}
+        <div className="flex flex-1 flex-col items-center justify-center gap-4">
+          {!progress && <Loader2 className="animate-spin text-foreground-muted" size={28} />}
 
-        {stage === 'preparing' && <Spinner label={t('relocation.preparing')} />}
+          {stage === 'preparing' && <Spinner label={t('relocation.preparing')} />}
 
-        {stage === 'copying' && progress && (
-          <Copying label={t('relocation.copying')} copied={progress.bytesCopied} total={progress.bytesTotal} />
-        )}
+          {stage === 'copying' && progress && (
+            <Copying label={t('relocation.copying')} copied={progress.bytesCopied} total={progress.bytesTotal} />
+          )}
 
-        {stage === 'committing' && <Spinner label={t('relocation.committing')} />}
+          {stage === 'committing' && <Spinner label={t('relocation.committing')} />}
 
-        {stage === 'completed' && (
-          <Terminal
-            icon={<CheckCircle2 className="text-success" size={40} />}
-            title={t('relocation.completed.title')}
-            description={t('relocation.completed.description')}
-            buttonLabel={t('relocation.restart')}
-            onRestart={restart}
-          />
-        )}
+          {stage === 'completed' && (
+            <Terminal
+              icon={<CheckCircle2 className="text-success" size={40} />}
+              title={t('relocation.completed.title')}
+              description={t('relocation.completed.description')}
+              buttonLabel={t('relocation.restart')}
+              onRestart={restart}
+            />
+          )}
 
-        {stage === 'failed' && (
-          <Terminal
-            icon={<XCircle className="text-destructive" size={40} />}
-            title={t('relocation.failed.title')}
-            description={t('relocation.failed.description')}
-            buttonLabel={t('relocation.restart_failure')}
-            onRestart={restart}
-            error={progress?.error}
-          />
+          {stage === 'failed' && (
+            <Terminal
+              icon={<XCircle className="text-destructive" size={40} />}
+              title={t('relocation.failed.title')}
+              description={t('relocation.failed.description')}
+              buttonLabel={t('relocation.restart_failure')}
+              onRestart={restart}
+              error={progress?.error}
+            />
+          )}
+        </div>
+
+        {progress && (
+          <Paths fromLabel={t('relocation.from')} toLabel={t('relocation.to')} from={progress.from} to={progress.to} />
         )}
       </div>
-
-      {progress && (
-        <Paths fromLabel={t('relocation.from')} toLabel={t('relocation.to')} from={progress.from} to={progress.to} />
-      )}
     </div>
   )
 }
@@ -106,7 +108,7 @@ const Terminal = ({
   onRestart: () => void
   error?: string
 }) => (
-  <div className="flex w-full max-w-[360px] flex-col items-center gap-3 text-center">
+  <div className="flex w-full flex-col items-center gap-3 text-center">
     {icon}
     <h2 className="text-base font-semibold text-foreground">{title}</h2>
     <p className="text-sm text-foreground-secondary">{description}</p>
