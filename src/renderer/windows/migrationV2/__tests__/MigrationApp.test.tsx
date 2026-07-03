@@ -26,10 +26,7 @@ const platformState = vi.hoisted(() => ({
 const migrationHookMock = vi.hoisted(() => ({
   actions: {
     cancel: vi.fn(),
-    confirmBackup: vi.fn(),
-    proceedToBackup: vi.fn(),
     restart: vi.fn(),
-    showBackupDialog: vi.fn(),
     skipMigration: vi.fn(),
     startMigration: vi.fn()
   },
@@ -39,16 +36,12 @@ const migrationHookMock = vi.hoisted(() => ({
     overallProgress: 0,
     stage: 'introduction'
   } as {
-    backupInfo?: { createdBackupPath?: string }
     currentMessage: string
     i18nMessage?: { key: string; params?: Record<string, string | number> }
-    isCompressing?: boolean
     migrators: unknown[]
     overallProgress: number
     stage: string
-  },
-  returnToBackupChoice: vi.fn(),
-  returnToIntroduction: vi.fn()
+  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -171,9 +164,7 @@ vi.mock('../hooks/useMigrationProgress', () => ({
   useMigrationActions: () => migrationHookMock.actions,
   useMigrationProgress: () => ({
     lastError: null,
-    progress: migrationHookMock.progress,
-    returnToBackupChoice: migrationHookMock.returnToBackupChoice,
-    returnToIntroduction: migrationHookMock.returnToIntroduction
+    progress: migrationHookMock.progress
   })
 }))
 
@@ -200,14 +191,9 @@ describe('MigrationApp', () => {
       }))
     })
     vi.mocked(migrationHookMock.actions.cancel).mockClear()
-    vi.mocked(migrationHookMock.actions.confirmBackup).mockClear()
-    vi.mocked(migrationHookMock.actions.proceedToBackup).mockClear()
     vi.mocked(migrationHookMock.actions.restart).mockClear()
-    vi.mocked(migrationHookMock.actions.showBackupDialog).mockClear()
     vi.mocked(migrationHookMock.actions.skipMigration).mockClear()
     vi.mocked(migrationHookMock.actions.startMigration).mockClear()
-    migrationHookMock.returnToBackupChoice.mockClear()
-    migrationHookMock.returnToIntroduction.mockClear()
     vi.mocked(ReduxExporter).mockReset()
     vi.mocked(DexieExporter).mockReset()
     vi.mocked(LocalStorageExporter).mockReset()
@@ -336,108 +322,46 @@ describe('MigrationApp', () => {
     expect(languageContainer).not.toHaveClass('right-3')
   })
 
-  it('calls the return-to-introduction action from the backup choice back button', () => {
-    migrationHookMock.progress = {
-      currentMessage: 'Data backup is required before migration can proceed',
-      migrators: [],
-      overallProgress: 0,
-      stage: 'backup_required'
-    }
+  it('runs the exporters and hands off to startMigration from the introduction Start button', async () => {
+    vi.mocked(ReduxExporter).mockImplementation(
+      () => ({ export: () => ({ data: { a: 1 }, slicesFound: ['a'], slicesMissing: [] }) }) as unknown as ReduxExporter
+    )
+    vi.mocked(DexieExporter).mockImplementation(
+      () =>
+        ({
+          exportAll: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/dexie_export')
+        }) as unknown as DexieExporter
+    )
+    vi.mocked(LocalStorageExporter).mockImplementation(
+      () =>
+        ({
+          export: vi.fn().mockResolvedValue('/tmp/userData/migration_temp/localstorage_export/localStorage.json'),
+          getEntryCount: vi.fn(() => 1)
+        }) as unknown as LocalStorageExporter
+    )
+    invoke.mockResolvedValue('/tmp/userData')
 
     render(<MigrationApp />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.back' }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.start_migration' }))
+    })
 
-    expect(migrationHookMock.returnToIntroduction).toHaveBeenCalledTimes(1)
-  })
-
-  it('confirms an existing backup from the backup choice step', () => {
-    migrationHookMock.progress = {
-      currentMessage: 'Data backup is required before migration can proceed',
-      migrators: [],
-      overallProgress: 0,
-      stage: 'backup_required'
-    }
-
-    render(<MigrationApp />)
-
-    fireEvent.click(screen.getByRole('button', { name: /migration\.buttons\.already_backed_up/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.confirm_and_continue' }))
-
-    expect(migrationHookMock.actions.confirmBackup).toHaveBeenCalledTimes(1)
-  })
-
-  it('calls the return-to-backup-choice action from the existing-backup acknowledgement back button', () => {
-    migrationHookMock.progress = {
-      currentMessage: 'Backup confirmed',
-      migrators: [],
-      overallProgress: 100,
-      stage: 'backup_confirmed'
-    }
-
-    render(<MigrationApp />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'migration.buttons.back' }))
-
-    expect(migrationHookMock.returnToBackupChoice).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not show a back button on the app-created backup checkpoint', () => {
-    migrationHookMock.progress = {
-      backupInfo: { createdBackupPath: '/real/backups/v1.zip' },
-      currentMessage: 'Backup confirmed',
-      migrators: [],
-      overallProgress: 100,
-      stage: 'backup_confirmed'
-    }
-
-    render(<MigrationApp />)
-
-    expect(screen.queryByRole('button', { name: 'migration.buttons.back' })).not.toBeInTheDocument()
-  })
-
-  // The compressing copy keys off the main-sent `isCompressing` flag, NOT overallProgress.
-  it('shows the compressing copy from isCompressing, decoupled from overallProgress', () => {
-    // High progress but not compressing → generic description copy, never "compressing".
-    migrationHookMock.progress = {
-      currentMessage: 'Creating backup…',
-      i18nMessage: { key: 'migration.backup_progress.description' },
-      isCompressing: false,
-      migrators: [],
-      overallProgress: 85,
-      stage: 'backup_progress'
-    }
-
-    const { unmount } = render(<MigrationApp />)
-
-    expect(screen.getByText('migration.backup_progress.description')).toBeInTheDocument()
-    expect(screen.queryByText('migration.backup_progress.compressing')).not.toBeInTheDocument()
-
-    unmount()
-
-    // Compressing at low progress → compressing copy.
-    migrationHookMock.progress = {
-      currentMessage: 'Creating backup…',
-      i18nMessage: { key: 'migration.backup_progress.compressing' },
-      isCompressing: true,
-      migrators: [],
-      overallProgress: 50,
-      stage: 'backup_progress'
-    }
-
-    render(<MigrationApp />)
-
-    expect(screen.getByText('migration.backup_progress.compressing')).toBeInTheDocument()
+    expect(migrationHookMock.actions.startMigration).toHaveBeenCalledWith({
+      reduxData: { a: 1 },
+      dexieExportPath: '/tmp/userData/migration_temp/dexie_export',
+      localStorageExportPath: '/tmp/userData/migration_temp/localstorage_export/localStorage.json'
+    })
   })
 
   // A renderer-side exporter rejection used to be swallowed (only logged), leaving the user
-  // stranded on the backup_confirmed screen. It must now surface the error stage.
+  // stranded on the introduction screen. It must now surface the error stage.
   it('drives the error stage when a renderer-side export rejects', async () => {
     migrationHookMock.progress = {
-      currentMessage: 'Backup confirmed',
+      currentMessage: 'Ready',
       migrators: [],
-      overallProgress: 100,
-      stage: 'backup_confirmed'
+      overallProgress: 0,
+      stage: 'introduction'
     }
     // Redux export succeeds, then the Dexie export rejects mid-flow.
     vi.mocked(ReduxExporter).mockImplementation(
@@ -461,10 +385,10 @@ describe('MigrationApp', () => {
 
   it('drives the error stage when the migration handoff rejects', async () => {
     migrationHookMock.progress = {
-      currentMessage: 'Backup confirmed',
+      currentMessage: 'Ready',
       migrators: [],
-      overallProgress: 100,
-      stage: 'backup_confirmed'
+      overallProgress: 0,
+      stage: 'introduction'
     }
     vi.mocked(ReduxExporter).mockImplementation(
       () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter
@@ -496,10 +420,10 @@ describe('MigrationApp', () => {
 
   it('clears the local error latch when main later drives a non-error stage', async () => {
     migrationHookMock.progress = {
-      currentMessage: 'Backup confirmed',
+      currentMessage: 'Ready',
       migrators: [],
-      overallProgress: 100,
-      stage: 'backup_confirmed'
+      overallProgress: 0,
+      stage: 'introduction'
     }
     vi.mocked(ReduxExporter).mockImplementation(
       () => ({ export: () => ({ data: {}, slicesFound: [], slicesMissing: [] }) }) as unknown as ReduxExporter

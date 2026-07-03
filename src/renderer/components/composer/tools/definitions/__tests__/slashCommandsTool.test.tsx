@@ -15,9 +15,8 @@ describe('slashCommandsTool', () => {
     mockGetBuiltinSlashCommands.mockReset()
   })
 
-  it('keeps slash commands out of the plus popover menu while preserving root-panel commands', () => {
+  it('exposes slash commands as flat root-panel rows kept out of the plus popover menu', () => {
     mockGetBuiltinSlashCommands.mockReturnValue([{ command: '/clear', description: 'Clear context' }])
-    const quickPanel = { open: vi.fn() }
 
     const launchers = slashCommandsTool.composer?.menuItems?.createItems({
       actions: { onTextChange: vi.fn() },
@@ -27,31 +26,16 @@ describe('slashCommandsTool', () => {
 
     expect(launchers).toEqual([
       expect.objectContaining({
-        id: 'slash-commands',
-        label: 'chat.input.slash_commands.title',
-        sources: [],
-        submenu: [
-          expect.objectContaining({
-            id: 'slash-command:/clear',
-            label: '/clear',
-            sources: ['root-panel']
-          })
-        ]
+        id: 'slash-command:/clear',
+        kind: 'command',
+        label: '/clear',
+        description: 'Clear context',
+        sources: ['root-panel'],
+        rootPanelPlacement: 'trailing'
       })
     ])
-    expect(launchers?.[0].submenu?.some((launcher) => launcher.sources?.includes('popover'))).toBe(false)
-
-    launchers?.[0].action?.({
-      quickPanel,
-      source: 'popover'
-    } as any)
-
-    expect(quickPanel.open).toHaveBeenCalledWith(
-      expect.objectContaining({
-        symbol: 'slash-commands',
-        list: [expect.objectContaining({ label: '/clear', description: 'Clear context' })]
-      })
-    )
+    expect(launchers?.some((launcher) => launcher.sources?.includes('popover'))).toBe(false)
+    expect(launchers?.some((launcher) => launcher.submenu)).toBe(false)
   })
 
   it('translates builtin command descriptions via renderer-local keys', () => {
@@ -69,7 +53,7 @@ describe('slashCommandsTool', () => {
       t
     } as any)
 
-    expect(launchers?.[0].submenu).toEqual([
+    expect(launchers).toEqual([
       expect.objectContaining({ label: '/clear', description: 'Translated clear command' }),
       expect.objectContaining({ label: '/custom', description: 'Custom command' })
     ])
@@ -86,9 +70,7 @@ describe('slashCommandsTool', () => {
       t
     } as any)
 
-    expect(launchers?.[0].submenu).toEqual([
-      expect.objectContaining({ label: '/clear', description: 'Clear conversation history' })
-    ])
+    expect(launchers).toEqual([expect.objectContaining({ label: '/clear', description: 'Clear conversation history' })])
     expect(t).toHaveBeenCalledWith('chat.input.slash_commands.commands.clear', 'Clear conversation history')
   })
 })

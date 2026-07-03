@@ -104,11 +104,38 @@
       "description": "Web search provider overrides (from complex migration)"
     },
     {
-      "targetKey": "ui.sidebar.favorites",
-      "type": "PreferenceTypes.SidebarFavorite[]",
-      "defaultValue": ["assistants", "agents", "store", "translate", "mini_app"],
+      "targetKey": "topic.layout",
+      "type": "PreferenceTypes.ChatLayoutMode",
+      "defaultValue": "classic",
       "status": "classified",
-      "description": "Left sidebar favorite app ids, stored as an ordered subset of the sidebar app catalog"
+      "description": "Assistant conversation layout: 'classic' = entity rail + right topic panel, 'modern' = single topic sidebar (new v2 preference, no v1 source)"
+    },
+    {
+      "targetKey": "agent.layout",
+      "type": "PreferenceTypes.ChatLayoutMode",
+      "defaultValue": "classic",
+      "status": "classified",
+      "description": "Agent work layout: 'classic' = entity rail + right session panel, 'modern' = single session sidebar (v2 new feature, no v1 source)"
+    },
+    {
+      "targetKey": "ui.sidebar.favorites",
+      "type": "PreferenceTypes.SidebarFavoriteItem[]",
+      "defaultValue": [
+        { "id": "assistants", "type": "app" },
+        { "id": "agents", "type": "app" },
+        { "id": "store", "type": "app" },
+        { "id": "translate", "type": "app" },
+        { "id": "mini_app", "type": "app" }
+      ],
+      "status": "classified",
+      "description": "Left sidebar favorites, an ordered list of tagged items: built-in apps ({type:'app'}) and mini apps ({type:'mini_app'})"
+    },
+    {
+      "targetKey": "ui.launchpad.app_order",
+      "type": "PreferenceTypes.SidebarFavorite[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Launchpad built-in app tile order, independent from the sidebar favorites order (new v2 preference, no v1 source). Empty defaults to the canonical app order; unknown/missing apps are normalized at read time"
     },
     {
       "targetKey": "chat.default_model_id",
@@ -127,14 +154,14 @@
     {
       "targetKey": "topic.tab.display_mode",
       "type": "PreferenceTypes.TopicDisplayMode",
-      "defaultValue": "assistant",
+      "defaultValue": "time",
       "status": "classified",
       "description": "Topic sidebar display grouping mode"
     },
     {
       "targetKey": "agent.session.display_mode",
       "type": "PreferenceTypes.AgentSessionDisplayMode",
-      "defaultValue": "agent",
+      "defaultValue": "workdir",
       "status": "classified",
       "description": "Agent session sidebar display grouping mode"
     },

@@ -48,11 +48,12 @@ import { application } from '@main/core/application'
 import { isLinux, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
+import { getBinaryPath } from '@main/utils/binaryResolver'
+import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathStatus, type PathStatus } from '@main/utils/file/pathStatus'
 import { getAppLanguage, t } from '@main/utils/language'
-import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
-import getLoginShellEnvironment from '@main/utils/shell-env'
+import { getShellEnv } from '@main/utils/shellEnv'
 import {
   CHANNEL_SECURITY_PROMPT,
   REPORT_ARTIFACTS_PROMPT,
@@ -180,10 +181,10 @@ async function buildAssistantContext(): Promise<string> {
   const language = application.get('PreferenceService').get('app.language')
   const theme = application.get('PreferenceService').get('ui.theme_mode')
   const proxy = application.get('PreferenceService').get('app.proxy.url')
-  const providers = await providerService.list({})
+  const providers = providerService.list({})
   // MCP summary
-  const mcpServers = (await mcpServerService.list({})).items
-  const activeMcp = (await mcpServerService.list({ isActive: true })).items
+  const mcpServers = mcpServerService.list({}).items
+  const activeMcp = mcpServerService.list({ isActive: true }).items
 
   // Network probe (parallel, 2s timeout each)
   const probeResults = await Promise.allSettled([
@@ -257,7 +258,7 @@ export async function buildClaudeCodeSessionSettings(
   if (!session.agentId) {
     throw new Error(`Cannot build settings for orphan session ${session.id} — its agent was deleted`)
   }
-  const agent = await agentService.getAgent(session.agentId)
+  const agent = agentService.getAgent(session.agentId)
   if (!agent) {
     throw new Error(`Agent not found for session ${session.id}: ${session.agentId}`)
   }
@@ -265,7 +266,6 @@ export async function buildClaudeCodeSessionSettings(
   // 1. Working directory (session-bound)
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
-  await skillService.reconcileAgentSkills(session.agentId, cwd)
 
   // 2. Environment variables
   const env = await buildEnvironment(provider, agent)
@@ -291,13 +291,18 @@ export async function buildClaudeCodeSessionSettings(
   const agentConfig = agent.configuration
   const soulEnabled = agentConfig?.soul_enabled === true
   const isAssistant = agentConfig?.builtin_role === 'assistant'
-  const mcpServers = await buildMcpServers(session, agent, soulEnabled, isAssistant)
+  const mcpServers = buildMcpServers(session, agent, soulEnabled, isAssistant)
   const mcpToolMetadata = await buildMcpToolMetadata(agent)
 
   // 8. Auto-approve allowlist for injected built-in MCP servers (soul/assistant only)
   const finalAllowedTools = adjustAllowedToolsForMcp(soulEnabled, isAssistant)
 
-  // 9. Build settings
+  // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
+  // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
+  // is maintained by SkillService (install/uninstall/startup), not here.
+  const skills = await buildSkillWhitelist(agent.id, cwd)
+
+  // 10. Build settings
   const settings: ClaudeCodeSettings = {
     cwd,
     env,
@@ -311,6 +316,7 @@ export async function buildClaudeCodeSessionSettings(
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,
+    skills,
     canUseTool,
     hooks,
     approvalEmitter,
@@ -459,7 +465,7 @@ async function buildEnvironment(
   _provider: Provider, // retained for API compat; providerId resolved from agent.model
   agent: AgentEntity
 ): Promise<Record<string, string | undefined>> {
-  const loginShellEnv = await getLoginShellEnvironment()
+  const loginShellEnv = await getShellEnv()
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
   const bunPath = await getBinaryPath('bun')
 
@@ -477,17 +483,17 @@ async function buildEnvironment(
   // Resolve each model id independently: one model missing from the table must not force the others
   // to fall back, and each falls back to its OWN raw id (not the main model's). Common for
   // agent-specific models that aren't in the model table.
-  const resolveApiModelId = async (providerKey: string, modelKey: string): Promise<string> => {
+  const resolveApiModelId = (providerKey: string, modelKey: string): string => {
     try {
-      const model = await modelService.getByKey(providerKey, modelKey)
+      const model = modelService.getByKey(providerKey, modelKey)
       return model.apiModelId ?? modelKey
     } catch {
       return modelKey
     }
   }
-  const apiModelId = await resolveApiModelId(providerId, rawModelId)
-  const sonnetApiModelId = await resolveApiModelId(sonnetProviderId, sonnetModelId)
-  const haikuApiModelId = await resolveApiModelId(haikuProviderId, haikuModelId)
+  const apiModelId = resolveApiModelId(providerId, rawModelId)
+  const sonnetApiModelId = resolveApiModelId(sonnetProviderId, sonnetModelId)
+  const haikuApiModelId = resolveApiModelId(haikuProviderId, haikuModelId)
 
   const env: Record<string, string | undefined> = {
     ...loginShellEnv,
@@ -545,6 +551,35 @@ async function buildEnvironment(
   return env
 }
 
+/**
+ * Compute the SDK `Options.skills` whitelist for a session.
+ *
+ * `Options.skills` is a *filter over everything the SDK discovers* — both the
+ * managed mirror under CLAUDE_CONFIG_DIR/skills (maintained by `SkillService`)
+ * and the workspace's own `cwd/.claude/skills`. So the whitelist must list:
+ *   - the agent's enabled managed skills, and
+ *   - the workspace's project-local skills (omitting them would filter the
+ *     user's own project skills out of their session).
+ *
+ * We match by *directory name only* (`folderName` for managed skills, the
+ * `.claude/skills/<dir>` name for workspace skills). The SDK also matches the
+ * SKILL.md `name`, but that field is not unique — including it would let an
+ * enabled skill's name un-hide a different, disabled skill that happens to
+ * share it. Directory names are unique within each root, so they can't collide.
+ *
+ * Read-only: the filesystem mirror is maintained at install / uninstall /
+ * startup reconcile, never here — so concurrent session builds never race.
+ */
+export async function buildSkillWhitelist(agentId: string, cwd: string): Promise<string[]> {
+  const installedSkills = await skillService.list({ agentId })
+  const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
+
+  const workspaceSkills = await skillService.listLocal(cwd)
+  const workspaceNames = workspaceSkills.map((skill) => skill.filename)
+
+  return Array.from(new Set([...enabledNames, ...workspaceNames]))
+}
+
 async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginConfig[] | undefined> {
   try {
     const pluginsDir = path.join(cwd, '.claude', 'plugins')
@@ -586,13 +621,17 @@ async function buildToolPermissions(
   const conditionContext: ClaudeToolContext | undefined = cwd
     ? {
         cwd,
-        channels: await channelService.listChannels({ agentId: agent.id }).catch((error) => {
-          logger.warn('Failed to list channels for tool policy context', {
-            agentId: agent.id,
-            error: error instanceof Error ? error.message : String(error)
-          })
-          return []
-        })
+        channels: (() => {
+          try {
+            return channelService.listChannels({ agentId: agent.id })
+          } catch (error) {
+            logger.warn('Failed to list channels for tool policy context', {
+              agentId: agent.id,
+              error: error instanceof Error ? error.message : String(error)
+            })
+            return []
+          }
+        })()
       }
     : undefined
 
@@ -809,7 +848,7 @@ export async function buildSystemPrompt(
   }
 
   // Channel security (still scoped per session — channels link to a session)
-  const linkedChannel = await channelService.findBySessionId(session.id)
+  const linkedChannel = channelService.findBySessionId(session.id)
   const channelSecurityBlock = linkedChannel ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
   const langInstruction = getLanguageInstruction()
@@ -853,12 +892,12 @@ export async function buildSystemPrompt(
   }
 }
 
-export async function buildMcpServers(
+export function buildMcpServers(
   session: AgentSessionEntity,
   agent: AgentEntity,
   soulEnabled: boolean,
   isAssistant: boolean
-): Promise<Record<string, McpServerConfig> | undefined> {
+): Record<string, McpServerConfig> | undefined {
   const mcpList: Record<string, McpServerConfig> = {}
 
   // 1. Agent-configured MCP servers (user-added via UI)
@@ -866,7 +905,7 @@ export async function buildMcpServers(
   if (mcpIds && mcpIds.length > 0) {
     for (const mcpId of mcpIds) {
       try {
-        const sdkServer = await createSdkMcpServerInstance(mcpId)
+        const sdkServer = createSdkMcpServerInstance(mcpId)
         mcpList[mcpId] = { type: 'sdk', name: mcpId, instance: sdkServer }
       } catch (error) {
         logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
@@ -885,7 +924,7 @@ export async function buildMcpServers(
   // `session.agentId` so TS can see the value is non-null after the upstream
   // orphan check in buildClaudeCodeSessionSettings.
   if (soulEnabled) {
-    const sourceChannelId = await resolveSourceChannel(agent.id, session.id)
+    const sourceChannelId = resolveSourceChannel(agent.id, session.id)
     let workspaceSource: AgentSessionWorkspaceSource
     switch (session.workspace.type) {
       case AGENT_WORKSPACE_TYPE.USER:
@@ -899,7 +938,7 @@ export async function buildMcpServers(
         throw new Error(`Unsupported workspace type: ${String(exhaustive)}`)
       }
     }
-    const clawServer = new ClawServer(agent.id, workspaceSource, sourceChannelId)
+    const clawServer = new ClawServer(agent.id, workspaceSource, session.workspace.path, sourceChannelId)
     mcpList.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
 
     // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the CherryClaw prompt and the
@@ -965,10 +1004,10 @@ async function buildMcpToolMetadata(agent: AgentEntity): Promise<Record<string, 
 
   for (const mcpId of mcpIds) {
     try {
-      const server = await mcpServerService.findByIdOrName(mcpId)
+      const server = mcpServerService.findByIdOrName(mcpId)
       if (!server) continue
 
-      const tools = await mcpService.listTools(server.id)
+      const tools = mcpService.listTools(server.id)
       for (const tool of tools) {
         addMcpToolMetadataAliases(metadataByName, server, tool)
       }
@@ -980,9 +1019,9 @@ async function buildMcpToolMetadata(agent: AgentEntity): Promise<Record<string, 
   return Object.keys(metadataByName).length > 0 ? metadataByName : undefined
 }
 
-async function resolveSourceChannel(agentId: string, sessionId: string): Promise<string | undefined> {
+function resolveSourceChannel(agentId: string, sessionId: string): string | undefined {
   try {
-    const channels = await channelService.listChannels({ agentId })
+    const channels = channelService.listChannels({ agentId })
     return channels.find((ch) => ch.sessionId === sessionId)?.id
   } catch {
     return undefined

@@ -35,7 +35,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     const pairs = await Promise.all(
       ids.map(async (id) => {
         try {
-          return [id, await fileManager.getPhysicalPath(id)] as const
+          return [id, fileManager.getPhysicalPath(id)] as const
         } catch {
           return [id, null] as const
         }
@@ -49,6 +49,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.batch_trash': async ({ ids }) => application.get('FileManager').batchTrash(ids),
   'file.batch_restore': async ({ ids }) => application.get('FileManager').batchRestore(ids),
   'file.batch_permanent_delete': async ({ ids }) => application.get('FileManager').batchPermanentDelete(ids),
+  'file.empty_trash': async () => application.get('FileManager').emptyTrash(),
   'file.rename': async ({ id, newName }) => application.get('FileManager').rename(id, newName),
   'file.open': async (handle) => {
     const fileManager = application.get('FileManager')

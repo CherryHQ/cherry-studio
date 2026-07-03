@@ -14,9 +14,6 @@ const logger = loggerService.withContext('MigrationWindowManager')
 const CLOSE_CONFIRM_BY_STAGE: Record<MigrationStage, boolean> = {
   version_incompatible: false,
   introduction: false,
-  backup_required: true,
-  backup_progress: true,
-  backup_confirmed: true,
   migration: true,
   completed: false,
   error: false
@@ -39,7 +36,7 @@ export class MigrationWindowManager {
   // Cleared when the renderer acks a dismissal (CancelClose) or the stage leaves the in-flow set.
   private closeConfirmPending = false
   // Routes a force-quit through the IPC handler's write-deferral (await any in-flight
-  // backup/migration before quitting). Wired by registerMigrationIpcHandlers(); null only in
+  // migration before quitting). Wired by registerMigrationIpcHandlers(); null only in
   // isolated tests, where nothing can be in flight so confirmQuit() is a safe fallback.
   private requestQuit: (() => boolean) | null = null
 
@@ -229,7 +226,7 @@ export class MigrationWindowManager {
   /**
    * Force a quit when the renderer can't drive the normal ConfirmQuit path (crash, hang, or a
    * repeated close while a confirmation is pending). Routes through the IPC handler's deferral so
-   * an in-flight backup/migration write still settles first; falls back to confirmQuit() only when
+   * an in-flight migration write still settles first; falls back to confirmQuit() only when
    * no requester is wired (isolated tests), where nothing can be in flight.
    */
   private forceQuit(reason: string): void {

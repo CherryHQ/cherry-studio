@@ -12,8 +12,10 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/v2/legacyTypes'
-import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath } from '@main/utils/process'
-import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
+import { getBinaryPath } from '@main/utils/binaryResolver'
+import { findExecutableInEnv } from '@main/utils/commandResolver'
+import { crossPlatformSpawn } from '@main/utils/processRunner'
+import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
@@ -72,13 +74,6 @@ export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 export interface HealthInfo {
   status: 'healthy' | 'unhealthy'
   gatewayPort: number
-}
-
-export interface ChannelInfo {
-  id: string
-  name: string
-  type: string
-  status: 'connected' | 'disconnected' | 'error'
 }
 
 export interface OpenClawConfig {
@@ -194,10 +189,8 @@ export class OpenClawService extends BaseService {
     this.ipcHandle(IpcChannel.OpenClaw_StartGateway, (_e, port?: number) => this.startGateway(port))
     this.ipcHandle(IpcChannel.OpenClaw_StopGateway, () => this.stopGateway())
     this.ipcHandle(IpcChannel.OpenClaw_GetStatus, () => this.getStatus())
-    this.ipcHandle(IpcChannel.OpenClaw_CheckHealth, () => this.checkHealth())
     this.ipcHandle(IpcChannel.OpenClaw_GetDashboardUrl, () => this.getDashboardUrl())
     this.ipcHandle(IpcChannel.OpenClaw_SyncConfig, (_e, uniqueModelId) => this.syncConfig(uniqueModelId))
-    this.ipcHandle(IpcChannel.OpenClaw_GetChannels, () => this.getChannelStatus())
     this.ipcHandle(IpcChannel.OpenClaw_CheckUpdate, () => this.checkUpdate())
     this.ipcHandle(IpcChannel.OpenClaw_PerformUpdate, () => this.performUpdate())
   }
@@ -1093,25 +1086,6 @@ export class OpenClawService extends BaseService {
       this.sendInstallProgress(errorMessage, 'error')
       return { success: false, message: errorMessage }
     }
-  }
-
-  /**
-   * Get connected channel status
-   */
-  public async getChannelStatus(): Promise<ChannelInfo[]> {
-    try {
-      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/api/channels`, {
-        signal: AbortSignal.timeout(5000)
-      })
-      if (response.ok) {
-        const data = await response.json()
-        return data.channels || []
-      }
-    } catch (error) {
-      logger.debug('Failed to get channel status:', error as Error)
-    }
-
-    return []
   }
 
   /**

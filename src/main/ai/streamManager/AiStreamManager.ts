@@ -221,7 +221,7 @@ export class AiStreamManager extends BaseService {
   protected async onInit(): Promise<void> {
     // Resolve crash-orphaned PENDING rows before any new stream can be opened — at boot the
     // in-memory registry is empty, so every still-`pending` assistant row is stale.
-    await this.reconcileStalePendingMessages()
+    this.reconcileStalePendingMessages()
     this.markReconciled()
     logger.info('AiStreamManager initialized')
   }
@@ -262,12 +262,12 @@ export class AiStreamManager extends BaseService {
    * row stays `pending` forever and the UI shows a frozen "thinking" bubble. Runs once at boot,
    * before the open handler is registered, so it can never race a freshly created placeholder.
    */
-  private async reconcileStalePendingMessages(): Promise<void> {
+  private reconcileStalePendingMessages(): void {
     try {
-      const staleIds = await messageService.findPendingAssistantMessageIds()
+      const staleIds = messageService.findPendingAssistantMessageIds()
       if (staleIds.length === 0) return
       logger.info('Reconciling crash-orphaned pending assistant messages', { count: staleIds.length })
-      await messageService.markMessagesError(staleIds)
+      messageService.markMessagesError(staleIds)
     } catch (error) {
       logger.error('Failed to reconcile stale pending messages', { error })
     }

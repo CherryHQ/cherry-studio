@@ -22,7 +22,6 @@ const mockLoggerError = mockMainLoggerService.error
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { createDefaultOrphanCheckerRegistry } = await import('@main/services/file/orphanCheckerRegistry')
 const { write, writeIfUnchanged, writeByPath } = await import('../write')
 const { createInternal, ensureExternal } = await import('../../entry/create')
 const { StaleVersionError } = await import('../../../FileManager')
@@ -72,8 +71,7 @@ describe('internal/content/write', () => {
           cacheStore.delete(id as string)
         }),
         clear: vi.fn(() => cacheStore.clear())
-      },
-      orphanRegistry: createDefaultOrphanCheckerRegistry()
+      }
     }
   })
 
@@ -92,7 +90,7 @@ describe('internal/content/write', () => {
       })
       const next = await write(deps, e.id, new Uint8Array([0x01, 0x02, 0x03]))
       expect(next.size).toBe(3)
-      const refreshed = await fileEntryService.getById(e.id)
+      const refreshed = fileEntryService.getById(e.id)
       if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
       expect(refreshed.size).toBe(3)
       expect(cacheStore.get(e.id)).toEqual(next)
@@ -105,7 +103,7 @@ describe('internal/content/write', () => {
       const next = await write(deps, e.id, 'new-payload')
       expect(next.size).toBe('new-payload'.length)
       expect(await readFile(file, 'utf-8')).toBe('new-payload')
-      const refreshed = await fileEntryService.getById(e.id)
+      const refreshed = fileEntryService.getById(e.id)
       // External BO has no `size` field by construction (live values come
       // from File IPC `getMetadata`). The DB row still stores `size: null`.
       expect(refreshed.origin).toBe('external')
@@ -125,7 +123,9 @@ describe('internal/content/write', () => {
         ext: 'bin'
       })
       const updateErr = new Error('SQLITE_BUSY: database is locked')
-      vi.spyOn(fileEntryService, 'update').mockRejectedValueOnce(updateErr)
+      vi.spyOn(fileEntryService, 'update').mockImplementationOnce(() => {
+        throw updateErr
+      })
       mockLoggerError.mockClear()
 
       await expect(write(deps, e.id, new Uint8Array([0xaa, 0xbb, 0xcc]))).rejects.toBe(updateErr)
@@ -252,7 +252,7 @@ describe('internal/content/write', () => {
         name: 'b',
         ext: 'bin'
       })
-      const stream = await createWriteStream(deps, e.id)
+      const stream = createWriteStream(deps, e.id)
       const payload = Buffer.from([0x10, 0x20, 0x30, 0x40, 0x50])
       stream.write(payload)
       stream.end()
@@ -265,7 +265,7 @@ describe('internal/content/write', () => {
       // round-tripping through Drizzle when `'finish'` fires. Poll the DB and
       // cache until the metadata sync lands (slow CI runners need this).
       await vi.waitFor(async () => {
-        const refreshed = await fileEntryService.getById(e.id)
+        const refreshed = fileEntryService.getById(e.id)
         if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
         expect(refreshed.size).toBe(payload.length)
         expect(cacheStore.get(e.id)?.size).toBe(payload.length)
@@ -277,7 +277,7 @@ describe('internal/content/write', () => {
       const file = path.join(tmp, 'ext-stream.txt')
       await writeFile(file, 'seed')
       const e = await ensureExternal(deps, { externalPath: file as FilePath })
-      const stream = await createWriteStream(deps, e.id)
+      const stream = createWriteStream(deps, e.id)
       stream.write(Buffer.from('updated payload'))
       stream.end()
       await new Promise<void>((resolve, reject) => {
@@ -290,7 +290,7 @@ describe('internal/content/write', () => {
       await vi.waitFor(() => {
         expect(cacheStore.get(e.id)?.size).toBe('updated payload'.length)
       })
-      const refreshed = await fileEntryService.getById(e.id)
+      const refreshed = fileEntryService.getById(e.id)
       // External BO has no `size` field by construction (live values come from
       // File IPC `getMetadata`); the DB still stores `size: null` per CHECK.
       expect(refreshed.origin).toBe('external')
@@ -314,7 +314,7 @@ describe('internal/content/write', () => {
       mockLoggerError.mockClear()
       const statErr = new Error('post-commit stat boom')
       vi.spyOn(fsModule, 'stat').mockRejectedValue(statErr)
-      const stream = await createWriteStream(deps, e.id)
+      const stream = createWriteStream(deps, e.id)
       stream.write(Buffer.from('payload'))
       stream.end()
       await new Promise<void>((resolve, reject) => {

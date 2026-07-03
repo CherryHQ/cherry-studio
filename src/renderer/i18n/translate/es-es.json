@@ -556,6 +556,7 @@
       "list": {
         "title": "Tareas"
       },
+      "new": "Nueva tarea",
       "pin": {
         "title": "Anclar tarea"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Tareas de búsqueda"
+        "placeholder": "Tareas de búsqueda",
+        "title": "Buscar tareas"
       },
       "unpin": {
         "title": "Desanclar tarea"
@@ -934,6 +936,10 @@
         "Bash": {
           "description": "Ejecuta comandos de shell en tu entorno",
           "label": "Bash"
+        },
+        "CherryKbManage": {
+          "description": "Agrega, elimina o actualiza documentos en tus bases de conocimiento",
+          "label": "Gestionar conocimiento"
         },
         "CherryKbSearch": {
           "description": "Busca en tus bases de conocimiento",
@@ -1593,6 +1599,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "[to be translated]:Cache {{hit_rate}}%",
+        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "Este mensaje está siendo editado en el compositor",
       "flow": {
         "branches": "ramas",
@@ -3162,12 +3172,22 @@
           "agent_title": "Nuevo Agente",
           "assistant_title": "Nuevo Asistente",
           "avatar_aria": "Elegir avatar",
+          "back": "Atrás",
+          "capability": {
+            "import": "Importar habilidad",
+            "no_skills": "No hay habilidades instaladas",
+            "search": "Habilidades de búsqueda"
+          },
           "description_placeholder": "Describe para qué sirve...",
-          "dialog_description": "Crea un asistente o agente ligero.",
-          "model_placeholder": "Selecciona un modelo",
-          "model_required": "Por favor selecciona un modelo",
+          "guided_progress": "Configuración guiada · Paso {{current}} de {{total}}",
           "name_placeholder": "Introduce un nombre",
-          "name_required": "Por favor, introduce un nombre",
+          "next": "Siguiente",
+          "step": {
+            "basic": "Información básica",
+            "capability": "Habilidades",
+            "knowledge": "Conocimiento",
+            "persona": "Persona"
+          },
           "submit": "Crear",
           "submit_failed": "Creación fallida"
         },
@@ -4710,7 +4730,6 @@
     "baichuan": "BaiChuan",
     "baidu-cloud": "Baidu Nube Qiánfān",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
@@ -4766,7 +4785,7 @@
     "tencent-cloud-ti": "Tencent Nube TI",
     "tesseract": "Tesseract",
     "together": "Juntos",
-    "tokenflux": "TokenFlux",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "Telecom Nube XiRang",
@@ -5258,6 +5277,7 @@
     "assistant": {
       "create_new": "Nuevo Asistente",
       "empty_text": "Aún no hay asistentes",
+      "filter": "Asistentes de filtro",
       "multi_hint": "(mutualmente excluyente con multi-modelo)",
       "multi_label": "Asistente múltiple en paralelo",
       "search_placeholder": "Asistentes de búsqueda…"
@@ -6437,6 +6457,12 @@
         "show_estimated_tokens": "Mostrar número estimado de tokens",
         "title": "Configuración de entrada"
       },
+      "layout": {
+        "classic": "Clásico",
+        "conversation": "Vista de conversación",
+        "modern": "Moderno",
+        "work": "Vista de trabajo"
+      },
       "markdown_rendering_input_message": "Renderizar mensajes de entrada en Markdown",
       "metrics": "Retraso inicial {{time_first_token_millsec}}ms | {{token_speed}} tokens por segundo",
       "model": {
@@ -7441,6 +7467,7 @@
           "exa": "API de búsqueda neuronal para aplicaciones de IA, optimizada para la recuperación semántica en la web.",
           "exa_mcp": "Expón la búsqueda de Exa a los agentes a través del Servidor MCP de Exa.",
           "fetch": "Proveedor de obtención de URL integrado. Obtiene el contenido de la página web desde una URL para enriquecer los resultados de búsqueda.",
+          "firecrawl": "Servicio de rastreo y búsqueda Firecrawl, optimizado para convertir sitios web en Markdown.",
           "jina": "APIs de búsqueda y lectura de Jina Reader para recuperar contenido web limpio.",
           "querit": "Servicio de búsqueda para aplicaciones de IA con resultados de recuperación web.",
           "searxng": "Motor de búsqueda metainternet gratuito autoalojable a través de muchas fuentes.",

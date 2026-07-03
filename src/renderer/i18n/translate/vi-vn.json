@@ -556,6 +556,7 @@
       "list": {
         "title": "Nhiệm vụ"
       },
+      "new": "Nhiệm vụ mới",
       "pin": {
         "title": "Ghim nhiệm vụ"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Tìm kiếm nhiệm vụ"
+        "placeholder": "Tìm kiếm nhiệm vụ",
+        "title": "Tìm kiếm tác vụ"
       },
       "unpin": {
         "title": "Bỏ ghim nhiệm vụ"
@@ -934,6 +936,10 @@
         "Bash": {
           "description": "Thực thi các lệnh shell trong môi trường của bạn",
           "label": "Bash"
+        },
+        "CherryKbManage": {
+          "description": "Thêm, xóa hoặc làm mới tài liệu trong cơ sở kiến thức của bạn",
+          "label": "Quản lý kiến thức"
         },
         "CherryKbSearch": {
           "description": "Tìm kiếm trong cơ sở kiến thức của bạn",
@@ -1593,6 +1599,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "[to be translated]:Cache {{hit_rate}}%",
+        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "Thông báo này đang được chỉnh sửa trong trình soạn thảo",
       "flow": {
         "branches": "chi nhánh",
@@ -3162,12 +3172,22 @@
           "agent_title": "Đại lý mới",
           "assistant_title": "Trợ lý mới",
           "avatar_aria": "Chọn hình đại diện",
+          "back": "Quay lại",
+          "capability": {
+            "import": "Nhập kỹ năng",
+            "no_skills": "Chưa cài đặt kỹ năng nào",
+            "search": "Kỹ năng tìm kiếm"
+          },
           "description_placeholder": "Mô tả mục đích của nó...",
-          "dialog_description": "Tạo một trợ lý hoặc tác nhân nhẹ.",
-          "model_placeholder": "Chọn một mô hình",
-          "model_required": "Vui lòng chọn một mô hình",
+          "guided_progress": "Thiết lập hướng dẫn · Bước {{current}} trên {{total}}",
           "name_placeholder": "Nhập tên",
-          "name_required": "Vui lòng nhập tên",
+          "next": "Tiếp theo",
+          "step": {
+            "basic": "Thông tin cơ bản",
+            "capability": "Kỹ năng",
+            "knowledge": "Kiến thức",
+            "persona": "Nhân cách"
+          },
           "submit": "Tạo",
           "submit_failed": "Tạo thất bại"
         },
@@ -4710,7 +4730,6 @@
     "baichuan": "Baichuan",
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
-    "cephalon": "cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
@@ -4766,7 +4785,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Tesseract",
     "together": "Cùng nhau",
-    "tokenflux": "TokenFlux",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Hành trình AI",
     "xirang": "Bang Cloud Xirang",
@@ -5258,6 +5277,7 @@
     "assistant": {
       "create_new": "Trợ lý mới",
       "empty_text": "Chưa có trợ lý nào",
+      "filter": "Lọc trợ lý",
       "multi_hint": "(loại trừ lẫn nhau với đa mô hình)",
       "multi_label": "Trợ lý song song đa nhiệm",
       "search_placeholder": "Trợ lý tìm kiếm…"
@@ -6437,6 +6457,12 @@
         "show_estimated_tokens": "Hiển thị số token ước tính",
         "title": "Cài đặt đầu vào"
       },
+      "layout": {
+        "classic": "Cổ điển",
+        "conversation": "Chế độ xem cuộc trò chuyện",
+        "modern": "Hiện đại",
+        "work": "Chế độ xem công việc"
+      },
       "markdown_rendering_input_message": "Tin nhắn nhập Markdown kết xuất",
       "metrics": "{{time_first_token_millsec}}ms até o primeiro token | {{token_speed}} tok/seg",
       "model": {
@@ -7441,6 +7467,7 @@
           "exa": "API tìm kiếm thần kinh cho ứng dụng AI, được tối ưu hóa cho việc truy xuất web ngữ nghĩa.",
           "exa_mcp": "Hiển thị tìm kiếm Exa cho các tác nhân thông qua Máy chủ MCP Exa.",
           "fetch": "Nhà cung cấp tìm nạp URL tích hợp. Tìm nạp nội dung trang web từ một URL để làm phong phú kết quả tìm kiếm.",
+          "firecrawl": "Dịch vụ crawler và tìm kiếm Firecrawl, được tối ưu hóa để chuyển đổi các trang web thành Markdown.",
           "jina": "API tìm kiếm và đọc Jina Reader để truy xuất nội dung web sạch.",
           "querit": "Dịch vụ tìm kiếm cho ứng dụng AI với kết quả truy xuất web.",
           "searxng": "Công cụ tìm kiếm meta internet miễn phí có thể tự lưu trữ trên nhiều nguồn khác nhau.",

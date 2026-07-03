@@ -52,8 +52,8 @@ async function listMcpDescriptors(mcpIds: readonly string[]): Promise<{
 
   for (const id of mcpIds) {
     try {
-      const server = await mcpServerService.getById(id)
-      const tools = await application.get('McpCatalogService').listTools(server.id)
+      const server = mcpServerService.getById(id)
+      const tools = application.get('McpCatalogService').listTools(server.id)
 
       for (const tool of tools) {
         const sourceAccess = resolveMcpSourceToolAccess(server, tool)

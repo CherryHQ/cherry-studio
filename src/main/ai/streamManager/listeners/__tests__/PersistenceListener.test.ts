@@ -55,7 +55,7 @@ function makeListener(modelId?: UniqueModelId) {
 describe('PersistenceListener + TemporaryChatBackend', () => {
   beforeEach(() => {
     appendMessageMock.mockReset()
-    appendMessageMock.mockResolvedValue({ id: 'msg-a' })
+    appendMessageMock.mockReturnValue({ id: 'msg-a' })
   })
 
   it('appends the assistant message on onDone with status=success', async () => {
@@ -109,7 +109,10 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
         totalTokens: 42,
         promptTokens: 30,
         completionTokens: 12,
-        thoughtsTokens: 3
+        thoughtsTokens: 3,
+        noCacheTokens: 4,
+        cacheReadTokens: 20,
+        cacheWriteTokens: 6
       }
     } as unknown as CherryUIMessage
 
@@ -118,12 +121,14 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(appendMessageMock).toHaveBeenCalledTimes(1)
     const payload = appendMessageMock.mock.calls[0][1]
     // statsFromTerminal projects 1:1 from UIMessage.metadata to MessageStats.
-    // Cache/breakdown fields are tracked in the MessageStats redesign TODO.
     expect(payload.stats).toEqual({
       totalTokens: 42,
       promptTokens: 30,
       completionTokens: 12,
-      thoughtsTokens: 3
+      thoughtsTokens: 3,
+      noCacheTokens: 4,
+      cacheReadTokens: 20,
+      cacheWriteTokens: 6
     })
   })
 
@@ -362,7 +367,9 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
   })
 
   it('swallows append errors so stream teardown is not disrupted', async () => {
-    appendMessageMock.mockRejectedValueOnce(new Error('write failed'))
+    appendMessageMock.mockImplementationOnce(() => {
+      throw new Error('write failed')
+    })
     const listener = makeListener()
 
     await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
@@ -383,7 +390,11 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
 
   it('drives the placeholder row to status=error when the persist write fails', async () => {
     // First update() is persistAssistant (fails); second is markTerminalError (succeeds).
-    messageUpdateMock.mockRejectedValueOnce(new Error('write failed')).mockResolvedValueOnce({ id: 'assistant-1' })
+    messageUpdateMock
+      .mockImplementationOnce(() => {
+        throw new Error('write failed')
+      })
+      .mockReturnValueOnce({ id: 'assistant-1' })
     const listener = makeMessageServiceListener()
 
     await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
@@ -394,7 +405,9 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
   })
 
   it('swallows a failure of the terminal-error recovery write itself', async () => {
-    messageUpdateMock.mockRejectedValue(new Error('db down'))
+    messageUpdateMock.mockImplementation(() => {
+      throw new Error('db down')
+    })
     const listener = makeMessageServiceListener()
 
     await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
@@ -403,7 +416,11 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
   })
 
   it('notifies onPersistFailed so the live renderer can be corrected (C1)', async () => {
-    messageUpdateMock.mockRejectedValueOnce(new Error('write failed')).mockResolvedValueOnce({ id: 'assistant-1' })
+    messageUpdateMock
+      .mockImplementationOnce(() => {
+        throw new Error('write failed')
+      })
+      .mockReturnValueOnce({ id: 'assistant-1' })
     const onPersistFailed = vi.fn()
     const listener = new PersistenceListener({
       topicId: 'topic-1',

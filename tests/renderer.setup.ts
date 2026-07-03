@@ -175,6 +175,16 @@ vi.mock('@cherrystudio/ui', () => {
           React.createElement('div', { key: getId(item) }, renderItem(item, index, { dragging: false }))
         )
       ),
+    Sortable: ({ items, itemKey, renderItem, className }) => {
+      const getKey = typeof itemKey === 'function' ? itemKey : (item) => item[itemKey]
+      return React.createElement(
+        'div',
+        { className },
+        items.map((item) =>
+          React.createElement('div', { key: getKey(item) }, renderItem(item, { dragging: false, overlay: false }))
+        )
+      )
+    },
     NormalTooltip: ({ children }) => children,
     Button: ({ children, onPress, disabled, isDisabled, loading, startContent, asChild, ...props }) => {
       const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled || loading }

@@ -170,8 +170,6 @@ export class CherryInOauthService extends BaseService implements Activatable {
   }
 
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.CherryIN_SaveToken, this.saveToken)
-    this.ipcHandle(IpcChannel.CherryIN_HasToken, this.hasToken)
     this.ipcHandle(IpcChannel.CherryIN_GetBalance, this.getBalance)
     this.ipcHandle(IpcChannel.CherryIN_Logout, this.logout)
     this.ipcHandle(IpcChannel.CherryIN_StartOAuthFlow, this.startOAuthFlow)
@@ -197,8 +195,8 @@ export class CherryInOauthService extends BaseService implements Activatable {
     void this.deactivate()
   }
 
-  private getOAuthAuthConfig = async (): Promise<Extract<AuthConfig, { type: 'oauth' }> | null> => {
-    const authConfig = await providerService.getAuthConfig(CHERRYIN_PROVIDER_ID)
+  private getOAuthAuthConfig = (): Extract<AuthConfig, { type: 'oauth' }> | null => {
+    const authConfig = providerService.getAuthConfig(CHERRYIN_PROVIDER_ID)
     return authConfig?.type === 'oauth' ? authConfig : null
   }
 
@@ -445,18 +443,18 @@ export class CherryInOauthService extends BaseService implements Activatable {
    * Reset CherryIN provider authConfig back to api-key mode so hasToken() returns
    * false and the UI stops treating the session as live after refresh fails.
    */
-  private clearOAuthSession = async (): Promise<void> => {
-    await providerService.update(CHERRYIN_PROVIDER_ID, { authConfig: { type: 'api-key' } })
+  private clearOAuthSession = (): void => {
+    providerService.update(CHERRYIN_PROVIDER_ID, { authConfig: { type: 'api-key' } })
   }
 
   /**
    * Internal method to save OAuth tokens to the v2 provider auth config.
    */
   private saveTokenInternal = async (accessToken: string, refreshToken?: string): Promise<void> => {
-    const currentConfig = await this.getOAuthAuthConfig()
+    const currentConfig = this.getOAuthAuthConfig()
     const nextRefreshToken = refreshToken || currentConfig?.refreshToken
 
-    await providerService.update(CHERRYIN_PROVIDER_ID, {
+    providerService.update(CHERRYIN_PROVIDER_ID, {
       authConfig: {
         type: 'oauth',
         clientId: currentConfig?.clientId || CHERRYIN_CONFIG.CLIENT_ID,
@@ -489,7 +487,7 @@ export class CherryInOauthService extends BaseService implements Activatable {
    * Read OAuth access token from provider auth config
    */
   public getToken = async (): Promise<string | null> => {
-    const authConfig = await this.getOAuthAuthConfig()
+    const authConfig = this.getOAuthAuthConfig()
     return authConfig?.accessToken || null
   }
 
@@ -497,7 +495,7 @@ export class CherryInOauthService extends BaseService implements Activatable {
    * Read OAuth refresh token from provider auth config
    */
   private getRefreshToken = async (): Promise<string | null> => {
-    const authConfig = await this.getOAuthAuthConfig()
+    const authConfig = this.getOAuthAuthConfig()
     return authConfig?.refreshToken || null
   }
 
@@ -687,7 +685,7 @@ export class CherryInOauthService extends BaseService implements Activatable {
         // the caller doesn't see a raw DB error and the UI keeps thinking it's
         // logged in. The clear-failure is logged for diagnostics.
         try {
-          await this.clearOAuthSession()
+          this.clearOAuthSession()
         } catch (clearError) {
           logger.error('Failed to clear OAuth session after refresh failure', clearError as Error)
         }
@@ -818,7 +816,7 @@ export class CherryInOauthService extends BaseService implements Activatable {
       }
 
       // Reset to API-key mode so v2 runtime/UI stop treating this provider as OAuth-backed.
-      await providerService.update(CHERRYIN_PROVIDER_ID, {
+      providerService.update(CHERRYIN_PROVIDER_ID, {
         authConfig: {
           type: 'api-key'
         }

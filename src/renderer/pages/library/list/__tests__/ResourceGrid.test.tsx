@@ -75,27 +75,6 @@ vi.mock('@cherrystudio/ui', async () => {
         </button>
       )
     },
-    Checkbox: ({
-      checked = false,
-      onCheckedChange,
-      size,
-      ...props
-    }: Omit<ComponentProps<'button'>, 'onChange'> & {
-      checked?: boolean
-      onCheckedChange?: (checked: boolean) => void
-      size?: string
-    }) => {
-      void size
-      return (
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={checked}
-          onClick={() => onCheckedChange?.(!checked)}
-          {...props}
-        />
-      )
-    },
     ConfirmDialog: ({
       cancelText,
       confirmText,
@@ -276,7 +255,6 @@ function createAssistantResource(overrides: Partial<Extract<ResourceItem, { type
     name: 'Assistant',
     description: '',
     avatar: 'A',
-    tags: [],
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
     raw: {} as Extract<ResourceItem, { type: 'assistant' }>['raw'],
@@ -291,7 +269,6 @@ function createAgentResource(): ResourceItem {
     name: 'Agent',
     description: '',
     avatar: 'A',
-    tags: [],
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
     raw: {} as Extract<ResourceItem, { type: 'agent' }>['raw']
@@ -305,7 +282,6 @@ function createSkillResource(): ResourceItem {
     name: 'Skill',
     description: '',
     avatar: 'S',
-    tags: [],
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
     raw: {} as Extract<ResourceItem, { type: 'skill' }>['raw']
@@ -319,7 +295,6 @@ function createPromptResource(): ResourceItem {
     name: 'Prompt',
     description: '',
     avatar: 'Aa',
-    tags: [],
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
     raw: {} as Extract<ResourceItem, { type: 'prompt' }>['raw']
@@ -344,7 +319,6 @@ function renderResourceGrid(props: Partial<ComponentProps<typeof ResourceGrid>> 
       activeTag={null}
       onTagFilter={vi.fn()}
       onAddTag={vi.fn()}
-      onUpdateResourceTags={vi.fn()}
       allTagNames={[]}
       allTags={[]}
       {...props}
@@ -359,7 +333,6 @@ function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceC
     onDuplicate: vi.fn(),
     onEdit: vi.fn(),
     onExport: vi.fn(),
-    onUpdateResourceTags: vi.fn(),
     ...overrides
   }
 }
@@ -505,17 +478,12 @@ describe('ResourceGrid card actions', () => {
     expect(onDelete).toHaveBeenCalledWith(resource)
   })
 
-  it('keeps assistant tags visible in the compact card layout', () => {
-    render(
-      <ResourceCard
-        resource={createAssistantResource({ tags: ['alpha', 'beta', 'gamma'] })}
-        {...getResourceCardProps()}
-      />
-    )
+  it('shows only one assistant tag in the compact card layout', () => {
+    render(<ResourceCard resource={createAssistantResource({ tag: 'alpha' })} {...getResourceCardProps()} />)
 
     expect(screen.getByText('alpha')).toBeInTheDocument()
-    expect(screen.getByText('beta')).toBeInTheDocument()
-    expect(screen.getByText('+1')).toBeInTheDocument()
+    expect(screen.queryByText('beta')).not.toBeInTheDocument()
+    expect(screen.queryByText('+2')).not.toBeInTheDocument()
   })
 })
 
@@ -624,7 +592,6 @@ describe('ResourceCardMenu tag binding', () => {
     const pendingTags = createDeferred<Array<{ id: string; name: string }>>()
     ensureTagsMock.mockReturnValueOnce(pendingTags.promise)
     updateAssistantMock.mockResolvedValue({})
-    const onUpdateResourceTags = vi.fn()
 
     render(
       <ResourceCardMenu
@@ -633,17 +600,20 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        onUpdateResourceTags={onUpdateResourceTags}
         allTagNames={['alpha', 'beta']}
       />
     )
 
     await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
-    const checkboxes = screen.getAllByRole('checkbox')
-    await user.click(checkboxes[0])
+    expect(screen.getByRole('menu', { name: 'library.config.basic.tags' })).toContainElement(
+      screen.getByRole('menuitemradio', { name: 'alpha' })
+    )
+    await user.click(screen.getByRole('menuitemradio', { name: 'alpha' }))
 
-    await waitFor(() => expect(checkboxes[1]).toBeDisabled())
-    await user.click(checkboxes[1])
+    await waitFor(() =>
+      expect(screen.getByRole('menuitemradio', { name: 'beta' })).toHaveAttribute('aria-disabled', 'true')
+    )
+    await user.click(screen.getByRole('menuitemradio', { name: 'beta' }))
     expect(ensureTagsMock).toHaveBeenCalledTimes(1)
 
     pendingTags.resolve([{ id: 'tag-alpha', name: 'alpha' }])
@@ -651,8 +621,71 @@ describe('ResourceCardMenu tag binding', () => {
     await waitFor(() => {
       expect(updateAssistantMock).toHaveBeenCalledWith({ tagIds: ['tag-alpha'] })
     })
-    expect(onUpdateResourceTags).toHaveBeenCalledWith('assistant-1', ['alpha'])
     expect(ensureTagsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses roving focus for tag picker radio items', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <ResourceCardMenu
+        resource={createAssistantResource()}
+        onClose={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        allTagNames={['alpha', 'beta', 'gamma']}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
+
+    const alpha = screen.getByRole('menuitemradio', { name: 'alpha' })
+    const beta = screen.getByRole('menuitemradio', { name: 'beta' })
+    const gamma = screen.getByRole('menuitemradio', { name: 'gamma' })
+
+    expect(alpha).toHaveAttribute('tabindex', '0')
+    expect(beta).toHaveAttribute('tabindex', '-1')
+
+    alpha.focus()
+    expect(alpha).toHaveFocus()
+
+    await user.keyboard('{ArrowDown}')
+    expect(beta).toHaveFocus()
+
+    await waitFor(() => {
+      expect(alpha).toHaveAttribute('tabindex', '-1')
+      expect(beta).toHaveAttribute('tabindex', '0')
+    })
+
+    await user.keyboard('{End}')
+    expect(gamma).toHaveFocus()
+
+    await user.keyboard('{Home}')
+    expect(alpha).toHaveFocus()
+  })
+
+  it('replaces the current assistant tag when a different tag is selected', async () => {
+    const user = userEvent.setup()
+    ensureTagsMock.mockResolvedValueOnce([{ id: 'tag-beta', name: 'beta' }])
+    updateAssistantMock.mockResolvedValue({})
+
+    render(
+      <ResourceCardMenu
+        resource={createAssistantResource({ tag: 'alpha' })}
+        onClose={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        allTagNames={['alpha', 'beta']}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
+    await user.click(screen.getByRole('menuitemradio', { name: 'beta' }))
+
+    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['beta']))
+    expect(updateAssistantMock).toHaveBeenCalledWith({ tagIds: ['tag-beta'] })
   })
 
   it('does not expose tag management for agent, skill, or prompt resources', () => {
@@ -663,7 +696,6 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        onUpdateResourceTags={vi.fn()}
         allTagNames={['alpha', 'beta']}
       />
     )
@@ -677,7 +709,6 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        onUpdateResourceTags={vi.fn()}
         allTagNames={['alpha', 'beta']}
       />
     )
@@ -691,7 +722,6 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        onUpdateResourceTags={vi.fn()}
         allTagNames={['alpha', 'beta']}
       />
     )
@@ -707,7 +737,6 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        onUpdateResourceTags={vi.fn()}
         allTagNames={[]}
       />
     )
@@ -724,7 +753,6 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        onUpdateResourceTags={vi.fn()}
         allTagNames={[]}
       />
     )
