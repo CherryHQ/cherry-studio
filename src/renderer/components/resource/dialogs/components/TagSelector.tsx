@@ -2,7 +2,7 @@ import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue }
 import { cn } from '@renderer/utils/style'
 import { X } from 'lucide-react'
 import type { FC } from 'react'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -14,6 +14,8 @@ interface Props {
 }
 
 const TAG_SELECT_VALUE_PREFIX = 'tag:'
+const TAG_SELECT_CONTENT_ATTR = 'data-tag-selector-content'
+const TAG_SELECT_CONTENT_SELECTOR = `[${TAG_SELECT_CONTENT_ATTR}]`
 
 function encodeTagSelectValue(name: string) {
   return `${TAG_SELECT_VALUE_PREFIX}${name}`
@@ -24,8 +26,33 @@ function decodeTagSelectValue(value: string) {
   return value.slice(TAG_SELECT_VALUE_PREFIX.length)
 }
 
+function isTargetInsideElement(event: Event, element: HTMLElement) {
+  return event.target instanceof Node && element.contains(event.target)
+}
+
+function isPointerInsideElementBounds(event: PointerEvent | MouseEvent, element: HTMLElement) {
+  const rect = element.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return false
+
+  return (
+    event.clientX >= rect.left &&
+    event.clientX <= rect.right &&
+    event.clientY >= rect.top &&
+    event.clientY <= rect.bottom
+  )
+}
+
+function isTagSelectSurface(target: EventTarget | null, root: HTMLElement | null) {
+  if (!(target instanceof Element)) return false
+  return Boolean(root?.contains(target) || target.closest(TAG_SELECT_CONTENT_SELECTOR))
+}
+
 export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled, portalContainer }) => {
   const { t } = useTranslation()
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const suppressNextClickRef = useRef(false)
+  const clickShieldResetTimerRef = useRef<number | null>(null)
+  const [open, setOpen] = useState(false)
 
   // `value` may be a name not present in `/tags` yet, for example while a
   // caller waits for SWR refresh. Keep the selected name visible in the options.
@@ -38,11 +65,88 @@ export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled,
     return sortedNames
   }, [allTagNames, value])
 
+  useEffect(() => {
+    if (!portalContainer) return
+
+    const ownerDocument = portalContainer.ownerDocument
+    const ownerWindow = ownerDocument.defaultView ?? window
+
+    const clearClickShieldResetTimer = () => {
+      if (clickShieldResetTimerRef.current === null) return
+
+      ownerWindow.clearTimeout(clickShieldResetTimerRef.current)
+      clickShieldResetTimerRef.current = null
+    }
+
+    const releaseClickShield = () => {
+      clearClickShieldResetTimer()
+      suppressNextClickRef.current = false
+    }
+
+    const scheduleClickShieldReset = () => {
+      if (!suppressNextClickRef.current) return
+
+      clearClickShieldResetTimer()
+      clickShieldResetTimerRef.current = ownerWindow.setTimeout(releaseClickShield, 0)
+    }
+
+    const suppressClickAfterManualClose = (event: MouseEvent) => {
+      if (!suppressNextClickRef.current) return
+
+      releaseClickShield()
+      if (!isTargetInsideElement(event, portalContainer) && !isPointerInsideElementBounds(event, portalContainer))
+        return
+
+      event.preventDefault()
+      event.stopPropagation()
+    }
+
+    ownerDocument.addEventListener('click', suppressClickAfterManualClose, true)
+    ownerDocument.addEventListener('pointerup', scheduleClickShieldReset, true)
+    ownerDocument.addEventListener('pointercancel', releaseClickShield, true)
+
+    return () => {
+      ownerDocument.removeEventListener('click', suppressClickAfterManualClose, true)
+      ownerDocument.removeEventListener('pointerup', scheduleClickShieldReset, true)
+      ownerDocument.removeEventListener('pointercancel', releaseClickShield, true)
+      releaseClickShield()
+    }
+  }, [portalContainer])
+
+  useEffect(() => {
+    if (!open || !portalContainer) return
+
+    const ownerDocument = portalContainer.ownerDocument
+
+    const closeForInsideDialogPointerDown = (event: PointerEvent) => {
+      if (isTagSelectSurface(event.target, rootRef.current)) return
+
+      const targetInsidePortal = isTargetInsideElement(event, portalContainer)
+      if (!targetInsidePortal && !isPointerInsideElementBounds(event, portalContainer)) return
+
+      suppressNextClickRef.current = !targetInsidePortal
+      setOpen(false)
+
+      if (!targetInsidePortal) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+    }
+
+    ownerDocument.addEventListener('pointerdown', closeForInsideDialogPointerDown, true)
+
+    return () => {
+      ownerDocument.removeEventListener('pointerdown', closeForInsideDialogPointerDown, true)
+    }
+  }, [open, portalContainer])
+
   return (
-    <div className="group/tag-select relative flex w-full min-w-0 items-center">
+    <div ref={rootRef} className="group/tag-select relative flex w-full min-w-0 items-center">
       <Select
         disabled={disabled}
+        open={open}
         value={value ? encodeTagSelectValue(value) : ''}
+        onOpenChange={setOpen}
         onValueChange={(selectedValue) => onChange(decodeTagSelectValue(selectedValue))}>
         <SelectTrigger
           size="sm"
@@ -54,7 +158,7 @@ export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled,
           aria-label={t('library.config.basic.tags')}>
           <SelectValue placeholder={t('library.config.basic.tag_placeholder')} />
         </SelectTrigger>
-        <SelectContent portalContainer={portalContainer ?? undefined}>
+        <SelectContent portalContainer={portalContainer ?? undefined} {...{ [TAG_SELECT_CONTENT_ATTR]: '' }}>
           {tagNames.map((name) => (
             <SelectItem key={name} value={encodeTagSelectValue(name)}>
               {name}
