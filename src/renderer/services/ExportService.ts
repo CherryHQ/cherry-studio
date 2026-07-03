@@ -336,6 +336,43 @@ export const topicToPlainText = async (topic: Topic): Promise<string> => {
   return topicName
 }
 
+export const exportMarkdownContentAsFile = async (title: string, markdown: string): Promise<void> => {
+  if (getExportState()) {
+    window.toast.warning(i18n.t('message.warn.export.exporting'))
+    return
+  }
+
+  setExportingState(true)
+
+  const markdownExportPath = await preferenceService.get('data.export.markdown.path')
+  if (!markdownExportPath) {
+    try {
+      const fileName = removeSpecialCharactersForFileName(title) + '.md'
+      const result = await window.api.file.save(fileName, markdown)
+      if (result) {
+        window.toast.success(i18n.t('message.success.markdown.export.specified'))
+      }
+    } catch (error: any) {
+      window.toast.error(i18n.t('message.error.markdown.export.specified'))
+      logger.error('Failed to export markdown content:', error)
+    } finally {
+      setExportingState(false)
+    }
+  } else {
+    try {
+      const timestamp = dayjs().format('YYYY-MM-DD-HH-mm-ss')
+      const fileName = removeSpecialCharactersForFileName(title) + ` ${timestamp}.md`
+      await window.api.file.write(markdownExportPath + '/' + fileName, markdown)
+      window.toast.success(i18n.t('message.success.markdown.export.preconf'))
+    } catch (error: any) {
+      window.toast.error(i18n.t('message.error.markdown.export.preconf'))
+      logger.error('Failed to export markdown content:', error)
+    } finally {
+      setExportingState(false)
+    }
+  }
+}
+
 export const exportTopicAsMarkdown = async (
   topic: Topic,
   exportReasoning?: boolean,
@@ -594,21 +631,18 @@ export const exportMessageToNotion = async (
   return executeNotionExport(title, notionBlocks)
 }
 
-export const exportTopicToNotion = async (topic: Topic): Promise<boolean> => {
+export const exportMessagesToNotion = async (title: string, messages: ExportableMessage[]): Promise<boolean> => {
   const { notionExportReasoning, excludeCitationsInExport } = await preferenceService.getMultiple({
     notionExportReasoning: 'data.integration.notion.export_reasoning',
     excludeCitationsInExport: 'data.export.markdown.exclude_citations'
   })
 
-  const topicMessages = await getTopicMessages(topic.id)
-
-  // 创建话题标题块
-  const titleBlocks = await convertMarkdownToNotionBlocks(`# ${topic.name}`)
+  const titleBlocks = await convertMarkdownToNotionBlocks(`# ${title}`)
 
   // 为每个消息创建blocks
   const allBlocks: any[] = [...titleBlocks]
 
-  for (const message of topicMessages) {
+  for (const message of messages) {
     // 将单个消息转换为markdown
     const messageMarkdown = await messageToMarkdown(message, excludeCitationsInExport)
     const messageBlocks = await convertMarkdownToNotionBlocks(messageMarkdown)
@@ -628,7 +662,13 @@ export const exportTopicToNotion = async (topic: Topic): Promise<boolean> => {
     allBlocks.push(...messageBlocks)
   }
 
-  return executeNotionExport(topic.name, allBlocks)
+  return executeNotionExport(title, allBlocks)
+}
+
+export const exportTopicToNotion = async (topic: Topic): Promise<boolean> => {
+  const topicMessages = await getTopicMessages(topic.id)
+
+  return exportMessagesToNotion(topic.name, topicMessages)
 }
 
 export const exportMarkdownToYuque = async (title: string, content: string): Promise<any | null> => {

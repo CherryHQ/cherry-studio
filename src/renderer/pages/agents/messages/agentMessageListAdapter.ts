@@ -25,10 +25,19 @@ import type {
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
+import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
+
+import {
+  type AgentSessionImageActionTarget,
+  type AgentSessionImageActionType,
+  consumePendingAgentSessionImageActions,
+  rejectPendingAgentSessionImageActions,
+  settleAgentSessionImageActionRequest
+} from './agentSessionImageActionBus'
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
@@ -100,6 +109,7 @@ export function useAgentMessageListProviderValue({
   workspacePath
 }: AgentMessageListParams): MessageListProviderValue {
   const navigate = useNavigate()
+  const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
@@ -175,17 +185,67 @@ export function useAgentMessageListProviderValue({
     [navigate]
   )
 
+  const runAgentSessionImageAction = useCallback((runtime: MessageListRuntime, type: AgentSessionImageActionType) => {
+    if (type === 'copy') {
+      return runtime.copyTopicImage()
+    }
+
+    return runtime.exportTopicImage()
+  }, [])
+
+  const consumeAgentSessionImageAction = useCallback(
+    (runtime: MessageListRuntime, type: AgentSessionImageActionType, data?: AgentSessionImageActionTarget) => {
+      if (data && data.id !== sessionId) return
+
+      const requests = consumePendingAgentSessionImageActions(sessionId, type)
+      if (requests.length === 0) {
+        void runAgentSessionImageAction(runtime, type)
+        return
+      }
+
+      for (const request of requests) {
+        settleAgentSessionImageActionRequest(request, runAgentSessionImageAction(runtime, type))
+      }
+    },
+    [runAgentSessionImageAction, sessionId]
+  )
+
+  const flushPendingAgentSessionImageActions = useCallback(
+    (runtime: MessageListRuntime) => {
+      const requests = consumePendingAgentSessionImageActions(sessionId)
+      for (const request of requests) {
+        settleAgentSessionImageActionRequest(request, runAgentSessionImageAction(runtime, request.type))
+      }
+    },
+    [runAgentSessionImageAction, sessionId]
+  )
+
+  useEffect(() => {
+    return () => rejectPendingAgentSessionImageActions(sessionId, new Error('Agent session image export was cancelled'))
+  }, [sessionId])
+
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
       agentMessageListRuntimes.set(topic.id, runtime)
+      flushPendingAgentSessionImageActions(runtime)
+
+      const unsubscribes = [
+        EventEmitter.on(EVENT_NAMES.COPY_AGENT_SESSION_IMAGE, (data?: AgentSessionImageActionTarget) =>
+          consumeAgentSessionImageAction(runtime, 'copy', data)
+        ),
+        EventEmitter.on(EVENT_NAMES.EXPORT_AGENT_SESSION_IMAGE, (data?: AgentSessionImageActionTarget) =>
+          consumeAgentSessionImageAction(runtime, 'export', data)
+        )
+      ]
 
       return () => {
         if (agentMessageListRuntimes.get(topic.id) === runtime) {
           agentMessageListRuntimes.delete(topic.id)
         }
+        unsubscribes.forEach((unsub) => unsub())
       }
     },
-    [topic.id]
+    [consumeAgentSessionImageAction, flushPendingAgentSessionImageActions, topic.id]
   )
 
   const bindMessageRuntime = useCallback((messageId: string, runtime: MessageRuntime) => {
@@ -303,9 +363,10 @@ export function useAgentMessageListProviderValue({
     () => ({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
-      assistantProfile
+      assistantProfile,
+      imageExportFileName: topic.name
     }),
-    [assistantProfile, headerCapabilities.userProfile]
+    [assistantProfile, headerCapabilities.userProfile, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

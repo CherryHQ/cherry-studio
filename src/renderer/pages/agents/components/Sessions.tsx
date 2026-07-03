@@ -26,21 +26,43 @@ import { SessionResourceList } from '@renderer/components/chat/resourceList/Sess
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
+import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
+import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
+import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
+import {
+  agentSessionToMarkdown,
+  copyAgentSessionAsMarkdown,
+  copyAgentSessionAsPlainText,
+  exportAgentSessionAsMarkdown,
+  getAgentSessionExportTitle,
+  getAgentSessionMessagesForExport
+} from '@renderer/services/AgentSessionExportService'
+import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import {
+  exportContentToNotes,
+  exportMarkdownToJoplin,
+  exportMarkdownToSiyuan,
+  exportMarkdownToYuque,
+  exportMessagesToNotion
+} from '@renderer/services/ExportService'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import {
@@ -63,9 +85,15 @@ import {
 import { memo, type ReactNode, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import {
+  type AgentSessionImageActionRequest,
+  type AgentSessionImageActionType,
+  rejectPendingAgentSessionImageActions,
+  requestAgentSessionImageAction
+} from '../messages/agentSessionImageActionBus'
 import type { DraftAgentSessionDefaults } from '../types'
 import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
-import SessionItem from './SessionItem'
+import SessionItem, { type SessionItemMenuActions } from './SessionItem'
 import {
   type AgentSessionDisplayMode,
   applyOptimisticSessionDisplayMove,
@@ -365,6 +393,20 @@ const Sessions = ({
   const isRightPanel = presentation === 'right-panel'
   const conversationNav = useConversationNavigation('agents')
   const [groupNow] = useState(() => new Date())
+  const { notesPath } = useNotesSettings()
+  const [exportMenuOptions] = useMultiplePreferences({
+    docx: 'data.export.menus.docx',
+    image: 'data.export.menus.image',
+    joplin: 'data.export.menus.joplin',
+    markdown: 'data.export.menus.markdown',
+    markdown_reason: 'data.export.menus.markdown_reason',
+    notes: 'data.export.menus.notes',
+    notion: 'data.export.menus.notion',
+    obsidian: 'data.export.menus.obsidian',
+    plain_text: 'data.export.menus.plain_text',
+    siyuan: 'data.export.menus.siyuan',
+    yuque: 'data.export.menus.yuque'
+  })
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [sessionExpansionTime, setSessionExpansionTime] = usePersistCache('ui.agent.session.expansion.time')
   const [sessionExpansionAgent, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
@@ -748,6 +790,153 @@ const Sessions = ({
     },
     [sessionItems, t, updateSession]
   )
+
+  const handleAutoRenameSession = useCallback(
+    async (session: AgentSessionEntity) => {
+      const messages = await getAgentSessionMessagesForExport(session)
+      if (messages.length < 2) return
+
+      const topicId = buildAgentSessionTopicId(session.id)
+      startTopicRenaming(topicId)
+      try {
+        const { text: summaryText, error: summaryError } = await fetchMessagesSummary({ messages })
+        if (summaryText) {
+          await updateSession(
+            { id: session.id, name: summaryText, isNameManuallyEdited: false },
+            { showSuccessToast: false }
+          )
+        } else if (summaryError) {
+          window.toast?.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
+        }
+      } finally {
+        finishTopicRenaming(topicId)
+      }
+    },
+    [t, updateSession]
+  )
+
+  const showSessionImageExportToast = useCallback(
+    (request: AgentSessionImageActionRequest) => {
+      const key = `agent-session-image-export:${request.id}`
+      const loadingPromise = request.promise.finally(() => window.toast.closeToast(key)).catch(() => undefined)
+
+      window.toast.loading({
+        key,
+        title: t('chat.topics.export.image_exporting_keep_page'),
+        promise: loadingPromise,
+        onError: () => {}
+      })
+
+      void request.promise.then(
+        () => window.toast.success(t('chat.topics.export.image_saved')),
+        () => window.toast.error(t('chat.topics.export.failed'))
+      )
+    },
+    [t]
+  )
+
+  const handleSessionImageAction = useCallback(
+    (type: AgentSessionImageActionType, session: AgentSessionEntity) => {
+      const request = requestAgentSessionImageAction(type, session)
+      if (type === 'export') {
+        showSessionImageExportToast(request)
+      } else {
+        void request.promise.catch(() => window.toast.error(t('common.copy_failed')))
+      }
+
+      if (session.id !== activeSessionId) {
+        setActiveSessionId(session.id)
+      }
+    },
+    [activeSessionId, setActiveSessionId, showSessionImageExportToast, t]
+  )
+
+  const handleSaveSessionToNotes = useCallback(
+    async (session: AgentSessionEntity) => {
+      const title = getAgentSessionExportTitle(session)
+      const markdown = await agentSessionToMarkdown(session)
+      await exportContentToNotes(title, markdown, notesPath)
+    },
+    [notesPath]
+  )
+
+  const handleSaveSessionToKnowledge = useCallback(
+    async (session: AgentSessionEntity) => {
+      try {
+        const title = getAgentSessionExportTitle(session)
+        const messages = await getAgentSessionMessagesForExport(session)
+        const result = await SaveToKnowledgePopup.showForMessages(messages, title)
+        if (result?.success) {
+          window.toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
+        }
+      } catch {
+        window.toast.error(t('chat.save.topic.knowledge.error.save_failed'))
+      }
+    },
+    [t]
+  )
+
+  const handleExportSessionMarkdown = useCallback((session: AgentSessionEntity) => {
+    return exportAgentSessionAsMarkdown(session)
+  }, [])
+
+  const handleExportSessionMarkdownReason = useCallback((session: AgentSessionEntity) => {
+    return exportAgentSessionAsMarkdown(session, true)
+  }, [])
+
+  const handleExportSessionWord = useCallback(async (session: AgentSessionEntity) => {
+    const title = getAgentSessionExportTitle(session)
+    const markdown = await agentSessionToMarkdown(session)
+    await window.api.export.toWord(markdown, removeSpecialCharactersForFileName(title))
+  }, [])
+
+  const handleExportSessionNotion = useCallback(async (session: AgentSessionEntity) => {
+    const title = getAgentSessionExportTitle(session)
+    const messages = await getAgentSessionMessagesForExport(session)
+    await exportMessagesToNotion(title, messages)
+  }, [])
+
+  const handleExportSessionYuque = useCallback(async (session: AgentSessionEntity) => {
+    const title = getAgentSessionExportTitle(session)
+    const markdown = await agentSessionToMarkdown(session)
+    await exportMarkdownToYuque(title, markdown)
+  }, [])
+
+  const handleExportSessionObsidian = useCallback(async (session: AgentSessionEntity) => {
+    const title = getAgentSessionExportTitle(session)
+    const messages = await getAgentSessionMessagesForExport(session)
+    await ObsidianExportPopup.show({ title: title.replace(/\\/g, '_'), messages, processingMethod: '3' })
+  }, [])
+
+  const handleExportSessionJoplin = useCallback(async (session: AgentSessionEntity) => {
+    const title = getAgentSessionExportTitle(session)
+    const messages = await getAgentSessionMessagesForExport(session)
+    await exportMarkdownToJoplin(title, messages)
+  }, [])
+
+  const handleExportSessionSiyuan = useCallback(async (session: AgentSessionEntity) => {
+    const title = getAgentSessionExportTitle(session)
+    const markdown = await agentSessionToMarkdown(session)
+    await exportMarkdownToSiyuan(title, markdown)
+  }, [])
+
+  const handleCopySessionImage = useCallback(
+    (session: AgentSessionEntity) => {
+      handleSessionImageAction('copy', session)
+    },
+    [handleSessionImageAction]
+  )
+
+  const handleExportSessionImage = useCallback(
+    (session: AgentSessionEntity) => {
+      handleSessionImageAction('export', session)
+    },
+    [handleSessionImageAction]
+  )
+
+  useEffect(() => {
+    return () => rejectPendingAgentSessionImageActions(undefined, new Error('Agent session image export was cancelled'))
+  }, [])
 
   const { trigger: findOrCreateWorkspace } = useMutation('POST', '/agent-workspaces', {
     refresh: ['/agent-workspaces']
@@ -1447,6 +1636,43 @@ const Sessions = ({
     ]
   )
 
+  const sessionMenuActions = useMemo<SessionItemMenuActions>(
+    () => ({
+      exportMenuOptions: exportMenuOptions as SessionItemMenuActions['exportMenuOptions'],
+      onAutoRename: handleAutoRenameSession,
+      onCopyImage: handleCopySessionImage,
+      onCopyMarkdown: copyAgentSessionAsMarkdown,
+      onCopyPlainText: copyAgentSessionAsPlainText,
+      onExportImage: handleExportSessionImage,
+      onExportJoplin: handleExportSessionJoplin,
+      onExportMarkdown: handleExportSessionMarkdown,
+      onExportMarkdownReason: handleExportSessionMarkdownReason,
+      onExportNotion: handleExportSessionNotion,
+      onExportObsidian: handleExportSessionObsidian,
+      onExportSiyuan: handleExportSessionSiyuan,
+      onExportWord: handleExportSessionWord,
+      onExportYuque: handleExportSessionYuque,
+      onSaveToKnowledge: handleSaveSessionToKnowledge,
+      onSaveToNotes: handleSaveSessionToNotes
+    }),
+    [
+      exportMenuOptions,
+      handleAutoRenameSession,
+      handleCopySessionImage,
+      handleExportSessionImage,
+      handleExportSessionJoplin,
+      handleExportSessionMarkdown,
+      handleExportSessionMarkdownReason,
+      handleExportSessionNotion,
+      handleExportSessionObsidian,
+      handleExportSessionSiyuan,
+      handleExportSessionWord,
+      handleExportSessionYuque,
+      handleSaveSessionToKnowledge,
+      handleSaveSessionToNotes
+    ]
+  )
+
   const listError =
     error ?? (displayMode === 'agent' ? agentsError : displayMode === 'workdir' ? workspacesError : undefined)
   const listLoading =
@@ -1557,6 +1783,7 @@ const Sessions = ({
         onRetry={handleRetry}
         onSelectItem={onSelectItem}
         onTogglePin={togglePin}
+        sessionMenuActions={sessionMenuActions}
         setActiveSessionId={handleSelectSession}
       />
       {!listLoading && (isLoadingMore || hasMore) && (
@@ -1597,6 +1824,7 @@ interface SessionListBodyProps {
   onRetry: () => Promise<unknown>
   onSelectItem?: () => void
   onTogglePin: (id: string) => void | Promise<unknown>
+  sessionMenuActions: SessionItemMenuActions
   setActiveSessionId: (id: string | null) => void
 }
 
@@ -1615,6 +1843,7 @@ function SessionListBody({
   onRetry,
   onSelectItem,
   onTogglePin,
+  sessionMenuActions,
   setActiveSessionId
 }: SessionListBodyProps) {
   const { t } = useTranslation()
@@ -1636,6 +1865,7 @@ function SessionListBody({
         onOpenInNewWindow={onOpenInNewWindow}
         onPress={setActiveSessionId}
         onSelectItem={onSelectItem}
+        sessionMenuActions={sessionMenuActions}
       />
     ),
     [
@@ -1647,6 +1877,7 @@ function SessionListBody({
       onOpenInNewWindow,
       onSelectItem,
       onTogglePin,
+      sessionMenuActions,
       setActiveSessionId
     ]
   )

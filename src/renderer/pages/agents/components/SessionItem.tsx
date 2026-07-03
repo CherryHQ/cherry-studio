@@ -16,7 +16,7 @@ import type { MouseEvent } from 'react'
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { SessionActionContext } from './sessionItemActions'
+import type { SessionActionContext, SessionExportMenuOptions } from './sessionItemActions'
 import { useSessionMenuActions } from './useSessionMenuActions'
 
 const DELETE_CONFIRMATION_TIMEOUT = 2000
@@ -33,6 +33,26 @@ interface SessionItemProps {
   pinned?: boolean
   reserveLeadingIconSlot?: boolean
   session: AgentSessionEntity
+  sessionMenuActions: SessionItemMenuActions
+}
+
+export interface SessionItemMenuActions {
+  exportMenuOptions: SessionExportMenuOptions
+  onAutoRename: (session: AgentSessionEntity) => void | Promise<void>
+  onCopyImage: (session: AgentSessionEntity) => void | Promise<void>
+  onCopyMarkdown: (session: AgentSessionEntity) => void | Promise<void>
+  onCopyPlainText: (session: AgentSessionEntity) => void | Promise<void>
+  onExportImage: (session: AgentSessionEntity) => void | Promise<void>
+  onExportJoplin: (session: AgentSessionEntity) => void | Promise<void>
+  onExportMarkdown: (session: AgentSessionEntity) => void | Promise<void>
+  onExportMarkdownReason: (session: AgentSessionEntity) => void | Promise<void>
+  onExportNotion: (session: AgentSessionEntity) => void | Promise<void>
+  onExportObsidian: (session: AgentSessionEntity) => void | Promise<void>
+  onExportSiyuan: (session: AgentSessionEntity) => void | Promise<void>
+  onExportWord: (session: AgentSessionEntity) => void | Promise<void>
+  onExportYuque: (session: AgentSessionEntity) => void | Promise<void>
+  onSaveToKnowledge: (session: AgentSessionEntity) => void | Promise<void>
+  onSaveToNotes: (session: AgentSessionEntity) => void | Promise<void>
 }
 
 const SessionItem = ({
@@ -46,7 +66,8 @@ const SessionItem = ({
   onTogglePin,
   pinned = false,
   reserveLeadingIconSlot = true,
-  session
+  session,
+  sessionMenuActions
 }: SessionItemProps) => {
   const { t } = useTranslation()
   const actions = useResourceListActions()
@@ -100,13 +121,30 @@ const SessionItem = ({
 
   const actionContext = useMemo<SessionActionContext>(
     () => ({
+      exportMenuOptions: sessionMenuActions.exportMenuOptions,
       isActiveInCurrentTab: active,
+      isRenaming,
+      onAutoRename: () => sessionMenuActions.onAutoRename(session),
+      onCopyImage: () => sessionMenuActions.onCopyImage(session),
+      onCopyMarkdown: () => sessionMenuActions.onCopyMarkdown(session),
+      onCopyPlainText: () => sessionMenuActions.onCopyPlainText(session),
       onDelete: handleDelete,
+      onExportImage: () => sessionMenuActions.onExportImage(session),
+      onExportJoplin: () => sessionMenuActions.onExportJoplin(session),
+      onExportMarkdown: () => sessionMenuActions.onExportMarkdown(session),
+      onExportMarkdownReason: () => sessionMenuActions.onExportMarkdownReason(session),
+      onExportNotion: () => sessionMenuActions.onExportNotion(session),
+      onExportObsidian: () => sessionMenuActions.onExportObsidian(session),
+      onExportSiyuan: () => sessionMenuActions.onExportSiyuan(session),
+      onExportWord: () => sessionMenuActions.onExportWord(session),
+      onExportYuque: () => sessionMenuActions.onExportYuque(session),
       onOpenInNewTab: onOpenInNewTab ? handleOpenInNewTab : undefined,
       onOpenInNewWindow: onOpenInNewWindow ? handleOpenInNewWindow : undefined,
+      onSaveToKnowledge: () => sessionMenuActions.onSaveToKnowledge(session),
+      onSaveToNotes: () => sessionMenuActions.onSaveToNotes(session),
       onTogglePin: onTogglePin ? handleTogglePin : undefined,
       pinned,
-      sessionName: session.name ?? '',
+      sessionName,
       startEdit: startMenuEdit,
       t
     }),
@@ -116,11 +154,14 @@ const SessionItem = ({
       handleOpenInNewWindow,
       handleTogglePin,
       active,
+      isRenaming,
       onOpenInNewTab,
       onOpenInNewWindow,
       onTogglePin,
       pinned,
-      session.name,
+      session,
+      sessionMenuActions,
+      sessionName,
       startMenuEdit,
       t
     ]
