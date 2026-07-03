@@ -197,7 +197,7 @@ describe('PrintService', () => {
     expect(showInactive).not.toHaveBeenCalled()
     expect(executeJavaScript).toHaveBeenCalledWith(expect.stringContaining('document.fonts.ready'), true)
     expect(executeJavaScript).toHaveBeenCalledTimes(1)
-    expect(print).toHaveBeenCalledWith(undefined, expect.any(Function))
+    expect(print).toHaveBeenCalledWith({}, expect.any(Function))
     expect(close).not.toHaveBeenCalled()
 
     finishPrint(true, '')

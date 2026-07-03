@@ -336,7 +336,7 @@ export class PrintService {
 
     try {
       await new Promise<void>((resolve, reject) => {
-        window.webContents.print(undefined, (success, failureReason) => {
+        window.webContents.print({}, (success, failureReason) => {
           if (success || failureReason === 'Print job canceled') {
             resolve()
             return
