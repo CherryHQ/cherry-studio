@@ -1,9 +1,9 @@
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import { ErrorCode, isDataApiError } from '@shared/data/api'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import { toMaterialRelativePath } from '../pipeline/indexing/materialFields'
+import { isDataApiNotFoundError } from '../tasks/utils/settled'
 
 const logger = loggerService.withContext('Knowledge:Query')
 
@@ -44,7 +44,7 @@ export function loadVisibleItems(baseId: string, materialIds: string[]): Map<str
         visibleItems.set(materialId, item)
       }
     } catch (error) {
-      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+      if (isDataApiNotFoundError(error)) {
         continue
       }
       throw error

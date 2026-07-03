@@ -11,6 +11,7 @@ import { estimateTokenCount } from 'tokenx'
 import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
 import { embedKnowledgeQuery } from '../pipeline/indexing/embed'
 import { rerankKnowledgeSearchResults } from '../pipeline/indexing/rerank'
+import { extractFtsTokens } from '../pipeline/vectorstore/indexStore/ftsQuery'
 import type { KnowledgeIndexSearchMatch } from '../pipeline/vectorstore/indexStore/model'
 import { toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './search'
@@ -18,7 +19,6 @@ import { runStoreOperation } from './storeOperation'
 import { deriveConceptId, loadVisibleItems } from './visibility'
 
 const logger = loggerService.withContext('Knowledge:QueryService')
-const SEARCH_TOKEN_PATTERN = /[\p{L}\p{N}_]+/u
 /**
  * Fetch this many × the requested result count as index candidates. The index
  * store only filters by material state; the item-visibility filter (missing /
@@ -33,16 +33,16 @@ const KNOWLEDGE_SEARCH_CANDIDATE_CAP = 200
 export class KnowledgeQueryService {
   @TraceMethod({ spanName: 'Knowledge.search', tag: 'Knowledge' })
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
-    assertBaseCanRunRuntimeOperation(baseId, 'search')
+    const base = assertBaseCanRunRuntimeOperation(baseId, 'search')
 
-    if (!SEARCH_TOKEN_PATTERN.test(query)) {
+    // Same tokenization the FTS layer uses: no token means no BM25 hit is even possible.
+    if (extractFtsTokens(query).length === 0) {
       throw DataApiErrorFactory.validation(
         { query: ['Query has no searchable tokens'] },
         'Query has no searchable tokens'
       )
     }
 
-    const base = knowledgeBaseService.getById(baseId)
     // Vector/hybrid retrieval needs an embedding model; a base without one is
     // BM25-only. This is a fixed runtime policy, not a stored preference — mode is
     // computed fresh every call, so it can never drift out of sync with the base.
@@ -67,15 +67,10 @@ export class KnowledgeQueryService {
     const scoreKind = getInitialSearchScoreKind(mode)
     const visibleSearchResults = this.toVisibleSearchResults(baseId, matches, scoreKind)
 
-    if (base.rerankModelId) {
-      const rerankedResults = await rerankKnowledgeSearchResults(base, query, visibleSearchResults)
-      // We trim the results after the rerank here, so the reranker can actually do its job and surface the best matches.
-      const topReranked = this.trimToTopK(rerankedResults, resolvedTopK, baseId)
-      return withSearchRanks(applyRelevanceThreshold(topReranked, base.threshold))
-    }
-
-    // If we don't need to rerank, we can just trim the results right here.
-    const topResults = this.trimToTopK(visibleSearchResults, resolvedTopK, baseId)
+    // Rerank before trimming so the reranker sees the full over-fetched candidate set and can
+    // surface the best matches; without a rerank model this is a pass-through.
+    const rerankedResults = await rerankKnowledgeSearchResults(base, query, visibleSearchResults)
+    const topResults = this.trimToTopK(rerankedResults, resolvedTopK, baseId)
     return withSearchRanks(applyRelevanceThreshold(topResults, base.threshold))
   }
 
@@ -83,7 +78,7 @@ export class KnowledgeQueryService {
     const knowledgeBaseId = toKnowledgeBaseId(baseId)
     const knowledgeItemId = toKnowledgeItemId(itemId)
     assertBaseCanRunRuntimeOperation(knowledgeBaseId, 'listItemChunks')
-    const item = await this.assertItemCanRunChunkOperation(knowledgeBaseId, knowledgeItemId, 'list chunks')
+    const item = this.assertItemCanRunChunkOperation(knowledgeBaseId, knowledgeItemId)
     this.assertCompletedContainerHasNoDeletingChildren(knowledgeBaseId, item)
 
     const base = knowledgeBaseService.getById(knowledgeBaseId)
@@ -98,25 +93,23 @@ export class KnowledgeQueryService {
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = await vectorStoreService.getIndexStore(base)
     const chunkGroups = await runStoreOperation(store, knowledgeBaseId, 'listItemChunks', () =>
-      Promise.all(
-        leafItems.map(async (leafItem) => {
-          const units = await store.listMaterialUnits(leafItem.id)
-          return units.map(
-            (unit): KnowledgeItemChunk => ({
-              id: unit.unitId,
+      leafItems.map((leafItem) => {
+        const units = store.listMaterialUnits(leafItem.id)
+        return units.map(
+          (unit): KnowledgeItemChunk => ({
+            id: unit.unitId,
+            itemId: leafItem.id,
+            content: unit.text,
+            metadata: {
               itemId: leafItem.id,
-              content: unit.text,
-              metadata: {
-                itemId: leafItem.id,
-                itemType: leafItem.type,
-                source: leafItem.data.source,
-                chunkIndex: unit.unitIndex,
-                tokenCount: estimateTokenCount(unit.text)
-              }
-            })
-          )
-        })
-      )
+              itemType: leafItem.type,
+              source: leafItem.data.source,
+              chunkIndex: unit.unitIndex,
+              tokenCount: estimateTokenCount(unit.text)
+            }
+          })
+        )
+      })
     )
 
     return chunkGroups.flat()
@@ -183,29 +176,16 @@ export class KnowledgeQueryService {
     return results.slice(0, topK)
   }
 
-  private async getRootItemsInBase(baseId: string, itemIds: string[]): Promise<KnowledgeItem[]> {
-    const rootIds = [...new Set(itemIds)]
-    const items = await Promise.all(rootIds.map((itemId) => knowledgeItemService.getById(itemId)))
-    const invalidItem = items.find((item) => item.baseId !== baseId)
-
-    if (invalidItem) {
-      throw new Error(`Knowledge item '${invalidItem.id}' does not belong to base '${baseId}'`)
+  private assertItemCanRunChunkOperation(baseId: string, itemId: string): KnowledgeItem {
+    const item = knowledgeItemService.getById(itemId)
+    if (item.baseId !== baseId) {
+      throw new Error(`Knowledge item '${itemId}' does not belong to base '${baseId}'`)
     }
-
-    return items
-  }
-
-  private async assertItemCanRunChunkOperation(
-    baseId: string,
-    itemId: string,
-    operation: 'list chunks' | 'delete chunk'
-  ): Promise<KnowledgeItem> {
-    const [item] = await this.getRootItemsInBase(baseId, [itemId])
 
     if (item.status !== 'completed') {
       throw DataApiErrorFactory.validation(
-        { item: [`Knowledge item '${itemId}' must be completed before ${operation}`] },
-        `Cannot ${operation} for a non-completed knowledge item`
+        { item: [`Knowledge item '${itemId}' must be completed before list chunks`] },
+        'Cannot list chunks for a non-completed knowledge item'
       )
     }
 

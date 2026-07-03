@@ -16,7 +16,7 @@ export async function runStoreOperation<T>(
   store: KnowledgeIndexStore,
   baseId: string,
   operation: string,
-  run: () => Promise<T>
+  run: () => T | Promise<T>
 ): Promise<T> {
   try {
     return await run()
