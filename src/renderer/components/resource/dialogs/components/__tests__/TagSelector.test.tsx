@@ -123,6 +123,62 @@ describe('TagSelector', () => {
     }
   })
 
+  it('keeps the open select interactive when a pointer event targets option text', () => {
+    const portalContainer = createPortalContainer()
+
+    try {
+      render(<TagSelector value={null} onChange={vi.fn()} allTagNames={['work']} portalContainer={portalContainer} />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Tags' }))
+      const option = screen.getByRole('option', { name: 'work' })
+      const optionText = option.firstChild
+      expect(optionText).toBeInstanceOf(Text)
+
+      const pointerDown = new MouseEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 120,
+        clientY: 80
+      })
+      void act(() => optionText?.dispatchEvent(pointerDown))
+
+      expect(screen.getByRole('option', { name: 'work' })).toBeInTheDocument()
+    } finally {
+      portalContainer.remove()
+    }
+  })
+
+  it('releases pointer listeners when the open select loses all tag options', () => {
+    const portalContainer = createPortalContainer()
+    const overlayTarget = document.createElement('div')
+    document.body.append(overlayTarget)
+
+    try {
+      const { rerender } = render(
+        <TagSelector value={null} onChange={vi.fn()} allTagNames={['work']} portalContainer={portalContainer} />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'Tags' }))
+      expect(screen.getByRole('option', { name: 'work' })).toBeInTheDocument()
+
+      rerender(<TagSelector value={null} onChange={vi.fn()} allTagNames={[]} portalContainer={portalContainer} />)
+      expect(document.querySelector('[data-tag-selector-content]')).not.toBeInTheDocument()
+
+      const pointerDown = new MouseEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 120,
+        clientY: 80
+      })
+      overlayTarget.dispatchEvent(pointerDown)
+
+      expect(pointerDown.defaultPrevented).toBe(false)
+    } finally {
+      portalContainer.remove()
+      overlayTarget.remove()
+    }
+  })
+
   it('closes the open select and shields the parent dialog when the next click lands inside the dialog', () => {
     const portalContainer = createPortalContainer()
     const overlayTarget = document.createElement('div')

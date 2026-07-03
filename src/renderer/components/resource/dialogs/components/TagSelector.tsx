@@ -42,9 +42,15 @@ function isPointerInsideElementBounds(event: PointerEvent | MouseEvent, element:
   )
 }
 
+function getClosestElement(target: EventTarget | null) {
+  if (target instanceof Element) return target
+  if (target instanceof Node) return target.parentElement
+  return null
+}
+
 function isTagSelectSurface(target: EventTarget | null, root: HTMLElement | null) {
-  if (!(target instanceof Element)) return false
-  return Boolean(root?.contains(target) || target.closest(TAG_SELECT_CONTENT_SELECTOR))
+  if (target instanceof Node && root?.contains(target)) return true
+  return Boolean(getClosestElement(target)?.closest(TAG_SELECT_CONTENT_SELECTOR))
 }
 
 export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled, portalContainer }) => {
@@ -66,6 +72,7 @@ export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled,
   }, [allTagNames, value])
 
   const hasTagOptions = tagNames.length > 0
+  const selectOpen = hasTagOptions && open
 
   useEffect(() => {
     if (!portalContainer) return
@@ -116,7 +123,11 @@ export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled,
   }, [portalContainer])
 
   useEffect(() => {
-    if (!open || !portalContainer) return
+    if (!hasTagOptions) setOpen(false)
+  }, [hasTagOptions])
+
+  useEffect(() => {
+    if (!selectOpen || !portalContainer) return
 
     const ownerDocument = portalContainer.ownerDocument
 
@@ -140,13 +151,13 @@ export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled,
     return () => {
       ownerDocument.removeEventListener('pointerdown', closeForInsideDialogPointerDown, true)
     }
-  }, [open, portalContainer])
+  }, [selectOpen, portalContainer])
 
   return (
     <div ref={rootRef} className="group/tag-select relative flex w-full min-w-0 items-center">
       <Select
         disabled={disabled}
-        open={hasTagOptions && open}
+        open={selectOpen}
         value={value ? encodeTagSelectValue(value) : ''}
         onOpenChange={(nextOpen) => setOpen(hasTagOptions && nextOpen)}
         onValueChange={(selectedValue) => onChange(decodeTagSelectValue(selectedValue))}>
