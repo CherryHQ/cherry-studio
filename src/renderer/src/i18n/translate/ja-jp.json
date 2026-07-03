@@ -3176,6 +3176,13 @@
     "generate_failed": "画像の生成に失敗しました",
     "generated_image": "生成画像",
     "go_to_settings": "設定に移動",
+    "gpt_image_custom_size_divisible": "幅と高さは16で割り切れる必要があります",
+    "gpt_image_custom_size_experimental": "2560x1440を超える解像度は実験的で、遅くなったり安定性が低くなったりする場合があります",
+    "gpt_image_custom_size_hint": "幅と高さは16で割り切れ、アスペクト比は1:3から3:1、総ピクセル数は655,360から8,294,400、各辺は最大3840pxである必要があります。",
+    "gpt_image_custom_size_pixels": "総ピクセル数は655,360から8,294,400の間である必要があります",
+    "gpt_image_custom_size_range": "幅と高さは3840px以下の正の整数である必要があります",
+    "gpt_image_custom_size_ratio": "アスペクト比は1:3から3:1の間である必要があります",
+    "gpt_image_custom_size_required": "カスタムの幅と高さを設定してください",
     "guidance_scale": "ガイダンススケール",
     "guidance_scale_tip": "分類器なしのガイダンス。モデルが関連する画像を探す際にプロンプトにどれだけ従うかを制御します",
     "image": {

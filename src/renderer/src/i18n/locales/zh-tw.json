@@ -3177,6 +3177,13 @@
     "generate_failed": "無法生成圖片",
     "generated_image": "產生的圖片",
     "go_to_settings": "前往設定",
+    "gpt_image_custom_size_divisible": "寬度和高度都必須能被 16 整除",
+    "gpt_image_custom_size_experimental": "高於 2560x1440 的解析度屬於實驗性能力，可能較慢或不夠穩定",
+    "gpt_image_custom_size_hint": "寬度和高度都必須能被 16 整除，寬高比需介於 1:3 到 3:1 之間，總像素需介於 655,360 到 8,294,400 之間，單邊最大 3840px。",
+    "gpt_image_custom_size_pixels": "總像素必須介於 655,360 到 8,294,400 之間",
+    "gpt_image_custom_size_range": "寬度和高度必須是正整數，且不超過 3840px",
+    "gpt_image_custom_size_ratio": "寬高比必須介於 1:3 到 3:1 之間",
+    "gpt_image_custom_size_required": "請設定自訂尺寸的寬度和高度",
     "guidance_scale": "引導比例",
     "guidance_scale_tip": "無分類器指導。控制模型在尋找相關影像時對提示詞的遵循程度",
     "image": {

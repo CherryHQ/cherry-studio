@@ -3176,6 +3176,13 @@
     "generate_failed": "Fehler beim Generieren des Bildes",
     "generated_image": "Generiertes Bild",
     "go_to_settings": "Zu Einstellungen",
+    "gpt_image_custom_size_divisible": "Breite und Höhe müssen durch 16 teilbar sein",
+    "gpt_image_custom_size_experimental": "Auflösungen über 2560x1440 sind experimentell und können langsamer oder weniger stabil sein",
+    "gpt_image_custom_size_hint": "Breite und Höhe müssen durch 16 teilbar sein, das Seitenverhältnis muss zwischen 1:3 und 3:1 liegen, die Gesamtpixelzahl zwischen 655.360 und 8.294.400, und jede Seite darf höchstens 3840 px betragen.",
+    "gpt_image_custom_size_pixels": "Die Gesamtpixelzahl muss zwischen 655.360 und 8.294.400 liegen",
+    "gpt_image_custom_size_range": "Breite und Höhe müssen positive ganze Zahlen und höchstens 3840 px sein",
+    "gpt_image_custom_size_ratio": "Das Seitenverhältnis muss zwischen 1:3 und 3:1 liegen",
+    "gpt_image_custom_size_required": "Bitte benutzerdefinierte Breite und Höhe festlegen",
     "guidance_scale": "Guidance-Skala",
     "guidance_scale_tip": "Classifier-free Guidance. Kontrolliert, wie genau das Modell dem Prompt folgt",
     "image": {

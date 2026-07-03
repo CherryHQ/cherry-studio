@@ -20,7 +20,15 @@ import {
   getPaintingsQualityOptionsLabel
 } from '@renderer/i18n/label'
 import PaintingsList from '@renderer/pages/paintings/components/PaintingsList'
-import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from '@renderer/pages/paintings/config/NewApiConfig'
+import {
+  DEFAULT_PAINTING,
+  getNewApiModelConfig,
+  GPT_IMAGE_2_EXPERIMENTAL_PIXELS,
+  isSupportedNewApiModel,
+  MODELS,
+  normalizeGptImage2CustomSize,
+  validateGptImage2CustomSize
+} from '@renderer/pages/paintings/config/NewApiConfig'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
@@ -156,11 +164,11 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const modelOptions = useMemo(() => {
     const customModels = newApiProvider.models
-      .filter((m) => m.endpoint_type && m.endpoint_type === 'image-generation')
+      .filter((m) => m.supported_endpoint_types?.includes('image-generation') || m.endpoint_type === 'image-generation')
       .map((m) => ({
         label: m.name,
         value: m.id,
-        custom: !SUPPORTED_MODELS.includes(m.id),
+        custom: !isSupportedNewApiModel(m.id),
         group: m.group
       }))
     return [...customModels]
@@ -187,13 +195,18 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }, [modelOptions, painting.model, newApiProvider.id])
 
-  const selectedModelConfig = useMemo(
-    () => MODELS.find((m) => m.name === painting.model) || MODELS[0],
-    [painting.model]
-  )
+  const selectedModelConfig = useMemo(() => getNewApiModelConfig(painting.model) || MODELS[0], [painting.model])
+  const imageSizeOptions = useMemo(() => {
+    return selectedModelConfig.imageSizes?.filter((size) => mode === 'openai_image_generate' || size.value !== 'custom')
+  }, [mode, selectedModelConfig.imageSizes])
+  const selectedImageSizeValue = useMemo(() => {
+    return imageSizeOptions?.some((size) => size.value === painting.size) ? painting.size : imageSizeOptions?.[0]?.value
+  }, [imageSizeOptions, painting.size])
+  const isCustomSize =
+    selectedModelConfig.name === 'gpt-image-2' && mode === 'openai_image_generate' && painting.size === 'custom'
 
   const handleModelChange = (value: string) => {
-    const modelConfig = MODELS.find((m) => m.name === value)
+    const modelConfig = getNewApiModelConfig(value) || MODELS[0]
     const updates: Partial<PaintingAction> = { model: value }
 
     // 设置默认值
@@ -205,6 +218,11 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
     if (modelConfig?.moderation?.length) {
       updates.moderation = modelConfig.moderation[0].value
+    } else {
+      updates.moderation = 'auto'
+    }
+    if (modelConfig?.background?.length) {
+      updates.background = modelConfig.background[0].value
     }
     updates.n = 1
     updatePaintingState(updates)
@@ -235,6 +253,52 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         centered: true
       })
     }
+  }
+
+  const handleCustomSizeChange = (value: number | null, dimension: 'width' | 'height') => {
+    updatePaintingState({
+      [dimension === 'width' ? 'customWidth' : 'customHeight']: value ?? undefined
+    })
+  }
+
+  const handleCustomSizeBlur = (dimension: 'width' | 'height') => {
+    const normalizedSize = normalizeGptImage2CustomSize(painting.customWidth, painting.customHeight, dimension)
+
+    if (normalizedSize.width !== painting.customWidth || normalizedSize.height !== painting.customHeight) {
+      updatePaintingState({
+        customWidth: normalizedSize.width,
+        customHeight: normalizedSize.height
+      })
+    }
+  }
+
+  const resolveImageSize = (): string | undefined | null => {
+    if (painting.size !== 'custom') {
+      return painting.size === 'auto' ? undefined : painting.size
+    }
+
+    if (mode === 'openai_image_edit') {
+      return undefined
+    }
+
+    if (selectedModelConfig.name !== 'gpt-image-2') {
+      return undefined
+    }
+
+    const errorKey = validateGptImage2CustomSize(painting.customWidth, painting.customHeight)
+    if (errorKey) {
+      window.modal.error({
+        content: t(errorKey),
+        centered: true
+      })
+      return null
+    }
+
+    if ((painting.customWidth ?? 0) * (painting.customHeight ?? 0) > GPT_IMAGE_2_EXPERIMENTAL_PIXELS) {
+      window.toast.warning(t('paintings.gpt_image_custom_size_experimental'))
+    }
+
+    return `${painting.customWidth}x${painting.customHeight}`
   }
 
   const downloadImages = async (urls: string[]) => {
@@ -293,6 +357,21 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
+    const actualSize = resolveImageSize()
+    if (actualSize === null) {
+      return
+    }
+    const requestBackground =
+      selectedModelConfig.background?.some((background) => background.value === painting.background) &&
+      painting.background !== 'auto'
+        ? painting.background
+        : undefined
+    const requestModeration =
+      selectedModelConfig.moderation?.some((moderation) => moderation.value === painting.moderation) &&
+      painting.moderation !== 'auto'
+        ? painting.moderation
+        : undefined
+
     const controller = new AbortController()
     setAbortController(controller)
     setIsLoading(true)
@@ -316,11 +395,11 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         const requestData = {
           prompt,
           model: painting.model,
-          size: painting.size === 'auto' ? undefined : painting.size,
-          background: painting.background === 'auto' ? undefined : painting.background,
+          size: actualSize,
+          background: requestBackground,
           n: painting.n,
           quality: painting.quality === 'auto' ? undefined : painting.quality,
-          moderation: painting.moderation === 'auto' ? undefined : painting.moderation
+          moderation: requestModeration
         }
 
         body = JSON.stringify(requestData)
@@ -335,20 +414,20 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         const formData = new FormData()
         formData.append('prompt', prompt)
         formData.append('model', painting.model)
-        if (painting.background && painting.background !== 'auto') {
-          formData.append('background', painting.background)
+        if (requestBackground) {
+          formData.append('background', requestBackground)
         }
 
-        if (painting.size && painting.size !== 'auto') {
-          formData.append('size', painting.size)
+        if (actualSize) {
+          formData.append('size', actualSize)
         }
 
         if (painting.quality && painting.quality !== 'auto') {
           formData.append('quality', painting.quality)
         }
 
-        if (painting.moderation && painting.moderation !== 'auto') {
-          formData.append('moderation', painting.moderation)
+        if (requestModeration) {
+          formData.append('moderation', requestModeration)
         }
 
         // append images
@@ -567,6 +646,12 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }, [])
 
+  useEffect(() => {
+    if (mode === 'openai_image_edit' && painting.size === 'custom') {
+      updatePaintingState({ size: 'auto' })
+    }
+  }, [mode, painting.size, updatePaintingState])
+
   // if painting.model is not set, set it to the first model in modelOptions
   useEffect(() => {
     if (!painting.model && modelOptions.length > 0) {
@@ -675,16 +760,48 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               </Select>
 
               {/* Image Size */}
-              {selectedModelConfig?.imageSizes && selectedModelConfig.imageSizes.length > 0 && (
+              {imageSizeOptions && imageSizeOptions.length > 0 && (
                 <>
                   <SettingTitle>{t('paintings.image.size')}</SettingTitle>
-                  <Select value={painting.size} onChange={handleSizeChange} style={{ width: '100%', marginBottom: 15 }}>
-                    {selectedModelConfig.imageSizes.map((s) => (
+                  <Select
+                    value={selectedImageSizeValue}
+                    onChange={handleSizeChange}
+                    style={{ width: '100%', marginBottom: 15 }}>
+                    {imageSizeOptions.map((s) => (
                       <Select.Option value={s.value} key={s.value}>
                         {getPaintingsImageSizeOptionsLabel(s.value) ?? s.value}
                       </Select.Option>
                     ))}
                   </Select>
+                  {isCustomSize && (
+                    <CustomSizeContainer>
+                      <CustomSizeRow>
+                        <InputNumber
+                          placeholder="W"
+                          value={painting.customWidth}
+                          controls={false}
+                          min={16}
+                          max={3840}
+                          step={16}
+                          onChange={(value) => handleCustomSizeChange(value, 'width')}
+                          onBlur={() => handleCustomSizeBlur('width')}
+                        />
+                        <CustomSizeSeparator>x</CustomSizeSeparator>
+                        <InputNumber
+                          placeholder="H"
+                          value={painting.customHeight}
+                          controls={false}
+                          min={16}
+                          max={3840}
+                          step={16}
+                          onChange={(value) => handleCustomSizeChange(value, 'height')}
+                          onBlur={() => handleCustomSizeBlur('height')}
+                        />
+                        <CustomSizeUnit>px</CustomSizeUnit>
+                      </CustomSizeRow>
+                      <CustomSizeHint>{t('paintings.gpt_image_custom_size_hint')}</CustomSizeHint>
+                    </CustomSizeContainer>
+                  )}
                 </>
               )}
 
@@ -889,6 +1006,41 @@ const ToolbarMenu = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 6px;
+`
+
+const CustomSizeContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: -5px 0 15px;
+`
+
+const CustomSizeRow = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+
+  .ant-input-number {
+    flex: 1;
+    min-width: 0;
+  }
+`
+
+const CustomSizeSeparator = styled.span`
+  color: var(--color-text-2);
+  font-size: 12px;
+`
+
+const CustomSizeUnit = styled.span`
+  color: var(--color-text-3);
+  font-size: 11px;
+`
+
+const CustomSizeHint = styled.div`
+  color: var(--color-text-3);
+  font-size: 12px;
+  line-height: 1.4;
 `
 
 const ProviderLogo = styled(Avatar)`

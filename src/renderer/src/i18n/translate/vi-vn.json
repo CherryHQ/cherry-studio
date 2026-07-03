@@ -3176,6 +3176,13 @@
     "generate_failed": "Không thể tạo hình ảnh",
     "generated_image": "Hình ảnh được tạo",
     "go_to_settings": "Đi tới Cài đặt",
+    "gpt_image_custom_size_divisible": "Chiều rộng và chiều cao phải chia hết cho 16",
+    "gpt_image_custom_size_experimental": "Độ phân giải trên 2560x1440 là thử nghiệm và có thể chậm hơn hoặc kém ổn định hơn",
+    "gpt_image_custom_size_hint": "Chiều rộng và chiều cao phải chia hết cho 16, tỷ lệ khung hình phải từ 1:3 đến 3:1, tổng số pixel từ 655.360 đến 8.294.400 và mỗi cạnh tối đa 3840px.",
+    "gpt_image_custom_size_pixels": "Tổng số pixel phải từ 655.360 đến 8.294.400",
+    "gpt_image_custom_size_range": "Chiều rộng và chiều cao phải là số nguyên dương không vượt quá 3840px",
+    "gpt_image_custom_size_ratio": "Tỷ lệ khung hình phải nằm trong khoảng 1:3 đến 3:1",
+    "gpt_image_custom_size_required": "Vui lòng đặt chiều rộng và chiều cao tùy chỉnh",
     "guidance_scale": "Thang đo hướng dẫn",
     "guidance_scale_tip": "Hướng dẫn Không Phân loại. Mức độ bạn muốn mô hình tuân thủ sát prompt của bạn khi tìm kiếm một hình ảnh liên quan để hiển thị cho bạn",
     "image": {
