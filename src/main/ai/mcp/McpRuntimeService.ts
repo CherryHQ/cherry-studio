@@ -8,7 +8,7 @@ import { loggerService } from '@logger'
 import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
-import { getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
+import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv } from '@main/utils/commandResolver'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
@@ -72,11 +72,6 @@ export const McpCallToolPayloadSchema = z.object({
   name: z.string().min(1),
   args: z.unknown().optional(),
   callId: z.string().optional()
-})
-export const McpGetPromptPayloadSchema = z.object({
-  serverId: z.string().min(1),
-  name: z.string().min(1),
-  args: z.record(z.string(), z.unknown()).optional()
 })
 export const McpGetResourcePayloadSchema = z.object({
   serverId: z.string().min(1),
@@ -214,16 +209,10 @@ export class McpRuntimeService extends BaseService {
     this.ipcHandle(IpcChannel.Mcp_RefreshTools, async (_e, serverId: string) => {
       await application.get('McpCatalogService').refreshTools(serverId)
     })
-    this.ipcHandle(IpcChannel.Mcp_CallTool, (_e, args) =>
-      this.callTool(McpCallToolPayloadSchema.parse(args) as CallToolArgs)
-    )
     this.ipcHandle(IpcChannel.Mcp_ListPrompts, (_e, serverId) => this.listPrompts(NonEmptyStringSchema.parse(serverId)))
-    this.ipcHandle(IpcChannel.Mcp_GetPrompt, (_e, args) => this.getPrompt(McpGetPromptPayloadSchema.parse(args)))
     this.ipcHandle(IpcChannel.Mcp_ListResources, (_e, serverId) =>
       this.listResources(NonEmptyStringSchema.parse(serverId))
     )
-    this.ipcHandle(IpcChannel.Mcp_GetResource, (_e, args) => this.getResource(McpGetResourcePayloadSchema.parse(args)))
-    this.ipcHandle(IpcChannel.Mcp_GetInstallInfo, () => this.getInstallInfo())
     this.ipcHandle(IpcChannel.Mcp_CheckConnectivity, (_e, serverId) =>
       this.checkMcpConnectivity(NonEmptyStringSchema.parse(serverId))
     )
@@ -1102,15 +1091,6 @@ export class McpRuntimeService extends BaseService {
       (_recorded: typeof tracedInput) => callToolFunc({ server, name, args }),
       [tracedInput]
     )
-  }
-
-  public async getInstallInfo() {
-    const dir = await getBinaryPath()
-    const uvName = getBinaryName('uv')
-    const bunName = getBinaryName('bun')
-    const uvPath = path.join(dir, uvName)
-    const bunPath = path.join(dir, bunName)
-    return { dir, uvPath, bunPath }
   }
 
   /**

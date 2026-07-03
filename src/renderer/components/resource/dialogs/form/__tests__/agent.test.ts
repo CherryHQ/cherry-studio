@@ -1,4 +1,4 @@
-import type { AgentDetail } from '@renderer/pages/library/types'
+import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { describe, expect, it } from 'vitest'
 
 import {

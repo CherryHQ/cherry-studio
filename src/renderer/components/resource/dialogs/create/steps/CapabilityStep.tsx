@@ -1,6 +1,6 @@
 import { Button, Input } from '@cherrystudio/ui'
 import { type CatalogItem, CatalogToggleGrid } from '@renderer/components/resource/dialogs/components/CatalogPicker'
-import { ImportSkillDialog } from '@renderer/components/resource/dialogs/ImportSkillDialog'
+import { ImportSkillDialog } from '@renderer/components/resource/dialogs/import/ImportSkillDialog'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { Download, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
