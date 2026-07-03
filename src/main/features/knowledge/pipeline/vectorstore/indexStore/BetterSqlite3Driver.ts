@@ -58,12 +58,17 @@ function toBindable(value: SqlValue): Bindable {
  */
 export class BetterSqlite3Driver implements SqliteDriver {
   private closed = false
+  private readonly stmtCache = new Map<string, Database.Statement>()
 
   constructor(private readonly db: Database.Database) {}
 
   execute(sql: string, args: SqlValue[] = []): SqlQueryResult {
     this.assertOpen()
-    const stmt = this.db.prepare(sql)
+    let stmt = this.stmtCache.get(sql)
+    if (!stmt) {
+      stmt = this.db.prepare(sql)
+      this.stmtCache.set(sql, stmt)
+    }
     const bound = args.map(toBindable)
     // `reader` is true for statements that yield rows (SELECT, row-returning PRAGMA).
     // run() throws on those and all() throws on non-row statements, so split on it.
