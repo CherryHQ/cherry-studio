@@ -445,6 +445,44 @@ describe('MessagePartsRenderer', () => {
     expect(screen.getByTestId('mock-attachments').getAttribute('data-file-name')).toBe('doc.pdf')
   })
 
+  it('keeps user file attachments when composer file token prompt text is stale', () => {
+    renderParts(
+      [
+        {
+          type: 'text',
+          text: 'Open latest',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'file:doc.pdf',
+                    kind: 'file',
+                    label: 'doc.pdf',
+                    index: 0,
+                    textOffset: 5,
+                    promptText: 'doc.pdf'
+                  }
+                ]
+              }
+            }
+          }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///doc.pdf',
+          mediaType: 'application/pdf',
+          filename: 'doc.pdf'
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(document.querySelector('[data-composer-token-kind="file"]')).not.toBeInTheDocument()
+    expect(screen.getByTestId('mock-attachments').getAttribute('data-file-name')).toBe('doc.pdf')
+  })
+
   // -- tool (single) --
   it('renders single dynamic-tool via MessageTools', () => {
     renderParts([

@@ -228,22 +228,38 @@ function isResultPart(part: CherryMessagePart): boolean {
   return isSummaryMessagePart(part) || partType === 'data-error' || partType === 'file' || partType === 'data-video'
 }
 
-function hasVisibleComposerFileToken(parts: readonly CherryMessagePart[]): boolean {
-  return parts.some((part) => {
-    if ((part.type as string) !== 'text') return false
+function getVisibleComposerFileTokenCount(parts: readonly CherryMessagePart[]): number {
+  return parts.reduce((count, part) => {
+    if ((part.type as string) !== 'text') return count
     const composer = getCherryMeta(part)?.composer
-    return composer ? getDisplayComposerTokens(composer).some((token) => token.kind === 'file') : false
-  })
+    if (!composer) return count
+    const text = (part as { text?: string }).text ?? ''
+    return (
+      count +
+      getDisplayComposerTokens(composer).filter((token) => {
+        if (token.kind !== 'file') return false
+        if (!token.promptText) return true
+        const offset = Math.max(0, Math.min(text.length, token.textOffset))
+        return text.slice(offset, offset + token.promptText.length) === token.promptText
+      }).length
+    )
+  }, 0)
 }
 
-function shouldHideUserFileAttachmentEntry(
-  entry: PartEntry,
+function getDisplayEntries(
+  entries: readonly PartEntry[],
   message: MessageListItem,
-  hasComposerFileToken: boolean
-): boolean {
-  if (message.role !== 'user' || !hasComposerFileToken) return false
-  if ((entry.part.type as string) !== 'file' || isImageFilePart(entry.part)) return false
-  return true
+  visibleComposerFileTokenCount: number
+): PartEntry[] {
+  if (message.role !== 'user' || visibleComposerFileTokenCount === 0) return [...entries]
+
+  let hiddenAttachmentCount = 0
+  return entries.filter((entry) => {
+    if ((entry.part.type as string) !== 'file' || isImageFilePart(entry.part)) return true
+    if (hiddenAttachmentCount >= visibleComposerFileTokenCount) return true
+    hiddenAttachmentCount += 1
+    return false
+  })
 }
 
 /**
@@ -729,10 +745,10 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   // Everything not folded into the history group renders flat: the answer after
   // the fold, or all parts when there's no fold (no tools / collapse disabled).
   const visibleEntries = toolHistoryGroup?.resultEntries ?? partEntries
-  const hasComposerFileToken = useMemo(() => hasVisibleComposerFileToken(messageParts), [messageParts])
+  const visibleComposerFileTokenCount = useMemo(() => getVisibleComposerFileTokenCount(messageParts), [messageParts])
   const displayEntries = useMemo(
-    () => visibleEntries.filter((entry) => !shouldHideUserFileAttachmentEntry(entry, message, hasComposerFileToken)),
-    [hasComposerFileToken, message, visibleEntries]
+    () => getDisplayEntries(visibleEntries, message, visibleComposerFileTokenCount),
+    [message, visibleComposerFileTokenCount, visibleEntries]
   )
   const grouped = useMemo(() => (displayEntries.length === 0 ? [] : groupPartEntries(displayEntries)), [displayEntries])
 
