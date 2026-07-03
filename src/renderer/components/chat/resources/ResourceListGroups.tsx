@@ -64,20 +64,31 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
       ref={ref}
       style={style}
       className={cn(
-        'group/resource-list-section flex w-full items-end px-0.5 pb-[2px]',
+        'group/resource-list-section flex w-full items-center text-foreground text-sm',
         RESOURCE_LIST_ROW_HEIGHT_CLASS,
         className
       )}
       {...props}>
-      <div className="flex h-9 w-full items-center gap-1 px-1.5 text-muted-foreground">
+      <div
+        className={cn(
+          'flex w-full items-center gap-1.5 px-2.5 text-muted-foreground transition-colors duration-150',
+          RESOURCE_LIST_VISUAL_ROW_CLASS,
+          RESOURCE_LIST_INTERACTIVE_ROW_CLASS
+        )}>
         <button
           type="button"
           aria-expanded={!collapsed}
-          className="flex h-full min-w-0 flex-1 items-center gap-1 text-left outline-none focus-visible:text-foreground"
+          className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none focus-visible:text-foreground"
           onClick={() => actions.toggleGroup(section.id)}>
           <span className="min-w-0 truncate text-left font-semibold text-[13px] text-inherit leading-5">
             {section.label}
           </span>
+          <ChevronRight
+            aria-hidden="true"
+            size={11}
+            className="hidden shrink-0 text-muted-foreground/60 transition-transform duration-150 group-focus-within/resource-list-section:block group-hover/resource-list-section:block"
+            style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
+          />
         </button>
         {sectionHeaderAction && (
           <div

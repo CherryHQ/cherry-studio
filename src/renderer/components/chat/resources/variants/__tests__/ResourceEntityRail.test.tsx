@@ -333,6 +333,33 @@ describe('ResourceEntityRail', () => {
     expect(screen.getByRole('listbox', { name: 'Assistants list' })).toHaveAttribute('data-draggable', 'false')
   })
 
+  it('renders tag section headers with the shared hover and collapse affordance', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        defaultGroupLabel="Assistants"
+        groupByTag
+        items={[
+          { id: 'work-a', name: 'Work A', icon: <span />, tag: 'work' },
+          { id: 'home-a', name: 'Home A', icon: <span />, tag: 'home' }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    const workHeader = screen.getByRole('button', { name: 'work' })
+    const visualRow = workHeader.closest('div')
+
+    expect(visualRow).toHaveClass('hover:bg-sidebar-accent', 'rounded-lg')
+    expect(workHeader.querySelector('svg')).not.toBeNull()
+
+    fireEvent.click(workHeader)
+    expect(workHeader).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('keeps a real tag named like the untagged sentinel separate from untagged entities', () => {
     render(
       <ResourceEntityRail
