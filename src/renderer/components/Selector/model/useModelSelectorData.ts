@@ -195,28 +195,6 @@ export function useModelSelectorData({
     [modelsByProvider, searchText]
   )
 
-  const filteredModelsByProvider = useMemo(() => {
-    const nextFilteredModels = new Map<string, Model[]>()
-
-    sortedProviders.forEach((provider) => {
-      const filteredModels = searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model)))
-      nextFilteredModels.set(provider.id, filteredModels)
-    })
-
-    return nextFilteredModels
-  }, [searchFilter, showTagFilter, sortedProviders, tagFilter])
-
-  const duplicateNamesByProvider = useMemo(
-    () =>
-      new Map(
-        sortedProviders.map((provider) => [
-          provider.id,
-          getDuplicateModelNames(filteredModelsByProvider.get(provider.id) ?? [])
-        ])
-      ),
-    [filteredModelsByProvider, sortedProviders]
-  )
-
   const createModelItem = useCallback(
     (model: Model, provider: Provider, isPinned: boolean, showIdentifier: boolean): ModelSelectorModelItem => {
       const modelId = model.id
@@ -313,10 +291,10 @@ export function useModelSelectorData({
     const selectableModelItems = items.filter((item): item is ModelSelectorModelItem => item.type === 'model')
     return { listItems: items, modelItems: selectableModelItems }
   }, [
+    baseModelFilter,
     createModelItem,
-    duplicateNamesByProvider,
-    filteredModelsByProvider,
     pinnedIds,
+    searchFilter,
     selectableModelsById,
     searchText.length,
     showPinnedModels,
