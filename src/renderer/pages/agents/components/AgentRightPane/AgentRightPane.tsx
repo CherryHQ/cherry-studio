@@ -429,7 +429,7 @@ function AgentFilePreviewPanel({ preview }: { preview: AgentFilePreviewTab }) {
   return (
     <div
       className={cn(
-        'h-full min-h-0 bg-card text-card-foreground',
+        'h-full min-h-0 text-card-foreground',
         isFramedFilePreview(preview.filePath) ? 'overflow-hidden' : 'overflow-auto'
       )}>
       <ArtifactFilePreview

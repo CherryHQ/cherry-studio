@@ -1,5 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
+import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
 import { ResourceList, useResourceListActions, useResourceListRowState } from '@renderer/components/chat/resources'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -45,6 +46,8 @@ const SessionItem = ({
   session
 }: SessionItemProps) => {
   const { t } = useTranslation()
+  const shellState = useOptionalShellState()
+  const shellActions = useOptionalShellActions()
   const actions = useResourceListActions()
   const rowState = useResourceListRowState(session.id)
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
@@ -162,10 +165,11 @@ const SessionItem = ({
         handleOpenInNewTab()
         return
       }
+      if (shellState?.maximized) shellActions?.minimize()
       onPress(session.id)
       onSelectItem?.()
     },
-    [active, handleOpenInNewTab, onOpenInNewTab, onPress, onSelectItem, session.id]
+    [active, handleOpenInNewTab, onOpenInNewTab, onPress, onSelectItem, session.id, shellActions, shellState?.maximized]
   )
 
   const handleAuxClick = useCallback(

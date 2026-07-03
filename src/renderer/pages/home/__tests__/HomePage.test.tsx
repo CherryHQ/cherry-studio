@@ -463,8 +463,23 @@ vi.mock('../components/ChatNavbar', () => ({
 }))
 
 vi.mock('../Tabs', () => ({
-  default: ({ onOpenHistoryRecords, resourceMenuItems, revealRequest }: any) => (
+  default: ({ onOpenHistoryRecords, onSelectItem, resourceMenuItems, revealRequest, setActiveTopic }: any) => (
     <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs">
+      <button
+        type="button"
+        onClick={() => {
+          setActiveTopic?.({
+            id: 'topic-next',
+            assistantId: 'assistant-default',
+            name: 'Topic Next',
+            messages: [],
+            createdAt: '2026-01-02T00:00:00.000Z',
+            updatedAt: '2026-01-02T00:00:00.000Z'
+          })
+          onSelectItem?.()
+        }}>
+        Select topic next
+      </button>
       <button type="button" onClick={() => onOpenHistoryRecords?.()}>
         Open history records
       </button>
@@ -1141,6 +1156,17 @@ describe('HomePage', () => {
     expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
 
     fireEvent.click(screen.getByRole('button', { name: 'Collapse pane' }))
+
+    await waitFor(() => expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false))
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+  })
+
+  it('collapses the topic sidebar after selecting a topic from the sidebar', async () => {
+    homeMocks.preferenceValues.set('topic.tab.show', true)
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select topic next' }))
 
     await waitFor(() => expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false))
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')

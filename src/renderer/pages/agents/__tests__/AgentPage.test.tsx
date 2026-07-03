@@ -458,6 +458,7 @@ vi.mock('../AgentSidePanel', () => ({
   default: ({
     activeSessionId,
     onOpenHistoryRecords,
+    onSelectItem,
     onStartDraftSession,
     onStartMissingAgentDraft,
     revealRequest,
@@ -471,7 +472,7 @@ vi.mock('../AgentSidePanel', () => ({
         data-testid="agent-side-panel">
         <button
           type="button"
-          onClick={() =>
+          onClick={() => {
             setActiveSessionId?.('session-next', {
               id: 'session-next',
               agentId: 'agent-a',
@@ -483,7 +484,8 @@ vi.mock('../AgentSidePanel', () => ({
               createdAt: '2026-01-02T00:00:00.000Z',
               updatedAt: '2026-01-02T00:00:00.000Z'
             })
-          }>
+            onSelectItem?.()
+          }}>
           Select session next
         </button>
         <button type="button" onClick={() => onOpenHistoryRecords?.()}>
@@ -1344,6 +1346,17 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
 
     fireEvent.click(screen.getByRole('button', { name: 'Collapse pane' }))
+
+    await waitFor(() => expect(agentPageMocks.setShowSidebar).toHaveBeenCalledWith(false))
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+  })
+
+  it('collapses the agent sidebar after selecting a session from the sidebar', async () => {
+    agentPageMocks.showSidebar = true
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select session next' }))
 
     await waitFor(() => expect(agentPageMocks.setShowSidebar).toHaveBeenCalledWith(false))
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')

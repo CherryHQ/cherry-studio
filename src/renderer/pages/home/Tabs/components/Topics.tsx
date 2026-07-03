@@ -6,6 +6,7 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
+import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
 import {
   type ConversationResourceMenuItem,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
@@ -89,6 +90,7 @@ interface Props {
   assistantIdFilter?: string | null
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onSelectItem?: () => void
   presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
@@ -189,6 +191,7 @@ export function Topics({
   assistantIdFilter,
   onNewTopic,
   onOpenHistoryRecords,
+  onSelectItem,
   presentation = 'sidebar',
   revealRequest,
   resourceMenuItems,
@@ -1109,6 +1112,7 @@ export function Topics({
           onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}
           onPinTopic={handlePinTopic}
           onRequestTopicImageAction={handleTopicImageAction}
+          onSelectItem={onSelectItem}
           onSwitchTopic={setActiveTopic}
           topicsLength={topics.length}
           variant={isAssistantDisplayMode && !isRightPanel ? 'draggable' : 'plain'}
@@ -1220,6 +1224,7 @@ interface TopicListBodyProps {
   onOpenInNewWindow?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>
   onRequestTopicImageAction: (type: TopicImageActionType, topic: Topic) => void
+  onSelectItem?: () => void
   onSwitchTopic: (topic: Topic) => void
   topicsLength: number
   variant: TopicListBodyVariant
@@ -1248,6 +1253,7 @@ function TopicListBody(props: TopicListBodyProps) {
     onOpenInNewWindow,
     onPinTopic,
     onRequestTopicImageAction,
+    onSelectItem,
     onSwitchTopic,
     topicsLength,
     variant
@@ -1272,6 +1278,7 @@ function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewWindow,
       onPinTopic,
       onRequestTopicImageAction,
+      onSelectItem,
       onSwitchTopic,
       topicsLength
     }),
@@ -1293,6 +1300,7 @@ function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewWindow,
       onPinTopic,
       onRequestTopicImageAction,
+      onSelectItem,
       onSwitchTopic,
       topicsLength
     ]
@@ -1344,11 +1352,14 @@ function TopicRow({
   onOpenInNewWindow,
   onPinTopic,
   onRequestTopicImageAction,
+  onSelectItem,
   onSwitchTopic,
   topic,
   topicsLength
 }: TopicRowProps) {
   const { t } = useTranslation()
+  const shellState = useOptionalShellState()
+  const shellActions = useOptionalShellActions()
   const actions = useResourceListActions()
   const rowState = useResourceListRowState(topic.id)
   const streamStatus = useTopicListStreamStatus(topic.id)
@@ -1411,7 +1422,9 @@ function TopicRow({
       className="relative"
       style={{ cursor: 'pointer' }}
       onClick={() => {
+        if (shellState?.maximized) shellActions?.minimize()
         onSwitchTopic(topic)
+        onSelectItem?.()
       }}>
       {showLeadingSlot && <ResourceList.ItemLeadingSlot className="relative" />}
       <ResourceList.RenameField

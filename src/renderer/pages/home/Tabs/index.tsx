@@ -10,6 +10,7 @@ interface Props {
   activeTopic?: Topic
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onSelectItem?: () => void
   setActiveTopic: (topic: Topic) => void
   revealRequest?: ResourceListRevealRequest
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
@@ -20,6 +21,7 @@ const HomeTabs: FC<Props> = ({
   activeTopic,
   onNewTopic,
   onOpenHistoryRecords,
+  onSelectItem,
   setActiveTopic,
   revealRequest,
   resourceMenuItems,
@@ -33,6 +35,7 @@ const HomeTabs: FC<Props> = ({
           setActiveTopic={setActiveTopic}
           onNewTopic={onNewTopic}
           onOpenHistoryRecords={onOpenHistoryRecords}
+          onSelectItem={onSelectItem}
           revealRequest={revealRequest}
           resourceMenuItems={resourceMenuItems}
         />

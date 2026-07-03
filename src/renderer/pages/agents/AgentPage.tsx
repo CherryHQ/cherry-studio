@@ -704,6 +704,9 @@ const AgentPage = () => {
     },
     [closeResourceView, conversationNav, currentTabId, setActiveSessionAndDiscardDraft]
   )
+  const collapseSidebarAfterSessionSelect = useCallback(() => {
+    if (effectiveShowSidebar) setResourceListOpen(false)
+  }, [effectiveShowSidebar, setResourceListOpen])
   // Classic-layout reset after deleting the active agent: select the latest remaining
   // session (across other agents), or clear to the empty state. Never open the
   // draft compose — that belongs to the modern layout. Filter by the deleted id so
@@ -955,6 +958,7 @@ const AgentPage = () => {
       activeSessionId={activeSessionId}
       revealRequest={sessionRevealRequest}
       onOpenHistoryRecords={openHistoryRecords}
+      onSelectItem={collapseSidebarAfterSessionSelect}
       onStartDraftSession={startDraftSession}
       onStartMissingAgentDraft={isMessageOnlyView ? undefined : startMissingAgentDraft}
       resourceMenuItems={resourceMenuItems}

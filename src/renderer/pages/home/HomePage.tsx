@@ -677,6 +677,9 @@ const HomePage: FC = () => {
   const handleGlobalSearchTopicSelect = useEffectEvent((topic: Topic, messageId?: string) => {
     handleHistoryTopicSelect(topic, messageId)
   })
+  const collapseSidebarAfterTopicSelect = useCallback(() => {
+    if (effectiveShowSidebar) setResourceListOpen(false)
+  }, [effectiveShowSidebar, setResourceListOpen])
 
   useEffect(() => {
     const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, (topic) => {
@@ -769,6 +772,7 @@ const HomePage: FC = () => {
       setActiveTopic={setActiveTopicAndDiscardDraft}
       onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
       onOpenHistoryRecords={openHistoryRecords}
+      onSelectItem={collapseSidebarAfterTopicSelect}
       revealRequest={topicRevealRequest}
       resourceMenuItems={resourceMenuItems}
     />

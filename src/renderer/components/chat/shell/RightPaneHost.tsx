@@ -157,7 +157,7 @@ export function RightPaneHost({
           data-resizing={isResizing || undefined}
           className={cn(
             'group/right-pane h-full min-h-0 shrink-0 overflow-hidden',
-            resizable && 'relative bg-card [border-left:0.5px_solid_var(--color-border)]',
+            resizable && 'relative [border-left:0.5px_solid_var(--color-border)]',
             className
           )}
           style={constrainedStyle}>
