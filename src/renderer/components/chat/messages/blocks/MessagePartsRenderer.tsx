@@ -689,12 +689,13 @@ function getToolHistoryGroup(
 
   const singleReasoningGroup = getLeadingSingleReasoningGroup(entries)
   if (singleReasoningGroup) {
+    const reasoningPart = singleReasoningGroup.collapsedEntries[0].part as ReasoningUIPart
     return {
       collapsedEntries: singleReasoningGroup.collapsedEntries,
       resultEntries: singleReasoningGroup.resultEntries,
       toolCount: 0,
       hasResult: singleReasoningGroup.resultEntries.some((entry) => isResultPart(entry.part)),
-      hasLiveProcessTail: isActiveTurnProcessing,
+      hasLiveProcessTail: isActiveTurnProcessing && reasoningPart.state === 'streaming',
       summaryType: 'thinking'
     }
   }
@@ -1046,7 +1047,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
             isProcessing={isActiveTurnProcessing}
             summary={
               toolHistoryGroup.summaryType === 'thinking'
-                ? t(isActiveTurnProcessing ? 'message.tools.thinkingHeader' : 'common.reasoning_content')
+                ? t(toolHistoryGroup.hasLiveProcessTail ? 'message.tools.thinkingHeader' : 'common.reasoning_content')
                 : t('message.tools.groupHeader', { count: toolHistoryGroup.toolCount })
             }
           />

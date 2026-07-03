@@ -1304,6 +1304,22 @@ describe('MessagePartsRenderer', () => {
     expect(screen.getByTestId('mock-markdown')).toHaveTextContent('final answer text')
   })
 
+  it('does not show a live thinking header after single leading reasoning has completed', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts(
+      [
+        { type: 'reasoning', text: 'completed thought before answer', state: 'done' },
+        { type: 'text', text: 'streaming answer text' }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    const foldButton = screen.getByRole('button', { name: 'Reasoning content' })
+    expect(foldButton.querySelector('[data-live="false"]')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Thinking... · 1 second' })).not.toBeInTheDocument()
+  })
+
   it('marks consecutive reasoning blocks for consistent spacing', () => {
     renderParts([
       { type: 'reasoning', text: 'first thought', state: 'done' },
