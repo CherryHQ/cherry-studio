@@ -24,7 +24,7 @@ import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges
 
 import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
 import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
-import { classifyKnowledgeItemSource, isContainerKnowledgeItem } from '../items'
+import { classifyKnowledgeItemSource } from '../items'
 import {
   assertKnowledgeFileTargetAvailable,
   collectKnowledgeReservedRelativePaths,
@@ -147,13 +147,8 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
           if (createInput.type === 'file' || (createInput.type === 'url' && createInput.data.relativePath)) {
             copiedFileItems.push(createInput)
           }
-          const createdItem = knowledgeItemService.create(base.id, createInput)
+          const createdItem = knowledgeItemService.createActive(base.id, createInput)
           acceptedItems.push(createdItem)
-          const activeItem = knowledgeItemService.updateStatus(
-            createdItem.id,
-            isContainerKnowledgeItem(createdItem) ? 'preparing' : 'processing'
-          )
-          acceptedItems[acceptedItems.length - 1] = activeItem
         }
       } catch (error) {
         this.rollbackAcceptedItems(base.id, acceptedItems, error)

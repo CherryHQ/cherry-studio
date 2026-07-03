@@ -7,7 +7,7 @@ import {
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
 
-import { type IndexableKnowledgeItem, isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
+import { type IndexableKnowledgeItem, isIndexableKnowledgeItem } from '../items'
 import { collectKnowledgeReservedRelativePaths } from '../pathStorage'
 import { expandDirectoryOwnerToTree, type ExpandedDirectoryNode } from '../pipeline/sources/directory'
 
@@ -129,12 +129,8 @@ async function createRuntimeItem<T extends KnowledgeItemType>(
   signal: AbortSignal
 ): Promise<KnowledgeItemOf<T>> {
   signal.throwIfAborted()
-  const createdItem = knowledgeItemService.create(baseId, item)
-
-  const processingItem = isContainerKnowledgeItem(createdItem)
-    ? knowledgeItemService.updateStatus(createdItem.id, 'preparing')
-    : knowledgeItemService.updateStatus(createdItem.id, 'processing')
+  const createdItem = knowledgeItemService.createActive(baseId, item)
   signal.throwIfAborted()
 
-  return processingItem as KnowledgeItemOf<T>
+  return createdItem as KnowledgeItemOf<T>
 }

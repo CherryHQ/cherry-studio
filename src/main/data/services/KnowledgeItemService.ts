@@ -245,7 +245,9 @@ export class KnowledgeItemService {
     return updatedRows.length
   }
 
-  create(baseId: string, item: CreateKnowledgeItemDto): KnowledgeItem {
+  /** Create an item already in its active status (`preparing` for a directory container, `processing` for a leaf) and reconcile its parent container so an add into an already-completed directory pulls it back into an active status. */
+  createActive(baseId: string, item: CreateKnowledgeItemDto): KnowledgeItem {
+    const status: KnowledgeItemStatus = item.type === 'directory' ? 'preparing' : 'processing'
     const dbService = application.get('DbService')
     const row = dbService.withWriteTx((tx) => {
       this.validateGroupOwnerTx(tx, baseId, item.groupId)
@@ -259,7 +261,7 @@ export class KnowledgeItemService {
               groupId: item.groupId ?? null,
               type: item.type,
               data: item.data,
-              status: 'idle',
+              status,
               error: null
             })
             .returning()
@@ -289,7 +291,8 @@ export class KnowledgeItemService {
       return insertedRow
     })
 
-    logger.info('Created knowledge item', { baseId, id: row.id, type: row.type })
+    this.reconcileContainers(baseId, [row.id, row.groupId])
+    logger.info('Created active knowledge item', { baseId, id: row.id, type: row.type, status })
     return rowToKnowledgeItem(row)
   }
 
@@ -508,7 +511,7 @@ export class KnowledgeItemService {
     }
 
     const dbService = application.get('DbService')
-    const { item, startContainerIds } = dbService.withWriteTx((tx) => {
+    const { item, startContainerIds, blocked } = dbService.withWriteTx((tx) => {
       const [existingRow] = tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1).all()
 
       if (!existingRow) {
@@ -518,7 +521,8 @@ export class KnowledgeItemService {
       if (existingRow.status === 'deleting' && status !== 'deleting') {
         return {
           item: rowToKnowledgeItem(existingRow),
-          startContainerIds: []
+          startContainerIds: [],
+          blocked: true
         }
       }
 
@@ -541,12 +545,17 @@ export class KnowledgeItemService {
         startContainerIds:
           status === 'failed' && updatedRow.type === 'directory'
             ? [existingRow.groupId]
-            : [updatedRow.id, existingRow.groupId]
+            : [updatedRow.id, existingRow.groupId],
+        blocked: false
       }
     })
 
-    this.reconcileContainers(item.baseId, startContainerIds)
-    logger.info('Updated knowledge item status', { id, status })
+    if (blocked) {
+      logger.warn('Skipped status update for deleting item', { id, attemptedStatus: status })
+    } else {
+      this.reconcileContainers(item.baseId, startContainerIds)
+      logger.info('Updated knowledge item status', { id, status })
+    }
     return item
   }
 

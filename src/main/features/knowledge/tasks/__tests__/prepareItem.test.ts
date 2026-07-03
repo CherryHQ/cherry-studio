@@ -3,14 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   expandDirectoryOwnerToTreeMock,
-  knowledgeItemCreateMock,
+  knowledgeItemCreateActiveMock,
   knowledgeItemUpdateStatusMock,
   knowledgeItemUpdateDirectoryRelativePathMock,
   knowledgeItemGetItemsByBaseIdMock,
   loggerWarnMock
 } = vi.hoisted(() => ({
   expandDirectoryOwnerToTreeMock: vi.fn(),
-  knowledgeItemCreateMock: vi.fn(),
+  knowledgeItemCreateActiveMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
   knowledgeItemUpdateDirectoryRelativePathMock: vi.fn(),
   knowledgeItemGetItemsByBaseIdMock: vi.fn(),
@@ -19,7 +19,7 @@ const {
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
-    create: knowledgeItemCreateMock,
+    createActive: knowledgeItemCreateActiveMock,
     updateStatus: knowledgeItemUpdateStatusMock,
     updateDirectoryRelativePath: knowledgeItemUpdateDirectoryRelativePathMock,
     getItemsByBaseId: knowledgeItemGetItemsByBaseIdMock
@@ -104,13 +104,13 @@ describe('prepareKnowledgeItem', () => {
 
     expandDirectoryOwnerToTreeMock.mockResolvedValue({ pathPrefix: 'docs', children: [] })
     knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
-    knowledgeItemCreateMock.mockImplementation((_baseId: string, item: Partial<KnowledgeItem>) => ({
+    knowledgeItemCreateActiveMock.mockImplementation((_baseId: string, item: Partial<KnowledgeItem>) => ({
       id: `${item.type}-created`,
       baseId,
       groupId: item.groupId ?? null,
       type: item.type,
       data: item.data,
-      status: 'idle',
+      status: item.type === 'directory' ? 'preparing' : 'processing',
       error: null,
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z'
@@ -135,7 +135,7 @@ describe('prepareKnowledgeItem', () => {
 
     await expect(prepareKnowledgeItem(createPrepareOptions(note))).resolves.toEqual([note])
 
-    expect(knowledgeItemCreateMock).not.toHaveBeenCalled()
+    expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
   })
 
@@ -143,8 +143,7 @@ describe('prepareKnowledgeItem', () => {
     const root = createDirectoryItem('dir-root')
     const childDir = createDirectoryItem('dir-child', root.id)
     const childFile = createFileItem('file-child', childDir.id)
-    knowledgeItemCreateMock.mockReturnValueOnce(childDir).mockReturnValueOnce(childFile)
-    knowledgeItemUpdateStatusMock.mockReturnValueOnce(childDir).mockReturnValueOnce(childFile)
+    knowledgeItemCreateActiveMock.mockReturnValueOnce(childDir).mockReturnValueOnce(childFile)
     expandDirectoryOwnerToTreeMock.mockResolvedValueOnce({
       pathPrefix: 'dir-root-prefix',
       children: [
@@ -166,19 +165,19 @@ describe('prepareKnowledgeItem', () => {
 
     expect(expandDirectoryOwnerToTreeMock).toHaveBeenCalledWith(root, baseId, expect.any(Set), options.signal)
     expect(knowledgeItemUpdateDirectoryRelativePathMock).toHaveBeenCalledWith(root.id, 'dir-root-prefix')
-    expect(knowledgeItemCreateMock).toHaveBeenNthCalledWith(1, baseId, {
+    expect(knowledgeItemCreateActiveMock).toHaveBeenNthCalledWith(1, baseId, {
       groupId: root.id,
       type: 'directory',
       data: childDir.data
     })
-    expect(knowledgeItemCreateMock).toHaveBeenNthCalledWith(2, baseId, {
+    expect(knowledgeItemCreateActiveMock).toHaveBeenNthCalledWith(2, baseId, {
       groupId: childDir.id,
       type: 'file',
       data: childFile.data
     })
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(childDir.id, 'preparing')
+    // `childDir` is a directory: it's created active as `preparing` by `createActive`,
+    // then flipped to `processing` once its own children finish being created.
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(childDir.id, 'processing')
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(childFile.id, 'processing')
   })
 
   it('excludes the container itself from the reserved names so a reindex keeps its own prefix', () => {
@@ -246,7 +245,7 @@ describe('prepareKnowledgeItem', () => {
       })
     ).rejects.toBe(abortError)
 
-    expect(knowledgeItemCreateMock).not.toHaveBeenCalled()
+    expect(knowledgeItemCreateActiveMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
   })
 
