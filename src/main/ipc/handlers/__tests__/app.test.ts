@@ -68,7 +68,7 @@ describe('appHandlers', () => {
 
     const result = await appHandlers['app.set_user_data_path']({ path: targetPath, copyData: false }, ctx)
 
-    expect(result).toBe(targetPath)
+    expect(result).toBeUndefined()
     expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, false)
   })
 
@@ -77,7 +77,7 @@ describe('appHandlers', () => {
 
     const result = await appHandlers['app.set_user_data_path']({ path: targetPath, copyData: true }, ctx)
 
-    expect(result).toBe(targetPath)
+    expect(result).toBeUndefined()
     expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, true)
   })
 })

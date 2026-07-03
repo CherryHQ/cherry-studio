@@ -10,9 +10,10 @@
  * Timing contract (mirrors `v2MigrationGate`):
  *   - Runs during preboot, but async — it `await`s app.whenReady() and the
  *     relocation window's ready barrier.
- *   - Touches only `bootConfigService` and Electron `app`; it does NOT
- *     depend on any lifecycle-managed service (matches the preboot
- *     membership criterion in core/preboot/README.md).
+ *   - Touches only `bootConfigService`, Electron `app`, and the already
+ *     initialized path registry; it does NOT depend on any lifecycle-managed
+ *     service (matches the preboot membership criterion in
+ *     core/preboot/README.md).
  *   - Must run before `application.bootstrap()`. When it returns
  *     `'handled'`, the caller (main/index.ts) skips bootstrap entirely —
  *     the process is kept alive by the relocation window until the user
@@ -31,7 +32,9 @@ import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
+import { isWin } from '@main/core/platform'
 import { relocationWindowManager } from '@main/core/preboot/relocation/RelocationWindowManager'
 import { commitRelocation } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
@@ -64,7 +67,17 @@ export async function runUserDataRelocationGate(): Promise<RelocationGateResult>
   if (!app.isPackaged) return 'skipped'
 
   const pending = bootConfigService.get('temp.user_data_relocation')
-  if (!pending || pending.status !== 'pending') return 'skipped'
+  if (!pending) return 'skipped'
+  if (pending.status === 'failed') {
+    logger.warn('Clearing failed userData relocation record from previous launch', {
+      from: pending.from,
+      to: pending.to,
+      error: pending.error
+    })
+    bootConfigService.set('temp.user_data_relocation', null)
+    bootConfigService.flush()
+    return 'skipped'
+  }
 
   logger.info('Pending userData relocation detected', {
     from: pending.from,
@@ -87,6 +100,7 @@ export async function runUserDataRelocationGate(): Promise<RelocationGateResult>
 
     if (pending.copy) {
       const total = await calcTotalBytes(pending.from)
+      await ensureAvailableSpace(pending.to, total)
       currentProgress = makeProgress('copying', pending, 0, total)
       relocationWindowManager.sendProgress(currentProgress)
 
@@ -116,10 +130,9 @@ export async function runUserDataRelocationGate(): Promise<RelocationGateResult>
       to: pending.to,
       error: message
     })
-    // Mark the request failed so a future recovery UI can explain what
-    // happened. It will not auto-retry because only `pending` is executed.
-    // The user keeps running on the OLD location (app.user_data_path is
-    // unchanged) until they initiate another relocation from settings.
+    // Mark the request failed so this launch can show the terminal failure
+    // state. The next normal launch clears the failed marker rather than
+    // leaving stale temp state in BootConfig indefinitely.
     bootConfigService.set('temp.user_data_relocation', {
       status: 'failed',
       from: pending.from,
@@ -162,25 +175,31 @@ function makeProgress(
 }
 
 /**
- * Synchronous pre-flight checks. Fail fast before any bytes are copied so
- * we don't leave partial data under `to` on trivially-preventable errors.
- * The renderer/IPC layer is the first line of defense, but BootConfig can
- * also be edited by hand, so preboot re-checks here.
+ * Synchronous path checks. The renderer/IPC layer is the first line of
+ * defense, but BootConfig can also be edited by hand, so preboot re-checks
+ * here before either switching or copying.
  */
 function preflight(from: string, to: string): void {
-  const fromAbs = path.resolve(from)
-  const toAbs = path.resolve(to)
+  const fromAbs = resolveForPathCompare(from)
+  const toAbs = resolveForPathCompare(to)
   if (fromAbs === toAbs) {
     throw new Error(`source and target are the same path: ${fromAbs}`)
   }
+  if (getPathDepth(toAbs) <= 1) {
+    throw new Error(`target must not be a root or top-level path: ${toAbs}`)
+  }
   // Target inside source would make the recursive copy recurse into its
-  // own output. path.sep guards against a false positive when `from` is a
-  // prefix of an unrelated sibling directory (e.g. /a vs /ab).
-  if (toAbs.startsWith(fromAbs + path.sep)) {
+  // own output. The path relation helper avoids false positives when `from`
+  // is a prefix of an unrelated sibling directory (e.g. /a vs /ab).
+  if (isPathInside(toAbs, fromAbs)) {
     throw new Error(`target is inside source (would recurse): ${toAbs}`)
   }
-  if (fromAbs.startsWith(toAbs + path.sep)) {
+  if (isPathInside(fromAbs, toAbs)) {
     throw new Error(`source is inside target (would merge userData into an ancestor): ${toAbs}`)
+  }
+  const installPath = resolveForPathCompare(application.getPath('app.install'))
+  if (toAbs === installPath || isPathInside(toAbs, installPath)) {
+    throw new Error(`target must not be inside the app install path: ${toAbs}`)
   }
   if (!fs.existsSync(from)) {
     throw new Error(`source does not exist: ${from}`)
@@ -190,6 +209,36 @@ function preflight(from: string, to: string): void {
     throw new Error(`target parent directory does not exist: ${toParent}`)
   }
   fs.accessSync(toParent, fs.constants.W_OK)
+}
+
+function resolveForPathCompare(p: string): string {
+  const ops = isWin ? path.win32 : path
+  const resolved = ops.resolve(p)
+  return isWin ? resolved.toLowerCase() : resolved
+}
+
+function isPathInside(child: string, parent: string): boolean {
+  const ops = isWin ? path.win32 : path
+  const relative = ops.relative(parent, child)
+  return relative.length > 0 && !relative.startsWith('..') && !ops.isAbsolute(relative)
+}
+
+function getPathDepth(p: string): number {
+  const ops = isWin ? path.win32 : path
+  const parsed = ops.parse(p)
+  return p.slice(parsed.root.length).split(ops.sep).filter(Boolean).length
+}
+
+async function ensureAvailableSpace(to: string, requiredBytes: number): Promise<void> {
+  if (requiredBytes <= 0) return
+
+  const stats = await fsp.statfs(path.dirname(to))
+  const availableBytes = stats.bavail * stats.bsize
+  if (availableBytes < requiredBytes) {
+    throw new Error(
+      `target volume does not have enough free space: required ${requiredBytes} bytes, available ${availableBytes} bytes`
+    )
+  }
 }
 
 /**
@@ -235,10 +284,10 @@ async function calcTotalBytes(src: string): Promise<number> {
  * overwrite, keep symlinks as symlinks), but async so the main process
  * isn't blocked and progress can stream to the window.
  *
- * File copy failures are retried a few times, then fail the relocation.
- * A partially copied tree is acceptable only while BootConfig still points
- * at the old location; committing after a skipped file would silently lose
- * user data.
+ * The target is removed before copying so the operation replaces the old
+ * target tree rather than merging into it. If copying fails, the partial
+ * target is removed before the error is rethrown and the relocation remains
+ * uncommitted.
  */
 async function copyTreeWithProgress(
   from: string,
@@ -247,7 +296,18 @@ async function copyTreeWithProgress(
   onTick: (copied: number) => void
 ): Promise<void> {
   const acc = { bytes: 0 }
-  await copyDir(from, to, total, onTick, acc)
+  await fsp.rm(to, { recursive: true, force: true })
+  try {
+    await copyDir(from, to, total, onTick, acc)
+  } catch (error) {
+    await fsp.rm(to, { recursive: true, force: true }).catch((cleanupError) => {
+      logger.warn('Failed to remove partial relocation target', {
+        to,
+        error: (cleanupError as Error).message
+      })
+    })
+    throw error
+  }
 }
 
 async function copyDir(
@@ -265,7 +325,8 @@ async function copyDir(
     const dstPath = path.join(dst, entry.name)
 
     if (entry.isSymbolicLink()) {
-      // verbatimSymlinks equivalent: keep the link as-is.
+      // Match cpSync({ verbatimSymlinks: true }): preserve links as links.
+      // Progress intentionally counts regular file payload bytes only.
       try {
         const target = await fsp.readlink(srcPath)
         await fsp.rm(dstPath, { force: true })
