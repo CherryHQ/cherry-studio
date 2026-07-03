@@ -8,7 +8,8 @@ import pasteHandling from '../pasteHandling'
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
-      error: vi.fn()
+      error: vi.fn(),
+      verbose: vi.fn()
     })
   }
 }))
@@ -101,5 +102,71 @@ describe('pasteHandling', () => {
     expect(handled).toBe(false)
     expect(preventDefault).not.toHaveBeenCalled()
     expect(setFiles).not.toHaveBeenCalled()
+  })
+
+  describe('handler registration and lifecycle', () => {
+    it('registers a handler and allows manual unregistration', () => {
+      const handler = vi.fn().mockResolvedValue(true)
+
+      pasteHandling.init()
+
+      // register
+      pasteHandling.registerHandler('inputbar', handler)
+
+      // verify registration
+      const event = new Event('paste') as ClipboardEvent
+      document.dispatchEvent(event)
+      expect(handler).toHaveBeenCalled()
+
+      // unregister via unregisterHandler (matching reference)
+      pasteHandling.unregisterHandler('inputbar', handler)
+
+      // verify unregistration
+      handler.mockClear()
+      document.dispatchEvent(event)
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('does not unregister if a different handler was registered in the meantime', () => {
+      const handler1 = vi.fn().mockResolvedValue(true)
+      const handler2 = vi.fn().mockResolvedValue(true)
+
+      pasteHandling.init()
+
+      // register handler1, then handler2 on the same component key
+      const cleanup1 = pasteHandling.registerHandler('inputbar', handler1)
+      const cleanup2 = pasteHandling.registerHandler('inputbar', handler2)
+
+      // calling cleanup1 should NOT remove handler2 because references differ
+      cleanup1()
+
+      const event = new Event('paste') as ClipboardEvent
+      document.dispatchEvent(event)
+      expect(handler2).toHaveBeenCalled()
+      expect(handler1).not.toHaveBeenCalled()
+
+      // calling cleanup2 should successfully remove handler2
+      cleanup2()
+      handler2.mockClear()
+      document.dispatchEvent(event)
+      expect(handler2).not.toHaveBeenCalled()
+    })
+
+    it('prevents unregisterHandler from removing a newer handler if reference is supplied', () => {
+      const handler1 = vi.fn().mockResolvedValue(true)
+      const handler2 = vi.fn().mockResolvedValue(true)
+
+      pasteHandling.init()
+
+      pasteHandling.registerHandler('inputbar', handler1)
+      pasteHandling.registerHandler('inputbar', handler2)
+
+      // unregisterHandler with handler1 should be ignored since current handler is handler2
+      pasteHandling.unregisterHandler('inputbar', handler1)
+
+      const event = new Event('paste') as ClipboardEvent
+      document.dispatchEvent(event)
+      expect(handler2).toHaveBeenCalled()
+    })
   })
 })

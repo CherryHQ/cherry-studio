@@ -1686,10 +1686,7 @@ export default function ComposerSurface({
 
   useEffect(() => {
     pasteHandling.init()
-    pasteHandling.registerHandler('inputbar', handlePaste)
-    return () => {
-      pasteHandling.unregisterHandler('inputbar')
-    }
+    return pasteHandling.registerHandler('inputbar', handlePaste)
   }, [handlePaste])
 
   const sendDraft = useCallback(() => {
