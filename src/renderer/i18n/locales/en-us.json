@@ -1601,6 +1601,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "Cache {{hit_rate}}%",
+        "tooltip": "Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "This message is being edited in the composer",
       "flow": {
         "branches": "branches",

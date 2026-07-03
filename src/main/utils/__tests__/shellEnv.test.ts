@@ -25,7 +25,7 @@ vi.mock('@application', () => ({
 vi.mock('child_process')
 
 // Import AFTER mocks are registered so the module binds to mocked values.
-import { refreshShellEnv } from '../shell-env'
+import { getShellEnv, refreshShellEnv } from '../shellEnv'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -44,7 +44,7 @@ const HKCU_KEY = 'HKCU\\Environment'
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('shell-env – Windows registry PATH', () => {
+describe('shellEnv – Windows registry PATH', () => {
   const savedEnv = process.env
 
   beforeEach(() => {
@@ -188,6 +188,21 @@ describe('shell-env – Windows registry PATH', () => {
     expect(env.Path).toContain('bin')
   })
 
+  it('lists the mise shims dir only once despite appending and prepending it', async () => {
+    // appendCherryToolDirsToPath() adds the shims dir, then mergeBinaryExecutionEnv()
+    // prepends it again — the merge step must dedup so it does not appear twice.
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
+      throw new Error('not found')
+    })
+
+    const env = await refreshShellEnv()
+
+    const shimsCount = env.Path.split(';').filter((seg) => seg.endsWith('shims')).length
+    expect(shimsCount).toBe(1)
+  })
+
   // -- does not spawn cmd.exe -----------------------------------------------
 
   it('should not spawn cmd.exe or any shell process', async () => {
@@ -200,5 +215,40 @@ describe('shell-env – Windows registry PATH', () => {
     await refreshShellEnv()
 
     expect(spawn).not.toHaveBeenCalled()
+  })
+
+  // -- concurrent dedup -----------------------------------------------------
+
+  it('should collapse overlapping fetches onto a single env resolution', async () => {
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
+      throw new Error('not found')
+    })
+
+    // getWindowsEnvironment() reads HKLM + HKCU, i.e. two execFileSync calls
+    // per resolution. Overlapping callers must share one resolution → 2 calls.
+    await Promise.all([refreshShellEnv(), refreshShellEnv(), getShellEnv()])
+
+    expect(execFileSync).toHaveBeenCalledTimes(2)
+  })
+
+  // -- cache isolation ------------------------------------------------------
+
+  it('returns a copy so a caller mutating the result cannot poison the cache', async () => {
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
+      throw new Error('not found')
+    })
+
+    const first = await refreshShellEnv()
+    const pathKey = Object.keys(first).find((k) => k.toLowerCase() === 'path')
+    expect(pathKey).toBeDefined()
+    // Simulate a consumer stripping vars in place (e.g. removeEnvProxy).
+    delete first[pathKey as string]
+
+    const second = await getShellEnv()
+    expect(second[pathKey as string]).toBeDefined()
   })
 })

@@ -1,5 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
-import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODALITY, type Model, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
 import type { ModelOption } from '../types/paintingModel'
 
@@ -15,19 +15,20 @@ export function createModelOptionFromModel(model: Model): ModelOption {
 
 /**
  * A model is a painting-page candidate when it claims the `image-generation`
- * capability OR exposes one of the OpenAI image endpoints. The two checks are
- * OR'd — declaring an unrelated endpoint (`openai-chat-completions`) on a
- * model that ALSO sets `image-generation` capability must not exclude it.
+ * capability OR exposes one of the OpenAI image endpoints. Capability-only
+ * models are rejected when they explicitly declare non-image output modalities.
  */
+function canOutputImage(model: Model): boolean {
+  return !model.outputModalities?.length || model.outputModalities.includes(MODALITY.IMAGE)
+}
+
 export function supportsImageGenerationEndpoint(model: Model): boolean {
-  if (model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)) {
-    return true
-  }
-  return (
+  const hasImageEndpoint =
     model.endpointTypes?.some(
       (e) => e === ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION || e === ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
     ) ?? false
-  )
+
+  return hasImageEndpoint || (model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) && canOutputImage(model))
 }
 
 export function getPaintingModelOptions(providerId: string, models: readonly Model[]): ModelOption[] {
