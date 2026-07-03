@@ -22,7 +22,7 @@ interface LocalEmbeddingDownloadButtonProps {
  */
 const LocalEmbeddingDownloadButton = ({ onSelected }: LocalEmbeddingDownloadButtonProps) => {
   const { t } = useTranslation()
-  const { refetch } = useModels({ enabled: true })
+  const { refetch } = useModels()
   const [status, setStatus] = useState<LocalModelStatus>('not_downloaded')
   const [percent, setPercent] = useState(0)
   const mountedRef = useRef(true)

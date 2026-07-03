@@ -335,3 +335,91 @@ describe('InferenceHost request queue', () => {
     expect(worker.postMessage.mock.calls.filter(([msg]) => (msg as { id?: string }).id !== undefined)).toHaveLength(1)
   })
 })
+
+describe('InferenceHost terminateThen', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    fakeWorkers.length = 0
+  })
+
+  afterEach(async () => {
+    await embeddingInferenceHost.terminate()
+  })
+
+  it('blocks a request queued behind the in-flight one from respawning a worker while `after` runs', async () => {
+    const first = embeddingInferenceHost.embed(['a'], SOURCE, 'org/model', 'q8')
+    const worker = fakeWorkers.at(-1)!
+    // Queued behind `first` (concurrency: 1) — not yet dispatched to any worker.
+    const second = embeddingInferenceHost.embed(['b'], SOURCE, 'org/model', 'q8')
+
+    const after = vi.fn(async () => {})
+    const done = embeddingInferenceHost.terminateThen(after)
+
+    // terminate() rejects the in-flight first request...
+    await expect(first).rejects.toThrow(/terminated/)
+    // ...which frees the queue slot for the second — it must reject too, because
+    // `after` hasn't run yet, instead of silently respawning a worker to serve it.
+    await expect(second).rejects.toThrow(/shutting down/)
+    expect(fakeWorkers).toHaveLength(1)
+
+    await done
+    expect(after).toHaveBeenCalledTimes(1)
+
+    // Normal service resumes once terminateThen settles.
+    const third = embeddingInferenceHost.embed(['c'], SOURCE, 'org/model', 'q8')
+    const newWorker = fakeWorkers.at(-1)!
+    expect(newWorker).not.toBe(worker)
+    newWorker.emit('message', { type: 'result', id: lastRequestId(newWorker), embeddings: [[0.3]] })
+    await expect(third).resolves.toEqual([[0.3]])
+  })
+
+  it('still runs `after` and resumes even when nothing was in flight to terminate', async () => {
+    const after = vi.fn(async () => 'done')
+
+    await expect(embeddingInferenceHost.terminateThen(after)).resolves.toBe('done')
+    expect(after).toHaveBeenCalledTimes(1)
+
+    const pending = embeddingInferenceHost.embed(['a'], SOURCE, 'org/model', 'q8')
+    const worker = fakeWorkers.at(-1)!
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
+    await expect(pending).resolves.toEqual([[0.1]])
+  })
+})
+
+describe('InferenceHost abort listener cleanup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    fakeWorkers.length = 0
+  })
+
+  afterEach(async () => {
+    await embeddingInferenceHost.terminate()
+  })
+
+  it('removes the abort listener once a request settles normally, not just on abort', async () => {
+    const controller = new AbortController()
+    const removeSpy = vi.spyOn(controller.signal, 'removeEventListener')
+
+    const pending = embeddingInferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8', controller.signal)
+    const worker = fakeWorkers.at(-1)!
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
+    await pending
+
+    // A caller reusing this same long-lived signal for many embed() calls (e.g.
+    // across a whole knowledge-base indexing job) must not accumulate one dead
+    // listener per call.
+    expect(removeSpy).toHaveBeenCalledWith('abort', expect.any(Function))
+  })
+
+  it('removes the abort listener when the worker crashes mid-request too', async () => {
+    const controller = new AbortController()
+    const removeSpy = vi.spyOn(controller.signal, 'removeEventListener')
+
+    const pending = embeddingInferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8', controller.signal)
+    const worker = fakeWorkers.at(-1)!
+    worker.emit('exit', 1)
+
+    await expect(pending).rejects.toThrow()
+    expect(removeSpy).toHaveBeenCalledWith('abort', expect.any(Function))
+  })
+})

@@ -34,6 +34,9 @@ interface Pending {
   resolve: (result: InferenceResult) => void
   reject: (err: Error) => void
   onProgress?: (p: InferenceProgress) => void
+  /** Detaches the abort listener `sendNow` registered (a no-op once it has
+   * already fired, since it's `{ once: true }`). */
+  cleanup: () => void
 }
 
 /**
@@ -67,6 +70,10 @@ abstract class InferenceHostBase extends BaseService {
   private readonly queue = new PQueue({ concurrency: 1 })
   private idSeq = 0
   private idleReleaseTimer: NodeJS.Timeout | null = null
+  /** Set for the duration of {@link terminateThen}'s `after` callback — blocks
+   * `ensureWorker` from spawning a replacement while on-disk weights are being
+   * deleted right after teardown. */
+  private closing = false
   private readonly logger: ReturnType<typeof loggerService.withContext>
 
   protected constructor(kind: LocalModelKind) {
@@ -75,6 +82,9 @@ abstract class InferenceHostBase extends BaseService {
   }
 
   private ensureWorker(): Worker {
+    if (this.closing) {
+      throw new Error('inference host is shutting down')
+    }
     if (this.worker) return this.worker
     // Last line of defense: the settings/KB cards already hide on Intel Mac (see
     // LocalModelDownloadService.getStatus), but this is the spawn point every
@@ -142,6 +152,7 @@ abstract class InferenceHostBase extends BaseService {
         const pending = this.pending.get(msg.id)
         if (!pending) return
         this.pending.delete(msg.id)
+        pending.cleanup()
         pending.resolve({ embeddings: msg.embeddings ?? null, text: msg.text ?? null })
         return
       }
@@ -149,6 +160,7 @@ abstract class InferenceHostBase extends BaseService {
         const pending = this.pending.get(msg.id)
         if (!pending) return
         this.pending.delete(msg.id)
+        pending.cleanup()
         pending.reject(new Error(msg.message))
         return
       }
@@ -160,7 +172,10 @@ abstract class InferenceHostBase extends BaseService {
     // doesn't log a spurious "worker failed" with nothing to reject.
     if (this.pending.size === 0) return
     this.logger.error('inference worker failed', err)
-    for (const [, pending] of this.pending) pending.reject(err)
+    for (const [, pending] of this.pending) {
+      pending.cleanup()
+      pending.reject(err)
+    }
     this.pending.clear()
   }
 
@@ -194,16 +209,14 @@ abstract class InferenceHostBase extends BaseService {
         reject(opts.signal.reason instanceof Error ? opts.signal.reason : new Error('aborted'))
         return
       }
-      this.pending.set(id, { resolve, reject, onProgress: opts.onProgress })
-      opts.signal?.addEventListener(
-        'abort',
-        () => {
-          if (!this.pending.has(id)) return
-          this.pending.delete(id)
-          reject(opts.signal?.reason instanceof Error ? opts.signal.reason : new Error('aborted'))
-        },
-        { once: true }
-      )
+      const onAbort = () => {
+        if (!this.pending.has(id)) return
+        this.pending.delete(id)
+        reject(opts.signal?.reason instanceof Error ? opts.signal.reason : new Error('aborted'))
+      }
+      const cleanup = () => opts.signal?.removeEventListener('abort', onAbort)
+      this.pending.set(id, { resolve, reject, onProgress: opts.onProgress, cleanup })
+      opts.signal?.addEventListener('abort', onAbort, { once: true })
       worker.postMessage({ ...request, id } as InferenceRequest)
     })
   }
@@ -222,6 +235,25 @@ abstract class InferenceHostBase extends BaseService {
     this.worker = null
     this.failAll(new Error('inference host terminated'))
     await worker.terminate()
+  }
+
+  /**
+   * Terminates the worker, then runs `after` (e.g. deleting the now-unheld
+   * on-disk weights) while blocking any request from spawning a replacement
+   * worker in the meantime. A bare `terminate()` only rejects the one request
+   * already in `pending` — a second request already queued behind it (or a
+   * brand new one from an unrelated caller) would otherwise dequeue right
+   * after, see `this.worker === null`, and silently respawn a worker that
+   * reads/writes the very files `after` is deleting.
+   */
+  async terminateThen<T>(after: () => Promise<T>): Promise<T> {
+    this.closing = true
+    try {
+      await this.terminate()
+      return await after()
+    } finally {
+      this.closing = false
+    }
   }
 
   protected async onStop(): Promise<void> {
@@ -251,6 +283,9 @@ abstract class InferenceHostBase extends BaseService {
       this.idleReleaseTimer = null
       void this.releaseWorkerIfIdle()
     }, INFERENCE_WORKER_IDLE_TIMEOUT_MS)
+    // Symmetric with the worker's own unref() — a scheduled release must never
+    // keep the app alive on quit either.
+    this.idleReleaseTimer.unref()
   }
 
   private clearIdleReleaseTimer(): void {

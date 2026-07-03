@@ -69,9 +69,12 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     // cancel left partials). Otherwise get_status reports the leftover weights as ready and
     // selecting the model in the KB picker would trip the embeddingModelId FK. Release the
     // worker first (loadEmbedding caches the pipeline, holding the weights open on Windows),
-    // then drop the partial/unregistered weights.
-    await application.get('EmbeddingInferenceHost').terminate()
-    await fs.promises.rm(this.modelDir(), { recursive: true, force: true })
+    // then drop the partial/unregistered weights. terminateThen blocks a request queued
+    // behind the in-flight one from respawning a worker mid-delete (it would otherwise
+    // start reading/writing the very files being removed).
+    await application
+      .get('EmbeddingInferenceHost')
+      .terminateThen(() => fs.promises.rm(this.modelDir(), { recursive: true, force: true }))
   }
 
   override cancel(): void {
@@ -92,8 +95,11 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     }
     try {
       // Unload the worker first so the weights file isn't held open while we delete it.
-      await application.get('EmbeddingInferenceHost').terminate()
-      await fs.promises.rm(this.modelDir(), { recursive: true, force: true })
+      // terminateThen also blocks a request queued behind it from respawning a worker
+      // mid-delete (it would otherwise start reading/writing the very files being removed).
+      await application
+        .get('EmbeddingInferenceHost')
+        .terminateThen(() => fs.promises.rm(this.modelDir(), { recursive: true, force: true }))
     } catch (error) {
       // The row is gone but the weights survived (e.g. terminate() rejected, or a Windows
       // lock on rm()). Re-register so "files present ⟺ user_model row present" holds —

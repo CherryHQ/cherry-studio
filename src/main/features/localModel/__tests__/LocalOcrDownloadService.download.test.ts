@@ -34,7 +34,16 @@ const { localOcrDownloadService } = await import('../LocalOcrDownloadService')
 
 const DEFAULT_KEY = 'feature.file_processing.default_image_to_text'
 const VALID_WEIGHT_BYTES = 1_000_001 // just over the 1MB min-size guard
-const DICT_YML = ['PostProcess:', '  name: CTCLabelDecode', '  character_dict:', "  - '!'", '  - a'].join('\n')
+const DICT_YML = [
+  'PostProcess:',
+  '  name: CTCLabelDecode',
+  '  character_dict:',
+  "  - '!'",
+  '  - a',
+  // Padding (a YAML comment, ignored by the parser) so the fixture clears the
+  // dictionary download's own 10_000-byte min-size guard, like a real inference.yml.
+  `  # ${'x'.repeat(10_100)}`
+].join('\n')
 
 /** A `net.fetch` Response shell streaming `byteLength` zero bytes. */
 function weightResponse(byteLength: number) {
@@ -115,6 +124,18 @@ describe('LocalOcrDownloadService.download — mirror fallback + min-size guard'
     await expect(localOcrDownloadService.download()).rejects.toThrow()
 
     // Never promoted — the guard rejected before any weights landed.
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).not.toBe('local-paddleocr')
+  })
+
+  it('rejects a too-small dictionary response (LFS pointer / truncated / error page) after exhausting mirrors', async () => {
+    vi.mocked(net.fetch).mockImplementation((async (url: string) =>
+      url.endsWith('.yml')
+        ? { ok: true, text: async () => 'PostProcess:\n  character_dict:\n  - a' }
+        : weightResponse(VALID_WEIGHT_BYTES)) as unknown as typeof net.fetch)
+
+    await expect(localOcrDownloadService.download()).rejects.toThrow()
+
+    // A truncated-but-parseable yml must not silently produce an incomplete dictionary.
     expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).not.toBe('local-paddleocr')
   })
 })

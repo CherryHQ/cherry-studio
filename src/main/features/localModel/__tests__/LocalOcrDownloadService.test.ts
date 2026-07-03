@@ -3,14 +3,23 @@ import fs from 'node:fs'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { terminate } = vi.hoisted(() => ({ terminate: vi.fn() }))
+const { terminate, terminateThen } = vi.hoisted(() => {
+  const terminate = vi.fn()
+  // terminateThen mirrors the real terminate-then-run-after ordering so the
+  // invocationCallOrder assertions below (terminate before rm) still hold.
+  const terminateThen = vi.fn(async (after: () => Promise<unknown>) => {
+    await terminate()
+    return after()
+  })
+  return { terminate, terminateThen }
+})
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   const result = mockApplicationFactory()
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'OcrInferenceHost') return { terminate }
+    if (name === 'OcrInferenceHost') return { terminate, terminateThen }
     return originalGet(name)
   })
   return result

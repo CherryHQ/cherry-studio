@@ -91,8 +91,9 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
     // caches its PaddleOcrService (native onnxruntime session + open weight files)
     // in the worker, so on Windows an open handle makes the unlink fail. Mirrors
     // the embedding remove, which terminates first for the same reason.
-    await application.get('OcrInferenceHost').terminate()
-    await this.cleanup()
+    // terminateThen also blocks a request queued behind it from respawning a
+    // worker mid-delete (it would otherwise read/write the very files being removed).
+    await application.get('OcrInferenceHost').terminateThen(() => this.cleanup())
     return { removed: true }
   }
 
@@ -120,14 +121,20 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
 
   /** Fetch the recognition model's inference.yml (mirror fallback) and write the parsed dict. */
   private async downloadDictionary(dest: string, signal: AbortSignal): Promise<void> {
-    const { repo, sourceFile } = LOCAL_MODELS.ocr.dictionary
+    const { repo, sourceFile, minBytes } = LOCAL_MODELS.ocr.dictionary
     const urls = modelSourceOrder(app.getLocale()).map((id) => resolveModelFileUrl(id, repo, sourceFile))
     let lastError: unknown
     for (const url of urls) {
       try {
         const response = await net.fetch(url, { signal })
         if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`)
-        const dictText = dictTextFromInferenceYml(await response.text())
+        const yml = await response.text()
+        // An LFS pointer / truncated response / error page can still parse as valid
+        // (but tiny) YAML, slipping past dictTextFromInferenceYml with an incomplete
+        // character_dict — reject on size first, same as the weight downloads.
+        const bytes = Buffer.byteLength(yml, 'utf8')
+        if (bytes < minBytes) throw new Error(`dictionary source from ${url} too small (${bytes} bytes)`)
+        const dictText = dictTextFromInferenceYml(yml)
         const tmp = `${dest}.tmp`
         await fs.promises.writeFile(tmp, dictText)
         await fs.promises.rename(tmp, dest)

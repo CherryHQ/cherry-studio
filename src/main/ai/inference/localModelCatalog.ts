@@ -60,13 +60,16 @@ export const LOCAL_MODELS = {
     dictionary: {
       repo: 'PaddlePaddle/PP-OCRv6_medium_rec_onnx',
       sourceFile: 'inference.yml',
-      fileName: 'ppocrv6_dict.txt'
+      fileName: 'ppocrv6_dict.txt',
+      /** The full yml (thousands of dict entries + model config) is tens of KB;
+       * reject anything this small (LFS pointer / truncated response / error page). */
+      minBytes: 10_000
     }
   }
 } satisfies {
   embedding: { repo: string; dtype: string; readyFile: string }
   ocr: {
     weights: Record<'detection' | 'recognition', RemoteModelFile>
-    dictionary: { repo: string; sourceFile: string; fileName: string }
+    dictionary: { repo: string; sourceFile: string; fileName: string; minBytes: number }
   }
 }

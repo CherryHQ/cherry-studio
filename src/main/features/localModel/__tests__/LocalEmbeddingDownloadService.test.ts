@@ -3,21 +3,32 @@ import type * as NodeFs from 'node:fs'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { loadEmbedding, terminate, registerLocalEmbeddingModel, unregisterMock, readdirSync, rm } = vi.hoisted(() => ({
-  loadEmbedding: vi.fn(),
-  terminate: vi.fn(),
-  registerLocalEmbeddingModel: vi.fn(),
-  unregisterMock: vi.fn(),
-  readdirSync: vi.fn(),
-  rm: vi.fn()
-}))
+const { loadEmbedding, terminate, terminateThen, registerLocalEmbeddingModel, unregisterMock, readdirSync, rm } =
+  vi.hoisted(() => {
+    const terminate = vi.fn()
+    // terminateThen mirrors the real terminate-then-run-after ordering so the
+    // invocationCallOrder assertions below (terminate before rm) still hold.
+    const terminateThen = vi.fn(async (after: () => Promise<unknown>) => {
+      await terminate()
+      return after()
+    })
+    return {
+      loadEmbedding: vi.fn(),
+      terminate,
+      terminateThen,
+      registerLocalEmbeddingModel: vi.fn(),
+      unregisterMock: vi.fn(),
+      readdirSync: vi.fn(),
+      rm: vi.fn()
+    }
+  })
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   const result = mockApplicationFactory()
   const originalGet = result.application.get.getMockImplementation()!
   result.application.get.mockImplementation((name: string) => {
-    if (name === 'EmbeddingInferenceHost') return { loadEmbedding, terminate }
+    if (name === 'EmbeddingInferenceHost') return { loadEmbedding, terminate, terminateThen }
     return originalGet(name)
   })
   return result
