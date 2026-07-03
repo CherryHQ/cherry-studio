@@ -209,7 +209,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
-  it('rejects Gemini provider models instead of routing them through the API gateway', async () => {
+  it('routes Gemini provider models through the local API gateway', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       model: 'gemini::gemini-2.5-pro'
@@ -222,12 +222,23 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       endpointConfigs: { 'google-generate-content': { baseUrl: 'https://generativelanguage.googleapis.com' } }
     })
     mocks.getModelByKey.mockReturnValue({ id: 'gemini-2.5-pro', apiModelId: 'gemini-2.5-pro' })
+    mocks.apiGatewayIsRunning.mockReturnValue(false)
+    mocks.apiGatewayGetCurrentConfig.mockReturnValue({ host: '127.0.0.1', port: 24444, apiKey: 'gateway-key' })
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
-    await expect(buildClaudeCodeQueryRequestForAgentSession('session-1')).rejects.toThrow(
-      'Gemini provider models are not supported by Claude Code agents: gemini'
-    )
-    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
-    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.apiGatewayEnsureKey).toHaveBeenCalled()
+    expect(mocks.apiGatewayStart).toHaveBeenCalled()
+    expect(request?.sdkModelId).toBe('gemini:gemini-2.5-pro')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:24444',
+      ANTHROPIC_API_KEY: 'gateway-key',
+      ANTHROPIC_AUTH_TOKEN: 'gateway-key',
+      ANTHROPIC_MODEL: 'gemini:gemini-2.5-pro',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'gemini:gemini-2.5-pro',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'gemini:gemini-2.5-pro',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'gemini:gemini-2.5-pro'
+    })
   })
 })
