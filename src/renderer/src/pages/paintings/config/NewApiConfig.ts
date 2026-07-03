@@ -18,6 +18,10 @@ export const getNewApiModelConfig = (modelId?: string) => {
 
 export const isSupportedNewApiModel = (modelId?: string) => Boolean(getNewApiModelConfig(modelId))
 
+export const resolveNewApiOptionValue = (options: readonly string[], value?: string): string | undefined => {
+  return value && options.includes(value) ? value : options[0]
+}
+
 export const normalizeGptImage2CustomDimension = (value?: number): number | undefined => {
   if (!value || !Number.isFinite(value)) {
     return undefined

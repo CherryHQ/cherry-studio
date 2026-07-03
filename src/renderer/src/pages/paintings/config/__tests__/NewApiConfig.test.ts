@@ -6,6 +6,7 @@ import {
   isSupportedNewApiModel,
   normalizeGptImage2CustomDimension,
   normalizeGptImage2CustomSize,
+  resolveNewApiOptionValue,
   validateGptImage2CustomSize
 } from '../NewApiConfig'
 
@@ -19,6 +20,12 @@ describe('NewApi model config resolution', () => {
   it('keeps bare model ids working', () => {
     expect(getNewApiModelConfig('gpt-image-1')?.name).toBe('gpt-image-1')
     expect(isSupportedNewApiModel('gpt-image-1')).toBe(true)
+  })
+
+  it('falls back invalid option values to the first supported option', () => {
+    expect(resolveNewApiOptionValue(['auto', '1024x1024'], '512x512')).toBe('auto')
+    expect(resolveNewApiOptionValue(['gpt-image-2'], 'openai/gpt-image-1')).toBe('gpt-image-2')
+    expect(resolveNewApiOptionValue([], 'gpt-image-2')).toBeUndefined()
   })
 })
 

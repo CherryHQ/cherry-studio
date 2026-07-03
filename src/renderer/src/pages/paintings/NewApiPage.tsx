@@ -27,6 +27,7 @@ import {
   isSupportedNewApiModel,
   MODELS,
   normalizeGptImage2CustomSize,
+  resolveNewApiOptionValue,
   validateGptImage2CustomSize
 } from '@renderer/pages/paintings/config/NewApiConfig'
 import FileManager from '@renderer/services/FileManager'
@@ -185,25 +186,37 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       return acc
     }, {})
   }, [modelOptions])
+  const modelValues = useMemo(() => modelOptions.map((option) => option.value), [modelOptions])
 
   const getNewPainting = useCallback(() => {
     return {
       ...DEFAULT_PAINTING,
-      model: painting.model || modelOptions[0]?.value || '',
+      model: resolveNewApiOptionValue(modelValues, painting.model) ?? '',
       id: uuid(),
       providerId: newApiProvider.id
     }
-  }, [modelOptions, painting.model, newApiProvider.id])
+  }, [modelValues, painting.model, newApiProvider.id])
 
-  const selectedModelConfig = useMemo(() => getNewApiModelConfig(painting.model) || MODELS[0], [painting.model])
+  const isPaintingModelInOptions = useMemo(
+    () => modelValues.includes(painting.model || ''),
+    [modelValues, painting.model]
+  )
+  const selectedModelConfig = useMemo(
+    () => (isPaintingModelInOptions ? getNewApiModelConfig(painting.model) : undefined) || MODELS[0],
+    [isPaintingModelInOptions, painting.model]
+  )
   const imageSizeOptions = useMemo(() => {
     return selectedModelConfig.imageSizes?.filter((size) => mode === 'openai_image_generate' || size.value !== 'custom')
   }, [mode, selectedModelConfig.imageSizes])
+  const imageSizeValues = useMemo(() => imageSizeOptions?.map((size) => size.value) ?? [], [imageSizeOptions])
   const selectedImageSizeValue = useMemo(() => {
-    return imageSizeOptions?.some((size) => size.value === painting.size) ? painting.size : imageSizeOptions?.[0]?.value
-  }, [imageSizeOptions, painting.size])
+    return resolveNewApiOptionValue(imageSizeValues, painting.size)
+  }, [imageSizeValues, painting.size])
   const isCustomSize =
-    selectedModelConfig.name === 'gpt-image-2' && mode === 'openai_image_generate' && painting.size === 'custom'
+    isPaintingModelInOptions &&
+    selectedModelConfig.name === 'gpt-image-2' &&
+    mode === 'openai_image_generate' &&
+    selectedImageSizeValue === 'custom'
 
   const handleModelChange = (value: string) => {
     const modelConfig = getNewApiModelConfig(value) || MODELS[0]
@@ -273,8 +286,12 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const resolveImageSize = (): string | undefined | null => {
-    if (painting.size !== 'custom') {
-      return painting.size === 'auto' ? undefined : painting.size
+    if (!selectedImageSizeValue) {
+      return undefined
+    }
+
+    if (selectedImageSizeValue !== 'custom') {
+      return selectedImageSizeValue === 'auto' ? undefined : selectedImageSizeValue
     }
 
     if (mode === 'openai_image_edit') {
@@ -367,6 +384,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         ? painting.background
         : undefined
     const requestModeration =
+      mode === 'openai_image_generate' &&
       selectedModelConfig.moderation?.some((moderation) => moderation.value === painting.moderation) &&
       painting.moderation !== 'auto'
         ? painting.moderation
@@ -652,12 +670,20 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }, [mode, painting.size, updatePaintingState])
 
-  // if painting.model is not set, set it to the first model in modelOptions
+  // if painting.model is not valid for this provider, set it to the first model in modelOptions
   useEffect(() => {
-    if (!painting.model && modelOptions.length > 0) {
-      updatePaintingState({ model: modelOptions[0].value })
+    const resolvedModel = resolveNewApiOptionValue(modelValues, painting.model)
+
+    if (resolvedModel && painting.model !== resolvedModel) {
+      updatePaintingState({ model: resolvedModel })
     }
-  }, [modelOptions, painting.model, updatePaintingState])
+  }, [modelValues, painting.model, updatePaintingState])
+
+  useEffect(() => {
+    if (selectedImageSizeValue && painting.size !== selectedImageSizeValue) {
+      updatePaintingState({ size: selectedImageSizeValue })
+    }
+  }, [painting.size, selectedImageSizeValue, updatePaintingState])
 
   return (
     <Container>
