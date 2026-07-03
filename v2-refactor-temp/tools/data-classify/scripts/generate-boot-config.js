@@ -43,7 +43,7 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
     originalKey: 'userDataRelocation',
     targetKey: 'temp.user_data_relocation',
     type:
-      "\n    | { status: 'pending'; from: string; to: string }" +
+      "\n    | { status: 'pending'; from: string; to: string; copy: boolean }" +
       "\n    | { status: 'failed'; from: string; to: string; error: string; failedAt: string }" +
       '\n    | null',
     defaultValue: null,
@@ -59,8 +59,10 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       '',
       'Lifecycle:',
       '  - null: no relocation in progress (default).',
-      "  - { status: 'pending', from, to }: an IPC handler wrote this request",
-      '    and the next preboot should execute the copy.',
+      "  - { status: 'pending', from, to, copy }: an IPC handler wrote this",
+      '    request and the next preboot should relocate userData. When `copy`',
+      '    is true the entire from→to tree is copied first; when false only',
+      '    the userData location is switched (no copy).',
       "  - { status: 'failed', from, to, error, failedAt }: a previous preboot",
       '    attempted the copy and it failed. The record stays in BootConfig',
       '    until a renderer recovery flow lets the user retry, abandon, or',

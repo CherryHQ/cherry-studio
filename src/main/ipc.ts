@@ -211,63 +211,8 @@ export async function registerIpc() {
     return isPathInside(childPath, parentPath)
   })
 
-  // Set app data path
-  //
-  // TODO(v2): This handler is incompatible with the frozen path registry
-  // established by Application.bootstrap(). Calling app.setPath('userData')
-  // here mutates Electron's path while application.getPath('app.userdata')
-  // keeps returning the boot-time value until the renderer triggers a
-  // relaunch (which it currently always does — see BasicDataSettings.tsx
-  // L186/203/322). When the v1 path-change flow is migrated to
-  // BootConfigService, redesign this handler so the app data path can only
-  // be changed via boot-config + restart, eliminating the divergence window.
-  ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, filePath: string) => {
-    // updateAppDataConfig(filePath)
-    // app.setPath('userData', filePath)
-    // TODO: will refactor in v2
-    return filePath
-  })
-
-  ipcMain.handle(IpcChannel.App_GetDataPathFromArgs, () => {
-    return process.argv
-      .slice(1)
-      .find((arg) => arg.startsWith('--new-data-path='))
-      ?.split('--new-data-path=')[1]
-  })
-
-  ipcMain.handle(IpcChannel.App_FlushAppData, async () => {
-    for (const w of BrowserWindow.getAllWindows()) {
-      w.webContents.session.flushStorageData()
-      await w.webContents.session.cookies.flushStore()
-      await w.webContents.session.closeAllConnections()
-    }
-
-    session.defaultSession.flushStorageData()
-    await session.defaultSession.cookies.flushStore()
-    await session.defaultSession.closeAllConnections()
-  })
-
   ipcMain.handle(IpcChannel.App_IsNotEmptyDir, async (_, path: string) => {
     return fs.readdirSync(path).length > 0
-  })
-
-  // Copy user data to new location
-  ipcMain.handle(IpcChannel.App_Copy, async (_, oldPath: string, newPath: string, occupiedDirs: string[] = []) => {
-    try {
-      await fs.promises.cp(oldPath, newPath, {
-        recursive: true,
-        filter: (src) => {
-          if (occupiedDirs.some((dir) => src.startsWith(path.resolve(dir)))) {
-            return false
-          }
-          return true
-        }
-      })
-      return { success: true }
-    } catch (error: any) {
-      logger.error('Failed to copy user data:', error)
-      return { success: false, error: error.message }
-    }
   })
 
   // Application_Relaunch is registered by Application.registerApplicationIpc()

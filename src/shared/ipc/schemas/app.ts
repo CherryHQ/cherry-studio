@@ -3,14 +3,15 @@ import * as z from 'zod'
 import { defineRoute } from '../define'
 
 /**
- * App IPC schemas — imperative app-level operations delegated to main services.
+ * App IPC schemas — imperative app-level operations delegated to main/preboot
+ * services.
  *
- * Currently only the updater routes (handled by `AppUpdaterService`). Update
- * *progress/result events* are NOT here: they still reach the renderer through
- * the legacy `IpcChannel.Update*` broadcasts in `AppUpdaterService`, so there is
- * no Event block.
+ * Updater routes are handled by `AppUpdaterService`. Update *progress/result
+ * events* are NOT here: they still reach the renderer through the legacy
+ * `IpcChannel.Update*` broadcasts in `AppUpdaterService`, so there is no Event
+ * block.
  *
- * Request-only: renderer→main calls, always parsed. Both take no input.
+ * Request-only: renderer→main calls, always parsed.
  */
 export const appRequestSchemas = {
   'app.updater.check_for_update': defineRoute({
@@ -23,5 +24,12 @@ export const appRequestSchemas = {
     })
   }),
   // Fire-and-forget: quits and installs, so no result the caller reads.
-  'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() })
+  'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() }),
+  'app.set_user_data_path': defineRoute({
+    input: z.object({
+      path: z.string().min(1),
+      copyData: z.boolean().optional()
+    }),
+    output: z.string()
+  })
 }

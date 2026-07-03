@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { requestRelocation } from '@main/core/preboot/userDataLocation'
 import type { appRequestSchemas } from '@shared/ipc/schemas/app'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
@@ -19,5 +20,9 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   },
   'app.updater.quit_and_install': async () => {
     application.get('AppUpdaterService').quitAndInstall()
+  },
+  'app.set_user_data_path': async ({ path, copyData = false }) => {
+    requestRelocation(application.getPath('app.userdata'), path, copyData)
+    return path
   }
 }

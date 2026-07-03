@@ -114,7 +114,9 @@ preboot/
 │                        dev instances with different userData suffixes use
 │                        isolated locks.
 ├── userDataLocation.ts  decides where userData lives (dev suffix or
-│                        BootConfig-driven), performs relaunch copy
+│                        BootConfig-driven) and exposes the two write
+│                        helpers for the relocation flow
+│                        (`requestRelocation`, `commitRelocation`).
 ├── chromiumFlags.ts     Chromium startup flags (command-line switches and
 │                        hardware-acceleration toggles) that must run
 │                        before app.whenReady()
@@ -127,12 +129,21 @@ preboot/
 │                        detect v1 legacy userData before engine init.
 │                        Temporary — scoped for deletion once all
 │                        users have migrated off v1.
+├── relocation/          executes a pending userData relocation
+│   ├── relocationGate.ts    gate: detects `temp.user_data_relocation`, opens
+│   │                        a dedicated window, copies from→to with progress,
+│   │                        commits the new path, relaunches. Runs before the
+│   │                        v2 migration gate and before bootstrap.
+│   └── RelocationWindowManager.ts  owns the dedicated BrowserWindow (created
+│                                    before bootstrap, so it can't use the
+│                                    lifecycle WindowManager).
 └── __tests__/           unit tests for each sibling module
 ```
 
 The directory is intentionally flat. New domains add a sibling file rather
 than a subdirectory. Subdirectories are reserved for the case where one
-domain genuinely needs multiple files.
+domain genuinely needs multiple files — `relocation/` is the current
+example (gate orchestration + a dedicated window manager).
 
 ### Development userData suffix
 

@@ -100,17 +100,17 @@ const api = {
   resolvePath: (path: string) => ipcRenderer.invoke(IpcChannel.App_ResolvePath, path),
   isPathInside: (childPath: string, parentPath: string) =>
     ipcRenderer.invoke(IpcChannel.App_IsPathInside, childPath, parentPath),
-  setAppDataPath: (path: string) => ipcRenderer.invoke(IpcChannel.App_SetAppDataPath, path),
-  getDataPathFromArgs: () => ipcRenderer.invoke(IpcChannel.App_GetDataPathFromArgs),
-  copy: (oldPath: string, newPath: string, occupiedDirs: string[] = []) =>
-    ipcRenderer.invoke(IpcChannel.App_Copy, oldPath, newPath, occupiedDirs),
+  setAppDataPath: (pathOrRequest: string | { path: string; copyData?: boolean }) =>
+    ipcApi.request(
+      'app.set_user_data_path',
+      typeof pathOrRequest === 'string' ? { path: pathOrRequest } : pathOrRequest
+    ),
   application: {
     preventQuit: (reason: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Application_PreventQuit, reason),
     allowQuit: (holdId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_AllowQuit, holdId),
     relaunch: (options?: Electron.RelaunchOptions): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Application_Relaunch, options)
   },
-  flushAppData: () => ipcRenderer.invoke(IpcChannel.App_FlushAppData),
   isNotEmptyDir: (path: string) => ipcRenderer.invoke(IpcChannel.App_IsNotEmptyDir, path),
   resetData: () => ipcRenderer.invoke(IpcChannel.App_ResetData),
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),

@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Cherry Studio - Data Relocation</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="logger-window-source" content="Relocation" />
+  </head>
+
+  <body id="root">
+    <script type="module" src="/windows/relocation/entryPoint.tsx"></script>
+    <style>
+      html {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 100vw;
+        height: 100vh;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      #root {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+      }
+    </style>
+  </body>
+</html>
