@@ -96,8 +96,9 @@ type ContentSource =
   | { type: 'note'; data: NotesTreeNode }
 
 interface ShowParams {
+  dialogTitle?: string
   source: ContentSource
-  title?: string
+  sourceTitle?: string
 }
 
 interface SaveResult {
@@ -109,11 +110,11 @@ interface Props extends ShowParams {
   resolve: (data: SaveResult | null) => void
 }
 
-const getNoteSource = (source: ContentSource, title?: string) => {
-  const trimmedTitle = title?.trim()
+const getNoteSource = (source: ContentSource, sourceTitle?: string) => {
+  const trimmedSourceTitle = sourceTitle?.trim()
 
-  if (trimmedTitle) {
-    return trimmedTitle
+  if (trimmedSourceTitle) {
+    return trimmedSourceTitle
   }
 
   if (source.type === 'note') {
@@ -131,7 +132,7 @@ const getNoteSource = (source: ContentSource, title?: string) => {
   return source.data.id
 }
 
-const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, resolve }) => {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
   const [analysisLoading, setAnalysisLoading] = useState(true)
@@ -178,14 +179,14 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
           citations: 0,
           translations: 0,
           errors: 0,
-          ...(isTopicMode && { messages: 0 })
+          ...(isConversationMode && { messages: 0 })
         })
       } finally {
         setAnalysisLoading(false)
       }
     }
     void analyze()
-  }, [source, isTopicMode, isMessagesMode, isNoteMode])
+  }, [source, isTopicMode, isMessagesMode, isConversationMode, isNoteMode])
 
   // 生成内容类型选项
   const contentTypeOptions: ContentTypeOption[] = useMemo(() => {
@@ -270,7 +271,9 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
     if (!formState.hasContent && !isNoteMode) {
       return {
         type: 'empty',
-        message: t(isTopicMode ? 'chat.save.topic.knowledge.empty.no_content' : 'chat.save.knowledge.empty.no_content')
+        message: t(
+          isConversationMode ? 'chat.save.topic.knowledge.empty.no_content' : 'chat.save.knowledge.empty.no_content'
+        )
       }
     }
 
@@ -279,7 +282,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
     }
 
     return { type: 'form' }
-  }, [analysisLoading, formState.hasContent, bases.length, t, isTopicMode, isNoteMode])
+  }, [analysisLoading, formState.hasContent, bases.length, t, isConversationMode, isNoteMode])
 
   const handleContentTypeToggle = (type: ContentType) => {
     setSelectedTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
@@ -317,7 +320,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       }
 
       const items: KnowledgeAddItemInput[] = []
-      const noteSource = getNoteSource(source, title)
+      const noteSource = getNoteSource(source, sourceTitle)
 
       if (isNoteMode) {
         const note = source.data
@@ -527,7 +530,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       <DialogContent closeOnOverlayClick={false} className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
-            {title ||
+            {dialogTitle ||
               t(
                 isNoteMode
                   ? 'notes.export_knowledge'
@@ -574,18 +577,18 @@ export default class SaveToKnowledgePopup {
   }
 
   static showForMessage(message: ExportableMessage, title?: string): Promise<SaveResult | null> {
-    return this.show({ source: { type: 'message', data: message }, title })
+    return this.show({ dialogTitle: title, source: { type: 'message', data: message }, sourceTitle: title })
   }
 
   static showForMessages(messages: ExportableMessage[], title: string): Promise<SaveResult | null> {
-    return this.show({ source: { type: 'messages', data: { title, messages } }, title })
+    return this.show({ source: { type: 'messages', data: { title, messages } }, sourceTitle: title })
   }
 
   static showForTopic(topic: Topic, title?: string): Promise<SaveResult | null> {
-    return this.show({ source: { type: 'topic', data: topic }, title })
+    return this.show({ dialogTitle: title, source: { type: 'topic', data: topic }, sourceTitle: title })
   }
 
   static showForNote(note: NotesTreeNode, title?: string): Promise<SaveResult | null> {
-    return this.show({ source: { type: 'note', data: note }, title })
+    return this.show({ dialogTitle: title, source: { type: 'note', data: note }, sourceTitle: title })
   }
 }

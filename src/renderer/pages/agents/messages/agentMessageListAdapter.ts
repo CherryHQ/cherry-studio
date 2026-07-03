@@ -199,6 +199,7 @@ export function useAgentMessageListProviderValue({
 
       const requests = consumePendingAgentSessionImageActions(sessionId, type)
       if (requests.length === 0) {
+        if (data) return
         void runAgentSessionImageAction(runtime, type)
         return
       }

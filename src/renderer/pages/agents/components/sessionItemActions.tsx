@@ -85,8 +85,10 @@ const hasExportOption = ({
   (exportMenuOptions?.joplin && !!onExportJoplin) ||
   (exportMenuOptions?.siyuan && !!onExportSiyuan)
 
-const hasCopyOption = ({ onCopyImage, onCopyMarkdown, onCopyPlainText }: SessionActionContext) =>
-  !!onCopyImage || !!onCopyMarkdown || !!onCopyPlainText
+const hasCopyOption = ({ exportMenuOptions, onCopyImage, onCopyMarkdown, onCopyPlainText }: SessionActionContext) =>
+  !!onCopyMarkdown ||
+  (!!exportMenuOptions?.image && !!onCopyImage) ||
+  (!!exportMenuOptions?.plain_text && !!onCopyPlainText)
 
 sessionActionRegistry.registerCommand({
   id: 'session.auto-rename',
@@ -129,7 +131,10 @@ sessionActionRegistry.registerCommand({
 
 sessionActionRegistry.registerCommand({
   id: 'session.save-notes',
-  availability: ({ onSaveToNotes }) => ({ visible: !!onSaveToNotes, enabled: !!onSaveToNotes }),
+  availability: ({ exportMenuOptions, onSaveToNotes }) => ({
+    visible: !!exportMenuOptions?.notes && !!onSaveToNotes,
+    enabled: !!exportMenuOptions?.notes && !!onSaveToNotes
+  }),
   run: ({ onSaveToNotes }) => onSaveToNotes?.()
 })
 
@@ -222,7 +227,10 @@ sessionActionRegistry.registerCommand({
 
 sessionActionRegistry.registerCommand({
   id: 'session.copy.image',
-  availability: ({ onCopyImage }) => ({ visible: !!onCopyImage, enabled: !!onCopyImage }),
+  availability: ({ exportMenuOptions, onCopyImage }) => ({
+    visible: !!exportMenuOptions?.image && !!onCopyImage,
+    enabled: !!exportMenuOptions?.image && !!onCopyImage
+  }),
   run: ({ onCopyImage }) => onCopyImage?.()
 })
 
@@ -234,7 +242,10 @@ sessionActionRegistry.registerCommand({
 
 sessionActionRegistry.registerCommand({
   id: 'session.copy.plain-text',
-  availability: ({ onCopyPlainText }) => ({ visible: !!onCopyPlainText, enabled: !!onCopyPlainText }),
+  availability: ({ exportMenuOptions, onCopyPlainText }) => ({
+    visible: !!exportMenuOptions?.plain_text && !!onCopyPlainText,
+    enabled: !!exportMenuOptions?.plain_text && !!onCopyPlainText
+  }),
   run: ({ onCopyPlainText }) => onCopyPlainText?.()
 })
 

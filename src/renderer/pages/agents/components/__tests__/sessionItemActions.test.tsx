@@ -140,4 +140,25 @@ describe('session item actions', () => {
 
     expect(deleteAction?.confirm?.cancelText).toBe('common.cancel')
   })
+
+  it('respects export menu preferences for notes and copy actions', () => {
+    const actions = resolveSessionMenuActions(
+      createSessionActionFixture({
+        exportMenuOptions: {
+          ...exportMenuOptions,
+          image: false,
+          notes: false,
+          plain_text: false
+        }
+      })
+    )
+
+    expect(actions.map((action) => action.id)).not.toContain('session.save-notes')
+
+    const copyAction = actions.find((action) => action.id === 'session.copy')
+    expect(copyAction?.children.map((action) => action.id)).toEqual(['session.copy.markdown'])
+
+    const exportAction = actions.find((action) => action.id === 'session.export')
+    expect(exportAction?.children.map((action) => action.id)).not.toContain('session.export.image')
+  })
 })
