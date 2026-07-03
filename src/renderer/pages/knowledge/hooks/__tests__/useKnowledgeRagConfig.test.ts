@@ -58,11 +58,9 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   chunkOverlap: 200,
   chunkStrategy: 'structured',
   chunkSeparator: '\\n\\n',
-  threshold: 0,
   documentCount: 6,
   status: 'completed',
   error: null,
-  searchMode: 'hybrid',
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -118,10 +116,7 @@ describe('useKnowledgeRagConfig', () => {
         chunkSeparator: '\\n\\n',
         embeddingModelId: 'voyage::voyage-3-large',
         rerankModelId: null,
-        documentCount: 10,
-        threshold: 0.25,
-        searchMode: 'vector',
-        hybridAlpha: null
+        documentCount: 10
       })
     })
 
@@ -132,9 +127,7 @@ describe('useKnowledgeRagConfig', () => {
         chunkSize: 1536,
         chunkOverlap: 256,
         rerankModelId: null,
-        documentCount: 10,
-        threshold: 0.25,
-        searchMode: 'vector'
+        documentCount: 10
       }
     })
   })
@@ -167,24 +160,6 @@ describe('useKnowledgeRagConfig', () => {
     expect(mockLogger.error).toHaveBeenCalledWith('Failed to update knowledge RAG config', saveError, {
       baseId: 'base-1',
       updates: {}
-    })
-  })
-
-  it('builds a patch with only the changed search mode', async () => {
-    const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
-
-    await act(async () => {
-      await result.current.save({
-        ...result.current.initialValues,
-        searchMode: 'vector'
-      })
-    })
-
-    expect(mockTrigger).toHaveBeenCalledWith({
-      params: { id: 'base-1' },
-      body: {
-        searchMode: 'vector'
-      }
     })
   })
 })

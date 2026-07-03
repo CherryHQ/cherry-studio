@@ -1,41 +1,14 @@
-import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
-import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
 import { useTranslation } from 'react-i18next'
 
-import { RagFieldLabel, RagSelectField, RagSliderField } from './panelPrimitives'
-
-const DEFAULT_HYBRID_ALPHA = 0.5
+import { RagSliderField } from './panelPrimitives'
 
 interface RetrievalSectionProps {
-  searchModeOptions: KnowledgeSelectOption[]
   documentCount: number
-  threshold: number
-  searchMode: KnowledgeSearchMode
-  hybridAlpha: number | null
-  // Read-only here: the rerank picker lives in its own section, but its value still
-  // drives whether the relevance threshold slider is shown.
-  rerankModelId: string | null
   onDocumentCountChange: (value: number) => void
-  onThresholdChange: (value: number) => void
-  onSearchModeChange: (value: KnowledgeSearchMode) => void
-  onHybridAlphaChange: (value: number) => void
 }
 
-const RetrievalSection = ({
-  searchModeOptions,
-  documentCount,
-  threshold,
-  searchMode,
-  hybridAlpha,
-  rerankModelId,
-  onDocumentCountChange,
-  onThresholdChange,
-  onSearchModeChange,
-  onHybridAlphaChange
-}: RetrievalSectionProps) => {
+const RetrievalSection = ({ documentCount, onDocumentCountChange }: RetrievalSectionProps) => {
   const { t } = useTranslation()
-  const isHybridMode = searchMode === 'hybrid'
-  const usesRelevanceThreshold = searchMode === 'vector' || rerankModelId !== null
 
   return (
     <div className="flex flex-col gap-4">
@@ -51,45 +24,6 @@ const RetrievalSection = ({
         maxLabel="50"
         formatValue={(value) => String(value)}
       />
-
-      {usesRelevanceThreshold ? (
-        <RagSliderField
-          label={t('knowledge.rag.threshold')}
-          hint={t('knowledge.rag.hints.threshold')}
-          value={threshold}
-          onValueChange={onThresholdChange}
-          min={0}
-          max={1}
-          step={0.1}
-          minLabel="0.0"
-          maxLabel="1.0"
-          formatValue={(value) => value.toFixed(1)}
-        />
-      ) : null}
-
-      <div>
-        <RagFieldLabel label={t('knowledge.rag.search_mode.title')} hint={t('knowledge.rag.hints.search_mode')} />
-        <RagSelectField
-          value={searchMode}
-          options={searchModeOptions}
-          onValueChange={(value) => onSearchModeChange(value as KnowledgeSearchMode)}
-        />
-      </div>
-
-      {isHybridMode ? (
-        <RagSliderField
-          label={t('knowledge.rag.hybrid_alpha')}
-          hint={t('knowledge.rag.hints.hybrid_alpha')}
-          value={hybridAlpha ?? DEFAULT_HYBRID_ALPHA}
-          onValueChange={onHybridAlphaChange}
-          min={0}
-          max={1}
-          step={0.1}
-          minLabel="0.0"
-          maxLabel="1.0"
-          formatValue={(value) => value.toFixed(1)}
-        />
-      ) : null}
     </div>
   )
 }

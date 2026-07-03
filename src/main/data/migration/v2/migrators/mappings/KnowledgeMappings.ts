@@ -4,7 +4,6 @@ import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
   DEFAULT_KNOWLEDGE_BASE_STATUS,
-  DEFAULT_KNOWLEDGE_SEARCH_MODE,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED,
   KNOWLEDGE_NOTE_CONTENT_MAX,
@@ -64,7 +63,6 @@ export interface LegacyKnowledgeBase {
   preprocessProvider?: LegacyPreprocessConfig
   chunkSize?: number
   chunkOverlap?: number
-  threshold?: number
   documentCount?: number
   created_at?: number
   updated_at?: number
@@ -195,18 +193,8 @@ function normalizeMigratedKnowledgeBaseConfig<T extends Partial<NewKnowledgeBase
     normalized.chunkOverlap = getDefaultChunkOverlap(chunkSize) as T['chunkOverlap']
   }
 
-  if (normalized.threshold != null && (normalized.threshold < 0 || normalized.threshold > 1)) {
-    normalized.threshold = undefined as T['threshold']
-  }
-
   if (normalized.documentCount != null && normalized.documentCount <= 0) {
     normalized.documentCount = undefined as T['documentCount']
-  }
-
-  if (normalized.hybridAlpha != null) {
-    if (normalized.hybridAlpha < 0 || normalized.hybridAlpha > 1 || normalized.searchMode !== 'hybrid') {
-      normalized.hybridAlpha = undefined as T['hybridAlpha']
-    }
   }
 
   return normalized
@@ -267,9 +255,7 @@ export const transformKnowledgeBase = (
     fileProcessorId: base.preprocessProvider?.provider?.id,
     chunkSize: base.chunkSize ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: base.chunkOverlap ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
-    threshold: base.threshold,
     documentCount: base.documentCount,
-    searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE,
     createdAt: toTimestamp(base.created_at),
     updatedAt: toTimestamp(base.updated_at)
   }

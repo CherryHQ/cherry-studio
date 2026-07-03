@@ -1083,8 +1083,7 @@ describe('ModelService.delete', () => {
       status: 'completed',
       error: null,
       chunkSize: 1024,
-      chunkOverlap: 200,
-      searchMode: 'vector'
+      chunkOverlap: 200
     })
 
     let err: unknown
@@ -1272,8 +1271,7 @@ describe('ModelService.bulkDelete', () => {
       status: 'completed',
       error: null,
       chunkSize: 1024,
-      chunkOverlap: 200,
-      searchMode: 'vector'
+      chunkOverlap: 200
     })
 
     let err: unknown
