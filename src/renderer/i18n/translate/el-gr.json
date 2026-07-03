@@ -1333,12 +1333,14 @@
       "add": "Προσθήκη ετικέτας",
       "delete": "Διαγραφή ετικέτας",
       "deleteConfirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτήν την ετικέτα;",
+      "group_by": "Ομαδοποίηση κατά ετικέτα",
       "manage": "Διαχείριση ετικετών",
       "modify": "Επεξεργασία ετικέτας",
       "none": "Δεν υπάρχουν προς το παρόν ετικέτες",
       "settings": {
         "title": "Ρυθμίσεις Ετικέτας"
       },
+      "ungroup": "Απενεργοποίηση ομαδοποίησης ετικετών",
       "untagged": "Αχαρακτήριστο"
     },
     "title": "Βοηθός",
@@ -1600,8 +1602,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Cache {{hit_rate}}%",
+        "tooltip": "Ανάγνωση cache {{cache_read}} / εγγραφή {{cache_write}} / χωρίς cache {{no_cache}} · εξοικονομήθηκαν {{saved}} tokens εισόδου"
       },
       "editing_current": "Αυτό το μήνυμα επεξεργάζεται στον συνθέτη",
       "flow": {
@@ -2380,6 +2382,7 @@
       "no_match_description": "Κανένα αρχείο δεν ταιριάζει με τα τρέχοντα φίλτρα",
       "no_match_title": "Δεν βρέθηκαν αρχεία που να ταιριάζουν"
     },
+    "empty_trash": "Άδειασμα κάδου απορριμμάτων",
     "error": {
       "delete_failed": "Αποτυχία διαγραφής αρχείων",
       "delete_partial_failed": "Μερικά αρχεία δεν μπόρεσαν να διαγραφούν",
@@ -2397,6 +2400,7 @@
     "missing": "Αγνοούμενος",
     "modified_at": "Τροποποιήθηκε στις",
     "name": "Όνομα αρχείου",
+    "no_actions": "Δεν υπάρχουν διαθέσιμες ενέργειες",
     "open": "Άνοιγμα",
     "other": "Άλλο",
     "permanent_delete": "Διαγραφή οριστικά",
@@ -2410,13 +2414,18 @@
     "remove_from_library": "Αφαίρεση από τη βιβλιοθήκη",
     "rename": "Μετονομασία",
     "restore": "Επαναφορά",
+    "select_all": "Επιλογή ορατών αρχείων",
+    "select_all_short": "Επιλογή Όλων",
+    "select_file": "Επιλέξτε {{name}}",
     "selected_count": "{{count}} αρχεία επιλέχθηκαν",
+    "selected_missing_hint": "Κάποια επιλεγμένα αρχεία λείπουν. Εντοπίστε τα ή αφαιρέστε τις εγγραφές τους.",
     "show_in_folder": "Εμφάνιση στο φάκελο",
     "size": "Μέγεθος",
     "text": "Κείμενο",
     "title": "Αρχεία",
     "trash": "Σκουπίδια",
     "type": "Τύπος",
+    "upload": "Μεταφόρτωση αρχείων",
     "video": "Βίντεο"
   },
   "globalSearch": {
@@ -2800,7 +2809,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} πηγές",
-      "documents_count": "{{count}} έγγραφα",
       "updated_at": "Ενημερώθηκε {{time}}"
     },
     "name_required": "Απαιτείται το όνομα της βάσης γνώσεων",
@@ -4768,6 +4776,7 @@
     "ollama": "Ollama",
     "open-mineru": "Ανοιχτό MinerU",
     "openai": "OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -5354,7 +5363,7 @@
       "title": "Ρυθμίσεις Ανώτερου Νiveau"
     },
     "appearance": {
-      "title": "[to be translated]:Appearance"
+      "title": "Εμφάνιση"
     },
     "assistant": {
       "icon": {
@@ -5424,7 +5433,7 @@
         "cloud_storage": "Ρυθμίσεις αποθήκευσης στο νέφος",
         "export_settings": "Ρυθμίσεις εξαγωγής",
         "import_settings": "Εισαγωγή Ρυθμίσεων",
-        "note_export": "[to be translated]:Note Export",
+        "note_export": "Εξαγωγή Σημείωσης",
         "third_party": "Σύνδεση τρίτων"
       },
       "export_menu": {
@@ -6478,11 +6487,11 @@
       "user": "Χρήστης"
     },
     "menuGroups": {
-      "automation": "[to be translated]:Automation",
-      "capabilities": "[to be translated]:Capabilities & Tools",
-      "models": "[to be translated]:Models",
-      "personal": "[to be translated]:Personal",
-      "quickAccess": "[to be translated]:Quick Access",
+      "automation": "Αυτοματοποίηση",
+      "capabilities": "Δυνατότητες & Εργαλεία",
+      "models": "Μοντέλα",
+      "personal": "Προσωπικό",
+      "quickAccess": "Γρήγορη Πρόσβαση",
       "system": "Σύστημα"
     },
     "messages": {
@@ -7241,6 +7250,7 @@
       "all_enable": "Ενεργοποίηση Όλων",
       "bind_first_to_enable": "Δέστε πρώτα μια συντόμευση για να αλλάξετε την κατάσταση ενεργοποίησής της",
       "categories": {
+        "all": "Όλα",
         "assistant": "Εργαλεία Βοηθού Τεχνητής Νοημοσύνης",
         "chat": "Αλληλεπίδραση Μηνυμάτων",
         "general": "Καθολικό και Παράθυρο",
@@ -7326,7 +7336,7 @@
       "zip": "Τ.Κ."
     },
     "system": {
-      "title": "[to be translated]:System"
+      "title": "Σύστημα"
     },
     "theme": {
       "color_primary": "Κύριο Χρώμα Θέματος",

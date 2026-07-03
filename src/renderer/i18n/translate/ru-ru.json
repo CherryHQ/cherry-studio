@@ -1333,12 +1333,14 @@
       "add": "Добавить тег",
       "delete": "Удалить тег",
       "deleteConfirm": "Вы уверены, что хотите удалить этот тег?",
+      "group_by": "Группировать по тегу",
       "manage": "Управление тегами",
       "modify": "Изменить тег",
       "none": "Нет тегов",
       "settings": {
         "title": "Настройки тегов"
       },
+      "ungroup": "Отключить группировку тегов",
       "untagged": "Несгруппированные метки"
     },
     "title": "Ассистенты",
@@ -1600,8 +1602,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Кэш {{hit_rate}}%",
+        "tooltip": "Чтение кэша {{cache_read}} / запись кэша {{cache_write}} / без кэша {{no_cache}} · сэкономлено {{saved}} входных токенов"
       },
       "editing_current": "Это сообщение редактируется в композере",
       "flow": {
@@ -2380,6 +2382,7 @@
       "no_match_description": "Ни один файл не соответствует текущим фильтрам",
       "no_match_title": "Совпадающие файлы не найдены"
     },
+    "empty_trash": "Очистить корзину",
     "error": {
       "delete_failed": "Не удалось удалить файлы",
       "delete_partial_failed": "Некоторые файлы не удалось удалить",
@@ -2397,6 +2400,7 @@
     "missing": "Отсутствует",
     "modified_at": "Изменено",
     "name": "Имя",
+    "no_actions": "Нет доступных действий",
     "open": "Открыть",
     "other": "Другое",
     "permanent_delete": "Удалить навсегда",
@@ -2410,13 +2414,18 @@
     "remove_from_library": "Удалить из библиотеки",
     "rename": "Переименовать",
     "restore": "Восстановить",
+    "select_all": "Выбрать видимые файлы",
+    "select_all_short": "Выбрать все",
+    "select_file": "Выбрать {{name}}",
     "selected_count": "{{count}} файлов выбрано",
+    "selected_missing_hint": "Некоторые выбранные файлы отсутствуют. Найдите их или удалите их записи.",
     "show_in_folder": "Показать в папке",
     "size": "Размер",
     "text": "Текст",
     "title": "Файлы",
     "trash": "Мусор",
     "type": "Тип",
+    "upload": "Загрузить файлы",
     "video": "Видео"
   },
   "globalSearch": {
@@ -2800,7 +2809,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} источников",
-      "documents_count": "{{count}} документов",
       "updated_at": "Обновлено {{time}}"
     },
     "name_required": "Требуется название базы знаний",
@@ -4768,6 +4776,7 @@
     "ollama": "Ollama",
     "open-mineru": "Открыть MinerU",
     "openai": "OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -5354,7 +5363,7 @@
       "title": "Расширенные настройки"
     },
     "appearance": {
-      "title": "[to be translated]:Appearance"
+      "title": "Внешний вид"
     },
     "assistant": {
       "icon": {
@@ -5424,7 +5433,7 @@
         "cloud_storage": "Настройки облачного резервирования",
         "export_settings": "Настройки экспорта",
         "import_settings": "Импорт настроек",
-        "note_export": "[to be translated]:Note Export",
+        "note_export": "Экспорт заметок",
         "third_party": "Сторонние подключения"
       },
       "export_menu": {
@@ -6478,11 +6487,11 @@
       "user": "Пользователь"
     },
     "menuGroups": {
-      "automation": "[to be translated]:Automation",
-      "capabilities": "[to be translated]:Capabilities & Tools",
-      "models": "[to be translated]:Models",
-      "personal": "[to be translated]:Personal",
-      "quickAccess": "[to be translated]:Quick Access",
+      "automation": "Автоматизация",
+      "capabilities": "Возможности и инструменты",
+      "models": "Модели",
+      "personal": "Личный",
+      "quickAccess": "Быстрый доступ",
       "system": "Система"
     },
     "messages": {
@@ -7241,6 +7250,7 @@
       "all_enable": "Включить все",
       "bind_first_to_enable": "Сначала назначьте сочетание клавиш, чтобы изменить его состояние включения.",
       "categories": {
+        "all": "Все",
         "assistant": "Инструменты ИИ-ассистента",
         "chat": "Взаимодействие с сообщениями",
         "general": "Глобальное и Окно",
@@ -7326,7 +7336,7 @@
       "zip": "ЗИП"
     },
     "system": {
-      "title": "[to be translated]:System"
+      "title": "Система"
     },
     "theme": {
       "color_primary": "Цвет темы",

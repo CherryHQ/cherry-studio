@@ -7250,6 +7250,7 @@
       "all_enable": "Enable All",
       "bind_first_to_enable": "Bind a shortcut first to change its enabled state",
       "categories": {
+        "all": "All",
         "assistant": "AI Tools",
         "chat": "Messages",
         "general": "General",
@@ -7265,6 +7266,7 @@
       "empty": "No shortcuts are available in this group",
       "enabled": "Enable",
       "exit_fullscreen": "Exit Fullscreen",
+      "filter": "Filter",
       "label": "Key",
       "move_tab_to_first": "Move Tab to First",
       "new_topic": "New Conversation",

@@ -1333,12 +1333,14 @@
       "add": "Thêm thẻ",
       "delete": "Xóa thẻ",
       "deleteConfirm": "Bạn có chắc chắn muốn xóa thẻ này không?",
+      "group_by": "Nhóm theo thẻ",
       "manage": "Quản lý thẻ",
       "modify": "Sửa Thẻ",
       "none": "Không có thẻ",
       "settings": {
         "title": "Cài đặt thẻ"
       },
+      "ungroup": "Tắt nhóm thẻ",
       "untagged": "Không được gắn thẻ"
     },
     "title": "Trợ lý",
@@ -1600,8 +1602,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Tỷ lệ trúng bộ nhớ đệm {{hit_rate}}%",
+        "tooltip": "Đọc cache {{cache_read}} / ghi cache {{cache_write}} / không cache {{no_cache}} · đã tiết kiệm {{saved}} token đầu vào"
       },
       "editing_current": "Thông báo này đang được chỉnh sửa trong trình soạn thảo",
       "flow": {
@@ -2380,6 +2382,7 @@
       "no_match_description": "Không có tệp nào khớp với bộ lọc hiện tại",
       "no_match_title": "Không tìm thấy tệp phù hợp"
     },
+    "empty_trash": "Xóa thùng rác",
     "error": {
       "delete_failed": "Không thể xóa tệp",
       "delete_partial_failed": "Một số tệp không thể bị xóa",
@@ -2397,6 +2400,7 @@
     "missing": "Thiếu",
     "modified_at": "Đã chỉnh sửa lúc",
     "name": "Tên",
+    "no_actions": "Không có hành động nào khả dụng",
     "open": "Mở",
     "other": "Khác",
     "permanent_delete": "Xóa vĩnh viễn",
@@ -2410,13 +2414,18 @@
     "remove_from_library": "Xóa khỏi thư viện",
     "rename": "Đổi tên",
     "restore": "Khôi phục",
+    "select_all": "Chọn các tệp hiển thị",
+    "select_all_short": "Chọn Tất Cả",
+    "select_file": "Chọn {{name}}",
     "selected_count": "{{count}} tệp đã được chọn",
+    "selected_missing_hint": "Một số tệp đã chọn bị thiếu. Tìm vị trí của chúng hoặc xóa hồ sơ của chúng.",
     "show_in_folder": "Hiển thị trong thư mục",
     "size": "Kích thước",
     "text": "Văn bản",
     "title": "Tập tin",
     "trash": "Rác",
     "type": "Kiểu",
+    "upload": "Tải lên tệp",
     "video": "Video"
   },
   "globalSearch": {
@@ -2800,7 +2809,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} nguồn",
-      "documents_count": "{{count}} tài liệu",
       "updated_at": "Cập nhật {{time}}"
     },
     "name_required": "Tên cơ sở kiến thức là bắt buộc",
@@ -4768,6 +4776,7 @@
     "ollama": "Ollama",
     "open-mineru": "Mở MinerU",
     "openai": "OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -5354,7 +5363,7 @@
       "title": "Cài đặt nâng cao"
     },
     "appearance": {
-      "title": "[to be translated]:Appearance"
+      "title": "Vẻ ngoài"
     },
     "assistant": {
       "icon": {
@@ -5424,7 +5433,7 @@
         "cloud_storage": "Cài đặt Sao lưu Đám mây",
         "export_settings": "Xuất Cài đặt",
         "import_settings": "Nhập Cài đặt",
-        "note_export": "[to be translated]:Note Export",
+        "note_export": "Xuất Ghi chú",
         "third_party": "Kết nối của bên thứ ba"
       },
       "export_menu": {
@@ -6478,11 +6487,11 @@
       "user": "Người dùng"
     },
     "menuGroups": {
-      "automation": "[to be translated]:Automation",
-      "capabilities": "[to be translated]:Capabilities & Tools",
-      "models": "[to be translated]:Models",
-      "personal": "[to be translated]:Personal",
-      "quickAccess": "[to be translated]:Quick Access",
+      "automation": "Tự động hóa",
+      "capabilities": "Khả năng & Công cụ",
+      "models": "Mô hình",
+      "personal": "Cá nhân",
+      "quickAccess": "Truy cập nhanh",
       "system": "Hệ thống"
     },
     "messages": {
@@ -7241,6 +7250,7 @@
       "all_enable": "Kích hoạt Tất cả",
       "bind_first_to_enable": "Trước tiên hãy gán một phím tắt để thay đổi trạng thái kích hoạt của nó",
       "categories": {
+        "all": "Tất cả",
         "assistant": "Công cụ Trợ lý AI",
         "chat": "Tương tác tin nhắn",
         "general": "Toàn cầu và Cửa sổ",
@@ -7326,7 +7336,7 @@
       "zip": "ZIP"
     },
     "system": {
-      "title": "[to be translated]:System"
+      "title": "Hệ thống"
     },
     "theme": {
       "color_primary": "Warna Primer",
