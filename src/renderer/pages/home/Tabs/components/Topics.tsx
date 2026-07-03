@@ -640,11 +640,11 @@ export function Topics({
   const handleGroupHeaderSelectTopic = useCallback(
     (topicId: string) => {
       const topic = filteredTopics.find((candidate) => candidate.id === topicId)
-      if (topic && topic.id !== activeTopic?.id) {
+      if (topic) {
         setActiveTopic(topic)
       }
     },
-    [activeTopic?.id, filteredTopics, setActiveTopic]
+    [filteredTopics, setActiveTopic]
   )
   const getGroupHeaderClickBehavior = useCallback(
     (group: { id: string }) =>
