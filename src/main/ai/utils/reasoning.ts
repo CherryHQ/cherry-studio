@@ -62,6 +62,16 @@ import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 const logger = loggerService.withContext('reasoning')
 
+/**
+ * Check if the provider's endpoint is configured with `reasoningFormatType: 'self-hosted'`.
+ * Self-hosted providers (vLLM, SGLang, etc.) expect reasoning parameters inside
+ * `chat_template_kwargs` rather than as top-level request body fields.
+ */
+function isSelfHostedProvider(provider: Provider): boolean {
+  const endpoint = provider.defaultChatEndpoint ?? 'openai-chat-completions'
+  return provider.endpointConfigs?.[endpoint]?.reasoningFormatType === 'self-hosted'
+}
+
 type ReasoningEffortOptionalParams = {
   thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
   reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
@@ -151,6 +161,13 @@ export function getReasoningEffort(
     }
 
     // providers that use enable_thinking
+    // Self-hosted providers (vLLM, SGLang, etc.) need chat_template_kwargs format
+    if (
+      isSelfHostedProvider(provider) &&
+      (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model))
+    ) {
+      return { chat_template_kwargs: { enable_thinking: false } }
+    }
     if (
       (isSupportEnableThinkingProvider(provider) &&
         (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model))) ||
@@ -486,8 +503,17 @@ export function getReasoningEffort(
 
   // Qwen models, use enable_thinking
   if (isQwenReasoningModel(model)) {
-    const supportEnableThinking = isSupportEnableThinkingProvider(provider)
     const enableThinkingConfig = isQwenAlwaysThinkModel(model) ? {} : { enable_thinking: true }
+    // Self-hosted providers (vLLM, SGLang, etc.) need chat_template_kwargs format
+    if (isSelfHostedProvider(provider)) {
+      return {
+        chat_template_kwargs: {
+          ...enableThinkingConfig,
+          thinking_budget: budgetTokens
+        }
+      }
+    }
+    const supportEnableThinking = isSupportEnableThinkingProvider(provider)
     if (supportEnableThinking) {
       return {
         ...enableThinkingConfig,
