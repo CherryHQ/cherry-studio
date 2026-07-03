@@ -39,7 +39,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => ({
           onClick={() => props.onSendDraft({ text: props.text, tokens: [] })}>
           send
         </button>
-        {props.renderLeftControls?.()}
+        {props.renderLeftControls?.(undefined, { available: true, open: () => undefined })}
       </div>
     )
   }
@@ -52,6 +52,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerToolState: () => ({ files: [], isExpanded: false }),
   useComposerToolDispatch: () => ({ setFiles: vi.fn(), setIsExpanded: vi.fn() }),
   useComposerToolLauncherActions: () => ({ getLaunchers: () => [], dispatchLauncher: vi.fn() }),
+  useComposerToolLauncherVersion: () => 0,
   useComposerTokenReconcile: () => vi.fn()
 }))
 
@@ -62,10 +63,17 @@ vi.mock('@renderer/components/composer/tools/registry', () => ({
 vi.mock('@renderer/components/composer/variants/shared/ComposerControlScaffolding', () => ({
   COMPOSER_SELECTOR_BUTTON_CLASS: '',
   ComposerToolbarControls: ({
-    renderContextControls
+    renderContextControls,
+    unifiedPanelControl
   }: {
     renderContextControls: (a: { side: string; iconOnly: boolean }) => React.ReactNode
-  }) => <div>{renderContextControls({ side: 'bottom', iconOnly: false })}</div>
+    unifiedPanelControl?: { available: boolean }
+  }) => (
+    <div>
+      {renderContextControls({ side: 'bottom', iconOnly: false })}
+      {unifiedPanelControl?.available ? <div data-testid="painting-plus-control" /> : null}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/composer/variants/shared/composerTokens', () => ({
@@ -141,6 +149,11 @@ describe('PaintingComposer', () => {
   it('renders the model selector control in the toolbar', () => {
     renderComposer()
     expect(screen.getByTestId('painting-model-selector')).toBeInTheDocument()
+  })
+
+  it('passes the unified panel control to the toolbar', () => {
+    renderComposer()
+    expect(screen.getByTestId('painting-plus-control')).toBeInTheDocument()
   })
 
   it('reports prompt edits to the page', () => {

@@ -902,8 +902,6 @@ describe('KnowledgePage', () => {
 
     await waitFor(() => {
       expect(createGroupMock).toHaveBeenCalledWith('Group 2')
-    })
-    await waitFor(() => {
       expect(screen.queryByTestId('create-group-dialog')).not.toBeInTheDocument()
     })
   })
