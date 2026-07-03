@@ -437,10 +437,6 @@ describe('QuickPanelView', () => {
     icon: `${index}`,
     action: vi.fn()
   }))
-  const visibleShadowClass = 'shadow-[0_18px_44px_rgba(15,23,42,0.16),0_4px_12px_rgba(15,23,42,0.10)]'
-  const darkVisibleShadowClass = 'dark:shadow-[0_22px_48px_rgba(0,0,0,0.46),0_8px_18px_rgba(0,0,0,0.35)]'
-  const homeVisibleShadowClass = 'shadow-[0_12px_30px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.05)]'
-  const darkHomeVisibleShadowClass = 'dark:shadow-[0_14px_34px_rgba(0,0,0,0.26),0_4px_12px_rgba(0,0,0,0.18)]'
   const compactItems = measuredItems.slice(0, 2)
 
   it('keeps the fixed height in a docked composer (no placement, no fill)', async () => {
@@ -479,9 +475,7 @@ describe('QuickPanelView', () => {
       // docked 不撑高 body。
       const body = screen.getByTestId('quick-panel-body')
       expect(body).not.toHaveStyle({ height: `${expected.panelMaxHeight}px` })
-      expect(body).toHaveClass(visibleShadowClass)
-      expect(body).toHaveClass(darkVisibleShadowClass)
-      expect(body).not.toHaveClass('shadow-none')
+      expect(body).toHaveClass('shadow-none')
     } finally {
       getRectSpy.mockRestore()
     }
@@ -527,11 +521,7 @@ describe('QuickPanelView', () => {
       expect(body).not.toHaveStyle({ height: `${expected.panelMaxHeight}px` })
       expect(body).not.toHaveStyle({ height: `${panelBottom - dockTop - QUICK_PANEL_SAFE_MARGIN}px` })
       expect(body).not.toHaveClass('justify-end')
-      expect(body).toHaveClass(homeVisibleShadowClass)
-      expect(body).toHaveClass(darkHomeVisibleShadowClass)
-      expect(body).not.toHaveClass('shadow-none')
-      expect(body).not.toHaveClass(visibleShadowClass)
-      expect(body).not.toHaveClass(darkVisibleShadowClass)
+      expect(body).toHaveClass('shadow-none')
     } finally {
       getRectSpy.mockRestore()
     }
@@ -648,7 +638,7 @@ describe('QuickPanelView', () => {
         expect(panel).toHaveStyle({ maxHeight: `${homeExpected.panelMaxHeight}px` })
       })
       expect(screen.getByTestId('quick-panel-body')).toHaveStyle({ height: `${homeExpected.panelMaxHeight}px` })
-      expect(screen.getByTestId('quick-panel-body')).toHaveClass(homeVisibleShadowClass)
+      expect(screen.getByTestId('quick-panel-body')).toHaveClass('shadow-none')
 
       rerender(renderPanel(false))
 
@@ -657,10 +647,7 @@ describe('QuickPanelView', () => {
       })
       const body = screen.getByTestId('quick-panel-body')
       expect(body).not.toHaveStyle({ height: `${homeExpected.panelMaxHeight}px` })
-      expect(body).toHaveClass(visibleShadowClass)
-      expect(body).toHaveClass(darkVisibleShadowClass)
-      expect(body).not.toHaveClass(homeVisibleShadowClass)
-      expect(body).not.toHaveClass(darkHomeVisibleShadowClass)
+      expect(body).toHaveClass('shadow-none')
     } finally {
       getRectSpy.mockRestore()
       clientHeightSpy.mockRestore()
@@ -703,10 +690,7 @@ describe('QuickPanelView', () => {
       expect(screen.getByTestId('quick-panel-virtual-list')).toHaveAttribute('data-size', String(expected.listHeight))
       const body = screen.getByTestId('quick-panel-body')
       expect(body).not.toHaveStyle({ height: `${expected.panelMaxHeight}px` })
-      expect(body).toHaveClass(visibleShadowClass)
-      expect(body).toHaveClass(darkVisibleShadowClass)
-      expect(body).not.toHaveClass(homeVisibleShadowClass)
-      expect(body).not.toHaveClass(darkHomeVisibleShadowClass)
+      expect(body).toHaveClass('shadow-none')
     } finally {
       getRectSpy.mockRestore()
     }
