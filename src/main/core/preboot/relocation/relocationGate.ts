@@ -83,6 +83,8 @@ export async function runUserDataRelocationGate(): Promise<RelocationGateResult>
   relocationWindowManager.sendProgress(currentProgress)
 
   try {
+    preflight(pending.from, pending.to)
+
     if (pending.copy) {
       const total = await calcTotalBytes(pending.from)
       currentProgress = makeProgress('copying', pending, 0, total)
@@ -177,6 +179,9 @@ function preflight(from: string, to: string): void {
   if (toAbs.startsWith(fromAbs + path.sep)) {
     throw new Error(`target is inside source (would recurse): ${toAbs}`)
   }
+  if (fromAbs.startsWith(toAbs + path.sep)) {
+    throw new Error(`source is inside target (would merge userData into an ancestor): ${toAbs}`)
+  }
   if (!fs.existsSync(from)) {
     throw new Error(`source does not exist: ${from}`)
   }
@@ -230,10 +235,10 @@ async function calcTotalBytes(src: string): Promise<number> {
  * overwrite, keep symlinks as symlinks), but async so the main process
  * isn't blocked and progress can stream to the window.
  *
- * Locked files (Windows Chromium runtime cache held by the relocation
- * window's own session) are retried a few times and then skipped with a
- * warning rather than failing the whole relocation — they are
- * non-essential and regenerated on the next launch.
+ * File copy failures are retried a few times, then fail the relocation.
+ * A partially copied tree is acceptable only while BootConfig still points
+ * at the old location; committing after a skipped file would silently lose
+ * user data.
  */
 async function copyTreeWithProgress(
   from: string,
@@ -241,7 +246,6 @@ async function copyTreeWithProgress(
   total: number,
   onTick: (copied: number) => void
 ): Promise<void> {
-  preflight(from, to)
   const acc = { bytes: 0 }
   await copyDir(from, to, total, onTick, acc)
 }
@@ -267,7 +271,8 @@ async function copyDir(
         await fsp.rm(dstPath, { force: true })
         await fsp.symlink(target, dstPath)
       } catch (error) {
-        logger.warn('Failed to mirror symlink, skipping', { srcPath, error: (error as Error).message })
+        logger.error('Failed to mirror symlink', { srcPath, error: (error as Error).message })
+        throw error
       }
       continue
     }
@@ -301,11 +306,11 @@ async function copyFileWithRetry(src: string, dst: string, retries = 3): Promise
       return
     } catch (error) {
       if (attempt >= retries) {
-        logger.warn('Failed to copy file after retries, skipping', {
+        logger.error('Failed to copy file after retries', {
           src,
           error: (error as Error).message
         })
-        return
+        throw error
       }
       await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)))
     }
