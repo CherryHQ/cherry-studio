@@ -65,6 +65,8 @@ export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled,
     return sortedNames
   }, [allTagNames, value])
 
+  const hasTagOptions = tagNames.length > 0
+
   useEffect(() => {
     if (!portalContainer) return
 
@@ -144,9 +146,9 @@ export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled,
     <div ref={rootRef} className="group/tag-select relative flex w-full min-w-0 items-center">
       <Select
         disabled={disabled}
-        open={open}
+        open={hasTagOptions && open}
         value={value ? encodeTagSelectValue(value) : ''}
-        onOpenChange={setOpen}
+        onOpenChange={(nextOpen) => setOpen(hasTagOptions && nextOpen)}
         onValueChange={(selectedValue) => onChange(decodeTagSelectValue(selectedValue))}>
         <SelectTrigger
           size="sm"
@@ -156,7 +158,9 @@ export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled,
               '[&_svg]:transition-opacity group-focus-within/tag-select:[&_svg]:opacity-0 group-hover/tag-select:[&_svg]:opacity-0'
           )}
           aria-label={t('library.config.basic.tags')}>
-          <SelectValue placeholder={t('library.config.basic.tag_placeholder')} />
+          <SelectValue
+            placeholder={t(hasTagOptions ? 'library.config.basic.tag_placeholder' : 'library.config.basic.tag_empty')}
+          />
         </SelectTrigger>
         <SelectContent portalContainer={portalContainer ?? undefined} {...{ [TAG_SELECT_CONTENT_ATTR]: '' }}>
           {tagNames.map((name) => (

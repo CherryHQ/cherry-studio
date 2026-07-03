@@ -12,6 +12,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       ({
         'library.config.basic.tags': 'Tags',
+        'library.config.basic.tag_empty': 'No tags available',
         'library.config.basic.tag_placeholder': 'Select tag',
         'common.clear': 'Clear'
       })[key] ?? key
@@ -86,6 +87,24 @@ describe('TagSelector', () => {
 
     return portalContainer
   }
+
+  it('shows an empty state and does not open the select when no tags are available', () => {
+    const portalContainer = createPortalContainer()
+
+    try {
+      render(<TagSelector value={null} onChange={vi.fn()} allTagNames={[]} portalContainer={portalContainer} />)
+
+      const trigger = screen.getByRole('button', { name: 'Tags' })
+
+      expect(trigger).toHaveTextContent('No tags available')
+
+      fireEvent.click(trigger)
+
+      expect(document.querySelector('[data-tag-selector-content]')).not.toBeInTheDocument()
+    } finally {
+      portalContainer.remove()
+    }
+  })
 
   it('keeps the open select interactive when its content is portaled into the dialog', () => {
     const portalContainer = createPortalContainer()
