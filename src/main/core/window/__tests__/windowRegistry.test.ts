@@ -249,5 +249,6 @@ describe('WINDOW_TYPE_REGISTRY NotePrint window — domain-loaded print surface'
     expect(metadata?.htmlPath).toBe('')
     expect(metadata?.preload).toBe('')
     expect(metadata?.showMode).toBe('manual')
+    expect(metadata?.behavior?.macShowInDock).toBe(false)
   })
 })
