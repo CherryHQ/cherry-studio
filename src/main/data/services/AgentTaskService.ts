@@ -60,15 +60,10 @@ function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'com
 }
 
 export class AgentTaskService {
-  /**
-   * Scheduled tasks require an autonomous agent — either Soul Mode
-   * (soul_enabled) or bypassPermissions permission mode — otherwise
-   * tool calls during task execution will fail with permission errors.
-   */
-  private assertAutonomous(agentId: string): void {
+  private assertAgentExists(agentId: string): void {
     const database = application.get('DbService').getDb()
     const [row] = database
-      .select({ configuration: agentsTable.configuration })
+      .select({ id: agentsTable.id })
       .from(agentsTable)
       .where(eq(agentsTable.id, agentId))
       .limit(1)
@@ -77,20 +72,10 @@ export class AgentTaskService {
     if (!row) {
       throw DataApiErrorFactory.notFound('Agent', agentId)
     }
-
-    const config: Record<string, unknown> = row.configuration ?? {}
-
-    if (config.soul_enabled === true || config.permission_mode === 'bypassPermissions') {
-      return
-    }
-
-    throw DataApiErrorFactory.invalidOperation(
-      'Scheduled tasks require Soul Mode or Bypass Permissions mode. Update the agent settings first.'
-    )
   }
 
   async createTask(agentId: string, dto: CreateTaskDto): Promise<ScheduledTaskEntity> {
-    this.assertAutonomous(agentId)
+    this.assertAgentExists(agentId)
 
     const timeoutMinutes = dto.timeoutMinutes ?? 2
     const jobInputTemplate: AgentTaskJobInputTemplate = {

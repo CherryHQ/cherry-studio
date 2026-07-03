@@ -519,7 +519,6 @@ describe('ClawServer', () => {
       name: 'CherryClaw',
       model: 'claude-sonnet-4-20250514',
       configuration: {
-        soul_enabled: true,
         heartbeat_enabled: true
       }
     }
@@ -528,7 +527,7 @@ describe('ClawServer', () => {
       id: 'agent_1',
       name: 'CherryClaw',
       model: 'claude-sonnet-4-20250514',
-      configuration: { soul_enabled: false }
+      configuration: {}
     }
 
     beforeEach(() => {
@@ -562,7 +561,8 @@ describe('ClawServer', () => {
           'discord',
           'slack'
         ])
-        expect(parsed.soul_enabled).toBe(true)
+        expect(parsed.soul_enabled).toBeUndefined()
+        expect(parsed.heartbeat_enabled).toBe(true)
       })
 
       it('should return empty channels when none configured', async () => {

@@ -55,9 +55,9 @@ import { getPathStatus, type PathStatus } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv } from '@main/utils/shellEnv'
 import {
+  AGENT_DISALLOWED_TOOLS,
   CHANNEL_SECURITY_PROMPT,
-  REPORT_ARTIFACTS_PROMPT,
-  SOUL_MODE_DISALLOWED_TOOLS
+  REPORT_ARTIFACTS_PROMPT
 } from '@shared/ai/claudecode/constants'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -290,13 +290,12 @@ export async function buildClaudeCodeSessionSettings(
 
   // 6. MCP servers (session + built-in)
   const agentConfig = agent.configuration
-  const soulEnabled = agentConfig?.soul_enabled === true
   const isAssistant = agentConfig?.builtin_role === 'assistant'
-  const mcpServers = buildMcpServers(session, agent, soulEnabled, isAssistant)
+  const mcpServers = buildMcpServers(session, agent, isAssistant)
   const mcpToolMetadata = await buildMcpToolMetadata(agent)
 
-  // 8. Auto-approve allowlist for injected built-in MCP servers (soul/assistant only)
-  const finalAllowedTools = adjustAllowedToolsForMcp(soulEnabled, isAssistant)
+  // 8. Auto-approve allowlist for injected built-in MCP servers
+  const finalAllowedTools = adjustAllowedToolsForMcp(isAssistant)
 
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
   // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
@@ -638,7 +637,6 @@ async function buildToolPermissions(
   toolPolicySnapshot: Awaited<ReturnType<typeof createClaudeAgentToolPolicySnapshot>>
 }> {
   const agentConfig = agent.configuration
-  const soulEnabled = agentConfig?.soul_enabled === true
   const isAssistant = agentConfig?.builtin_role === 'assistant'
 
   // Raw session context for tool enable-predicates (worktree needs .git; claw notify/config need a
@@ -672,7 +670,7 @@ async function buildToolPermissions(
       // (CHANNEL_SECURITY_PROMPT). The MUTATING kb_manage tool is carved out below — it modifies the
       // user's knowledge bases, so it must go through per-call approval rather than this prefix.
       'mcp__cherry-tools__',
-      ...(soulEnabled ? ['mcp__claw__'] : []),
+      'mcp__claw__',
       ...(isAssistant ? ['mcp__assistant__'] : [])
     ],
     // Mutating cherry-tools (kb_manage) match the prefix above but must still prompt for approval.
@@ -822,8 +820,7 @@ async function buildToolPermissions(
     disallowedTools: [
       ...new Set([
         ...resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext),
-        ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : []),
-        ...(isAssistant ? ['AskUserQuestion'] : [])
+        ...AGENT_DISALLOWED_TOOLS
       ])
     ],
     toolPolicySnapshot
@@ -859,7 +856,6 @@ export async function buildSystemPrompt(
   cwd: string
 ): Promise<ClaudeCodeSettings['systemPrompt']> {
   const agentConfig = agent.configuration
-  const soulEnabled = agentConfig?.soul_enabled === true
 
   const builtinRole = agentConfig?.builtin_role as string | undefined
   const isAssistant = builtinRole === 'assistant'
@@ -896,32 +892,14 @@ export async function buildSystemPrompt(
   // Not added to the assistant path above — it injects its own environment via buildAssistantContext.
   const runtimeBlock = `\n\n${await buildRuntimeContext()}`
 
-  // Soul mode
-  if (soulEnabled) {
-    const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig)
-    const userInstructions = instructions ? `\n\n${instructions}` : ''
-    return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
-  }
-
-  // Standard mode
-  if (instructions) {
-    return {
-      type: 'preset',
-      preset: 'claude_code',
-      append: `${instructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
-    }
-  }
-  return {
-    type: 'preset',
-    preset: 'claude_code',
-    append: `${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
-  }
+  const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig)
+  const userInstructions = instructions ? `\n\n${instructions}` : ''
+  return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
 }
 
 export function buildMcpServers(
   session: AgentSessionEntity,
   agent: AgentEntity,
-  soulEnabled: boolean,
   isAssistant: boolean
 ): Record<string, McpServerConfig> | undefined {
   const mcpList: Record<string, McpServerConfig> = {}
@@ -946,38 +924,36 @@ export function buildMcpServers(
     instance: new CherryBuiltinToolsServer().mcpServer
   }
 
-  // 4. Claw — agent autonomy tools (soul mode only). Use `agent.id` instead of
+  // 4. Claw — agent autonomy tools. Use `agent.id` instead of
   // `session.agentId` so TS can see the value is non-null after the upstream
   // orphan check in buildClaudeCodeSessionSettings.
-  if (soulEnabled) {
-    const sourceChannelId = resolveSourceChannel(agent.id, session.id)
-    let workspaceSource: AgentSessionWorkspaceSource
-    switch (session.workspace.type) {
-      case AGENT_WORKSPACE_TYPE.USER:
-        workspaceSource = { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: session.workspaceId }
-        break
-      case AGENT_WORKSPACE_TYPE.SYSTEM:
-        workspaceSource = { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-        break
-      default: {
-        const exhaustive: never = session.workspace.type
-        throw new Error(`Unsupported workspace type: ${String(exhaustive)}`)
-      }
+  const sourceChannelId = resolveSourceChannel(agent.id, session.id)
+  let workspaceSource: AgentSessionWorkspaceSource
+  switch (session.workspace.type) {
+    case AGENT_WORKSPACE_TYPE.USER:
+      workspaceSource = { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: session.workspaceId }
+      break
+    case AGENT_WORKSPACE_TYPE.SYSTEM:
+      workspaceSource = { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+      break
+    default: {
+      const exhaustive: never = session.workspace.type
+      throw new Error(`Unsupported workspace type: ${String(exhaustive)}`)
     }
-    const clawServer = new ClawServer(agent.id, workspaceSource, session.workspace.path, sourceChannelId)
-    mcpList.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
-
-    // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the CherryClaw prompt and the
-    // workspace bootstrap drive via `mcp__agent-memory__memory`. Without it the documented
-    // "log completion" step (and all memory writes) have no backing server.
-    const memoryServer = new WorkspaceMemoryServer(agent.id, session.workspace.path)
-    mcpList['agent-memory'] = { type: 'sdk', name: 'agent-memory', instance: memoryServer.mcpServer }
-
-    logger.debug('Soul Mode: injected claw + agent-memory MCP servers', {
-      agentId: agent.id,
-      totalMcpServers: Object.keys(mcpList).length
-    })
   }
+  const clawServer = new ClawServer(agent.id, workspaceSource, session.workspace.path, sourceChannelId)
+  mcpList.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
+
+  // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the CherryClaw prompt and the
+  // workspace bootstrap drive via `mcp__agent-memory__memory`. Without it the documented
+  // "log completion" step (and all memory writes) have no backing server.
+  const memoryServer = new WorkspaceMemoryServer(agent.id, session.workspace.path)
+  mcpList['agent-memory'] = { type: 'sdk', name: 'agent-memory', instance: memoryServer.mcpServer }
+
+  logger.debug('Injected claw + agent-memory MCP servers', {
+    agentId: agent.id,
+    totalMcpServers: Object.keys(mcpList).length
+  })
 
   // 5. Assistant — navigate + diagnose tools (Cherry Assistant only)
   if (isAssistant) {
@@ -1055,17 +1031,14 @@ function resolveSourceChannel(agentId: string, sessionId: string): string | unde
 }
 
 /**
- * Auto-approve allowlist for injected built-in MCP servers. Returns `undefined` for a plain agent
- * (Claude Code then permits all tools; cherry-tools is auto-approved via the canUseTool prefix).
- * Soul/assistant agents force an explicit allowlist so their claw/agent-memory/assistant tools pass.
+ * Auto-approve allowlist for injected built-in MCP servers, so the
+ * claw/agent-memory/assistant tools pass without per-call approval.
  * The read-only cherry-tools are listed explicitly (not a wildcard) so the mutating kb_manage tool is
  * excluded from the SDK pre-approval and routed through per-call approval via canUseTool.
  */
-export function adjustAllowedToolsForMcp(soulEnabled: boolean, isAssistant: boolean): string[] | undefined {
-  if (!soulEnabled && !isAssistant) return undefined
-
+export function adjustAllowedToolsForMcp(isAssistant: boolean): string[] {
   const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
-  if (soulEnabled) result.push('mcp__claw__*', 'mcp__agent-memory__*')
+  result.push('mcp__claw__*', 'mcp__agent-memory__*')
   if (isAssistant) result.push('mcp__assistant__*')
   return result
 }

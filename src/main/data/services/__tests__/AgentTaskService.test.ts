@@ -102,7 +102,7 @@ const updateJobScheduleMock = vi.fn()
 const unregisterJobScheduleByIdMock = vi.fn()
 
 function setupApplicationMocks(opts: { configuration?: Record<string, unknown> | null } = {}) {
-  const { configuration = { soul_enabled: true } } = opts
+  const { configuration = {} } = opts
   const fakeQueryChain = {
     from: () => ({
       where: () => ({
@@ -158,7 +158,7 @@ describe('AgentTaskService (thin facade)', () => {
   })
 
   describe('createTask', () => {
-    it('registers a schedule with agent.task type when the agent is autonomous', async () => {
+    it('registers a schedule with agent.task type', async () => {
       setupApplicationMocks()
       registerJobScheduleMock.mockReturnValueOnce({ id: TASK_ID })
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSnapshot())
@@ -182,23 +182,6 @@ describe('AgentTaskService (thin facade)', () => {
         message: expect.stringContaining('Agent')
       })
       expect(registerJobScheduleMock).not.toHaveBeenCalled()
-    })
-
-    it('throws invalidOperation when the agent is not autonomous', async () => {
-      setupApplicationMocks({ configuration: { soul_enabled: false } })
-
-      await expect(agentTaskService.createTask(AGENT_ID, validDto)).rejects.toMatchObject({
-        message: expect.stringContaining('Soul Mode')
-      })
-      expect(registerJobScheduleMock).not.toHaveBeenCalled()
-    })
-
-    it('accepts bypassPermissions as a valid autonomous configuration', async () => {
-      setupApplicationMocks({ configuration: { permission_mode: 'bypassPermissions' } })
-      registerJobScheduleMock.mockReturnValueOnce({ id: TASK_ID })
-      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSnapshot())
-
-      await expect(agentTaskService.createTask(AGENT_ID, validDto)).resolves.toMatchObject({ id: TASK_ID })
     })
 
     it('delegates task channel subscriptions to AgentChannelService', async () => {

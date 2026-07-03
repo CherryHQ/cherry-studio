@@ -364,10 +364,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read']))
-    expect(settings.allowedTools).toBeUndefined()
+    // The injected claw/agent-memory servers are always pre-approved via the allowlist.
+    expect(settings.allowedTools).toEqual(expect.arrayContaining(['mcp__claw__*', 'mcp__agent-memory__*']))
   })
 
-  it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup, no AskUserQuestion for a plain agent', async () => {
+  it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -388,13 +389,11 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     // GLOBALLY_DISALLOWED_TOOLS always blocked; EnterWorktree blocked because the cwd has no .git.
     expect(disallowed).toEqual(expect.arrayContaining(['WebSearch', 'WebFetch', 'EnterWorktree']))
-    // A plain (non-assistant, non-soul) agent does not block AskUserQuestion.
-    expect(disallowed).not.toContain('AskUserQuestion')
     // The `new Set` dedup holds — no entry appears twice even when registry + globals overlap.
     expect(new Set(disallowed).size).toBe(disallowed.length)
   })
 
-  it('soul mode adds SOUL_MODE_DISALLOWED_TOOLS to disallowedTools', async () => {
+  it('adds AGENT_DISALLOWED_TOOLS to disallowedTools for every agent', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -402,7 +401,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       mcps: [],
       allowedTools: [],
       disabledTools: [],
-      configuration: { soul_enabled: true }
+      configuration: {}
     })
     const session = {
       id: 'session-1',
