@@ -20,7 +20,7 @@ interface ResizeObserverMockInstance {
 const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
 
 const persistCacheMock = vi.hoisted(() => {
-  const state = { width: 460 }
+  const state = { width: 300 }
 
   return {
     state,

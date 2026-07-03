@@ -822,6 +822,30 @@ describe('Topics', () => {
     expect(screen.getByRole('textbox', { name: 'Search conversations' })).toBeInTheDocument()
   })
 
+  it('keeps right panel groups fully expanded without collapse controls', () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: createTopicPageItems(6) }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList({ assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
+
+    expect(screen.getByText('Today')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Today' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { expanded: true })).not.toBeInTheDocument()
+    expect(screen.queryByText('Show more conversations')).not.toBeInTheDocument()
+    expect(screen.queryByText('Collapse conversations')).not.toBeInTheDocument()
+    expect(screen.getByText('Topic 1')).toBeInTheDocument()
+    expect(screen.getByText('Topic 6')).toBeInTheDocument()
+  })
+
   it('forces time grouping in the right panel even when the assistant display mode is stored', () => {
     // beforeEach stores topic.tab.display_mode: 'assistant'. The classic right panel is the parent
     // switch and must ignore the stored display mode, grouping strictly by time. The observable

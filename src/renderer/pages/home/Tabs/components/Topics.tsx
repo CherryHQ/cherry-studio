@@ -83,6 +83,7 @@ import {
 import { useTopicMenuActions } from './useTopicMenuActions'
 
 const logger = loggerService.withContext('Topics')
+const EMPTY_COLLAPSED_TOPIC_STATE: readonly string[] = []
 
 interface Props {
   activeTopic?: Topic
@@ -226,16 +227,7 @@ export function Topics({
   })
   const displayMode = isRightPanel ? 'time' : (topicDisplayMode ?? 'time')
   const isAssistantDisplayMode = displayMode === 'assistant'
-  const [rightPanelTopicExpansion, setRightPanelTopicExpansion] = useState<string[]>([])
-  const topicExpansion = isRightPanel
-    ? rightPanelTopicExpansion
-    : isAssistantDisplayMode
-      ? topicExpansionAssistant
-      : topicExpansionTime
-
-  useEffect(() => {
-    if (isRightPanel) setRightPanelTopicExpansion([])
-  }, [assistantIdFilter, isRightPanel])
+  const topicExpansion = isAssistantDisplayMode ? topicExpansionAssistant : topicExpansionTime
 
   const {
     isLoading: isTopicPinsLoading,
@@ -631,9 +623,12 @@ export function Topics({
     [activeTopic?.id, filteredTopics, setActiveTopic]
   )
   const getGroupHeaderClickBehavior = useCallback(
-    (group: { id: string }) =>
-      displayMode === 'assistant' && group.id !== TOPIC_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle',
-    [displayMode]
+    (group: { id: string }) => {
+      if (isRightPanel) return 'none'
+
+      return displayMode === 'assistant' && group.id !== TOPIC_PINNED_GROUP_ID ? 'select-first-then-toggle' : 'toggle'
+    },
+    [displayMode, isRightPanel]
   )
   const listError = error || (isAssistantDisplayMode ? assistantsError : undefined)
   const listLoading =
@@ -870,13 +865,10 @@ export function Topics({
     [assistantById, defaultAssistant.emoji, defaultAssistant.name, isAssistantDisplayMode]
   )
 
-  const collapsedTopicState = topicExpansion
+  const collapsedTopicState = isRightPanel ? EMPTY_COLLAPSED_TOPIC_STATE : topicExpansion
   const handleTopicCollapsedStateChange = useCallback(
     (nextCollapsedIds: string[]) => {
-      if (isRightPanel) {
-        setRightPanelTopicExpansion(nextCollapsedIds)
-        return
-      }
+      if (isRightPanel) return
 
       if (isAssistantDisplayMode) setTopicExpansionAssistant(nextCollapsedIds)
       else setTopicExpansionTime(nextCollapsedIds)
@@ -1043,8 +1035,8 @@ export function Topics({
         sectionBy={topicSectionBy}
         collapsedState={collapsedTopicState}
         revealRequest={revealRequest}
-        defaultGroupVisibleCount={5}
-        groupLoadStep={5}
+        defaultGroupVisibleCount={isRightPanel ? Number.POSITIVE_INFINITY : 5}
+        groupLoadStep={isRightPanel ? Number.POSITIVE_INFINITY : 5}
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderIcon={getGroupHeaderIcon}
@@ -1059,8 +1051,8 @@ export function Topics({
         canDropGroup={canDropTopicGroup}
         canDragItem={canDragTopicItem}
         canDropItem={canDropTopicItem}
-        groupShowMoreLabel={t('chat.topics.group.show_more')}
-        groupCollapseLabel={t('chat.topics.group.collapse')}
+        groupShowMoreLabel={isRightPanel ? undefined : t('chat.topics.group.show_more')}
+        groupCollapseLabel={isRightPanel ? undefined : t('chat.topics.group.collapse')}
         onRenameItem={handleRenameTopic}
         onGroupHeaderSelectItem={handleGroupHeaderSelectTopic}
         onReorder={handleTopicReorder}

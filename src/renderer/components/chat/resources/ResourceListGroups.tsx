@@ -104,6 +104,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
   const collapsed = groupState.collapsed
   const groupItems = viewGroup?.allItems ?? EMPTY_GROUP_HEADER_ITEMS
   const clickBehavior = meta.getGroupHeaderClickBehavior(group)
+  const isCollapsible = clickBehavior !== 'none'
   const selected = clickBehavior === 'select-first-then-toggle' && groupState.selected
   const groupHeaderContext = { collapsed }
   const groupHeaderAction = meta.getGroupHeaderAction?.(group)
@@ -121,6 +122,8 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     [onContextMenu]
   )
   const handleClick = useCallback(() => {
+    if (!isCollapsible) return
+
     if (clickBehavior === 'select-first-then-toggle' && !selected) {
       const firstItem = groupItems[0]
       if (firstItem) {
@@ -135,7 +138,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
     }
 
     actions.toggleGroup(group.id)
-  }, [actions, clickBehavior, group, group.id, groupItems, meta, selected])
+  }, [actions, clickBehavior, group, groupItems, isCollapsible, meta, selected])
 
   // Lazy: ContextMenuContent stays empty until right-click — stopPropagated bubbles must not reveal items.
   const headerContextMenuItems =
@@ -175,27 +178,40 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
             {groupHeaderLeadingAction}
           </div>
         )}
-        <button
-          type="button"
-          aria-expanded={!collapsed}
-          aria-current={selected ? 'true' : undefined}
-          className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
-          onClick={handleClick}>
-          {groupHeaderIcon && (
-            <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
-              {groupHeaderIcon}
-            </ResourceListLeadingSlot>
-          )}
-          <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
-            {group.label}
-          </span>
-          <ChevronRight
-            aria-hidden="true"
-            size={11}
-            className="hidden shrink-0 text-muted-foreground/60 transition-transform duration-150 group-focus-within/resource-list-group:block group-hover/resource-list-group:block group-has-data-[state=open]/resource-list-group:block"
-            style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
-          />
-        </button>
+        {isCollapsible ? (
+          <button
+            type="button"
+            aria-expanded={!collapsed}
+            aria-current={selected ? 'true' : undefined}
+            className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
+            onClick={handleClick}>
+            {groupHeaderIcon && (
+              <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
+                {groupHeaderIcon}
+              </ResourceListLeadingSlot>
+            )}
+            <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
+              {group.label}
+            </span>
+            <ChevronRight
+              aria-hidden="true"
+              size={11}
+              className="hidden shrink-0 text-muted-foreground/60 transition-transform duration-150 group-focus-within/resource-list-group:block group-hover/resource-list-group:block group-has-data-[state=open]/resource-list-group:block"
+              style={{ transform: collapsed ? 'none' : 'rotate(90deg)' }}
+            />
+          </button>
+        ) : (
+          <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit">
+            {groupHeaderIcon && (
+              <ResourceListLeadingSlot aria-hidden="true" variant="groupHeader">
+                {groupHeaderIcon}
+              </ResourceListLeadingSlot>
+            )}
+            <span className="min-w-0 truncate text-left font-medium text-[13px] text-inherit leading-5">
+              {group.label}
+            </span>
+          </div>
+        )}
         {groupHeaderAction && (
           <div
             className="pointer-events-none ml-auto hidden shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:flex focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:flex group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:flex group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:flex has-data-[state=open]:opacity-100"

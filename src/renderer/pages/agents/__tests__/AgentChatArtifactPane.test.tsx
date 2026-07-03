@@ -31,9 +31,9 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
 
 vi.mock('@renderer/components/chat', () => ({
   ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 300,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 300,
   ConversationCenterState: ({ state }: { state: string }) => (
     <div data-testid="conversation-center-state" data-state={state} />
   ),
@@ -119,9 +119,9 @@ vi.mock('@renderer/components/chat', () => ({
 
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
   ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 300,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 300,
   RightPaneHost: ({
     children,
     open,
@@ -672,10 +672,10 @@ describe('AgentChat artifact pane', () => {
     fireEvent.click(shortcut)
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-width', '460')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-width', '300')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-resizable', 'true')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-min-width', '360')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-default-width', '460')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-min-width', '300')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-default-width', '300')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-max-width', '720')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-cache-key', 'ui.chat.artifact_pane.width')
     expect(screen.getByTestId('artifact-right-pane').getAttribute('data-class-name')).not.toContain('p-2')
