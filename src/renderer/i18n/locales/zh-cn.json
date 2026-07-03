@@ -1328,12 +1328,14 @@
       "add": "添加标签",
       "delete": "删除标签",
       "deleteConfirm": "确定要删除这个标签吗？",
+      "group_by": "按照标签分组",
       "manage": "标签管理",
       "modify": "修改标签",
       "none": "暂无标签",
       "settings": {
         "title": "标签设置"
       },
+      "ungroup": "关闭标签分组",
       "untagged": "未分组"
     },
     "title": "助手",
@@ -2791,7 +2793,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} 数据源",
-      "documents_count": "{{count}} 文档",
       "updated_at": "更新于 {{time}}"
     },
     "name_required": "知识库名称为必填项",
@@ -2923,8 +2924,8 @@
     "apps": "应用",
     "minapps": "小程序",
     "miniApps": "小程序",
-    "pin_to_sidebar": "固定到侧边栏",
-    "unpin_from_sidebar": "取消固定"
+    "pin_to_sidebar": "添加到侧边栏",
+    "unpin_from_sidebar": "从侧边栏移除"
   },
   "library": {
     "action": {

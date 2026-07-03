@@ -159,6 +159,21 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
   })
 
+  it('strips a trailing API version from Anthropic base URLs before launching Claude Code agents', async () => {
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com/v1' } }
+    })
+    mocks.resolveEffectiveEndpoint.mockReturnValue({ baseUrl: 'https://anthropic.example.com/v1' })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'https://anthropic.example.com'
+    })
+  })
+
   it('routes non-Anthropic provider models through the local API gateway', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

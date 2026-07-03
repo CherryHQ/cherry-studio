@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "410520f8-a6d2-4f5c-85e0-9f95661d5bfd",
+  "id": "53ba65df-7a61-4a0c-a563-3e32dfba69fa",
   "prevId": "90f4df29-3e99-4eff-b91e-5deaa5d691a6",
   "tables": {
     "agent": {
@@ -2093,7 +2093,7 @@
         },
         "knowledge_base_status_error_check": {
           "name": "knowledge_base_status_error_check",
-          "value": "\n        (\n          \"knowledge_base\".\"status\" = 'completed'\n          AND \"knowledge_base\".\"embedding_model_id\" IS NOT NULL\n          AND \"knowledge_base\".\"dimensions\" IS NOT NULL\n          AND \"knowledge_base\".\"dimensions\" > 0\n          AND \"knowledge_base\".\"error\" IS NULL\n        )\n        OR (\n          \"knowledge_base\".\"status\" = 'failed'\n          AND \"knowledge_base\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_base\".\"error\")) > 0\n        )\n      "
+          "value": "\n        (\n          \"knowledge_base\".\"status\" = 'completed'\n          AND \"knowledge_base\".\"error\" IS NULL\n          AND (\n            (\n              \"knowledge_base\".\"embedding_model_id\" IS NOT NULL\n              AND \"knowledge_base\".\"dimensions\" IS NOT NULL\n              AND \"knowledge_base\".\"dimensions\" > 0\n            )\n            OR (\n              \"knowledge_base\".\"embedding_model_id\" IS NULL\n              AND \"knowledge_base\".\"dimensions\" IS NULL\n              AND \"knowledge_base\".\"search_mode\" = 'bm25'\n            )\n          )\n        )\n        OR (\n          \"knowledge_base\".\"status\" = 'failed'\n          AND \"knowledge_base\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_base\".\"error\")) > 0\n        )\n      "
         }
       }
     },
@@ -2560,13 +2560,6 @@
         },
         "stats": {
           "name": "stats",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "compaction_summary": {
-          "name": "compaction_summary",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

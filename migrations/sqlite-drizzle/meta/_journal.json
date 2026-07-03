@@ -123,8 +123,15 @@
     {
       "idx": 17,
       "version": "6",
-      "when": 1782819043529,
-      "tag": "0017_unique_harpoon",
+      "when": 1782817365873,
+      "tag": "0017_minor_echo",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1783053102770,
+      "tag": "0018_flippant_gambit",
       "breakpoints": true
     }
   ],

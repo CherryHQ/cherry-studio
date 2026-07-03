@@ -9,7 +9,7 @@ import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost } from '@shared/utils/api'
+import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 import { isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
@@ -206,7 +206,7 @@ function resolveAnthropicBaseUrl(provider: Provider, baseUrl: string) {
   // Claude SDK manages API versioning itself — ANTHROPIC_BASE_URL must not include /v1.
   const anthropicEndpointUrl = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
   const rawBaseUrl = anthropicEndpointUrl || baseUrl
-  return rawBaseUrl ? formatApiHost(rawBaseUrl, false) : undefined
+  return rawBaseUrl ? withoutTrailingApiVersion(formatApiHost(rawBaseUrl, false)) : undefined
 }
 
 function mergeRuntimeSettings(settings: ClaudeCodeSettings, route: ClaudeCodeRuntimeRoute): ClaudeCodeSettings {
