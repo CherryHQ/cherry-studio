@@ -227,6 +227,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.rag.search_mode.default': '向量检索',
           'knowledge.rag.search_mode.bm25': '全文检索',
           'knowledge.rag.search_mode.hybrid': '混合检索（推荐）',
+          'knowledge.rag.search_mode.vector': '向量检索',
           'knowledge.rag.hybrid_alpha': 'Hybrid Alpha',
           'knowledge.rag.hybrid_alpha_hint': '仅在 Hybrid 检索模式下可配置',
           'knowledge.rag.refresh_dimensions': '刷新向量维度',
@@ -303,11 +304,6 @@ describe('RagConfigPanel', () => {
         hybridAlpha: null
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      searchModeOptions: [
-        { value: 'hybrid', label: '混合检索（推荐）' },
-        { value: 'vector', label: '向量检索' },
-        { value: 'bm25', label: '全文检索' }
-      ],
       save: mockSave,
       isLoading: false,
       error: undefined
@@ -452,6 +448,54 @@ describe('RagConfigPanel', () => {
     })
   })
 
+  it('opens the rebuild flow when a BM25-only base gains an embedding model', () => {
+    const onRestoreBase = vi.fn()
+
+    // Not `mockReturnValueOnce`: the embedding-model change event re-renders the
+    // component, which calls this mock again — a `Once` value would be consumed
+    // by that re-render and fall back to the module-level hybrid/vector default.
+    mockUseKnowledgeRagConfig.mockReturnValue({
+      initialValues: {
+        fileProcessorId: null,
+        chunkSize: '512',
+        chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
+        embeddingModelId: null,
+        rerankModelId: null,
+        documentCount: 6,
+        threshold: 0.1,
+        searchMode: 'bm25',
+        hybridAlpha: null
+      },
+      fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
+      save: mockSave,
+      isLoading: false,
+      error: undefined
+    })
+
+    renderRagConfigPanel(onRestoreBase, { embeddingModelId: null, dimensions: null, searchMode: 'bm25' })
+
+    // Before picking a model, the search-mode picker only offers bm25.
+    expect(screen.queryByRole('button', { name: '向量检索' })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
+
+    // The picker reacts to the pending form value (not the still-null persisted
+    // base), so vector/hybrid become selectable in the same edit that adds a
+    // model, instead of only after the restore this triggers completes.
+    expect(screen.getByRole('button', { name: '向量检索' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '混合检索（推荐）' })).toBeInTheDocument()
+
+    expect(screen.getByRole('button', { name: '重建' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '重建' }))
+
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
+      embeddingModelId: 'openai::text-embedding-3-small'
+    })
+  })
+
   it('renders hover hint tooltip content for RAG field labels', () => {
     renderRagConfigPanel()
 
@@ -479,11 +523,6 @@ describe('RagConfigPanel', () => {
         hybridAlpha: 0.6
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      searchModeOptions: [
-        { value: 'hybrid', label: '混合检索（推荐）' },
-        { value: 'vector', label: '向量检索' },
-        { value: 'bm25', label: '全文检索' }
-      ],
       save: mockSave,
       isLoading: false,
       error: undefined
@@ -516,11 +555,6 @@ describe('RagConfigPanel', () => {
         hybridAlpha: 0.6
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      searchModeOptions: [
-        { value: 'hybrid', label: '混合检索（推荐）' },
-        { value: 'vector', label: '向量检索' },
-        { value: 'bm25', label: '全文检索' }
-      ],
       save: mockSave,
       isLoading: false,
       error: undefined
