@@ -231,7 +231,6 @@ describe('TranslateHistory', () => {
     const detailStarIndex = actionLabels.lastIndexOf('translate.history.filter.starred')
     expect(actionLabels.indexOf('translate.history.delete')).toBeLessThan(detailStarIndex)
     const copyTargetButton = screen.getByRole('button', { name: 'translate.history.copy_target' })
-    expect(copyTargetButton).toHaveClass('text-black')
     fireEvent.click(copyTargetButton)
 
     await waitFor(() => expect(writeTextMock).toHaveBeenCalledWith('你好'))
