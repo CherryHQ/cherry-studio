@@ -1506,6 +1506,33 @@ describe('MessagePartsRenderer', () => {
     ])
   })
 
+  it('counts consecutive tool calls individually when limiting the collapsed preview', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts(
+      Array.from({ length: 12 }, (_, index) => ({
+        type: 'dynamic-tool',
+        toolCallId: `tool-${index + 1}`,
+        toolName: `tool-${index + 1}`,
+        state: 'input-available',
+        input: {}
+      })) as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    const preview = screen.getByTestId('tool-history-preview')
+    expect(
+      within(preview)
+        .getAllByTestId('mock-message-tools')
+        .map((node) => node.getAttribute('data-tool-name'))
+    ).toEqual(Array.from({ length: 10 }, (_, index) => `tool-${index + 3}`))
+
+    fireEvent.click(screen.getByRole('button', { name: /12 tool calls/ }))
+
+    expect(screen.queryByTestId('tool-history-preview')).toBeNull()
+    expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(12)
+  })
+
   it('does not let hidden process parts produce an empty collapsed preview', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 

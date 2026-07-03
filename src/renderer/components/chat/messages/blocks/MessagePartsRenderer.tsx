@@ -240,18 +240,19 @@ function isRenderablePreviewEntry(entry: PartEntry, messageId: string): boolean 
 
 function getPreviewGroupedEntries(entries: readonly PartEntry[], limit: number, messageId: string): GroupedEntry[] {
   const reversedGroups: GroupedEntry[] = []
+  let previewEntryCount = 0
 
   for (let index = entries.length - 1; index >= 0; index--) {
     const entry = entries[index]
     if (!isRenderablePreviewEntry(entry, messageId)) continue
+    if (previewEntryCount >= limit) break
 
     const latestGroup = reversedGroups[reversedGroups.length - 1]
     if (Array.isArray(latestGroup) && canJoinPreviewGroup(entry, latestGroup[0])) {
       latestGroup.unshift(entry)
+      previewEntryCount++
       continue
     }
-
-    if (reversedGroups.length >= limit) break
 
     if (
       isImageFilePart(entry.part) ||
@@ -262,6 +263,7 @@ function getPreviewGroupedEntries(entries: readonly PartEntry[], limit: number, 
     } else {
       reversedGroups.push(entry)
     }
+    previewEntryCount++
   }
 
   return reversedGroups.reverse()
