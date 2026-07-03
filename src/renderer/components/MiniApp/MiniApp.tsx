@@ -8,6 +8,7 @@ import IndicatorLight from '@renderer/components/IndicatorLight'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -39,11 +40,13 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     updateAppStatus,
     removeCustomMiniApp
   } = useMiniApps()
+  const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
   const { openTab } = useTabs()
   const [filesPath] = useCache('app.path.files')
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [removingCustom, setRemovingCustom] = useState(false)
   const isPinned = pinned.some((p) => p.appId === app.appId)
+  const isSidebarFavorite = miniAppFavoriteIds.includes(app.appId)
   const isVisible = miniApps.some((m) => m.appId === app.appId)
   // Pinned apps should always be visible regardless of region/locale filtering
   const shouldShow = isVisible || isPinned
@@ -102,6 +105,10 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     )
   }
 
+  const handleToggleSidebarFavorite = () => {
+    toggleMiniApp(app.appId)
+  }
+
   const handleHide = () => {
     updateAppStatus(app.appId, 'disabled')
       .then(() => {
@@ -137,6 +144,12 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
 
   const contextMenuItems: CommandContextMenuExtraItem[] = [
     { type: 'item', id: 'mini-app.toggle-pin', label: togglePinLabel, onSelect: handleTogglePin },
+    {
+      type: 'item',
+      id: 'mini-app.toggle-sidebar-favorite',
+      label: t(isSidebarFavorite ? 'miniApp.remove_from_sidebar' : 'miniApp.add_to_sidebar'),
+      onSelect: handleToggleSidebarFavorite
+    },
     ...(!isPinned
       ? ([
           { type: 'item', id: 'mini-app.hide', label: t('miniApp.sidebar.hide.title'), onSelect: handleHide }
