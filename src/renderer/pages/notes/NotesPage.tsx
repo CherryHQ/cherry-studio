@@ -978,9 +978,11 @@ const NotesPage: FC = () => {
 
   const getCurrentNoteContent = useCallback(() => {
     if (settings.defaultEditMode === 'source') {
-      return currentContent
+      const sourceContent = codeEditorRef.current?.getContent?.()
+      return sourceContent ?? currentContent
     } else {
-      return editorRef.current?.getMarkdown() || currentContent
+      const richContent = editorRef.current?.getMarkdown?.()
+      return richContent ?? currentContent
     }
   }, [currentContent, settings.defaultEditMode])
 
