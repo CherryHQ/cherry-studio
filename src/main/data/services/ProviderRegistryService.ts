@@ -577,9 +577,25 @@ class ProviderRegistryService {
       const presetModel = loader.findModel(registryOverride?.modelId ?? modelId)
 
       if (presetModel) {
-        results.push(
-          mergePresetModel(presetModel, registryOverride, providerId, reasoningFormatTypes, defaultChatEndpoint)
+        const model = mergePresetModel(
+          presetModel,
+          registryOverride,
+          providerId,
+          reasoningFormatTypes,
+          defaultChatEndpoint
         )
+        // `mergePresetModel` keys `id` off the canonical `presetModel.id`, which collapses providers that
+        // serve one canonical model under several apiModelIds (e.g. tokenhub's dated 原厂直供 variants both
+        // resolve to `deepseek-v4-flash`). Mirror `listProviderRegistryModels`: rebuild the unique id from
+        // the exact apiModelId and keep the canonical `presetModelId`, so sync/reconcile (which key on
+        // `model.id`) don't drop or mis-diff the dated variant against the undated row.
+        const apiModelId = model.apiModelId ?? registryOverride?.apiModelId ?? modelId
+        results.push({
+          ...model,
+          id: createUniqueModelId(providerId, apiModelId),
+          apiModelId,
+          presetModelId: presetModel.id
+        })
       } else {
         results.push(createCustomModel(providerId, modelId))
       }

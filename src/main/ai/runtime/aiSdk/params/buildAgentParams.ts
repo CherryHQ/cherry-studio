@@ -195,7 +195,10 @@ async function resolveTools(
   // path instead of being mutated onto raw SDK params.
   const clientTools = request.callOverrides?.tools
   if (clientTools && Object.keys(clientTools).length > 0) {
-    tools = { ...tools, ...clientTools }
+    tools = {
+      ...tools,
+      ...clientTools
+    }
   }
   const exposed = applyDeferExposition(tools, registry, model.contextWindow)
   return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, mcpToolIds }
