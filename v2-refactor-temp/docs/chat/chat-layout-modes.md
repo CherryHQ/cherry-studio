@@ -134,9 +134,17 @@ level instead of prop-threaded).
 - Home lists topics ("topic" / "话题"); Agent lists works ("work" / "工作").
 - Lists only the current entity's resources. With no current entity the panel
   opens to an empty list.
-- The toggle lives in the chat top-right tool area; the same button toggles
-  open/closed. The panel is mutually exclusive with branch/trace/files/status/flow
-  (scoped to the current chat instance).
+- The panel is mutually exclusive with branch/trace/files/status/flow
+  (scoped to the current chat instance). When it is open, the panel header owns the
+  close/toggle control.
+- While the right panel is closed, `ConversationShell` mirrors the stable internal
+  tab icons into the top-right tool area as tab shortcuts, next to the existing
+  right-panel expand button. Clicking a shortcut opens the right panel directly to
+  that tab; clicking the expand button opens the default tab. Once the panel is open
+  or maximized, the whole top-right tool cluster disappears and the internal tab strip
+  owns tab switching / close controls. Dynamic Agent tabs (`flow:*`, `file-preview`)
+  stay inside the panel only; the Agent Status shortcut keeps the same hover preview
+  as the previous status summary entry.
 - Fixed time grouping, groups expanded by default; does not read/write the
   single sidebar's group-collapsed state or display options. Header keeps only search,
   scoped to the current entity; creating a topic/session stays on the left rail

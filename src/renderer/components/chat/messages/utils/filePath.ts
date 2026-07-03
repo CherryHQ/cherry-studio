@@ -43,9 +43,3 @@ export function isInlineFilePath(value: string): boolean {
     WORKSPACE_RELATIVE_FILE_PATH_PATTERN.test(normalizedPath)
   )
 }
-
-export function containsInlineFilePath(value: string | undefined): boolean {
-  if (!value) return false
-
-  return value.split(/\s+/).some((token) => isInlineFilePath(token))
-}

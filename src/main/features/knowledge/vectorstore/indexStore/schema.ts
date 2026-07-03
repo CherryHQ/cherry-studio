@@ -214,9 +214,9 @@ export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
  * Does NOT insert the `meta` row — that requires a runtime value (the base id)
  * and is owned by the store-open path.
  */
-export async function createKnowledgeIndexSchema(executor: SqliteExecutor): Promise<void> {
+export function createKnowledgeIndexSchema(executor: SqliteExecutor): void {
   for (const statement of KNOWLEDGE_INDEX_SCHEMA_STATEMENTS) {
-    await executor.execute(statement)
+    executor.execute(statement)
   }
 }
 
@@ -249,9 +249,9 @@ export const KNOWLEDGE_INDEX_DROP_STATEMENTS: readonly string[] = [
  * the base simply re-indexes. Drops run first (autocommit per statement), then the
  * current DDL is reapplied. Callers must restamp `meta` afterwards (the DROP removes it).
  */
-export async function resetKnowledgeIndexSchema(executor: SqliteExecutor): Promise<void> {
+export function resetKnowledgeIndexSchema(executor: SqliteExecutor): void {
   for (const statement of KNOWLEDGE_INDEX_DROP_STATEMENTS) {
-    await executor.execute(statement)
+    executor.execute(statement)
   }
-  await createKnowledgeIndexSchema(executor)
+  createKnowledgeIndexSchema(executor)
 }

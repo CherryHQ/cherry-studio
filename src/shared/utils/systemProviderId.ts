@@ -61,7 +61,8 @@ export const SystemProviderIdSchema = z.enum([
   'cerebras',
   'mimo',
   'minimax-global',
-  'zai'
+  'zai',
+  'opencode'
 ])
 
 export type SystemProviderId = z.infer<typeof SystemProviderIdSchema>
@@ -131,5 +132,6 @@ export const SystemProviderIds = {
   cerebras: 'cerebras',
   mimo: 'mimo',
   'minimax-global': 'minimax-global',
-  zai: 'zai'
+  zai: 'zai',
+  opencode: 'opencode'
 } as const satisfies Record<SystemProviderId, SystemProviderId>

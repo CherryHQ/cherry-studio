@@ -6,6 +6,8 @@ import {
   KB_SEARCH_TOOL_NAME,
   kbListInputSchema,
   kbListStrictInputSchema,
+  kbManageInputSchema,
+  kbManageStrictInputSchema,
   kbSearchInputSchema,
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
@@ -60,6 +62,41 @@ describe('builtin tool contracts', () => {
     // `.nullable()` to satisfy the strict path broke this — hence the separate strict variant.)
     expect(kbListInputSchema.safeParse({}).success).toBe(true)
     expect(kbListInputSchema.safeParse({ query: 'recipes' }).success).toBe(true)
+  })
+
+  it('keeps kb_manage strict-path fields in `required` so strict providers accept the schema', () => {
+    // Same regression as kb_list above: the AI-SDK path (KnowledgeManageTool) runs strict:true, so
+    // an all-optional object would serialize `required` away to nothing and a strict OpenAI-compatible
+    // provider would reject the whole request. The strict variant makes every optional field
+    // `.nullable()` (null = unused for this action/type) so they all stay in `required`.
+    const json = z.toJSONSchema(kbManageStrictInputSchema) as { required?: unknown }
+
+    expect(Array.isArray(json.required)).toBe(true)
+    expect(json.required).toEqual(
+      expect.arrayContaining(['baseId', 'action', 'type', 'path', 'url', 'content', 'title', 'conceptIds'])
+    )
+    // null is the "unused" signal for every optional field; an explicit all-null payload must still parse.
+    expect(
+      kbManageStrictInputSchema.safeParse({
+        baseId: 'kb-1',
+        action: 'delete',
+        type: null,
+        path: null,
+        url: null,
+        content: null,
+        title: null,
+        conceptIds: null
+      }).success
+    ).toBe(true)
+  })
+
+  it('lets the MCP kb_manage path omit unused fields', () => {
+    // The Claude Code bridge parses raw args with kbManageInputSchema; an agent may omit every
+    // field but `baseId`/`action`, so the optional shape must accept that without erroring.
+    expect(kbManageInputSchema.safeParse({ baseId: 'kb-1', action: 'delete' }).success).toBe(true)
+    expect(kbManageInputSchema.safeParse({ baseId: 'kb-1', action: 'add', type: 'note', content: 'hi' }).success).toBe(
+      true
+    )
   })
 
   it('validates final report artifacts', () => {

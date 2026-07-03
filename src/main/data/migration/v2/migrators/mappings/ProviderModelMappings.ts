@@ -168,7 +168,8 @@ const SYSTEM_PROVIDER_IDS = new Set([
   'mimo',
   'gitee-ai',
   'minimax-global',
-  'zai'
+  'zai',
+  'opencode'
 ])
 
 const TYPE_TO_PRESET_PROVIDER_ID: Partial<Record<LegacyProvider['type'], string>> = {
