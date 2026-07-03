@@ -179,15 +179,21 @@ describe('McpServerMigrator', () => {
           servers: [
             { id: 'srv-no-name', type: 'stdio' },
             { id: 'srv-empty-name', name: '', type: 'sse' },
+            { id: 'srv-whitespace-name', name: '   ', type: 'stdio' },
             { id: 'srv-null-name', name: null, type: 'streamableHttp' }
           ]
         }
       })
       await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
-      expect(result).toStrictEqual({ success: true, processedCount: 3 })
+      expect(result).toStrictEqual({ success: true, processedCount: 4 })
       expect(ctx.insertedRows.map((row) => row.name)).toEqual(ctx.insertedRows.map((row) => row.id))
-      expect(ctx.insertedRows.map((row) => row.name)).not.toEqual(['srv-no-name', 'srv-empty-name', 'srv-null-name'])
+      expect(ctx.insertedRows.map((row) => row.name)).not.toEqual([
+        'srv-no-name',
+        'srv-empty-name',
+        'srv-whitespace-name',
+        'srv-null-name'
+      ])
     })
 
     it('should handle empty servers gracefully', async () => {
