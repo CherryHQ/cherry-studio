@@ -1333,12 +1333,14 @@
       "add": "Добавить тег",
       "delete": "Удалить тег",
       "deleteConfirm": "Вы уверены, что хотите удалить этот тег?",
+      "group_by": "Сгруппировать по тегу",
       "manage": "Управление тегами",
       "modify": "Изменить тег",
       "none": "Нет тегов",
       "settings": {
         "title": "Настройки тегов"
       },
+      "ungroup": "Отключить группировку тегов",
       "untagged": "Несгруппированные метки"
     },
     "title": "Ассистенты",
@@ -2796,7 +2798,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} источников",
-      "documents_count": "{{count}} документов",
       "updated_at": "Обновлено {{time}}"
     },
     "name_required": "Требуется название базы знаний",
@@ -4764,6 +4765,7 @@
     "ollama": "Ollama",
     "open-mineru": "Открыть MinerU",
     "openai": "OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",

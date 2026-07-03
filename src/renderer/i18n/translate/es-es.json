@@ -1333,12 +1333,14 @@
       "add": "Agregar etiqueta",
       "delete": "Eliminar etiqueta",
       "deleteConfirm": "¿Está seguro de que desea eliminar esta etiqueta?",
+      "group_by": "Agrupar por etiqueta",
       "manage": "Gestión de etiquetas",
       "modify": "Modificar etiqueta",
       "none": "Aún no hay etiquetas",
       "settings": {
         "title": "Configuración de etiquetas"
       },
+      "ungroup": "Desactivar agrupación de etiquetas",
       "untagged": "Sin agrupar"
     },
     "title": "Asistente",
@@ -2796,7 +2798,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} fuentes",
-      "documents_count": "{{count}} documentos",
       "updated_at": "Actualizado {{time}}"
     },
     "name_required": "Se requiere el nombre de la base de conocimientos",
@@ -4764,6 +4765,7 @@
     "ollama": "Ollama",
     "open-mineru": "Abrir MinerU",
     "openai": "OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV (NPU) OCR",

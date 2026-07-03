@@ -1333,12 +1333,14 @@
       "add": "Thêm thẻ",
       "delete": "Xóa thẻ",
       "deleteConfirm": "Bạn có chắc chắn muốn xóa thẻ này không?",
+      "group_by": "Nhóm theo thẻ",
       "manage": "Quản lý thẻ",
       "modify": "Sửa Thẻ",
       "none": "Không có thẻ",
       "settings": {
         "title": "Cài đặt thẻ"
       },
+      "ungroup": "Tắt nhóm thẻ",
       "untagged": "Không được gắn thẻ"
     },
     "title": "Trợ lý",
@@ -2796,7 +2798,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} nguồn",
-      "documents_count": "{{count}} tài liệu",
       "updated_at": "Cập nhật {{time}}"
     },
     "name_required": "Tên cơ sở kiến thức là bắt buộc",
@@ -4764,6 +4765,7 @@
     "ollama": "Ollama",
     "open-mineru": "Mở MinerU",
     "openai": "OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",

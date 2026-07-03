@@ -1333,12 +1333,14 @@
       "add": "Ajouter un tag",
       "delete": "Supprimer le tag",
       "deleteConfirm": "Voulez-vous vraiment supprimer ce tag ?",
+      "group_by": "Grouper par tag",
       "manage": "Gestion des tags",
       "modify": "Modifier le tag",
       "none": "Aucun tag pour le moment",
       "settings": {
         "title": "Paramètres des balises"
       },
+      "ungroup": "Désactiver le regroupement par étiquettes",
       "untagged": "Non groupé"
     },
     "title": "Agent",
@@ -2796,7 +2798,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} sources",
-      "documents_count": "{{count}} documents",
       "updated_at": "Mis à jour {{time}}"
     },
     "name_required": "Le nom de la base de connaissances est requis",
@@ -4764,6 +4765,7 @@
     "ollama": "Ollama",
     "open-mineru": "Ouvrir MinerU",
     "openai": "OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV (NPU) OCR",

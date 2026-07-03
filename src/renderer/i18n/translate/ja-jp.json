@@ -1333,12 +1333,14 @@
       "add": "タグ追加",
       "delete": "タグ削除",
       "deleteConfirm": "このタグを削除してもよろしいですか？",
+      "group_by": "タグでグループ化",
       "manage": "タグ管理",
       "modify": "タグ修正",
       "none": "タグなし",
       "settings": {
         "title": "タグ設定"
       },
+      "ungroup": "タググループ化をオフにする",
       "untagged": "未分類"
     },
     "title": "アシスタント",
@@ -2796,7 +2798,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}}件の情報源",
-      "documents_count": "{{count}} 件の文書",
       "updated_at": "更新日時 {{time}}"
     },
     "name_required": "ナレッジベース名は必須です",
@@ -4764,6 +4765,7 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",

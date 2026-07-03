@@ -1333,12 +1333,14 @@
       "add": "Προσθήκη ετικέτας",
       "delete": "Διαγραφή ετικέτας",
       "deleteConfirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτήν την ετικέτα;",
+      "group_by": "Ομαδοποίηση κατά ετικέτα",
       "manage": "Διαχείριση ετικετών",
       "modify": "Επεξεργασία ετικέτας",
       "none": "Δεν υπάρχουν προς το παρόν ετικέτες",
       "settings": {
         "title": "Ρυθμίσεις Ετικέτας"
       },
+      "ungroup": "Απενεργοποίηση ομαδοποίησης ετικετών",
       "untagged": "Αχαρακτήριστο"
     },
     "title": "Βοηθός",
@@ -2796,7 +2798,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} πηγές",
-      "documents_count": "{{count}} έγγραφα",
       "updated_at": "Ενημερώθηκε {{time}}"
     },
     "name_required": "Απαιτείται το όνομα της βάσης γνώσεων",
@@ -4764,6 +4765,7 @@
     "ollama": "Ollama",
     "open-mineru": "Ανοιχτό MinerU",
     "openai": "OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
