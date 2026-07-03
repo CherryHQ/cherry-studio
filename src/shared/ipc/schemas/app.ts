@@ -30,6 +30,6 @@ export const appRequestSchemas = {
       path: z.string().min(1),
       copyData: z.boolean().optional()
     }),
-    output: z.string()
+    output: z.void()
   })
 }

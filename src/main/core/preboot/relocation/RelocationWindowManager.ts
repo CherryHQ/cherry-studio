@@ -65,7 +65,6 @@ export class RelocationWindowManager {
         preload: join(__dirname, '../preload/simplest.js'),
         partition: 'relocation-window',
         sandbox: false,
-        webSecurity: false,
         contextIsolation: true
       },
       ...(isMac ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 12, y: 14 } } : { frame: false })

@@ -23,6 +23,5 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   },
   'app.set_user_data_path': async ({ path, copyData = false }) => {
     requestRelocation(application.getPath('app.userdata'), path, copyData)
-    return path
   }
 }

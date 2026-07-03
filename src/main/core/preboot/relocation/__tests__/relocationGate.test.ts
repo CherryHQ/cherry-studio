@@ -24,6 +24,7 @@ const commitRelocation = vi.fn()
 const bootConfigGet = vi.fn()
 const bootConfigSet = vi.fn()
 const bootConfigFlush = vi.fn()
+const applicationGetPath = vi.fn()
 
 type Relocation = NonNullable<
   | { status: 'pending'; from: string; to: string; copy: boolean }
@@ -53,7 +54,7 @@ function stubBootConfig(relocation: Relocation | null) {
 }
 
 function stubFsAndFsp(
-  overrides: Partial<Record<'readdir' | 'stat' | 'mkdir' | 'copyFile', ReturnType<typeof vi.fn>>> = {}
+  overrides: Partial<Record<'readdir' | 'stat' | 'statfs' | 'mkdir' | 'copyFile' | 'rm', ReturnType<typeof vi.fn>>> = {}
 ) {
   vi.doMock('node:fs', () => {
     const m = {
@@ -68,16 +69,20 @@ function stubFsAndFsp(
     default: {
       readdir: overrides.readdir ?? vi.fn(async () => []),
       stat: overrides.stat ?? vi.fn(async () => ({ size: 0 })),
+      statfs: overrides.statfs ?? vi.fn(async () => ({ bavail: 1024, bsize: 1024 })),
       mkdir: overrides.mkdir ?? vi.fn(async () => undefined),
       copyFile: overrides.copyFile ?? vi.fn(async () => undefined),
-      rm: vi.fn(async () => undefined),
+      rm: overrides.rm ?? vi.fn(async () => undefined),
       symlink: vi.fn(async () => undefined),
       readlink: vi.fn(async () => '')
     }
   }))
 }
 
-function stubDeps() {
+function stubDeps(options: { installPath?: string; isWin?: boolean } = {}) {
+  applicationGetPath.mockReturnValue(options.installPath ?? '/Applications/Cherry Studio.app/Contents/MacOS')
+  vi.doMock('@application', () => ({ application: { getPath: applicationGetPath } }))
+  vi.doMock('@main/core/platform', () => ({ isWin: options.isWin ?? false }))
   vi.doMock('@main/core/preboot/userDataLocation', () => ({ commitRelocation }))
   vi.doMock('@main/core/preboot/relocation/RelocationWindowManager', () => ({
     __esModule: true,
@@ -101,6 +106,7 @@ beforeEach(() => {
   bootConfigGet.mockReset()
   bootConfigSet.mockReset()
   bootConfigFlush.mockReset()
+  applicationGetPath.mockReset()
 })
 
 afterEach(() => {
@@ -110,7 +116,7 @@ afterEach(() => {
 describe('runUserDataRelocationGate', () => {
   it('returns skipped in dev (unpackaged) even if a pending request exists', async () => {
     stubElectron(false)
-    stubBootConfig({ status: 'pending', from: '/old', to: '/new', copy: true })
+    stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true })
     stubFsAndFsp()
     stubDeps()
     const { runUserDataRelocationGate } = await loadGate()
@@ -130,12 +136,12 @@ describe('runUserDataRelocationGate', () => {
     expect(wm.create).not.toHaveBeenCalled()
   })
 
-  it('returns skipped when a previous relocation is in the failed state', async () => {
+  it('clears and skips when a previous relocation is in the failed state', async () => {
     stubElectron(true)
-    stubBootConfig({
+    const store = stubBootConfig({
       status: 'failed',
       from: '/old',
-      to: '/new',
+      to: '/new/data',
       error: 'boom',
       failedAt: '2026-06-29T00:00:00.000Z'
     })
@@ -145,11 +151,13 @@ describe('runUserDataRelocationGate', () => {
     const result = await runUserDataRelocationGate()
     expect(result).toBe('skipped')
     expect(wm.create).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toBeNull()
+    expect(bootConfigFlush).toHaveBeenCalled()
   })
 
   it('pending + copy=false: commits the new path and reports completed (handled)', async () => {
     stubElectron(true)
-    stubBootConfig({ status: 'pending', from: '/old', to: '/new', copy: false })
+    stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: false })
     stubFsAndFsp()
     stubDeps()
     const { runUserDataRelocationGate } = await loadGate()
@@ -157,7 +165,7 @@ describe('runUserDataRelocationGate', () => {
     expect(result).toBe('handled')
     expect(wm.create).toHaveBeenCalled()
     // No copy → no copying stage emitted; jump straight to committing/completed.
-    expect(commitRelocation).toHaveBeenCalledWith('/new')
+    expect(commitRelocation).toHaveBeenCalledWith('/new/data')
     expect(wm.sendProgress).toHaveBeenCalledWith(expect.objectContaining({ stage: 'completed' }))
   })
 
@@ -180,14 +188,14 @@ describe('runUserDataRelocationGate', () => {
 
   it('pending + copy=true: runs the copy then commits (handled)', async () => {
     stubElectron(true)
-    stubBootConfig({ status: 'pending', from: '/old', to: '/new', copy: true })
+    stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true })
     stubFsAndFsp()
     stubDeps()
     const { runUserDataRelocationGate } = await loadGate()
     const result = await runUserDataRelocationGate()
     expect(result).toBe('handled')
     expect(wm.sendProgress).toHaveBeenCalledWith(expect.objectContaining({ stage: 'copying' }))
-    expect(commitRelocation).toHaveBeenCalledWith('/new')
+    expect(commitRelocation).toHaveBeenCalledWith('/new/data')
     expect(wm.sendProgress).toHaveBeenCalledWith(expect.objectContaining({ stage: 'completed' }))
   })
 
@@ -214,7 +222,7 @@ describe('runUserDataRelocationGate', () => {
 
   it('preflight failure (from inside to): persists failed status and no commit (handled)', async () => {
     stubElectron(true)
-    const store = stubBootConfig({ status: 'pending', from: '/parent/old', to: '/parent', copy: true })
+    const store = stubBootConfig({ status: 'pending', from: '/parent/new/old', to: '/parent/new', copy: true })
     stubFsAndFsp()
     stubDeps()
     const { runUserDataRelocationGate } = await loadGate()
@@ -223,9 +231,65 @@ describe('runUserDataRelocationGate', () => {
     expect(commitRelocation).not.toHaveBeenCalled()
     expect(store['temp.user_data_relocation']).toMatchObject({
       status: 'failed',
-      from: '/parent/old',
-      to: '/parent',
+      from: '/parent/new/old',
+      to: '/parent/new',
       error: expect.stringMatching(/source is inside target/i)
+    })
+  })
+
+  it('preflight failure (target is root): persists failed status and no commit (handled)', async () => {
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/', copy: true })
+    stubFsAndFsp()
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/root or top-level path/i)
+    })
+  })
+
+  it('preflight failure (target inside app install path): persists failed status and no commit (handled)', async () => {
+    stubElectron(true)
+    const store = stubBootConfig({
+      status: 'pending',
+      from: '/old',
+      to: '/Applications/Cherry Studio.app/Contents/MacOS/Data',
+      copy: true
+    })
+    stubFsAndFsp()
+    stubDeps({ installPath: '/Applications/Cherry Studio.app/Contents/MacOS' })
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(applicationGetPath).toHaveBeenCalledWith('app.install')
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/app install path/i)
+    })
+  })
+
+  it('preflight failure (Windows path case differs only): persists failed status and no commit (handled)', async () => {
+    stubElectron(true)
+    const store = stubBootConfig({
+      status: 'pending',
+      from: 'C:\\Users\\me\\CherryData',
+      to: 'c:\\users\\me\\cherrydata',
+      copy: false
+    })
+    stubFsAndFsp()
+    stubDeps({ installPath: 'C:\\Program Files\\Cherry Studio', isWin: true })
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/same path/i)
     })
   })
 
@@ -238,7 +302,7 @@ describe('runUserDataRelocationGate', () => {
     }
     const copyError = new Error('copy failed')
     stubElectron(true)
-    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new', copy: true })
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true })
     stubFsAndFsp({
       readdir: vi.fn(async () => [fileEntry]),
       stat: vi.fn(async () => ({ size: 10 })),
@@ -254,8 +318,66 @@ describe('runUserDataRelocationGate', () => {
     expect(store['temp.user_data_relocation']).toMatchObject({
       status: 'failed',
       from: '/old',
-      to: '/new',
+      to: '/new/data',
       error: 'copy failed'
+    })
+  })
+
+  it('copy failure removes the partial target tree before reporting failed', async () => {
+    const fileEntry = {
+      name: 'db.sqlite',
+      isSymbolicLink: () => false,
+      isDirectory: () => false,
+      isFile: () => true
+    }
+    const rm = vi.fn(async () => undefined)
+    stubElectron(true)
+    stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true })
+    stubFsAndFsp({
+      readdir: vi.fn(async () => [fileEntry]),
+      stat: vi.fn(async () => ({ size: 10 })),
+      rm,
+      copyFile: vi.fn(async () => {
+        throw new Error('copy failed')
+      })
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(rm).toHaveBeenCalledWith('/new/data', { recursive: true, force: true })
+    expect(rm).toHaveBeenCalledTimes(2)
+  })
+
+  it('copy=true: fails before copying when target volume has insufficient free space', async () => {
+    const fileEntry = {
+      name: 'db.sqlite',
+      isSymbolicLink: () => false,
+      isDirectory: () => false,
+      isFile: () => true
+    }
+    const copyFile = vi.fn(async () => undefined)
+    const rm = vi.fn(async () => undefined)
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true })
+    stubFsAndFsp({
+      readdir: vi.fn(async () => [fileEntry]),
+      stat: vi.fn(async () => ({ size: 10 })),
+      statfs: vi.fn(async () => ({ bavail: 1, bsize: 1 })),
+      copyFile,
+      rm
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(copyFile).not.toHaveBeenCalled()
+    expect(rm).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/not have enough free space/i)
     })
   })
 })
