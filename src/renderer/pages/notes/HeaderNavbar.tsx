@@ -21,6 +21,7 @@ import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
+import { ipcApi } from '@renderer/ipc'
 import { findNode } from '@renderer/services/NotesTreeService'
 import type { NotesTreeNode } from '@renderer/types/note'
 import { t } from 'i18next'
@@ -105,6 +106,50 @@ const HeaderNavbar = ({
     }
   }, [getCurrentNoteContent, activeNode])
 
+  const getPrintedNotePayload = useCallback(() => {
+    const content = getCurrentNoteContent?.()
+    if (!content) {
+      window.toast.warning(t('notes.no_content_to_export'))
+      return null
+    }
+    if (!activeNode) {
+      window.toast.warning(t('notes.no_note_selected'))
+      return null
+    }
+    return {
+      title: activeNode.name.replace('.md', ''),
+      markdown: content,
+      sourcePath: activeNode.externalPath
+    }
+  }, [activeNode, getCurrentNoteContent])
+
+  const handleExportToPDF = useCallback(async () => {
+    const payload = getPrintedNotePayload()
+    if (!payload) return
+
+    try {
+      const saved = await ipcApi.request('note.export_pdf', payload)
+      if (saved) {
+        window.toast.success(t('notes.export_to_pdf_success'))
+      }
+    } catch (error) {
+      logger.error('Failed to export note to PDF:', error as Error)
+      window.toast.error(t('notes.export_to_pdf_failed'))
+    }
+  }, [getPrintedNotePayload])
+
+  const handlePrint = useCallback(async () => {
+    const payload = getPrintedNotePayload()
+    if (!payload) return
+
+    try {
+      await ipcApi.request('note.print', payload)
+    } catch (error) {
+      logger.error('Failed to print note:', error as Error)
+      window.toast.error(t('notes.print_failed'))
+    }
+  }, [getPrintedNotePayload])
+
   const handleShowSettings = useCallback(() => {
     void GeneralPopup.show({
       title: t('notes.settings.title'),
@@ -188,6 +233,10 @@ const HeaderNavbar = ({
             void handleCopyContent()
           } else if (item.exportToWordAction) {
             void handleExportToWord()
+          } else if (item.exportToPDFAction) {
+            void handleExportToPDF()
+          } else if (item.printAction) {
+            void handlePrint()
           } else if (item.showSettingsPopup) {
             handleShowSettings()
           } else if (item.action) {
