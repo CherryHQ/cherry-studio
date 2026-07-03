@@ -131,6 +131,33 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
+  // Hidden one-shot print surface for rendered notes. NotePrintService owns loading
+  // the generated paper HTML and closes the window after print / PDF export.
+  [WindowType.NotePrint]: {
+    type: WindowType.NotePrint,
+    lifecycle: 'default',
+    htmlPath: '',
+    preload: '',
+    showMode: 'manual',
+    windowOptions: {
+      width: 794,
+      height: 1123,
+      skipTaskbar: true,
+      autoHideMenuBar: true,
+      frame: false,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webSecurity: false
+      }
+    }
+  },
+
   // Detached tab window — multi-instance, one per user-detached Tab.
   // Placed adjacent to Main because a SubWindow is logically a Main spin-off
   // (a Tab dragged out of Main becomes its own BrowserWindow here; drag back

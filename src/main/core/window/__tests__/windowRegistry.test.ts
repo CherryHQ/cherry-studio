@@ -239,3 +239,15 @@ describe('WINDOW_TYPE_REGISTRY Main window — frame contract', () => {
     expect(result.titleBarStyle).toBe('hidden')
   })
 })
+
+describe('WINDOW_TYPE_REGISTRY NotePrint window — domain-loaded print surface', () => {
+  it('leaves content loading and visibility to NotePrintService', () => {
+    const metadata = WINDOW_TYPE_REGISTRY[WindowType.NotePrint]
+
+    expect(metadata).toBeDefined()
+    expect(metadata?.lifecycle).toBe('default')
+    expect(metadata?.htmlPath).toBe('')
+    expect(metadata?.preload).toBe('')
+    expect(metadata?.showMode).toBe('manual')
+  })
+})
