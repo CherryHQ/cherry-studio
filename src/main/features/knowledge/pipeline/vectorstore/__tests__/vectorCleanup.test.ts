@@ -63,7 +63,7 @@ describe('deleteKnowledgeItemVectors', () => {
       reclaimSpace: reclaimSpaceMock
     })
     deleteMaterialsMock.mockResolvedValue(undefined)
-    reclaimSpaceMock.mockResolvedValue({ vacuumed: false, reclaimedBytes: 0 })
+    reclaimSpaceMock.mockReturnValue({ vacuumed: false, reclaimedBytes: 0 })
   })
 
   it('skips cleanup when no vector store exists', async () => {
@@ -99,7 +99,7 @@ describe('reclaimKnowledgeIndexSpace', () => {
       deleteMaterials: deleteMaterialsMock,
       reclaimSpace: reclaimSpaceMock
     })
-    reclaimSpaceMock.mockResolvedValue({ vacuumed: true, reclaimedBytes: 1024 })
+    reclaimSpaceMock.mockReturnValue({ vacuumed: true, reclaimedBytes: 1024 })
   })
 
   it('skips reclaim when no vector store exists', async () => {
@@ -119,7 +119,9 @@ describe('reclaimKnowledgeIndexSpace', () => {
   it('never throws when reclaim fails — the delete already succeeded', async () => {
     // Best-effort: a transient reclaim failure must not fail the delete job whose rows
     // and vectors are already gone; the freed pages just wait for a later index to reuse.
-    reclaimSpaceMock.mockRejectedValueOnce(new Error('database is locked'))
+    reclaimSpaceMock.mockImplementationOnce(() => {
+      throw new Error('database is locked')
+    })
 
     await expect(reclaimKnowledgeIndexSpace(createBase())).resolves.toBeUndefined()
     // A transient failure stays a warn — not the corruption-class error path.
@@ -131,9 +133,9 @@ describe('reclaimKnowledgeIndexSpace', () => {
     // reclaim's whole-file checkpoint/optimize/VACUUM is often the first op to touch the full file
     // post-delete, so SQLITE_CORRUPT/SQLITE_NOTADB surfaces here — it must be loud, not buried in the
     // benign "failed to reclaim" warn, yet still swallowed (the delete already succeeded).
-    reclaimSpaceMock.mockRejectedValueOnce(
-      Object.assign(new Error('database disk image is malformed'), { code: 'SQLITE_CORRUPT' })
-    )
+    reclaimSpaceMock.mockImplementationOnce(() => {
+      throw Object.assign(new Error('database disk image is malformed'), { code: 'SQLITE_CORRUPT' })
+    })
 
     await expect(reclaimKnowledgeIndexSpace(createBase())).resolves.toBeUndefined()
     expect(loggerErrorMock).toHaveBeenCalledWith(

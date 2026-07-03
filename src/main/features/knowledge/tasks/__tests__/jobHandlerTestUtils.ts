@@ -382,11 +382,11 @@ beforeEach(() => {
   }
   getIndexStoreMock.mockResolvedValue(indexStore)
   getIndexStoreIfExistsMock.mockResolvedValue(indexStore)
-  rebuildMaterialMock.mockResolvedValue(undefined)
+  rebuildMaterialMock.mockReturnValue(undefined)
   deleteMaterialsMock.mockResolvedValue(undefined)
-  reclaimSpaceMock.mockResolvedValue({ vacuumed: false, reclaimedBytes: 0 })
+  reclaimSpaceMock.mockReturnValue({ vacuumed: false, reclaimedBytes: 0 })
   // No vectors stored yet by default → every chunk is embedded (prior behavior).
-  listExistingEmbeddingHashesMock.mockResolvedValue(new Set<string>())
+  listExistingEmbeddingHashesMock.mockReturnValue(new Set<string>())
   embedKnowledgeTextsMock.mockImplementation(async (_base: KnowledgeBase, values: string[]) =>
     values.map(fakeEmbedVector)
   )

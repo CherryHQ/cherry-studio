@@ -48,7 +48,7 @@ export async function reclaimKnowledgeIndexSpace(base: KnowledgeBase): Promise<v
     if (!store) {
       return
     }
-    const { vacuumed, reclaimedBytes } = await store.reclaimSpace()
+    const { vacuumed, reclaimedBytes } = store.reclaimSpace()
     if (vacuumed) {
       logger.info('Reclaimed knowledge index space after delete', { baseId: base.id, reclaimedBytes })
     }

@@ -371,7 +371,7 @@ describe('KnowledgeService', () => {
       getMaterialByRelativePath: getMaterialByRelativePathMock,
       readMaterialContent: readMaterialContentMock
     })
-    listMaterialUnitsMock.mockResolvedValue([])
+    listMaterialUnitsMock.mockReturnValue([])
     storeSearchMock.mockResolvedValue([])
     getMaterialByRelativePathMock.mockResolvedValue(null)
     readMaterialContentMock.mockResolvedValue(null)
@@ -2412,7 +2412,7 @@ describe('KnowledgeService', () => {
   it('lists chunks after checking item ownership', async () => {
     const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem('note-1', 'kb-1', null, 'completed'))
-    listMaterialUnitsMock.mockResolvedValueOnce([
+    listMaterialUnitsMock.mockReturnValueOnce([
       {
         unitId: 'chunk-1',
         materialId: 'note-1',
@@ -2437,7 +2437,7 @@ describe('KnowledgeService', () => {
     knowledgeItemGetSubtreeItemsMock
       .mockReturnValueOnce([createNoteItem('note-1', 'kb-1', 'dir-1', 'completed')])
       .mockReturnValueOnce([createNoteItem('note-1', 'kb-1', 'dir-1', 'completed')])
-    listMaterialUnitsMock.mockResolvedValueOnce([
+    listMaterialUnitsMock.mockReturnValueOnce([
       {
         unitId: 'chunk-1',
         materialId: 'note-1',
@@ -2489,7 +2489,9 @@ describe('KnowledgeService', () => {
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem('note-1', 'kb-1', null, 'completed'))
     getIndexStoreMock.mockResolvedValueOnce({
       search: storeSearchMock,
-      listMaterialUnits: vi.fn().mockRejectedValue(new Error('Knowledge index store driver is closed')),
+      listMaterialUnits: vi.fn().mockImplementation(() => {
+        throw new Error('Knowledge index store driver is closed')
+      }),
       isClosed: () => true
     })
 

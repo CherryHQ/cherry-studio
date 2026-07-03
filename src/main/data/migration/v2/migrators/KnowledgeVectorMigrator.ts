@@ -1101,7 +1101,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         const store = createKnowledgeIndexStoreAtPath(plan.targetDbPath, { baseId: plan.baseId })
         try {
           for (const material of materials) {
-            await store.rebuildMaterial(material.itemId, material.input)
+            store.rebuildMaterial(material.itemId, material.input)
             processedWork += 1
             this.reportRebuildProgress(processedWork, totalWork)
             await yieldToEventLoop()

@@ -389,7 +389,9 @@ describe('KnowledgeVectorStoreService', () => {
     const first = await service.getIndexStore(createBase('kb-1'))
     const second = await service.getIndexStore(createBase('kb-2'))
     const closeError = new Error('close failed')
-    ;(first.close as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(closeError)
+    ;(first.close as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      throw closeError
+    })
 
     await expect((service as any).onStop()).resolves.toBeUndefined()
 

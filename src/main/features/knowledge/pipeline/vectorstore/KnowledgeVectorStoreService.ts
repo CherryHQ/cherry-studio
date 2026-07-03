@@ -86,7 +86,7 @@ export class KnowledgeVectorStoreService extends BaseService {
     const store = this.instanceCache.get(baseId)
 
     try {
-      await this.closeStoreInstance(store)
+      this.closeStoreInstance(store)
       await deleteKnowledgeBaseDir(baseId)
       logger.info('Deleted knowledge index store', { baseId, hadCachedStore: Boolean(store) })
     } finally {
@@ -101,7 +101,7 @@ export class KnowledgeVectorStoreService extends BaseService {
     try {
       for (const [baseId, store] of this.instanceCache.entries()) {
         try {
-          await this.closeStoreInstance(store)
+          this.closeStoreInstance(store)
         } catch (error) {
           logger.error('Failed to close knowledge index store', error as Error, { baseId })
         }
@@ -165,10 +165,10 @@ export class KnowledgeVectorStoreService extends BaseService {
     }
   }
 
-  private async closeStoreInstance(store: KnowledgeIndexStore | undefined): Promise<void> {
+  private closeStoreInstance(store: KnowledgeIndexStore | undefined): void {
     if (!store) {
       return
     }
-    await store.close()
+    store.close()
   }
 }
