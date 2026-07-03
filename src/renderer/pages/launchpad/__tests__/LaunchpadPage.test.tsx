@@ -174,7 +174,7 @@ describe('LaunchpadPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Apps' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Chat' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Agent' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Agents' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Knowledge' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
   })
@@ -295,7 +295,7 @@ describe('LaunchpadPage', () => {
     render(<LaunchpadPage />)
 
     await user.click(screen.getByRole('button', { name: 'Chat' }))
-    await user.click(screen.getByRole('button', { name: 'Agent' }))
+    await user.click(screen.getByRole('button', { name: 'Agents' }))
 
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/chat' })
     expect(mocks.navigate).toHaveBeenCalledWith({ to: '/app/agents' })
