@@ -26,7 +26,6 @@ const SORTABLE_CONTENTS_STYLE = { display: 'contents' } as const
 const APP_ICON_BACKGROUNDS: Record<SidebarAppId, string> = {
   assistants: 'linear-gradient(135deg, #111827, #4B5563)',
   agents: 'linear-gradient(135deg, #2563EB, #38BDF8)',
-  store: 'linear-gradient(135deg, #0EA5E9, #6366F1)',
   paintings: 'linear-gradient(135deg, #EC4899, #F472B6)',
   translate: 'linear-gradient(135deg, #06B6D4, #0EA5E9)',
   mini_app: 'linear-gradient(135deg, #8B5CF6, #A855F7)',

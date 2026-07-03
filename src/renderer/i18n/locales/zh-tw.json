@@ -1652,6 +1652,13 @@
       "top": "回到頂端"
     },
     "resend": "重新傳送",
+    "resource_view": {
+      "menu": {
+        "agent": "智能體",
+        "assistant": "助手",
+        "skill": "技能"
+      }
+    },
     "save": {
       "file": {
         "title": "儲存到本機檔案"
@@ -2968,7 +2975,8 @@
       "preview_description": "簡介",
       "preview_prompt": "提示詞",
       "scroll_left": "向左捲動分類",
-      "scroll_right": "向右捲動分類"
+      "scroll_right": "向右捲動分類",
+      "title": "助手庫"
     },
     "badge": {
       "update": "更新"
@@ -6860,6 +6868,7 @@
         "reorderFailed": "調整提示詞順序失敗",
         "updateFailed": "更新提示詞失敗"
       },
+      "manage": "管理提示詞",
       "title": "提示詞管理",
       "titleLabel": "標題",
       "titlePlaceholder": "請輸入提示詞標題",
@@ -7601,7 +7610,6 @@
     "openclaw": "OpenClaw",
     "paintings": "繪畫",
     "settings": "設定",
-    "store": "助手庫",
     "translate": "翻譯",
     "work": "工作"
   },
