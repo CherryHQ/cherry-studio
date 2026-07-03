@@ -202,10 +202,8 @@ export class QuickAssistantService extends BaseService implements Activatable {
   }
 
   private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.QuickAssistant_Show, () => this.showQuickAssistant())
     this.ipcHandle(IpcChannel.QuickAssistant_Hide, () => this.hideQuickAssistant())
     this.ipcHandle(IpcChannel.QuickAssistant_Close, () => this.closeQuickAssistant())
-    this.ipcHandle(IpcChannel.QuickAssistant_Toggle, () => this.toggleQuickAssistant())
     this.ipcHandle(IpcChannel.QuickAssistant_SetPin, (_, isPinned: boolean) => this.setPinQuickAssistant(isPinned))
   }
 
