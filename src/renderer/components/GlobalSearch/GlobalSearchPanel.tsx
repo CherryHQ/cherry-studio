@@ -41,7 +41,8 @@ import {
   type GlobalMessageSearchSourceFilter,
   type GlobalSearchFilter,
   type GlobalSearchPanelGroup,
-  type GlobalSearchPanelGroupFooter
+  type GlobalSearchPanelGroupFooter,
+  sanitizeGlobalSearchRecentEntries
 } from './globalSearchGroups'
 import {
   GlobalSearchMessagePreviewPanel,
@@ -307,6 +308,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const [messagePreviewTarget, setMessagePreviewTarget] = useState<GlobalSearchMessagePreviewTarget | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const sanitizedRecentItems = useMemo(() => sanitizeGlobalSearchRecentEntries(recentItems ?? []), [recentItems])
   const [userName] = usePreference('app.user.name')
   const {
     error,
@@ -331,7 +333,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     filter,
     messageSourceFilter,
     panelMode,
-    recentItems,
+    recentItems: sanitizedRecentItems,
     timeFilter
   })
   const { activeItemId, keyboardItems, messageSelectableItems, moveActiveItem, selectableItems, setActiveItemId } =
@@ -360,6 +362,11 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     inputRef.current?.focus({ preventScroll: true })
   }, [])
 
+  useEffect(() => {
+    if (!recentItems || sanitizedRecentItems === recentItems) return
+    setRecentItems(sanitizedRecentItems)
+  }, [recentItems, sanitizedRecentItems, setRecentItems])
+
   // On open: best-effort refresh of up to GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT
   // recent topic/session titles. Persisted snapshots may carry stale titles
   // when the entity was renamed after the last visit; a single parallel
@@ -368,7 +375,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   // (deps intentionally empty); the functional setRecentItems updater reads the
   // latest snapshot when the fetch resolves, so the effect doesn't re-run.
   useEffect(() => {
-    const display = getDisplayGlobalSearchRecentEntries(recentItems ?? [])
+    const display = getDisplayGlobalSearchRecentEntries(sanitizedRecentItems)
     type Refreshable = Extract<GlobalSearchRecentEntry, { kind: 'topic' | 'session' }>
     const refreshable: Refreshable[] = display.flatMap((entry): Refreshable[] => {
       if (entry.kind === 'route') return []
@@ -435,8 +442,8 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     return () => {
       cancelled = true
     }
-    // Mount-only: recentItems is read once (closure-captured at mount) and
-    // updates flow through the functional setRecentItems updater.
+    // Mount-only: sanitizedRecentItems is read once (closure-captured at mount)
+    // and updates flow through the functional setRecentItems updater.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
