@@ -12,6 +12,8 @@ export interface ToolApplyScope {
   readonly mcpToolIds: ReadonlySet<string>
   /** True when the request carries first-party file attachments — gates the `read_file` tool. Defaults to false. */
   readonly hasFileAttachments?: boolean
+  /** True when the user has at least one knowledge base — gates the `kb_*` tools. Defaults to false. */
+  readonly hasAnyKnowledgeBase?: boolean
 }
 
 /**

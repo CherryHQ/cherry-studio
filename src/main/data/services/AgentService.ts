@@ -1,10 +1,13 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
+import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
@@ -81,13 +84,14 @@ function rowToAgent(row: AgentRow, modelName: string | null = null, mcps: string
  * Returns a Map<agentId, string[]>.
  * Accepts both a database instance and a transaction (DbOrTx).
  */
-async function fetchMcpsForAgents(tx: DbOrTx, agentIds: string[]): Promise<Map<string, string[]>> {
+function fetchMcpsForAgents(tx: DbOrTx, agentIds: string[]): Map<string, string[]> {
   if (agentIds.length === 0) return new Map()
-  const rows = await tx
+  const rows = tx
     .select({ agentId: agentMcpServerTable.agentId, mcpServerId: agentMcpServerTable.mcpServerId })
     .from(agentMcpServerTable)
     .where(inArray(agentMcpServerTable.agentId, agentIds))
     .orderBy(asc(agentMcpServerTable.agentId), asc(agentMcpServerTable.createdAt))
+    .all()
   const map = new Map<string, string[]>()
   for (const row of rows) {
     const list = map.get(row.agentId)
@@ -110,9 +114,10 @@ export class AgentService {
   private readonly _onAgentDeleted = new Emitter<AgentDeletedEvent>()
   readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
 
-  async createAgent(req: CreateAgentDto): Promise<AgentEntity> {
+  createAgent(req: CreateAgentDto): AgentEntity {
     const id = uuidv4()
     const mcps = req.mcps ?? []
+    const skillIds = Array.from(new Set(req.skillIds ?? []))
 
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
@@ -130,13 +135,44 @@ export class AgentService {
       configuration: req.configuration
     }
 
-    const row = await withSqliteErrors(
+    // Validate referenced skills before opening the write tx so the main path
+    // reports the missing resource as Skill, not as the Agent FK fallback. The
+    // write tx rechecks the same IDs before inserting the agent to close the
+    // delete-after-prevalidation race.
+    // AgentGlobalSkillService is resolved through the registry (not a direct import)
+    // to keep this service↔service edge out of the static import graph — see
+    // dataServiceRegistry.
+    for (const skillId of skillIds) {
+      if (!getDataService('AgentGlobalSkillService').getById(skillId)) {
+        throw DataApiErrorFactory.notFound('Skill', skillId)
+      }
+    }
+
+    const row = withSqliteErrors(
       () =>
-        application.get('DbService').withWriteTx(async (tx) => {
-          const result = await this.createAgentTx(tx, id, insertData)
+        application.get('DbService').withWriteTx((tx) => {
+          if (skillIds.length > 0) {
+            const rows = tx
+              .select({ id: agentGlobalSkillTable.id })
+              .from(agentGlobalSkillTable)
+              .where(inArray(agentGlobalSkillTable.id, skillIds))
+              .all()
+            if (rows.length !== skillIds.length) {
+              throw DataApiErrorFactory.invalidOperation('create agent', 'a selected skill no longer exists')
+            }
+          }
+          const result = this.createAgentTx(tx, id, insertData)
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
-            await tx.insert(agentMcpServerTable).values(mcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
+            tx.insert(agentMcpServerTable)
+              .values(mcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
+              .run()
+          }
+          // Enable the selected global skills for the new agent. DB-only: workspace
+          // symlinks don't exist yet (no session/workspace at create time) and get
+          // reconciled later by SkillService when a workspace appears.
+          for (const skillId of skillIds) {
+            getDataService('AgentGlobalSkillService').upsertJoinTx(tx, id, skillId, true)
           }
           return result
         }),
@@ -151,46 +187,48 @@ export class AgentService {
     return agent
   }
 
-  async createAgentTx(
+  createAgentTx(
     tx: DbOrTx,
     id: string,
     insertData: Omit<InsertAgentRow, 'orderKey'>
-  ): Promise<{ agent: AgentRow; modelName: string | null } | null> {
-    await insertWithOrderKey(tx, agentsTable, insertData, { pkColumn: agentsTable.id })
-    const [joined] = await tx
+  ): { agent: AgentRow; modelName: string | null } | null {
+    insertWithOrderKey(tx, agentsTable, insertData, { pkColumn: agentsTable.id })
+    const [joined] = tx
       .select({ agent: agentsTable, modelName: userModelTable.name })
       .from(agentsTable)
       .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
       .where(eq(agentsTable.id, id))
       .limit(1)
+      .all()
     return joined ?? null
   }
 
-  private async findAgentRow(id: string, options: { includeDeleted?: boolean } = {}): Promise<AgentRow | undefined> {
+  private findAgentRow(id: string, options: { includeDeleted?: boolean } = {}): AgentRow | undefined {
     const database = application.get('DbService').getDb()
     const whereClause = options.includeDeleted
       ? eq(agentsTable.id, id)
       : and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt))
 
-    const result = await database.select().from(agentsTable).where(whereClause).limit(1)
+    const result = database.select().from(agentsTable).where(whereClause).limit(1).all()
 
     return result[0]
   }
 
-  async getAgent(id: string): Promise<AgentEntity | null> {
+  getAgent(id: string): AgentEntity | null {
     const database = application.get('DbService').getDb()
-    const [row] = await database
+    const [row] = database
       .select({ agent: agentsTable, modelName: userModelTable.name })
       .from(agentsTable)
       .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
       .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
       .limit(1)
+      .all()
     if (!row) return null
-    const mcpsMap = await fetchMcpsForAgents(database, [id])
+    const mcpsMap = fetchMcpsForAgents(database, [id])
     return rowToAgent(row.agent, row.modelName || null, mcpsMap.get(id) ?? [])
   }
 
-  async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
+  listAgents(options: ListOptions = {}): { agents: AgentEntity[]; total: number } {
     const database = application.get('DbService').getDb()
 
     // AND-compose deletedAt-null + optional search. Search runs LIKE against
@@ -205,7 +243,7 @@ export class AgentService {
     }
     const whereClause = and(...conditions)
 
-    const totalResult = await database.select({ count: count() }).from(agentsTable).where(whereClause)
+    const totalResult = database.select({ count: count() }).from(agentsTable).where(whereClause).all()
 
     const sortBy = options.sortBy ?? 'orderKey'
     const sortOrder = options.sortOrder ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
@@ -250,20 +288,20 @@ export class AgentService {
     const result =
       options.limit !== undefined
         ? options.offset !== undefined
-          ? await baseQuery.limit(options.limit).offset(options.offset)
-          : await baseQuery.limit(options.limit)
-        : await baseQuery
+          ? baseQuery.limit(options.limit).offset(options.offset).all()
+          : baseQuery.limit(options.limit).all()
+        : baseQuery.all()
 
     // Batch-fetch mcps for all returned agents
     const agentIds = result.map((row) => row.agent.id)
-    const mcpsMap = await fetchMcpsForAgents(database, agentIds)
+    const mcpsMap = fetchMcpsForAgents(database, agentIds)
 
     const agents = result.map((row) => rowToAgent(row.agent, row.modelName || null, mcpsMap.get(row.agent.id) ?? []))
 
     return { agents, total: totalResult[0].count }
   }
 
-  async search(options: { q: string; limit: number; updatedAtFrom?: number }): Promise<AgentEntitySearchItem[]> {
+  search(options: { q: string; limit: number; updatedAtFrom?: number }): AgentEntitySearchItem[] {
     const database = application.get('DbService').getDb()
     const pattern = `%${options.q.replace(/[\\%_]/g, '\\$&')}%`
     const nameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
@@ -275,7 +313,7 @@ export class AgentService {
       conditions.push(gte(agentsTable.updatedAt, options.updatedAtFrom))
     }
 
-    const rows = await database
+    const rows = database
       .select({
         id: agentsTable.id,
         name: agentsTable.name,
@@ -287,6 +325,7 @@ export class AgentService {
       .where(and(...conditions))
       .orderBy(desc(agentsTable.updatedAt), asc(agentsTable.id))
       .limit(options.limit)
+      .all()
 
     return rows.map((row) => ({
       type: 'agent',
@@ -299,8 +338,8 @@ export class AgentService {
     }))
   }
 
-  async updateAgent(id: string, updates: UpdateAgentDto): Promise<AgentEntity | null> {
-    const existing = await this.getAgent(id)
+  updateAgent(id: string, updates: UpdateAgentDto): AgentEntity | null {
+    const existing = this.getAgent(id)
     if (!existing) return null
 
     const updateData: Partial<AgentRow> = {
@@ -322,46 +361,56 @@ export class AgentService {
       ;(updateData as Record<string, unknown>)[field] = value
     }
 
-    await withSqliteErrors(
+    withSqliteErrors(
       () =>
-        application.get('DbService').withWriteTx(async (tx) => {
-          await this.updateAgentTx(tx, id, updateData)
+        application.get('DbService').withWriteTx((tx) => {
+          this.updateAgentTx(tx, id, updateData)
           // Replace MCP associations if provided
           if (newMcps !== undefined) {
-            await tx.delete(agentMcpServerTable).where(eq(agentMcpServerTable.agentId, id))
+            tx.delete(agentMcpServerTable).where(eq(agentMcpServerTable.agentId, id)).run()
             if (newMcps.length > 0) {
-              await tx.insert(agentMcpServerTable).values(newMcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
+              tx.insert(agentMcpServerTable)
+                .values(newMcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
+                .run()
             }
           }
         }),
       defaultHandlersFor('Agent', id)
     )
 
-    const updated = await this.getAgent(id)
+    const updated = this.getAgent(id)
     if (updated) {
       this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
     }
     return updated
   }
 
-  async updateAgentTx(tx: DbOrTx, id: string, updateData: Partial<AgentRow>): Promise<void> {
-    await tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
+  updateAgentTx(tx: DbOrTx, id: string, updateData: Partial<AgentRow>): void {
+    tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id)).run()
   }
 
-  async deleteAgent(id: string): Promise<boolean> {
-    const agent = await this.findAgentRow(id)
+  deleteAgent(id: string, options: { deleteSessions?: boolean } = {}): boolean {
+    // By default sessions detach (agentId → NULL) via FK ON DELETE SET NULL; callers
+    // can opt into deleting them in this same transaction. `pin` has no FK back
+    // to agent, so purge it alongside the agent row. Junction table rows are
+    // cascade-deleted by FK.
+    const result = withSqliteErrors(
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          const [agent] = tx
+            .select({ id: agentsTable.id })
+            .from(agentsTable)
+            .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+            .limit(1)
+            .all()
+          if (!agent) return { rowsAffected: 0 }
 
-    if (!agent) {
-      return false
-    }
+          if (options.deleteSessions === true) {
+            agentSessionService.deleteByAgentIdTx(tx, id, { validateAgent: false })
+          }
 
-    // Sessions detach (agentId → NULL) via FK ON DELETE SET NULL; their rows
-    // and pins survive the agent. Wrap pin purge + agent delete in one
-    // transaction so a partial delete cannot leave dangling cross-entity
-    // rows behind. `pin` has no FK back here, so this is the only purge
-    // needed up-front. Junction table rows are cascade-deleted by FK.
-    const result = await withSqliteErrors(
-      async () => application.get('DbService').withWriteTx((tx) => this.deleteAgentTx(tx, id)),
+          return this.deleteAgentTx(tx, id)
+        }),
       defaultHandlersFor('Agent', id)
     )
 
@@ -372,13 +421,14 @@ export class AgentService {
     return deleted
   }
 
-  async deleteAgentTx(tx: DbOrTx, id: string): Promise<{ rowsAffected: number }> {
-    await pinService.purgeForEntityTx(tx, 'agent', id)
-    return tx.delete(agentsTable).where(eq(agentsTable.id, id))
+  deleteAgentTx(tx: DbOrTx, id: string): { rowsAffected: number } {
+    pinService.purgeForEntityTx(tx, 'agent', id)
+    const result = tx.delete(agentsTable).where(eq(agentsTable.id, id)).run()
+    return { rowsAffected: result.changes }
   }
 
-  async agentExists(id: string): Promise<boolean> {
-    const result = await this.findAgentRow(id)
+  agentExists(id: string): boolean {
+    const result = this.findAgentRow(id)
     return !!result
   }
 
@@ -386,55 +436,58 @@ export class AgentService {
    * Move a single agent to a new position in the ordered list. Agents share a
    * single global scope, so no scope predicate is passed to `applyMoves`.
    */
-  async reorder(id: string, anchor: OrderRequest): Promise<void> {
-    await application.get('DbService').withWriteTx((tx) => this.reorderTx(tx, id, anchor))
+  reorder(id: string, anchor: OrderRequest): void {
+    application.get('DbService').withWriteTx((tx) => this.reorderTx(tx, id, anchor))
     logger.info('Reordered agent', { id })
   }
 
-  async reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): Promise<void> {
-    const [target] = await tx
+  reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): void {
+    const [target] = tx
       .select({ id: agentsTable.id })
       .from(agentsTable)
       .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
       .limit(1)
+      .all()
     if (!target) throw DataApiErrorFactory.notFound('Agent', id)
 
-    await applyMoves(tx, agentsTable, [{ id, anchor }], { pkColumn: agentsTable.id })
+    applyMoves(tx, agentsTable, [{ id, anchor }], { pkColumn: agentsTable.id })
   }
 
-  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+  reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
-    await application.get('DbService').withWriteTx((tx) => this.reorderBatchTx(tx, moves))
+    application.get('DbService').withWriteTx((tx) => this.reorderBatchTx(tx, moves))
   }
 
-  async reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+  reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): void {
     const ids = moves.map((m) => m.id)
-    const targets = await tx
+    const targets = tx
       .select({ id: agentsTable.id })
       .from(agentsTable)
       .where(and(inArray(agentsTable.id, ids), isNull(agentsTable.deletedAt)))
+      .all()
     if (targets.length !== ids.length) {
       const found = new Set(targets.map((t) => t.id))
       const missing = ids.find((id) => !found.has(id)) ?? ids[0]
       throw DataApiErrorFactory.notFound('Agent', missing)
     }
 
-    await applyMoves(tx, agentsTable, moves, { pkColumn: agentsTable.id })
+    applyMoves(tx, agentsTable, moves, { pkColumn: agentsTable.id })
   }
 
   /**
    * Fire onAgentUpdated for each agent ID, re-fetching the agent from DB
    * so subscribers get the current entity state (including mcps from junction table).
    */
-  async emitAgentUpdatedForIds(agentIds: string[]): Promise<void> {
+  emitAgentUpdatedForIds(agentIds: string[]): void {
     if (agentIds.length === 0) return
     const database = application.get('DbService').getDb()
-    const rows = await database
+    const rows = database
       .select({ agent: agentsTable, modelName: userModelTable.name })
       .from(agentsTable)
       .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
       .where(and(inArray(agentsTable.id, agentIds), isNull(agentsTable.deletedAt)))
-    const mcpsMap = await fetchMcpsForAgents(database, agentIds)
+      .all()
+    const mcpsMap = fetchMcpsForAgents(database, agentIds)
     for (const row of rows) {
       const agent = rowToAgent(row.agent, row.modelName || null, mcpsMap.get(row.agent.id) ?? [])
       this._onAgentUpdated.fire({ agentId: agent.id, updates: { mcps: agent.mcps }, agent })
@@ -448,17 +501,18 @@ export class AgentService {
    * same rows again (no-op on empty set). Returns affected agent IDs so the
    * caller can emit onAgentUpdated events after commit.
    */
-  async removeMcpFromAllAgentsTx(tx: DbOrTx, mcpServerId: string): Promise<string[]> {
+  removeMcpFromAllAgentsTx(tx: DbOrTx, mcpServerId: string): string[] {
     // Find which agents reference this MCP server before deleting
-    const referenced = await tx
+    const referenced = tx
       .select({ agentId: agentMcpServerTable.agentId })
       .from(agentMcpServerTable)
       .where(eq(agentMcpServerTable.mcpServerId, mcpServerId))
+      .all()
     const affectedIds = [...new Set(referenced.map((r) => r.agentId))]
 
     // Delete junction rows explicitly so we can identify affected agent IDs
     // before the cascade from MCP server DELETE removes them.
-    await tx.delete(agentMcpServerTable).where(eq(agentMcpServerTable.mcpServerId, mcpServerId))
+    tx.delete(agentMcpServerTable).where(eq(agentMcpServerTable.mcpServerId, mcpServerId)).run()
 
     return affectedIds
   }

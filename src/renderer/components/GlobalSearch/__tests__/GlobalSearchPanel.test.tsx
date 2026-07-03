@@ -274,10 +274,13 @@ vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: (key: string) => [
     key === 'ui.global_search.recent_items' ? mocks.recentItems : mocks.persistCacheValues[key],
     (value: unknown) => {
+      // Mirror the real hook: resolve a functional updater against the latest value.
+      const current = key === 'ui.global_search.recent_items' ? mocks.recentItems : mocks.persistCacheValues[key]
+      const resolved = typeof value === 'function' ? (value as (prev: unknown) => unknown)(current) : value
       if (key === 'ui.global_search.recent_items') {
-        mocks.recentItems = value as typeof mocks.recentItems
+        mocks.recentItems = resolved as typeof mocks.recentItems
       }
-      mocks.cacheSet(key, value)
+      mocks.cacheSet(key, resolved)
     }
   ]
 }))

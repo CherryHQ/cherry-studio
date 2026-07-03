@@ -556,6 +556,7 @@
       "list": {
         "title": "Задачи"
       },
+      "new": "Новое задание",
       "pin": {
         "title": "Закрепить задачу"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Поисковые задачи"
+        "placeholder": "Поисковые задачи",
+        "title": "Поиск задач"
       },
       "unpin": {
         "title": "Открепить задачу"
@@ -934,6 +936,10 @@
         "Bash": {
           "description": "Выполняет shell-команды в вашей среде",
           "label": "Баш"
+        },
+        "CherryKbManage": {
+          "description": "Добавляет, удаляет или обновляет документы в ваших базах знаний",
+          "label": "Управление знаниями"
         },
         "CherryKbSearch": {
           "description": "Ищет в ваших базах знаний",
@@ -3162,12 +3168,22 @@
           "agent_title": "Новый агент",
           "assistant_title": "Новый ассистент",
           "avatar_aria": "Выберите аватар",
+          "back": "Назад",
+          "capability": {
+            "import": "Импортировать навык",
+            "no_skills": "Навыки не установлены",
+            "search": "Навыки поиска"
+          },
           "description_placeholder": "Опиши, для чего это нужно...",
-          "dialog_description": "Создайте лёгкого ассистента или агента.",
-          "model_placeholder": "Выберите модель",
-          "model_required": "Пожалуйста, выберите модель",
+          "guided_progress": "Пошаговая настройка · Шаг {{current}} из {{total}}",
           "name_placeholder": "Введите имя",
-          "name_required": "Пожалуйста, введите имя",
+          "next": "Следующий",
+          "step": {
+            "basic": "Основная информация",
+            "capability": "Навыки",
+            "knowledge": "Знание",
+            "persona": "Персона"
+          },
           "submit": "Создать",
           "submit_failed": "Создание не удалось"
         },
@@ -4710,7 +4726,6 @@
     "baichuan": "Baichuan",
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
@@ -4766,7 +4781,6 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Тессеракт",
     "together": "Together",
-    "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",
@@ -5258,6 +5272,7 @@
     "assistant": {
       "create_new": "Новый ассистент",
       "empty_text": "Пока нет ассистентов",
+      "filter": "Фильтровать помощников",
       "multi_hint": "(взаимоисключающий с многомодельным)",
       "multi_label": "Многопомощниковый параллелизм",
       "search_placeholder": "Поиск ассистентов…"
@@ -6437,6 +6452,12 @@
         "show_estimated_tokens": "Показывать затраты токенов",
         "title": "Настройки ввода"
       },
+      "layout": {
+        "classic": "Классический",
+        "conversation": "Вид разговора",
+        "modern": "Современный",
+        "work": "Вид работы"
+      },
       "markdown_rendering_input_message": "Отображение ввода в формате Markdown",
       "metrics": "{{time_first_token_millsec}}ms до первого токена | {{token_speed}} tok/sec",
       "model": {
@@ -7441,6 +7462,7 @@
           "exa": "API нейропоиска для ИИ-приложений, оптимизированный для семантического поиска в вебе.",
           "exa_mcp": "Предоставьте агентам доступ к поиску Exa через сервер Exa MCP.",
           "fetch": "Встроенный поставщик извлечения URL. Извлекает содержимое веб-страницы по URL для обогащения результатов поиска.",
+          "firecrawl": "Сервис краулинга и поиска Firecrawl, оптимизированный для преобразования веб-сайтов в Markdown.",
           "jina": "API Jina Reader для поиска и чтения для получения чистого веб-контента.",
           "querit": "Поисковый сервис для приложений ИИ с результатами веб-поиска.",
           "searxng": "Самостоятельно размещаемый бесплатный интернет-метапоисковик по множеству источников.",

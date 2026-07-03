@@ -24,7 +24,7 @@ import { getFileIconName } from '@renderer/utils/fileIconName'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
-import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { memo, startTransition, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MAX_COLLAPSED_CODE_HEIGHT, SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
@@ -38,6 +38,7 @@ interface Props {
   language: string
   onSave?: (newContent: string) => void
   editable?: boolean
+  isStreaming?: boolean
 }
 
 /**
@@ -56,7 +57,8 @@ interface Props {
  * - quick 工具
  * - core 工具
  */
-export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave, editable = true }) => {
+export const CodeBlockView: React.FC<Props> = memo((props) => {
+  const { children, language, onSave, editable = true, isStreaming = false } = props
   const { t } = useTranslation()
 
   const [codeExecutionEnabled] = usePreference('chat.code.execution.enabled')
@@ -288,6 +290,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           options={{ stream: true, lineNumbers: codeShowLineNumbers, ...codeEditor }}
           expanded={shouldExpand}
           wrapped={shouldWrap}
+          autoScrollToBottom={isStreaming && !shouldExpand}
         />
       ) : (
         <CodeViewer
@@ -299,6 +302,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           wrapped={shouldWrap}
           maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
           onRequestExpand={codeCollapsible ? () => setExpandOverride(true) : undefined}
+          autoScrollToBottom={isStreaming && !shouldExpand}
         />
       ),
     [
@@ -310,6 +314,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
       codeShowLineNumbers,
       fontSize,
       handleHeightChange,
+      isStreaming,
       language,
       onSave,
       shouldExpand,
@@ -324,9 +329,11 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     if (!SpecialView) return null
 
     return (
-      <SpecialView ref={specialViewRef} enableToolbar={codeImageTools}>
-        {children}
-      </SpecialView>
+      <Suspense fallback={null}>
+        <SpecialView ref={specialViewRef} enableToolbar={codeImageTools}>
+          {children}
+        </SpecialView>
+      </Suspense>
     )
   }, [children, codeImageTools, language])
 

@@ -29,7 +29,6 @@ const providerKeyMap = {
   baichuan: 'provider.baichuan',
   'baidu-cloud': 'provider.baidu-cloud',
   burncloud: 'provider.burncloud',
-  cephalon: 'provider.cephalon',
   cherryai: 'provider.cherryai',
   cherryin: 'provider.cherryin',
   copilot: 'provider.copilot',
@@ -71,7 +70,6 @@ const providerKeyMap = {
   stepfun: 'provider.stepfun',
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',
   together: 'provider.together',
-  tokenflux: 'provider.tokenflux',
   vertexai: 'provider.vertexai',
   voyageai: 'provider.voyageai',
   xirang: 'provider.xirang',
@@ -87,7 +85,8 @@ const providerKeyMap = {
   cerebras: 'provider.cerebras',
   mimo: 'provider.mimo',
   'minimax-global': 'provider.minimax-global',
-  zai: 'provider.zai'
+  zai: 'provider.zai',
+  opencode: 'provider.opencode'
 } as const
 
 /**

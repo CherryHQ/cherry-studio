@@ -18,7 +18,7 @@ import type { FileManagerDeps } from '../deps'
 import { observeExternalAccess } from '../observe'
 
 export async function hash(deps: FileManagerDeps, id: FileEntryId): Promise<string> {
-  const entry = await deps.fileEntryService.getById(id)
+  const entry = deps.fileEntryService.getById(id)
   const physicalPath = resolvePhysicalPath(entry)
   return observeExternalAccess(deps, entry, physicalPath, () => fsHash(physicalPath))
 }

@@ -10,7 +10,7 @@ describe('PreferenceSeeder', () => {
 
   it('should insert all default preferences into empty table', async () => {
     const seed = new PreferenceSeeder()
-    await seed.run(dbh.db)
+    seed.run(dbh.db)
 
     const rows = await dbh.db.select().from(preferenceTable)
     const defaultKeys = Object.keys(DefaultPreferences.default)
@@ -36,7 +36,7 @@ describe('PreferenceSeeder', () => {
       .where(and(eq(preferenceTable.scope, first.scope), eq(preferenceTable.key, first.key)))
 
     const seed = new PreferenceSeeder()
-    await seed.run(dbh.db)
+    seed.run(dbh.db)
 
     const rows = await dbh.db.select().from(preferenceTable)
     expect(rows.length).toBe(allDefaults.length)
@@ -60,7 +60,7 @@ describe('PreferenceSeeder', () => {
     const before = (await dbh.db.select().from(preferenceTable)).length
 
     const seed = new PreferenceSeeder()
-    await seed.run(dbh.db)
+    seed.run(dbh.db)
 
     const after = (await dbh.db.select().from(preferenceTable)).length
     expect(after).toBe(before)

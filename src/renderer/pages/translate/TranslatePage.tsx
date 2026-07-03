@@ -16,10 +16,12 @@ import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
 import { useJob } from '@renderer/hooks/useJob'
 import { useModels } from '@renderer/hooks/useModel'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
+import { exportContentToNotes } from '@renderer/services/ExportService'
 import { type FileMetadata, isImageFileMetadata } from '@renderer/types/file'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension, isTextFile } from '@renderer/utils/file'
@@ -59,6 +61,7 @@ import TranslateSettings from './TranslateSettings'
 
 const logger = loggerService.withContext('TranslatePage')
 const PRIORITIZED_PROVIDER_IDS = ['cherryai', 'openai', 'anthropic', 'google', 'gemini', 'openrouter']
+const TRANSLATION_RESULT_TITLE_MAX_LENGTH = 80
 const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
   MODEL_CAPABILITY.EMBEDDING,
   MODEL_CAPABILITY.RERANK,
@@ -68,6 +71,9 @@ const EXCLUDED_TRANSLATE_MODEL_CAPABILITIES = new Set<string>([
 const getModelIdentifier = (model: SelectorModel) => model.apiModelId ?? parseUniqueModelId(model.id).modelId
 
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
+
+const getTitleFromTranslationResult = (translationResult: string) =>
+  translationResult.trim().split(/\r?\n/, 1)[0].slice(0, TRANSLATION_RESULT_TITLE_MAX_LENGTH)
 
 type OcrJob = {
   jobId: string
@@ -147,6 +153,7 @@ const TranslatePage: FC = () => {
   const { models } = useModels({ enabled: true })
   const detectLanguage = useDetectLang()
   const { add: addHistory } = useTranslateHistory()
+  const { notesPath } = useNotesSettings()
   const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
   const { setTimeoutTimer } = useTimer()
@@ -185,11 +192,6 @@ const TranslatePage: FC = () => {
   const textAreaRef = useRef<HTMLTextAreaElement>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
-  const translateInputRef = useRef(translateInput)
-
-  useEffect(() => {
-    translateInputRef.current = translateInput
-  }, [translateInput])
 
   const selectedModelId = useMemo(
     () => (translateModelId && isUniqueModelId(translateModelId) ? translateModelId : undefined),
@@ -201,14 +203,6 @@ const TranslatePage: FC = () => {
   const selectedModelIcon = selectedModel
     ? resolveIcon(getModelIdentifier(selectedModel), selectedModel.providerId)
     : undefined
-
-  const setTranslateInputValue = useCallback(
-    (value: string) => {
-      translateInputRef.current = value
-      setTranslateInput(value)
-    },
-    [setTranslateInput]
-  )
 
   const safePersist = useCallback(
     async (persistPromise: Promise<unknown>, actionName: string) => {
@@ -225,21 +219,21 @@ const TranslatePage: FC = () => {
   const appendTranslateInput = useCallback(
     (text: string) => {
       if (isEmpty(text)) return
-      const next = translateInputRef.current + text
-      translateInputRef.current = next
-      setTranslateInput(next)
+      // Functional update resolves against the latest stored value, so a prior
+      // synchronous setTranslateInput(value) is reflected here without a ref.
+      setTranslateInput((prev) => prev + text)
     },
     [setTranslateInput]
   )
 
   const handleInputChange = useCallback(
     (value: string) => {
-      setTranslateInputValue(value)
+      setTranslateInput(value)
       if (isEmpty(value)) {
         setTranslateOutput('')
       }
     },
-    [setTranslateInputValue, setTranslateOutput]
+    [setTranslateInput, setTranslateOutput]
   )
 
   const copy = useCallback(
@@ -268,6 +262,17 @@ const TranslatePage: FC = () => {
       window.toast.error(t('common.copy_failed'))
     }
   }, [copy, t, translateOutput])
+
+  const onExportOutputToNotes = useCallback(() => {
+    const translationResult = translateOutput.trim()
+    if (!translationResult) return
+
+    void exportContentToNotes(getTitleFromTranslationResult(translationResult), translationResult, notesPath).catch(
+      (error) => {
+        logger.error('Failed to export output to notes:', error as Error)
+      }
+    )
+  }, [notesPath, translateOutput])
 
   const translate = useCallback(
     async (
@@ -321,8 +326,8 @@ const TranslatePage: FC = () => {
         setDetectedLanguage(actualSourceLanguage)
       } catch (error) {
         logger.error('Failed to detect language', error as Error)
-        window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.detect.failed')))
-        return
+        actualSourceLanguage = UNKNOWN_LANG_CODE
+        setDetectedLanguage(UNKNOWN_LANG_CODE)
       } finally {
         setIsDetecting(false)
       }
@@ -330,15 +335,12 @@ const TranslatePage: FC = () => {
       setDetectedLanguage(null)
     }
 
-    if (actualSourceLanguage === UNKNOWN_LANG_CODE) {
-      window.toast.error(t('translate.error.detect.unknown'))
-      return
-    }
+    const shouldUseBidirectionalTarget = isBidirectional && actualSourceLanguage !== UNKNOWN_LANG_CODE
 
     const targetResult = determineTargetLanguage(
       actualSourceLanguage,
       targetLanguage,
-      isBidirectional,
+      shouldUseBidirectionalTarget,
       bidirectionalPair
     )
 
@@ -375,14 +377,14 @@ const TranslatePage: FC = () => {
     if (sourceLanguage === 'auto' || isTranslating || isDetecting) return
     void safePersist(setSourceLanguage(targetLanguage), 'translate source language')
     void safePersist(setTargetLanguage(sourceLanguage), 'translate target language')
-    setTranslateInputValue(translateOutput)
+    setTranslateInput(translateOutput)
     setTranslateOutput(translateInput)
   }, [
     isDetecting,
     safePersist,
     setSourceLanguage,
     setTargetLanguage,
-    setTranslateInputValue,
+    setTranslateInput,
     setTranslateOutput,
     sourceLanguage,
     targetLanguage,
@@ -393,13 +395,13 @@ const TranslatePage: FC = () => {
 
   const onHistoryItemClick = useCallback(
     (history: TranslateHistory) => {
-      setTranslateInputValue(history.sourceText)
+      setTranslateInput(history.sourceText)
       setTranslateOutput(history.targetText)
       void safePersist(setSourceLanguage(history.sourceLanguage ?? 'auto'), 'translate source language')
       void safePersist(setTargetLanguage(history.targetLanguage ?? UNKNOWN_LANG_CODE), 'translate target language')
       setHistoryOpen(false)
     },
-    [safePersist, setSourceLanguage, setTargetLanguage, setTranslateInputValue, setTranslateOutput]
+    [safePersist, setSourceLanguage, setTargetLanguage, setTranslateInput, setTranslateOutput]
   )
 
   const inputScrollHandler = useMemo(
@@ -803,6 +805,7 @@ const TranslatePage: FC = () => {
               translating={isTranslating || isDetecting}
               copied={copied}
               onCopy={onCopyOutput}
+              onExportToNotes={onExportOutputToNotes}
               onScroll={outputScrollHandler}
             />
           </section>

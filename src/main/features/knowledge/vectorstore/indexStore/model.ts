@@ -37,7 +37,24 @@ export interface RebuildMaterialInput {
     text: string
   }
   units: RebuildMaterialUnitInput[]
+  /**
+   * Whether this base embeds its content. A vector base supplies `embeddings` and
+   * its per-unit vector coverage is verified; a BM25-only base (no embedding
+   * model) supplies none and skips that check — it is searched lexically.
+   */
+  usesEmbeddings: boolean
   embeddings: RebuildMaterialEmbeddingInput[]
+}
+
+/**
+ * A material identified by its Concept ID (the `relative_path`, OKF §2). The
+ * relative path is UNIQUE per index, so this is the addressing primitive behind
+ * the deep-read tool kb_read (read or grep mode); the caller re-validates the resolved
+ * material against the visible knowledge_item before exposing any content.
+ */
+export interface KnowledgeMaterialRef {
+  materialId: string
+  relativePath: string
 }
 
 /** A retrieval unit read back from the index, with its body text. */

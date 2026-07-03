@@ -1,4 +1,5 @@
 import { useMutation } from '@data/hooks/useDataApi'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { getFileProcessorLabelKey } from '@renderer/i18n/label'
 import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
@@ -6,7 +7,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { KnowledgeRagConfigFormValues, KnowledgeSelectOption } from '../types'
+import type { KnowledgeRagConfigFormValues } from '../types'
 import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues, normalizeKnowledgeError } from '../utils'
 
 const logger = loggerService.withContext('useKnowledgeRagConfig')
@@ -17,8 +18,17 @@ const KNOWLEDGE_V2_FILE_PROCESSORS = PRESETS_FILE_PROCESSORS.filter((preset) =>
   )
 )
 
+type FileProcessorApiKeyState = {
+  type: (typeof PRESETS_FILE_PROCESSORS)[number]['type']
+  apiKeys?: readonly string[]
+}
+
+const hasConfiguredApiKey = (processor: FileProcessorApiKeyState) =>
+  processor.type !== 'api' || processor.apiKeys?.some((key) => key.trim().length > 0) === true
+
 export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
   const { t } = useTranslation()
+  const [fileProcessorOverrides] = usePreference('feature.file_processing.overrides')
   const { trigger, isLoading, error } = useMutation('PATCH', '/knowledge-bases/:id', {
     refresh: ['/knowledge-bases']
   })
@@ -26,20 +36,20 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
   const initialValues = useMemo(() => createKnowledgeRagConfigFormValues(base), [base])
 
   const fileProcessorOptions = useMemo(() => {
-    return KNOWLEDGE_V2_FILE_PROCESSORS.map((processor) => ({
-      value: processor.id,
-      label: t(getFileProcessorLabelKey(processor.id))
-    }))
-  }, [t])
+    return KNOWLEDGE_V2_FILE_PROCESSORS.map((processor) => {
+      const override = fileProcessorOverrides[processor.id]
 
-  const searchModeOptions = useMemo<KnowledgeSelectOption[]>(
-    () => [
-      { value: 'hybrid', label: t('knowledge.rag.search_mode.hybrid') },
-      { value: 'vector', label: t('knowledge.rag.search_mode.vector') },
-      { value: 'bm25', label: t('knowledge.rag.search_mode.bm25') }
-    ],
-    [t]
-  )
+      return {
+        ...processor,
+        apiKeys: override?.apiKeys
+      }
+    })
+      .filter(hasConfiguredApiKey)
+      .map((processor) => ({
+        value: processor.id,
+        label: t(getFileProcessorLabelKey(processor.id))
+      }))
+  }, [fileProcessorOverrides, t])
 
   const save = async (values: KnowledgeRagConfigFormValues) => {
     const patch = buildKnowledgeRagConfigPatch(initialValues, values)
@@ -62,7 +72,6 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
   return {
     initialValues,
     fileProcessorOptions,
-    searchModeOptions,
     save,
     isLoading,
     error

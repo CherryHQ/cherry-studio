@@ -38,6 +38,11 @@ import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSd
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import {
+  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
+  CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
+  toCherryBuiltinRuntimeName
+} from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { application } from '@main/core/application'
 import { isLinux, isWin } from '@main/core/platform'
@@ -66,6 +71,7 @@ import { languageEnglishNameMap } from '@shared/utils/languages'
 import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
+import { detectGlobalInstall } from './dependencyGuard'
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
@@ -174,10 +180,10 @@ async function buildAssistantContext(): Promise<string> {
   const language = application.get('PreferenceService').get('app.language')
   const theme = application.get('PreferenceService').get('ui.theme_mode')
   const proxy = application.get('PreferenceService').get('app.proxy.url')
-  const providers = await providerService.list({})
+  const providers = providerService.list({})
   // MCP summary
-  const mcpServers = (await mcpServerService.list({})).items
-  const activeMcp = (await mcpServerService.list({ isActive: true })).items
+  const mcpServers = mcpServerService.list({}).items
+  const activeMcp = mcpServerService.list({ isActive: true }).items
 
   // Network probe (parallel, 2s timeout each)
   const probeResults = await Promise.allSettled([
@@ -251,7 +257,7 @@ export async function buildClaudeCodeSessionSettings(
   if (!session.agentId) {
     throw new Error(`Cannot build settings for orphan session ${session.id} — its agent was deleted`)
   }
-  const agent = await agentService.getAgent(session.agentId)
+  const agent = agentService.getAgent(session.agentId)
   if (!agent) {
     throw new Error(`Agent not found for session ${session.id}: ${session.agentId}`)
   }
@@ -259,7 +265,6 @@ export async function buildClaudeCodeSessionSettings(
   // 1. Working directory (session-bound)
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
-  await skillService.reconcileAgentSkills(session.agentId, cwd)
 
   // 2. Environment variables
   const env = await buildEnvironment(provider, agent)
@@ -285,13 +290,18 @@ export async function buildClaudeCodeSessionSettings(
   const agentConfig = agent.configuration
   const soulEnabled = agentConfig?.soul_enabled === true
   const isAssistant = agentConfig?.builtin_role === 'assistant'
-  const mcpServers = await buildMcpServers(session, agent, soulEnabled, isAssistant)
+  const mcpServers = buildMcpServers(session, agent, soulEnabled, isAssistant)
   const mcpToolMetadata = await buildMcpToolMetadata(agent)
 
   // 8. Auto-approve allowlist for injected built-in MCP servers (soul/assistant only)
   const finalAllowedTools = adjustAllowedToolsForMcp(soulEnabled, isAssistant)
 
-  // 9. Build settings
+  // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
+  // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
+  // is maintained by SkillService (install/uninstall/startup), not here.
+  const skills = await buildSkillWhitelist(agent.id, cwd)
+
+  // 10. Build settings
   const settings: ClaudeCodeSettings = {
     cwd,
     env,
@@ -305,6 +315,7 @@ export async function buildClaudeCodeSessionSettings(
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,
+    skills,
     canUseTool,
     hooks,
     approvalEmitter,
@@ -471,17 +482,17 @@ async function buildEnvironment(
   // Resolve each model id independently: one model missing from the table must not force the others
   // to fall back, and each falls back to its OWN raw id (not the main model's). Common for
   // agent-specific models that aren't in the model table.
-  const resolveApiModelId = async (providerKey: string, modelKey: string): Promise<string> => {
+  const resolveApiModelId = (providerKey: string, modelKey: string): string => {
     try {
-      const model = await modelService.getByKey(providerKey, modelKey)
+      const model = modelService.getByKey(providerKey, modelKey)
       return model.apiModelId ?? modelKey
     } catch {
       return modelKey
     }
   }
-  const apiModelId = await resolveApiModelId(providerId, rawModelId)
-  const sonnetApiModelId = await resolveApiModelId(sonnetProviderId, sonnetModelId)
-  const haikuApiModelId = await resolveApiModelId(haikuProviderId, haikuModelId)
+  const apiModelId = resolveApiModelId(providerId, rawModelId)
+  const sonnetApiModelId = resolveApiModelId(sonnetProviderId, sonnetModelId)
+  const haikuApiModelId = resolveApiModelId(haikuProviderId, haikuModelId)
 
   const env: Record<string, string | undefined> = {
     ...loginShellEnv,
@@ -539,6 +550,35 @@ async function buildEnvironment(
   return env
 }
 
+/**
+ * Compute the SDK `Options.skills` whitelist for a session.
+ *
+ * `Options.skills` is a *filter over everything the SDK discovers* — both the
+ * managed mirror under CLAUDE_CONFIG_DIR/skills (maintained by `SkillService`)
+ * and the workspace's own `cwd/.claude/skills`. So the whitelist must list:
+ *   - the agent's enabled managed skills, and
+ *   - the workspace's project-local skills (omitting them would filter the
+ *     user's own project skills out of their session).
+ *
+ * We match by *directory name only* (`folderName` for managed skills, the
+ * `.claude/skills/<dir>` name for workspace skills). The SDK also matches the
+ * SKILL.md `name`, but that field is not unique — including it would let an
+ * enabled skill's name un-hide a different, disabled skill that happens to
+ * share it. Directory names are unique within each root, so they can't collide.
+ *
+ * Read-only: the filesystem mirror is maintained at install / uninstall /
+ * startup reconcile, never here — so concurrent session builds never race.
+ */
+export async function buildSkillWhitelist(agentId: string, cwd: string): Promise<string[]> {
+  const installedSkills = await skillService.list({ agentId })
+  const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
+
+  const workspaceSkills = await skillService.listLocal(cwd)
+  const workspaceNames = workspaceSkills.map((skill) => skill.filename)
+
+  return Array.from(new Set([...enabledNames, ...workspaceNames]))
+}
+
 async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginConfig[] | undefined> {
   try {
     const pluginsDir = path.join(cwd, '.claude', 'plugins')
@@ -580,28 +620,36 @@ async function buildToolPermissions(
   const conditionContext: ClaudeToolContext | undefined = cwd
     ? {
         cwd,
-        channels: await channelService.listChannels({ agentId: agent.id }).catch((error) => {
-          logger.warn('Failed to list channels for tool policy context', {
-            agentId: agent.id,
-            error: error instanceof Error ? error.message : String(error)
-          })
-          return []
-        })
+        channels: (() => {
+          try {
+            return channelService.listChannels({ agentId: agent.id })
+          } catch (error) {
+            logger.warn('Failed to list channels for tool policy context', {
+              agentId: agent.id,
+              error: error instanceof Error ? error.message : String(error)
+            })
+            return []
+          }
+        })()
       }
     : undefined
 
   const toolPolicySnapshot = await ensureToolPolicySnapshot(session.id, agent, {
     autoAllowRuntimeNamePrefixes: [
       // cherry-tools is injected for every session. Auto-allowing it (no per-call approval) is a
-      // deliberate decision (matches feat/chat-page): none of its tools have side effects in the
-      // main process — web_search/web_fetch read the network, kb_search/kb_list read the user's
-      // knowledge bases, report_artifacts only records a declaration. The untrusted-channel exposure
-      // this creates (approval-free kb reads + web_fetch URL egress for channel-linked sessions) is
-      // bounded by the system-level channel security policy (CHANNEL_SECURITY_PROMPT).
+      // deliberate decision (matches feat/chat-page): its READ tools have no side effects in the
+      // main process — web_search/web_fetch read the network, kb_search/kb_read/kb_list read the
+      // user's knowledge bases, report_artifacts only records a declaration. The
+      // untrusted-channel exposure this creates (approval-free reads + web_fetch URL egress for
+      // channel-linked sessions) is bounded by the system-level channel security policy
+      // (CHANNEL_SECURITY_PROMPT). The MUTATING kb_manage tool is carved out below — it modifies the
+      // user's knowledge bases, so it must go through per-call approval rather than this prefix.
       'mcp__cherry-tools__',
       ...(soulEnabled ? ['mcp__claw__'] : []),
       ...(isAssistant ? ['mcp__assistant__'] : [])
     ],
+    // Mutating cherry-tools (kb_manage) match the prefix above but must still prompt for approval.
+    autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
     conditionContext
   })
 
@@ -648,10 +696,35 @@ async function buildToolPermissions(
     })
   }
 
+  // Block global/shared dependency installs before they run, to prevent cross-agent dependency
+  // pollution: the runtime keeps the user's real HOME, so `-g` / `uv tool install` / `pip --user`
+  // would leak into ~/.bun, ~/.local/share/uv, … shared by every session. Fires on every Bash call
+  // regardless of permission mode (same rationale as disabledToolHook). Project-local installs and
+  // ephemeral runners (`bun x` / `uvx`) are not flagged. Deny (not rewrite) so the model adapts to a
+  // project-local install on its own — rewriting global→local semantics is fragile.
+  const dependencyIsolationHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (toolName !== 'Bash') return {}
+    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const command = toolInput?.command
+    if (typeof command !== 'string' || !command.trim()) return {}
+    const reason = detectGlobalInstall(command)
+    if (!reason) return {}
+    logger.info('Blocked global install to prevent dependency pollution', { sessionId: session.id, reason })
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: `Blocked to avoid cross-agent dependency pollution: ${reason}. Install into the current project instead (e.g. \`bun install <pkg>\`, or \`uv run --with <pkg> python\` for Python). For one-off tools use \`bun x <tool>\` / \`uvx <tool>\` (ephemeral).`
+      }
+    }
+  }
+
   const rtkRewriteHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
-    if (toolName !== 'Bash' && toolName !== 'builtin_Bash') return {}
+    if (toolName !== 'Bash') return {}
     const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
     const command = toolInput?.command
     if (typeof command !== 'string' || !command.trim()) return {}
@@ -716,7 +789,7 @@ async function buildToolPermissions(
 
   return {
     canUseTool,
-    hooks: { PreToolUse: [{ hooks: [disabledToolHook, rtkRewriteHook, steerHook] }] },
+    hooks: { PreToolUse: [{ hooks: [disabledToolHook, dependencyIsolationHook, rtkRewriteHook, steerHook] }] },
     // `disabled`-exposure tools (incl. WebSearch/WebFetch) come from the declarative
     // registry; soul/assistant overlays stay until they migrate to per-tool exposure (PR-7).
     disallowedTools: [
@@ -728,6 +801,29 @@ async function buildToolPermissions(
     ],
     toolPolicySnapshot
   }
+}
+
+/**
+ * Describe the runtimes the agent's Bash tool can rely on. bun and uv ship
+ * bundled and are always on PATH (extracted at boot into `cherry.bin`); node /
+ * npm / npx / pip are NOT guaranteed to exist, so the model is steered to bun and
+ * uv for running scripts and pulling libraries when it needs to verify logic.
+ *
+ * Only the `bun` binary is bundled (no `bunx` shim), so the model is told to use
+ * `bun x` rather than `bunx`; `uvx` is bundled alongside `uv`. Resolved paths are
+ * stable (fixed install location), so this block is safe inside the warm-query
+ * system-prompt signature — see {@link formatNetworkProbeLine}.
+ */
+async function buildRuntimeContext(): Promise<string> {
+  const [bunPath, uvPath, rgPath] = await Promise.all([getBinaryPath('bun'), getBinaryPath('uv'), getBinaryPath('rg')])
+  return [
+    '## Available Runtimes',
+    'bun and uv are bundled and always on PATH. Use them to pull libraries and write throwaway scripts to verify logic — prefer them over node/npm/npx/pip, which are not guaranteed to be installed.',
+    `- JavaScript / TypeScript — run with \`bun <file>\`, add deps with \`bun install <pkg>\`, run a package with \`bun x <tool>\` (bun: ${bunPath})`,
+    `- Python — run with \`uv run python <file>\`, add deps inline with \`uv run --with <pkg> python <file>\` (ephemeral, no venv needed), run a tool with \`uvx <tool>\` (uv: ${uvPath})`,
+    `- Search — \`rg\` for fast file/content search (ripgrep: ${rgPath})`,
+    'Install dependencies INTO the project (cwd) only. Global installs (`-g`/`--global`, `uv tool install`, `pip install --user`) are blocked to keep tasks isolated — use `bun x` / `uvx` for one-off tools.'
+  ].join('\n')
 }
 
 export async function buildSystemPrompt(
@@ -751,7 +847,7 @@ export async function buildSystemPrompt(
   }
 
   // Channel security (still scoped per session — channels link to a session)
-  const linkedChannel = await channelService.findBySessionId(session.id)
+  const linkedChannel = channelService.findBySessionId(session.id)
   const channelSecurityBlock = linkedChannel ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
   const langInstruction = getLanguageInstruction()
@@ -769,11 +865,15 @@ export async function buildSystemPrompt(
     }
   }
 
+  // Bundled-runtime guidance (bun/uv) so the agent verifies logic with tools that actually exist.
+  // Not added to the assistant path above — it injects its own environment via buildAssistantContext.
+  const runtimeBlock = `\n\n${await buildRuntimeContext()}`
+
   // Soul mode
   if (soulEnabled) {
     const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig)
     const userInstructions = instructions ? `\n\n${instructions}` : ''
-    return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
+    return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
   }
 
   // Standard mode
@@ -781,22 +881,22 @@ export async function buildSystemPrompt(
     return {
       type: 'preset',
       preset: 'claude_code',
-      append: `${instructions}${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
+      append: `${instructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
     }
   }
   return {
     type: 'preset',
     preset: 'claude_code',
-    append: `${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
+    append: `${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
   }
 }
 
-export async function buildMcpServers(
+export function buildMcpServers(
   session: AgentSessionEntity,
   agent: AgentEntity,
   soulEnabled: boolean,
   isAssistant: boolean
-): Promise<Record<string, McpServerConfig> | undefined> {
+): Record<string, McpServerConfig> | undefined {
   const mcpList: Record<string, McpServerConfig> = {}
 
   // 1. Agent-configured MCP servers (user-added via UI)
@@ -804,7 +904,7 @@ export async function buildMcpServers(
   if (mcpIds && mcpIds.length > 0) {
     for (const mcpId of mcpIds) {
       try {
-        const sdkServer = await createSdkMcpServerInstance(mcpId)
+        const sdkServer = createSdkMcpServerInstance(mcpId)
         mcpList[mcpId] = { type: 'sdk', name: mcpId, instance: sdkServer }
       } catch (error) {
         logger.error(`Failed to create MCP bridge for ${mcpId}`, { error })
@@ -823,7 +923,7 @@ export async function buildMcpServers(
   // `session.agentId` so TS can see the value is non-null after the upstream
   // orphan check in buildClaudeCodeSessionSettings.
   if (soulEnabled) {
-    const sourceChannelId = await resolveSourceChannel(agent.id, session.id)
+    const sourceChannelId = resolveSourceChannel(agent.id, session.id)
     let workspaceSource: AgentSessionWorkspaceSource
     switch (session.workspace.type) {
       case AGENT_WORKSPACE_TYPE.USER:
@@ -903,10 +1003,10 @@ async function buildMcpToolMetadata(agent: AgentEntity): Promise<Record<string, 
 
   for (const mcpId of mcpIds) {
     try {
-      const server = await mcpServerService.findByIdOrName(mcpId)
+      const server = mcpServerService.findByIdOrName(mcpId)
       if (!server) continue
 
-      const tools = await mcpService.listTools(server.id)
+      const tools = mcpService.listTools(server.id)
       for (const tool of tools) {
         addMcpToolMetadataAliases(metadataByName, server, tool)
       }
@@ -918,9 +1018,9 @@ async function buildMcpToolMetadata(agent: AgentEntity): Promise<Record<string, 
   return Object.keys(metadataByName).length > 0 ? metadataByName : undefined
 }
 
-async function resolveSourceChannel(agentId: string, sessionId: string): Promise<string | undefined> {
+function resolveSourceChannel(agentId: string, sessionId: string): string | undefined {
   try {
-    const channels = await channelService.listChannels({ agentId })
+    const channels = channelService.listChannels({ agentId })
     return channels.find((ch) => ch.sessionId === sessionId)?.id
   } catch {
     return undefined
@@ -931,11 +1031,13 @@ async function resolveSourceChannel(agentId: string, sessionId: string): Promise
  * Auto-approve allowlist for injected built-in MCP servers. Returns `undefined` for a plain agent
  * (Claude Code then permits all tools; cherry-tools is auto-approved via the canUseTool prefix).
  * Soul/assistant agents force an explicit allowlist so their claw/agent-memory/assistant tools pass.
+ * The read-only cherry-tools are listed explicitly (not a wildcard) so the mutating kb_manage tool is
+ * excluded from the SDK pre-approval and routed through per-call approval via canUseTool.
  */
 export function adjustAllowedToolsForMcp(soulEnabled: boolean, isAssistant: boolean): string[] | undefined {
   if (!soulEnabled && !isAssistant) return undefined
 
-  const result = ['mcp__cherry-tools__*']
+  const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
   if (soulEnabled) result.push('mcp__claw__*', 'mcp__agent-memory__*')
   if (isAssistant) result.push('mcp__assistant__*')
   return result

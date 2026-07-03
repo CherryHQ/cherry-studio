@@ -1,11 +1,11 @@
-import { Button, ReorderableList } from '@cherrystudio/ui'
+import { Button, ReorderableList, Tooltip } from '@cherrystudio/ui'
 import { ComposerToken } from '@renderer/components/composer/tokenView/ComposerToken'
 import {
   CHAT_INPUT_TOKEN_KINDS,
   type ChatInputTokenKind,
   type ChatTokenView
 } from '@renderer/components/composer/tokenView/tokenView'
-import { Pause, Pencil, Play, X, Zap } from 'lucide-react'
+import { GripVertical, Pause, Pencil, Play, X, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { FollowupQueueItem } from './useFollowupQueue'
@@ -49,50 +49,64 @@ function DraftTokenChips({ item }: { item: FollowupQueueItem }) {
 
 function QueuedFollowupRow({
   item,
+  dragging,
   onSteer,
   onEdit,
   onRemove
 }: {
   item: FollowupQueueItem
+  dragging: boolean
   onSteer: (id: string) => void
   onEdit: (id: string) => void
   onRemove: (id: string) => void
 }) {
   const { t } = useTranslation()
   return (
-    <div className="group flex items-start gap-1.5 rounded-[12px] bg-muted/40 px-2 py-1.5">
+    <div className="group flex items-center gap-1.5 rounded-[12px] bg-muted/40 px-2 py-1.5">
+      <span
+        aria-hidden
+        data-dragging={dragging ? 'true' : 'false'}
+        className="flex shrink-0 cursor-grab items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover:opacity-100 data-[dragging=true]:opacity-100">
+        <GripVertical className="size-4" />
+      </span>
       <div className="min-w-0 flex-1">
         <span className="line-clamp-2 text-foreground text-sm">{item.draft?.text ?? item.payload.text}</span>
         <DraftTokenChips item={item} />
       </div>
       <div className="flex shrink-0 items-center gap-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="size-7 shadow-none"
-          aria-label={t('chat.input.followup_queue.steer')}
-          onClick={() => onSteer(item.id)}>
-          <Zap className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="size-7 shadow-none"
-          aria-label={t('chat.input.followup_queue.edit')}
-          onClick={() => onEdit(item.id)}>
-          <Pencil className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="size-7 shadow-none"
-          aria-label={t('chat.input.followup_queue.remove')}
-          onClick={() => onRemove(item.id)}>
-          <X className="size-4" />
-        </Button>
+        <Tooltip placement="top" content={t('chat.input.followup_queue.steer')}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-7 shadow-none"
+            aria-label={t('chat.input.followup_queue.steer')}
+            onClick={() => onSteer(item.id)}>
+            <Zap className="size-4" />
+          </Button>
+        </Tooltip>
+        <Tooltip placement="top" content={t('chat.input.followup_queue.edit')}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-7 shadow-none"
+            aria-label={t('chat.input.followup_queue.edit')}
+            onClick={() => onEdit(item.id)}>
+            <Pencil className="size-4" />
+          </Button>
+        </Tooltip>
+        <Tooltip placement="top" content={t('chat.input.followup_queue.remove')}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-7 shadow-none"
+            aria-label={t('chat.input.followup_queue.remove')}
+            onClick={() => onRemove(item.id)}>
+            <X className="size-4" />
+          </Button>
+        </Tooltip>
       </div>
     </div>
   )
@@ -121,15 +135,19 @@ export function QueuedFollowupsDock({
         <span className="text-muted-foreground text-xs">
           {t('chat.input.followup_queue.title', { count: items.length })}
         </span>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="size-6 shadow-none"
-          aria-label={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}
-          onClick={onTogglePause}>
-          {paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
-        </Button>
+        <Tooltip
+          placement="top"
+          content={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-6 shadow-none"
+            aria-label={paused ? t('chat.input.followup_queue.resume') : t('chat.input.followup_queue.pause')}
+            onClick={onTogglePause}>
+            {paused ? <Play className="size-3.5" /> : <Pause className="size-3.5" />}
+          </Button>
+        </Tooltip>
       </div>
       <div className="max-h-40 overflow-y-auto">
         <ReorderableList
@@ -138,7 +156,9 @@ export function QueuedFollowupsDock({
           onReorder={onReorder}
           direction="vertical"
           gap={4}
-          renderItem={(item) => <QueuedFollowupRow item={item} onSteer={onSteer} onEdit={onEdit} onRemove={onRemove} />}
+          renderItem={(item, _index, { dragging }) => (
+            <QueuedFollowupRow item={item} dragging={dragging} onSteer={onSteer} onEdit={onEdit} onRemove={onRemove} />
+          )}
         />
       </div>
     </div>

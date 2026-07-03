@@ -20,14 +20,19 @@ import {
   useRef,
   useState
 } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { type FileTokenPresentation, getFileTokenPresentation } from './fileTokenPresentation'
 import type { ChatInputTokenKind, ChatTokenView } from './tokenView'
 
 const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
-const FILE_TOKEN_POPOVER_OPEN_DELAY_MS = 120
-const FILE_TOKEN_POPOVER_CLOSE_DELAY_MS = 160
-type FileTokenPopoverOpenReason = 'keyboard' | 'pointer'
+const TOKEN_POPOVER_OPEN_DELAY_MS = 120
+const TOKEN_POPOVER_CLOSE_DELAY_MS = 160
+type TokenPopoverOpenReason = 'keyboard' | 'pointer'
+const tokenPreviewHeaderClassName =
+  'flex h-20 items-center justify-center border-border-subtle border-b bg-[repeating-linear-gradient(135deg,var(--color-border-subtle)_0,var(--color-border-subtle)_1px,transparent_1px,transparent_8px)] bg-muted'
+const tokenTriggerFocusClassName =
+  'rounded-[5px] group-focus-visible:ring-[3px] group-focus-visible:ring-ring/50 group-data-[state=open]:ring-1 group-data-[state=open]:ring-ring/50'
 
 const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   skill: <Zap className={tokenIconClassName} />,
@@ -37,7 +42,7 @@ const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   promptVariable: <Braces className={tokenIconClassName} />
 }
 
-function stopFileTokenActionEvent(event: ReactMouseEvent<HTMLElement>) {
+function stopTokenActionEvent(event: ReactMouseEvent<HTMLElement>) {
   event.preventDefault()
   event.stopPropagation()
 }
@@ -49,12 +54,12 @@ export interface ComposerTokenProps {
   children?: ReactNode
   maxWidthClassName?: string
   onMouseDown?: MouseEventHandler<HTMLSpanElement>
+  onRemove?: () => void
+  removeLabel?: string
 }
 
 interface FileComposerTokenProps extends ComposerTokenProps {
   tooltipActions?: ReactNode
-  onRemove?: () => void
-  removeLabel?: string
 }
 
 interface ActiveComposerTokenProps extends ComposerTokenProps {
@@ -98,8 +103,106 @@ function ActiveComposerToken(props: ActiveComposerTokenProps) {
   return renderActiveComposerTokenElement(props)
 }
 
+function TokenPreviewCard({
+  token,
+  typeLabel,
+  icon,
+  iconClassName = 'bg-accent text-primary',
+  primaryAction
+}: {
+  token: ChatTokenView
+  typeLabel?: string
+  icon: ReactNode
+  iconClassName?: string
+  primaryAction?: ReactNode
+}) {
+  const hasActions = Boolean(primaryAction)
+
+  return (
+    <div className="w-72 overflow-hidden text-left">
+      <div className={tokenPreviewHeaderClassName}>
+        <span
+          className={cn(
+            'inline-flex size-12 shrink-0 items-center justify-center rounded-xl bg-background text-2xl',
+            iconClassName
+          )}>
+          {icon}
+        </span>
+      </div>
+      <div className="p-3">
+        <div
+          className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1"
+          data-token-actions={hasActions ? '' : undefined}>
+          <div className="flex h-6 min-w-0 items-center">
+            <span className="truncate font-semibold text-popover-foreground text-sm leading-5" title={token.label}>
+              {token.label}
+            </span>
+          </div>
+          {primaryAction && (
+            <div className="flex h-6 shrink-0 items-center justify-end" onMouseDown={stopTokenActionEvent}>
+              {primaryAction}
+            </div>
+          )}
+          {typeLabel && (
+            <div className="flex min-h-4 min-w-0 items-center gap-1.5 text-muted-foreground text-xs leading-4">
+              <span className="shrink-0 font-medium uppercase">{typeLabel}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TokenRemoveButton({ label, onRemove, onClose }: { label: string; onRemove: () => void; onClose: () => void }) {
+  const handleRemove = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    stopTokenActionEvent(event)
+    onClose()
+    onRemove()
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      aria-label={label}
+      title={label}
+      className="size-6 rounded-md border border-border-subtle bg-background text-muted-foreground shadow-none hover:bg-[var(--color-error-bg)] hover:text-destructive"
+      onMouseDown={stopTokenActionEvent}
+      onClick={handleRemove}>
+      <Trash2 className="size-3" aria-hidden />
+    </Button>
+  )
+}
+
 export function SkillComposerToken(props: ComposerTokenProps) {
-  return <ActiveComposerToken {...props} icon={tokenIconByKind.skill} />
+  const icon = tokenIconByKind.skill
+  const tokenElement = renderActiveComposerTokenElement({
+    ...props,
+    icon,
+    className: cn(props.className, tokenTriggerFocusClassName)
+  })
+  const title = props.token.description ?? props.token.promptText ?? props.token.label
+  const removeLabel = props.removeLabel ?? 'Remove'
+
+  return (
+    <ComposerTokenHoverPopover
+      trigger={tokenElement}
+      ariaLabel={title}
+      content={({ closePopover }) => (
+        <TokenPreviewCard
+          token={props.token}
+          icon={icon}
+          primaryAction={
+            props.onRemove ? (
+              <TokenRemoveButton label={removeLabel} onRemove={props.onRemove} onClose={closePopover} />
+            ) : undefined
+          }
+        />
+      )}
+    />
+  )
 }
 
 function isComposerAttachment(value: unknown): value is ComposerAttachment {
@@ -130,7 +233,7 @@ function FileTokenPreviewCard({
         </div>
       )}
       {!presentation.previewUrl && (
-        <div className="flex h-20 items-center justify-center border-border-subtle border-b bg-[repeating-linear-gradient(135deg,var(--color-border-subtle)_0,var(--color-border-subtle)_1px,transparent_1px,transparent_8px)] bg-muted">
+        <div className={tokenPreviewHeaderClassName}>
           <span
             className={cn(
               'inline-flex size-12 items-center justify-center rounded-xl bg-background',
@@ -148,7 +251,7 @@ function FileTokenPreviewCard({
             <span className="truncate font-semibold text-popover-foreground text-sm leading-5">{label}</span>
           </div>
           {primaryAction && (
-            <div className="flex h-6 shrink-0 items-center justify-end" onMouseDown={stopFileTokenActionEvent}>
+            <div className="flex h-6 shrink-0 items-center justify-end" onMouseDown={stopTokenActionEvent}>
               {primaryAction}
             </div>
           )}
@@ -162,7 +265,7 @@ function FileTokenPreviewCard({
             )}
           </div>
           {secondaryAction && (
-            <div className="flex min-h-4 shrink-0 items-center justify-end" onMouseDown={stopFileTokenActionEvent}>
+            <div className="flex min-h-4 shrink-0 items-center justify-end" onMouseDown={stopTokenActionEvent}>
               {secondaryAction}
             </div>
           )}
@@ -172,19 +275,19 @@ function FileTokenPreviewCard({
   )
 }
 
-export function FileComposerToken(props: FileComposerTokenProps) {
-  const { onRemove, removeLabel: removeLabelProp, tooltipActions } = props
+interface ComposerTokenHoverPopoverProps {
+  trigger: ReactNode
+  content: ReactNode | ((controls: { closePopover: () => void }) => ReactNode)
+  ariaLabel: string
+}
+
+function ComposerTokenHoverPopover({ trigger, content, ariaLabel }: ComposerTokenHoverPopoverProps) {
   const [popoverOpen, setPopoverOpen] = useState(false)
   const openTimerRef = useRef<number | null>(null)
   const closeTimerRef = useRef<number | null>(null)
   const triggerRef = useRef<HTMLSpanElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
-  const popoverOpenReasonRef = useRef<FileTokenPopoverOpenReason>('pointer')
-  const file = isComposerAttachment(props.token.payload) ? props.token.payload : undefined
-  const label = file?.origin_name || file?.name || props.token.label
-  const presentation = getFileTokenPresentation(file, label)
-  const title = props.token.description ?? props.token.promptText ?? label
-  const removeLabel = removeLabelProp ?? 'Remove'
+  const popoverOpenReasonRef = useRef<TokenPopoverOpenReason>('pointer')
 
   const clearOpenTimer = useCallback(() => {
     if (openTimerRef.current === null) return
@@ -199,7 +302,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   }, [])
 
   const openPopover = useCallback(
-    (reason: FileTokenPopoverOpenReason = 'pointer') => {
+    (reason: TokenPopoverOpenReason = 'pointer') => {
       popoverOpenReasonRef.current = reason
       clearOpenTimer()
       clearCloseTimer()
@@ -226,7 +329,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     openTimerRef.current = window.setTimeout(() => {
       openTimerRef.current = null
       setPopoverOpen(true)
-    }, FILE_TOKEN_POPOVER_OPEN_DELAY_MS)
+    }, TOKEN_POPOVER_OPEN_DELAY_MS)
   }, [clearCloseTimer, popoverOpen])
 
   const scheduleClosePopover = useCallback(() => {
@@ -235,7 +338,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     closeTimerRef.current = window.setTimeout(() => {
       setPopoverOpen(false)
       closeTimerRef.current = null
-    }, FILE_TOKEN_POPOVER_CLOSE_DELAY_MS)
+    }, TOKEN_POPOVER_CLOSE_DELAY_MS)
   }, [clearCloseTimer, clearOpenTimer])
 
   const markPointerOpenReason = useCallback(() => {
@@ -313,38 +416,51 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     [clearCloseTimer, clearOpenTimer]
   )
 
-  const handleRemove = useCallback(
-    (event: ReactMouseEvent<HTMLButtonElement>) => {
-      stopFileTokenActionEvent(event)
-      setPopoverOpen(false)
-      onRemove?.()
-    },
-    [onRemove]
+  const tokenElement = (
+    <span
+      ref={triggerRef}
+      className="group inline-flex align-baseline outline-none"
+      role="button"
+      tabIndex={0}
+      aria-label={ariaLabel}
+      onMouseEnter={scheduleOpenPopover}
+      onMouseLeave={scheduleClosePopover}
+      onMouseMove={scheduleOpenPopover}
+      onPointerDown={markPointerOpenReason}
+      onBlur={handleTriggerBlur}
+      onKeyDownCapture={handleTriggerKeyDown}>
+      {trigger}
+    </span>
   )
 
-  const removeAction = onRemove ? (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      aria-label={removeLabel}
-      title={removeLabel}
-      className="size-6 rounded-md border border-border-subtle bg-background text-muted-foreground shadow-none hover:bg-[var(--color-error-bg)] hover:text-destructive"
-      onMouseDown={stopFileTokenActionEvent}
-      onClick={handleRemove}>
-      <Trash2 className="size-3" aria-hidden />
-    </Button>
-  ) : undefined
-
-  const tooltipContent = (
-    <FileTokenPreviewCard
-      file={file}
-      label={label}
-      presentation={presentation}
-      primaryAction={removeAction}
-      secondaryAction={tooltipActions}
-    />
+  return (
+    <Popover open={popoverOpen} onOpenChange={handlePopoverOpenChange}>
+      <PopoverTrigger asChild>{tokenElement}</PopoverTrigger>
+      <PopoverContent
+        ref={contentRef}
+        side="top"
+        align="start"
+        sideOffset={8}
+        className="w-fit max-w-[calc(100vw-24px)] overflow-hidden rounded-2xl p-0 shadow-xl"
+        onMouseEnter={openPointerPopover}
+        onMouseLeave={scheduleClosePopover}
+        onFocus={openPointerPopover}
+        onBlur={handleContentBlur}
+        onOpenAutoFocus={handlePopoverOpenAutoFocus}
+        onCloseAutoFocus={handlePopoverCloseAutoFocus}>
+        {typeof content === 'function' ? content({ closePopover }) : content}
+      </PopoverContent>
+    </Popover>
   )
+}
+
+export function FileComposerToken(props: FileComposerTokenProps) {
+  const { onRemove, removeLabel: removeLabelProp, tooltipActions } = props
+  const file = isComposerAttachment(props.token.payload) ? props.token.payload : undefined
+  const label = file?.origin_name || file?.name || props.token.label
+  const presentation = getFileTokenPresentation(file, label)
+  const title = props.token.description ?? props.token.promptText ?? label
+  const removeLabel = removeLabelProp ?? 'Remove'
 
   const chipElement = (
     <span
@@ -375,46 +491,59 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     </span>
   )
 
-  const tokenElement = (
-    <span
-      ref={triggerRef}
-      className="group inline-flex align-baseline outline-none"
-      role="button"
-      tabIndex={0}
-      aria-label={title}
-      onMouseEnter={scheduleOpenPopover}
-      onMouseLeave={scheduleClosePopover}
-      onMouseMove={scheduleOpenPopover}
-      onPointerDown={markPointerOpenReason}
-      onBlur={handleTriggerBlur}
-      onKeyDownCapture={handleTriggerKeyDown}>
-      {chipElement}
-    </span>
-  )
-
   return (
-    <Popover open={popoverOpen} onOpenChange={handlePopoverOpenChange}>
-      <PopoverTrigger asChild>{tokenElement}</PopoverTrigger>
-      <PopoverContent
-        ref={contentRef}
-        side="top"
-        align="start"
-        sideOffset={8}
-        className="w-fit max-w-[calc(100vw-24px)] overflow-hidden rounded-2xl p-0 shadow-xl"
-        onMouseEnter={openPointerPopover}
-        onMouseLeave={scheduleClosePopover}
-        onFocus={openPointerPopover}
-        onBlur={handleContentBlur}
-        onOpenAutoFocus={handlePopoverOpenAutoFocus}
-        onCloseAutoFocus={handlePopoverCloseAutoFocus}>
-        {tooltipContent}
-      </PopoverContent>
-    </Popover>
+    <ComposerTokenHoverPopover
+      trigger={chipElement}
+      ariaLabel={title}
+      content={({ closePopover }) => {
+        const removeAction = onRemove ? (
+          <TokenRemoveButton label={removeLabel} onRemove={onRemove} onClose={closePopover} />
+        ) : undefined
+
+        return (
+          <FileTokenPreviewCard
+            file={file}
+            label={label}
+            presentation={presentation}
+            primaryAction={removeAction}
+            secondaryAction={tooltipActions}
+          />
+        )
+      }}
+    />
   )
 }
 
 export function KnowledgeComposerToken(props: ComposerTokenProps) {
-  return <ActiveComposerToken {...props} icon={tokenIconByKind.knowledge} />
+  const { t } = useTranslation()
+  const icon = tokenIconByKind.knowledge
+  const tokenElement = renderActiveComposerTokenElement({
+    ...props,
+    icon,
+    className: cn(props.className, tokenTriggerFocusClassName)
+  })
+  const title = props.token.description ?? props.token.label
+  const removeLabel = props.removeLabel ?? 'Remove'
+
+  return (
+    <ComposerTokenHoverPopover
+      trigger={tokenElement}
+      ariaLabel={title}
+      content={({ closePopover }) => (
+        <TokenPreviewCard
+          token={props.token}
+          typeLabel={t('chat.input.knowledge_base')}
+          icon={icon}
+          iconClassName="bg-[var(--color-info-bg)] text-info"
+          primaryAction={
+            props.onRemove ? (
+              <TokenRemoveButton label={removeLabel} onRemove={props.onRemove} onClose={closePopover} />
+            ) : undefined
+          }
+        />
+      )}
+    />
+  )
 }
 
 export function QuoteComposerToken(props: ComposerTokenProps) {

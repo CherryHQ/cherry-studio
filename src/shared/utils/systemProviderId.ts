@@ -11,9 +11,7 @@ export const SystemProviderIdSchema = z.enum([
   'qiniu',
   'dmxapi',
   'burncloud',
-  'tokenflux',
   '302ai',
-  'cephalon',
   'lanyun',
   'ph8',
   'openrouter',
@@ -63,7 +61,8 @@ export const SystemProviderIdSchema = z.enum([
   'cerebras',
   'mimo',
   'minimax-global',
-  'zai'
+  'zai',
+  'opencode'
 ])
 
 export type SystemProviderId = z.infer<typeof SystemProviderIdSchema>
@@ -83,9 +82,7 @@ export const SystemProviderIds = {
   qiniu: 'qiniu',
   dmxapi: 'dmxapi',
   burncloud: 'burncloud',
-  tokenflux: 'tokenflux',
   '302ai': '302ai',
-  cephalon: 'cephalon',
   lanyun: 'lanyun',
   ph8: 'ph8',
   sophnet: 'sophnet',
@@ -135,5 +132,6 @@ export const SystemProviderIds = {
   cerebras: 'cerebras',
   mimo: 'mimo',
   'minimax-global': 'minimax-global',
-  zai: 'zai'
+  zai: 'zai',
+  opencode: 'opencode'
 } as const satisfies Record<SystemProviderId, SystemProviderId>

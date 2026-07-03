@@ -59,6 +59,12 @@ vi.mock('@renderer/components/Selector/model', () => ({
   )
 }))
 
+// Stub the capability step: it pulls in MCP-runtime + skills hooks not mocked
+// here. The wizard's own test covers it; this test only needs to reach submit.
+vi.mock('@renderer/components/resource/dialogs/create/steps/CapabilityStep', () => ({
+  CapabilityStep: () => <div data-testid="capability-step" />
+}))
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
   return actual
@@ -147,14 +153,16 @@ vi.mock('react-i18next', async (importOriginal) => {
           'selector.common.unpin': 'Unpin',
           'library.config.dialogs.create.agent_title': 'New Agent',
           'library.config.dialogs.create.avatar_aria': 'Pick avatar',
-          'library.config.dialogs.create.dialog_description': 'Create a lightweight resource from the selector.',
           'library.config.dialogs.create.description_placeholder': 'Describe this resource',
-          'library.config.dialogs.create.model_placeholder': 'Select a model',
-          'library.config.dialogs.create.model_required': 'Please select a model',
           'library.config.dialogs.create.name_placeholder': 'Name this resource',
-          'library.config.dialogs.create.name_required': 'Please enter a name',
           'library.config.dialogs.create.submit': 'Create',
           'library.config.dialogs.create.submit_failed': 'Create failed',
+          'library.config.dialogs.create.back': 'Back',
+          'library.config.dialogs.create.next': 'Next',
+          'library.config.dialogs.create.step.basic': 'Basic info',
+          'library.config.dialogs.create.step.capability': 'Capabilities',
+          'library.config.dialogs.create.step.knowledge': 'Knowledge',
+          'library.config.dialogs.create.step.persona': 'Persona',
           'library.config.dialogs.edit.agent_description': 'Edit the essentials for this agent.',
           'library.config.dialogs.edit.agent_title': 'Edit Agent',
           'library.config.dialogs.edit.basic_tab': 'Basic',
@@ -441,7 +449,7 @@ describe('AgentSelector', () => {
 
     expect(screen.getByRole('heading', { name: 'New Agent' })).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Name this resource')).toBeInTheDocument()
-    expect(screen.getByText('Select a model')).toBeInTheDocument()
+    expect(screen.getByText('Model')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Describe this resource')).toBeInTheDocument()
   })
 
@@ -454,6 +462,8 @@ describe('AgentSelector', () => {
     fireEvent.change(screen.getByPlaceholderText('Describe this resource'), {
       target: { value: 'Created from selector' }
     })
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() =>
@@ -465,6 +475,8 @@ describe('AgentSelector', () => {
           planModel: MODEL.id,
           smallModel: MODEL.id,
           description: 'Created from selector',
+          instructions: '',
+          skillIds: [],
           configuration: {
             avatar: '🤖',
             permission_mode: 'bypassPermissions',
@@ -492,6 +504,8 @@ describe('AgentSelector', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
@@ -505,6 +519,8 @@ describe('AgentSelector', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))

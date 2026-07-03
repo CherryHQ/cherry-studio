@@ -69,15 +69,11 @@ export function useMessageSelectionController({
 
   const selectMessage = useCallback(
     (messageId: string, selected: boolean) => {
-      setSelectedMessageIds(
-        selected
-          ? selectedIds.includes(messageId)
-            ? selectedIds
-            : [...selectedIds, messageId]
-          : selectedIds.filter((id) => id !== messageId)
+      setSelectedMessageIds((prev) =>
+        selected ? (prev.includes(messageId) ? [...prev] : [...prev, messageId]) : prev.filter((id) => id !== messageId)
       )
     },
-    [selectedIds, setSelectedMessageIds]
+    [setSelectedMessageIds]
   )
 
   const resolveMessageIds = useCallback(

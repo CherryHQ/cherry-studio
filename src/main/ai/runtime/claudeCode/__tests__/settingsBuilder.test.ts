@@ -1,10 +1,17 @@
 import type * as NodeModule from 'node:module'
+import path from 'node:path'
 
+import {
+  CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
+  toCherryBuiltinRuntimeName
+} from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
+import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
-  reconcileAgentSkills: vi.fn(),
+  listSkills: vi.fn(),
+  listLocalSkills: vi.fn(),
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
@@ -17,7 +24,8 @@ const mocks = vi.hoisted(() => ({
   getPathStatus: vi.fn(),
   getAppLanguage: vi.fn(),
   resolveRequire: vi.fn(),
-  loggerWarn: vi.fn()
+  loggerWarn: vi.fn(),
+  isWin: false
 }))
 
 vi.mock('node:module', async (importOriginal) => {
@@ -67,7 +75,7 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
-  skillService: { reconcileAgentSkills: mocks.reconcileAgentSkills }
+  skillService: { list: mocks.listSkills, listLocal: mocks.listLocalSkills }
 }))
 
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
@@ -104,7 +112,9 @@ vi.mock('@main/core/application', () => ({
 
 vi.mock('@main/core/platform', () => ({
   isLinux: false,
-  isWin: false
+  get isWin() {
+    return mocks.isWin
+  }
 }))
 
 vi.mock('@main/services/proxy/proxyEnv', () => ({
@@ -159,7 +169,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       if (specifier === '@anthropic-ai/claude-agent-sdk') return '/sdk/index.js'
       return `/native/${specifier}/claude`
     })
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       instructions: 'Follow instructions.',
@@ -170,15 +180,15 @@ describe('buildClaudeCodeSessionSettings', () => {
       allowedTools: [],
       configuration: {}
     })
-    mocks.modelGetByKey.mockResolvedValue({ apiModelId: 'claude-api' })
-    mocks.findBySessionId.mockResolvedValue(null)
+    mocks.modelGetByKey.mockReturnValue({ apiModelId: 'claude-api' })
+    mocks.findBySessionId.mockReturnValue(null)
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(),
       isDisabled: vi.fn(() => false),
       update: vi.fn(),
       setPermissionMode: vi.fn()
     })
-    mocks.listChannels.mockResolvedValue([])
+    mocks.listChannels.mockReturnValue([])
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
@@ -194,10 +204,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.getAppLanguage.mockReturnValue('en-US')
-    mocks.reconcileAgentSkills.mockResolvedValue(undefined)
+    mocks.isWin = false
+    mocks.listSkills.mockResolvedValue([])
+    mocks.listLocalSkills.mockResolvedValue([])
   })
 
-  it('reconciles enabled skills into the session workspace before returning settings', async () => {
+  it('builds the SDK skill whitelist from the DB and workspace before returning settings', async () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -206,14 +218,40 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(mocks.reconcileAgentSkills).toHaveBeenCalledWith('agent-1', '/workspace/project')
+    expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
+    expect(mocks.listLocalSkills).toHaveBeenCalledWith('/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
   })
 
+  it('whitelists by directory name only, excludes disabled, never lets a shared SKILL.md name leak through', async () => {
+    mocks.listSkills.mockResolvedValue([
+      // Enabled and disabled skills deliberately share a SKILL.md `name` ('pdf').
+      // The whitelist must key on the unique folderName so the disabled skill
+      // is not un-hidden by the enabled one's name.
+      { id: 'skill-1', folderName: 'pdf-tools', name: 'pdf', isEnabled: true },
+      { id: 'skill-2', folderName: 'pdf-legacy', name: 'pdf', isEnabled: false }
+    ])
+    // Workspace project skill under cwd/.claude/skills — must be in the whitelist or the
+    // SDK filters the user's own project skill out. Keyed by its directory name (filename).
+    mocks.listLocalSkills.mockResolvedValue([{ name: 'Project Skill', filename: 'my-project-skill' }])
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.skills).toEqual(['pdf-tools', 'my-project-skill'])
+    expect(settings.skills).not.toContain('pdf') // shared SKILL.md name never whitelisted
+    expect(settings.skills).not.toContain('pdf-legacy') // disabled skill excluded
+    expect(settings.skills?.some((skill) => path.isAbsolute(skill))).toBe(false)
+  })
+
   it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {
     // Each of the three model lookups must resolve independently from its own key/provider.
-    mocks.modelGetByKey.mockImplementation(async (providerId: string, modelId: string) => {
+    mocks.modelGetByKey.mockImplementation((providerId: string, modelId: string) => {
       if (modelId === 'claude-sonnet') return { apiModelId: 'sonnet-api' }
       if (modelId === 'claude-haiku') return { apiModelId: 'haiku-api' }
       throw new Error(`model ${providerId}::${modelId} not in table`)
@@ -238,7 +276,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   it('falls back each model env key to its own raw id when that model is absent from the table', async () => {
     // Only the small (haiku) model is missing — the others must NOT be forced to fall back, and the
     // haiku key must fall back to its OWN raw id (not the main model's).
-    mocks.modelGetByKey.mockImplementation(async (_providerId: string, modelId: string) => {
+    mocks.modelGetByKey.mockImplementation((_providerId: string, modelId: string) => {
       if (modelId === 'claude-haiku') throw new Error('haiku not in table')
       return { apiModelId: `${modelId}-api` }
     })
@@ -300,7 +338,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('passes agent disabledTools through to SDK disallowedTools', async () => {
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
@@ -322,7 +360,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup, no AskUserQuestion for a plain agent', async () => {
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
@@ -349,7 +387,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('soul mode adds SOUL_MODE_DISALLOWED_TOOLS to disallowedTools', async () => {
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
@@ -374,7 +412,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('assistant role adds AskUserQuestion to disallowedTools', async () => {
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
@@ -407,9 +445,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    expect(preToolUse).toHaveLength(3) // disabledToolHook + rtkRewriteHook + steerHook
+    expect(preToolUse).toHaveLength(4) // disabledToolHook + dependencyIsolationHook + rtkRewriteHook + steerHook
 
-    const steerHook = preToolUse![2] as unknown as (input: {
+    const steerHook = preToolUse![3] as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
 
@@ -441,7 +479,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    const steerHook = preToolUse![2] as unknown as (input: {
+    const steerHook = preToolUse![3] as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
     const onInjected = vi.fn()
@@ -455,13 +493,38 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(onInjected).not.toHaveBeenCalled()
   })
 
+  it('hands the real kb_manage approval exception to the tool-policy snapshot (production gate wiring)', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    // settingsBuilder must derive the approval exceptions from the shared constant and pass them to the
+    // snapshot. The agentTools test proves those options gate kb_manage; this proves settingsBuilder
+    // actually supplies them — dropping `.map(toCherryBuiltinRuntimeName)` or the exceptions fails here.
+    const exceptions = CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
+    expect(exceptions).toContain(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME))
+    expect(mocks.createToolPolicySnapshot).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        autoAllowRuntimeNamePrefixes: expect.arrayContaining(['mcp__cherry-tools__']),
+        autoAllowRuntimeNameExceptions: exceptions
+      })
+    )
+  })
+
   it('warns and falls back to no channels when channel lookup fails during tool-policy build', async () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
       workspace: { type: 'user', path: '/workspace/project' }
     }
-    mocks.listChannels.mockRejectedValueOnce(new Error('channel db down'))
+    mocks.listChannels.mockImplementationOnce(() => {
+      throw new Error('channel db down')
+    })
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 

@@ -2,11 +2,12 @@ import { Alert, Button } from '@cherrystudio/ui'
 import {
   AgentEditDialog,
   AssistantEditDialog,
-  ResourceCreateDialog,
-  type ResourceCreateDialogKind,
-  type ResourceCreateDialogValues
+  ResourceCreateWizard,
+  type ResourceCreateWizardKind,
+  type ResourceCreateWizardValues
 } from '@renderer/components/resource/dialogs'
 import { isSelectableAssistantModel } from '@renderer/components/resource/dialogs/form/assistantModelFilter'
+import { ImportSkillDialog } from '@renderer/components/resource/dialogs/ImportSkillDialog'
 import PromptEditDialog from '@renderer/components/resource/dialogs/PromptEditDialog'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
@@ -27,7 +28,6 @@ import SkillDetailDialog from './detail/skill/SkillDetailDialog'
 import { AssistantPresetPreviewDialog } from './list/AssistantPresetPreviewDialog'
 import { DeleteConfirmDialog } from './list/DeleteConfirmDialog'
 import { ImportAssistantDialog } from './list/ImportAssistantDialog'
-import { ImportSkillDialog } from './list/ImportSkillDialog'
 import { LibrarySidebar } from './list/LibrarySidebar'
 import { ResourceGrid } from './list/ResourceGrid'
 import {
@@ -65,8 +65,10 @@ function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: R
       for (const tag of r.raw.tags ?? []) {
         if (!backendTagByName.has(tag.name)) backendTagByName.set(tag.name, tag)
       }
+      if (r.tag) {
+        tagMap.set(r.tag, (tagMap.get(r.tag) || 0) + 1)
+      }
     }
-    r.tags.forEach((t) => tagMap.set(t, (tagMap.get(t) || 0) + 1))
   })
   return Array.from(tagMap.entries())
     .sort((a, b) => b[1] - a[1])
@@ -87,7 +89,7 @@ export default function LibraryPage() {
   const [search, setSearch] = useState('')
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
-  const [createDialogKind, setCreateDialogKind] = useState<ResourceCreateDialogKind | null>(null)
+  const [createDialogKind, setCreateDialogKind] = useState<ResourceCreateWizardKind | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialog, setEditDialog] = useState<EditDialogState | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -155,7 +157,6 @@ export default function LibraryPage() {
     [tagList.tags]
   )
 
-  const noop = useCallback(() => {}, [])
   const handleClosePromptDialog = useCallback(() => {
     setPromptDialog(null)
   }, [])
@@ -339,7 +340,7 @@ export default function LibraryPage() {
   )
 
   const handleSubmitCreateResource = useCallback(
-    async (values: ResourceCreateDialogValues) => {
+    async (values: ResourceCreateWizardValues) => {
       const kind = createDialogKind
       if (!kind || creatingResource) return
 
@@ -350,7 +351,9 @@ export default function LibraryPage() {
             name: values.name,
             emoji: values.avatar,
             modelId: values.modelId,
-            description: values.description
+            description: values.description,
+            prompt: values.prompt,
+            knowledgeBaseIds: values.knowledgeBaseIds
           })
         } else {
           await createAgent({
@@ -360,6 +363,8 @@ export default function LibraryPage() {
             planModel: values.modelId,
             smallModel: values.modelId,
             description: values.description,
+            instructions: values.prompt,
+            skillIds: values.skillIds,
             configuration: {
               avatar: values.avatar,
               permission_mode: 'bypassPermissions',
@@ -470,7 +475,6 @@ export default function LibraryPage() {
               // rows; binding stays inside card/dialog tag hooks.
               await ensureTags([tagName])
             }}
-            onUpdateResourceTags={noop /* binding is executed inside FixedCardMenu via the tag hooks */}
             allTagNames={allTagNames}
             allTags={tagList.tags}
             assistantCatalog={assistantCatalogProp}
@@ -501,7 +505,7 @@ export default function LibraryPage() {
       />
       <ImportAssistantDialog open={assistantImportOpen} onOpenChange={setAssistantImportOpen} onImported={refetch} />
       <ImportSkillDialog open={skillImportOpen} onOpenChange={setSkillImportOpen} onInstalled={refetch} />
-      <ResourceCreateDialog
+      <ResourceCreateWizard
         kind={createDialogKind ?? 'assistant'}
         open={createDialogOpen}
         isSubmitting={creatingResource}
