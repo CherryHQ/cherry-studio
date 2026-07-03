@@ -416,11 +416,11 @@ describe('RagConfigPanel', () => {
   it('uses the mini-apps style flat field layout', () => {
     renderRagConfigPanel()
 
-    // Each field label is now a strong text-sm font-medium label (mini-apps FieldLabel parity).
-    expect(screen.getByText('文档处理')).toHaveClass('font-medium', 'text-sm')
-    expect(screen.getByText('分块大小')).toHaveClass('font-medium', 'text-sm')
-    expect(screen.getByText('嵌入模型')).toHaveClass('font-medium', 'text-sm')
-    expect(screen.getByText('Top K')).toHaveClass('font-medium', 'text-sm')
+    // Each field label is a small, regular-weight label (mini-apps FieldLabel parity).
+    expect(screen.getByText('文档处理')).toHaveClass('font-normal', 'text-xs')
+    expect(screen.getByText('分块大小')).toHaveClass('font-normal', 'text-xs')
+    expect(screen.getByText('嵌入模型')).toHaveClass('font-normal', 'text-xs')
+    expect(screen.getByText('Top K')).toHaveClass('font-normal', 'text-xs')
     // Section-level small-caps headings are gone — no Chunking / Embedding / Retrieval section title in the DOM.
     expect(screen.queryByText('Chunking')).not.toBeInTheDocument()
     expect(screen.queryByText('Embedding')).not.toBeInTheDocument()

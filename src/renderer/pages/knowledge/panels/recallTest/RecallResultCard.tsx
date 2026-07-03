@@ -43,7 +43,7 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
   return (
     <div className="group/chunk rounded-md border border-border-subtle bg-background transition-all hover:border-border-hover">
       <div className="flex items-center gap-2 px-3 py-2">
-        <span className="flex size-5 shrink-0 items-center justify-center rounded bg-background-subtle text-foreground-muted text-xs leading-4">
+        <span className="flex size-5 shrink-0 items-center justify-center rounded bg-background-subtle text-foreground-secondary text-xs leading-4">
           {index + 1}
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-1">
@@ -60,7 +60,7 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
           aria-label={t('knowledge.recall.copy')}
           className={`size-5 min-h-5 shrink-0 rounded p-0 shadow-none transition-all hover:bg-accent hover:text-foreground group-hover/chunk:opacity-100 ${copied ? 'text-success opacity-100' : 'text-foreground-muted opacity-0'}`}
           onClick={() => void copyContent()}>
-          {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+          {copied ? <Check className="size-3" strokeWidth={1.6} /> : <Copy className="size-3" strokeWidth={1.6} />}
         </Button>
         <Button
           type="button"
@@ -73,7 +73,7 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
       </div>
       <div className="min-w-0 overflow-hidden px-3 pb-3">
         <p
-          className={`wrap-anywhere min-w-0 whitespace-normal text-foreground-secondary text-sm leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
+          className={`wrap-anywhere min-w-0 whitespace-normal text-foreground text-sm leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
           {item.content}
         </p>
       </div>

@@ -133,7 +133,7 @@ describe('KnowledgeBaseRow', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /Base 1/ }).parentElement).toHaveClass('rounded-md', 'bg-secondary')
+    expect(screen.getByRole('button', { name: /Base 1/ }).parentElement).toHaveClass('rounded-xl', 'bg-secondary')
     expect(screen.getByText('Base 1')).toHaveClass('text-sm', 'font-medium')
   })
 

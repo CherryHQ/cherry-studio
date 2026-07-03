@@ -48,7 +48,7 @@ const KnowledgeBaseRow = ({
         type: 'item',
         id: 'rename',
         label: t('knowledge.context.rename'),
-        icon: <PencilLine className="size-3.5" />,
+        icon: <PencilLine className="size-3.5" strokeWidth={1.6} />,
         onSelect: handleRenameBase
       }
     ]
@@ -58,7 +58,7 @@ const KnowledgeBaseRow = ({
         type: 'submenu',
         id: 'move',
         label: t('knowledge.context.move_to'),
-        icon: <ArrowRightLeft className="size-3.5" />,
+        icon: <ArrowRightLeft className="size-3.5" strokeWidth={1.6} />,
         children: [
           ...(canMoveToUngrouped
             ? ([
@@ -85,7 +85,7 @@ const KnowledgeBaseRow = ({
       type: 'item',
       id: 'delete',
       label: t('knowledge.context.delete'),
-      icon: <Trash2 className="size-3.5" />,
+      icon: <Trash2 className="size-3.5" strokeWidth={1.6} />,
       destructive: true,
       onSelect: handleRequestDelete
     })
@@ -98,14 +98,14 @@ const KnowledgeBaseRow = ({
       <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
         <div
           className={cn(
-            'w-full rounded-md px-2.5 py-1.5 transition-colors',
+            'w-full rounded-xl px-2.5 py-1.5 transition-colors',
             selected ? 'bg-secondary' : 'hover:bg-accent'
           )}>
           <Button
             type="button"
             variant="ghost"
             onClick={() => onSelectBase(base.id)}
-            className="flex min-h-0 w-full min-w-0 items-center justify-start rounded-md p-0 text-left shadow-none hover:bg-transparent">
+            className="flex min-h-0 w-full min-w-0 items-center justify-start rounded-lg p-0 text-left shadow-none hover:bg-transparent">
             <div className="min-w-0 truncate font-medium text-foreground text-sm leading-5">{base.name}</div>
           </Button>
         </div>

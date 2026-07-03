@@ -29,8 +29,10 @@ const InputBar = ({
     setTimeoutTimer('focus', () => inputRef.current?.focus(), 0)
   }
   return (
-    <div ref={ref} className="mt-2.5 flex items-center gap-2">
-      {model && <ModelAvatar model={model} size={30} />}
+    <div
+      ref={ref}
+      className="mt-2.5 mb-3 flex items-center gap-2 rounded-2xl border border-[color:var(--color-border-fg-muted)] px-3.5 py-1.5">
+      {model && <ModelAvatar model={model} size={24} />}
       <Input
         ref={inputRef}
         value={text}
@@ -38,7 +40,7 @@ const InputBar = ({
         autoFocus
         onKeyDown={handleKeyDown}
         onChange={handleChange}
-        className="h-auto border-0 bg-transparent px-0 py-0 text-lg shadow-none [-webkit-app-region:no-drag] placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0"
+        className="h-auto border-0 bg-transparent px-1.5 py-0 text-lg shadow-none [-webkit-app-region:no-drag] placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0"
       />
     </div>
   )

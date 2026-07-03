@@ -137,7 +137,7 @@ const PaintingParamsButton: FC<{
           size="sm"
           className={cn(COMPOSER_SELECTOR_BUTTON_CLASS, 'text-muted-foreground')}
           aria-label={summary ? `${t('common.settings')}: ${summary}` : t('common.settings')}>
-          <Settings2 className="size-4" />
+          <Settings2 className="size-4 text-foreground" strokeWidth={1.6} />
           {summary && (
             <span className="max-w-55 truncate" title={summary}>
               {summary}
@@ -145,7 +145,7 @@ const PaintingParamsButton: FC<{
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" side="top" className="w-[min(340px,calc(100vw-2rem))] rounded-[8px] p-3">
+      <PopoverContent align="start" side="top" className="w-[min(340px,calc(100vw-2rem))] p-3">
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
           <PaintingSettings
             painting={painting}
