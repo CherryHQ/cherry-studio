@@ -173,7 +173,7 @@ describe('McpServerMigrator', () => {
       expect(ctx.db.transaction).toHaveBeenCalled()
     })
 
-    it('uses the legacy id as the name when a server has no valid name', async () => {
+    it('uses the generated id as the name when a server has no valid name', async () => {
       const ctx = createMockContext({
         mcp: {
           servers: [
@@ -186,7 +186,8 @@ describe('McpServerMigrator', () => {
       await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
       expect(result).toStrictEqual({ success: true, processedCount: 3 })
-      expect(ctx.insertedRows.map((row) => row.name)).toEqual(['srv-no-name', 'srv-empty-name', 'srv-null-name'])
+      expect(ctx.insertedRows.map((row) => row.name)).toEqual(ctx.insertedRows.map((row) => row.id))
+      expect(ctx.insertedRows.map((row) => row.name)).not.toEqual(['srv-no-name', 'srv-empty-name', 'srv-null-name'])
     })
 
     it('should handle empty servers gracefully', async () => {

@@ -32,7 +32,7 @@ export function transformMcpServer(source: Record<string, unknown>, index: numbe
     oldId,
     row: {
       id: newId,
-      name: toRequiredString(source.name, oldId),
+      name: toRequiredString(source.name, newId),
       type: toNullable(source.type),
       description: toNullable(source.description),
       baseUrl: toNullable(source.baseUrl ?? source.url),
