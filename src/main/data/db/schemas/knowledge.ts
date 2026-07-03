@@ -53,10 +53,19 @@ export const knowledgeBaseTable = sqliteTable(
       sql`
         (
           ${t.status} = 'completed'
-          AND ${t.embeddingModelId} IS NOT NULL
-          AND ${t.dimensions} IS NOT NULL
-          AND ${t.dimensions} > 0
           AND ${t.error} IS NULL
+          AND (
+            (
+              ${t.embeddingModelId} IS NOT NULL
+              AND ${t.dimensions} IS NOT NULL
+              AND ${t.dimensions} > 0
+            )
+            OR (
+              ${t.embeddingModelId} IS NULL
+              AND ${t.dimensions} IS NULL
+              AND ${t.searchMode} = 'bm25'
+            )
+          )
         )
         OR (
           ${t.status} = 'failed'
