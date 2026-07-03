@@ -91,7 +91,7 @@ interface ComposerClipboardCopyView {
 }
 
 export interface ComposerSurfaceActions {
-  focus: () => void
+  focus: (position?: 'start' | 'end' | 'all' | number | boolean | null) => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
@@ -653,8 +653,8 @@ export default function ComposerSurface({
     t
   })
 
-  const focusEditor = useCallback(() => {
-    editorRef.current?.commands.focus()
+  const focusEditor = useCallback((position?: 'start' | 'end' | 'all' | number | boolean | null) => {
+    editorRef.current?.commands.focus(position)
   }, [])
 
   const clearEditorFrameAnimationFrame = useCallback(() => {
@@ -1505,7 +1505,7 @@ export default function ComposerSurface({
         'composerSurfaceFocus',
         () => {
           if (!createdEditor || createdEditor.isDestroyed) return
-          createdEditor.commands.focus()
+          createdEditor.commands.focus('end')
         },
         0
       )

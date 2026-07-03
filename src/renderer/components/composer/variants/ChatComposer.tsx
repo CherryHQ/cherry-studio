@@ -742,7 +742,7 @@ const ChatComposerInner = ({
     return EventEmitter.on(EVENT_NAMES.FOCUS_CHAT_COMPOSER, (payload) => {
       const topicId = typeof payload === 'object' && payload ? (payload as { topicId?: string }).topicId : undefined
       if (topicId !== streamScopeKey) return
-      actionsRef.current.focus()
+      actionsRef.current.focus('end')
     })
   }, [actionsRef, streamScopeKey])
 
