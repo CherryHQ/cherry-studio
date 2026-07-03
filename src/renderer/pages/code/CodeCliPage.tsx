@@ -166,6 +166,9 @@ const CodeCliPage: FC = () => {
           cliTool: selectedCliTool,
           files
         })
+        if (values.modelId) {
+          await upsertProviderConfig(editingProvider.id, { modelId: values.modelId })
+        }
         setCurrentCliConfigConnection(extractConnectionFromCliConfigDraft(selectedCliTool, files))
         logger.info('Updated CLI config file draft', { toolId: selectedCliTool })
         return

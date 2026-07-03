@@ -33,6 +33,28 @@ import { CLI_CONFIG_FILE_SPECS, getCliConfigTargets } from './targets'
 import type { CliConfigFileDraft } from './types'
 import { firstApiKey, getConfigBlob, numberValue, sanitizeProviderName, stringValue } from './values'
 
+interface FileSnapshot {
+  path: string
+  existed: boolean
+  previousContent: string
+}
+
+async function snapshotFile(path: string): Promise<FileSnapshot> {
+  try {
+    return {
+      path,
+      existed: true,
+      previousContent: await window.api.file.readExternal(path)
+    }
+  } catch {
+    return {
+      path,
+      existed: false,
+      previousContent: ''
+    }
+  }
+}
+
 interface ResolvedCliConfigContext {
   provider: Provider
   apiKey: string
@@ -199,8 +221,29 @@ export async function writeCliConfigDraft(args: {
     return injectCliConfig({ cliTool: args.cliTool, modelId: args.modelId, configBlob: args.configBlob })
   }
   validateCliConfigDraftForWrite(args.files)
-  for (const file of args.files) {
-    await window.api.file.write(file.path || (await resolveAbs(CLI_CONFIG_FILE_SPECS[file.target].path)), file.content)
+
+  const snapshots: FileSnapshot[] = []
+  const writeTargets = await Promise.all(
+    args.files.map(async (file) => ({
+      path: file.path || (await resolveAbs(CLI_CONFIG_FILE_SPECS[file.target].path)),
+      content: file.content
+    }))
+  )
+
+  try {
+    for (const target of writeTargets) {
+      snapshots.push(await snapshotFile(target.path))
+      await window.api.file.write(target.path, target.content)
+    }
+  } catch (error) {
+    for (const snapshot of snapshots.reverse()) {
+      if (snapshot.existed) {
+        await window.api.file.write(snapshot.path, snapshot.previousContent)
+      } else {
+        await window.api.file.deleteExternalFile(snapshot.path).catch(() => undefined)
+      }
+    }
+    throw error
   }
   return undefined
 }

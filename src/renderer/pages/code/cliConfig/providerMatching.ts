@@ -27,9 +27,21 @@ export function cliConfigConnectionMatchesProvider(
   apiKeys: ApiKeyEntry[] | undefined
 ): boolean {
   if (!connection) return true
-  const baseUrlMatches =
-    !connection.baseUrl || providerBaseUrls(provider, cliTool).includes(normalizeUrl(connection.baseUrl))
-  const apiKeyMatches =
-    !connection.apiKey || apiKeys === undefined || apiKeys.some((entry) => entry.key === connection.apiKey)
-  return baseUrlMatches && apiKeyMatches
+  const baseUrl = normalizeUrl(connection.baseUrl)
+  if (!baseUrl) return false
+
+  if (!providerBaseUrls(provider, cliTool).includes(baseUrl)) {
+    return false
+  }
+
+  if (!connection.apiKey) {
+    return true
+  }
+
+  if (!apiKeys?.length) {
+    return true
+  }
+
+  const validKeys = apiKeys.filter((entry) => entry.isEnabled).map((entry) => entry.key)
+  return validKeys.length === 0 ? true : validKeys.includes(connection.apiKey)
 }
