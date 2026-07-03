@@ -1089,12 +1089,21 @@ export class AgentSessionRuntimeService extends BaseService {
     entry: AgentSessionRuntimeEntry,
     userMessage: AgentSessionMessageEntity
   ): StreamListener {
+    const currentTurn = entry.currentTurn
+    if (!currentTurn) {
+      throw new Error(`Cannot create persistence listener without an active turn: ${entry.sessionId}`)
+    }
+    const { assistantMessageId } = currentTurn
+    if (!assistantMessageId) {
+      throw new Error(`Cannot create persistence listener without an assistant placeholder: ${entry.sessionId}`)
+    }
     const userText = extractMessageText(userMessage)
     return new PersistenceListener({
       topicId: entry.topicId,
       modelId: entry.modelId,
       backend: new AgentSessionMessageBackend({
         sessionId: entry.sessionId,
+        assistantMessageId,
         modelId: entry.modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
         afterPersist: async (finalMessage) => {

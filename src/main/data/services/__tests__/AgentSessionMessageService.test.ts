@@ -68,6 +68,46 @@ describe('AgentSessionMessageService', () => {
     })
   })
 
+  describe('markPendingAssistantPlaceholdersPaused', () => {
+    it('pauses only empty pending assistant placeholders in the requested session', async () => {
+      const EMPTY_PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d013'
+      const TEXT_PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d014'
+      const USER_PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d015'
+      const OTHER_EMPTY_PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d016'
+      const otherSessionId = 'session-other'
+      await seedSession({ id: otherSessionId, name: 'Other Session', orderKey: 'b0' })
+
+      agentSessionMessageService.saveMessages({
+        sessionId: SESSION_ID,
+        messages: [
+          { id: EMPTY_PENDING, role: 'assistant', status: 'pending', data: { parts: [] } },
+          {
+            id: TEXT_PENDING,
+            role: 'assistant',
+            status: 'pending',
+            data: { parts: [{ type: 'text', text: 'streaming' }] }
+          },
+          { id: USER_PENDING, role: 'user', status: 'pending', data: { parts: [] } }
+        ]
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: otherSessionId,
+        message: { id: OTHER_EMPTY_PENDING, role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+
+      expect(agentSessionMessageService.markPendingAssistantPlaceholdersPaused(SESSION_ID)).toEqual([EMPTY_PENDING])
+
+      const rows = await dbh.db
+        .select({ id: agentSessionMessageTable.id, status: agentSessionMessageTable.status })
+        .from(agentSessionMessageTable)
+      const statuses = new Map(rows.map((row) => [row.id, row.status]))
+      expect(statuses.get(EMPTY_PENDING)).toBe('paused')
+      expect(statuses.get(TEXT_PENDING)).toBe('pending')
+      expect(statuses.get(USER_PENDING)).toBe('pending')
+      expect(statuses.get(OTHER_EMPTY_PENDING)).toBe('pending')
+    })
+  })
+
   it('creates messages with service-owned audit timestamps', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
 

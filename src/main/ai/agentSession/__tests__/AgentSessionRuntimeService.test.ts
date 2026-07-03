@@ -616,6 +616,30 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('persists empty paused terminals to the active assistant placeholder', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    getEntry(service).lastResumeToken = 'resume-1'
+
+    await persistenceListener(handle).onPaused({
+      status: 'paused',
+      isTopicDone: true,
+      finalMessage: undefined
+    })
+
+    expect(mocks.saveMessage).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      runtimeResumeToken: 'resume-1',
+      message: {
+        id: 'assistant-1',
+        role: 'assistant',
+        status: 'paused',
+        data: { parts: [] },
+        modelId: 'claude-code::claude-sonnet-4-5'
+      }
+    })
+  })
+
   it('routes runtime events from the selected driver into the active turn', async () => {
     const events = createAsyncQueue<any>()
     const connection = {

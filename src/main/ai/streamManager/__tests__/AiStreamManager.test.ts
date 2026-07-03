@@ -58,8 +58,16 @@ class FakeListener implements StreamListener {
 
 // ── Mocks ───────────────────────────────────────────────────────────
 
+const markPendingAgentSessionPlaceholdersPausedMock = vi.fn()
+
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: { create: vi.fn().mockResolvedValue({ id: 'msg-001' }) }
+}))
+
+vi.mock('@main/data/services/AgentSessionMessageService', () => ({
+  agentSessionMessageService: {
+    markPendingAssistantPlaceholdersPaused: markPendingAgentSessionPlaceholdersPausedMock
+  }
 }))
 
 // Default mock: never-closing stream so the execution loop parks in `reader.read()`
@@ -202,6 +210,7 @@ describe('AiStreamManager', () => {
     )
     mockSaveSpans.mockResolvedValue(undefined)
     mockWillContinueTopic.mockReturnValue(false)
+    markPendingAgentSessionPlaceholdersPausedMock.mockReturnValue([])
     sharedCacheStore.clear()
   })
 
@@ -256,6 +265,40 @@ describe('AiStreamManager', () => {
 
       expect(result).toEqual({ mode: 'injected', executionIds: [] })
       expect(mgr.inspect('a')).toBeUndefined()
+    })
+
+    it('pauses agent-session placeholders for a pre-stream stop request', async () => {
+      markPendingAgentSessionPlaceholdersPausedMock.mockReturnValueOnce(['assistant-paused'])
+      const listener = new FakeListener('l:agent')
+
+      mgr.abort('agent-session:session-1', 'user-requested')
+      const snap = startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: { ...req('agent-session:session-1'), messageId: 'assistant-paused' },
+        listeners: [listener]
+      })
+
+      expect(markPendingAgentSessionPlaceholdersPausedMock).toHaveBeenCalledWith('session-1')
+      expect(snap.status).toBe('aborted')
+
+      await vi.advanceTimersByTimeAsync(0)
+      expect(listener.pausedResults).toHaveLength(1)
+    })
+
+    it('does not apply a stale pre-stream stop request to a different agent-session placeholder', () => {
+      markPendingAgentSessionPlaceholdersPausedMock.mockReturnValueOnce(['assistant-paused'])
+
+      mgr.abort('agent-session:session-1', 'user-requested')
+      const snap = startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: { ...req('agent-session:session-1'), messageId: 'assistant-new' },
+        listeners: [new FakeListener('l:agent')]
+      })
+
+      expect(snap.status).toBe('pending')
+      expect(snap.executions[0].abortSignal.aborted).toBe(false)
     })
 
     it('evicts finished stream and creates new one', async () => {
