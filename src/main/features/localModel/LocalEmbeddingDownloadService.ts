@@ -74,14 +74,16 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     // selecting the model in the KB picker would trip the embeddingModelId FK. Release the
     // worker first (loadEmbedding caches the pipeline, holding the weights open on Windows),
     // then drop the partial/unregistered weights.
-    inferenceHost.terminate()
+    await inferenceHost.terminate()
     await fs.promises.rm(this.modelDir(), { recursive: true, force: true })
   }
 
   override cancel(): void {
     super.cancel()
     // The worker may be mid-fetch; terminating it stops the download immediately.
-    inferenceHost.terminate()
+    // Fire-and-forget — cancel doesn't delete files, so it doesn't need to wait
+    // for the actual OS-level teardown the way cleanupAfterError/remove do.
+    void inferenceHost.terminate()
   }
 
   async remove(): Promise<{ removed: boolean }> {
@@ -92,18 +94,18 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
       // re-index / add-document (or forcing a surprise 600MB re-download).
       return { removed: false }
     }
-    // Unload the worker first so the weights file isn't held open while we delete it.
-    inferenceHost.terminate()
     try {
+      // Unload the worker first so the weights file isn't held open while we delete it.
+      await inferenceHost.terminate()
       await fs.promises.rm(this.modelDir(), { recursive: true, force: true })
     } catch (error) {
-      // The row is gone but the weights survived (e.g. a Windows lock). Re-register so
-      // "files present ⟺ user_model row present" holds — otherwise get_status would report
-      // the leftover weights as `ready` and selecting the model would trip the
-      // knowledge_base.embeddingModelId FK. Log the deletion error first so the breadcrumb
-      // survives even if the re-register itself throws over the rethrow below.
+      // The row is gone but the weights survived (e.g. terminate() rejected, or a Windows
+      // lock on rm()). Re-register so "files present ⟺ user_model row present" holds —
+      // otherwise get_status would report the leftover weights as `ready` and selecting the
+      // model would trip the knowledge_base.embeddingModelId FK. Log the error first so the
+      // breadcrumb survives even if the re-register itself throws over the rethrow below.
       logger.warn(
-        'failed to delete embedding weights on removal; re-registering to keep files and row consistent',
+        'failed to unload worker or delete embedding weights on removal; re-registering to keep files and row consistent',
         error as Error
       )
       await registerLocalEmbeddingModel()

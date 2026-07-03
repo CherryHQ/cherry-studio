@@ -52,8 +52,8 @@ describe('InferenceHost worker exit / failAll', () => {
   })
 
   // Each test ends with the worker nulled (via exit or terminate), so the singleton is clean.
-  afterEach(() => {
-    inferenceHost.terminate()
+  afterEach(async () => {
+    await inferenceHost.terminate()
   })
 
   it('rejects in-flight requests when the worker exits cleanly (code 0) instead of hanging forever', async () => {
@@ -85,7 +85,7 @@ describe('InferenceHost worker exit / failAll', () => {
     const pending = inferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8')
     const worker = fakeWorkers.at(-1)!
 
-    inferenceHost.terminate()
+    await inferenceHost.terminate()
     await expect(pending).rejects.toThrow(/terminated/)
     const afterTerminate = mockMainLoggerService.error.mock.calls.length
 
@@ -95,12 +95,38 @@ describe('InferenceHost worker exit / failAll', () => {
     expect(mockMainLoggerService.error.mock.calls.length).toBe(afterTerminate)
   })
 
+  it('terminate() resolves only once the worker has actually exited, not just been asked to', async () => {
+    // terminate() rejects this in-flight request synchronously — swallow it, this
+    // test is only about terminate()'s own returned promise.
+    void inferenceHost.embed(['hi'], SOURCE, 'org/model', 'q8').catch(() => {})
+    const worker = fakeWorkers.at(-1)!
+    let releaseExit: (code: number) => void = () => {}
+    worker.terminate.mockImplementation(() => new Promise<number>((resolve) => (releaseExit = resolve)))
+
+    let settled = false
+    const done = inferenceHost.terminate().then(() => {
+      settled = true
+    })
+
+    // Pending requests reject immediately — that part doesn't wait on the real
+    // OS-level exit — but terminate()'s own promise must still be pending: a
+    // caller deleting on-disk weights right after (Windows file-lock release)
+    // must not proceed before the thread has genuinely torn down.
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    releaseExit(0)
+    await done
+    expect(settled).toBe(true)
+  })
+
   it("ignores a superseded worker's late exit instead of tearing down the live worker", async () => {
     const stale = inferenceHost.embed(['a'], SOURCE, 'org/model', 'q8')
     const workerA = fakeWorkers.at(-1)!
 
     // Tear down A (rejecting its own in-flight), then start a fresh request → worker B.
-    inferenceHost.terminate()
+    await inferenceHost.terminate()
     await expect(stale).rejects.toThrow(/terminated/)
     const live = inferenceHost.embed(['b'], SOURCE, 'org/model', 'q8')
     const workerB = fakeWorkers.at(-1)!
@@ -126,7 +152,7 @@ describe('InferenceHost worker exit / failAll', () => {
     const stale = inferenceHost.embed(['a'], SOURCE, 'org/model', 'q8')
     const workerA = fakeWorkers.at(-1)!
 
-    inferenceHost.terminate()
+    await inferenceHost.terminate()
     await expect(stale).rejects.toThrow(/terminated/)
     const live = inferenceHost.embed(['b'], SOURCE, 'org/model', 'q8')
     expect(fakeWorkers.at(-1)!).not.toBe(workerA)

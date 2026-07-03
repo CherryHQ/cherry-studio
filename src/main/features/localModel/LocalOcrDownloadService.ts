@@ -92,7 +92,7 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
     // caches its PaddleOcrService (native onnxruntime session + open weight files)
     // in the worker, so on Windows an open handle makes the unlink fail. Mirrors
     // the embedding remove, which terminates first for the same reason.
-    inferenceHost.terminate()
+    await inferenceHost.terminate()
     await this.cleanup()
     return { removed: true }
   }

@@ -189,12 +189,19 @@ class InferenceHost {
     return result.text ?? ''
   }
 
-  /** Kill the worker (cancels any in-flight download and frees the model). */
-  terminate(): void {
+  /**
+   * Kill the worker (cancels any in-flight download and frees the model).
+   * Pending requests reject immediately, but the returned promise only
+   * resolves once the OS thread has actually exited — callers that delete
+   * on-disk weights right after (releasing a Windows file lock) must await
+   * this first, or the delete can race the worker's teardown.
+   */
+  async terminate(): Promise<void> {
     if (!this.worker) return
-    void this.worker.terminate()
+    const worker = this.worker
     this.worker = null
     this.failAll(new Error('inference host terminated'))
+    await worker.terminate()
   }
 }
 
