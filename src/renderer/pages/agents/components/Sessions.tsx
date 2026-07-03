@@ -847,7 +847,7 @@ const Sessions = ({
 
   const handleSessionImageAction = useCallback(
     (type: AgentSessionImageActionType, session: AgentSessionEntity) => {
-      const request = requestAgentSessionImageAction(type, session, { consumer: 'capture', emit: false })
+      const request = requestAgentSessionImageAction(type, session)
       if (type === 'export') {
         showSessionImageExportToast(request)
       } else {

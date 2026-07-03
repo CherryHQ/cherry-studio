@@ -139,8 +139,6 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: {
-    COPY_AGENT_SESSION_IMAGE: 'COPY_AGENT_SESSION_IMAGE',
-    EXPORT_AGENT_SESSION_IMAGE: 'EXPORT_AGENT_SESSION_IMAGE',
     LOCATE_MESSAGE: 'LOCATE_MESSAGE'
   },
   EventEmitter: eventMocks
@@ -457,77 +455,6 @@ describe('useAgentMessageListProviderValue', () => {
     expect(cacheHookMocks.setSelectedMessageIds).not.toHaveBeenCalled()
   })
 
-  it('runs a requested session image action only once when multiple runtimes are bound', async () => {
-    const topic = {
-      id: 'agent-session:session-a',
-      assistantId: 'agent-1',
-      name: 'Agent session',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z',
-      messages: []
-    } as Topic
-    const messages = [
-      {
-        id: 'user-1',
-        role: 'user',
-        parts: [{ type: 'text', text: 'hello' }],
-        metadata: { createdAt: '2026-01-01T00:00:00.000Z' }
-      }
-    ] as CherryUIMessage[]
-    let value: MessageListProviderValue | undefined
-
-    const Probe = () => {
-      value = useAgentMessageListProviderValue({
-        topic,
-        messages,
-        partsByMessageId: { 'user-1': messages[0].parts ?? [] },
-        assistantId: 'agent-1',
-        modelFallback: undefined,
-        isLoading: false,
-        messageNavigation: 'anchor'
-      })
-      return null
-    }
-
-    render(<Probe />)
-
-    const firstRuntime: MessageListRuntime = {
-      copyTopicImage: vi.fn().mockResolvedValue(undefined),
-      exportTopicImage: vi.fn().mockResolvedValue(undefined),
-      locateMessage: vi.fn(),
-      scrollToBottom: vi.fn()
-    }
-    const secondRuntime: MessageListRuntime = {
-      copyTopicImage: vi.fn().mockResolvedValue(undefined),
-      exportTopicImage: vi.fn().mockResolvedValue(undefined),
-      locateMessage: vi.fn(),
-      scrollToBottom: vi.fn()
-    }
-
-    const unbindFirst = value?.actions.bindRuntime?.(firstRuntime)
-    const unbindSecond = value?.actions.bindRuntime?.(secondRuntime)
-
-    const request = requestAgentSessionImageAction('copy', { id: 'session-a', name: 'Session A' })
-    const eventHandlers = eventMocks.on.mock.calls as unknown as Array<
-      [string, (session?: { id: string; name: string }) => void]
-    >
-    const copyHandlers = eventHandlers
-      .filter(([eventName]) => eventName === 'COPY_AGENT_SESSION_IMAGE')
-      .map(([, handler]) => handler)
-
-    for (const handler of copyHandlers) {
-      handler({ id: 'session-a', name: 'Session A' })
-    }
-
-    await expect(request.promise).resolves.toBeUndefined()
-    expect(firstRuntime.copyTopicImage).toHaveBeenCalledTimes(1)
-    expect(secondRuntime.copyTopicImage).not.toHaveBeenCalled()
-    expect(consumePendingAgentSessionImageActions('session-a')).toEqual([])
-
-    unbindFirst?.()
-    unbindSecond?.()
-  })
-
   it('keeps capture-scoped session image actions away from the visible runtime', async () => {
     const topic = {
       id: 'agent-session:session-a',
@@ -584,14 +511,7 @@ describe('useAgentMessageListProviderValue', () => {
       scrollToBottom: vi.fn()
     }
     const unbindVisible = visibleValue?.actions.bindRuntime?.(visibleRuntime)
-    const request = requestAgentSessionImageAction(
-      'copy',
-      { id: 'session-a', name: 'Session A' },
-      {
-        consumer: 'capture',
-        emit: false
-      }
-    )
+    const request = requestAgentSessionImageAction('copy', { id: 'session-a', name: 'Session A' })
     const unbindVisibleRebound = visibleValue?.actions.bindRuntime?.(visibleRuntime)
 
     expect(visibleRuntime.copyTopicImage).not.toHaveBeenCalled()
@@ -610,7 +530,7 @@ describe('useAgentMessageListProviderValue', () => {
     await expect(request.promise).resolves.toBeUndefined()
     expect(captureRuntime.copyTopicImage).toHaveBeenCalledTimes(1)
     expect(eventMocks.on.mock.calls.length).toBe(listenerCountBeforeCaptureBind)
-    expect(consumePendingAgentSessionImageActions('session-a', undefined, 'capture')).toEqual([])
+    expect(consumePendingAgentSessionImageActions('session-a')).toEqual([])
 
     unbindCapture?.()
     unbindVisibleRebound?.()

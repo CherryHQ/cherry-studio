@@ -71,7 +71,7 @@ const AgentSessionImageCaptureHost = ({ activeAgent, session }: AgentSessionImag
         logger.error('Failed to load agent session messages for image capture', error as Error, {
           sessionId: session.id
         })
-        rejectPendingAgentSessionImageActions(session.id, error, 'capture')
+        rejectPendingAgentSessionImageActions(session.id, error)
       })
 
     return () => {

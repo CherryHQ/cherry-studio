@@ -1,4 +1,3 @@
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -9,16 +8,6 @@ import {
   settleAgentSessionImageActionRequest
 } from '../agentSessionImageActionBus'
 
-vi.mock('@renderer/services/EventService', () => ({
-  EVENT_NAMES: {
-    COPY_AGENT_SESSION_IMAGE: 'COPY_AGENT_SESSION_IMAGE',
-    EXPORT_AGENT_SESSION_IMAGE: 'EXPORT_AGENT_SESSION_IMAGE'
-  },
-  EventEmitter: {
-    emit: vi.fn()
-  }
-}))
-
 const session = { id: 'session-a', name: 'Session A' }
 
 describe('agentSessionImageActionBus', () => {
@@ -27,22 +16,11 @@ describe('agentSessionImageActionBus', () => {
     clearPendingAgentSessionImageActionsForTest()
   })
 
-  it('buffers agent session image requests before broadcasting the event', () => {
+  it('buffers agent session image requests', () => {
     const request = requestAgentSessionImageAction('export', session)
 
-    expect(EventEmitter.emit).toHaveBeenCalledWith(EVENT_NAMES.EXPORT_AGENT_SESSION_IMAGE, session)
     expect(consumePendingAgentSessionImageActions('session-a')).toEqual([
       expect.objectContaining({ id: request.id, session, type: 'export', promise: expect.any(Promise) })
-    ])
-  })
-
-  it('can buffer capture-only requests without broadcasting to the visible message runtime', () => {
-    const request = requestAgentSessionImageAction('copy', session, { consumer: 'capture', emit: false })
-
-    expect(EventEmitter.emit).not.toHaveBeenCalled()
-    expect(consumePendingAgentSessionImageActions('session-a')).toEqual([])
-    expect(consumePendingAgentSessionImageActions('session-a', undefined, 'capture')).toEqual([
-      expect.objectContaining({ id: request.id, session, type: 'copy', promise: expect.any(Promise) })
     ])
   })
 
@@ -100,20 +78,6 @@ describe('agentSessionImageActionBus', () => {
     expect(consumePendingAgentSessionImageActions('session-a')).toEqual([])
     expect(consumePendingAgentSessionImageActions('session-b')).toEqual([
       expect.objectContaining({ id: requestB.id, type: 'export' })
-    ])
-  })
-
-  it('can cancel only one consumer scope', async () => {
-    const visibleRequest = requestAgentSessionImageAction('copy', session)
-    const captureRequest = requestAgentSessionImageAction('copy', session, { consumer: 'capture', emit: false })
-    const error = new Error('cancelled')
-
-    rejectPendingAgentSessionImageActions('session-a', error, 'capture')
-
-    await expect(captureRequest.promise).rejects.toBe(error)
-    expect(consumePendingAgentSessionImageActions('session-a', undefined, 'capture')).toEqual([])
-    expect(consumePendingAgentSessionImageActions('session-a')).toEqual([
-      expect.objectContaining({ id: visibleRequest.id, type: 'copy' })
     ])
   })
 
