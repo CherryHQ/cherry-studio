@@ -425,6 +425,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.display.workdir': 'Work directory',
         'agent.session.empty.description': 'Tasks will appear here after you start one.',
         'agent.session.empty.title': 'No tasks yet',
+        'agent.manage.title': 'Manage Agents',
         'agent.edit.title': 'Edit Agent',
         'agent.session.edit.title': 'Edit task',
         'agent.session.file_manager.file_explorer': 'File Explorer',
@@ -1117,6 +1118,7 @@ describe('Sessions', () => {
 
   it('clears session selection while a resource menu item is active', () => {
     cacheMocks.state.activeSessionId = 'session-a'
+    const onSelectResourceView = vi.fn()
     setupSessions({
       sessions: [createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' })]
     })
@@ -1126,15 +1128,18 @@ describe('Sessions', () => {
         resourceMenuItems={[
           {
             active: true,
-            id: 'agent-skills',
-            label: 'Agent skills',
-            onSelect: vi.fn()
+            id: 'agent-resource-view',
+            label: 'Agents',
+            onSelect: onSelectResourceView
           }
         ]}
       />
     )
 
-    expect(screen.getByRole('button', { name: 'Agent skills' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.queryByRole('button', { name: 'Manage Agents' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Manage Agents' }))
+    expect(onSelectResourceView).toHaveBeenCalled()
     expect(screen.getByText('Alpha session').closest('[role="option"]')).not.toHaveAttribute('data-selected')
   })
 

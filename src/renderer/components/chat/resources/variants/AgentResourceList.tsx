@@ -82,6 +82,7 @@ export function AgentResourceList({
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+  const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
   const sessionItems = useMemo<SessionListItem[]>(
@@ -270,12 +271,13 @@ export function AgentResourceList({
         onAdd={onAddAgent ?? (() => onStartMissingAgentDraft?.())}
         headerActions={
           <SessionListOptionsMenu
+            manageAgentsActive={manageAgentsMenuItem?.active}
             mode={sessionDisplayMode}
             onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
+            onManageAgents={manageAgentsMenuItem?.onSelect}
             onOpenHistoryRecords={onOpenHistoryRecords}
           />
         }
-        resourceMenuItems={resourceMenuItems}
         onSelect={handleSelect}
         onReorder={handleReorder}
         getContextMenuActions={getContextMenuActions}

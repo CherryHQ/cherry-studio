@@ -257,6 +257,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'assistants.pin.title') return 'Pin Assistant'
       if (key === 'assistants.unpin.title') return 'Unpin Assistant'
       if (key === 'assistants.clear.menu_title') return 'Delete all assistant conversations'
+      if (key === 'assistants.presets.manage.title') return 'Manage Assistants'
       if (key === 'assistants.clear.title') return 'Clear conversations'
       if (key === 'assistants.clear.content') return 'Delete all assistant conversations?'
       if (key === 'chat.topics.clear.title') return 'Clear messages'
@@ -2149,7 +2150,8 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('clears topic selection while a resource menu item is active', () => {
+  it('moves the assistant resource entry into the topic options menu', () => {
+    const onSelect = vi.fn()
     renderTopicList({
       activeTopic: createRendererTopic({ id: 'topic-a', name: 'Alpha topic' }),
       resourceMenuItems: [
@@ -2158,12 +2160,25 @@ describe('Topics', () => {
           id: 'assistant-library',
           label: 'Assistant library',
           onSelect: vi.fn()
+        },
+        {
+          id: 'assistant-resource-view',
+          label: 'Assistants',
+          onSelect
         }
       ]
     })
 
-    expect(screen.getByRole('button', { name: 'Assistant library' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.queryByRole('button', { name: 'Assistants' })).not.toBeInTheDocument()
     expect(getTopicRow('Alpha topic')).not.toHaveAttribute('data-selected')
+
+    fireEvent.click(screen.getByLabelText('Display mode'))
+    const displayModeMenu = screen.getByText('Display mode').closest('[data-testid="menu-list"]')
+    expect(displayModeMenu).not.toBeNull()
+
+    fireEvent.click(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Manage Assistants' }))
+
+    expect(onSelect).toHaveBeenCalledTimes(1)
   })
 
   it('opens the assistant group more menu from the group header context menu', () => {

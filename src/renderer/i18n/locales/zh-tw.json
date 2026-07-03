@@ -348,6 +348,9 @@
         "failed": "無法列出 Agent。"
       }
     },
+    "manage": {
+      "title": "管理智能體"
+    },
     "pin": {
       "title": "圖釘代理"
     },

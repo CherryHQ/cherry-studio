@@ -2,7 +2,6 @@ import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import {
-  ConversationResourceMenu,
   type ConversationResourceMenuItem,
   remapResourceListCollapsedGroupIds,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
@@ -1363,6 +1362,7 @@ const Sessions = ({
         ? 'empty'
         : 'idle'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
+  const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
 
   return (
     <SessionResourceList<SessionListItem>
@@ -1420,8 +1420,10 @@ const Sessions = ({
               onClick={handleHeaderCreateSession}
               actions={
                 <SessionListOptionsMenu
+                  manageAgentsActive={manageAgentsMenuItem?.active}
                   mode={displayMode}
                   onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
+                  onManageAgents={manageAgentsMenuItem?.onSelect}
                   onOpenHistoryRecords={onOpenHistoryRecords}
                   sectionId={
                     displayMode === 'agent'
@@ -1433,7 +1435,6 @@ const Sessions = ({
                 />
               }
             />
-            <ConversationResourceMenu items={resourceMenuItems} />
           </>
         )}
       </ResourceList.Header>

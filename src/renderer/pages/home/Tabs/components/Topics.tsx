@@ -7,7 +7,6 @@ import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
-  ConversationResourceMenu,
   type ConversationResourceMenuItem,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
@@ -639,6 +638,7 @@ export function Topics({
   const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
+  const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
   }, [])
@@ -1077,14 +1077,15 @@ export function Topics({
                 actions={
                   <>
                     <TopicListOptionsMenu
+                      manageAssistantsActive={manageAssistantsMenuItem?.active}
                       mode={displayMode}
                       onChange={handleTopicDisplayModeChange}
+                      onManageAssistants={manageAssistantsMenuItem?.onSelect}
                       onOpenHistoryRecords={onOpenHistoryRecords}
                     />
                   </>
                 }
               />
-              <ConversationResourceMenu items={resourceMenuItems} />
             </>
           )}
         </ResourceList.Header>

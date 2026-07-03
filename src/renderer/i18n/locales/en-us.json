@@ -348,6 +348,9 @@
         "failed": "Failed to list agents."
       }
     },
+    "manage": {
+      "title": "Manage Agents"
+    },
     "pin": {
       "title": "Pin Agent"
     },

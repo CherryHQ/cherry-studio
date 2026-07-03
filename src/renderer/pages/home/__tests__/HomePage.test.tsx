@@ -468,11 +468,13 @@ vi.mock('../Tabs', () => ({
       <button type="button" onClick={() => onOpenHistoryRecords?.()}>
         Open history records
       </button>
-      {resourceMenuItems?.map((item: { id: string; label: ReactNode; onSelect: () => void | Promise<void> }) => (
-        <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-          {item.label}
-        </button>
-      ))}
+      {resourceMenuItems
+        ?.filter((item: { id: string }) => item.id === 'assistant-resource-view')
+        .map((item: { id: string; onSelect: () => void | Promise<void> }) => (
+          <button key={item.id} type="button" onClick={() => void item.onSelect()}>
+            assistants.presets.manage.title
+          </button>
+        ))}
     </div>
   )
 }))
@@ -543,11 +545,13 @@ vi.mock('@renderer/components/chat/resources/variants/AssistantResourceList', ()
       <button type="button" onClick={() => void onActiveAssistantDeleted?.(activeAssistantId ?? '')}>
         Delete active assistant
       </button>
-      {resourceMenuItems?.map((item) => (
-        <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-          {item.label}
-        </button>
-      ))}
+      {resourceMenuItems
+        ?.filter((item) => item.id === 'assistant-resource-view')
+        .map((item) => (
+          <button key={item.id} type="button" onClick={() => void item.onSelect()}>
+            assistants.presets.manage.title
+          </button>
+        ))}
     </div>
   )
 }))
@@ -677,7 +681,7 @@ describe('HomePage', () => {
   it('renders the assistant resource view in the chat center', () => {
     render(<HomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
 
     expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
     expect(screen.getByTestId('home-conversation-page-shell')).toBeInTheDocument()
@@ -689,7 +693,7 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
     fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
 
     expect(screen.getByTestId('assistant-conversation-picker')).toBeInTheDocument()
@@ -708,7 +712,7 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
     fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
     fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
 
@@ -731,7 +735,7 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
 
     const shell = screen.getByTestId('home-conversation-page-shell')
     expect(within(shell).getByTestId('pane-open')).toHaveTextContent('true')
@@ -751,7 +755,7 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
     fireEvent.click(screen.getByRole('button', { name: 'Go to chat with assistant 2' }))
 
     await waitFor(() =>
@@ -768,7 +772,7 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
     fireEvent.click(screen.getByRole('button', { name: 'Go to chat with assistant 2' }))
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))

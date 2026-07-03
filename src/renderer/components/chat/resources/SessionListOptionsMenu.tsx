@@ -19,15 +19,19 @@ const SESSION_DISPLAY_ICONS: Record<AgentSessionDisplayMode, ReactNode> = {
 }
 
 type SessionListOptionsMenuProps = {
+  manageAgentsActive?: boolean
   mode: AgentSessionDisplayMode
   onChange: (mode: AgentSessionDisplayMode) => void
+  onManageAgents?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   sectionId?: string
 }
 
 export function SessionListOptionsMenu({
+  manageAgentsActive,
   mode,
   onChange,
+  onManageAgents,
   onOpenHistoryRecords,
   sectionId
 }: SessionListOptionsMenuProps) {
@@ -83,6 +87,19 @@ export function SessionListOptionsMenu({
               label={t('history.records.shortTitle')}
               onClick={() => {
                 onOpenHistoryRecords()
+                setOpen(false)
+              }}
+            />
+          )}
+          {onManageAgents && <MenuDivider />}
+          {onManageAgents && (
+            <MenuItem
+              size="sm"
+              icon={<Bot size={16} />}
+              label={t('agent.manage.title')}
+              active={manageAgentsActive}
+              onClick={() => {
+                void onManageAgents()
                 setOpen(false)
               }}
             />

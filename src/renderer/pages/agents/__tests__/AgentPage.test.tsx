@@ -306,6 +306,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
+        'agent.manage.title': '管理智能体',
         'agent.session.list.title': '任务'
       })[key] ?? key
   })
@@ -500,7 +501,7 @@ vi.mock('../AgentSidePanel', () => ({
         </button>
         {resourceMenuItems?.map((item: { id: string; label: ReactNode; onSelect: () => void | Promise<void> }) => (
           <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-            {item.label}
+            {item.id === 'agent-resource-view' ? 'agent.manage.title' : item.label}
           </button>
         ))}
       </div>
@@ -529,7 +530,7 @@ vi.mock('@renderer/components/chat/resources/variants/AgentResourceList', () => 
       </button>
       {resourceMenuItems?.map((item) => (
         <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-          {item.label}
+          {item.id === 'agent-resource-view' ? 'agent.manage.title' : item.label}
         </button>
       ))}
     </div>
@@ -643,7 +644,7 @@ describe('AgentPage', () => {
     activeSessionMocks.sessionSource = 'query'
 
     render(<AgentPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
 
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
     expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
@@ -657,7 +658,7 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
     fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
 
     expect(screen.getByTestId('agent-conversation-picker')).toBeInTheDocument()
@@ -683,7 +684,7 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
     fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
     fireEvent.click(screen.getByRole('button', { name: 'Select resource agent' }))
 
@@ -725,7 +726,7 @@ describe('AgentPage', () => {
     activeSessionMocks.sessionSource = 'query'
 
     render(<AgentPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.agent' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
 
     const shell = screen.getByTestId('agent-conversation-page-shell')
     expect(within(shell).getByTestId('resource-pane-open')).toHaveTextContent('true')

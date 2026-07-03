@@ -17,12 +17,20 @@ const TOPIC_DISPLAY_ICONS: Record<TopicDisplayMode, ReactNode> = {
 }
 
 type TopicListOptionsMenuProps = {
+  manageAssistantsActive?: boolean
   mode: TopicDisplayMode
   onChange: (mode: TopicDisplayMode) => void
+  onManageAssistants?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
 }
 
-export function TopicListOptionsMenu({ mode, onChange, onOpenHistoryRecords }: TopicListOptionsMenuProps) {
+export function TopicListOptionsMenu({
+  manageAssistantsActive,
+  mode,
+  onChange,
+  onManageAssistants,
+  onOpenHistoryRecords
+}: TopicListOptionsMenuProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
 
@@ -57,6 +65,19 @@ export function TopicListOptionsMenu({ mode, onChange, onOpenHistoryRecords }: T
               label={t('history.records.shortTitle')}
               onClick={() => {
                 onOpenHistoryRecords()
+                setOpen(false)
+              }}
+            />
+          )}
+          {onManageAssistants && <MenuDivider />}
+          {onManageAssistants && (
+            <MenuItem
+              size="sm"
+              icon={<Bot size={16} />}
+              label={t('assistants.presets.manage.title')}
+              active={manageAssistantsActive}
+              onClick={() => {
+                void onManageAssistants()
                 setOpen(false)
               }}
             />

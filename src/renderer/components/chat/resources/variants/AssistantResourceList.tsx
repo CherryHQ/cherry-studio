@@ -55,6 +55,7 @@ export function AssistantResourceList({
   const [assistantSortType, setAssistantSortType] = usePreference('assistant.tab.sort_type')
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const isTagGrouping = assistantSortType === 'tags'
+  const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
   const {
     assistants,
     isLoading: isAssistantsLoading,
@@ -291,12 +292,13 @@ export function AssistantResourceList({
         onAdd={onAddAssistant ?? (() => onStartDraftAssistant(null))}
         headerActions={
           <TopicListOptionsMenu
+            manageAssistantsActive={manageAssistantsMenuItem?.active}
             mode={topicDisplayMode}
             onChange={(nextMode) => void setTopicDisplayMode(nextMode)}
+            onManageAssistants={manageAssistantsMenuItem?.onSelect}
             onOpenHistoryRecords={onOpenHistoryRecords}
           />
         }
-        resourceMenuItems={resourceMenuItems}
         onSelect={handleSelect}
         onReorder={handleReorder}
         getContextMenuActions={getContextMenuActions}
