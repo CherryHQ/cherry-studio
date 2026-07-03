@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { EmptyState, LoadingState } from '@renderer/components/chat'
-import { AlertCircle, FileSpreadsheet, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react'
+import { AlertCircle, FileSpreadsheet, ZoomIn, ZoomOut } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -50,7 +50,7 @@ const loadChartRenderer = () => {
 const sheetHasChart = (sheet: SheetRenderModel | undefined): boolean => Boolean(sheet && sheet.charts.length > 0)
 
 /**
- * xlsx 只读预览面板:工具栏(缩放)+ XlsxGrid + sheet 标签栏 + 状态栏(公式)。
+ * xlsx 只读预览面板:XlsxGrid + 底部栏(sheet 标签 + 选中格公式 + 缩放,对齐 Excel 布局)。
  * 状态机/主题背景/懒加载接线对齐 PdfPreviewPanel。
  */
 const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions }: XlsxPreviewPanelProps) => {
@@ -127,7 +127,6 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
       return index >= 0 && index < ZOOM_LEVELS.length - 1 ? ZOOM_LEVELS[index + 1] : current
     })
   }, [])
-  const resetZoom = useCallback(() => setZoom(DEFAULT_ZOOM), [])
 
   if (state.status === 'loading' || state.status === 'idle') {
     return (
@@ -154,65 +153,19 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
 
   if (!model || !activeSheet) return null
 
-  // 选中格:地址 + 内容(公式格显示 `= 公式原文`,值在网格内);无选中显示 sheet 名
+  // 选中格:地址 + 内容(公式格显示 `= 公式原文`,值在网格内);无选中不显示
   const selectedCellContent = selectedCell?.cell?.formula ? `= ${selectedCell.cell.formula}` : selectedCell?.cell?.text
   const statusBarText = selectedCell
     ? selectedCellContent
       ? `${selectedCell.address}  ${selectedCellContent}`
       : selectedCell.address
-    : activeSheet.name
+    : null
 
   return (
     <div
       data-testid="xlsx-preview-panel"
       aria-label={fileName}
       className="relative flex h-full w-full flex-col overflow-hidden bg-background">
-      <div
-        className="absolute top-2 right-3 z-10 flex items-center gap-1 rounded-lg border border-border-subtle bg-popover p-1 text-popover-foreground shadow-md"
-        role="toolbar"
-        aria-label={t('agent.preview_pane.preview')}>
-        <Tooltip content={t('preview.zoom_out')} delay={800}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground hover:text-foreground"
-            aria-label={t('preview.zoom_out')}
-            disabled={zoomIndex <= 0}
-            onClick={zoomOut}>
-            <ZoomOut size={14} />
-          </Button>
-        </Tooltip>
-        <span
-          className="min-w-10 px-1 text-center text-muted-foreground text-xs tabular-nums"
-          data-testid="xlsx-preview-zoom-value">
-          {formatZoomLabel(zoom)}
-        </span>
-        <Tooltip content={t('preview.zoom_in')} delay={800}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground hover:text-foreground"
-            aria-label={t('preview.zoom_in')}
-            disabled={zoomIndex < 0 || zoomIndex >= ZOOM_LEVELS.length - 1}
-            onClick={zoomIn}>
-            <ZoomIn size={14} />
-          </Button>
-        </Tooltip>
-        <Tooltip content={t('preview.reset')} delay={800}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="text-muted-foreground hover:text-foreground"
-            aria-label={t('preview.reset')}
-            onClick={resetZoom}>
-            <RotateCcw size={14} />
-          </Button>
-        </Tooltip>
-      </div>
-
       <div className="min-h-0 flex-1">
         <XlsxGrid
           sheet={activeSheet}
@@ -224,35 +177,72 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
         />
       </div>
 
-      <div className="flex shrink-0 items-center justify-between gap-2 border-border-subtle border-t bg-muted px-3 py-1 text-foreground-muted text-xs">
-        <span className="truncate" data-testid="xlsx-preview-status-bar">
-          {statusBarText}
-        </span>
-        {selectedCell?.cell?.formulaState === 'unevaluated' && (
-          <span className="shrink-0 text-foreground-muted italic">{t('xlsx_preview.formula_not_evaluated')}</span>
-        )}
-      </div>
+      {/* 底部栏(对齐 Excel):sheet 标签在左,选中格信息居右,缩放控件在最右 */}
+      <div className="flex shrink-0 items-center gap-2 border-border-subtle border-t bg-background px-2 py-1">
+        <div
+          role="tablist"
+          aria-label={t('xlsx_preview.sheet_tabs_label')}
+          className="flex min-w-0 shrink gap-1 overflow-x-auto">
+          {sheets.map((sheet) => (
+            <button
+              key={sheet.name}
+              type="button"
+              role="tab"
+              aria-selected={sheet.name === activeSheet.name}
+              className={cn(
+                'shrink-0 whitespace-nowrap rounded px-2 py-1 text-xs',
+                sheet.name === activeSheet.name
+                  ? 'bg-accent font-medium text-foreground'
+                  : 'text-foreground-muted hover:bg-accent hover:text-foreground'
+              )}
+              onClick={() => setActiveSheetName(sheet.name)}>
+              {sheet.name}
+            </button>
+          ))}
+        </div>
 
-      <div
-        role="tablist"
-        aria-label={t('xlsx_preview.sheet_tabs_label')}
-        className="flex shrink-0 gap-1 overflow-x-auto border-border-subtle border-t bg-background px-2 py-1">
-        {sheets.map((sheet) => (
-          <button
-            key={sheet.name}
-            type="button"
-            role="tab"
-            aria-selected={sheet.name === activeSheet.name}
-            className={cn(
-              'shrink-0 whitespace-nowrap rounded px-2 py-1 text-xs',
-              sheet.name === activeSheet.name
-                ? 'bg-accent font-medium text-foreground'
-                : 'text-foreground-muted hover:bg-accent hover:text-foreground'
-            )}
-            onClick={() => setActiveSheetName(sheet.name)}>
-            {sheet.name}
-          </button>
-        ))}
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 text-foreground-muted text-xs">
+          {statusBarText && (
+            <span className="truncate" data-testid="xlsx-preview-status-bar">
+              {statusBarText}
+            </span>
+          )}
+          {selectedCell?.cell?.formulaState === 'unevaluated' && (
+            <span className="shrink-0 italic">{t('xlsx_preview.formula_not_evaluated')}</span>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center" role="toolbar" aria-label={t('agent.preview_pane.preview')}>
+          <Tooltip content={t('preview.zoom_out')} delay={800}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-foreground"
+              aria-label={t('preview.zoom_out')}
+              disabled={zoomIndex <= 0}
+              onClick={zoomOut}>
+              <ZoomOut size={14} />
+            </Button>
+          </Tooltip>
+          <span
+            className="min-w-10 px-1 text-center text-muted-foreground text-xs tabular-nums"
+            data-testid="xlsx-preview-zoom-value">
+            {formatZoomLabel(zoom)}
+          </span>
+          <Tooltip content={t('preview.zoom_in')} delay={800}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-foreground"
+              aria-label={t('preview.zoom_in')}
+              disabled={zoomIndex < 0 || zoomIndex >= ZOOM_LEVELS.length - 1}
+              onClick={zoomIn}>
+              <ZoomIn size={14} />
+            </Button>
+          </Tooltip>
+        </div>
       </div>
     </div>
   )

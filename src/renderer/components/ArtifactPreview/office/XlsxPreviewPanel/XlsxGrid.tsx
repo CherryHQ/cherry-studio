@@ -1,6 +1,6 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -37,6 +37,9 @@ const ROW_HEADER_WIDTH_PX = 44
 const COL_HEADER_HEIGHT_PX = 22
 /** 虚拟滚动的可视区外预渲染项数 */
 const OVERSCAN = 6
+/** 使用范围之外额外渲染的空白行/列:网格先铺满视口,再留一段可滚动的空白区(对齐 Excel) */
+const EXTRA_ROWS = 20
+const EXTRA_COLS = 5
 /** 默认(未设置边框时)网格线,跟随 DESIGN.md 的边框语义 token */
 const DEFAULT_GRID_LINE = '0.5px solid var(--color-border)'
 
@@ -203,27 +206,33 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
   const [selected, setSelected] = useState<{ row: number; col: number } | null>(null)
   const [viewport, setViewport] = useState<ViewportRect>({ top: 0, left: 0, bottom: 0, right: 0 })
 
+  // 展示行/列数:使用范围与"铺满视口所需的默认尺寸格数"取大,再加一段空白缓冲
+  const viewportHeight = viewport.bottom - viewport.top
+  const viewportWidth = viewport.right - viewport.left
+  const rowCount = Math.max(sheet.rowCount, Math.ceil(viewportHeight / (sheet.defaultRowHeightPx * zoom))) + EXTRA_ROWS
+  const colCount = Math.max(sheet.colCount, Math.ceil(viewportWidth / (sheet.defaultColWidthPx * zoom))) + EXTRA_COLS
+
   const rowLayout: AxisLayout = useMemo(
-    () => buildAxisLayout(sheet.rowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx, zoom),
-    [sheet.rowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx, zoom]
+    () => buildAxisLayout(rowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx, zoom),
+    [rowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx, zoom]
   )
   const colLayout: AxisLayout = useMemo(
-    () => buildAxisLayout(sheet.colCount, sheet.defaultColWidthPx, sheet.colWidthsPx, zoom),
-    [sheet.colCount, sheet.defaultColWidthPx, sheet.colWidthsPx, zoom]
+    () => buildAxisLayout(colCount, sheet.defaultColWidthPx, sheet.colWidthsPx, zoom),
+    [colCount, sheet.defaultColWidthPx, sheet.colWidthsPx, zoom]
   )
 
   const rowHeaderWidth = ROW_HEADER_WIDTH_PX * zoom
   const colHeaderHeight = COL_HEADER_HEIGHT_PX * zoom
 
   const rowVirtualizer = useVirtualizer({
-    count: sheet.rowCount,
+    count: rowCount,
     getScrollElement: () => scrollElRef.current,
     estimateSize: (index) => rowLayout.sizes[index],
     overscan: OVERSCAN
   })
   const colVirtualizer = useVirtualizer({
     horizontal: true,
-    count: sheet.colCount,
+    count: colCount,
     getScrollElement: () => scrollElRef.current,
     estimateSize: (index) => colLayout.sizes[index],
     overscan: OVERSCAN
@@ -251,6 +260,15 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     },
     [readViewport]
   )
+
+  // 面板尺寸变化不触发 scroll 事件,需 ResizeObserver 重新量测视口(空白区铺满 + 合并层可视计算都依赖它)
+  useEffect(() => {
+    const el = scrollElRef.current
+    if (!el) return
+    const observer = new ResizeObserver(() => setViewport(readViewport(el)))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [readViewport])
 
   const mergesVisible = useMemo(
     () => mergesInView(sheet.merges, viewport, rowLayout, colLayout),

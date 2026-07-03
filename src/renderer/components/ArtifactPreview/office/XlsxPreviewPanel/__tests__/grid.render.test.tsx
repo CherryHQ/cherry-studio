@@ -154,6 +154,26 @@ describe('XlsxGrid — mock model rendering', () => {
     expect(mocks.lastColOptions.estimateSize(0)).toBe(110)
     expect(mocks.lastColOptions.estimateSize(4)).toBe(0)
   })
+
+  it('extends the grid with blank rows/cols beyond the used range at default sizes', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    // Used range is 60×10; the virtualizers must be given a larger padded range.
+    expect(mocks.lastRowOptions.count).toBeGreaterThan(salesSheet.rowCount)
+    expect(mocks.lastColOptions.count).toBeGreaterThan(salesSheet.colCount)
+    // Padded rows/cols beyond the used range fall back to the sheet defaults.
+    expect(mocks.lastRowOptions.estimateSize(salesSheet.rowCount)).toBe(20)
+    expect(mocks.lastColOptions.estimateSize(salesSheet.colCount)).toBe(64)
+  })
+
+  it('grows the padded range to fill a viewport larger than the used range', () => {
+    const notesSheet = model.sheets[1] // 3×2 used range
+    const { container } = render(<XlsxGrid sheet={notesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    setScrollViewport(container, { clientWidth: 2000, clientHeight: 2000 })
+
+    // 2000px viewport ÷ 20px default rows = 100 rows, ÷ 64px default cols = 32 cols (plus padding).
+    expect(mocks.lastRowOptions.count).toBeGreaterThanOrEqual(100)
+    expect(mocks.lastColOptions.count).toBeGreaterThanOrEqual(32)
+  })
 })
 
 describe('XlsxGrid — style mapping', () => {

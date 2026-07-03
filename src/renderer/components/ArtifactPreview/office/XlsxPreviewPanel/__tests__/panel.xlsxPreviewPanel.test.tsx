@@ -189,7 +189,7 @@ describe('XlsxPreviewPanel', () => {
     })
   })
 
-  it('renders the grid, visible sheet tabs, and the sheet name in the status bar when ready', () => {
+  it('renders the grid and visible sheet tabs when ready, with no status text until a cell is selected', () => {
     setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
 
     renderPanel()
@@ -200,7 +200,8 @@ describe('XlsxPreviewPanel', () => {
     expect(screen.getByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'false')
     // Hidden sheets get no tab.
     expect(screen.queryByRole('tab', { name: 'HiddenSheet' })).not.toBeInTheDocument()
-    expect(screen.getByTestId('xlsx-preview-status-bar')).toHaveTextContent('Sales')
+    // No selection → no status text (the sheet tabs already show the active sheet).
+    expect(screen.queryByTestId('xlsx-preview-status-bar')).not.toBeInTheDocument()
   })
 
   it('falls back to the first sheet when every sheet is hidden', () => {
@@ -227,7 +228,8 @@ describe('XlsxPreviewPanel', () => {
 
     expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-sheet-name', 'Notes')
     expect(screen.getByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByTestId('xlsx-preview-status-bar')).toHaveTextContent('Notes')
+    // Selection was cleared by the sheet switch, so the status text disappears.
+    expect(screen.queryByTestId('xlsx-preview-status-bar')).not.toBeInTheDocument()
   })
 
   it('shows the formula source for a selected formula cell', () => {
@@ -262,7 +264,7 @@ describe('XlsxPreviewPanel', () => {
     expect(screen.getByTestId('xlsx-preview-status-bar')).toHaveTextContent('A3 Q1')
   })
 
-  it('steps through the zoom levels and resets', () => {
+  it('steps through the zoom levels without a reset control', () => {
     setWorkbookState({ status: 'ready', model: modelWithoutCharts() })
 
     renderPanel()
@@ -273,12 +275,13 @@ describe('XlsxPreviewPanel', () => {
     expect(screen.getByTestId('xlsx-preview-zoom-value')).toHaveTextContent('125%')
     expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-zoom', '1.25')
 
-    fireEvent.click(screen.getByRole('button', { name: 'preview.reset' }))
-    expect(screen.getByTestId('xlsx-preview-zoom-value')).toHaveTextContent('100%')
-    expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-zoom', '1')
-
+    fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_out' }))
     fireEvent.click(screen.getByRole('button', { name: 'preview.zoom_out' }))
     expect(screen.getByTestId('xlsx-preview-zoom-value')).toHaveTextContent('75%')
+    expect(screen.getByTestId('xlsx-grid')).toHaveAttribute('data-zoom', '0.75')
+
+    // Zoom reset lives nowhere anymore — the top toolbar refresh covers "back to default".
+    expect(screen.queryByRole('button', { name: 'preview.reset' })).not.toBeInTheDocument()
   })
 
   it('creates image object URLs when ready and revokes them on unmount', () => {
