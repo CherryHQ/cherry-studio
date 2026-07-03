@@ -521,6 +521,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       models: 'https://console.cloud.tencent.com/tione/v2/aimarket'
     }
   },
+  tokenhub: {
+    api: {
+      url: 'https://tokenhub.tencentmaas.com/v1'
+    },
+    websites: {
+      official: 'https://cloud.tencent.com/product/tokenhub',
+      apiKey: 'https://console.cloud.tencent.com/tokenhub/inference',
+      docs: 'https://cloud.tencent.com/document/product/1823',
+      models: 'https://cloud.tencent.com/document/product/1823/130079'
+    }
+  },
   gpustack: {
     api: {
       url: ''
@@ -670,6 +681,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://platform.xiaomimimo.com/#/console/usage',
       docs: 'https://platform.xiaomimimo.com/#/docs/welcome',
       models: 'https://platform.xiaomimimo.com/'
+    }
+  },
+  opencode: {
+    api: {
+      url: 'https://opencode.ai/zen/go/v1'
+    },
+    websites: {
+      official: 'https://opencode.ai',
+      apiKey: 'https://opencode.ai/auth',
+      docs: 'https://opencode.ai/docs/go',
+      models: 'https://opencode.ai/docs/go'
     }
   }
 }
