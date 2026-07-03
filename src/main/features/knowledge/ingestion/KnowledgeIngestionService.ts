@@ -37,7 +37,7 @@ import {
   reserveImportedFileRelativePath
 } from '../pathStorage'
 import { planKnowledgeItemSource } from '../pipeline/sources/sourcePlanning'
-import { cancelJobOrThrow } from '../tasks/utils/cancel'
+import { cancelActiveKnowledgeJobs, cancelJobOrThrow } from '../tasks/utils/cancel'
 import {
   type KnowledgeBaseId,
   knowledgeDeleteSubtreeIdempotencyKey,
@@ -53,7 +53,7 @@ import {
 } from '../types'
 import { resolveKnowledgeAddConflicts } from './addConflicts'
 import { markUnscheduledKnowledgeItemsFailed } from './statusCleanup'
-import { cancelActiveKnowledgeSubtreeJobs, purgeKnowledgeSubtreeWithinLock } from './subtreePurge'
+import { purgeKnowledgeSubtreeWithinLock } from './subtreePurge'
 
 const logger = loggerService.withContext('Knowledge:IngestionService')
 // Keep poll jobs delayed enough to avoid hot-looping while remote processors are still working.
@@ -62,6 +62,11 @@ const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileE
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 
+/**
+ * The workflow re-entry seam job handlers call back into (workflow-architecture.md): expand a
+ * container, index a leaf, or poll a file-processing job. Handlers depend on exactly this surface,
+ * not the full `KnowledgeIngestionService`.
+ */
 export interface KnowledgeItemScheduler {
   scheduleItem(baseId: KnowledgeBaseId, itemId: KnowledgeItemId, parentJobId?: string | null): Promise<void>
   scheduleIndexing(baseId: KnowledgeBaseId, itemId: KnowledgeItemId, parentJobId?: string | null): Promise<void>
@@ -108,11 +113,10 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         // holding it would deadlock.
         itemsToAdd = resolution.keptInputs
         if (resolution.conflictingExistingRootIds.length > 0) {
-          await cancelActiveKnowledgeSubtreeJobs(
-            base.id,
-            resolution.conflictingExistingRootIds,
-            'knowledge-add-replace'
-          )
+          await cancelActiveKnowledgeJobs(base.id, 'knowledge-add-replace', {
+            rootItemIds: resolution.conflictingExistingRootIds,
+            onCancelTimeout: 'throw'
+          })
         }
       }
     }

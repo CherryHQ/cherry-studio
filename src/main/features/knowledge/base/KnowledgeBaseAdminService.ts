@@ -17,18 +17,10 @@ import {
 import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
 import { classifyKnowledgeItemSource } from '../items'
 import { getKnowledgeBaseFilePath } from '../pathStorage'
-import { narrowKnowledgeJobInput } from '../tasks/utils/jobInput'
-import {
-  KNOWLEDGE_ACTIVE_JOB_LIMIT,
-  KNOWLEDGE_ACTIVE_JOB_STATUSES,
-  KNOWLEDGE_JOB_TYPES,
-  knowledgeQueueName,
-  toKnowledgeBaseId
-} from '../types'
+import { cancelActiveKnowledgeJobs } from '../tasks/utils/cancel'
 import type { KnowledgeLockManager } from './KnowledgeLockManager'
 
 const logger = loggerService.withContext('Knowledge:BaseAdmin')
-const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
 
 /** Knowledge base lifecycle: create (with rollback), delete, restore, and list — everything about the base row + its on-disk artifacts, not about items. */
 export class KnowledgeBaseAdminService {
@@ -72,7 +64,7 @@ export class KnowledgeBaseAdminService {
   }
 
   async deleteBase(baseId: string): Promise<void> {
-    await this.cancelAllJobsForBase(baseId)
+    await cancelActiveKnowledgeJobs(baseId, 'delete-base', { onCancelTimeout: 'proceed' })
 
     await this.knowledgeLockManager.withBaseMutationLock(baseId, async () => {
       try {
@@ -186,25 +178,6 @@ export class KnowledgeBaseAdminService {
   hasAnyBase(): boolean {
     const { total } = knowledgeBaseService.list({ page: 1, limit: 1 })
     return total > 0
-  }
-
-  private async cancelAllJobsForBase(baseId: string): Promise<void> {
-    const jobManager = application.get('JobManager')
-    const activeJobs = await jobManager.list({
-      queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
-      status: [...KNOWLEDGE_ACTIVE_JOB_STATUSES],
-      limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
-    })
-    const jobsToCancel = activeJobs.filter((job) => KNOWLEDGE_JOB_TYPE_SET.has(job.type))
-    const linkedFileProcessingJobIds = activeJobs.flatMap((job) => {
-      const narrowed = narrowKnowledgeJobInput(job)
-      return narrowed?.type === 'knowledge.check-file-processing-result' ? [narrowed.input.fileProcessingJobId] : []
-    })
-
-    await Promise.all([
-      ...jobsToCancel.map((job) => jobManager.cancel(job.id, 'delete-base')),
-      ...linkedFileProcessingJobIds.map((jobId) => jobManager.cancel(jobId, 'delete-base'))
-    ])
   }
 
   private toRestoreRuntimeInput(sourceBaseId: string, item: KnowledgeItem): KnowledgeAddItemInput {

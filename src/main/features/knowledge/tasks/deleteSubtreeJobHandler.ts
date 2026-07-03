@@ -6,10 +6,11 @@ import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
 
 import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
-import { cancelActiveKnowledgeSubtreeJobs, purgeKnowledgeSubtreeWithinLock } from '../ingestion/subtreePurge'
+import { purgeKnowledgeSubtreeWithinLock } from '../ingestion/subtreePurge'
 import { reclaimKnowledgeIndexSpace } from '../pipeline/vectorstore/vectorCleanup'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '../types'
 import type { KnowledgeDeleteSubtreePayload } from './jobTypes'
+import { cancelActiveKnowledgeJobs } from './utils/cancel'
 
 const logger = loggerService.withContext('Knowledge:DeleteSubtreeJobHandler')
 
@@ -43,7 +44,11 @@ export function createDeleteSubtreeJobHandler(
       }
 
       // Stop active work touching deleting rows before removing vectors and rows.
-      await cancelActiveKnowledgeSubtreeJobs(baseId, deletingSubtreeItemIds, 'knowledge-delete-subtree', ctx.jobId)
+      await cancelActiveKnowledgeJobs(baseId, 'knowledge-delete-subtree', {
+        rootItemIds: deletingSubtreeItemIds,
+        excludeJobId: ctx.jobId,
+        onCancelTimeout: 'throw'
+      })
 
       // Cleanup is locked so no indexer can write vectors for rows being removed.
       await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
