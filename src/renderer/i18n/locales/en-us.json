@@ -340,7 +340,7 @@
       "welcome_title": "What shall we talk about today?"
     },
     "input": {
-      "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command",
+      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands.",
       "soul_placeholder": "Help me connect to Telegram"
     },
     "list": {
@@ -1495,7 +1495,7 @@
       "paste_text_file": "Paste into input",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
-      "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
+      "placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions.",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
       "resource_panel": {
         "categories": {
@@ -1506,7 +1506,7 @@
         "description": "Select from files, agents, or skills",
         "loading": "Loading...",
         "no_file_found": {
-          "description": "No files available in accessible directories",
+          "description": "No searchable files in the current workspace",
           "label": "No File Found"
         },
         "no_items_found": {
@@ -1601,6 +1601,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "Cache {{hit_rate}}%",
+        "tooltip": "Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "This message is being edited in the composer",
       "flow": {
         "branches": "branches",
@@ -2829,7 +2833,7 @@
       "chunk_size_invalid": "Chunk size must be greater than 0",
       "chunking": "Chunking",
       "default_separator": "Auto (recommended)",
-      "document_count": "Requested Chunks (Top K)",
+      "document_count": "Top K",
       "embedding_model": "Embedding Model",
       "embedding_model_select": "Model Selection",
       "file_processing": "File Processing",
@@ -2910,7 +2914,7 @@
     "subtitle_file": "subtitle file",
     "tabs": {
       "data_source": "Data Sources",
-      "rag_config": "RAG Config",
+      "rag_config": "Knowledge Base Settings",
       "recall_test": "Recall Test"
     },
     "title": "Knowledge Base",
@@ -6478,7 +6482,7 @@
       "input": {
         "confirm_delete_message": "Confirm before deleting messages",
         "confirm_regenerate_message": "Confirm before regenerating messages",
-        "enable_quick_triggers": "Enable / and @ triggers",
+        "enable_quick_triggers": "Enable / to open the input quick panel",
         "send_shortcuts": "Send shortcuts",
         "show_estimated_tokens": "Show estimated tokens",
         "title": "Input Settings"
@@ -7229,10 +7233,10 @@
         "unknownServer": "Unknown MCP server"
       },
       "multiple": "Multiple Select",
-      "noResult": "No results found",
+      "noResult": "No matching items",
       "page": "Page",
       "select": "Select",
-      "title": "Quick Menu"
+      "title": "Input Quick Panel"
     },
     "quickPhrase": {
       "add": "Add Phrase",

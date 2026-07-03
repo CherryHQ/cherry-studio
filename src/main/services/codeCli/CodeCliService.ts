@@ -22,9 +22,10 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
+import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { getFunctionalKeys, parseJSONC } from '@main/utils/jsonc'
-import { getBinaryExecutionEnv, getBinaryPath, isBinaryExists } from '@main/utils/process'
-import { removeEnvProxy } from '@main/utils/shell-env'
+import { removeEnvProxy } from '@main/utils/processRunner'
 import { IpcChannel } from '@shared/IpcChannel'
 import { CodeCli, TerminalApp, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
@@ -89,12 +90,6 @@ export class CodeCliService extends BaseService {
     this.ipcHandle(IpcChannel.CodeCli_GetAvailableTerminals, () => this.getAvailableTerminalsForPlatform())
     this.ipcHandle(IpcChannel.CodeCli_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
       this.setCustomTerminalPath(terminalId, path)
-    )
-    this.ipcHandle(IpcChannel.CodeCli_GetCustomTerminalPath, (_, terminalId: string) =>
-      this.getCustomTerminalPath(terminalId)
-    )
-    this.ipcHandle(IpcChannel.CodeCli_RemoveCustomTerminalPath, (_, terminalId: string) =>
-      this.removeCustomTerminalPath(terminalId)
     )
   }
 
@@ -552,23 +547,6 @@ export class CodeCliService extends BaseService {
   public setCustomTerminalPath(terminalId: string, path: string): void {
     logger.info(`Setting custom path for terminal ${terminalId}: ${path}`)
     this.customTerminalPaths.set(terminalId, path)
-    // Clear terminals cache to force refresh
-    this.terminalsCache = null
-  }
-
-  /**
-   * Get custom path for a terminal
-   */
-  public getCustomTerminalPath(terminalId: string): string | undefined {
-    return this.customTerminalPaths.get(terminalId)
-  }
-
-  /**
-   * Remove custom path for a terminal
-   */
-  public removeCustomTerminalPath(terminalId: string): void {
-    logger.info(`Removing custom path for terminal ${terminalId}`)
-    this.customTerminalPaths.delete(terminalId)
     // Clear terminals cache to force refresh
     this.terminalsCache = null
   }

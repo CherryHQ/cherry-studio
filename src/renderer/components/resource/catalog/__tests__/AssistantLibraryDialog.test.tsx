@@ -10,6 +10,28 @@ const createAssistantMock = vi.fn(async () => ({ id: 'assistant-1' }))
 const toastSuccess = vi.fn()
 const toastError = vi.fn()
 
+type VirtualizerOptionsMock = {
+  count: number
+  estimateSize: () => number
+  getScrollElement: () => HTMLElement | null
+  overscan?: number
+}
+
+const virtualizerMocks = vi.hoisted(() => ({
+  measureElement: vi.fn(),
+  useVirtualizer: vi.fn((options: VirtualizerOptionsMock) => ({
+    getTotalSize: () => options.count * 70,
+    getVirtualItems: () =>
+      Array.from({ length: options.count }, (_, index) => ({
+        index,
+        key: index,
+        size: 70,
+        start: index * 70
+      })),
+    measureElement: virtualizerMocks.measureElement
+  }))
+}))
+
 const assistantCatalogMocks = vi.hoisted(() => ({
   presetsFixture: [
     { id: 'p1', name: 'Web Generator', description: 'Build a web page', group: ['Featured'] },
@@ -42,6 +64,10 @@ vi.mock('@renderer/hooks/useAssistantCatalogPresets', async (importOriginal) => 
 
 vi.mock('@renderer/components/resource/dialogs', () => ({
   AssistantPresetPreviewDialog: ({ open }: { open: boolean }) => (open ? <div data-testid="preset-preview" /> : null)
+}))
+
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: virtualizerMocks.useVirtualizer
 }))
 
 vi.mock('@cherrystudio/ui', () => {
@@ -97,6 +123,7 @@ vi.mock('@cherrystudio/ui', () => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  virtualizerMocks.measureElement.mockClear()
   assistantCatalogMocks.state.isLoading = false
   assistantCatalogMocks.state.presets = assistantCatalogMocks.presetsFixture
   Object.assign(window, { toast: { ...window.toast, success: toastSuccess, error: toastError } })
@@ -143,6 +170,29 @@ describe('AssistantLibraryDialog', () => {
     expect(within(tabs).getByText('Featured')).toBeInTheDocument()
     // The catalog's "我的" tab is dropped in the library dialog.
     expect(within(tabs).queryByText('Mine')).not.toBeInTheDocument()
+  })
+
+  it('windows the full preset list with TanStack Virtual', async () => {
+    assistantCatalogMocks.state.presets = Array.from({ length: 780 }, (_, index) => ({
+      id: `preset-${index}`,
+      name: `Preset ${index}`,
+      description: `Preset description ${index}`,
+      group: ['Featured']
+    }))
+
+    renderDialog()
+
+    expect(await screen.findByText('Preset 0')).toBeInTheDocument()
+    expect(virtualizerMocks.useVirtualizer).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        count: 780,
+        overscan: 6
+      })
+    )
+
+    const virtualizerOptions = virtualizerMocks.useVirtualizer.mock.calls.at(-1)?.[0]
+    expect(virtualizerOptions?.estimateSize()).toBe(70)
+    expect(virtualizerOptions?.getScrollElement()).toBeInstanceOf(HTMLElement)
   })
 
   it('shows a loading skeleton instead of the empty state while presets load', () => {

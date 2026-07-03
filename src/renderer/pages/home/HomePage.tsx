@@ -687,26 +687,37 @@ const HomePage: FC = () => {
   const handleLocateMessageHandled = useCallback(() => {
     setPendingLocateMessageId(undefined)
   }, [])
-  const resourceCenter = activeResourceViewKind
-    ? {
-        className: 'relative',
-        content: (
-          <ConversationResourceView
-            kind={activeResourceViewKind}
-            onOpenAssistantChat={handleOpenAssistantChatFromLibrary}
-            toolbarLeading={
-              !isMessageOnlyView && !isWindowFrame ? (
-                <ConversationSidebarToggleButton
-                  sidebarOpen={effectiveShowSidebar}
-                  onSidebarToggle={toggleResourceListOpen}
-                  tooltipPlacement="bottom"
-                />
-              ) : undefined
-            }
-          />
-        )
-      }
-    : null
+  const resourceCenter = useMemo(
+    () =>
+      activeResourceViewKind
+        ? {
+            className: 'relative',
+            content: (
+              <ConversationResourceView
+                kind={activeResourceViewKind}
+                onOpenAssistantChat={handleOpenAssistantChatFromLibrary}
+                toolbarLeading={
+                  !isMessageOnlyView && !isWindowFrame ? (
+                    <ConversationSidebarToggleButton
+                      sidebarOpen={effectiveShowSidebar}
+                      onSidebarToggle={toggleResourceListOpen}
+                      tooltipPlacement="bottom"
+                    />
+                  ) : undefined
+                }
+              />
+            )
+          }
+        : null,
+    [
+      activeResourceViewKind,
+      effectiveShowSidebar,
+      handleOpenAssistantChatFromLibrary,
+      isMessageOnlyView,
+      isWindowFrame,
+      toggleResourceListOpen
+    ]
+  )
 
   if (!visibleTopic && !draftAssistantSelectionSnapshot && !resourceCenter) {
     if (isMessageOnlyView) {

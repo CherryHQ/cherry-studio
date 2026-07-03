@@ -1,7 +1,6 @@
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel/symbols'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, registerTool, TopicType } from '@renderer/components/composer/tools/types'
-import { type QuickPanelInputAdapter, type QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { type QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { getBuiltinSlashCommands } from '@shared/ai/agentSlashCommands'
 import { Terminal } from 'lucide-react'
 
@@ -42,7 +41,7 @@ export const insertSlashCommand = (
  * Only visible in Agent Session (TopicType.Session).
  *
  * Menu structure:
- * - "/" root suggestion: Slash commands are grouped under one outer capability.
+ * - "/" root suggestion: each slash command is a flat root-panel row (no submenu).
  */
 const slashCommandsTool = defineTool({
   key: 'slash_commands',
@@ -65,6 +64,8 @@ const slashCommandsTool = defineTool({
           return []
         }
 
+        // Flat root-panel launchers: each slash command is its own "/" root suggestion row.
+        // `sources: ['root-panel']` keeps them out of the "+" popover menu.
         const commandLaunchers: ComposerToolLauncher[] = slashCommands.map((cmd, index) => {
           const descriptionKey = SLASH_COMMAND_DESCRIPTION_KEYS[cmd.command]
 
@@ -72,6 +73,8 @@ const slashCommandsTool = defineTool({
             id: `slash-command:${cmd.command}`,
             kind: 'command' as const,
             sources: ['root-panel'] as const,
+            // Render below caller additional items (e.g. agent skills) in the root panel.
+            rootPanelPlacement: 'trailing' as const,
             order: 20 + (index + 1) / 100,
             label: cmd.command,
             description: descriptionKey ? t(descriptionKey, cmd.description || '') : cmd.description || '',
@@ -82,48 +85,7 @@ const slashCommandsTool = defineTool({
           }
         })
 
-        const rootLaunchers: ComposerToolLauncher[] = [
-          {
-            id: 'slash-commands',
-            kind: 'group' as const,
-            // Carrier entry: keep "/" root suggestions registered without showing a "+" menu row.
-            sources: [] as const,
-            order: 20,
-            label: t('chat.input.slash_commands.title'),
-            description: t('chat.input.slash_commands.description'),
-            icon: <Terminal size={16} />,
-            submenu: commandLaunchers,
-            action: ({ quickPanel, inputAdapter, parentPanel, queryAnchor, triggerInfo }) => {
-              const list: QuickPanelListItem[] = commandLaunchers.map((launcher) => ({
-                label: launcher.label,
-                description: launcher.description,
-                icon: launcher.icon,
-                action: (options) => {
-                  launcher.action?.({
-                    quickPanel: options.context,
-                    inputAdapter: options.inputAdapter ?? inputAdapter,
-                    parentPanel: options.parentPanel ?? parentPanel,
-                    queryAnchor: options.queryAnchor ?? queryAnchor,
-                    searchText: options.searchText,
-                    source: 'root-panel',
-                    triggerInfo: options.context.triggerInfo ?? triggerInfo
-                  })
-                }
-              }))
-
-              quickPanel.open({
-                title: t('chat.input.slash_commands.title'),
-                list,
-                symbol: ComposerPanelSymbol.SlashCommands,
-                parentPanel,
-                queryAnchor,
-                triggerInfo: triggerInfo ?? { type: 'button' }
-              })
-            }
-          }
-        ]
-
-        return rootLaunchers
+        return commandLaunchers
       }
     }
   }

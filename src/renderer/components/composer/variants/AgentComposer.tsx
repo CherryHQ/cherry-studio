@@ -10,6 +10,7 @@ import {
   useComposerTokenReconcile,
   useComposerToolDispatch,
   useComposerToolLauncherActions,
+  useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
@@ -45,7 +46,7 @@ import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspa
 import type { AgentEntity } from '@shared/data/types/agent'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { LocalSkill } from '@shared/types/skill'
-import { Bot, ChevronDown, CircleSlash, Folder, Sparkles, TriangleAlert } from 'lucide-react'
+import { Bot, ChevronDown, CircleSlash, Folder, MessageSquarePlus, Sparkles, TriangleAlert } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -61,7 +62,7 @@ import {
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { AgentLabel } from './agent/AgentLabel'
-import { useAgentResourceSuggestion } from './agent/useAgentResourceSuggestion'
+import { useAgentResourceSearchProvider } from './agent/useAgentResourceSearchProvider'
 import {
   agentComposerTokenId,
   agentFileToComposerToken,
@@ -75,7 +76,6 @@ import {
   COMPOSER_SELECTOR_BUTTON_CLASS,
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
-  type ComposerNewConversationAction,
   ComposerToolbarControls,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
@@ -106,7 +106,8 @@ const createSkillQuickPanelItems = (
     description: skill.description ?? undefined,
     icon: <Sparkles size={16} />,
     suffix: options.skillLabel,
-    filterText: `${skill.name} ${skill.description ?? ''} ${options.skillLabel}`,
+    // Skills match by name only in the root panel search.
+    filterText: skill.name,
     action: ({ inputAdapter }) => {
       options.onInsertSkill(skill, inputAdapter)
     }
@@ -170,18 +171,21 @@ const AgentComposerRoot = ({
   const { agent } = useAgent(agentId)
   const { model: sessionModel } = useModelById((agent?.model ?? '') as UniqueModelId)
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
+  const [sessionLayout] = usePreference('agent.layout')
   const handleNewSessionShortcut = useCallback(() => {
-    if (onCreateEmptySession) {
+    if (sessionLayout === 'classic' && onCreateEmptySession) {
       void onCreateEmptySession()
       return
     }
 
     void onNewSessionDraft?.()
-  }, [onCreateEmptySession, onNewSessionDraft])
+  }, [onCreateEmptySession, onNewSessionDraft, sessionLayout])
+  const hasNewSessionShortcutAction =
+    sessionLayout === 'classic' ? Boolean(onCreateEmptySession || onNewSessionDraft) : Boolean(onNewSessionDraft)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewSessionShortcut, {
-    enabled: isActiveTab && Boolean(session && agent && (onNewSessionDraft || onCreateEmptySession))
+    enabled: isActiveTab && Boolean(session && agent && hasNewSessionShortcutAction)
   })
 
   const sessionData = useMemo(() => {
@@ -228,6 +232,7 @@ const AgentComposerRoot = ({
         actionsRef={actionsRef}
         chatSendMessage={sendMessage}
         chatStop={stop}
+        onNewSessionDraft={onNewSessionDraft}
         onCreateEmptySession={onCreateEmptySession}
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}
@@ -254,6 +259,7 @@ interface InnerProps {
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
   chatSendMessage: Props['sendMessage']
   chatStop: Props['stop']
+  onNewSessionDraft?: Props['onNewSessionDraft']
   onCreateEmptySession?: Props['onCreateEmptySession']
   onAgentChange?: Props['onAgentChange']
   agentChanging?: boolean
@@ -535,7 +541,6 @@ function getContextUsageModelCandidates(model: Model | undefined): string[] | un
 }
 
 type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'> & {
-  newConversationAction?: ComposerNewConversationAction
   model?: Model
   modelProviderName?: string
   selectModelLabel: string
@@ -553,14 +558,11 @@ type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => Agent
 // Active agent sessions are bound to their agent, so the agent trigger opens edit instead of switching.
 const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
   return {
-    renderLeftControls: (inputAdapter) => (
+    renderLeftControls: (inputAdapter, unifiedPanelControl) => (
       <ComposerToolbarControls
         inputAdapter={inputAdapter}
-        newConversationAction={props.newConversationAction}
-        // Classic layout hides the agent trigger (switching lives in the left rail), freeing the toolbar's
-        // leading slot — so the tool menu sits before the context controls. Modern layout keeps the
-        // trigger, so the menu stays after.
-        toolMenuPlacement={props.showAgentTrigger === false ? 'afterContext' : 'beforeContext'}
+        unifiedPanelControl={unifiedPanelControl}
+        toolMenuPlacement="beforeContext"
         renderContextControls={({ side, iconOnly }) => (
           <>
             <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} agentTriggerMode="edit" />
@@ -574,9 +576,9 @@ const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
 
 const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
   return {
-    renderLeftControls: (inputAdapter) => (
+    renderLeftControls: (inputAdapter, unifiedPanelControl) => (
       <div className={COMPOSER_TOOLBAR_CLASS}>
-        <ComposerToolMenuControls inputAdapter={inputAdapter} newConversationAction={props.newConversationAction} />
+        <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
       </div>
     ),
     renderBelowControls: () => (
@@ -608,6 +610,7 @@ const AgentComposerInner = ({
   actionsRef,
   chatSendMessage,
   chatStop,
+  onNewSessionDraft,
   onCreateEmptySession,
   onAgentChange,
   agentChanging,
@@ -628,6 +631,7 @@ const AgentComposerInner = ({
   const { files, isExpanded } = useComposerToolState()
   const { setFiles, setIsExpanded } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
+  const toolLaunchersVersion = useComposerToolLauncherVersion()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
@@ -790,6 +794,42 @@ const AgentComposerInner = ({
   const handleCreateEmptySession = useCallback(() => {
     void onCreateEmptySession?.()
   }, [onCreateEmptySession])
+
+  const rootPanelNewSessionItems = useMemo<QuickPanelListItem[]>(() => {
+    if (!agentBase) return []
+
+    const label = t('agent.session.new')
+
+    if (sessionLayout === 'classic') {
+      if (!onCreateEmptySession) return []
+
+      return [
+        {
+          id: 'composer:new-session',
+          label,
+          icon: <MessageSquarePlus size={16} />,
+          filterText: label,
+          action: () => {
+            handleCreateEmptySession()
+          }
+        }
+      ]
+    }
+
+    if (!onNewSessionDraft) return []
+
+    return [
+      {
+        id: 'composer:new-session',
+        label,
+        icon: <MessageSquarePlus size={16} />,
+        filterText: label,
+        action: () => {
+          void onNewSessionDraft()
+        }
+      }
+    ]
+  }, [agentBase, handleCreateEmptySession, onCreateEmptySession, onNewSessionDraft, sessionLayout, t])
 
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined
@@ -965,7 +1005,7 @@ const AgentComposerInner = ({
     ]
   )
 
-  const suggestionSources = useAgentResourceSuggestion({
+  const resourceProvider = useAgentResourceSearchProvider({
     accessiblePaths,
     files,
     setFiles,
@@ -999,13 +1039,6 @@ const AgentComposerInner = ({
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
-    newConversationAction:
-      onCreateEmptySession && agentBase
-        ? {
-            label: t('agent.session.new'),
-            onClick: handleCreateEmptySession
-          }
-        : undefined,
     onAgentChange: handleAgentChange,
     renderWorkspaceControl
   })
@@ -1073,7 +1106,10 @@ const AgentComposerInner = ({
         narrowMode={forceNarrowLayout || narrowMode}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
-        suggestionSources={suggestionSources}
+        toolLaunchersVersion={toolLaunchersVersion}
+        suggestionSources={[]}
+        resourceProvider={resourceProvider}
+        rootPanelLeadingItems={rootPanelNewSessionItems}
         rootPanelAdditionalItems={rootPanelSkillItems}
         onRootPanelOpen={handleRootPanelOpen}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
@@ -1102,6 +1138,7 @@ const MissingAgentHomeComposerInner = ({
   const { files, isExpanded } = useComposerToolState()
   const { setFiles, setIsExpanded } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
+  const toolLaunchersVersion = useComposerToolLauncherVersion()
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -1172,6 +1209,7 @@ const MissingAgentHomeComposerInner = ({
         narrowMode
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
+        toolLaunchersVersion={toolLaunchersVersion}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         {...controlSlots}
       />

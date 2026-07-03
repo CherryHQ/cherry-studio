@@ -12,13 +12,16 @@ import {
 } from '@renderer/hooks/useAssistantCatalogPresets'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Check, Plus, Search, X } from 'lucide-react'
-import { type KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { type KeyboardEvent, memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 // Local "browse everything" tab that sits before the preset categories. It is dialog-only —
 // the shared catalog surface has no such concept — so it lives here rather than in the catalog hook.
 const LIBRARY_ALL_TAB = '__all__'
+const PRESET_ROW_ESTIMATE_PX = 62
+const PRESET_ROW_GAP_PX = 8
 
 type AssistantLibraryDialogProps = {
   open: boolean
@@ -64,6 +67,7 @@ export function AssistantLibraryDialog({
   const [addedAssistantPresets, setAddedAssistantPresets] = useState<Record<string, string>>({})
   const [previewPreset, setPreviewPreset] = useState<AssistantCatalogPreset | null>(null)
   const [previewAdding, setPreviewAdding] = useState(false)
+  const listScrollRef = useRef<HTMLDivElement>(null)
 
   // "全部" first, then the preset categories (drop the catalog's "我的" tab — its list lives on the page).
   const tabs = useMemo(() => {
@@ -221,6 +225,7 @@ export function AssistantLibraryDialog({
           </div>
 
           <div
+            ref={listScrollRef}
             aria-busy={isLoading || undefined}
             className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1">
             {isLoading ? (
@@ -239,22 +244,15 @@ export function AssistantLibraryDialog({
                 className="py-16"
               />
             ) : (
-              <div className="flex flex-col gap-2">
-                {visiblePresets.map((preset) => {
-                  const presetKey = getAssistantPresetCatalogKey(preset)
-                  return (
-                    <AssistantLibraryPresetRow
-                      key={presetKey}
-                      preset={preset}
-                      adding={addingPresetKeys.has(presetKey)}
-                      addedAssistantId={addedAssistantPresets[presetKey]}
-                      onAdd={() => void handleAddPreset(preset)}
-                      onOpenChat={handleOpenChat}
-                      onPreview={() => setPreviewPreset(preset)}
-                    />
-                  )
-                })}
-              </div>
+              <VirtualizedAssistantLibraryPresetList
+                scrollRef={listScrollRef}
+                presets={visiblePresets}
+                addingPresetKeys={addingPresetKeys}
+                addedAssistantPresets={addedAssistantPresets}
+                onAddPreset={handleAddPreset}
+                onOpenChat={handleOpenChat}
+                onPreviewPreset={setPreviewPreset}
+              />
             )}
           </div>
         </DialogContent>
@@ -294,36 +292,103 @@ function AssistantLibraryPresetListSkeleton() {
   )
 }
 
+type VirtualizedAssistantLibraryPresetListProps = {
+  scrollRef: RefObject<HTMLDivElement | null>
+  presets: AssistantCatalogPreset[]
+  addingPresetKeys: Set<string>
+  addedAssistantPresets: Record<string, string>
+  onAddPreset: (preset: AssistantCatalogPreset) => void
+  onOpenChat: (assistantId: string) => void
+  onPreviewPreset: (preset: AssistantCatalogPreset) => void
+}
+
+function VirtualizedAssistantLibraryPresetList({
+  scrollRef,
+  presets,
+  addingPresetKeys,
+  addedAssistantPresets,
+  onAddPreset,
+  onOpenChat,
+  onPreviewPreset
+}: VirtualizedAssistantLibraryPresetListProps) {
+  const rowVirtualizer = useVirtualizer({
+    count: presets.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => PRESET_ROW_ESTIMATE_PX + PRESET_ROW_GAP_PX,
+    overscan: 6
+  })
+
+  return (
+    <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
+      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+        const preset = presets[virtualRow.index]
+        if (!preset) return null
+
+        const presetKey = getAssistantPresetCatalogKey(preset)
+        return (
+          <div
+            key={virtualRow.key}
+            ref={rowVirtualizer.measureElement}
+            data-index={virtualRow.index}
+            className="pb-2"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              transform: `translateY(${virtualRow.start}px)`
+            }}>
+            <AssistantLibraryPresetRow
+              preset={preset}
+              adding={addingPresetKeys.has(presetKey)}
+              addedAssistantId={addedAssistantPresets[presetKey]}
+              onAddPreset={onAddPreset}
+              onOpenChat={onOpenChat}
+              onPreviewPreset={onPreviewPreset}
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 type AssistantLibraryPresetRowProps = {
   preset: AssistantCatalogPreset
   adding: boolean
   addedAssistantId?: string
-  onAdd: () => void
+  onAddPreset: (preset: AssistantCatalogPreset) => void
   onOpenChat: (assistantId: string) => void
-  onPreview: () => void
+  onPreviewPreset: (preset: AssistantCatalogPreset) => void
 }
 
-function AssistantLibraryPresetRow({
+const AssistantLibraryPresetRow = memo(function AssistantLibraryPresetRow({
   preset,
   adding,
   addedAssistantId,
-  onAdd,
+  onAddPreset,
   onOpenChat,
-  onPreview
+  onPreviewPreset
 }: AssistantLibraryPresetRowProps) {
   const { t } = useTranslation()
   const summary = getPresetSummary(preset)
   const isAdded = Boolean(addedAssistantId)
+  const handleAdd = useCallback(() => {
+    onAddPreset(preset)
+  }, [onAddPreset, preset])
+  const handlePreview = useCallback(() => {
+    onPreviewPreset(preset)
+  }, [onPreviewPreset, preset])
 
   const activateOnKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
       if (event.target !== event.currentTarget) return
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
-        onPreview()
+        handlePreview()
       }
     },
-    [onPreview]
+    [handlePreview]
   )
 
   return (
@@ -331,7 +396,7 @@ function AssistantLibraryPresetRow({
       role="button"
       tabIndex={0}
       aria-label={preset.name}
-      onClick={onPreview}
+      onClick={handlePreview}
       onKeyDown={activateOnKeyDown}
       className="group flex cursor-pointer items-center gap-3 rounded-lg border border-border-subtle bg-card px-3.5 py-2.5 transition-[border-color,background-color] hover:border-border-hover hover:bg-accent">
       <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-base">
@@ -353,7 +418,7 @@ function AssistantLibraryPresetRow({
             <span>{t('library.assistant_catalog.go_to_chat')}</span>
           </Button>
         ) : (
-          <Button variant="secondary" size="sm" className="h-7 gap-1 px-2.5" loading={adding} onClick={onAdd}>
+          <Button variant="secondary" size="sm" className="h-7 gap-1 px-2.5" loading={adding} onClick={handleAdd}>
             {!adding && <Plus size={13} />}
             <span>{t('library.assistant_catalog.add')}</span>
           </Button>
@@ -361,4 +426,4 @@ function AssistantLibraryPresetRow({
       </div>
     </div>
   )
-}
+})

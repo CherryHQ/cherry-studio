@@ -71,6 +71,10 @@ vi.mock('../ResourceGrid', () => ({
   }
 }))
 
+vi.mock('../SkillMarketplaceDialog', () => ({
+  SkillMarketplaceDialog: () => null
+}))
+
 function createController(resourceError?: Error) {
   return {
     resourceError,

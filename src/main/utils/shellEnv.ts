@@ -1,11 +1,9 @@
-import path from 'node:path'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import { execFileSync, spawn } from 'child_process'
 
-import { getBinarySearchDirs, mergeBinaryExecutionEnv } from './process'
+import { dedupePathSegments, getBinarySearchDirs, mergeBinaryExecutionEnv } from './binaryEnv'
 
 const logger = loggerService.withContext('ShellEnv')
 
@@ -23,32 +21,11 @@ const appendCherryToolDirsToPath = (env: Record<string, string>) => {
   const canonicalPathKey = pathKeys[0] || (isWin ? 'Path' : 'PATH')
   const existingPathValue = env[canonicalPathKey] || env.PATH || ''
 
-  const normaliseSegment = (segment: string) => {
-    const normalized = path.normalize(segment)
-    return isWin ? normalized.toLowerCase() : normalized
-  }
-
-  const uniqueSegments: string[] = []
-  const seenSegments = new Set<string>()
-  const pushIfUnique = (segment: string) => {
-    if (!segment) {
-      return
-    }
-    const canonicalSegment = normaliseSegment(segment)
-    if (!seenSegments.has(canonicalSegment)) {
-      seenSegments.add(canonicalSegment)
-      uniqueSegments.push(segment)
-    }
-  }
-
-  existingPathValue
-    .split(pathSeparator)
-    .map((segment) => segment.trim())
-    .forEach(pushIfUnique)
-
-  cherryToolDirs.forEach(pushIfUnique)
-
-  const updatedPath = uniqueSegments.join(pathSeparator)
+  // Existing segments first, tool dirs appended — dedup keeps an already-present
+  // tool dir at its original position instead of moving it to the tail.
+  const updatedPath = dedupePathSegments([...existingPathValue.split(pathSeparator), ...cherryToolDirs]).join(
+    pathSeparator
+  )
 
   if (pathKeys.length > 0) {
     pathKeys.forEach((key) => {
@@ -309,6 +286,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
 }
 
 let cachedEnv: Record<string, string> | null = null
+let inflight: Promise<Record<string, string>> | null = null
 
 async function fetchShellEnv(): Promise<Record<string, string>> {
   try {
@@ -327,40 +305,62 @@ async function fetchShellEnv(): Promise<Record<string, string>> {
 }
 
 /**
- * Get the cached shell environment. If no cache exists yet, fetches it once.
- * This is a pure query -- it never invalidates the cache.
+ * Fetch the shell env, collapsing concurrent callers onto a single spawn.
+ *
+ * Resolving the login shell can be slow or hang (misconfigured profiles), so
+ * letting overlapping callers each spawn their own shell multiplies a 15s
+ * timeout into several. Sharing the in-flight promise keeps it to one spawn.
  */
-async function getShellEnv(): Promise<Record<string, string>> {
-  if (!cachedEnv) {
-    cachedEnv = await fetchShellEnv()
+function loadShellEnv(): Promise<Record<string, string>> {
+  if (inflight) {
+    return inflight
   }
-  return cachedEnv
+  // fetchShellEnv never rejects (it falls back to process.env), so the cache
+  // is always populated and `inflight` always cleared.
+  inflight = fetchShellEnv()
+    .then((env) => {
+      cachedEnv = env
+      return env
+    })
+    .finally(() => {
+      inflight = null
+    })
+  return inflight
 }
 
-export default getShellEnv
+/**
+ * Get the cached shell environment. If no cache exists yet, fetches it once.
+ * This is a pure query -- it never invalidates the cache.
+ *
+ * Returns a shallow copy: callers routinely mutate the env they get back (e.g.
+ * `removeEnvProxy`, merging per-spawn overrides), and handing out the cached
+ * object itself would let one such mutation silently poison every later reader.
+ */
+export async function getShellEnv(): Promise<Record<string, string>> {
+  const env = cachedEnv ?? (await loadShellEnv())
+  return { ...env }
+}
 
 /**
  * Invalidate the shell env cache and immediately re-fetch a fresh environment.
  * This is an explicit command -- callers use this when they need to pick up
  * newly installed tools (nvm, mise, fnm, etc.) that change PATH.
  *
- * Returns the fresh environment so callers can use it directly without a
- * separate getShellEnv() call, avoiding stale-read race conditions.
+ * Returns a fresh shallow copy (see getShellEnv) so callers can use it directly
+ * without a separate getShellEnv() call, avoiding stale-read race conditions.
+ *
+ * If a fetch is already in flight, that one is reused instead of spawning a
+ * second shell -- it is already fresh enough, and a duplicate spawn just
+ * multiplies the cost when the user's profile is slow.
  */
 export async function refreshShellEnv(): Promise<Record<string, string>> {
-  cachedEnv = await fetchShellEnv()
-  return cachedEnv
-}
-
-/**
- * Strip proxy-related variables from an environment map in place.
- * Used before spawning child processes that must not inherit Cherry's proxy
- * settings (e.g. Bun, which does not support HTTPS proxies).
- */
-export const removeEnvProxy = (env: Record<string, string>) => {
-  delete env.HTTPS_PROXY
-  delete env.HTTP_PROXY
-  delete env.grpc_proxy
-  delete env.http_proxy
-  delete env.https_proxy
+  if (inflight) {
+    // Reusing a capture that started before the event prompting this refresh
+    // (e.g. a tool install completing mid-flight). Acceptable because downstream
+    // lookups hit the filesystem live; logged so the reuse is observable.
+    logger.debug('refreshShellEnv reusing in-flight shell capture instead of re-spawning')
+    return { ...(await inflight) }
+  }
+  cachedEnv = null
+  return { ...(await loadShellEnv()) }
 }

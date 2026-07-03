@@ -6,8 +6,7 @@ import { Folder } from 'lucide-react'
 import { useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { serializeComposerDocument } from '../../composerDraft'
-import type { ComposerSuggestionSource } from '../../quickPanel'
+import type { ComposerUnifiedPanelResourceProvider } from '../../quickPanel'
 import { agentComposerTokenId, agentFileToComposerToken } from '../agentComposerTokens'
 
 const getBaseName = (filePath: string) => {
@@ -34,6 +33,17 @@ const createAttachmentFromPath = (filePath: string): ComposerAttachment => {
   }
 }
 
+const createStablePathHash = (value: string) => {
+  let hash = 0
+  for (let index = 0; index < value.length; index++) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0
+  }
+  return hash.toString(36)
+}
+
+const createAgentResourceItemId = (filePath: string) =>
+  `agent-resource:${createStablePathHash(filePath.replace(/\\/g, '/'))}`
+
 const getRelativePath = (filePath: string, accessiblePaths: readonly string[]) => {
   const normalizedFilePath = filePath.replace(/\\/g, '/')
 
@@ -58,40 +68,39 @@ interface AgentResourceSuggestionOptions {
 }
 
 /**
- * Provides the agent composer's `@`-mention suggestion source, which lists workspace files
- * and inserts the picked file as a managed file token. Returns an empty list when disabled.
+ * Provides lazy workspace file results for the unified composer panel.
+ * Empty queries intentionally return no items so files are not exposed by default.
  */
-export function useAgentResourceSuggestion({
+export function useAgentResourceSearchProvider({
   accessiblePaths,
   files,
   setFiles,
   enabled
-}: AgentResourceSuggestionOptions): ComposerSuggestionSource[] {
+}: AgentResourceSuggestionOptions): ComposerUnifiedPanelResourceProvider | undefined {
   const { t } = useTranslation()
   const resourceSuggestionStateRef = useRef({ accessiblePaths, files, setFiles, t })
   resourceSuggestionStateRef.current = { accessiblePaths, files, setFiles, t }
 
-  const resourceSuggestionSource = useMemo<ComposerSuggestionSource>(
-    () => ({
-      pluginKey: 'agent-resource-mention-suggestion',
-      char: '@',
-      title: t('chat.input.resource_panel.title'),
-      allowedPrefixes: [' ', '\n'],
-      items: async ({ query }) => {
-        const { accessiblePaths, files, setFiles, t } = resourceSuggestionStateRef.current
+  const resourceProvider = useMemo<ComposerUnifiedPanelResourceProvider>(
+    () =>
+      async (query, { inputAdapter }) => {
+        const { files, setFiles, t } = resourceSuggestionStateRef.current
+        const searchPattern = query.trim()
+        if (!enabled || searchPattern.length === 0) return []
+
         if (accessiblePaths.length === 0) {
           return [
             {
               id: 'agent-resource:no-paths',
               label: t('chat.input.resource_panel.no_file_found.label'),
               description: t('chat.input.resource_panel.no_file_found.description'),
+              icon: <Folder size={16} />,
               disabled: true,
-              command: () => undefined
+              action: () => undefined
             }
           ]
         }
 
-        const searchPattern = query.trim() || '.'
         const results = await Promise.allSettled(
           accessiblePaths.map((dirPath) =>
             window.api.file.listDirectory(dirPath, {
@@ -119,8 +128,9 @@ export function useAgentResourceSuggestion({
               id: 'agent-resource:error',
               label: t('common.error'),
               description: t('chat.input.resource_panel.no_file_found.description'),
+              icon: <Folder size={16} />,
               disabled: true,
-              command: () => undefined
+              action: () => undefined
             }
           ]
         }
@@ -134,27 +144,25 @@ export function useAgentResourceSuggestion({
             currentFile.path === filePath || agentComposerTokenId.file(currentFile) === token.id
 
           return {
-            id: token.id,
+            id: createAgentResourceItemId(filePath),
             label: relativePath,
             description: filePath,
             icon: <Folder size={16} />,
             filterText: `${relativePath} ${filePath}`,
             disabled: files.some(isSelectedFile),
-            command: ({ editor }) => {
-              const exists = serializeComposerDocument(editor).tokens.some(
-                (currentToken) => currentToken.id === token.id
-              )
-              if (!exists) {
-                editor.chain().focus().insertComposerToken(token).insertContent(' ').run()
+            action: ({ inputAdapter: actionInputAdapter }) => {
+              const targetInputAdapter = actionInputAdapter ?? inputAdapter
+              if (!files.some(isSelectedFile)) {
+                targetInputAdapter?.insertToken?.(token)
               }
+              targetInputAdapter?.focus()
               setFiles((prevFiles) => (prevFiles.some(isSelectedFile) ? prevFiles : [...prevFiles, tokenFile]))
             }
           }
         })
-      }
-    }),
-    [t]
+      },
+    [accessiblePaths, enabled]
   )
 
-  return useMemo(() => (enabled ? [resourceSuggestionSource] : []), [enabled, resourceSuggestionSource])
+  return useMemo(() => (enabled ? resourceProvider : undefined), [enabled, resourceProvider])
 }
