@@ -55,13 +55,6 @@ export class PythonService extends BaseService {
         }
       }
     })
-
-    this.ipcHandle(
-      IpcChannel.Python_Execute,
-      async (_, script: string, context?: Record<string, any>, timeout?: number) => {
-        return await this.executeScript(script, context, timeout)
-      }
-    )
   }
 
   /**
