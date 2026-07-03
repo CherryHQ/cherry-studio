@@ -1,9 +1,10 @@
 import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
+  AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/data/hooks/useCache', async () => {
@@ -108,6 +109,37 @@ describe('useAgentSessionContextUsage', () => {
       percentage: 64,
       source: 'live',
       capturedAt: undefined
+    })
+  })
+
+  it('falls back to the shared persisted snapshot when live shared cache is deleted without remounting', () => {
+    const live = makeUsage({ percentage: 64 })
+    const snapshot = {
+      usage: makeUsage({ percentage: 41 }),
+      capturedAt: CAPTURED_AT
+    }
+    MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY('session-1'), live)
+    MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY('session-1'), snapshot)
+
+    const { result, rerender } = renderHook(() => useAgentSessionContextUsage('session-1'))
+
+    expect(result.current).toMatchObject({
+      usage: live,
+      percentage: 64,
+      source: 'live',
+      capturedAt: undefined
+    })
+
+    act(() => {
+      MockUseCacheUtils.setSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY('session-1'), null)
+    })
+    rerender()
+
+    expect(result.current).toMatchObject({
+      usage: snapshot.usage,
+      percentage: 41,
+      source: 'snapshot',
+      capturedAt: snapshot.capturedAt
     })
   })
 

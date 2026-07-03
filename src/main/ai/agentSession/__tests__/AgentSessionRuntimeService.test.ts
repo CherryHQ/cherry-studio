@@ -145,6 +145,7 @@ describe('AgentSessionRuntimeService', () => {
     // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
     // the deleted-model path override it with `{ model: null }`.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+    mocks.upsertContextUsageSnapshot.mockImplementation((_sessionId, usage, capturedAt) => ({ usage, capturedAt }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
         return {
@@ -1434,6 +1435,12 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
     )
     expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', usage, expect.any(Number))
+    await vi.waitFor(() =>
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage_snapshot.session-1', {
+        usage,
+        capturedAt: expect.any(Number)
+      })
+    )
 
     events.push({ type: 'turn-complete' })
     await expect(reader.read()).resolves.toMatchObject({ done: true })

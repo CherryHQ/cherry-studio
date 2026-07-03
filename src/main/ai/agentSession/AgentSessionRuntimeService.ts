@@ -17,6 +17,7 @@ import {
 } from '@shared/ai/agentSessionCompaction'
 import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
+  AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -1099,7 +1100,12 @@ export class AgentSessionRuntimeService extends BaseService {
       application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), usage)
     }
     try {
-      agentSessionService.upsertContextUsageSnapshot(entry.sessionId, usage, acceptedCapturedAt)
+      const snapshot = agentSessionService.upsertContextUsageSnapshot(entry.sessionId, usage, acceptedCapturedAt)
+      if (snapshot) {
+        application
+          .get('CacheService')
+          .setShared(AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY(entry.sessionId), snapshot)
+      }
     } catch (error) {
       logger.warn('Failed to persist agent session context usage snapshot', { sessionId: entry.sessionId, error })
     }

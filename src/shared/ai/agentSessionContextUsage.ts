@@ -28,3 +28,6 @@ export type AgentSessionContextUsageSource = 'live' | 'snapshot' | 'none'
 
 export const AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY = (sessionId: string) =>
   `agent.session.context_usage.${sessionId}` as const
+
+export const AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY = (sessionId: string) =>
+  `agent.session.context_usage_snapshot.${sessionId}` as const
