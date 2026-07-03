@@ -17,6 +17,7 @@ import type {
 } from '@main/data/db/backup/contributor-types'
 import {
   BACKUP_REFS_META,
+  DB_JSON_COLUMNS,
   DB_PRIMARY_KEYS,
   type DbColumnName,
   type DbTableName,
@@ -54,20 +55,32 @@ const contributor = (
   domain: BackupDomain,
   tables: readonly DbTableName[],
   opts: ContributorOpts = {}
-): BackupContributor => ({
-  domain,
-  schema: {
-    tables,
-    references: opts.references ?? [],
-    primaryKeys: tables.map(ownedPk),
-    aggregates: opts.aggregates ?? [],
-    fileRefSourcePolicies: opts.fileRefSourcePolicies ?? [],
-    jsonSoftReferences: opts.jsonSoftReferences ?? [],
-    rowScopes: opts.rowScopes
-  },
-  backupPolicy: { uniqueMergeRules: [] },
-  operations: opts.operations
-})
+): BackupContributor => {
+  // Auto-exempt every JSON column on owned tables that is NOT a declared
+  // jsonSoftReference, so the synthetic fixture satisfies #12(B) exhaustiveness
+  // without each test spelling out exemptions (mirrors what real contributors do).
+  const declaredJson = new Set((opts.jsonSoftReferences ?? []).map((j) => `${j.table}::${j.column}`))
+  const exemptJsonCols = tables.flatMap((table) =>
+    (DB_JSON_COLUMNS[table] ?? [])
+      .filter((col) => !declaredJson.has(`${table}::${col}`))
+      .map((col) => ({ table, column: col, reason: 'fixture: no soft refs' }))
+  )
+  return {
+    domain,
+    schema: {
+      tables,
+      references: opts.references ?? [],
+      primaryKeys: tables.map(ownedPk),
+      aggregates: opts.aggregates ?? [],
+      fileRefSourcePolicies: opts.fileRefSourcePolicies ?? [],
+      jsonSoftReferences: opts.jsonSoftReferences ?? [],
+      exemptJsonCols,
+      rowScopes: opts.rowScopes
+    },
+    backupPolicy: { uniqueMergeRules: [] },
+    operations: opts.operations
+  }
+}
 
 /** 14-domain fixture that satisfies every invariant. */
 const buildFixture = (): BackupContributor[] => [
@@ -112,7 +125,24 @@ const patchSchema = (
   list: readonly BackupContributor[],
   domain: BackupDomain,
   patch: Partial<BackupContributor['schema']>
-): BackupContributor[] => list.map((c) => (c.domain === domain ? { ...c, schema: { ...c.schema, ...patch } } : c))
+): BackupContributor[] =>
+  list.map((c) => {
+    if (c.domain !== domain) return c
+    const merged = { ...c.schema, ...patch }
+    // Recompute exemptJsonCols for the (possibly patched) tables + jsonSoftReferences
+    // so #12(B) exhaustiveness stays satisfied after a patch — UNLESS the patch sets
+    // exemptJsonCols explicitly (a #12 test that deliberately leaves columns uncovered).
+    const declaredJson = new Set((merged.jsonSoftReferences ?? []).map((j) => `${j.table}::${j.column}`))
+    const exemptJsonCols =
+      patch.exemptJsonCols !== undefined
+        ? patch.exemptJsonCols
+        : (merged.tables ?? []).flatMap((table) =>
+            (DB_JSON_COLUMNS[table] ?? [])
+              .filter((col) => !declaredJson.has(`${table}::${col}`))
+              .map((col) => ({ table, column: col, reason: 'fixture: no soft refs' }))
+          )
+    return { ...c, schema: { ...merged, exemptJsonCols } }
+  })
 
 /** Replace one domain's policy slice. */
 const patchPolicy = (
@@ -266,6 +296,66 @@ describe('finalize invariants', () => {
     expectInvariant(list, 12)
   })
 
+  it('#12 (A) rejects a jsonSoftReference declared on a non-JSON column', () => {
+    // prompt.title is a real text column but NOT a JSON column (DB_JSON_COLUMNS.prompt
+    // is empty). Declaring it as a jsonSoftReference closes the "json-ness trusted" hole:
+    // codegen is the only trusted source of json-ness, so a non-JSON declaration is a bug.
+    const list = patchSchema(buildFixture(), 'PROMPTS', {
+      jsonSoftReferences: [
+        {
+          table: 'prompt',
+          column: 'title',
+          target: 'entity-id',
+          ownerDomain: 'PROMPTS',
+          kind: 'tolerant'
+        }
+      ]
+    })
+    expectInvariant(list, 12)
+  })
+
+  it('#12 (B) rejects an uncovered JSON column when the contributor has opted in', () => {
+    // PROMPTS owns 'prompt' which has NO JSON columns, so declaring a jsonSoftReference
+    // elsewhere is fine. Instead use MCP_SERVERS (owns mcp_server, which has 7 JSON
+    // columns). Declare ONE jsonSoftReference (mcp_server.args) + one exemptJsonCol
+    // (mcp_server.env) → opts in. The remaining 5 JSON columns are uncovered → #12.
+    const list = patchSchema(buildFixture(), 'MCP_SERVERS', {
+      jsonSoftReferences: [
+        {
+          table: 'mcp_server',
+          column: 'args',
+          target: 'entity-id',
+          ownerDomain: 'MCP_SERVERS',
+          kind: 'tolerant'
+        }
+      ],
+      exemptJsonCols: [{ table: 'mcp_server', column: 'env', reason: 'struct-only' }]
+    })
+    expectInvariant(list, 12)
+  })
+
+  it('#12 (B) passes when every JSON column is declared or exempt', () => {
+    // MCP_SERVERS: declare jsonSoftReferences for ALL 7 JSON columns → exhaustive → passes.
+    const jsonCols = ['args', 'env', 'headers', 'tags', 'configSample', 'disabledTools', 'disabledAutoApproveTools']
+    const list = patchSchema(buildFixture(), 'MCP_SERVERS', {
+      jsonSoftReferences: jsonCols.map((col) => ({
+        table: 'mcp_server' as DbTableName,
+        column: col as DbColumnName<'mcp_server'>,
+        target: 'entity-id' as const,
+        ownerDomain: 'MCP_SERVERS' as BackupDomain,
+        kind: 'tolerant' as const
+      }))
+    })
+    expect(() => finalize(list, META)).not.toThrow()
+  })
+
+  it('#12 (B) exhaustiveness is satisfied by the fixture auto-exemptions', () => {
+    // The contributor() helper auto-exempts every JSON column on owned tables that is
+    // NOT a declared jsonSoftReference, so the default fixture passes #12(B)
+    // unconditionally — there is no opt-in gate anymore (exhaustiveness is always on).
+    expect(() => finalize(buildFixture(), META)).not.toThrow()
+  })
+
   it('#13 rejects an aggregate root not owned by the domain', () => {
     // ASSISTANTS owns 'assistant'; an aggregate rooted at 'prompt' (owned by PROMPTS) → #13.
     expectInvariant(
@@ -376,16 +466,32 @@ describe('finalize invariants', () => {
     expect(() => finalize(list, META)).not.toThrow()
   })
 
-  // NOTE: #19's restrict direction and #20's two branches (junction + non-cascade FK;
-  // optional + NOT NULL column without override) have no violation tests. The current
-  // schema has zero `restrict` FKs and every optional-FK column is nullable, so neither
-  // branch is reachable through the real codegen facts. Mocking DB_FOREIGN_KEYS would be
-  // brittle; these are exercised once the schema grows a restrict / NOT-NULL optional FK
-  // (TODO B track). The branches are guarded correctly — see finalize.ts #19/#20.
+  // NOTE: #19's restrict direction shares its branch with cascade (both → owning).
+  // The current schema has zero `restrict` FKs, so the cascade-FK case below exercises
+  // the same cascade/restrict → owning expectation. #20's two branches (junction +
+  // non-cascade FK; optional + NOT NULL column without override) are guarded correctly
+  // (see finalize.ts #19/#20) but unreachable through the real codegen: every optional-FK
+  // column is nullable, and a junction on a non-cascade FK fails #19 first. They become
+  // reachable once the schema grows a restrict / NOT-NULL optional FK.
   it('#19 rejects an owning kind on a set-null FK', () => {
     // assistant.modelId onDelete=set null → expected optional; declaring owning → #19.
     const list = patchSchema(buildFixture(), 'ASSISTANTS', {
       references: [{ table: 'assistant', column: 'modelId', referencedDomain: 'PROVIDERS', kind: 'owning' }]
+    })
+    expectInvariant(list, 19)
+  })
+
+  it('#19 rejects an optional kind on a cascade FK (cascade/restrict → owning direction)', () => {
+    // KNOWLEDGE owns knowledge_item; knowledge_item.baseId onDelete=cascade → expected
+    // owning. Declaring optional trips #19. This is the same branch a `restrict` FK would
+    // exercise (cascade and restrict both map to owning); the real schema has no restrict
+    // FK yet, so cascade stands in for it.
+    const list = patchSchema(buildFixture(), 'KNOWLEDGE', {
+      tables: ['knowledge_base', 'knowledge_item'],
+      primaryKeys: [ownedPk('knowledge_base'), ownedPk('knowledge_item')],
+      references: [
+        { table: 'knowledge_item', column: 'baseId', referencedDomain: 'KNOWLEDGE', kind: 'optional' }
+      ]
     })
     expectInvariant(list, 19)
   })
@@ -409,6 +515,69 @@ describe('finalize invariants', () => {
     expect(() => finalize(list, META)).not.toThrow()
   })
 
+  it('platformSpecificKeys: rejects a non-PREFERENCES contributor declaring keys', () => {
+    // Only PREFERENCES may declare platformSpecificKeys (architecture §6.1). PROMPTS
+    // declaring one is a deviation — fail invariant 21 with a clear payload.
+    const list = patchPolicy(buildFixture(), 'PROMPTS', {
+      platformSpecificKeys: ['shortcut.*']
+    })
+    expectInvariant(list, 21)
+  })
+
+  it('platformSpecificKeys: rejects a malformed glob', () => {
+    // A glob with an illegal character (space) or unbalanced brackets is malformed.
+    // PREFERENCES is the rightful owner, so only the glob check trips here.
+    const list = patchPolicy(buildFixture(), 'PREFERENCES', {
+      platformSpecificKeys: ['short cut.*']
+    })
+    expectInvariant(list, 21)
+  })
+
+  it('platformSpecificKeys: rejects a glob with unbalanced brackets', () => {
+    const list = patchPolicy(buildFixture(), 'PREFERENCES', {
+      platformSpecificKeys: ['shortcut[abc']
+    })
+    expectInvariant(list, 21)
+  })
+
+  it('platformSpecificKeys: accepts legal globs on PREFERENCES', () => {
+    const list = patchPolicy(buildFixture(), 'PREFERENCES', {
+      platformSpecificKeys: ['shortcut.*', '*.path', 'theme[12]']
+    })
+    expect(() => finalize(list, META)).not.toThrow()
+  })
+
+  it('polymorphicEntityMap: rejects a value that is neither a known domain nor "excluded"', () => {
+    // TAGS_GROUPS owns the polymorphic tables; declaring a map with a bogus target
+    // ('NO_SUCH_DOMAIN') must fail — Record<EntityType,...> is compile-time exhaustive
+    // over keys, so the runtime check validates VALUES only.
+    const list = patchSchema(buildFixture(), 'TAGS_GROUPS', {
+      polymorphicEntityMap: {
+        assistant: 'TAGS_GROUPS',
+        topic: 'NO_SUCH_DOMAIN' as BackupDomain,
+        model: 'excluded',
+        agent: 'excluded',
+        knowledge: 'excluded',
+        session: 'excluded'
+      }
+    })
+    expectInvariant(list, 21)
+  })
+
+  it('polymorphicEntityMap: accepts a map whose values are all known domains or "excluded"', () => {
+    const list = patchSchema(buildFixture(), 'TAGS_GROUPS', {
+      polymorphicEntityMap: {
+        assistant: 'ASSISTANTS',
+        topic: 'TOPICS',
+        model: 'PROVIDERS',
+        agent: 'AGENTS',
+        knowledge: 'KNOWLEDGE',
+        session: 'excluded'
+      }
+    })
+    expect(() => finalize(list, META)).not.toThrow()
+  })
+
   it('#22 rejects an autoincrement primary key', () => {
     const list = patchSchema(buildFixture(), 'PROMPTS', {
       primaryKeys: [{ table: 'prompt', columns: ['id'], kind: 'autoincrement', ambiguous: false }]
@@ -427,6 +596,40 @@ describe('finalize invariants', () => {
       ]
     })
     expectInvariant(list, 23)
+  })
+
+  it('#23 rejects a typeCoverage that marks the filter-selected type as "excluded"', () => {
+    // A rowScope filters job_schedule.type='agent.task' and marks that same type
+    // 'excluded' in typeCoverage — the filter selects those rows (they belong here by
+    // construction), so excluding them is an inconsistency that would drop them silently.
+    const list = patchSchema(buildFixture(), 'AGENTS', {
+      rowScopes: [
+        {
+          table: 'job_schedule',
+          ownerDomain: 'AGENTS',
+          filter: { column: 'type', op: 'eq', value: 'agent.task' },
+          typeCoverage: { 'agent.task': 'excluded' } as unknown as never
+        }
+      ]
+    })
+    expectInvariant(list, 23)
+  })
+
+  it('#23 accepts a consistent typeCoverage', () => {
+    // The filter-selected type is 'owned' (consistent with the filter selecting it); any
+    // other JobType can be 'owned' or 'excluded'. Record<JobType,...> is compile-time
+    // exhaustive over keys, so the runtime check validates VALUES + filter consistency.
+    const list = patchSchema(buildFixture(), 'AGENTS', {
+      rowScopes: [
+        {
+          table: 'job_schedule',
+          ownerDomain: 'AGENTS',
+          filter: { column: 'type', op: 'eq', value: 'agent.task' },
+          typeCoverage: { 'agent.task': 'owned' } as unknown as never
+        }
+      ]
+    })
+    expect(() => finalize(list, META)).not.toThrow()
   })
 
   it('#24 rejects a declared reference with no matching generated FK', () => {

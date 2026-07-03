@@ -65,7 +65,14 @@ export const KNOWLEDGE_CONTRIBUTOR = deepFreeze<BackupContributor>({
       }
     ],
     fileRefSourcePolicies: [],
-    jsonSoftReferences: []
+    jsonSoftReferences: [],
+    // knowledge_item.data holds the item source/relativePath descriptor (file/url/
+    // note/directory variant) — a filesystem path, NOT an embedded fileId/entityId
+    // soft ref. File blobs are collected via collectFileResources ({baseId}/ dir),
+    // not via this JSON column. Declared so finalize #12 exhaustiveness passes.
+    exemptJsonCols: [
+      { table: table('knowledge_item'), column: column('data'), reason: 'no soft refs — holds source/relativePath file descriptor; blobs collected via {baseId}/ directory, not via this column' }
+    ]
   },
   backupPolicy: {},
   // TODO(C/D track): collectFileResources (export the {baseId}/ directory — raw source

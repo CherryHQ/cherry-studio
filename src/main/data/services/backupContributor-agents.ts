@@ -167,7 +167,9 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       {
         root: table('agent_session'),
         identityKey: columns(['id']),
-        members: [{ table: table('agent_session_message'), viaColumn: column('sessionId'), cascade: 'include' }],
+        members: [
+          { table: table('agent_session_message'), viaColumn: column('sessionId'), cascade: 'include' }
+        ],
         renamable: false
       },
       // agent_workspace: natural-key (path UNIQUE), FIELD_MERGE, non-renamable.
@@ -210,7 +212,32 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       {
         table: table('job_schedule'),
         ownerDomain: 'AGENTS',
-        filter: { column: column('type'), op: 'eq', value: 'agent.task' }
+        filter: { column: column('type'), op: 'eq', value: 'agent.task' },
+        // Exhaustive Record<JobType, 'owned'|'excluded'> — every key in the JobRegistry
+        // union is classified so an unhandled JobType can never be silently dropped
+        // (finalize #23). Compile-time exhaustiveness: adding a new JobType to
+        // JobRegistry without classifying it here fails tsc.
+        typeCoverage: {
+          // agent.task — the only job_schedule type owned by AGENTS (matched by the
+          // filter above; a scheduled agent task definition).
+          'agent.task': 'owned',
+          // Every other JobType belongs to a different concern or is runtime-only —
+          // its job_schedule rows are not AGENTS-backed and are excluded here.
+          'file-processing.background': 'excluded', // FILE_PROCESSING concern
+          'file-processing.remote-poll': 'excluded', // FILE_PROCESSING concern
+          'knowledge.prepare-root': 'excluded', // KNOWLEDGE concern
+          'knowledge.index-documents': 'excluded', // KNOWLEDGE concern
+          'knowledge.check-file-processing-result': 'excluded', // KNOWLEDGE concern
+          'knowledge.delete-subtree': 'excluded', // KNOWLEDGE concern
+          'knowledge.reindex-subtree': 'excluded', // KNOWLEDGE concern
+          'image-generation.generate': 'excluded', // PROVIDERS/image-generation concern
+          // Test-only JobType fixtures (registered via declare module in job
+          // __tests__) — not real jobs, excluded from AGENTS ownership. Listed so
+          // the Record stays compile-time exhaustive when tests are in the type graph.
+          'dummy.echo': 'excluded', // test fixture (JobManager.schedule.test)
+          'test.contract.alpha': 'excluded', // test fixture (jobRegistry.test)
+          'test.contract.beta': 'excluded' // test fixture (jobRegistry.test)
+        }
       }
     ],
     fileRefSourcePolicies: [],
@@ -246,6 +273,28 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
         ownerDomain: 'AGENTS',
         kind: 'required'
       }
+    ],
+    // Structural JSON columns that carry NO cross-entity soft refs (no embedded
+    // fileId/entityId) — declared here so finalize #12 exhaustiveness is satisfied.
+    // The jsonSoftReferences above (agent_session_message.data, agent_channel.workspace,
+    // job_schedule.jobInputTemplate) are the only JSON columns carrying soft refs.
+    exemptJsonCols: [
+      // ── agent ──────────────────────────────────────────────────────────────
+      { table: table('agent'), column: column('disabledTools'), reason: 'no soft refs — holds list of disabled tool-name strings' },
+      { table: table('agent'), column: column('configuration'), reason: 'no soft refs — holds agent runtime configuration knobs' },
+      // ── agent_channel ──────────────────────────────────────────────────────
+      // (workspace IS a jsonSoftReference — NOT exempt; see jsonSoftReferences above.)
+      { table: table('agent_channel'), column: column('config'), reason: 'no soft refs — holds channel UI/runtime config' },
+      { table: table('agent_channel'), column: column('activeChatIds'), reason: 'no soft refs — holds list of active chat id strings (transient UI state)' },
+      // ── agent_session_message ──────────────────────────────────────────────
+      // (data IS a jsonSoftReference — NOT exempt.)
+      { table: table('agent_session_message'), column: column('modelSnapshot'), reason: 'no soft refs — holds a frozen snapshot of the model config at send time' },
+      { table: table('agent_session_message'), column: column('stats'), reason: 'no soft refs — holds token/usage statistics' },
+      // ── job_schedule ────────────────────────────────────────────────────────
+      // (jobInputTemplate IS a jsonSoftReference — NOT exempt.)
+      { table: table('job_schedule'), column: column('trigger'), reason: 'no soft refs — holds the schedule trigger spec (cron/event)' },
+      { table: table('job_schedule'), column: column('catchUpPolicy'), reason: 'no soft refs — holds missed-run catch-up policy' },
+      { table: table('job_schedule'), column: column('metadata'), reason: 'no soft refs — holds opaque schedule metadata' }
     ]
   },
   backupPolicy: {},
