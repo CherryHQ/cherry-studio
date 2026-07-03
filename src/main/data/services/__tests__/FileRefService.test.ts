@@ -94,9 +94,9 @@ describe('FileRefService', () => {
       await seedEntry(entryId)
       await seedPaintingRef(entryId, paintingId, 'output')
       await seedChatRef(entryId, messageId)
-      await fileRefService.createTempSessionRef({ fileEntryId: entryId, sourceId: 'session-A', role: 'pending' })
+      fileRefService.createTempSessionRef({ fileEntryId: entryId, sourceId: 'session-A', role: 'pending' })
 
-      const refs = await fileRefService.findByEntryId(entryId)
+      const refs = fileRefService.findByEntryId(entryId)
       expect(refs).toHaveLength(3)
       expect(refs.every((r) => r.fileEntryId === entryId)).toBe(true)
       expect(refs.map((r) => r.sourceType).sort()).toEqual(['chat_message', 'painting', 'temp_session'])
@@ -108,15 +108,13 @@ describe('FileRefService', () => {
       await seedEntry(entryId)
       await seedPaintingRef(entryId, paintingId, 'input')
 
-      await expect(fileRefService.findBySource({ sourceType: 'painting', sourceId: paintingId })).resolves.toEqual([
+      expect(fileRefService.findBySource({ sourceType: 'painting', sourceId: paintingId })).toEqual([
         expect.objectContaining({ fileEntryId: entryId, sourceType: 'painting', sourceId: paintingId, role: 'input' })
       ])
     })
 
     it('findBySource returns empty array when source key has no refs', async () => {
-      await expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'no-such' })).resolves.toEqual(
-        []
-      )
+      expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'no-such' })).toEqual([])
     })
   })
 
@@ -125,7 +123,7 @@ describe('FileRefService', () => {
       const entryId = '019606a0-0000-7000-8000-00000000bb01' as FileEntryId
       await seedEntry(entryId)
 
-      const ref = await fileRefService.createTempSessionRef({
+      const ref = fileRefService.createTempSessionRef({
         fileEntryId: entryId,
         sourceId: 'session-K',
         role: 'pending'
@@ -144,26 +142,26 @@ describe('FileRefService', () => {
     it('rejects temp refs for missing file_entry rows', async () => {
       const missing = '019606a0-0000-7000-8000-00000000bb08' as FileEntryId
 
-      await expect(
+      expect(() =>
         fileRefService.createTempSessionRef({ fileEntryId: missing, sourceId: 'missing-entry', role: 'pending' })
-      ).rejects.toThrow(`FileEntry not found: ${missing}`)
+      ).toThrow(`FileEntry not found: ${missing}`)
     })
 
     it('throws on duplicate temp ref (entryId, sourceId, role)', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000bb02' as FileEntryId
       await seedEntry(entryId)
       const values = { fileEntryId: entryId, sourceId: 'dup', role: 'pending' as const }
-      await fileRefService.createTempSessionRef(values)
-      await expect(fileRefService.createTempSessionRef(values)).rejects.toThrow()
+      fileRefService.createTempSessionRef(values)
+      expect(() => fileRefService.createTempSessionRef(values)).toThrow()
     })
 
     it('createManyTempSessionRefs skips conflicting rows and returns inserted ones', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000bb03' as FileEntryId
       await seedEntry(entryId)
       const base = { fileEntryId: entryId, role: 'pending' as const }
-      await fileRefService.createTempSessionRef({ ...base, sourceId: 'one' })
+      fileRefService.createTempSessionRef({ ...base, sourceId: 'one' })
 
-      const result = await fileRefService.createManyTempSessionRefs([
+      const result = fileRefService.createManyTempSessionRefs([
         { ...base, sourceId: 'one' },
         { ...base, sourceId: 'two' },
         { ...base, sourceId: 'three' }
@@ -178,25 +176,23 @@ describe('FileRefService', () => {
       const entryB = '019606a0-0000-7000-8000-00000000bb05' as FileEntryId
       await seedEntry(entryA)
       await seedEntry(entryB)
-      await fileRefService.createManyTempSessionRefs([
+      fileRefService.createManyTempSessionRefs([
         { fileEntryId: entryA, sourceId: 'cleanup-A', role: 'pending' },
         { fileEntryId: entryB, sourceId: 'cleanup-A', role: 'pending' }
       ])
 
-      await expect(fileRefService.cleanupTempSessionSource('cleanup-A')).resolves.toBe(2)
-      await expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'cleanup-A' })).resolves.toEqual(
-        []
-      )
+      expect(fileRefService.cleanupTempSessionSource('cleanup-A')).toBe(2)
+      expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'cleanup-A' })).toEqual([])
     })
 
     it('cleanupTempSessionSources removes temp refs across multiple sourceIds', async () => {
       const entryId = '019606a0-0000-7000-8000-00000000bb06' as FileEntryId
       await seedEntry(entryId)
       const make = (sourceId: string) => ({ fileEntryId: entryId, sourceId, role: 'pending' as const })
-      await fileRefService.createManyTempSessionRefs([make('s1'), make('s2'), make('s3')])
+      fileRefService.createManyTempSessionRefs([make('s1'), make('s2'), make('s3')])
 
-      await expect(fileRefService.cleanupTempSessionSources(['s1', 's3'])).resolves.toBe(2)
-      const remaining = await fileRefService.findByEntryId(entryId)
+      expect(fileRefService.cleanupTempSessionSources(['s1', 's3'])).toBe(2)
+      const remaining = fileRefService.findByEntryId(entryId)
       expect(remaining.map((r) => r.sourceId)).toEqual(['s2'])
     })
   })
@@ -214,7 +210,7 @@ describe('FileRefService', () => {
       await seedEntry(idB)
       await seedEntry(idC)
       await seedEntry(idD)
-      await fileRefService.createManyTempSessionRefs([
+      fileRefService.createManyTempSessionRefs([
         { fileEntryId: idA, sourceId: 's1', role: 'pending' },
         { fileEntryId: idA, sourceId: 's2', role: 'pending' }
       ])
@@ -222,7 +218,7 @@ describe('FileRefService', () => {
       await seedChatRef(idD, messageId)
       await seedPaintingRef(idD, secondPaintingId, 'input')
 
-      const result = await fileRefService.countByEntryIds([idA, idB, idC, idD])
+      const result = fileRefService.countByEntryIds([idA, idB, idC, idD])
       expect(result.get(idA)).toBe(2)
       expect(result.get(idB)).toBe(1)
       expect(result.has(idC)).toBe(false)
@@ -240,7 +236,7 @@ describe('FileRefService', () => {
       await seedPaintingRef(firstId, paintingId, 'output')
       await seedChatRef(boundaryId, messageId)
 
-      const result = await fileRefService.countByEntryIds(ids)
+      const result = fileRefService.countByEntryIds(ids)
       expect(result.get(firstId)).toBe(1)
       expect(result.get(boundaryId)).toBe(1)
       expect(result.size).toBe(2)
@@ -251,16 +247,16 @@ describe('FileRefService', () => {
       const missing = '019606a0-0000-7000-8000-00000000cc05' as FileEntryId
       await seedEntry(existing)
       await seedEntry(missing)
-      await fileRefService.createManyTempSessionRefs([
+      fileRefService.createManyTempSessionRefs([
         { fileEntryId: existing, sourceId: 's', role: 'pending' },
         { fileEntryId: missing, sourceId: 's', role: 'pending' }
       ])
       await dbh.db.delete(fileEntryTable).where(eq(fileEntryTable.id, missing))
 
-      const removed = await fileRefService.pruneMissingTempSessionRefs(new Set([existing]))
+      const removed = fileRefService.pruneMissingTempSessionRefs(new Set([existing]))
 
       expect(removed).toBe(1)
-      await expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 's' })).resolves.toEqual([
+      expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 's' })).toEqual([
         expect.objectContaining({ fileEntryId: existing })
       ])
     })

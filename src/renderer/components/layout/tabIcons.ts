@@ -11,6 +11,7 @@ import {
   MousePointerClick,
   NotepadText,
   Palette,
+  Rocket,
   Settings
 } from 'lucide-react'
 
@@ -24,6 +25,7 @@ export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/app/paintings': Palette,
   '/app/translate': Languages,
   '/app/mini-app': LayoutGrid,
+  '/app/launchpad': Rocket,
   '/app/knowledge': FileSearch,
   '/app/library': Library,
   '/app/files': Folder,

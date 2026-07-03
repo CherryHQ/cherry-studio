@@ -1,9 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 
-import { type Client, createClient, type Value as LibsqlValue } from '@libsql/client'
 import { sanitizeFilename } from '@main/utils/file'
+import Database from 'better-sqlite3'
 
 const LEGACY_VECTOR_TABLE_NAME = 'vectors'
 
@@ -48,10 +47,10 @@ export class KnowledgeVectorSourceReader {
     return this.loadLegacyDb(dbPath)
   }
 
-  private async loadLegacyDb(dbPath: string): Promise<LegacyKnowledgeVectorLoadResult> {
-    const client = createClient({ url: pathToFileURL(dbPath).toString() })
+  private loadLegacyDb(dbPath: string): LegacyKnowledgeVectorLoadResult {
+    const db = new Database(dbPath, { readonly: true, fileMustExist: true })
     try {
-      const isEmbedjs = await this.isEmbedjsDatabase(client)
+      const isEmbedjs = this.isEmbedjsDatabase(db)
       if (!isEmbedjs) {
         return { status: 'not_embedjs', dbPath }
       }
@@ -59,29 +58,25 @@ export class KnowledgeVectorSourceReader {
       return {
         status: 'ok',
         dbPath,
-        rows: await this.readLegacyVectorRows(client)
+        rows: this.readLegacyVectorRows(db)
       }
     } finally {
-      client.close()
+      db.close()
     }
   }
 
-  private async isEmbedjsDatabase(client: Client): Promise<boolean> {
-    const result = await client.execute({
-      sql: "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-      args: [LEGACY_VECTOR_TABLE_NAME]
-    })
+  private isEmbedjsDatabase(db: Database.Database): boolean {
+    const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(LEGACY_VECTOR_TABLE_NAME)
 
-    return result.rows.length > 0
+    return row !== undefined
   }
 
-  private async readLegacyVectorRows(client: Client): Promise<LegacyKnowledgeVectorRow[]> {
-    const result = await client.execute({
-      sql: `SELECT pageContent, uniqueLoaderId, source, vector FROM ${LEGACY_VECTOR_TABLE_NAME}`,
-      args: []
-    })
+  private readLegacyVectorRows(db: Database.Database): LegacyKnowledgeVectorRow[] {
+    const rows = db
+      .prepare(`SELECT pageContent, uniqueLoaderId, source, vector FROM ${LEGACY_VECTOR_TABLE_NAME}`)
+      .all() as Array<Record<string, unknown>>
 
-    return result.rows.map((row) => ({
+    return rows.map((row) => ({
       pageContent: String(row.pageContent ?? ''),
       uniqueLoaderId: String(row.uniqueLoaderId ?? ''),
       source: String(row.source ?? ''),
@@ -89,11 +84,11 @@ export class KnowledgeVectorSourceReader {
     }))
   }
 
-  // libsql F32_BLOB values are not decoded to one stable JS type across
-  // client/runtime combinations. In local verification on macOS this returns
-  // ArrayBuffer, but other environments may expose Float32Array or another
-  // ArrayBufferView, so keep the decoder intentionally permissive.
-  private describeLegacyVectorEncoding(raw: LibsqlValue): string {
+  // The legacy embedjs `vector` BLOB is not decoded to one stable JS type across
+  // runtimes. better-sqlite3 returns a Buffer (an ArrayBufferView), but other
+  // shapes (Float32Array, ArrayBuffer, plain array) may appear, so keep the
+  // decoder intentionally permissive.
+  private describeLegacyVectorEncoding(raw: unknown): string {
     if (raw === null) {
       return 'null'
     }
@@ -109,7 +104,7 @@ export class KnowledgeVectorSourceReader {
     return raw.constructor?.name ?? 'Object'
   }
 
-  private deserializeLegacyVector(raw: LibsqlValue): LegacyKnowledgeVectorDecodeResult {
+  private deserializeLegacyVector(raw: unknown): LegacyKnowledgeVectorDecodeResult {
     if (raw === null || raw === undefined) {
       return { status: 'missing' }
     }
@@ -123,7 +118,7 @@ export class KnowledgeVectorSourceReader {
     }
 
     if (ArrayBuffer.isView(raw)) {
-      const view = raw as ArrayBufferView
+      const view = raw
       return {
         status: 'decoded',
         value: Array.from(

@@ -25,7 +25,6 @@ import type {
   KbGrepOutput,
   KbListOutput,
   KbListOutputItem,
-  KbManageInput,
   KbManageOutput,
   KbReadInput,
   KbReadOutput,
@@ -367,17 +366,13 @@ function conceptLookupError(
  * throws: an out-of-scope base or a service error returns `{ error }`; a missing
  * base maps to a clear "not found" message. `allowedIds` scopes reachable bases.
  */
-async function readTree(
-  baseId: string,
-  options: { maxDepth?: number },
-  allowedIds: string[]
-): Promise<KnowledgeTreeResultOrError> {
+function readTree(baseId: string, options: { maxDepth?: number }, allowedIds: string[]): KnowledgeTreeResultOrError {
   if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
     logger.warn('kb_list (outline mode) targeted a base outside the assistant scope', { baseId, allowedIds })
     return { error: `Knowledge base "${baseId}" is not available to this assistant.` }
   }
   try {
-    const tree = await application.get('KnowledgeService').getOrganizationTree(baseId, options)
+    const tree = application.get('KnowledgeService').getOrganizationTree(baseId, options)
     return {
       baseId: tree.baseId,
       totalItems: tree.totalItems,
@@ -419,6 +414,18 @@ export async function listOrOutlineKnowledge(
 /** Longest a derived note title (its first line) may be before it is truncated. */
 const NOTE_TITLE_MAX_CHARS = 80
 
+/** kb_manage input shape shared by both callers: MCP omits an unused field, AI-SDK strict passes null. */
+type ManageKnowledgeInput = {
+  baseId: string
+  action: 'add' | 'delete' | 'refresh'
+  type?: 'file' | 'url' | 'note' | null
+  path?: string | null
+  url?: string | null
+  content?: string | null
+  title?: string | null
+  conceptIds?: string[] | null
+}
+
 /**
  * Apply a destructive knowledge-base change (add / delete / refresh). Like the
  * read cores it never throws: an out-of-scope base, a missing required field, an
@@ -429,7 +436,7 @@ const NOTE_TITLE_MAX_CHARS = 80
  * executes the mutation unconditionally once invoked.
  */
 export async function manageKnowledge(
-  input: KbManageInput,
+  input: ManageKnowledgeInput,
   allowedIds: string[]
 ): Promise<KnowledgeManageResultOrError> {
   if (allowedIds.length > 0 && !allowedIds.includes(input.baseId)) {
@@ -497,7 +504,7 @@ type AddInputResult = { ok: true; input: KnowledgeAddItemInput; source: string }
  * invalid value (e.g. a non-absolute file path) is rejected before it reaches the
  * filesystem boundary. `source` is the identifier reported back as `added`.
  */
-function buildAddInput(input: KbManageInput): AddInputResult {
+function buildAddInput(input: ManageKnowledgeInput): AddInputResult {
   switch (input.type) {
     case 'file': {
       if (!input.path) {
@@ -544,7 +551,7 @@ function firstNonEmptyLine(content: string): string | undefined {
 }
 
 /** A note's display source: the caller-supplied title, else its first non-empty line (truncated), else a placeholder. */
-function deriveNoteSource(content: string, title?: string): string {
+function deriveNoteSource(content: string, title?: string | null): string {
   const explicit = title?.trim()
   if (explicit) return explicit
   // Truncation here differs by role from deriveSampleSource's note branch (a stored id, plain-clipped;
@@ -561,7 +568,7 @@ async function listKnowledgeBases(
 ): Promise<KnowledgeListResultOrError> {
   try {
     const knowledgeService = application.get('KnowledgeService')
-    const allBases = await knowledgeService.listBases()
+    const allBases = knowledgeService.listBases()
     const scopedBases = allowedIds.length > 0 ? allBases.filter((base) => allowedIds.includes(base.id)) : allBases
 
     // null and undefined both mean "no group filter" — kb_list's nullable input passes null for that.
@@ -620,15 +627,15 @@ export function knowledgeListModelOutput(
   return { type: 'json', value: output }
 }
 
-async function buildOutputItem(
+function buildOutputItem(
   base: KnowledgeBase,
-  knowledgeService: { listRootItems: (id: string) => Promise<KnowledgeItem[]> }
-): Promise<KbListOutputItem> {
+  knowledgeService: { listRootItems: (id: string) => KnowledgeItem[] }
+): KbListOutputItem {
   let rootItems: KnowledgeItem[] = []
   let itemsUnavailable = false
   if (base.status === 'completed') {
     try {
-      rootItems = await knowledgeService.listRootItems(base.id)
+      rootItems = knowledgeService.listRootItems(base.id)
     } catch (error) {
       // A completed base whose items could not be read right now (store busy / closed mid-flight).
       // Flag it in-band instead of returning itemCount:0 — a fabricated 0 with empty sampleSources is

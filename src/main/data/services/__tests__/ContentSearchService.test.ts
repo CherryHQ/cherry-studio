@@ -63,10 +63,10 @@ describe('ContentSearchService', () => {
   })
 
   it('runs every source by default and returns grouped cursors', async () => {
-    topicSearchMock.mockResolvedValueOnce({ items: [topicItem], nextCursor: '200:topic-message-1' })
-    sessionSearchMock.mockResolvedValueOnce({ items: [sessionItem], nextCursor: '300:session-message-1' })
+    topicSearchMock.mockReturnValueOnce({ items: [topicItem], nextCursor: '200:topic-message-1' })
+    sessionSearchMock.mockReturnValueOnce({ items: [sessionItem], nextCursor: '300:session-message-1' })
 
-    const result = await service.search(
+    const result = service.search(
       ContentSearchQuerySchema.parse({
         q: '  needle  ',
         limitPerSource: 2,
@@ -96,9 +96,9 @@ describe('ContentSearchService', () => {
   })
 
   it('runs only the requested source for single-group load more', async () => {
-    sessionSearchMock.mockResolvedValueOnce({ items: [sessionItem], nextCursor: undefined })
+    sessionSearchMock.mockReturnValueOnce({ items: [sessionItem], nextCursor: undefined })
 
-    const result = await service.search(
+    const result = service.search(
       ContentSearchQuerySchema.parse({
         q: 'needle',
         sources: ['session-message'],
@@ -120,10 +120,10 @@ describe('ContentSearchService', () => {
   })
 
   it('passes only the matching source filter to each adapter', async () => {
-    topicSearchMock.mockResolvedValueOnce({ items: [topicItem], nextCursor: undefined })
-    sessionSearchMock.mockResolvedValueOnce({ items: [sessionItem], nextCursor: undefined })
+    topicSearchMock.mockReturnValueOnce({ items: [topicItem], nextCursor: undefined })
+    sessionSearchMock.mockReturnValueOnce({ items: [sessionItem], nextCursor: undefined })
 
-    await service.search(
+    service.search(
       ContentSearchQuerySchema.parse({
         q: 'needle',
         filters: {
@@ -150,10 +150,10 @@ describe('ContentSearchService', () => {
   })
 
   it('passes only the matching per-source cursor to each adapter', async () => {
-    topicSearchMock.mockResolvedValueOnce({ items: [topicItem], nextCursor: undefined })
-    sessionSearchMock.mockResolvedValueOnce({ items: [sessionItem], nextCursor: undefined })
+    topicSearchMock.mockReturnValueOnce({ items: [topicItem], nextCursor: undefined })
+    sessionSearchMock.mockReturnValueOnce({ items: [sessionItem], nextCursor: undefined })
 
-    await service.search(
+    service.search(
       ContentSearchQuerySchema.parse({
         q: 'needle',
         cursors: { 'topic-message': '200:topic-message-1' }
@@ -175,9 +175,9 @@ describe('ContentSearchService', () => {
   })
 
   it('clamps direct service limitPerSource above the maximum', async () => {
-    topicSearchMock.mockResolvedValueOnce({ items: [topicItem], nextCursor: undefined })
+    topicSearchMock.mockReturnValueOnce({ items: [topicItem], nextCursor: undefined })
 
-    await service.search({
+    service.search({
       q: 'needle',
       sources: ['topic-message'],
       limitPerSource: CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE + 1
@@ -192,11 +192,12 @@ describe('ContentSearchService', () => {
   })
 
   it('reports malformed cursors on the source-specific cursor field', async () => {
-    topicSearchMock.mockRejectedValueOnce(
-      DataApiErrorFactory.validation({ cursor: ['must be a valid message cursor'] }, 'Invalid message cursor')
-    )
+    topicSearchMock.mockImplementationOnce(() => {
+      throw DataApiErrorFactory.validation({ cursor: ['must be a valid message cursor'] }, 'Invalid message cursor')
+    })
 
-    await expect(
+    let err: unknown
+    try {
       service.search(
         ContentSearchQuerySchema.parse({
           q: 'needle',
@@ -204,7 +205,10 @@ describe('ContentSearchService', () => {
           cursors: { 'topic-message': 'not-a-cursor' }
         })
       )
-    ).rejects.toMatchObject({
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({
       code: 'VALIDATION_ERROR',
       message: 'Invalid message cursor',
       details: {
@@ -216,20 +220,29 @@ describe('ContentSearchService', () => {
   })
 
   it('fails the full query with source context when a source has a non-cursor error', async () => {
-    topicSearchMock.mockRejectedValueOnce(new Error('database is busy'))
-    sessionSearchMock.mockResolvedValueOnce({ items: [sessionItem], nextCursor: undefined })
+    topicSearchMock.mockImplementationOnce(() => {
+      throw new Error('database is busy')
+    })
+    sessionSearchMock.mockReturnValueOnce({ items: [sessionItem], nextCursor: undefined })
 
-    await expect(
+    let err: unknown
+    try {
       service.search(
         ContentSearchQuerySchema.parse({
           q: 'needle'
         })
       )
-    ).rejects.toMatchObject({
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({
       code: 'INTERNAL_SERVER_ERROR',
       message: expect.stringContaining('content search source topic-message')
     })
 
-    expect(sessionSearchMock).toHaveBeenCalled()
+    // Sync federated search fails fast: the first failing source (topic-message) short-circuits
+    // the source loop, so later sources are not attempted — the query still fails as a whole
+    // with source context, without wasting DB work on the remaining sources.
+    expect(sessionSearchMock).not.toHaveBeenCalled()
   })
 })

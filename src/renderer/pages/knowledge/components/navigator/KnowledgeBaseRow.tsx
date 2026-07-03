@@ -6,8 +6,6 @@ import { ArrowRightLeft, MoreHorizontal, PencilLine, Trash2 } from 'lucide-react
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import KnowledgeBaseIcon from '../KnowledgeBaseIcon'
-import { statusDotClassNames } from '../statusStyles'
 import type { KnowledgeBaseRowProps } from './types'
 
 const KnowledgeBaseRow = ({
@@ -24,8 +22,6 @@ const KnowledgeBaseRow = ({
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const availableGroups = useMemo(() => groups.filter((group) => group.id !== base.groupId), [base.groupId, groups])
   const canMoveToUngrouped = base.groupId !== null
-  const statusLabelKey = `knowledge.status.${base.status}` as const
-  const statusLabel = t(statusLabelKey)
 
   const handleMoveBase = useCallback(
     async (groupId: string | null) => {
@@ -104,26 +100,15 @@ const KnowledgeBaseRow = ({
         <div className="group/kb group relative w-full">
           <div
             className={cn(
-              'grid min-h-11 w-full grid-cols-[minmax(0,1fr)_1.75rem] items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-colors',
+              'grid w-full grid-cols-[minmax(0,1fr)_1.75rem] items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-colors',
               selected ? 'bg-secondary' : 'hover:bg-accent'
             )}>
             <Button
               type="button"
               variant="ghost"
               onClick={() => onSelectBase(base.id)}
-              className="grid min-h-0 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center justify-start gap-2.5 rounded-lg p-0 text-left shadow-none hover:bg-transparent">
-              <KnowledgeBaseIcon />
-
-              <div className="min-w-0">
-                <div className="truncate font-medium text-foreground text-sm leading-5">{base.name}</div>
-                <div className="flex min-w-0 items-center gap-1.5 text-foreground-muted text-xs leading-4">
-                  <span className="truncate">{t('knowledge.meta.documents_count', { count: base.itemCount })}</span>
-                  <span
-                    className={cn('size-1.5 shrink-0 rounded-full', statusDotClassNames[base.status])}
-                    aria-label={statusLabel}
-                  />
-                </div>
-              </div>
+              className="flex min-h-0 min-w-0 items-center justify-start rounded-lg p-0 text-left shadow-none hover:bg-transparent">
+              <div className="min-w-0 truncate font-medium text-foreground text-sm leading-5">{base.name}</div>
             </Button>
 
             <CommandPopupMenu

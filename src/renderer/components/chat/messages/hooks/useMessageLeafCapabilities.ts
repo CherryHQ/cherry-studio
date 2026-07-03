@@ -1,6 +1,5 @@
 import { useQuery } from '@data/hooks/useDataApi'
 import type { MessageListActions, MessageListState } from '@renderer/components/chat/messages/types'
-import { containsInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import type { FileMetadata } from '@renderer/types/file'
@@ -49,14 +48,6 @@ function isMcpToolPart(part: CherryMessagePart): boolean {
   const cherry = isRecord(providerMetadata?.cherry) ? providerMetadata.cherry : undefined
   const tool = isRecord(cherry?.tool) ? cherry.tool : undefined
   return tool?.type === 'mcp'
-}
-
-function hasExternalEditorPathHint(part: CherryMessagePart): boolean {
-  const partType = (part as { type?: string }).type
-  if (partType === 'dynamic-tool' || !!partType?.startsWith('tool-')) return true
-  if (partType !== 'text') return false
-
-  return containsInlineFilePath((part as { text?: string }).text)
 }
 
 function fileMetadataToHandle(file: FileMetadata): FileHandle {
@@ -111,12 +102,8 @@ export function useMessageLeafCapabilities({
     () => Object.values(partsByMessageId).some((parts) => parts.some(isMcpToolPart)),
     [partsByMessageId]
   )
-  const hasExternalEditorPathHints = useMemo(
-    () => Object.values(partsByMessageId).some((parts) => parts.some(hasExternalEditorPathHint)),
-    [partsByMessageId]
-  )
   const { data: mcpServersData } = useQuery('/mcp-servers', { enabled: hasMcpToolParts })
-  const { data: externalApps } = useExternalApps({ enabled: hasExternalEditorPathHints })
+  const { data: externalApps } = useExternalApps()
   const mcpServers = useMemo(() => mcpServersData?.items ?? [], [mcpServersData])
   const externalCodeEditors = useMemo(
     () => externalApps?.filter((app) => app.tags.includes('code-editor')) ?? [],

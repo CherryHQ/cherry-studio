@@ -69,7 +69,7 @@ describe('AgentChannelWorkflowService', () => {
   describe('createChannel', () => {
     it('returns the channel when syncChannel succeeds', async () => {
       const channel = makeChannel()
-      createChannelMock.mockResolvedValue(channel)
+      createChannelMock.mockReturnValue(channel)
       syncChannelMock.mockResolvedValue(undefined)
 
       const result = await agentChannelWorkflowService.createChannel({
@@ -85,9 +85,9 @@ describe('AgentChannelWorkflowService', () => {
 
     it('deletes DB row and calls disconnectChannel when syncChannel throws', async () => {
       const channel = makeChannel()
-      createChannelMock.mockResolvedValue(channel)
+      createChannelMock.mockReturnValue(channel)
       syncChannelMock.mockRejectedValue(new Error('sync failed'))
-      deleteChannelMock.mockResolvedValue(true)
+      deleteChannelMock.mockReturnValue(true)
       disconnectChannelMock.mockResolvedValue(undefined)
 
       await expect(
@@ -105,9 +105,11 @@ describe('AgentChannelWorkflowService', () => {
 
     it('still throws even if cleanup deleteChannel fails', async () => {
       const channel = makeChannel()
-      createChannelMock.mockResolvedValue(channel)
+      createChannelMock.mockReturnValue(channel)
       syncChannelMock.mockRejectedValue(new Error('sync failed'))
-      deleteChannelMock.mockRejectedValue(new Error('cleanup failed'))
+      deleteChannelMock.mockImplementation(() => {
+        throw new Error('cleanup failed')
+      })
       disconnectChannelMock.mockResolvedValue(undefined)
 
       await expect(
@@ -123,7 +125,7 @@ describe('AgentChannelWorkflowService', () => {
 
   describe('updateChannel', () => {
     it('returns null when channel does not exist', async () => {
-      getChannelMock.mockResolvedValue(null)
+      getChannelMock.mockReturnValue(null)
 
       const result = await agentChannelWorkflowService.updateChannel('nonexistent', { name: 'New Name' })
 
@@ -133,8 +135,8 @@ describe('AgentChannelWorkflowService', () => {
 
     it('returns null when row vanishes mid-update', async () => {
       const existing = makeChannel()
-      getChannelMock.mockResolvedValue(existing)
-      updateChannelMock.mockResolvedValue(null)
+      getChannelMock.mockReturnValue(existing)
+      updateChannelMock.mockReturnValue(null)
 
       const result = await agentChannelWorkflowService.updateChannel('ch-1', { name: 'New Name' })
 
@@ -145,8 +147,8 @@ describe('AgentChannelWorkflowService', () => {
     it('returns updated channel when syncChannel succeeds', async () => {
       const existing = makeChannel()
       const updated = makeChannel({ name: 'New Name' })
-      getChannelMock.mockResolvedValue(existing)
-      updateChannelMock.mockResolvedValue(updated)
+      getChannelMock.mockReturnValue(existing)
+      updateChannelMock.mockReturnValue(updated)
       syncChannelMock.mockResolvedValue(undefined)
 
       const result = await agentChannelWorkflowService.updateChannel('ch-1', { name: 'New Name' })
@@ -157,9 +159,9 @@ describe('AgentChannelWorkflowService', () => {
     it('restores all fields (name/agentId/sessionId/config/isActive/activeChatIds/permissionMode) when syncChannel throws', async () => {
       const existing = makeChannel()
       const updated = makeChannel({ name: 'New Name' })
-      getChannelMock.mockResolvedValue(existing)
+      getChannelMock.mockReturnValue(existing)
       // First call (real update) succeeds, second call (restore) also resolves
-      updateChannelMock.mockResolvedValueOnce(updated).mockResolvedValueOnce(existing)
+      updateChannelMock.mockReturnValueOnce(updated).mockReturnValueOnce(existing)
       syncChannelMock.mockRejectedValue(new Error('sync failed'))
 
       await expect(agentChannelWorkflowService.updateChannel('ch-1', { name: 'New Name' })).rejects.toThrow(
@@ -194,7 +196,7 @@ describe('AgentChannelWorkflowService', () => {
 
     it('rejects discord-shaped config when existing channel is telegram (cross-type guard)', async () => {
       const existing = makeChannel({ type: 'telegram', config: { bot_token: 'tok' } })
-      getChannelMock.mockResolvedValue(existing)
+      getChannelMock.mockReturnValue(existing)
 
       // Discord shape carries `allowed_channel_ids`; telegram strictObject only knows
       // `bot_token` + `allowed_chat_ids`, so a discord-shaped config posted to a
@@ -212,7 +214,7 @@ describe('AgentChannelWorkflowService', () => {
 
     it('rejects wrong-typed config values for the existing channel type', async () => {
       const existing = makeChannel({ type: 'telegram', config: { bot_token: 'tok' } })
-      getChannelMock.mockResolvedValue(existing)
+      getChannelMock.mockReturnValue(existing)
 
       // No union member of UpdateAgentChannelSchema.config accepts a numeric
       // bot_token, so the body has to be cast through `unknown` to reach the
@@ -230,7 +232,7 @@ describe('AgentChannelWorkflowService', () => {
     it('rejects activation when active-only constraints are not satisfied', async () => {
       // Telegram active schema enforces `bot_token: z.string().min(1)`; an empty string on activation should fail.
       const existing = makeChannel({ type: 'telegram', isActive: false, config: { bot_token: '' } })
-      getChannelMock.mockResolvedValue(existing)
+      getChannelMock.mockReturnValue(existing)
 
       await expect(
         agentChannelWorkflowService.updateChannel('ch-1', {
@@ -246,8 +248,8 @@ describe('AgentChannelWorkflowService', () => {
     it('calls resync (without awaitConnect) after rollback', async () => {
       const existing = makeChannel()
       const updated = makeChannel({ name: 'Changed' })
-      getChannelMock.mockResolvedValue(existing)
-      updateChannelMock.mockResolvedValueOnce(updated).mockResolvedValueOnce(existing)
+      getChannelMock.mockReturnValue(existing)
+      updateChannelMock.mockReturnValueOnce(updated).mockReturnValueOnce(existing)
       syncChannelMock.mockRejectedValue(new Error('sync failed'))
 
       await expect(agentChannelWorkflowService.updateChannel('ch-1', { name: 'Changed' })).rejects.toThrow(
@@ -263,7 +265,7 @@ describe('AgentChannelWorkflowService', () => {
 
   describe('deleteChannel', () => {
     it('returns false when channel does not exist', async () => {
-      getChannelMock.mockResolvedValue(null)
+      getChannelMock.mockReturnValue(null)
 
       const result = await agentChannelWorkflowService.deleteChannel('nonexistent')
 
@@ -273,9 +275,9 @@ describe('AgentChannelWorkflowService', () => {
 
     it('returns true when disconnect and delete both succeed', async () => {
       const existing = makeChannel()
-      getChannelMock.mockResolvedValue(existing)
+      getChannelMock.mockReturnValue(existing)
       disconnectChannelMock.mockResolvedValue(undefined)
-      deleteChannelMock.mockResolvedValue(true)
+      deleteChannelMock.mockReturnValue(true)
 
       const result = await agentChannelWorkflowService.deleteChannel('ch-1')
 
@@ -285,9 +287,11 @@ describe('AgentChannelWorkflowService', () => {
 
     it('runs resync compensation when disconnect succeeded but DB delete failed', async () => {
       const existing = makeChannel()
-      getChannelMock.mockResolvedValue(existing)
+      getChannelMock.mockReturnValue(existing)
       disconnectChannelMock.mockResolvedValue(undefined)
-      deleteChannelMock.mockRejectedValue(new Error('db delete failed'))
+      deleteChannelMock.mockImplementation(() => {
+        throw new Error('db delete failed')
+      })
       syncChannelMock.mockResolvedValue(undefined)
 
       await expect(agentChannelWorkflowService.deleteChannel('ch-1')).rejects.toThrow('db delete failed')
@@ -297,9 +301,11 @@ describe('AgentChannelWorkflowService', () => {
 
     it('still throws even if the resync compensation also fails', async () => {
       const existing = makeChannel()
-      getChannelMock.mockResolvedValue(existing)
+      getChannelMock.mockReturnValue(existing)
       disconnectChannelMock.mockResolvedValue(undefined)
-      deleteChannelMock.mockRejectedValue(new Error('db delete failed'))
+      deleteChannelMock.mockImplementation(() => {
+        throw new Error('db delete failed')
+      })
       syncChannelMock.mockRejectedValue(new Error('resync failed'))
 
       await expect(agentChannelWorkflowService.deleteChannel('ch-1')).rejects.toThrow('db delete failed')

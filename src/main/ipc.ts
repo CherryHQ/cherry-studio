@@ -11,8 +11,9 @@ import {
   listDirectoryEntries as searchListDirectoryEntries
 } from '@main/services/file/tree/search'
 import { regionService } from '@main/services/RegionService'
+import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { extractPdfText } from '@main/utils/pdf'
-import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
+import { runInstallScript } from '@main/utils/processRunner'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@shared/types/notification'
@@ -494,7 +495,7 @@ export async function registerIpc() {
       ) {
         return { success: false, error: 'Invalid toggle options' }
       }
-      const data = await skillService.toggle(options)
+      const data = skillService.toggle(options)
       return { success: true, data }
     } catch (error) {
       logger.error('Failed to toggle skill', { options, error })

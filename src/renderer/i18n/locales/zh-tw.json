@@ -1333,12 +1333,14 @@
       "add": "新增標籤",
       "delete": "刪除標籤",
       "deleteConfirm": "確定要刪除這個標籤嗎？",
+      "group_by": "依標籤分組",
       "manage": "標籤管理",
       "modify": "修改標籤",
       "none": "暫無標籤",
       "settings": {
         "title": "標籤設定"
       },
+      "ungroup": "關閉標籤分組",
       "untagged": "未分組"
     },
     "title": "助手",
@@ -1599,6 +1601,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "快取 {{hit_rate}}%",
+        "tooltip": "快取讀取 {{cache_read}} / 寫入 {{cache_write}} / 未快取 {{no_cache}} · 節省 {{saved}} 輸入 Token"
+      },
       "editing_current": "此訊息正在編輯器中編輯",
       "flow": {
         "branches": "分支",
@@ -2534,6 +2540,7 @@
       "no_match_description": "目前篩選條件下沒有檔案",
       "no_match_title": "找不到符合的檔案"
     },
+    "empty_trash": "清空回收站",
     "error": {
       "delete_failed": "刪除檔案失敗",
       "delete_partial_failed": "部分檔案刪除失敗",
@@ -2551,6 +2558,7 @@
     "missing": "缺失",
     "modified_at": "修改時間",
     "name": "名稱",
+    "no_actions": "暫無可用操作",
     "open": "開啟",
     "other": "其他",
     "permanent_delete": "永久刪除",
@@ -2564,13 +2572,18 @@
     "remove_from_library": "從庫中移除",
     "rename": "重新命名",
     "restore": "還原",
+    "select_all": "全選目前列表",
+    "select_all_short": "全選",
+    "select_file": "選取 {{name}}",
     "selected_count": "已選取 {{count}} 個檔案",
+    "selected_missing_hint": "所選檔案中有缺失檔案，只能定位或移除記錄",
     "show_in_folder": "在檔案夾中顯示",
     "size": "大小",
     "text": "文字",
     "title": "檔案",
     "trash": "回收站",
     "type": "類型",
+    "upload": "上傳檔案",
     "video": "影片"
   },
   "globalSearch": {
@@ -2954,7 +2967,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} 資料來源",
-      "documents_count": "{{count}} 文档",
       "updated_at": "更新於 {{time}}"
     },
     "name_required": "知识库名称为必填项",
@@ -3086,8 +3098,8 @@
     "apps": "應用",
     "minapps": "小程式",
     "miniApps": "小程式",
-    "pin_to_sidebar": "固定到側邊欄",
-    "unpin_from_sidebar": "取消固定"
+    "pin_to_sidebar": "新增到側邊欄",
+    "unpin_from_sidebar": "從側邊欄移除"
   },
   "library": {
     "action": {
@@ -4922,6 +4934,7 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -4939,6 +4952,7 @@
     "tencent-cloud-ti": "騰訊雲 TI",
     "tesseract": "Tesseract",
     "together": "Together",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "天翼雲息壤",

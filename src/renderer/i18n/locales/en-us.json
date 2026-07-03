@@ -1333,12 +1333,14 @@
       "add": "Add Tag",
       "delete": "Delete Tag",
       "deleteConfirm": "Are you sure to delete this tag?",
+      "group_by": "Group by tag",
       "manage": "Tag Management",
       "modify": "Modify Tag",
       "none": "No tags",
       "settings": {
         "title": "Tag Settings"
       },
+      "ungroup": "Turn off tag grouping",
       "untagged": "Untagged"
     },
     "title": "Assistants",
@@ -1599,6 +1601,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "Cache {{hit_rate}}%",
+        "tooltip": "Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "This message is being edited in the composer",
       "flow": {
         "branches": "branches",
@@ -2534,6 +2540,7 @@
       "no_match_description": "No files match the current filters",
       "no_match_title": "No matching files found"
     },
+    "empty_trash": "Empty trash",
     "error": {
       "delete_failed": "Failed to delete files",
       "delete_partial_failed": "Some files could not be deleted",
@@ -2551,6 +2558,7 @@
     "missing": "Missing",
     "modified_at": "Modified At",
     "name": "Name",
+    "no_actions": "No actions available",
     "open": "Open",
     "other": "Other",
     "permanent_delete": "Permanently delete",
@@ -2564,13 +2572,18 @@
     "remove_from_library": "Remove from library",
     "rename": "Rename",
     "restore": "Restore",
+    "select_all": "Select visible files",
+    "select_all_short": "Select All",
+    "select_file": "Select {{name}}",
     "selected_count": "{{count}} files selected",
+    "selected_missing_hint": "Some selected files are missing. Locate them or remove their records.",
     "show_in_folder": "Show in folder",
     "size": "Size",
     "text": "Text",
     "title": "Files",
     "trash": "Trash",
     "type": "Type",
+    "upload": "Upload files",
     "video": "Video"
   },
   "globalSearch": {
@@ -2954,7 +2967,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} sources",
-      "documents_count": "{{count}} documents",
       "updated_at": "Updated {{time}}"
     },
     "name_required": "Knowledge base name is required",
@@ -3086,8 +3098,8 @@
     "apps": "Apps",
     "minapps": "Minapps",
     "miniApps": "MiniApps",
-    "pin_to_sidebar": "Pin to sidebar",
-    "unpin_from_sidebar": "Unpin from sidebar"
+    "pin_to_sidebar": "Add to Sidebar",
+    "unpin_from_sidebar": "Remove from Sidebar"
   },
   "library": {
     "action": {
@@ -3312,9 +3324,9 @@
         "stream_output": "Stream output",
         "tag_empty": "No tags available",
         "tag_hint": "To add a new tag, use the \"+ Tag\" entry in the library top bar",
-        "tag_placeholder": "Select tags",
+        "tag_placeholder": "Select tag",
         "tag_search": "Search tags",
-        "tags": "Tags",
+        "tags": "Tag",
         "temperature": "Temperature",
         "title": "Basic settings",
         "top_p": "Top-P",
@@ -4922,6 +4934,7 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -4939,6 +4952,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Tesseract",
     "together": "Together",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",
