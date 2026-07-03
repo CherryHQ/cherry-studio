@@ -479,15 +479,6 @@ const createGroup = (overrides: Partial<Group> = {}): Group => ({
   ...overrides
 })
 
-const getBaseMoreButton = (baseName: string) => {
-  const baseRow = screen.getByRole('button', { name: new RegExp(baseName) }).parentElement
-  if (!baseRow) {
-    throw new Error(`Missing base row for ${baseName}`)
-  }
-
-  return within(baseRow).getByRole('button', { name: '更多' })
-}
-
 const getGroupMoreButton = (groupName: string) => {
   const groupTrigger = screen.getByRole('button', { name: new RegExp(groupName) })
   const groupRow = groupTrigger.parentElement?.parentElement
@@ -787,7 +778,7 @@ describe('BaseNavigator', () => {
     expect(screen.getByRole('button', { name: '删除知识库' })).toBeInTheDocument()
   })
 
-  it('opens the knowledge base menu from the trailing action button', () => {
+  it('opens the knowledge base menu on right click', () => {
     render(
       <BaseNavigator
         bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })]}
@@ -806,7 +797,7 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.click(getBaseMoreButton('Alpha'))
+    fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }), { clientX: 240, clientY: 320 })
 
     expect(screen.getByRole('button', { name: '重命名' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: '删除知识库' })).toBeInTheDocument()
@@ -857,7 +848,7 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.click(getBaseMoreButton('Alpha'))
+    fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }), { clientX: 240, clientY: 320 })
     fireEvent.click(screen.getByRole('button', { name: '重命名' }))
 
     await waitFor(() => {
@@ -1067,7 +1058,9 @@ describe('BaseNavigator', () => {
     )
 
     expect(screen.getByText('默认')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: '更多' })).toHaveLength(1)
+    // The default group has no menu trigger, and base rows expose their actions
+    // only through the right-click context menu — so no "更多" button is rendered.
+    expect(screen.queryByRole('button', { name: '更多' })).not.toBeInTheDocument()
   })
 
   it('filters visible sections and rows when the search value changes', () => {

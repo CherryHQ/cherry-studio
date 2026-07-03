@@ -139,6 +139,25 @@ describe('useKnowledgeRagConfig', () => {
     })
   })
 
+  it('includes an explicit embedding model override in the patch body', async () => {
+    const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
+
+    await act(async () => {
+      await result.current.save(result.current.initialValues, {
+        embeddingModelId: 'voyage::voyage-3-large',
+        dimensions: 2048
+      })
+    })
+
+    expect(mockTrigger).toHaveBeenCalledWith({
+      params: { id: 'base-1' },
+      body: {
+        embeddingModelId: 'voyage::voyage-3-large',
+        dimensions: 2048
+      }
+    })
+  })
+
   it('propagates save failures to the caller', async () => {
     const saveError = new Error('save failed')
     mockTrigger.mockRejectedValueOnce(saveError)
