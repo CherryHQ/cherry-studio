@@ -3427,7 +3427,7 @@
       "updated_at": "最近更新"
     },
     "skill_marketplace": {
-      "empty_description": "搜尋線上技能源,尋找可安裝的 Claude 技能。",
+      "empty_description": "搜尋線上技能來源，尋找可安裝的技能。",
       "empty_title": "搜尋技能",
       "no_results_description": "請嘗試其他關鍵字,或本機匯入 ZIP 檔案/目錄。",
       "no_results_title": "未找到技能",
