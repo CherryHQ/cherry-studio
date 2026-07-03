@@ -40,7 +40,6 @@ import { ProtocolService } from '@main/services/protocol/ProtocolService'
 import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
-import { SearchService } from '@main/services/SearchService'
 import { SelectionService } from '@main/services/selection/SelectionService'
 import { SettingsWindowService } from '@main/services/SettingsWindowService'
 import { ShortcutService } from '@main/services/ShortcutService'
@@ -117,7 +116,6 @@ export const services = {
   McpCatalogService,
   BinaryManager,
   OpenClawService,
-  SearchService,
   AgentSessionRuntimeService,
   AgentJobsService,
   ChannelManager,

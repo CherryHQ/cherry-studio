@@ -128,8 +128,6 @@ describe('CherryInOauthService', () => {
 
     const ipcHandle = (cherryInOauthService as any).ipcHandle as ReturnType<typeof vi.fn>
     expect(ipcHandle.mock.calls.map(([channel]) => channel)).toEqual([
-      'cherryin:save-token',
-      'cherryin:has-token',
       'cherryin:get-balance',
       'cherryin:logout',
       'cherryin:start-oauth-flow'

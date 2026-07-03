@@ -2826,7 +2826,7 @@
       "chunk_size_invalid": "Chunk size must be greater than 0",
       "chunking": "Chunking",
       "default_separator": "Auto (recommended)",
-      "document_count": "Requested Chunks (Top K)",
+      "document_count": "Top K",
       "embedding_model": "Embedding Model",
       "embedding_model_select": "Model Selection",
       "file_processing": "File Processing",
@@ -2907,7 +2907,7 @@
     "subtitle_file": "subtitle file",
     "tabs": {
       "data_source": "Data Sources",
-      "rag_config": "RAG Config",
+      "rag_config": "Knowledge Base Settings",
       "recall_test": "Recall Test"
     },
     "title": "Knowledge Base",
