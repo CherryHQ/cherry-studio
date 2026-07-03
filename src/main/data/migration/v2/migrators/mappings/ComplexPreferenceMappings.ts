@@ -19,7 +19,11 @@
  */
 
 import { loggerService } from '@logger'
-import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
+import {
+  SIDEBAR_FAVORITES,
+  type SidebarFavorite,
+  type SidebarFavoriteItem
+} from '@shared/data/preference/preferenceTypes'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import {
@@ -39,18 +43,7 @@ import {
 
 const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
 
-const SUPPORTED_SIDEBAR_FAVORITES = new Set<SidebarFavorite>([
-  'assistants',
-  'agents',
-  'paintings',
-  'translate',
-  'mini_app',
-  'knowledge',
-  'files',
-  'code_tools',
-  'notes',
-  'openclaw'
-])
+const SUPPORTED_SIDEBAR_FAVORITES = new Set<SidebarFavorite>(SIDEBAR_FAVORITES)
 
 function isSupportedSidebarFavorite(value: unknown): value is SidebarFavorite {
   return typeof value === 'string' && SUPPORTED_SIDEBAR_FAVORITES.has(value as SidebarFavorite)
