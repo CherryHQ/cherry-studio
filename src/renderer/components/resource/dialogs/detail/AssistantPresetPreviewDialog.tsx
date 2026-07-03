@@ -51,6 +51,7 @@ export function AssistantPresetPreviewDialog({
       {/* Fixed height + a single scroll region (the body). The prompt block must NOT scroll on its
           own, or the dialog shows nested scrollbars. */}
       <DialogContent
+        closeOnOverlayClick={!adding}
         size="xl"
         className="flex h-[min(600px,76vh)] flex-col gap-0 overflow-hidden p-0"
         onPointerDownOutside={(event) => adding && event.preventDefault()}>

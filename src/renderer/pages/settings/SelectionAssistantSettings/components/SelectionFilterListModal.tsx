@@ -34,7 +34,10 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="sm:max-w-130" onPointerDownOutside={(e) => e.preventDefault()}>
+      <DialogContent
+        closeOnOverlayClick={false}
+        className="sm:max-w-130"
+        onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{t('selection.settings.filter_modal.title')}</DialogTitle>
         </DialogHeader>

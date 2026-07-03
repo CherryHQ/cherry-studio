@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 // wiring doesn't fire onOpenChange reliably under jsdom).
 const dialog = vi.hoisted(() => ({
   onOpenChange: undefined as ((open: boolean) => void) | undefined,
+  closeOnOverlayClick: undefined as boolean | undefined,
   onPointerDownOutside: undefined as
     | ((event: { defaultPrevented: boolean; preventDefault: () => void }) => void)
     | undefined,
@@ -53,13 +54,16 @@ vi.mock('@cherrystudio/ui', async () => {
   const DialogContent = function DialogContent({
     ref,
     children,
+    closeOnOverlayClick,
     onPointerDownOutside
   }: {
     children: ReactNode
+    closeOnOverlayClick?: boolean
     onPointerDownOutside?: (event: { defaultPrevented: boolean; preventDefault: () => void }) => void
   } & { ref?: TestDialogRef }) {
     const nodeRef = React.useRef<HTMLDivElement | null>(null)
     dialog.renderCount += 1
+    dialog.closeOnOverlayClick = closeOnOverlayClick
     dialog.onPointerDownOutside = onPointerDownOutside
 
     React.useLayoutEffect(() => {
@@ -126,6 +130,7 @@ const CREATE = 'library.config.dialogs.create.submit'
 afterEach(() => {
   cleanup()
   dialog.onOpenChange = undefined
+  dialog.closeOnOverlayClick = undefined
   dialog.onPointerDownOutside = undefined
   dialog.renderCount = 0
 })
@@ -149,8 +154,9 @@ describe('ResourceCreateWizard close protection', () => {
     await user.click(screen.getByRole('button', { name: CREATE }))
     expect(onSubmit).toHaveBeenCalledTimes(1)
 
-    // In flight: pointer-down-outside is prevented, and the
+    // In flight: overlay click is disabled, pointer-down-outside is prevented, and the
     // dialog refuses to forward a close — even though the parent's isSubmitting is still false.
+    expect(dialog.closeOnOverlayClick).toBe(false)
     let prevented = false
     dialog.onPointerDownOutside?.({ defaultPrevented: false, preventDefault: () => (prevented = true) })
     expect(prevented).toBe(true)
@@ -162,6 +168,7 @@ describe('ResourceCreateWizard close protection', () => {
       resolveSubmit()
       await submitPromise
     })
+    expect(dialog.closeOnOverlayClick).toBe(true)
     dialog.onOpenChange?.(false)
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })

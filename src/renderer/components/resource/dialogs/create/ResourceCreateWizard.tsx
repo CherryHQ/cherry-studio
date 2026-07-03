@@ -207,6 +207,7 @@ export function ResourceCreateWizard({
     <Dialog open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>
       <DialogContent
         ref={setDialogContentElement}
+        closeOnOverlayClick={!submitting}
         size="xl"
         className="flex h-[min(600px,76vh)] flex-col gap-0 p-0"
         onPointerDownOutside={(event) => submitting && event.preventDefault()}>

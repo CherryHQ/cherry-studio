@@ -127,6 +127,7 @@ const PopupContainer: React.FC<Props> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={closable}
+        closeOnOverlayClick={maskClosable}
         className={cn(shouldUseCustomWidth && 'sm:max-w-none', rootClassName, className)}
         style={getContentStyle({ ...rest, styles, width })}
         onEscapeKeyDown={(event) => {

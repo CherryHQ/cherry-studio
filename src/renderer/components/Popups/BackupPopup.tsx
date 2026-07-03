@@ -87,7 +87,10 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
-      <DialogContent className="sm:max-w-[520px]" onPointerDownOutside={(event) => event.preventDefault()}>
+      <DialogContent
+        closeOnOverlayClick={false}
+        className="sm:max-w-[520px]"
+        onPointerDownOutside={(event) => event.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
