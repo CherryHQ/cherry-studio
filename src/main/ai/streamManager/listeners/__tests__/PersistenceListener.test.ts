@@ -109,7 +109,10 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
         totalTokens: 42,
         promptTokens: 30,
         completionTokens: 12,
-        thoughtsTokens: 3
+        thoughtsTokens: 3,
+        noCacheTokens: 4,
+        cacheReadTokens: 20,
+        cacheWriteTokens: 6
       }
     } as unknown as CherryUIMessage
 
@@ -118,12 +121,14 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(appendMessageMock).toHaveBeenCalledTimes(1)
     const payload = appendMessageMock.mock.calls[0][1]
     // statsFromTerminal projects 1:1 from UIMessage.metadata to MessageStats.
-    // Cache/breakdown fields are tracked in the MessageStats redesign TODO.
     expect(payload.stats).toEqual({
       totalTokens: 42,
       promptTokens: 30,
       completionTokens: 12,
-      thoughtsTokens: 3
+      thoughtsTokens: 3,
+      noCacheTokens: 4,
+      cacheReadTokens: 20,
+      cacheWriteTokens: 6
     })
   })
 

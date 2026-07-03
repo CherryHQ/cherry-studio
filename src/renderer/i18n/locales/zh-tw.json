@@ -340,7 +340,7 @@
       "welcome_title": "今天我們該談些什麼？"
     },
     "input": {
-      "placeholder": "在這裡輸入您的訊息，使用 {{key}} 傳送 - @ 選擇路徑，/ 選擇命令",
+      "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 搜尋路徑或指令",
       "soul_placeholder": "幫我連接微信"
     },
     "list": {
@@ -1495,7 +1495,7 @@
       "paste_text_file": "貼到輸入框",
       "pasted_text_file_name": "已貼上的文字.txt",
       "pause": "暫停",
-      "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
+      "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 選擇工具或操作",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
       "resource_panel": {
         "categories": {
@@ -1506,7 +1506,7 @@
         "description": "從檔案、智能體或技能中選擇",
         "loading": "載入中...",
         "no_file_found": {
-          "description": "可存取目錄中無可用檔案",
+          "description": "目前工作區沒有可搜尋的檔案",
           "label": "找不到檔案"
         },
         "no_items_found": {
@@ -1601,6 +1601,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "快取 {{hit_rate}}%",
+        "tooltip": "快取讀取 {{cache_read}} / 寫入 {{cache_write}} / 未快取 {{no_cache}} · 節省 {{saved}} 輸入 Token"
+      },
       "editing_current": "此訊息正在編輯器中編輯",
       "flow": {
         "branches": "分支",
@@ -2378,6 +2382,7 @@
       "no_match_description": "目前篩選條件下沒有檔案",
       "no_match_title": "找不到符合的檔案"
     },
+    "empty_trash": "清空回收站",
     "error": {
       "delete_failed": "刪除檔案失敗",
       "delete_partial_failed": "部分檔案刪除失敗",
@@ -2395,6 +2400,7 @@
     "missing": "缺失",
     "modified_at": "修改時間",
     "name": "名稱",
+    "no_actions": "暫無可用操作",
     "open": "開啟",
     "other": "其他",
     "permanent_delete": "永久刪除",
@@ -2408,13 +2414,18 @@
     "remove_from_library": "從庫中移除",
     "rename": "重新命名",
     "restore": "還原",
+    "select_all": "全選目前列表",
+    "select_all_short": "全選",
+    "select_file": "選取 {{name}}",
     "selected_count": "已選取 {{count}} 個檔案",
+    "selected_missing_hint": "所選檔案中有缺失檔案，只能定位或移除記錄",
     "show_in_folder": "在檔案夾中顯示",
     "size": "大小",
     "text": "文字",
     "title": "檔案",
     "trash": "回收站",
     "type": "類型",
+    "upload": "上傳檔案",
     "video": "影片"
   },
   "globalSearch": {
@@ -2815,7 +2826,7 @@
       "chunk_size_invalid": "分块大小必须大于 0",
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
-      "document_count": "請求文件片段數 (Top K)",
+      "document_count": "Top K",
       "download_local_embedding": "下載本機模型",
       "download_local_embedding_failed": "本機嵌入模型下載失敗",
       "embedding_model": "嵌入模型",
@@ -2839,7 +2850,7 @@
       "hybrid_alpha": "Hybrid Alpha",
       "processor": "处理服务商",
       "rerank_disabled": "不使用",
-      "rerank_model": "重排模型 (Rerank)",
+      "rerank_model": "重排模型",
       "reset_action": "恢復預設",
       "reset_defaults": "恢复默认",
       "retrieval": "Retrieval",
@@ -2899,7 +2910,7 @@
     "subtitle_file": "字幕檔案",
     "tabs": {
       "data_source": "数据源",
-      "rag_config": "RAG 配置",
+      "rag_config": "知識庫設定",
       "recall_test": "召回测试"
     },
     "title": "知识库",
@@ -4787,6 +4798,7 @@
     "tencent-cloud-ti": "騰訊雲 TI",
     "tesseract": "Tesseract",
     "together": "Together",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "天翼雲息壤",
@@ -6453,7 +6465,7 @@
       "input": {
         "confirm_delete_message": "刪除訊息前確認",
         "confirm_regenerate_message": "重新產生訊息前確認",
-        "enable_quick_triggers": "啟用 / 和 @ 觸發快捷選單",
+        "enable_quick_triggers": "啟用 / 觸發輸入快捷面板",
         "send_shortcuts": "傳送快捷鍵",
         "show_estimated_tokens": "顯示預估 Token 數",
         "title": "輸入設定"
@@ -7227,10 +7239,10 @@
         "unknownServer": "未知的 MCP 伺服器"
       },
       "multiple": "多選",
-      "noResult": "未找到結果",
+      "noResult": "沒有相符項目",
       "page": "翻頁",
       "select": "選擇",
-      "title": "快捷選單"
+      "title": "輸入快捷面板"
     },
     "quickPhrase": {
       "add": "新增短語",
