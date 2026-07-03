@@ -3409,8 +3409,7 @@
     },
     "skill_add": {
       "local_import": "本機匯入",
-      "online_search": "線上搜尋",
-      "title": "新增技能"
+      "online_search": "線上搜尋"
     },
     "skill_detail": {
       "created_at": "建立時間",

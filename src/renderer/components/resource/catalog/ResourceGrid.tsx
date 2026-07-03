@@ -13,11 +13,6 @@ import {
   DialogTitle,
   EmptyState,
   Input,
-  MenuItem,
-  MenuList,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
   Skeleton
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -26,19 +21,7 @@ import { useDeleteTag, useRenameTag } from '@renderer/hooks/useTags'
 import type { ResourceItem, ResourceType, TagItem } from '@renderer/types/resourceCatalog'
 import type { Tag as BackendTag } from '@shared/data/types/tag'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Library,
-  Pencil,
-  Plus,
-  Search,
-  Tag,
-  Trash2,
-  Upload,
-  X
-} from 'lucide-react'
+import { ChevronLeft, ChevronRight, Library, Pencil, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react'
 import type { FC, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -143,44 +126,25 @@ function AssistantAddActions({ onNew, onImport, onOpenLibrary }: AssistantAddAct
   )
 }
 
-interface SkillAddMenuProps {
+interface SkillAddActionsProps {
   onSearchMarketplace: () => void
   onImportLocal: () => void
 }
 
-function SkillAddMenu({ onSearchMarketplace, onImportLocal }: SkillAddMenuProps) {
+function SkillAddActions({ onSearchMarketplace, onImportLocal }: SkillAddActionsProps) {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-
-  const selectAction = (action: () => void) => {
-    setOpen(false)
-    action()
-  }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="default" size="sm" className="shrink-0">
-          <Plus size={12} className="lucide-custom" />
-          <span>{t('library.skill_add.title')}</span>
-          <ChevronDown size={12} className="opacity-70" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-44 rounded-md p-1">
-        <MenuList className="gap-0.5">
-          <MenuItem
-            icon={<Search size={14} />}
-            label={t('library.skill_add.online_search')}
-            onClick={() => selectAction(onSearchMarketplace)}
-          />
-          <MenuItem
-            icon={<Upload size={14} />}
-            label={t('library.skill_add.local_import')}
-            onClick={() => selectAction(onImportLocal)}
-          />
-        </MenuList>
-      </PopoverContent>
-    </Popover>
+    <>
+      <Button variant="default" size="sm" onClick={onSearchMarketplace} className="shrink-0">
+        <Search size={12} className="lucide-custom" />
+        <span>{t('library.skill_add.online_search')}</span>
+      </Button>
+      <Button variant="outline" size="sm" onClick={onImportLocal} className="shrink-0">
+        <Upload size={12} />
+        <span>{t('library.skill_add.local_import')}</span>
+      </Button>
+    </>
   )
 }
 
@@ -347,7 +311,7 @@ export const ResourceGrid: FC<Props> = ({
                 onOpenLibrary={onOpenAssistantLibrary}
               />
             ) : activeResourceType === 'skill' ? (
-              <SkillAddMenu onSearchMarketplace={onOpenSkillMarketplace} onImportLocal={() => onCreate('skill')} />
+              <SkillAddActions onSearchMarketplace={onOpenSkillMarketplace} onImportLocal={() => onCreate('skill')} />
             ) : (
               <Button variant="default" size="sm" onClick={() => onCreate(activeResourceType)} className="shrink-0">
                 <Plus size={12} className="lucide-custom" />

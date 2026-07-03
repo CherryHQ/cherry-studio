@@ -35,7 +35,6 @@ vi.mock('react-i18next', () => ({
           'library.create_menu.create': '新建助手',
           'library.skill_add.local_import': '本地导入',
           'library.skill_add.online_search': '在线搜索',
-          'library.skill_add.title': '添加技能',
           'library.toolbar.all_tags': '全部标签',
           'library.toolbar.tag_button': '标签',
           'library.type.assistant': '助手',
@@ -414,8 +413,8 @@ describe('ResourceGrid assistant add actions', () => {
   })
 })
 
-describe('ResourceGrid skill add menu', () => {
-  it('opens skill actions and dispatches online search or local import', async () => {
+describe('ResourceGrid skill add actions', () => {
+  it('renders skill actions inline and dispatches online search or local import', async () => {
     const user = userEvent.setup()
     const onCreate = vi.fn()
     const onOpenSkillMarketplace = vi.fn()
@@ -426,13 +425,15 @@ describe('ResourceGrid skill add menu', () => {
       onOpenSkillMarketplace
     })
 
-    await user.click(screen.getByRole('button', { name: /添加技能/ }))
+    expect(screen.getByRole('button', { name: '在线搜索' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '本地导入' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /添加技能/ })).not.toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: '在线搜索' }))
 
     expect(onOpenSkillMarketplace).toHaveBeenCalledTimes(1)
     expect(onCreate).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole('button', { name: /添加技能/ }))
     await user.click(screen.getByRole('button', { name: '本地导入' }))
 
     expect(onCreate).toHaveBeenCalledWith('skill')
