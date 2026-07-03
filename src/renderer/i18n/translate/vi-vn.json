@@ -1599,6 +1599,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "[to be translated]:Cache {{hit_rate}}%",
+        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "Thông báo này đang được chỉnh sửa trong trình soạn thảo",
       "flow": {
         "branches": "chi nhánh",
@@ -4781,6 +4785,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Tesseract",
     "together": "Cùng nhau",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Hành trình AI",
     "xirang": "Bang Cloud Xirang",
