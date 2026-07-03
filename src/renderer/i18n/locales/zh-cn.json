@@ -2896,7 +2896,7 @@
     "subtitle_file": "字幕文件",
     "tabs": {
       "data_source": "数据源",
-      "rag_config": "RAG 配置",
+      "rag_config": "知识库设置",
       "recall_test": "召回测试"
     },
     "title": "知识库",

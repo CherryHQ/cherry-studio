@@ -2896,7 +2896,7 @@
     "subtitle_file": "subtitle file",
     "tabs": {
       "data_source": "Data Sources",
-      "rag_config": "RAG Config",
+      "rag_config": "Knowledge Base Settings",
       "recall_test": "Recall Test"
     },
     "title": "Knowledge Base",
