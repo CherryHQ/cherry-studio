@@ -2,6 +2,7 @@ import type * as NodeFs from 'node:fs'
 import type * as NodeOs from 'node:os'
 import path from 'node:path'
 
+import type * as FsUtils from '@main/utils/file/fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type * as PathStorage from '../../../pathStorage'
@@ -9,10 +10,17 @@ import type * as PathStorage from '../../../pathStorage'
 const copyFileIntoKnowledgeBaseAtMock = vi.hoisted(() =>
   vi.fn(async (_baseId: string, _externalPath: string, relativePath: string) => relativePath)
 )
+const removeDirMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
+})
+
+vi.mock('@main/utils/file/fs', async () => {
+  const actual = await vi.importActual<typeof FsUtils>('@main/utils/file/fs')
+  removeDirMock.mockImplementation(actual.removeDir)
+  return { ...actual, removeDir: removeDirMock }
 })
 
 vi.mock('../../../pathStorage', async () => {
@@ -24,6 +32,7 @@ vi.mock('../../../pathStorage', async () => {
 })
 
 const { expandDirectoryOwnerToTree } = await import('../directory')
+const { getKnowledgeBaseFilePath } = await import('../../../pathStorage')
 const realFs = await vi.importActual<typeof NodeFs>('node:fs')
 const realOs = await vi.importActual<typeof NodeOs>('node:os')
 
@@ -324,6 +333,47 @@ describe('expandDirectoryOwnerToTree', () => {
         }
       }
     ])
+  })
+
+  it('cleans up copied materials when a mid-expansion copy fails', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'workspace')
+    realFs.mkdirSync(rootDir, { recursive: true })
+    realFs.writeFileSync(path.join(rootDir, 'a.md'), '# a')
+    realFs.writeFileSync(path.join(rootDir, 'b.md'), '# b')
+
+    copyFileIntoKnowledgeBaseAtMock.mockClear()
+    removeDirMock.mockClear()
+    const copyError = new Error('disk full')
+    copyFileIntoKnowledgeBaseAtMock
+      .mockImplementationOnce(async (_baseId, _externalPath, relativePath) => relativePath)
+      .mockImplementationOnce(async () => {
+        throw copyError
+      })
+
+    await expect(
+      expandDirectoryOwnerToTree(
+        {
+          id: 'dir-owner-1',
+          baseId: 'kb-1',
+          groupId: null,
+          type: 'directory',
+          data: {
+            source: rootDir
+          },
+          status: 'idle',
+          error: null,
+          createdAt: '2026-04-08T00:00:00.000Z',
+          updatedAt: '2026-04-08T00:00:00.000Z'
+        },
+        'kb-1',
+        new Set(),
+        createSignal()
+      )
+    ).rejects.toBe(copyError)
+
+    expect(removeDirMock).toHaveBeenCalledTimes(1)
+    expect(removeDirMock).toHaveBeenCalledWith(getKnowledgeBaseFilePath('kb-1', 'workspace'))
   })
 
   it('stops before reading when the runtime signal is already aborted', async () => {

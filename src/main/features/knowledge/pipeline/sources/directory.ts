@@ -1,12 +1,15 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { loggerService } from '@logger'
+import { removeDir } from '@main/utils/file/fs'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
-import { copyFileIntoKnowledgeBaseAt } from '../../pathStorage'
+import { copyFileIntoKnowledgeBaseAt, getKnowledgeBaseFilePath } from '../../pathStorage'
 
+const logger = loggerService.withContext('Knowledge:Directory')
 const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 
 /** A scanned filesystem entry under a directory owner — only the fields this module reads. */
@@ -161,15 +164,28 @@ export async function expandDirectoryOwnerToTree(
     false // a directory basename is not a filename — keep any trailing ".ext" intact
   )
 
-  const children = await readDirectoryTree(resolvedPath, signal)
-  const expandedChildren: ExpandedDirectoryNode[] = []
+  // Expansion durably copies bytes into `raw/<pathPrefix>/...` before any `knowledge_item`
+  // row references them (child rows are only created once the whole tree succeeds). A
+  // mid-expansion failure (disk full, permission error, an aborted signal) must not leave
+  // orphaned bytes under a name the DB doesn't know is occupied — the next attempt would
+  // pick the same `pathPrefix` again and collide with its own partial copy. This function
+  // owns the namespace it just reserved, so it cleans it up on any failure.
+  try {
+    const children = await readDirectoryTree(resolvedPath, signal)
+    const expandedChildren: ExpandedDirectoryNode[] = []
 
-  for (const child of children) {
-    const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal)
-    if (expandedChild) {
-      expandedChildren.push(expandedChild)
+    for (const child of children) {
+      const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal)
+      if (expandedChild) {
+        expandedChildren.push(expandedChild)
+      }
     }
-  }
 
-  return { pathPrefix, children: expandedChildren }
+    return { pathPrefix, children: expandedChildren }
+  } catch (error) {
+    await removeDir(getKnowledgeBaseFilePath(baseId, pathPrefix)).catch((cleanupError) => {
+      logger.warn('Failed to clean up partially expanded directory materials', { baseId, pathPrefix, cleanupError })
+    })
+    throw error
+  }
 }
