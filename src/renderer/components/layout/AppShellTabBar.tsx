@@ -174,20 +174,17 @@ const NormalTabButton = ({
       onPointerDown={drag.onPointerDown}
       onClick={onSelect}
       onAuxClick={(e) => {
-        if (e.button === 1) {
+        if (e.button === 1 && canClose) {
           e.preventDefault()
           e.stopPropagation()
-          if (canClose) {
-            onClose()
-          }
+          onClose()
         }
       }}
       onDoubleClick={(e) => {
+        if (!canClose) return
         e.preventDefault()
         e.stopPropagation()
-        if (canClose) {
-          onClose()
-        }
+        onClose()
       }}
       style={{
         transform: `translateX(${drag.translateX}px)`,
