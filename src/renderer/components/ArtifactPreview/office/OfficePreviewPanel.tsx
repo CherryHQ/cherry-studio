@@ -7,8 +7,6 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('OfficePreviewPanel')
 
-const SUPPORTED_OFFICE_PREVIEW_EXTENSIONS = new Set(['docx', 'pptx'])
-
 interface OfficeDocumentPreviewProps {
   filePath: string
   fileName: string
@@ -31,6 +29,7 @@ export interface OfficePreviewPanelProps {
 
 let wordPreviewPanelPromise: Promise<OfficeDocumentPreviewPanel> | null = null
 let pptxPreviewPanelPromise: Promise<OfficeDocumentPreviewPanel> | null = null
+let xlsxPreviewPanelPromise: Promise<OfficeDocumentPreviewPanel> | null = null
 
 function loadWordPreviewPanel() {
   wordPreviewPanelPromise ??= import('./WordPreviewPanel')
@@ -51,6 +50,26 @@ function loadPptxPreviewPanel() {
     })
   return pptxPreviewPanelPromise
 }
+
+function loadXlsxPreviewPanel() {
+  xlsxPreviewPanelPromise ??= import('./XlsxPreviewPanel')
+    .then((module) => module.default)
+    .catch((err: unknown) => {
+      xlsxPreviewPanelPromise = null
+      throw err
+    })
+  return xlsxPreviewPanelPromise
+}
+
+// Extension → lazy panel loader. Doubles as the source of truth for which office
+// documents get an inline preview; anything not listed falls back to "open externally".
+const OFFICE_PREVIEW_LOADERS: Record<string, () => Promise<OfficeDocumentPreviewPanel>> = {
+  docx: loadWordPreviewPanel,
+  pptx: loadPptxPreviewPanel,
+  xlsx: loadXlsxPreviewPanel
+}
+
+const SUPPORTED_OFFICE_PREVIEW_EXTENSIONS = new Set(Object.keys(OFFICE_PREVIEW_LOADERS))
 
 function extOf(name: string | undefined): string {
   if (!name) return ''
@@ -115,7 +134,8 @@ function SupportedOfficePreview({
     let cancelled = false
     setLoadError(null)
 
-    const loader = extension === 'docx' ? loadWordPreviewPanel : loadPptxPreviewPanel
+    const loader = OFFICE_PREVIEW_LOADERS[extension]
+    if (!loader) return
     loader()
       .then((Component) => {
         if (!cancelled) setLoadedPreview({ extension, Component })

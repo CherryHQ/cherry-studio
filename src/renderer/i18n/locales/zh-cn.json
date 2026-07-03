@@ -8057,5 +8057,14 @@
     "quit": "退出",
     "show_window": "显示窗口",
     "visualization": "可视化"
+  },
+  "xlsx_preview": {
+    "chart_unsupported": "暂不支持此图表类型",
+    "formula_not_evaluated": "公式无法求值",
+    "sheet_tabs_label": "工作表",
+    "too_large": {
+      "description": "文件超过 {{limit}} 的预览大小限制。",
+      "title": "文件过大，无法预览"
+    }
   }
 }
