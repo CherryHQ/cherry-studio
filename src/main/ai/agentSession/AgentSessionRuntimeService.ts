@@ -1041,6 +1041,11 @@ export class AgentSessionRuntimeService extends BaseService {
   private persistContextUsage(entry: AgentSessionRuntimeEntry, usage: AgentSessionContextUsage): void {
     if (!this.isCurrentEntry(entry)) return
     application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), usage)
+    try {
+      agentSessionService.upsertContextUsageSnapshot(entry.sessionId, usage)
+    } catch (error) {
+      logger.warn('Failed to persist agent session context usage snapshot', { sessionId: entry.sessionId, error })
+    }
   }
 
   // The initial slash command catalog read (`query.supportedCommands()`) once the connection is live.

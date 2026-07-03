@@ -470,6 +470,7 @@ function AgentChatLayout({
       agentId={sessionSnapshot?.agentId ?? undefined}
       agentName={activeAgent?.name}
       agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+      lastContextUsage={sessionSnapshot?.lastContextUsage}
       present={!centerSurface}
       revealRequest={resourcePaneRevealRequest}>
       <ConversationShell

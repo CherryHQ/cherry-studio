@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
+  upsertContextUsageSnapshot: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
   findPendingAssistantMessageIds: vi.fn(),
   markMessagesError: vi.fn(),
@@ -34,6 +35,12 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
     findPendingAssistantMessageIds: mocks.findPendingAssistantMessageIds,
     markMessagesError: mocks.markMessagesError
+  }
+}))
+
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
+    upsertContextUsageSnapshot: mocks.upsertContextUsageSnapshot
   }
 }))
 
@@ -1426,6 +1433,7 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() =>
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
     )
+    expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', usage)
 
     events.push({ type: 'turn-complete' })
     await expect(reader.read()).resolves.toMatchObject({ done: true })
@@ -1661,9 +1669,10 @@ describe('AgentSessionRuntimeService', () => {
     ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'context-usage', usage })
 
     expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+    expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', usage)
   })
 
-  it('clears session-scoped shared cache entries when closing a session', () => {
+  it('settles compaction without clearing last context usage when closing a session', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
 
@@ -1687,9 +1696,9 @@ describe('AgentSessionRuntimeService', () => {
 
     service.closeSession('session-1')
 
-    // The context-usage entry is deleted outright; an in-flight compaction is settled to idle
+    // The context-usage entry remains as the last known value; an in-flight compaction is settled to idle
     // (not deleted) so a re-open doesn't briefly observe a stale compacting status.
-    expect(mocks.cacheDeleteShared).toHaveBeenCalledWith('agent.session.context_usage.session-1')
+    expect(mocks.cacheDeleteShared).not.toHaveBeenCalledWith('agent.session.context_usage.session-1')
     expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.compaction.session-1', {
       status: 'idle'
     })

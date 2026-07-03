@@ -674,6 +674,7 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
     description: '',
     workspaceId: 'ws-a',
     workspace: makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Embedded Project A' }),
+    lastContextUsage: null,
     orderKey: 'a',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: CURRENT_SESSION_ISO,

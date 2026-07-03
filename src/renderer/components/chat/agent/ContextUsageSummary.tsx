@@ -1,5 +1,5 @@
 import { cn } from '@renderer/utils/style'
-import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import type { AgentSessionContextUsage, AgentSessionContextUsageSource } from '@shared/ai/agentSessionContextUsage'
 import { useTranslation } from 'react-i18next'
 
 // Category names are free-form English strings produced by the Claude Code CLI
@@ -23,6 +23,8 @@ interface ContextUsageSummaryProps {
   color?: string
   className?: string
   isCompacting?: boolean
+  source?: AgentSessionContextUsageSource
+  capturedAt?: string
 }
 
 export function ContextUsageSummary({
@@ -30,13 +32,16 @@ export function ContextUsageSummary({
   percentage,
   color,
   className,
-  isCompacting = false
+  isCompacting = false,
+  source = 'none',
+  capturedAt
 }: ContextUsageSummaryProps) {
   const { t } = useTranslation()
   const normalizedPercentage = percentage === null ? null : Math.min(100, Math.max(0, percentage))
   const progressColor =
     color ?? (normalizedPercentage === null ? undefined : getAgentContextUsageColor(normalizedPercentage))
   const visibleCategories = usage?.categories.filter((category) => category.tokens > 0).slice(0, 4) ?? []
+  const capturedAtLabel = capturedAt ? new Date(capturedAt).toLocaleString() : undefined
 
   return (
     <section className={cn('space-y-2 text-xs', className)} aria-busy={isCompacting || undefined}>
@@ -53,7 +58,14 @@ export function ContextUsageSummary({
             <span className="shrink-0">
               {usage.totalTokens.toLocaleString()} / {usage.maxTokens.toLocaleString()} ({normalizedPercentage}%)
             </span>
-            <span className="min-w-0 truncate">{usage.model}</span>
+            <span className="flex min-w-0 items-center gap-1.5">
+              {source === 'snapshot' && (
+                <span className="shrink-0 text-foreground-secondary" title={capturedAtLabel}>
+                  {t('agent.right_pane.info.context_usage_snapshot')}
+                </span>
+              )}
+              <span className="min-w-0 truncate">{usage.model}</span>
+            </span>
           </div>
           {visibleCategories.length > 0 && (
             <div className="space-y-1 border-border-subtle border-t pt-2">
