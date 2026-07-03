@@ -384,7 +384,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
-      'agent.layout': mocks.sessionLayout
+      'agent.session.display_mode': mocks.sessionLayout === 'classic' ? 'agent' : 'workdir'
     }
     return [values[key]]
   }

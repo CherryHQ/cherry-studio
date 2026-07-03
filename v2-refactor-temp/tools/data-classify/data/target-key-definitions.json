@@ -104,20 +104,6 @@
       "description": "Web search provider overrides (from complex migration)"
     },
     {
-      "targetKey": "topic.layout",
-      "type": "PreferenceTypes.ChatLayoutMode",
-      "defaultValue": "classic",
-      "status": "classified",
-      "description": "Assistant conversation layout: 'classic' = entity rail + right topic panel, 'modern' = single topic sidebar (new v2 preference, no v1 source)"
-    },
-    {
-      "targetKey": "agent.layout",
-      "type": "PreferenceTypes.ChatLayoutMode",
-      "defaultValue": "classic",
-      "status": "classified",
-      "description": "Agent work layout: 'classic' = entity rail + right session panel, 'modern' = single session sidebar (v2 new feature, no v1 source)"
-    },
-    {
       "targetKey": "ui.sidebar.favorites",
       "type": "PreferenceTypes.SidebarFavoriteItem[]",
       "defaultValue": [

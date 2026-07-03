@@ -442,8 +442,9 @@ const ChatComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
-  // Classic layout has a left assistant rail, so the toolbar trigger edits the assistant instead of switching.
-  const [topicLayout] = usePreference('topic.layout')
+  // Assistant grouping uses the classic two-pane conversation layout.
+  const [topicDisplayMode] = usePreference('topic.tab.display_mode')
+  const isClassicTopicLayout = topicDisplayMode === 'assistant'
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const { t } = useTranslation()
@@ -670,7 +671,7 @@ const ChatComposerInner = ({
   }, [onCreateEmptyTopic, selectedAssistantId])
 
   const handleNewTopicShortcut = useCallback(() => {
-    if (topicLayout === 'classic' && onCreateEmptyTopic) {
+    if (isClassicTopicLayout && onCreateEmptyTopic) {
       if (isAssistantLoading || hasMissingPersistedAssistant) return
       handleCreateEmptyTopic()
       return
@@ -679,7 +680,7 @@ const ChatComposerInner = ({
     addNewTopic()
   }, [
     addNewTopic,
-    topicLayout,
+    isClassicTopicLayout,
     handleCreateEmptyTopic,
     hasMissingPersistedAssistant,
     isAssistantLoading,
@@ -689,7 +690,7 @@ const ChatComposerInner = ({
   const rootPanelLeadingItems = useMemo<QuickPanelListItem[]>(() => {
     const label = t('chat.conversation.new')
 
-    if (topicLayout === 'classic') {
+    if (isClassicTopicLayout) {
       if (!onCreateEmptyTopic) return []
 
       const disabled = isAssistantLoading || hasMissingPersistedAssistant
@@ -728,7 +729,7 @@ const ChatComposerInner = ({
     onCreateEmptyTopic,
     onNewTopic,
     t,
-    topicLayout
+    isClassicTopicLayout
   ])
 
   const handleSurfaceActionsChange = useCallback(
@@ -997,7 +998,7 @@ const ChatComposerInner = ({
     useMentionedModelSelector,
     shouldAutoSelectCreatedAssistant: Boolean(onDraftAssistantChange),
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
-    showAssistantTrigger: topicLayout !== 'classic',
+    showAssistantTrigger: !isClassicTopicLayout,
     onAssistantChange: handleAssistantChange,
     onModelSelect: handleModelSelect,
     onMentionedModelsSelect: handleMentionedModelsSelect,
