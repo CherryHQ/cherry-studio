@@ -13,7 +13,6 @@ import MarkdownIt from 'markdown-it'
 const logger = loggerService.withContext('PrintService')
 
 export interface PrintableMarkdownSource {
-  type: 'markdown'
   markdown: string
 }
 
@@ -82,42 +81,6 @@ function toDataUrl(html: string): string {
 function getDefaultPdfPath(title: string): string {
   const sanitized = sanitizeFilename(title.trim()) || 'document'
   return `${sanitized}.pdf`
-}
-
-const PRINT_DIALOG_TIMEOUT_MS = 10 * 60 * 1000
-
-function buildRendererPrintScript(): string {
-  return `
-new Promise((resolve, reject) => {
-  let settled = false
-  let timeoutId = 0
-
-  const cleanup = () => {
-    window.removeEventListener('afterprint', finish)
-    if (timeoutId) {
-      window.clearTimeout(timeoutId)
-    }
-  }
-
-  const finish = () => {
-    if (settled) return
-    settled = true
-    cleanup()
-    resolve(undefined)
-  }
-
-  window.addEventListener('afterprint', finish, { once: true })
-  timeoutId = window.setTimeout(finish, ${PRINT_DIALOG_TIMEOUT_MS})
-
-  try {
-    window.print()
-  } catch (error) {
-    if (settled) return
-    settled = true
-    cleanup()
-    reject(error)
-  }
-})`
 }
 
 function buildRendererReadyScript(): string {
@@ -372,7 +335,22 @@ export class PrintService {
     const windowManager = application.get('WindowManager')
 
     try {
-      await window.webContents.executeJavaScript(buildRendererPrintScript(), true)
+      await new Promise<void>((resolve, reject) => {
+        window.webContents.print(
+          {
+            silent: false,
+            printBackground: true,
+            pageSize: 'A4'
+          },
+          (success, failureReason) => {
+            if (success || failureReason === 'Print job canceled') {
+              resolve()
+              return
+            }
+            reject(new Error(failureReason || 'Print job failed'))
+          }
+        )
+      })
     } catch (error) {
       logger.error('Failed to print printable document', error as Error)
       throw error

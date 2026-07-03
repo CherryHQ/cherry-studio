@@ -282,7 +282,6 @@ describe('NotesPage print payloads', () => {
       expect(mocks.ipcRequest).toHaveBeenCalledWith(route, {
         title: 'note',
         source: {
-          type: 'markdown',
           markdown: mocks.sourceEditorContent
         },
         sourcePath: '/notes/note.md'
@@ -319,7 +318,6 @@ describe('NotesPage print payloads', () => {
         expect(mocks.ipcRequest).toHaveBeenCalledWith(route, {
           title: 'note',
           source: {
-            type: 'markdown',
             markdown: editedRichContent
           },
           sourcePath: '/notes/note.md'

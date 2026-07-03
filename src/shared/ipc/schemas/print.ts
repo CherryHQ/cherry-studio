@@ -5,7 +5,6 @@ import { defineRoute } from '../define'
 const printableDocumentPayloadSchema = z.strictObject({
   title: z.string(),
   source: z.strictObject({
-    type: z.literal('markdown'),
     markdown: z.string()
   }),
   sourcePath: z.string().optional()

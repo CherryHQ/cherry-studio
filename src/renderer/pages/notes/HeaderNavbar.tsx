@@ -119,7 +119,6 @@ const HeaderNavbar = ({
     return {
       title: activeNode.name.replace('.md', ''),
       source: {
-        type: 'markdown' as const,
         markdown: content
       },
       sourcePath: activeNode.externalPath

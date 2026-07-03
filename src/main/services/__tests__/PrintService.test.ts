@@ -38,7 +38,6 @@ const windowManager = {
 const payload = {
   title: 'Meeting Notes',
   source: {
-    type: 'markdown' as const,
     markdown: '# Heading\n\nBody text'
   },
   sourcePath: '/Users/me/Notes/meeting.md'
@@ -76,7 +75,6 @@ describe('PrintService', () => {
     const html = buildPrintableHtml({
       title: '<Unsafe>',
       source: {
-        type: 'markdown',
         markdown: '# Safe\n\n<script>alert(1)</script>'
       },
       sourcePath: '/Users/me/Notes/safe.md'
@@ -93,7 +91,6 @@ describe('PrintService', () => {
     const html = buildPrintableHtml({
       title: '会议记录',
       source: {
-        type: 'markdown',
         markdown: '# 标题\n\n中文正文'
       }
     })
@@ -183,13 +180,10 @@ describe('PrintService', () => {
     expect(writeFile).not.toHaveBeenCalled()
   })
 
-  it('prints from the renderer page without flashing the print host window', async () => {
-    let finishPrint!: () => void
-    executeJavaScript.mockImplementation((script: string) => {
-      if (script.includes('document.fonts.ready')) {
-        return Promise.resolve()
-      }
-      return new Promise<void>((resolve) => (finishPrint = resolve))
+  it('prints through the main process with printable backgrounds and A4 page size', async () => {
+    let finishPrint!: (success: boolean, failureReason: string) => void
+    print.mockImplementation((_options, callback) => {
+      finishPrint = callback
     })
     const service = new PrintService()
 
@@ -201,29 +195,38 @@ describe('PrintService', () => {
     expect(open).toHaveBeenCalledWith(WindowType.Print)
     expect(loadURL).toHaveBeenCalledWith(expect.stringMatching(/^data:text\/html;charset=utf-8,/))
     expect(showInactive).not.toHaveBeenCalled()
-    expect(print).not.toHaveBeenCalled()
-    expect(executeJavaScript).toHaveBeenNthCalledWith(1, expect.stringContaining('document.fonts.ready'), true)
-    expect(executeJavaScript).toHaveBeenNthCalledWith(2, expect.stringContaining('window.print()'), true)
+    expect(executeJavaScript).toHaveBeenCalledWith(expect.stringContaining('document.fonts.ready'), true)
+    expect(executeJavaScript).toHaveBeenCalledTimes(1)
+    expect(print).toHaveBeenCalledWith(
+      {
+        silent: false,
+        printBackground: true,
+        pageSize: 'A4'
+      },
+      expect.any(Function)
+    )
     expect(close).not.toHaveBeenCalled()
 
-    finishPrint()
+    finishPrint(true, '')
     await printPromise
 
     expect(close).toHaveBeenCalledWith(windowId)
   })
 
   it('treats closing the print dialog as a canceled print instead of a failure', async () => {
+    print.mockImplementation((_options, callback) => callback(false, 'Print job canceled'))
     const service = new PrintService()
 
     await expect(service.print(payload)).resolves.toBeUndefined()
+    expect(print).toHaveBeenCalled()
     expect(close).toHaveBeenCalledWith(windowId)
   })
 
-  it('rejects when renderer print execution fails', async () => {
-    executeJavaScript.mockRejectedValue(new Error('print execution failed'))
+  it('rejects when native print fails for reasons other than user cancellation', async () => {
+    print.mockImplementation((_options, callback) => callback(false, 'Print job failed'))
     const service = new PrintService()
 
-    await expect(service.print(payload)).rejects.toThrow('print execution failed')
+    await expect(service.print(payload)).rejects.toThrow('Print job failed')
     expect(close).toHaveBeenCalledWith(windowId)
   })
 })

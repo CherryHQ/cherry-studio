@@ -17,7 +17,6 @@ import { printHandlers } from '../print'
 const payload = {
   title: 'Meeting Notes',
   source: {
-    type: 'markdown' as const,
     markdown: '# Heading'
   },
   sourcePath: '/Users/me/Notes/meeting.md'
