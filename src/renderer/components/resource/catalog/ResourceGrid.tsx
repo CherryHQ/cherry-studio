@@ -13,11 +13,6 @@ import {
   DialogTitle,
   EmptyState,
   Input,
-  MenuItem,
-  MenuList,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
   Skeleton
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -26,19 +21,7 @@ import { useDeleteTag, useRenameTag } from '@renderer/hooks/useTags'
 import type { ResourceItem, ResourceType, TagItem } from '@renderer/types/resourceCatalog'
 import type { Tag as BackendTag } from '@shared/data/types/tag'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Library,
-  Pencil,
-  Plus,
-  Search,
-  Tag,
-  Trash2,
-  Upload,
-  X
-} from 'lucide-react'
+import { ChevronLeft, ChevronRight, Library, Pencil, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react'
 import type { FC, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -110,56 +93,35 @@ function useGridColumnCount(scrollRef: RefObject<HTMLDivElement | null>) {
   return gridState.columnCount
 }
 
-interface AssistantAddMenuProps {
+interface AssistantAddActionsProps {
   onNew: () => void
   onImport: () => void
   onOpenLibrary?: () => void
 }
 
 /**
- * The single "添加助手" control: one button that reveals 新建助手 / 助手库 / 导入助手 on hover.
- * The library item only appears when a handler is supplied.
+ * Assistant creation actions are intentionally flat so each entry point stays visible in the toolbar.
  */
-function AssistantAddMenu({ onNew, onImport, onOpenLibrary }: AssistantAddMenuProps) {
+function AssistantAddActions({ onNew, onImport, onOpenLibrary }: AssistantAddActionsProps) {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(false)
-
-  const selectAction = (action: () => void) => {
-    setOpen(false)
-    action()
-  }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="default" size="sm" className="shrink-0">
-          <Plus size={12} className="lucide-custom" />
-          <span>{t('chat.add.assistant.title')}</span>
-          <ChevronDown size={12} className="opacity-70" />
+    <>
+      <Button variant="default" size="sm" onClick={onNew} className="shrink-0">
+        <Plus size={12} className="lucide-custom" />
+        <span>{t('library.create_menu.create', { type: t(RESOURCE_TYPE_META.assistant.labelKey) })}</span>
+      </Button>
+      {onOpenLibrary ? (
+        <Button variant="outline" size="sm" onClick={onOpenLibrary} className="shrink-0">
+          <Library size={12} />
+          <span>{t('library.assistant_catalog.title')}</span>
         </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-fit min-w-32 rounded-xl p-1.5">
-        <MenuList className="gap-0.5">
-          <MenuItem
-            icon={<Plus size={14} />}
-            label={t('library.create_menu.create', { type: t(RESOURCE_TYPE_META.assistant.labelKey) })}
-            onClick={() => selectAction(onNew)}
-          />
-          {onOpenLibrary ? (
-            <MenuItem
-              icon={<Library size={14} />}
-              label={t('library.assistant_catalog.title')}
-              onClick={() => selectAction(onOpenLibrary)}
-            />
-          ) : null}
-          <MenuItem
-            icon={<Upload size={14} />}
-            label={t('assistants.presets.import.action')}
-            onClick={() => selectAction(onImport)}
-          />
-        </MenuList>
-      </PopoverContent>
-    </Popover>
+      ) : null}
+      <Button variant="outline" size="sm" onClick={onImport} className="shrink-0">
+        <Upload size={12} />
+        <span>{t('assistants.presets.import.action')}</span>
+      </Button>
+    </>
   )
 }
 
@@ -319,7 +281,7 @@ export const ResourceGrid: FC<Props> = ({
 
           <div className="flex shrink-0 items-center gap-2">
             {activeResourceType === 'assistant' ? (
-              <AssistantAddMenu
+              <AssistantAddActions
                 onNew={() => onCreate('assistant')}
                 onImport={onImportAssistant}
                 onOpenLibrary={onOpenAssistantLibrary}

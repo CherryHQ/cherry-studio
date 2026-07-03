@@ -375,8 +375,8 @@ describe('ResourceGrid empty state copy', () => {
   })
 })
 
-describe('ResourceGrid assistant add menu', () => {
-  it('opens assistant actions by click and dispatches the selected action', async () => {
+describe('ResourceGrid assistant add actions', () => {
+  it('renders assistant actions inline and dispatches the selected action', async () => {
     const user = userEvent.setup()
     const onCreate = vi.fn()
     const onImportAssistant = vi.fn()
@@ -388,12 +388,24 @@ describe('ResourceGrid assistant add menu', () => {
       onOpenAssistantLibrary
     })
 
-    await user.click(screen.getByRole('button', { name: /添加助手/ }))
+    expect(screen.getByRole('button', { name: '新建助手' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '助手库' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '导入助手' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /添加助手/ })).not.toBeInTheDocument()
+
     await user.click(screen.getByRole('button', { name: '助手库' }))
 
     expect(onOpenAssistantLibrary).toHaveBeenCalledTimes(1)
     expect(onCreate).not.toHaveBeenCalled()
     expect(onImportAssistant).not.toHaveBeenCalled()
+  })
+
+  it('hides the assistant library action when the handler is unavailable', () => {
+    renderResourceGrid()
+
+    expect(screen.getByRole('button', { name: '新建助手' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '助手库' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '导入助手' })).toBeInTheDocument()
   })
 })
 
