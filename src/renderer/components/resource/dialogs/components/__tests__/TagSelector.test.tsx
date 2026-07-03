@@ -140,7 +140,7 @@ describe('TagSelector', () => {
         clientX: 120,
         clientY: 80
       })
-      act(() => overlayTarget.dispatchEvent(pointerDown))
+      void act(() => overlayTarget.dispatchEvent(pointerDown))
 
       expect(pointerDown.defaultPrevented).toBe(true)
       expect(screen.queryByRole('option', { name: 'work' })).not.toBeInTheDocument()
@@ -174,7 +174,7 @@ describe('TagSelector', () => {
         clientX: 120,
         clientY: 80
       })
-      act(() => overlayTarget.dispatchEvent(pointerDown))
+      void act(() => overlayTarget.dispatchEvent(pointerDown))
 
       const pointerCancel = new MouseEvent('pointercancel', {
         bubbles: true,
