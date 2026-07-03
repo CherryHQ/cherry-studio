@@ -112,15 +112,6 @@ importers:
       better-sqlite3:
         specifier: 12.11.1
         version: 12.11.1
-      echarts:
-        specifier: ^6.1.0
-        version: 6.1.0
-      exceljs:
-        specifier: ^4.4.0
-        version: 4.4.0
-      fast-formula-parser:
-        specifier: ^1.0.19
-        version: 1.0.19
       font-list:
         specifier: 2.0.0
         version: 2.0.0
@@ -136,15 +127,9 @@ importers:
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
-      jszip:
-        specifier: ^3.10.1
-        version: 3.10.1
       node-stream-zip:
         specifier: 1.15.0
         version: 1.15.0
-      numfmt:
-        specifier: ^3.2.6
-        version: 3.2.6
       officeparser:
         specifier: 4.2.0
         version: 4.2.0
@@ -746,6 +731,9 @@ importers:
       drizzle-orm:
         specifier: ^0.44.5
         version: 0.44.7(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(better-sqlite3@12.11.1)
+      echarts:
+        specifier: ^6.1.0
+        version: 6.1.0
       electron:
         specifier: 41.8.0
         version: 41.8.0
@@ -809,9 +797,15 @@ importers:
       eslint-plugin-unused-imports:
         specifier: ^4.1.4
         version: 4.3.0(@typescript-eslint/eslint-plugin@8.51.0(@typescript-eslint/parser@8.51.0(eslint@9.39.2(jiti@2.7.0))(typescript@5.8.3))(eslint@9.39.2(jiti@2.7.0))(typescript@5.8.3))(eslint@9.39.2(jiti@2.7.0))
+      exceljs:
+        specifier: ^4.4.0
+        version: 4.4.0
       fast-diff:
         specifier: ^1.3.0
         version: 1.3.0
+      fast-formula-parser:
+        specifier: ^1.0.19
+        version: 1.0.19
       fast-xml-parser:
         specifier: '>=5.5.6'
         version: 5.10.0
@@ -878,6 +872,9 @@ importers:
       jsonc-parser:
         specifier: ^3.3.1
         version: 3.3.1
+      jszip:
+        specifier: ^3.10.1
+        version: 3.10.1
       katex:
         specifier: 0.16.22
         version: 0.16.22
@@ -923,6 +920,9 @@ importers:
       npx-scope-finder:
         specifier: ^1.2.0
         version: 1.3.0
+      numfmt:
+        specifier: ^3.2.6
+        version: 3.2.6
       og-crd:
         specifier: ^0.0.2
         version: 0.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
