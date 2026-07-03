@@ -15,6 +15,9 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
       {children}
     </button>
   ),
+  HoverCard: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  HoverCardContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
+  HoverCardTrigger: ({ children }: PropsWithChildren) => <>{children}</>,
   Tabs: ({ children }: PropsWithChildren) => <div>{children}</div>,
   TabsContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
   TabsList: ({ children }: PropsWithChildren) => <div>{children}</div>,
@@ -605,6 +608,14 @@ describe('AgentChat artifact pane', () => {
     rerender: ReturnType<typeof render>['rerender'],
     props: ComponentProps<typeof AgentChat> = {}
   ) => rerender(<AgentChat {...activeSessionProps()} {...props} />)
+  const openFilesPane = () => {
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
+  }
+  const closeRightPane = () => {
+    fireEvent.click(
+      within(screen.getByTestId('artifact-right-pane')).getByRole('button', { name: 'common.close_sidebar' })
+    )
+  }
 
   beforeEach(() => {
     agentSessionPartsMocks.useAgentSessionParts.mockReturnValue({
@@ -655,10 +666,10 @@ describe('AgentChat artifact pane', () => {
     expect(screen.queryByTestId('pinned-todo-panel')).not.toBeInTheDocument()
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
 
-    const toggle = screen.getByRole('button', { name: 'common.open_sidebar' })
-    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    const shortcut = screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })
+    expect(shortcut).toHaveAttribute('data-shell-tab-shortcut', 'files')
 
-    fireEvent.click(toggle)
+    fireEvent.click(shortcut)
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-width', '460')
@@ -672,19 +683,19 @@ describe('AgentChat artifact pane', () => {
     expect(screen.queryByRole('button', { name: /agent\.right_pane\.tabs\.flow/ })).toBeNull()
     expect(screen.getByRole('button', { name: /agent\.right_pane\.tabs\.status/ })).toBeInTheDocument()
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-workspace-path', '/tmp/workspace')
-    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    expect(document.querySelector('[data-shell-tab-shortcut="files"]')).toBeNull()
 
-    fireEvent.click(toggle)
+    closeRightPane()
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
-    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(document.querySelector('[data-shell-tab-shortcut="files"]')).toBeInTheDocument()
     expect(screen.getByTestId('session-pane')).toBeInTheDocument()
   })
 
   it('maximizes into the chat-area overlay, unmounting the docked host', () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+    openFilesPane()
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
@@ -708,7 +719,7 @@ describe('AgentChat artifact pane', () => {
   it('keeps the selected artifact file when maximizing and restoring the pane', () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+    openFilesPane()
     fireEvent.click(screen.getByRole('button', { name: 'select artifact file' }))
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-selected-file', 'README.md')
 
@@ -724,7 +735,7 @@ describe('AgentChat artifact pane', () => {
   it('keeps file tree UI state when maximizing and restoring the pane', () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+    openFilesPane()
     fireEvent.click(screen.getByRole('button', { name: 'toggle artifact file tree' }))
     fireEvent.click(screen.getByRole('button', { name: 'expand src folder' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'artifact file search' }), {
@@ -750,18 +761,17 @@ describe('AgentChat artifact pane', () => {
   it('keeps file tree UI state when closing and reopening the pane', () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
-    const toggle = screen.getByRole('button', { name: 'common.open_sidebar' })
-    fireEvent.click(toggle)
+    openFilesPane()
     fireEvent.click(screen.getByRole('button', { name: 'toggle artifact file tree' }))
     fireEvent.click(screen.getByRole('button', { name: 'expand src folder' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'artifact file search' }), {
       target: { value: 'index' }
     })
 
-    fireEvent.click(toggle)
+    closeRightPane()
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
 
-    fireEvent.click(toggle)
+    openFilesPane()
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-tree-open', 'true')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
@@ -771,7 +781,7 @@ describe('AgentChat artifact pane', () => {
   it('mounts the artifact pane in preview mode when maximizing and restoring the pane', () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+    openFilesPane()
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'preview')
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.preview' }))
@@ -796,7 +806,7 @@ describe('AgentChat artifact pane', () => {
       panePosition: 'left'
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+    openFilesPane()
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.preview' }))
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-view-mode', 'code')
 
@@ -856,7 +866,7 @@ describe('AgentChat artifact pane', () => {
       panePosition: 'left'
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+    openFilesPane()
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
 
     rerenderAgentChat(rerender, {
@@ -872,7 +882,7 @@ describe('AgentChat artifact pane', () => {
 
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
     expect(screen.queryByTestId('artifact-right-pane')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'common.open_sidebar' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
     expect(screen.queryByTestId('artifact-right-pane')).toBeNull()
 
     rerenderAgentChat(rerender, {
@@ -881,7 +891,7 @@ describe('AgentChat artifact pane', () => {
       panePosition: 'left'
     })
 
-    expect(screen.getByRole('button', { name: 'common.open_sidebar' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeEnabled()
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'false')
   })
 
@@ -961,7 +971,7 @@ describe('AgentChat artifact pane', () => {
   it('shows a permanent trace tab keyed on the session traceId when developer mode is on', () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
+    openFilesPane()
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByRole('button', { name: /trace\.label/ })).toBeInTheDocument()

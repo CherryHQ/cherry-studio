@@ -24,10 +24,10 @@ describe('KnowledgeIndexStore integration (real better-sqlite3)', () => {
   let tempDir: string
   let store: KnowledgeIndexStore
 
-  beforeEach(async () => {
+  beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'cs-knowledge-integration-'))
-    const driver = await openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
-    await createKnowledgeIndexSchema(driver)
+    const driver = openBetterSqlite3IndexDriver(join(tempDir, 'index.sqlite'))
+    createKnowledgeIndexSchema(driver)
     store = new KnowledgeIndexStore(driver, betterSqlite3VectorIndex)
   })
 
@@ -55,6 +55,7 @@ describe('KnowledgeIndexStore integration (real better-sqlite3)', () => {
         charStart: chunk.start,
         charEnd: chunk.end
       })),
+      usesEmbeddings: true,
       // One embedding per distinct body hash; deterministic vectors keep the cosine
       // scan stable. Each unit's body hash matches its embedding via the §5.3 slice.
       embeddings: [...new Set(chunks.map((chunk) => hashEmbeddingText(text.slice(chunk.start, chunk.end))))].map(

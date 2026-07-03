@@ -55,6 +55,8 @@ function normalizeRecord(record: unknown): ImportedAssistantDraft {
     throw new AssistantTransferError('invalid_format')
   }
 
+  const tagName = readStringArray(record.group)[0]
+
   // `modelId` is intentionally omitted — backend fills it from
   // `chat.default_model_id` preference. See AssistantService.resolveCreateModelId.
   return {
@@ -65,18 +67,17 @@ function normalizeRecord(record: unknown): ImportedAssistantDraft {
       description: readString(record.description),
       settings: DEFAULT_ASSISTANT_SETTINGS
     },
-    tags: readStringArray(record.group).map((tagName) => ({
-      name: tagName,
-      color: null
-    }))
+    tags: tagName ? [{ name: tagName, color: null }] : []
   }
 }
 
 function buildExportRecord(assistant: Assistant): AssistantExportRecord {
+  const tagName = assistant.tags[0]?.name
+
   return {
     name: assistant.name,
     emoji: assistant.emoji,
-    group: assistant.tags.map((tag) => tag.name),
+    group: tagName ? [tagName] : [],
     prompt: assistant.prompt,
     description: assistant.description,
     regularPhrases: [],
