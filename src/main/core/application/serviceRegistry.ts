@@ -6,6 +6,7 @@ import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels/ChannelManager'
+import { EmbeddingInferenceHost, OcrInferenceHost } from '@main/ai/inference/InferenceHost'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
@@ -124,6 +125,8 @@ export const services = {
   AiService,
   ClaudeCodeWarmQueryManager,
   AiStreamManager,
+  EmbeddingInferenceHost,
+  OcrInferenceHost,
   KnowledgeService,
   KnowledgeVectorStoreService,
   ApiGatewayService,

@@ -5,7 +5,6 @@ import type { ReadableStream as NodeWebReadableStream } from 'node:stream/web'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { ocrInferenceHost } from '@main/ai/inference/InferenceHost'
 import { LOCAL_MODELS, type RemoteModelFile } from '@main/ai/inference/localModelCatalog'
 import { modelSourceOrder, resolveModelFileUrl } from '@main/ai/inference/modelSource'
 import { isLocalPaddleocrModelDownloaded, ocrModelDir, ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
@@ -92,7 +91,7 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
     // caches its PaddleOcrService (native onnxruntime session + open weight files)
     // in the worker, so on Windows an open handle makes the unlink fail. Mirrors
     // the embedding remove, which terminates first for the same reason.
-    await ocrInferenceHost.terminate()
+    await application.get('OcrInferenceHost').terminate()
     await this.cleanup()
     return { removed: true }
   }

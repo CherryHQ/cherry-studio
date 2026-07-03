@@ -14,7 +14,13 @@ const { loadEmbedding, terminate, registerLocalEmbeddingModel, unregisterMock, r
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory()
+  const result = mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'EmbeddingInferenceHost') return { loadEmbedding, terminate }
+    return originalGet(name)
+  })
+  return result
 })
 
 // Controllable fs for the ready probe (readdirSync) and remove (promises.rm).
@@ -23,10 +29,6 @@ vi.mock('node:fs', async () => {
   const patched = { ...actual, readdirSync, promises: { ...actual.promises, rm } }
   return { ...patched, default: patched }
 })
-
-vi.mock('@main/ai/inference/InferenceHost', () => ({
-  embeddingInferenceHost: { loadEmbedding, terminate }
-}))
 
 vi.mock('@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime', () => ({
   currentModelSource: () => ({})

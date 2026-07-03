@@ -18,10 +18,6 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-vi.mock('@main/ai/inference/InferenceHost', () => ({
-  ocrInferenceHost: { terminate: vi.fn() }
-}))
-
 // Pin to a supported platform so download() is deterministic regardless of the
 // machine this runs on (see LocalModelDownloadService.darwinX64.test.ts for the gate).
 vi.mock('@main/core/platform', () => ({ isDarwinX64: false }))

@@ -31,7 +31,9 @@ vi.mock('node:worker_threads', () => ({
 vi.mock('@main/core/platform', () => ({ isDarwinX64: false }))
 
 // Import the SUT after the worker mock is declared (it constructs a Worker lazily on first send).
-const { embeddingInferenceHost, ocrInferenceHost } = await import('../InferenceHost')
+const { EmbeddingInferenceHost, OcrInferenceHost } = await import('../InferenceHost')
+const embeddingInferenceHost = new EmbeddingInferenceHost()
+const ocrInferenceHost = new OcrInferenceHost()
 
 const SOURCE: InferenceModelSource = {
   remoteHost: 'https://huggingface.co',

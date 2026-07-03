@@ -1,16 +1,20 @@
 import fs from 'node:fs'
 
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { terminate } = vi.hoisted(() => ({ terminate: vi.fn() }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory()
+  const result = mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'OcrInferenceHost') return { terminate }
+    return originalGet(name)
+  })
+  return result
 })
-
-vi.mock('@main/ai/inference/InferenceHost', () => ({
-  ocrInferenceHost: { terminate: vi.fn() }
-}))
 
 // Import the SUT after @application is mocked (its model dir resolves via application.getPath).
 const { localOcrDownloadService, dictTextFromInferenceYml } = await import('../LocalOcrDownloadService')
@@ -45,10 +49,6 @@ describe('LocalOcrDownloadService.remove — default image-to-text demotion', ()
     vi.spyOn(fs.promises, 'rm').mockResolvedValue(undefined)
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('clears the default when local-paddleocr is the current default (otherwise every OCR consumer throws)', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue(DEFAULT_KEY, 'local-paddleocr')
 
@@ -78,9 +78,6 @@ describe('LocalOcrDownloadService.remove — default image-to-text demotion', ()
   })
 
   it('terminates the inference worker before deleting so open OCR handles are released', async () => {
-    const { ocrInferenceHost } = await import('@main/ai/inference/InferenceHost')
-    const terminate = vi.mocked(ocrInferenceHost.terminate)
-
     await localOcrDownloadService.remove()
 
     expect(terminate).toHaveBeenCalledTimes(1)

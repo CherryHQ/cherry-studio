@@ -1,4 +1,4 @@
-import { embeddingInferenceHost } from '@main/ai/inference/InferenceHost'
+import { application } from '@application'
 import { LOCAL_MODELS } from '@main/ai/inference/localModelCatalog'
 import { defaultModelSourceId, getModelSource } from '@main/ai/inference/modelSource'
 import { app } from 'electron'
@@ -16,5 +16,5 @@ export function currentModelSource() {
 export async function embedTexts(texts: string[], signal?: AbortSignal): Promise<number[][]> {
   if (texts.length === 0) return []
   const { repo, dtype } = LOCAL_MODELS.embedding
-  return embeddingInferenceHost.embed(texts, currentModelSource(), repo, dtype, signal)
+  return application.get('EmbeddingInferenceHost').embed(texts, currentModelSource(), repo, dtype, signal)
 }

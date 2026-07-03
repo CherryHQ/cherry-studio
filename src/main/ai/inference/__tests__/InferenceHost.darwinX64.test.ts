@@ -20,7 +20,9 @@ vi.mock('node:worker_threads', () => ({
 // spawn point must refuse before it ever constructs a Worker.
 vi.mock('@main/core/platform', () => ({ isDarwinX64: true }))
 
-const { embeddingInferenceHost, ocrInferenceHost } = await import('../InferenceHost')
+const { EmbeddingInferenceHost, OcrInferenceHost } = await import('../InferenceHost')
+const embeddingInferenceHost = new EmbeddingInferenceHost()
+const ocrInferenceHost = new OcrInferenceHost()
 
 const SOURCE: InferenceModelSource = {
   remoteHost: 'https://huggingface.co',

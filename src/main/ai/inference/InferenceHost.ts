@@ -2,6 +2,7 @@ import { Worker } from 'node:worker_threads'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDarwinX64 } from '@main/core/platform'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 
@@ -43,14 +44,20 @@ interface Pending {
  * The worker source, the wire protocol, and the public method signatures are
  * all process-agnostic: moving to an Electron `utilityProcess` per kind (for
  * crash isolation) later touches only the spawn/teardown internals here.
+ *
+ * Lifecycle-managed: the worker is a real OS thread that must not outlive a
+ * clean shutdown. Spawning stays fully lazy (on first `send()`), so `onInit()`
+ * has nothing to do — only `onStop()`/`onDestroy()` are meaningful, both
+ * releasing the worker via the same idempotent `terminate()`.
  */
-abstract class InferenceHostBase {
+abstract class InferenceHostBase extends BaseService {
   private worker: Worker | null = null
   private readonly pending = new Map<string, Pending>()
   private idSeq = 0
   private readonly logger: ReturnType<typeof loggerService.withContext>
 
   protected constructor(kind: LocalModelKind) {
+    super()
     this.logger = loggerService.withContext(`InferenceHost:${kind}`)
   }
 
@@ -183,9 +190,29 @@ abstract class InferenceHostBase {
     this.failAll(new Error('inference host terminated'))
     await worker.terminate()
   }
+
+  protected async onStop(): Promise<void> {
+    await this.terminateSafely()
+  }
+
+  protected async onDestroy(): Promise<void> {
+    await this.terminateSafely()
+  }
+
+  /** Swallow-and-log (mirrors TesseractRuntimeService's disposeWorkerSafely) so a
+   * rejecting terminate() can't leave this service's lifecycle state stuck mid-shutdown. */
+  private async terminateSafely(): Promise<void> {
+    try {
+      await this.terminate()
+    } catch (error) {
+      this.logger.warn('failed to terminate inference worker during shutdown', error as Error)
+    }
+  }
 }
 
-class EmbeddingInferenceHost extends InferenceHostBase {
+@Injectable('EmbeddingInferenceHost')
+@ServicePhase(Phase.WhenReady)
+export class EmbeddingInferenceHost extends InferenceHostBase {
   constructor() {
     super('embedding')
   }
@@ -214,7 +241,9 @@ class EmbeddingInferenceHost extends InferenceHostBase {
   }
 }
 
-class OcrInferenceHost extends InferenceHostBase {
+@Injectable('OcrInferenceHost')
+@ServicePhase(Phase.WhenReady)
+export class OcrInferenceHost extends InferenceHostBase {
   constructor() {
     super('ocr')
   }
@@ -225,6 +254,3 @@ class OcrInferenceHost extends InferenceHostBase {
     return result.text ?? ''
   }
 }
-
-export const embeddingInferenceHost = new EmbeddingInferenceHost()
-export const ocrInferenceHost = new OcrInferenceHost()

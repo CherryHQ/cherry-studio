@@ -8,9 +8,16 @@ const { recognizeMock, isLocalPaddleocrModelDownloadedMock, ocrModelPathsMock } 
   ocrModelPathsMock: vi.fn()
 }))
 
-vi.mock('@main/ai/inference/InferenceHost', () => ({
-  ocrInferenceHost: { recognize: recognizeMock }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const result = mockApplicationFactory()
+  const originalGet = result.application.get.getMockImplementation()!
+  result.application.get.mockImplementation((name: string) => {
+    if (name === 'OcrInferenceHost') return { recognize: recognizeMock }
+    return originalGet(name)
+  })
+  return result
+})
 
 vi.mock('@main/ai/inference/ocrModelPaths', () => ({
   isLocalPaddleocrModelDownloaded: isLocalPaddleocrModelDownloadedMock,

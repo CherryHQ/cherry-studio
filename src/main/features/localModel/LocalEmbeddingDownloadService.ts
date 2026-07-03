@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { embeddingInferenceHost, type InferenceProgress } from '@main/ai/inference/InferenceHost'
+import type { InferenceProgress } from '@main/ai/inference/InferenceHost'
 import { LOCAL_MODELS } from '@main/ai/inference/localModelCatalog'
 import { currentModelSource } from '@main/ai/provider/custom/localEmbedding/localEmbeddingRuntime'
 import {
@@ -54,13 +54,9 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
   }
 
   protected async performDownload(signal: AbortSignal): Promise<void> {
-    await embeddingInferenceHost.loadEmbedding(
-      currentModelSource(),
-      MODEL_REPO,
-      MODEL_DTYPE,
-      (p) => this.broadcastProgress(p),
-      signal
-    )
+    await application
+      .get('EmbeddingInferenceHost')
+      .loadEmbedding(currentModelSource(), MODEL_REPO, MODEL_DTYPE, (p) => this.broadcastProgress(p), signal)
     // Now that the weights are on disk, register the provider/model so the KB
     // embedding picker lists it (lazy equivalent of the old boot seeder).
     await registerLocalEmbeddingModel()
@@ -74,7 +70,7 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     // selecting the model in the KB picker would trip the embeddingModelId FK. Release the
     // worker first (loadEmbedding caches the pipeline, holding the weights open on Windows),
     // then drop the partial/unregistered weights.
-    await embeddingInferenceHost.terminate()
+    await application.get('EmbeddingInferenceHost').terminate()
     await fs.promises.rm(this.modelDir(), { recursive: true, force: true })
   }
 
@@ -83,7 +79,7 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     // The worker may be mid-fetch; terminating it stops the download immediately.
     // Fire-and-forget — cancel doesn't delete files, so it doesn't need to wait
     // for the actual OS-level teardown the way cleanupAfterError/remove do.
-    void embeddingInferenceHost.terminate()
+    void application.get('EmbeddingInferenceHost').terminate()
   }
 
   async remove(): Promise<{ removed: boolean }> {
@@ -96,7 +92,7 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     }
     try {
       // Unload the worker first so the weights file isn't held open while we delete it.
-      await embeddingInferenceHost.terminate()
+      await application.get('EmbeddingInferenceHost').terminate()
       await fs.promises.rm(this.modelDir(), { recursive: true, force: true })
     } catch (error) {
       // The row is gone but the weights survived (e.g. terminate() rejected, or a Windows
