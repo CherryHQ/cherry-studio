@@ -68,7 +68,6 @@ type AgentEditFormValues = {
   disabledTools: string[]
   permissionMode: string
   envVarsText: string
-  soulEnabled: boolean
   heartbeatEnabled: boolean
   heartbeatInterval: number
 }
@@ -124,7 +123,6 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
     disabledTools: [...form.disabledTools],
     permissionMode: form.permissionMode,
     envVarsText: form.envVarsText,
-    soulEnabled: form.soulEnabled,
     heartbeatEnabled: form.heartbeatEnabled,
     heartbeatInterval: form.heartbeatInterval
   }
@@ -152,7 +150,6 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     disabledTools: values.disabledTools,
     permissionMode: values.permissionMode,
     envVarsText: values.envVarsText,
-    soulEnabled: values.soulEnabled,
     heartbeatEnabled: values.heartbeatEnabled,
     heartbeatInterval: values.heartbeatInterval
   }
@@ -165,7 +162,6 @@ function syncAgentFormState(form: UseFormReturn<AgentEditFormValues>, next: Agen
   form.setValue('mcps', next.mcps, { shouldDirty: true })
   form.setValue('disabledTools', next.disabledTools, { shouldDirty: true })
   form.setValue('permissionMode', next.permissionMode, { shouldDirty: true })
-  form.setValue('soulEnabled', next.soulEnabled, { shouldDirty: true })
   form.setValue('heartbeatEnabled', next.heartbeatEnabled, { shouldDirty: true })
   form.setValue('heartbeatInterval', next.heartbeatInterval, { shouldDirty: true })
 }
@@ -341,7 +337,6 @@ function AgentBasicFields({
 }) {
   const { t } = useTranslation()
   const heartbeatEnabled = form.watch('heartbeatEnabled')
-  const soulEnabled = form.watch('soulEnabled')
 
   return (
     <div className="grid gap-4">
@@ -401,48 +396,13 @@ function AgentBasicFields({
         label={t('library.config.agent.field.description.label')}
         placeholder={t('library.config.agent.field.description.placeholder')}
       />
-      <SoulModeField form={form} patchAgentForm={patchAgentForm} />
-      {!soulEnabled && (
-        <PermissionModeField form={form} portalContainer={portalContainer} patchAgentForm={patchAgentForm} />
-      )}
+      <PermissionModeField form={form} portalContainer={portalContainer} patchAgentForm={patchAgentForm} />
       <HeartbeatSettingsField
         form={form}
         enabled={heartbeatEnabled}
         onEnabledChange={(checked) => patchAgentForm({ heartbeatEnabled: checked })}
       />
     </div>
-  )
-}
-
-function SoulModeField({
-  form,
-  patchAgentForm
-}: {
-  form: UseFormReturn<AgentEditFormValues>
-  patchAgentForm: (patch: Partial<AgentFormState>) => void
-}) {
-  const { t } = useTranslation()
-  const label = t('library.config.agent.field.soul_enabled.label')
-
-  return (
-    <FormField
-      control={form.control}
-      name="soulEnabled"
-      render={({ field }) => (
-        <FormItem>
-          <div className="flex items-center justify-between gap-3">
-            <FieldLabelWithHelp label={label} help={t('library.config.agent.field.soul_enabled.help')} />
-            <Switch
-              size="sm"
-              checked={field.value}
-              aria-label={label}
-              onCheckedChange={(checked) => patchAgentForm({ soulEnabled: checked })}
-            />
-          </div>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
   )
 }
 

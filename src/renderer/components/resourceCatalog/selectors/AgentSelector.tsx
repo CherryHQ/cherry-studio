@@ -139,8 +139,7 @@ export function AgentSelector(props: AgentSelectorProps) {
             skillIds: values.skillIds,
             configuration: {
               avatar: values.avatar,
-              permission_mode: 'bypassPermissions',
-              soul_enabled: true
+              permission_mode: 'bypassPermissions'
             }
           }
         })

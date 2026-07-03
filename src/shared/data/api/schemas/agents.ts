@@ -35,7 +35,6 @@ export const AgentConfigurationSchema = z
     permission_mode: AgentPermissionModeSchema.optional(),
     max_turns: z.number().optional(),
     env_vars: z.record(z.string(), z.string()).optional(),
-    soul_enabled: z.boolean().optional(),
     bootstrap_completed: z.boolean().optional(),
     scheduler_enabled: z.boolean().optional(),
     scheduler_type: AgentSchedulerTypeSchema.optional(),

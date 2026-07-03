@@ -367,7 +367,7 @@ describe('TasksSettings task logs', () => {
     dataApiMock.get.mockImplementation((path: string) => {
       if (path === '/agents') {
         return Promise.resolve({
-          items: [{ id: 'agent-1', name: 'Agent One', configuration: { soul_enabled: true } }]
+          items: [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
         })
       }
 
