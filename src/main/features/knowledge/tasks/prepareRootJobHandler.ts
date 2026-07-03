@@ -7,7 +7,7 @@ import type { JobContext, JobHandler } from '@main/core/job/types'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
-import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
+import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
 import { markUnscheduledKnowledgeItemsFailed } from '../ingestion/statusCleanup'
 import { purgeKnowledgeSubtreeWithinLock } from '../ingestion/subtreePurge'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
@@ -19,7 +19,7 @@ const logger = loggerService.withContext('Knowledge:PrepareRootJobHandler')
 
 export function createPrepareRootJobHandler(
   knowledgeLockManager: KnowledgeLockManager,
-  ingestionService: KnowledgeIngestionService
+  ingestionService: KnowledgeItemScheduler
 ): JobHandler<KnowledgePrepareRootPayload> {
   return {
     // Don't auto-resume on restart — a deliberate app quit must not re-spend the
@@ -140,7 +140,7 @@ async function scanRootItem(
 async function enqueueLeafItems(
   ctx: JobContext<KnowledgePrepareRootPayload>,
   leafItems: KnowledgeItem[],
-  ingestionService: KnowledgeIngestionService
+  ingestionService: KnowledgeItemScheduler
 ): Promise<void> {
   const { baseId } = ctx.input
 

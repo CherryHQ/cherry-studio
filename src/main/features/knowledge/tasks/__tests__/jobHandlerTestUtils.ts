@@ -2,8 +2,9 @@ import type { JobContext } from '@main/core/job/types'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { beforeEach, vi } from 'vitest'
+import { beforeEach, type Mocked, vi } from 'vitest'
 
+import type { KnowledgeItemScheduler } from '../../ingestion/KnowledgeIngestionService'
 import type * as PathStorage from '../../pathStorage'
 
 const mocks = vi.hoisted(() => ({
@@ -342,7 +343,7 @@ export const knowledgeLockManager = {
   withBaseMutationLock: vi.fn(async (_baseId: string, task: () => Promise<unknown>) => await task())
 }
 
-export const ingestionService = {
+export const ingestionService: Mocked<KnowledgeItemScheduler> = {
   scheduleFileProcessingCheck: vi.fn(),
   scheduleIndexing: vi.fn(),
   scheduleItem: scheduleItemMock

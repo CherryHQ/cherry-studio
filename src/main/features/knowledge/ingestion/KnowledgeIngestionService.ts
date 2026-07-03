@@ -62,8 +62,19 @@ const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileE
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 
+export interface KnowledgeItemScheduler {
+  scheduleItem(baseId: KnowledgeBaseId, itemId: KnowledgeItemId, parentJobId?: string | null): Promise<void>
+  scheduleIndexing(baseId: KnowledgeBaseId, itemId: KnowledgeItemId, parentJobId?: string | null): Promise<void>
+  scheduleFileProcessingCheck(
+    baseId: KnowledgeBaseId,
+    itemId: KnowledgeItemId,
+    fileProcessingJobId: string,
+    options: { pollRound: number; firstScheduledAt: number; parentJobId: string | null }
+  ): Promise<void>
+}
+
 /** Write-side orchestration: admission checks, item creation, conflict handling, and job enqueueing for the add/delete/reindex flows. */
-export class KnowledgeIngestionService {
+export class KnowledgeIngestionService implements KnowledgeItemScheduler {
   constructor(private readonly knowledgeLockManager: KnowledgeLockManager) {}
 
   async addItems(

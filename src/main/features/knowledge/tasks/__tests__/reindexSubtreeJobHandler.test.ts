@@ -27,7 +27,7 @@ import {
 
 describe('reindex-subtree job handler', () => {
   it('clears old artifacts, resets selected roots, and schedules selected roots', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const root = createDirectoryItem('dir-1')
     const child = createNoteItem('note-1', 'dir-1')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
@@ -50,7 +50,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('routes container descendant cleanup through best-effort delete before deleting rows', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const root = createDirectoryItem('dir-1')
     const child = createNoteItem('note-1', 'dir-1')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
@@ -75,7 +75,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('skips deleting subtrees before reset', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const root = createDirectoryItem('dir-1', 'deleting')
     const child = createNoteItem('note-1', 'dir-1', 'deleting')
     const ctx = createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job')
@@ -93,7 +93,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('skips reset when the subtree becomes deleting inside the mutation lock', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const root = createDirectoryItem('dir-1')
     const child = createNoteItem('note-1', 'dir-1')
     const deletingChild = createNoteItem('note-1', 'dir-1', 'deleting')
@@ -110,7 +110,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('leaves a root untouched when its source vanished before the mutation lock', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const root = createDirectoryItem('dir-1')
     const child = createNoteItem('note-1', 'dir-1')
     const ctx = createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job')
@@ -140,7 +140,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('reindexes only the roots whose source still exists', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const presentRoot = createDirectoryItem('dir-1')
     const presentChild = createNoteItem('note-1', 'dir-1')
     const missingRoot = createDirectoryItem('dir-2')
@@ -176,7 +176,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('clears old artifacts for selected leaf roots', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const root = createNoteItem('note-1')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
       (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
@@ -194,7 +194,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('marks only unscheduled reset roots failed when rescheduling fails', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const firstRoot = createDirectoryItem('dir-1')
     const secondRoot = createDirectoryItem('dir-2')
     const firstChild = createNoteItem('note-1', 'dir-1')
@@ -220,7 +220,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('never fails a left-untouched missing-source root when rescheduling a rebuildable root fails', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const presentRoot = createDirectoryItem('dir-1')
     const presentChild = createNoteItem('note-1', 'dir-1')
     const missingRoot = createDirectoryItem('dir-2')
@@ -255,7 +255,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('stores the localized interruption code when a shutdown abort interrupts rescheduling', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const root = createDirectoryItem('dir-1')
     const child = createNoteItem('note-1', 'dir-1')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
@@ -285,7 +285,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('onSettled marks active roots without follow-up jobs failed', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     getJobMock.mockResolvedValue(
       createJobSnapshot({
         id: 'reindex-job',
@@ -317,7 +317,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('onSettled stores the localized interruption code when the reindex job was cancelled', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     getJobMock.mockResolvedValue(
       createJobSnapshot({
         id: 'reindex-job',
@@ -351,7 +351,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('onSettled skips deleting roots and roots with follow-up jobs', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     getJobMock.mockResolvedValue(
       createJobSnapshot({
         id: 'reindex-job',
@@ -388,7 +388,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('onSettled treats file-processing check jobs as follow-up jobs', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     getJobMock.mockResolvedValue(
       createJobSnapshot({
         id: 'reindex-job',

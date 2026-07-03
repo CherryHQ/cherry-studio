@@ -22,7 +22,7 @@ import {
 
 describe('prepare-root job handler', () => {
   it('clears stale expansion and schedules recreated leaves', async () => {
-    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
@@ -36,7 +36,7 @@ describe('prepare-root job handler', () => {
   })
 
   it('clears stale expansion vectors before deleting rows', async () => {
-    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     const activeChild = createNoteItem('active-note', 'dir-1')
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([activeChild])
@@ -51,7 +51,7 @@ describe('prepare-root job handler', () => {
   })
 
   it('routes stale-expansion cleanup through best-effort delete before deleting rows', async () => {
-    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     const activeChild = createNoteItem('active-note', 'dir-1')
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([activeChild])
@@ -70,7 +70,7 @@ describe('prepare-root job handler', () => {
   })
 
   it('leaves deleting descendants for delete-subtree cleanup', async () => {
-    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     const activeChild = createNoteItem('active-note', 'dir-1')
     const deletingChild = createNoteItem('deleting-note', 'dir-1', 'deleting')
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
@@ -85,7 +85,7 @@ describe('prepare-root job handler', () => {
   })
 
   it('skips expansion when the root becomes deleting inside the mutation lock', async () => {
-    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock
       .mockReturnValueOnce(createDirectoryItem())
       .mockReturnValueOnce(createDirectoryItem('dir-1', 'deleting'))
@@ -100,7 +100,7 @@ describe('prepare-root job handler', () => {
   })
 
   it('keeps terminal failure from an empty expansion', async () => {
-    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     prepareKnowledgeItemMock.mockResolvedValue([])
 
@@ -111,7 +111,7 @@ describe('prepare-root job handler', () => {
   })
 
   it('marks unscheduled child leaves failed when enqueueing a child fails', async () => {
-    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     const leaves = [
       createNoteItem('leaf-1', 'dir-1'),
       createNoteItem('leaf-2', 'dir-1'),
@@ -138,7 +138,7 @@ describe('prepare-root job handler', () => {
   })
 
   it('falls back to subtree failed status when marking an unscheduled leaf fails', async () => {
-    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     const leaves = [createNoteItem('leaf-1', 'dir-1'), createNoteItem('leaf-2', 'dir-1')]
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     prepareKnowledgeItemMock.mockResolvedValue(leaves)
@@ -162,7 +162,7 @@ describe('prepare-root job handler', () => {
   })
 
   it('reports unrecovered leaves when failed status cleanup also fails', async () => {
-    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     const leaves = [createNoteItem('leaf-1', 'dir-1')]
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     prepareKnowledgeItemMock.mockResolvedValue(leaves)
@@ -182,7 +182,7 @@ describe('prepare-root job handler', () => {
   })
 
   it('onSettled skips failed status when the item is deleting', async () => {
-    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService as never)
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
     getJobMock.mockResolvedValue(
       createJobSnapshot({
         id: 'prepare-job',

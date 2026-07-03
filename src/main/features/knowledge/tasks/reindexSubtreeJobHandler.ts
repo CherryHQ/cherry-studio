@@ -9,7 +9,7 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED, type KnowledgeItemStatus } from '@shared/data/types/knowledge'
 
 import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
-import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
+import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
 import { canKnowledgeItemRebuildSource, isContainerKnowledgeItem } from '../items'
 import { deleteKnowledgeItemFilesBestEffort } from '../pathStorage'
 import { deleteKnowledgeItemVectors } from '../pipeline/vectorstore/vectorCleanup'
@@ -29,7 +29,7 @@ const REINDEX_RECOVERY_ACTIVE_STATUSES = new Set<KnowledgeItemStatus>(['preparin
 
 export function createReindexSubtreeJobHandler(
   knowledgeLockManager: KnowledgeLockManager,
-  ingestionService: KnowledgeIngestionService
+  ingestionService: KnowledgeItemScheduler
 ): JobHandler<KnowledgeReindexSubtreePayload> {
   return {
     // Don't auto-resume on restart — a deliberate app quit must not re-spend the

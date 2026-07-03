@@ -13,7 +13,7 @@ import {
 import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
-import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionService'
+import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
 import { toKnowledgeRelativePath } from '../pathStorage'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgeCheckFileProcessingResultPayload } from './jobTypes'
@@ -27,7 +27,7 @@ const FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON = 'knowledge-file-processin
 
 export function createCheckFileProcessingResultJobHandler(
   knowledgeLockManager: KnowledgeLockManager,
-  ingestionService: KnowledgeIngestionService
+  ingestionService: KnowledgeItemScheduler
 ): JobHandler<KnowledgeCheckFileProcessingResultPayload> {
   return {
     // Don't auto-resume on restart — a deliberate app quit must not re-spend the
