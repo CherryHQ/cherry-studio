@@ -155,14 +155,12 @@ export const getRestoreProgressLabelKey = (key: string): string => {
 
 const titleKeyMap = {
   // TODO: update i18n key
-  store: 'title.store',
   apps: 'title.apps',
   code: 'title.code',
   files: 'title.files',
   home: 'title.home',
   knowledge: 'title.knowledge',
   launchpad: 'title.launchpad',
-  library: 'library.title',
   'mcp-servers': 'title.mcp-servers',
   notes: 'title.notes',
   paintings: 'title.paintings',
@@ -189,7 +187,6 @@ export const getThemeModeLabelKey = (key: string): string => {
 const sidebarIconKeyMap = {
   assistants: 'agent.session.group.conversation',
   agents: 'title.work',
-  store: 'assistants.presets.title',
   paintings: 'title.paintings',
   translate: 'translate.title',
   mini_app: 'miniApp.title',
@@ -202,26 +199,6 @@ const sidebarIconKeyMap = {
 
 export const getSidebarIconLabelKey = (key: string): string => {
   return getLabelKey(sidebarIconKeyMap, key)
-}
-
-// Transitional: feat renamed this to `getSidebarIconLabelKey` (above) and deleted
-// the old one, but main's `components/app/Sidebar` still calls it. Kept until the
-// chat carve brings feat's Sidebar; remove together with that.
-const sidebarFavoriteKeyMap = {
-  assistants: 'assistants.title',
-  agents: 'title.work',
-  store: 'assistants.presets.title',
-  paintings: 'title.paintings',
-  translate: 'translate.title',
-  mini_app: 'miniApp.title',
-  knowledge: 'knowledge.title',
-  files: 'files.title',
-  code_tools: 'code.title',
-  notes: 'notes.title',
-  openclaw: 'openclaw.title'
-} as const
-export const getSidebarFavoriteLabelKey = (key: string): string => {
-  return getLabelKey(sidebarFavoriteKeyMap, key)
 }
 
 const selectionDescriptionKeyMap = {

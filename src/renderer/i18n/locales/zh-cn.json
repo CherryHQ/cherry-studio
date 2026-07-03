@@ -1652,6 +1652,13 @@
       "top": "回到顶部"
     },
     "resend": "重新发送",
+    "resource_view": {
+      "menu": {
+        "agent": "智能体",
+        "assistant": "助手",
+        "skill": "技能"
+      }
+    },
     "save": {
       "file": {
         "title": "保存到本地文件"
@@ -2968,7 +2975,8 @@
       "preview_description": "简介",
       "preview_prompt": "提示词",
       "scroll_left": "向左滚动分类",
-      "scroll_right": "向右滚动分类"
+      "scroll_right": "向右滚动分类",
+      "title": "助手库"
     },
     "badge": {
       "update": "更新"
@@ -6863,6 +6871,7 @@
         "reorderFailed": "调整提示词顺序失败",
         "updateFailed": "更新提示词失败"
       },
+      "manage": "管理提示词",
       "title": "提示词管理",
       "titleLabel": "标题",
       "titlePlaceholder": "请输入提示词标题",
@@ -7634,7 +7643,6 @@
     "openclaw": "OpenClaw",
     "paintings": "绘画",
     "settings": "设置",
-    "store": "助手库",
     "translate": "翻译",
     "work": "工作"
   },
