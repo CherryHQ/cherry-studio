@@ -120,11 +120,13 @@ const DATE_SNAPSHOT_PATTERN =
 
 // Bedrock re-lists other creators' models as cross-vendor ARNs: a leading region(s)+vendor DOTTED
 // prefix (`us.anthropic.`, `global.meta.`) and/or a vendor DASH prefix (`meta-llama`, `cohere-command`),
-// plus a trailing model revision (`…-v1:0`, `…:0`). Both the build canonicalizer and the runtime resolver
-// strip these so `us.anthropic.claude-sonnet-4-5-v1:0` folds to the same canonical id as `claude-sonnet-4-5`.
+// plus a trailing model revision (`…-v1:0`, `…-1:0`, `…:0`). Both the build canonicalizer and the runtime
+// resolver strip these so `us.anthropic.claude-sonnet-4-5-v1:0` folds to the same canonical id as
+// `claude-sonnet-4-5`. The `v` is optional: `openai.gpt-oss-120b-1:0` spells its revision bare, and eating
+// only the `:0` would leave a phantom `…-120b-1` id. Colon-less ids (`whisper-v3`) are never touched.
 const BEDROCK_VENDOR = 'anthropic|amazon|meta|google|mistralai|cohere|openai|ai21|microsoft|nvidia'
 const BEDROCK_VENDOR_DASH = new RegExp(`^(?:${BEDROCK_VENDOR})-{1,2}`)
-const BEDROCK_REVISION_PATTERN = /(?:[-_]v\d+)?:\d+$/i
+const BEDROCK_REVISION_PATTERN = /(?:[-_]v?\d+)?:\d+$/i
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Functions

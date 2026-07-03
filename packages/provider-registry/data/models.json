@@ -13410,31 +13410,6 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 128000,
-      "family": "gpt-oss",
-      "id": "gpt-oss-120b-1",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 16384,
-      "metadata": {},
-      "name": "gpt-oss-120b",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.6
-        }
-      },
-      "reasoning": {
-        "supportedEfforts": ["low", "medium", "high"]
-      }
-    },
-    {
       "capabilities": ["function-call", "structured-output"],
       "contextWindow": 128000,
       "family": "gpt-oss",
@@ -13454,31 +13429,6 @@
           "currency": "USD",
           "perMillionTokens": 0.6
         }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 128000,
-      "family": "gpt-oss",
-      "id": "gpt-oss-20b-1",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 16384,
-      "metadata": {},
-      "name": "gpt-oss-20b",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.07
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.3
-        }
-      },
-      "reasoning": {
-        "supportedEfforts": ["low", "medium", "high"]
       }
     },
     {
@@ -16096,7 +16046,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0.26
         },
         "cacheWrite": {
           "currency": "USD",
@@ -16104,11 +16054,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.5
+          "perMillionTokens": 1.4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4.5
+          "perMillionTokens": 4.4
         }
       },
       "reasoning": {
@@ -17422,5 +17372,5 @@
       "ownedBy": "vercel"
     }
   ],
-  "version": "f3aa40d6c14fa452"
+  "version": "8760e3d6fabec4f2"
 }

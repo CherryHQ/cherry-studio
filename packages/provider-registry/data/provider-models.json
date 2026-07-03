@@ -5708,15 +5708,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0.26
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.5
+          "perMillionTokens": 1.4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4.5
+          "perMillionTokens": 4.4
         }
       },
       "providerId": "gateway"
@@ -13087,13 +13087,17 @@
       "apiModelId": "z-ai/glm-5.1",
       "modelId": "glm-5-1",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1794
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.975
+          "perMillionTokens": 0.966
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4.3
+          "perMillionTokens": 3.036
         }
       },
       "providerId": "openrouter"
@@ -19748,5 +19752,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "39112f1353bd9bbb"
+  "version": "bba401098d68bf79"
 }
