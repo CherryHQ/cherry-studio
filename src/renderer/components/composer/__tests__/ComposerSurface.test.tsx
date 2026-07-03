@@ -619,6 +619,43 @@ describe('ComposerSurface', () => {
     expect(screen.getByRole('button', { name: 'chat.input.restore' })).toHaveAttribute('aria-pressed', 'true')
   })
 
+  it('clears manual height when an external expand is collapsed with Escape', async () => {
+    render(<Harness />)
+
+    const editorContent = screen.getByTestId('editor-content')
+    const editorContainer = editorContent.parentElement as HTMLElement
+    const expandedHeight = `${Math.max(220, Math.round(window.innerHeight * 0.5))}px`
+
+    fireEvent.mouseDown(screen.getByRole('separator', { name: 'chat.input.resize_height' }), { clientY: 200 })
+    fireEvent.mouseMove(document, { clientY: 100 })
+    fireEvent.mouseUp(document)
+
+    expect(editorContainer).toHaveStyle({ height: '146px' })
+
+    act(() => {
+      mocks.actions?.toggleExpanded(true)
+    })
+
+    await waitFor(() => expect(editorContainer).toHaveStyle({ height: expandedHeight }))
+    fireEvent.transitionEnd(editorContainer, { propertyName: 'height' })
+
+    expect(editorContainer).toHaveStyle({ height: 'max(220px, 50vh)' })
+
+    let handled = false
+    act(() => {
+      const event = new KeyboardEvent('keydown', { key: 'Escape' })
+      handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+    })
+    expect(handled).toBe(true)
+
+    await waitFor(() => expect(editorContainer).toHaveStyle({ height: '46px' }))
+    fireEvent.transitionEnd(editorContainer, { propertyName: 'height' })
+
+    expect(editorContainer.style.height).toBe('')
+    expect(editorContent).not.toHaveStyle({ height: '100%' })
+    expect(screen.getByRole('button', { name: 'chat.input.expand' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('supports keyboard resizing through the horizontal separator', () => {
     mocks.focus.mockImplementation(() => {
       const activeElement = document.activeElement

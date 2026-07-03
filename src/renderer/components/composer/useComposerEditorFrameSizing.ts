@@ -206,6 +206,7 @@ export function useComposerEditorFrameSizing({
         pendingExpandedRef.current = target
       }
 
+      if (!target) setManualHeight(null)
       onExpandedChange(target)
       focusEditor()
     },
