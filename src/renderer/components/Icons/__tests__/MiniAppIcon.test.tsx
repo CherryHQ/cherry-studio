@@ -4,8 +4,17 @@ import { describe, expect, it, vi } from 'vitest'
 
 import MiniAppIcon from '../MiniAppIcon'
 
+// Mirror production: `file:<id>` refs are not presets, so getMiniAppsLogo
+// returns undefined and the component resolves them via resolveStoredImageSrc.
+vi.mock('@renderer/utils/storedImage', () => ({
+  resolveStoredImageSrc: vi.fn((value?: string | null) =>
+    typeof value === 'string' && value.startsWith('file:') ? `resolved:${value.slice('file:'.length)}` : value
+  )
+}))
+
 vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
   getMiniAppsLogo: (logo: unknown) => {
+    if (typeof logo === 'string' && logo.startsWith('file:')) return undefined
     if (logo !== 'compound-logo') return logo
     const CompoundLogo = ({
       'aria-label': ariaLabel,
@@ -61,6 +70,21 @@ describe('MiniAppIcon', () => {
       marginTop: '10px',
       backgroundColor: '#f0f0f0'
     })
+  })
+
+  it('resolves an uploaded file:<id> logo through resolveStoredImageSrc in bare mode', () => {
+    const { container } = render(<MiniAppIcon app={{ ...mockApp, logo: 'file:abc123' }} appearance="bare" size={32} />)
+
+    const img = container.querySelector('img')
+    // Regression: the bare branch previously rendered the raw `file:<id>` ref,
+    // which the sidebar (appearance="bare") could never load.
+    expect(img).toHaveAttribute('src', 'resolved:abc123')
+  })
+
+  it('resolves an uploaded file:<id> logo through resolveStoredImageSrc in the default (image) branch', () => {
+    const { container } = render(<MiniAppIcon app={{ ...mockApp, logo: 'file:abc123' }} size={48} />)
+
+    expect(container.querySelector('img')).toHaveAttribute('src', 'resolved:abc123')
   })
 
   it('should return null when app is not found in allMiniApps', () => {

@@ -47,7 +47,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
     if (appearance === 'bare') {
       return (
         <img
-          src={typeof logo === 'string' ? logo : app.logo}
+          src={typeof logo === 'string' ? logo : resolveStoredImageSrc(app.logo, filesPath)}
           className="shrink-0 select-none object-contain"
           style={{ width: `${size}px`, height: `${size}px`, userSelect: 'none', ...style }}
           draggable={false}
