@@ -548,11 +548,6 @@ const MessageList = () => {
                 directAssistantModelsByUserId={directAssistantModelsByUserId}
                 messages={groupMessages}
                 topic={topic}
-                onMultiModelMessageStyleChange={(style) => {
-                  setGroupLayoutOverrides((current) =>
-                    current[key] === style ? current : { ...current, [key]: style }
-                  )
-                }}
               />
             </NarrowLayout>
           ))}

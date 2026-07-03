@@ -60,6 +60,7 @@ import {
   type TopicImageActionRequest,
   type TopicImageActionType
 } from '../../messages/topicImageActionBus'
+import TopicImageCaptureHost from '../../messages/TopicImageCaptureHost'
 import type { AddNewTopicPayload } from '../../types'
 import {
   type AssistantGroupActionContext,
@@ -85,6 +86,13 @@ import {
 import { useTopicMenuActions } from './useTopicMenuActions'
 
 const logger = loggerService.withContext('Topics')
+// Let the context menu close before mounting the heavier offscreen message list.
+const IMAGE_CAPTURE_START_DELAY_MS = 160
+
+type TopicImageCaptureTarget = {
+  requestId: number
+  topic: Topic
+}
 
 interface Props {
   activeTopic?: Topic
@@ -230,6 +238,9 @@ export function Topics({
   const [topicExpansionAssistant, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
+  const [imageCaptureTargets, setImageCaptureTargets] = useState<TopicImageCaptureTarget[]>([])
+  const imageCaptureMountedRef = useRef(true)
+  const imageCaptureStartTimersRef = useRef<Set<number>>(new Set())
   const [exportMenuOptions] = useMultiplePreferences({
     docx: 'data.export.menus.docx',
     image: 'data.export.menus.image',
@@ -315,22 +326,44 @@ export function Topics({
 
   const handleTopicImageAction = useCallback(
     (type: TopicImageActionType, topic: Topic) => {
-      const request = requestTopicImageAction(type, topic)
+      const request = requestTopicImageAction(type, topic, { emit: false })
       if (type === 'export') {
         showTopicImageExportToast(request)
       } else {
         void request.promise.catch(() => window.toast.error(t('common.copy_failed')))
       }
 
-      if (topic.id !== activeTopic?.id) {
-        setActiveTopic(topic)
-      }
+      const startTimerId = window.setTimeout(() => {
+        imageCaptureStartTimersRef.current.delete(startTimerId)
+        if (!imageCaptureMountedRef.current) return
+        setImageCaptureTargets((current) => [...current, { requestId: request.id, topic }])
+      }, IMAGE_CAPTURE_START_DELAY_MS)
+
+      imageCaptureStartTimersRef.current.add(startTimerId)
+      void request.promise
+        .finally(() => {
+          window.clearTimeout(startTimerId)
+          imageCaptureStartTimersRef.current.delete(startTimerId)
+          if (!imageCaptureMountedRef.current) return
+          setImageCaptureTargets((current) => current.filter((target) => target.requestId !== request.id))
+        })
+        .catch(() => undefined)
     },
-    [activeTopic?.id, setActiveTopic, showTopicImageExportToast]
+    [showTopicImageExportToast, t]
   )
 
   useEffect(() => {
-    return () => rejectPendingTopicImageActions(undefined, new Error('Topic image export was cancelled'))
+    imageCaptureMountedRef.current = true
+    const imageCaptureStartTimers = imageCaptureStartTimersRef.current
+
+    return () => {
+      imageCaptureMountedRef.current = false
+      for (const timerId of imageCaptureStartTimers) {
+        window.clearTimeout(timerId)
+      }
+      imageCaptureStartTimers.clear()
+      rejectPendingTopicImageActions(undefined, new Error('Topic image export was cancelled'))
+    }
   }, [])
 
   const apiBackedTopics = useMemo(
@@ -663,6 +696,13 @@ export function Topics({
   const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
+  const imageCaptureTopics = useMemo(() => {
+    const topicById = new Map<string, Topic>()
+    for (const target of imageCaptureTargets) {
+      topicById.set(target.topic.id, target.topic)
+    }
+    return [...topicById.values()]
+  }, [imageCaptureTargets])
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
   }, [])
@@ -1131,6 +1171,9 @@ export function Topics({
         }}
         onSaved={refreshAssistants}
       />
+      {imageCaptureTopics.map((topic) => (
+        <TopicImageCaptureHost key={topic.id} topic={topic} />
+      ))}
     </>
   )
 }
@@ -1394,7 +1437,7 @@ function TopicRow({
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
   const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
   const submitRenameDialog = useCallback((name: string) => actions.commitRename(topic.id, name), [actions, topic.id])
-  const { menuActions, handleMenuAction } = useTopicMenuActions({
+  const { getMenuActions, handleMenuAction } = useTopicMenuActions({
     exportMenuOptions,
     isActiveInCurrentTab: isActive,
     isRenaming: isRenaming(topic.id),
@@ -1485,7 +1528,7 @@ function TopicRow({
 
   return (
     <>
-      <ResourceListActionContextMenu item={topic} actions={menuActions} onAction={handleMenuAction}>
+      <ResourceListActionContextMenu item={topic} getActions={getMenuActions} onAction={handleMenuAction}>
         {row}
       </ResourceListActionContextMenu>
       <EditNameDialog

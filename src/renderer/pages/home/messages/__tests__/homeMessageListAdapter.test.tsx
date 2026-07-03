@@ -225,11 +225,13 @@ const createTopic = (id: string): Topic =>
   }) as Topic
 
 function MessageListAdapterHarness({
+  imageActionConsumer,
   messages = [],
   onValue,
   partsByMessageId = {},
   topic
 }: {
+  imageActionConsumer?: 'capture'
   messages?: CherryUIMessage[]
   onValue?: (value: MessageListProviderValue) => void
   partsByMessageId?: Record<string, CherryMessagePart[]>
@@ -238,7 +240,8 @@ function MessageListAdapterHarness({
   const value = useHomeMessageListProviderValue({
     topic,
     messages,
-    partsByMessageId
+    partsByMessageId,
+    imageActionConsumer
   })
 
   useEffect(() => {
@@ -315,6 +318,33 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(eventMocks.on).not.toHaveBeenCalledWith('SEND_MESSAGE', runtime.scrollToBottom)
     expect(eventMocks.on).toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
     expect(eventMocks.on).toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
+  })
+
+  it('capture consumer consumes pending topic image requests without binding visible image events', async () => {
+    const request = requestTopicImageAction('copy', createTopic('topic-a'), { emit: false })
+    let value: MessageListProviderValue | undefined
+    render(
+      <MessageListAdapterHarness
+        imageActionConsumer="capture"
+        topic={createTopic('topic-a')}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    const runtime: MessageListRuntime = {
+      copyTopicImage: vi.fn().mockResolvedValue(undefined),
+      exportTopicImage: vi.fn(),
+      locateMessage: vi.fn(),
+      scrollToBottom: vi.fn()
+    }
+
+    value?.actions.bindRuntime?.(runtime)
+
+    await expect(request.promise).resolves.toBeUndefined()
+    expect(runtime.copyTopicImage).toHaveBeenCalledTimes(1)
+    expect(eventMocks.on).not.toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
+    expect(eventMocks.on).not.toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
+    expect(consumePendingTopicImageActions('topic-a')).toEqual([])
   })
 
   it('saves code block edits through chat write', async () => {

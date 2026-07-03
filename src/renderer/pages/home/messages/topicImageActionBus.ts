@@ -15,6 +15,10 @@ interface TopicImageActionSettlement {
   resolve: () => void
 }
 
+interface RequestTopicImageActionOptions {
+  emit?: boolean
+}
+
 const TOPIC_IMAGE_EVENT_NAMES: Record<TopicImageActionType, string> = {
   copy: EVENT_NAMES.COPY_TOPIC_IMAGE,
   export: EVENT_NAMES.EXPORT_TOPIC_IMAGE
@@ -24,7 +28,11 @@ let nextRequestId = 1
 let pendingRequests: TopicImageActionRequest[] = []
 const settlements = new Map<number, TopicImageActionSettlement>()
 
-export function requestTopicImageAction(type: TopicImageActionType, topic: Topic): TopicImageActionRequest {
+export function requestTopicImageAction(
+  type: TopicImageActionType,
+  topic: Topic,
+  options: RequestTopicImageActionOptions = {}
+): TopicImageActionRequest {
   let settlement: TopicImageActionSettlement | undefined
   const promise = new Promise<void>((resolve, reject) => {
     settlement = { resolve, reject }
@@ -32,7 +40,9 @@ export function requestTopicImageAction(type: TopicImageActionType, topic: Topic
   const request = { id: nextRequestId++, promise, type, topic }
   settlements.set(request.id, settlement as TopicImageActionSettlement)
   pendingRequests.push(request)
-  void EventEmitter.emit(TOPIC_IMAGE_EVENT_NAMES[type], topic)
+  if (options.emit !== false) {
+    void EventEmitter.emit(TOPIC_IMAGE_EVENT_NAMES[type], topic)
+  }
   return request
 }
 

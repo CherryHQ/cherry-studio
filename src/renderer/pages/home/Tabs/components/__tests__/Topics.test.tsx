@@ -111,6 +111,13 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
     target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
 }))
 
+vi.mock('@renderer/pages/home/messages/TopicImageCaptureHost', () => ({
+  __esModule: true,
+  default: ({ topic }: { topic: { id: string } }) => (
+    <div data-testid="topic-image-capture-host" data-topic-id={topic.id} />
+  )
+}))
+
 const topicDataMocks = vi.hoisted(() => ({
   deleteTopicsByAssistantId: vi.fn().mockResolvedValue({ deletedIds: [] as string[], deletedCount: 0 }),
   deleteTopic: vi.fn().mockResolvedValue(undefined),
@@ -973,8 +980,8 @@ describe('Topics', () => {
     expect(menuContent).not.toHaveTextContent('Open in new tab')
   })
 
-  it('shows loading while selecting the right-clicked topic before exporting it as an image', async () => {
-    const { getByText, rerenderTopicList, setActiveTopic } = renderTopicList()
+  it('shows loading while exporting a right-clicked topic as an image without switching topics', async () => {
+    const { getByText, setActiveTopic } = renderTopicList()
     fireEvent.contextMenu(getByText('Gamma topic'))
     const gammaMenu = getByText('Gamma topic').closest('[data-testid="context-menu"]')
     const menuContent = gammaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1006,15 +1013,10 @@ describe('Topics', () => {
         title: 'Exporting image. Please stay on this page.'
       })
     )
-    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
-    expect(EventEmitter.emit).toHaveBeenCalledWith(
+    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(EventEmitter.emit).not.toHaveBeenCalledWith(
       EVENT_NAMES.EXPORT_TOPIC_IMAGE,
       expect.objectContaining({ id: 'topic-c' })
-    )
-
-    rerenderTopicList(
-      undefined,
-      createRendererTopic({ assistantId: 'assistant-2', id: 'topic-c', name: 'Gamma topic' })
     )
 
     const [request] = consumePendingTopicImageActions('topic-c', 'export')
@@ -1060,9 +1062,9 @@ describe('Topics', () => {
       }
     })
 
-    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
+    expect(setActiveTopic).not.toHaveBeenCalled()
     expect(window.toast.loading).not.toHaveBeenCalled()
-    expect(EventEmitter.emit).toHaveBeenCalledWith(
+    expect(EventEmitter.emit).not.toHaveBeenCalledWith(
       EVENT_NAMES.COPY_TOPIC_IMAGE,
       expect.objectContaining({ id: 'topic-c' })
     )

@@ -78,6 +78,7 @@ interface HomeMessageListParams {
   loadOlder?: () => void
   hasOlder?: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  imageActionConsumer?: 'capture'
   onComponentUpdate?(): void
   onFirstUpdate?(): void
 }
@@ -90,6 +91,7 @@ export function useHomeMessageListProviderValue({
   loadOlder,
   hasOlder = false,
   openCitationsPanel,
+  imageActionConsumer,
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
@@ -259,6 +261,11 @@ export function useHomeMessageListProviderValue({
 
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
+      if (imageActionConsumer === 'capture') {
+        flushPendingTopicImageActions(runtime)
+        return () => rejectPendingTopicImageActions(topic.id, new Error('Topic image export was cancelled'))
+      }
+
       flushPendingTopicImageActions(runtime)
 
       const unsubscribes = [
@@ -272,7 +279,7 @@ export function useHomeMessageListProviderValue({
 
       return () => unsubscribes.forEach((unsub) => unsub())
     },
-    [consumeTopicImageAction, flushPendingTopicImageActions]
+    [consumeTopicImageAction, flushPendingTopicImageActions, imageActionConsumer, topic.id]
   )
 
   const bindMessageRuntime = useCallback((messageId: string, runtime: MessageRuntime) => {
