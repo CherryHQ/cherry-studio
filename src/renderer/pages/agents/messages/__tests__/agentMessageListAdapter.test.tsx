@@ -527,4 +527,93 @@ describe('useAgentMessageListProviderValue', () => {
     unbindFirst?.()
     unbindSecond?.()
   })
+
+  it('keeps capture-scoped session image actions away from the visible runtime', async () => {
+    const topic = {
+      id: 'agent-session:session-a',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const messages = [
+      {
+        id: 'user-1',
+        role: 'user',
+        parts: [{ type: 'text', text: 'hello' }],
+        metadata: { createdAt: '2026-01-01T00:00:00.000Z' }
+      }
+    ] as CherryUIMessage[]
+    let visibleValue: MessageListProviderValue | undefined
+    let captureValue: MessageListProviderValue | undefined
+
+    const VisibleProbe = () => {
+      visibleValue = useAgentMessageListProviderValue({
+        topic,
+        messages,
+        partsByMessageId: { 'user-1': messages[0].parts ?? [] },
+        assistantId: 'agent-1',
+        modelFallback: undefined,
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+
+    const CaptureProbe = () => {
+      captureValue = useAgentMessageListProviderValue({
+        topic,
+        messages,
+        partsByMessageId: { 'user-1': messages[0].parts ?? [] },
+        assistantId: 'agent-1',
+        modelFallback: undefined,
+        isLoading: false,
+        imageActionConsumer: 'capture',
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+
+    render(<VisibleProbe />)
+
+    const visibleRuntime: MessageListRuntime = {
+      copyTopicImage: vi.fn().mockResolvedValue(undefined),
+      exportTopicImage: vi.fn().mockResolvedValue(undefined),
+      locateMessage: vi.fn(),
+      scrollToBottom: vi.fn()
+    }
+    const unbindVisible = visibleValue?.actions.bindRuntime?.(visibleRuntime)
+    const request = requestAgentSessionImageAction(
+      'copy',
+      { id: 'session-a', name: 'Session A' },
+      {
+        consumer: 'capture',
+        emit: false
+      }
+    )
+    const unbindVisibleRebound = visibleValue?.actions.bindRuntime?.(visibleRuntime)
+
+    expect(visibleRuntime.copyTopicImage).not.toHaveBeenCalled()
+
+    const listenerCountBeforeCaptureBind = eventMocks.on.mock.calls.length
+    render(<CaptureProbe />)
+
+    const captureRuntime: MessageListRuntime = {
+      copyTopicImage: vi.fn().mockResolvedValue(undefined),
+      exportTopicImage: vi.fn().mockResolvedValue(undefined),
+      locateMessage: vi.fn(),
+      scrollToBottom: vi.fn()
+    }
+    const unbindCapture = captureValue?.actions.bindRuntime?.(captureRuntime)
+
+    await expect(request.promise).resolves.toBeUndefined()
+    expect(captureRuntime.copyTopicImage).toHaveBeenCalledTimes(1)
+    expect(eventMocks.on.mock.calls.length).toBe(listenerCountBeforeCaptureBind)
+    expect(consumePendingAgentSessionImageActions('session-a', undefined, 'capture')).toEqual([])
+
+    unbindCapture?.()
+    unbindVisibleRebound?.()
+    unbindVisible?.()
+  })
 })

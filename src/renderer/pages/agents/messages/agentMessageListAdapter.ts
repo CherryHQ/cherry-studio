@@ -32,6 +32,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo } from 'react'
 
 import {
+  type AgentSessionImageActionConsumer,
   type AgentSessionImageActionTarget,
   type AgentSessionImageActionType,
   consumePendingAgentSessionImageActions,
@@ -73,6 +74,7 @@ interface AgentMessageListParams {
   openArtifactFile?: MessageListActions['openArtifactFile']
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
+  imageActionConsumer?: AgentSessionImageActionConsumer
   messageNavigation: string
   workspacePath?: string
 }
@@ -105,6 +107,7 @@ export function useAgentMessageListProviderValue({
   openArtifactFile,
   deleteMessage,
   respondToolApproval,
+  imageActionConsumer = 'visible',
   messageNavigation,
   workspacePath
 }: AgentMessageListParams): MessageListProviderValue {
@@ -197,7 +200,7 @@ export function useAgentMessageListProviderValue({
     (runtime: MessageListRuntime, type: AgentSessionImageActionType, data?: AgentSessionImageActionTarget) => {
       if (data && data.id !== sessionId) return
 
-      const requests = consumePendingAgentSessionImageActions(sessionId, type)
+      const requests = consumePendingAgentSessionImageActions(sessionId, type, imageActionConsumer)
       if (requests.length === 0) {
         if (data) return
         void runAgentSessionImageAction(runtime, type)
@@ -208,27 +211,42 @@ export function useAgentMessageListProviderValue({
         settleAgentSessionImageActionRequest(request, runAgentSessionImageAction(runtime, type))
       }
     },
-    [runAgentSessionImageAction, sessionId]
+    [imageActionConsumer, runAgentSessionImageAction, sessionId]
   )
 
   const flushPendingAgentSessionImageActions = useCallback(
     (runtime: MessageListRuntime) => {
-      const requests = consumePendingAgentSessionImageActions(sessionId)
+      const requests = consumePendingAgentSessionImageActions(sessionId, undefined, imageActionConsumer)
       for (const request of requests) {
         settleAgentSessionImageActionRequest(request, runAgentSessionImageAction(runtime, request.type))
       }
     },
-    [runAgentSessionImageAction, sessionId]
+    [imageActionConsumer, runAgentSessionImageAction, sessionId]
   )
 
   useEffect(() => {
-    return () => rejectPendingAgentSessionImageActions(sessionId, new Error('Agent session image export was cancelled'))
-  }, [sessionId])
+    return () =>
+      rejectPendingAgentSessionImageActions(
+        sessionId,
+        new Error('Agent session image export was cancelled'),
+        imageActionConsumer
+      )
+  }, [imageActionConsumer, sessionId])
 
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
-      agentMessageListRuntimes.set(topic.id, runtime)
       flushPendingAgentSessionImageActions(runtime)
+
+      if (imageActionConsumer !== 'visible') {
+        return () =>
+          rejectPendingAgentSessionImageActions(
+            sessionId,
+            new Error('Agent session image export was cancelled'),
+            imageActionConsumer
+          )
+      }
+
+      agentMessageListRuntimes.set(topic.id, runtime)
 
       const unsubscribes = [
         EventEmitter.on(EVENT_NAMES.COPY_AGENT_SESSION_IMAGE, (data?: AgentSessionImageActionTarget) =>
@@ -246,7 +264,7 @@ export function useAgentMessageListProviderValue({
         unsubscribes.forEach((unsub) => unsub())
       }
     },
-    [consumeAgentSessionImageAction, flushPendingAgentSessionImageActions, topic.id]
+    [consumeAgentSessionImageAction, flushPendingAgentSessionImageActions, imageActionConsumer, sessionId, topic.id]
   )
 
   const bindMessageRuntime = useCallback((messageId: string, runtime: MessageRuntime) => {

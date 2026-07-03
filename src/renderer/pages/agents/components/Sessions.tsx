@@ -91,6 +91,7 @@ import {
   rejectPendingAgentSessionImageActions,
   requestAgentSessionImageAction
 } from '../messages/agentSessionImageActionBus'
+import AgentSessionImageCaptureHost from '../messages/AgentSessionImageCaptureHost'
 import type { DraftAgentSessionDefaults } from '../types'
 import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
 import SessionItem, { type SessionItemMenuActions } from './SessionItem'
@@ -158,6 +159,12 @@ const SESSION_DISPLAY_ICONS: Record<AgentSessionDisplayMode, ReactNode> = {
   workdir: <Folder size={16} />
 }
 const EMPTY_WORKSPACE_ROWS: AgentWorkspaceEntity[] = []
+// Let the context menu close before mounting the heavier offscreen message list.
+const IMAGE_CAPTURE_START_DELAY_MS = 160
+type AgentSessionImageCaptureTarget = {
+  requestId: number
+  session: AgentSessionEntity
+}
 type CreateSessionSeed = {
   agentId: string
   workspace?: AgentSessionWorkspaceSource
@@ -442,6 +449,9 @@ const Sessions = ({
     workspaceId: string
   } | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+  const [imageCaptureTargets, setImageCaptureTargets] = useState<AgentSessionImageCaptureTarget[]>([])
+  const imageCaptureMountedRef = useRef(true)
+  const imageCaptureStartTimersRef = useRef<Set<number>>(new Set())
 
   const { data: channels } = useQuery('/agent-channels')
   const channelTypeMap = useMemo(() => {
@@ -837,18 +847,30 @@ const Sessions = ({
 
   const handleSessionImageAction = useCallback(
     (type: AgentSessionImageActionType, session: AgentSessionEntity) => {
-      const request = requestAgentSessionImageAction(type, session)
+      const request = requestAgentSessionImageAction(type, session, { consumer: 'capture', emit: false })
       if (type === 'export') {
         showSessionImageExportToast(request)
       } else {
         void request.promise.catch(() => window.toast.error(t('common.copy_failed')))
       }
 
-      if (session.id !== activeSessionId) {
-        setActiveSessionId(session.id)
-      }
+      const startTimerId = window.setTimeout(() => {
+        imageCaptureStartTimersRef.current.delete(startTimerId)
+        if (!imageCaptureMountedRef.current) return
+        setImageCaptureTargets((current) => [...current, { requestId: request.id, session }])
+      }, IMAGE_CAPTURE_START_DELAY_MS)
+
+      imageCaptureStartTimersRef.current.add(startTimerId)
+      void request.promise
+        .finally(() => {
+          window.clearTimeout(startTimerId)
+          imageCaptureStartTimersRef.current.delete(startTimerId)
+          if (!imageCaptureMountedRef.current) return
+          setImageCaptureTargets((current) => current.filter((target) => target.requestId !== request.id))
+        })
+        .catch(() => undefined)
     },
-    [activeSessionId, setActiveSessionId, showSessionImageExportToast, t]
+    [showSessionImageExportToast, t]
   )
 
   const handleSaveSessionToNotes = useCallback(
@@ -935,7 +957,17 @@ const Sessions = ({
   )
 
   useEffect(() => {
-    return () => rejectPendingAgentSessionImageActions(undefined, new Error('Agent session image export was cancelled'))
+    imageCaptureMountedRef.current = true
+    const imageCaptureStartTimers = imageCaptureStartTimersRef.current
+
+    return () => {
+      imageCaptureMountedRef.current = false
+      for (const timerId of imageCaptureStartTimers) {
+        window.clearTimeout(timerId)
+      }
+      imageCaptureStartTimers.clear()
+      rejectPendingAgentSessionImageActions(undefined, new Error('Agent session image export was cancelled'))
+    }
   }, [])
 
   const { trigger: findOrCreateWorkspace } = useMutation('POST', '/agent-workspaces', {
@@ -1694,6 +1726,13 @@ const Sessions = ({
         ? 'empty'
         : 'idle'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
+  const imageCaptureSessions = useMemo(() => {
+    const sessionById = new Map<string, AgentSessionEntity>()
+    for (const target of imageCaptureTargets) {
+      sessionById.set(target.session.id, target.session)
+    }
+    return [...sessionById.values()]
+  }, [imageCaptureTargets])
 
   return (
     <SessionResourceList<SessionListItem>
@@ -1805,6 +1844,13 @@ const Sessions = ({
         }}
         onSaved={refetchAgents}
       />
+      {imageCaptureSessions.map((session) => (
+        <AgentSessionImageCaptureHost
+          key={session.id}
+          activeAgent={session.agentId ? agentById.get(session.agentId) : undefined}
+          session={session}
+        />
+      ))}
     </SessionResourceList>
   )
 }

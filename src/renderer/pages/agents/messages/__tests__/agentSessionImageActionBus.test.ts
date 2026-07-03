@@ -36,6 +36,16 @@ describe('agentSessionImageActionBus', () => {
     ])
   })
 
+  it('can buffer capture-only requests without broadcasting to the visible message runtime', () => {
+    const request = requestAgentSessionImageAction('copy', session, { consumer: 'capture', emit: false })
+
+    expect(EventEmitter.emit).not.toHaveBeenCalled()
+    expect(consumePendingAgentSessionImageActions('session-a')).toEqual([])
+    expect(consumePendingAgentSessionImageActions('session-a', undefined, 'capture')).toEqual([
+      expect.objectContaining({ id: request.id, session, type: 'copy', promise: expect.any(Promise) })
+    ])
+  })
+
   it('consumes only matching session and action requests', () => {
     requestAgentSessionImageAction('copy', session)
     requestAgentSessionImageAction('export', session)
@@ -90,6 +100,20 @@ describe('agentSessionImageActionBus', () => {
     expect(consumePendingAgentSessionImageActions('session-a')).toEqual([])
     expect(consumePendingAgentSessionImageActions('session-b')).toEqual([
       expect.objectContaining({ id: requestB.id, type: 'export' })
+    ])
+  })
+
+  it('can cancel only one consumer scope', async () => {
+    const visibleRequest = requestAgentSessionImageAction('copy', session)
+    const captureRequest = requestAgentSessionImageAction('copy', session, { consumer: 'capture', emit: false })
+    const error = new Error('cancelled')
+
+    rejectPendingAgentSessionImageActions('session-a', error, 'capture')
+
+    await expect(captureRequest.promise).rejects.toBe(error)
+    expect(consumePendingAgentSessionImageActions('session-a', undefined, 'capture')).toEqual([])
+    expect(consumePendingAgentSessionImageActions('session-a')).toEqual([
+      expect.objectContaining({ id: visibleRequest.id, type: 'copy' })
     ])
   })
 

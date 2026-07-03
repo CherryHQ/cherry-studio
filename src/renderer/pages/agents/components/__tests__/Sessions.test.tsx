@@ -279,6 +279,10 @@ const topicStreamStatusMocks = vi.hoisted(() => ({
   }))
 }))
 
+const agentSessionImageCaptureHostMocks = vi.hoisted(() => ({
+  render: vi.fn()
+}))
+
 const createTopicStreamStatusMock = (overrides: { isFulfilled?: boolean; isPending?: boolean } = {}) => ({
   activeExecutions: [],
   isFulfilled: overrides.isFulfilled ?? false,
@@ -314,8 +318,24 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       preferenceMocks.setPreference(key, value)
     }
   ],
-  useMultiplePreferences: () => [{}, vi.fn()]
+  useMultiplePreferences: (keys: Record<string, string>) => [
+    Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, preferenceMocks.values.get(key)])),
+    vi.fn()
+  ]
 }))
+
+vi.mock('@renderer/pages/agents/messages/AgentSessionImageCaptureHost', () => {
+  const React = require('react')
+  return {
+    default: (props: { session: AgentSessionEntity }) => {
+      agentSessionImageCaptureHostMocks.render(props)
+      return React.createElement('div', {
+        'data-testid': 'agent-session-image-capture-host',
+        'data-session-id': props.session.id
+      })
+    }
+  }
+})
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
   useCache: () => [undefined, vi.fn()],
@@ -467,6 +487,10 @@ vi.mock('react-i18next', () => ({
         'agent.session.workdir.rename.trigger': 'Rename work directory',
         'agent.unpin.title': 'Unpin Agent',
         'chat.topics.delete.shortcut': 'Hold Ctrl to delete directly',
+        'chat.topics.copy.image': 'Copy as Image',
+        'chat.topics.copy.md': 'Copy as Markdown',
+        'chat.topics.copy.plain_text': 'Copy as Plain Text',
+        'chat.topics.copy.title': 'Copy',
         'common.cancel': 'Cancel',
         'common.delete': 'Delete',
         'common.delete_success': 'Deleted successfully',
@@ -1456,6 +1480,54 @@ describe('Sessions', () => {
       metadata: { instanceAppId: 'agents', instanceKey: 'session-b' }
     })
     requestAnimationFrameSpy.mockRestore()
+  })
+
+  it('captures inactive session images offscreen without switching the active session', async () => {
+    preferenceMocks.values.set('data.export.menus.image', true)
+    const setActiveSessionId = vi.fn()
+
+    render(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
+
+    fireEvent.contextMenu(screen.getByText('Beta session'))
+    const betaMenu = screen.getByText('Beta session').closest('[data-testid="context-menu"]')
+    const menuContent = betaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('menuitem', { name: 'Copy as Image' }))
+
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+    expect(await screen.findByTestId('agent-session-image-capture-host')).toHaveAttribute(
+      'data-session-id',
+      'session-b'
+    )
+    expect(agentSessionImageCaptureHostMocks.render).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session: expect.objectContaining({ id: 'session-b' })
+      })
+    )
+  })
+
+  it('captures active session images offscreen without touching the visible message list', async () => {
+    preferenceMocks.values.set('data.export.menus.image', true)
+    const setActiveSessionId = vi.fn()
+
+    render(<SessionsForTest activeSessionId="session-a" setActiveSessionId={setActiveSessionId} />)
+
+    fireEvent.contextMenu(screen.getByText('Alpha session'))
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('menuitem', { name: 'Copy as Image' }))
+
+    expect(setActiveSessionId).not.toHaveBeenCalled()
+    expect(await screen.findByTestId('agent-session-image-capture-host')).toHaveAttribute(
+      'data-session-id',
+      'session-a'
+    )
+    expect(agentSessionImageCaptureHostMocks.render).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session: expect.objectContaining({ id: 'session-a' })
+      })
+    )
   })
 
   it('hides open-in-new-tab for the active session context menu', () => {

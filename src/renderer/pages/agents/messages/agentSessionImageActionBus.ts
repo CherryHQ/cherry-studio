@@ -2,14 +2,21 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 export type AgentSessionImageActionType = 'copy' | 'export'
+export type AgentSessionImageActionConsumer = 'visible' | 'capture'
 
 export type AgentSessionImageActionTarget = Pick<AgentSessionEntity, 'id' | 'name'>
 
 export interface AgentSessionImageActionRequest {
+  consumer: AgentSessionImageActionConsumer
   id: number
   promise: Promise<void>
   session: AgentSessionImageActionTarget
   type: AgentSessionImageActionType
+}
+
+interface RequestAgentSessionImageActionOptions {
+  consumer?: AgentSessionImageActionConsumer
+  emit?: boolean
 }
 
 interface AgentSessionImageActionSettlement {
@@ -28,16 +35,19 @@ const settlements = new Map<number, AgentSessionImageActionSettlement>()
 
 export function requestAgentSessionImageAction(
   type: AgentSessionImageActionType,
-  session: AgentSessionImageActionTarget
+  session: AgentSessionImageActionTarget,
+  options: RequestAgentSessionImageActionOptions = {}
 ): AgentSessionImageActionRequest {
   let settlement: AgentSessionImageActionSettlement | undefined
   const promise = new Promise<void>((resolve, reject) => {
     settlement = { resolve, reject }
   })
-  const request = { id: nextRequestId++, promise, type, session }
+  const request = { consumer: options.consumer ?? 'visible', id: nextRequestId++, promise, type, session }
   settlements.set(request.id, settlement as AgentSessionImageActionSettlement)
   pendingRequests.push(request)
-  void EventEmitter.emit(AGENT_SESSION_IMAGE_EVENT_NAMES[type], session)
+  if (options.emit !== false) {
+    void EventEmitter.emit(AGENT_SESSION_IMAGE_EVENT_NAMES[type], session)
+  }
   return request
 }
 
@@ -54,13 +64,14 @@ export function settleAgentSessionImageActionRequest(
 
 export function consumePendingAgentSessionImageActions(
   sessionId: string,
-  type?: AgentSessionImageActionType
+  type?: AgentSessionImageActionType,
+  consumer: AgentSessionImageActionConsumer = 'visible'
 ): AgentSessionImageActionRequest[] {
   const matches: AgentSessionImageActionRequest[] = []
   const remaining: AgentSessionImageActionRequest[] = []
 
   for (const request of pendingRequests) {
-    if (request.session.id === sessionId && (!type || request.type === type)) {
+    if (request.session.id === sessionId && request.consumer === consumer && (!type || request.type === type)) {
       matches.push(request)
     } else {
       remaining.push(request)
@@ -71,11 +82,15 @@ export function consumePendingAgentSessionImageActions(
   return matches
 }
 
-export function rejectPendingAgentSessionImageActions(sessionId: string | undefined, reason: unknown): void {
+export function rejectPendingAgentSessionImageActions(
+  sessionId: string | undefined,
+  reason: unknown,
+  consumer?: AgentSessionImageActionConsumer
+): void {
   const remaining: AgentSessionImageActionRequest[] = []
 
   for (const request of pendingRequests) {
-    if (sessionId === undefined || request.session.id === sessionId) {
+    if ((sessionId === undefined || request.session.id === sessionId) && (!consumer || request.consumer === consumer)) {
       const settlement = settlements.get(request.id)
       settlements.delete(request.id)
       settlement?.reject(reason)
