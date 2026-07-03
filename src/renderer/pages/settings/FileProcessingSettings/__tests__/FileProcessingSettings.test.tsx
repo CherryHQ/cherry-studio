@@ -290,8 +290,10 @@ describe('FileProcessingSettings', () => {
 
     expect(await screen.findByText('settings.tool.file_processing.features.image_to_text.title')).toBeInTheDocument()
     expect(screen.getByText('settings.tool.file_processing.features.document_to_markdown.title')).toBeInTheDocument()
-    expect(screen.getByText('settings.tool.file_processing.features.image_to_text.tooltip')).toBeInTheDocument()
-    expect(screen.getByText('settings.tool.file_processing.features.document_to_markdown.tooltip')).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.features.image_to_text.scenario_tip')).toBeInTheDocument()
+    expect(
+      screen.getByText('settings.tool.file_processing.features.document_to_markdown.scenario_tip')
+    ).toBeInTheDocument()
     expect(
       screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     ).toHaveLength(2)

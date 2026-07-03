@@ -1,4 +1,4 @@
-import { Badge, Button, CircularProgress, Divider, SegmentedControl, Switch, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, CircularProgress, SegmentedControl, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import LogoAvatar from '@renderer/components/Icons/LogoAvatar'
@@ -17,7 +17,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Streamdown } from 'streamdown'
 
-import { SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
+import { SettingCard, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
 
 const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
@@ -172,13 +172,11 @@ const AboutSettings: FC = () => {
             type="button"
             onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
             className="inline-flex items-center justify-center rounded-md p-1 text-foreground transition-colors hover:bg-muted">
-            <Github className="size-5" />
+            <Github className="size-5 [stroke-width:var(--icon-stroke)]" />
           </button>
         </SettingTitle>
 
-        <Divider className="my-1.5" />
-
-        <div className="flex flex-wrap items-center justify-between gap-3 py-1">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3 py-1">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               type="button"
@@ -233,43 +231,36 @@ const AboutSettings: FC = () => {
         </div>
 
         {!isPortable && (
-          <>
-            <Divider className="my-3" />
+          <SettingCard>
             <SettingRow className="gap-3">
               <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
               <Switch checked={autoCheckUpdate} onCheckedChange={(v) => setAutoCheckUpdate(v)} />
             </SettingRow>
-
-            <Divider className="my-3" />
             <SettingRow className="gap-3">
               <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
               <Tooltip content={t('settings.general.test_plan.tooltip')}>
                 <Switch checked={testPlan} onCheckedChange={(v) => handleSetTestPlan(v)} />
               </Tooltip>
             </SettingRow>
-
             {testPlan && (
-              <>
-                <Divider className="my-1.5" />
-                <SettingRow className="items-center gap-3">
-                  <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
-                  <SegmentedControl<UpgradeChannel>
-                    value={getTestChannel()}
-                    onValueChange={handleTestChannelChange}
-                    options={testChannels.map((option) => ({
-                      value: option.value,
-                      label: (
-                        <Tooltip content={option.tooltip}>
-                          <span>{option.label}</span>
-                        </Tooltip>
-                      )
-                    }))}
-                    size="sm"
-                  />
-                </SettingRow>
-              </>
+              <SettingRow className="items-center gap-3">
+                <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
+                <SegmentedControl<UpgradeChannel>
+                  value={getTestChannel()}
+                  onValueChange={handleTestChannelChange}
+                  options={testChannels.map((option) => ({
+                    value: option.value,
+                    label: (
+                      <Tooltip content={option.tooltip}>
+                        <span>{option.label}</span>
+                      </Tooltip>
+                    )
+                  }))}
+                  size="sm"
+                />
+              </SettingRow>
             )}
-          </>
+          </SettingCard>
         )}
       </SettingGroup>
 
@@ -292,61 +283,56 @@ const AboutSettings: FC = () => {
       )}
 
       <SettingGroup theme={theme}>
-        <AboutActionRow
-          icon={<BadgeQuestionMark className="size-4.5" />}
-          title={t('docs.title')}
-          actionLabel={t('settings.about.website.button')}
-          onAction={onOpenDocs}
-        />
-        <Divider className="my-3" />
-        <AboutActionRow
-          icon={<Rss className="size-4.5" />}
-          title={t('settings.about.releases.title')}
-          actionLabel={t('settings.about.releases.button')}
-          onAction={showReleases}
-        />
-        <Divider className="my-3" />
-        <AboutActionRow
-          icon={<Globe className="size-4.5" />}
-          title={t('settings.about.website.title')}
-          actionLabel={t('settings.about.website.button')}
-          onAction={() => onOpenWebsite('https://cherry-ai.com')}
-        />
-        <Divider className="my-3" />
-        <AboutActionRow
-          icon={<Github className="size-4.5" />}
-          title={t('settings.about.feedback.title')}
-          actionLabel={t('settings.about.feedback.button')}
-          onAction={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}
-        />
-        <Divider className="my-3" />
-        <AboutActionRow
-          icon={<Building2 className="size-4.5" />}
-          title={t('settings.about.enterprise.title')}
-          actionLabel={t('settings.about.website.button')}
-          onAction={showEnterprise}
-        />
-        <Divider className="my-3" />
-        <AboutActionRow
-          icon={<Mail className="size-4.5" />}
-          title={t('settings.about.contact.title')}
-          actionLabel={t('settings.about.contact.button')}
-          onAction={mailto}
-        />
-        <Divider className="my-3" />
-        <AboutActionRow
-          icon={<Briefcase className="size-4.5" />}
-          title={t('settings.about.careers.title')}
-          actionLabel={t('settings.about.careers.button')}
-          onAction={() => onOpenWebsite('https://www.cherry-ai.com/careers')}
-        />
-        <Divider className="my-3" />
-        <AboutActionRow
-          icon={<Bug className="size-4.5" />}
-          title={t('settings.about.debug.title')}
-          actionLabel={t('settings.about.debug.open')}
-          onAction={debug}
-        />
+        <SettingCard>
+          <AboutActionRow
+            icon={<BadgeQuestionMark className="size-4" />}
+            title={t('docs.title')}
+            actionLabel={t('settings.about.website.button')}
+            onAction={onOpenDocs}
+          />
+          <AboutActionRow
+            icon={<Rss className="size-4" />}
+            title={t('settings.about.releases.title')}
+            actionLabel={t('settings.about.releases.button')}
+            onAction={showReleases}
+          />
+          <AboutActionRow
+            icon={<Globe className="size-4" />}
+            title={t('settings.about.website.title')}
+            actionLabel={t('settings.about.website.button')}
+            onAction={() => onOpenWebsite('https://cherry-ai.com')}
+          />
+          <AboutActionRow
+            icon={<Github className="size-4" />}
+            title={t('settings.about.feedback.title')}
+            actionLabel={t('settings.about.feedback.button')}
+            onAction={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}
+          />
+          <AboutActionRow
+            icon={<Building2 className="size-4" />}
+            title={t('settings.about.enterprise.title')}
+            actionLabel={t('settings.about.website.button')}
+            onAction={showEnterprise}
+          />
+          <AboutActionRow
+            icon={<Mail className="size-4" />}
+            title={t('settings.about.contact.title')}
+            actionLabel={t('settings.about.contact.button')}
+            onAction={mailto}
+          />
+          <AboutActionRow
+            icon={<Briefcase className="size-4" />}
+            title={t('settings.about.careers.title')}
+            actionLabel={t('settings.about.careers.button')}
+            onAction={() => onOpenWebsite('https://www.cherry-ai.com/careers')}
+          />
+          <AboutActionRow
+            icon={<Bug className="size-4" />}
+            title={t('settings.about.debug.title')}
+            actionLabel={t('settings.about.debug.open')}
+            onAction={debug}
+          />
+        </SettingCard>
       </SettingGroup>
     </SettingsContentColumn>
   )
@@ -365,11 +351,11 @@ function AboutActionRow({
 }) {
   return (
     <SettingRow className="gap-3">
-      <SettingRowTitle className="gap-2.5">
+      <SettingRowTitle className="gap-2.5 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:[stroke-width:var(--icon-stroke)]">
         {icon}
-        {title}
+        <span className="min-w-0 truncate">{title}</span>
       </SettingRowTitle>
-      <Button size="sm" onClick={() => void onAction()} variant="outline">
+      <Button size="sm" onClick={() => void onAction()} variant="outline" className="shrink-0">
         {actionLabel}
       </Button>
     </SettingRow>
