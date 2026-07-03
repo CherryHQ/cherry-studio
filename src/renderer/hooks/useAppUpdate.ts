@@ -62,12 +62,6 @@ export function useAppUpdateHandler() {
           available: true
         })
       }),
-      ipcRenderer.on(IpcChannel.DownloadUpdate, () => {
-        updateAppUpdateState({
-          checking: false,
-          downloading: true
-        })
-      }),
       ipcRenderer.on(IpcChannel.DownloadProgress, (_, progress: ProgressInfo) => {
         updateAppUpdateState({
           downloading: progress.percent < 100,

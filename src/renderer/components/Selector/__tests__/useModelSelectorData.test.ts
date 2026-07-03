@@ -1,3 +1,4 @@
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { renderHook } from '@testing-library/react'
@@ -394,6 +395,36 @@ describe('useModelSelectorData', () => {
     expect(result.current.listItems).toBe(listItemsBeforeSelection)
     expect(result.current.modelItems).toBe(modelItemsBeforeSelection)
     expect(result.current.visibleSelectedModelIdSet.has('openai::gpt-4')).toBe(true)
+  })
+
+  it('hides external-cli (agent-only) providers from a general selector', () => {
+    wireDeps({
+      providers: [makeProvider('openai'), makeProvider('claude-code', { authMethods: ['external-cli'] })],
+      models: [makeModel('gpt-4', 'openai'), makeModel('claude-sonnet', 'claude-code')]
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    expect(result.current.modelItems.map((m) => m.modelId)).toEqual(['openai::gpt-4'])
+    expect(result.current.selectableModelsById.has('claude-code::claude-sonnet')).toBe(false)
+  })
+
+  it('surfaces external-cli providers when the filter is marked as an agent picker', () => {
+    wireDeps({
+      providers: [makeProvider('openai'), makeProvider('claude-code', { authMethods: ['external-cli'] })],
+      models: [makeModel('gpt-4', 'openai'), makeModel('claude-sonnet', 'claude-code')]
+    })
+    // The marker is a module-private Symbol, so the only way to get a genuinely
+    // tagged filter is the real hook — render it to obtain one.
+    const { result: filterResult } = renderHook(() => useAgentModelFilter('claude-code'))
+    const marked = filterResult.current
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '', filter: marked }))
+
+    expect(result.current.modelItems.map((m) => m.modelId).sort()).toEqual([
+      'claude-code::claude-sonnet',
+      'openai::gpt-4'
+    ])
   })
 
   it('applies caller-provided filter predicate', () => {

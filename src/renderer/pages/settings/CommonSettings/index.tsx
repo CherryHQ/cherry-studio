@@ -847,7 +847,6 @@ const CommonSettings: FC = () => {
             checked={enableDataCollection}
             onCheckedChange={(v) => {
               void setEnableDataCollection(v)
-              void window.api.config.set('enableDataCollection', v)
             }}
           />
         </SettingRow>

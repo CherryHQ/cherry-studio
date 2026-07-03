@@ -86,18 +86,20 @@ export type TopicDisplayMode = 'time' | 'assistant'
 
 export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
 
-export type SidebarFavorite =
-  | 'assistants'
-  | 'agents'
-  | 'store'
-  | 'paintings'
-  | 'translate'
-  | 'mini_app'
-  | 'knowledge'
-  | 'files'
-  | 'code_tools'
-  | 'notes'
-  | 'openclaw'
+export const SIDEBAR_FAVORITES = [
+  'assistants',
+  'agents',
+  'paintings',
+  'translate',
+  'mini_app',
+  'knowledge',
+  'files',
+  'code_tools',
+  'notes',
+  'openclaw'
+] as const
+
+export type SidebarFavorite = (typeof SIDEBAR_FAVORITES)[number]
 
 /**
  * Group-ready sidebar storage contract.

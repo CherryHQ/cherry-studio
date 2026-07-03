@@ -1,11 +1,7 @@
-import {
-  buildResourceListItemDropAnchor,
-  compareResourceOrderKey,
-  type ResourceListReorderPayload,
-  type ResourceListStatus
-} from '@renderer/components/chat/resources'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import type { ResourceListReorderPayload, ResourceListStatus } from '../ResourceList'
+import { buildResourceListItemDropAnchor, compareResourceOrderKey } from '../resourceListReorder'
 import type { ResourceEntityRailItem } from './ResourceEntityRail'
 
 export type ResourceEntityRailReorderAnchor = ReturnType<typeof buildResourceListItemDropAnchor>

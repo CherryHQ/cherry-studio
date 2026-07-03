@@ -1652,6 +1652,13 @@
       "top": "Back to top"
     },
     "resend": "Resend",
+    "resource_view": {
+      "menu": {
+        "agent": "Agents",
+        "assistant": "Assistants",
+        "skill": "Skills"
+      }
+    },
     "save": {
       "file": {
         "title": "Save to Local File"
@@ -2971,7 +2978,8 @@
       "preview_description": "Overview",
       "preview_prompt": "Prompt",
       "scroll_left": "Scroll categories left",
-      "scroll_right": "Scroll categories right"
+      "scroll_right": "Scroll categories right",
+      "title": "Assistant Library"
     },
     "badge": {
       "update": "Update"
@@ -4744,6 +4752,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -4756,6 +4765,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
@@ -4780,6 +4790,7 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
     "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
@@ -6888,6 +6899,7 @@
         "reorderFailed": "Failed to reorder prompts",
         "updateFailed": "Failed to update prompt"
       },
+      "manage": "Manage Prompts",
       "title": "Prompt Management",
       "titleLabel": "Title",
       "titlePlaceholder": "Enter prompt title",
@@ -7035,6 +7047,27 @@
           "international": "International domain"
         }
       },
+      "claude_code": {
+        "agent_only_note": "The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "Sign in with your Claude subscription",
+        "description_detail": "This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "Legal & Compliance",
+        "logged_in": "Signed in to Claude Code",
+        "logged_in_detail": "Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "Open terminal to sign in",
+        "recheck": "Recheck"
+      },
+      "codex": {
+        "account": "Account: {{accountId}}",
+        "description": "Sign in with your ChatGPT subscription",
+        "description_detail": "This provider uses your ChatGPT Plus/Pro login (OAuth) to access OpenAI Codex models. Your browser will open to complete sign-in.",
+        "logged_in": "Signed in to OpenAI Codex",
+        "sign_in_button": "Sign in with ChatGPT",
+        "sign_in_failed": "Sign-in failed. Please try again.",
+        "sign_in_success": "Signed in to OpenAI Codex",
+        "signing_in": "Waiting for browser…"
+      },
       "copilot": {
         "add_request_header": "Add header",
         "auth_failed": "Github Copilot authentication failed.",
@@ -7109,6 +7142,15 @@
       },
       "filter_agent": "Filter Agent Supported Providers",
       "get_api_key": "Get API Key",
+      "grok_cli": {
+        "description": "Sign in with your SuperGrok subscription",
+        "description_detail": "This provider uses your xAI SuperGrok login (OAuth) to access Grok CLI models (Grok Build, Composer). Your browser will open to complete sign-in.",
+        "logged_in": "Signed in to Grok CLI",
+        "sign_in_button": "Sign in with xAI",
+        "sign_in_failed": "Sign-in failed. Please try again.",
+        "sign_in_success": "Signed in to Grok CLI",
+        "signing_in": "Waiting for browser…"
+      },
       "logo_upload_failed": "Failed to process the selected image",
       "misc": "Other",
       "more_endpoints": {
@@ -7636,7 +7678,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Paintings",
     "settings": "Settings",
-    "store": "Assistant Library",
     "translate": "Translate",
     "work": "Work"
   },

@@ -534,7 +534,10 @@ export function CommandContextMenu({
       <ContextMenuTrigger asChild onContextMenu={handleCherryContextMenu}>
         {children}
       </ContextMenuTrigger>
-      <ContextMenuContent className={contentClassName}>
+      <ContextMenuContent
+        className={contentClassName}
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}>
         {combinedItems.map((item, index) =>
           isExtraMenuItem(item) ? (
             <CommandContextMenuExtraItemView
