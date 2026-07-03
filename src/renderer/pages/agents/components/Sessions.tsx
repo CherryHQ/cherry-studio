@@ -79,7 +79,6 @@ import {
 type SessionsBaseProps = {
   agentIdFilter?: string | null
   onOpenHistoryRecords?: () => void
-  onSelectItem?: () => void
   onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
   presentation?: 'sidebar' | 'right-panel'
@@ -247,7 +246,6 @@ const Sessions = ({
   activeSessionId,
   agentIdFilter,
   onOpenHistoryRecords,
-  onSelectItem,
   onStartDraftSession,
   onStartMissingAgentDraft,
   presentation = 'sidebar',
@@ -1451,7 +1449,6 @@ const Sessions = ({
         onOpenInNewTab={openSessionInNewTab}
         onOpenInNewWindow={openSessionInNewWindow}
         onRetry={handleRetry}
-        onSelectItem={onSelectItem}
         onTogglePin={togglePin}
         setActiveSessionId={handleSelectSession}
       />
@@ -1491,7 +1488,6 @@ interface SessionListBodyProps {
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onRetry: () => Promise<unknown>
-  onSelectItem?: () => void
   onTogglePin: (id: string) => void | Promise<unknown>
   setActiveSessionId: (id: string | null) => void
 }
@@ -1509,7 +1505,6 @@ function SessionListBody({
   onOpenInNewTab,
   onOpenInNewWindow,
   onRetry,
-  onSelectItem,
   onTogglePin,
   setActiveSessionId
 }: SessionListBodyProps) {
@@ -1531,7 +1526,6 @@ function SessionListBody({
         onOpenInNewTab={onOpenInNewTab}
         onOpenInNewWindow={onOpenInNewWindow}
         onPress={setActiveSessionId}
-        onSelectItem={onSelectItem}
       />
     ),
     [
@@ -1541,7 +1535,6 @@ function SessionListBody({
       onDeleteSession,
       onOpenInNewTab,
       onOpenInNewWindow,
-      onSelectItem,
       onTogglePin,
       setActiveSessionId
     ]

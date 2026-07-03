@@ -458,7 +458,6 @@ vi.mock('../AgentSidePanel', () => ({
   default: ({
     activeSessionId,
     onOpenHistoryRecords,
-    onSelectItem,
     onStartDraftSession,
     onStartMissingAgentDraft,
     revealRequest,
@@ -484,7 +483,6 @@ vi.mock('../AgentSidePanel', () => ({
               createdAt: '2026-01-02T00:00:00.000Z',
               updatedAt: '2026-01-02T00:00:00.000Z'
             })
-            onSelectItem?.()
           }}>
           Select session next
         </button>
@@ -1351,15 +1349,16 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
   })
 
-  it('collapses the agent sidebar after selecting a session from the sidebar', async () => {
+  it('keeps the agent sidebar open after selecting a session from the sidebar', async () => {
     agentPageMocks.showSidebar = true
 
     render(<AgentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Select session next' }))
 
-    await waitFor(() => expect(agentPageMocks.setShowSidebar).toHaveBeenCalledWith(false))
-    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-next'))
+    expect(agentPageMocks.setShowSidebar).not.toHaveBeenCalledWith(false)
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
   })
 
   it('removes the session sidebar entirely in a detached agent window, shortcut included', () => {

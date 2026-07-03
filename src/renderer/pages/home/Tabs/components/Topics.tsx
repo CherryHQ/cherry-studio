@@ -90,7 +90,6 @@ interface Props {
   assistantIdFilter?: string | null
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
-  onSelectItem?: () => void
   presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
@@ -191,7 +190,6 @@ export function Topics({
   assistantIdFilter,
   onNewTopic,
   onOpenHistoryRecords,
-  onSelectItem,
   presentation = 'sidebar',
   revealRequest,
   resourceMenuItems,
@@ -1112,7 +1110,6 @@ export function Topics({
           onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}
           onPinTopic={handlePinTopic}
           onRequestTopicImageAction={handleTopicImageAction}
-          onSelectItem={onSelectItem}
           onSwitchTopic={setActiveTopic}
           topicsLength={topics.length}
           variant={isAssistantDisplayMode && !isRightPanel ? 'draggable' : 'plain'}
@@ -1224,7 +1221,6 @@ interface TopicListBodyProps {
   onOpenInNewWindow?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>
   onRequestTopicImageAction: (type: TopicImageActionType, topic: Topic) => void
-  onSelectItem?: () => void
   onSwitchTopic: (topic: Topic) => void
   topicsLength: number
   variant: TopicListBodyVariant
@@ -1253,7 +1249,6 @@ function TopicListBody(props: TopicListBodyProps) {
     onOpenInNewWindow,
     onPinTopic,
     onRequestTopicImageAction,
-    onSelectItem,
     onSwitchTopic,
     topicsLength,
     variant
@@ -1278,7 +1273,6 @@ function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewWindow,
       onPinTopic,
       onRequestTopicImageAction,
-      onSelectItem,
       onSwitchTopic,
       topicsLength
     }),
@@ -1300,7 +1294,6 @@ function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewWindow,
       onPinTopic,
       onRequestTopicImageAction,
-      onSelectItem,
       onSwitchTopic,
       topicsLength
     ]
@@ -1352,7 +1345,6 @@ function TopicRow({
   onOpenInNewWindow,
   onPinTopic,
   onRequestTopicImageAction,
-  onSelectItem,
   onSwitchTopic,
   topic,
   topicsLength
@@ -1424,7 +1416,6 @@ function TopicRow({
       onClick={() => {
         if (shellState?.maximized) shellActions?.minimize()
         onSwitchTopic(topic)
-        onSelectItem?.()
       }}>
       {showLeadingSlot && <ResourceList.ItemLeadingSlot className="relative" />}
       <ResourceList.RenameField

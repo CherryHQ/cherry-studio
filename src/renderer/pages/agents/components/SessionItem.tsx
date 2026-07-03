@@ -25,7 +25,6 @@ interface SessionItemProps {
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onPress: (id: string) => void
-  onSelectItem?: () => void
   onTogglePin?: (id: string) => void | Promise<unknown>
   pinned?: boolean
   reserveLeadingIconSlot?: boolean
@@ -39,7 +38,6 @@ const SessionItem = ({
   onOpenInNewTab,
   onOpenInNewWindow,
   onPress,
-  onSelectItem,
   onTogglePin,
   pinned = false,
   reserveLeadingIconSlot = true,
@@ -167,9 +165,8 @@ const SessionItem = ({
       }
       if (shellState?.maximized) shellActions?.minimize()
       onPress(session.id)
-      onSelectItem?.()
     },
-    [active, handleOpenInNewTab, onOpenInNewTab, onPress, onSelectItem, session.id, shellActions, shellState?.maximized]
+    [active, handleOpenInNewTab, onOpenInNewTab, onPress, session.id, shellActions, shellState?.maximized]
   )
 
   const handleAuxClick = useCallback(

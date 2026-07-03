@@ -463,7 +463,7 @@ vi.mock('../components/ChatNavbar', () => ({
 }))
 
 vi.mock('../Tabs', () => ({
-  default: ({ onOpenHistoryRecords, onSelectItem, resourceMenuItems, revealRequest, setActiveTopic }: any) => (
+  default: ({ onOpenHistoryRecords, resourceMenuItems, revealRequest, setActiveTopic }: any) => (
     <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs">
       <button
         type="button"
@@ -476,7 +476,6 @@ vi.mock('../Tabs', () => ({
             createdAt: '2026-01-02T00:00:00.000Z',
             updatedAt: '2026-01-02T00:00:00.000Z'
           })
-          onSelectItem?.()
         }}>
         Select topic next
       </button>
@@ -1161,15 +1160,16 @@ describe('HomePage', () => {
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
   })
 
-  it('collapses the topic sidebar after selecting a topic from the sidebar', async () => {
+  it('keeps the topic sidebar open after selecting a topic from the sidebar', async () => {
     homeMocks.preferenceValues.set('topic.tab.show', true)
 
     render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Select topic next' }))
 
-    await waitFor(() => expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false))
-    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-next'))
+    expect(homeMocks.setShowSidebar).not.toHaveBeenCalledWith(false)
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
   })
 
   it('starts a draft assistant selection when history clears the selected topic', async () => {
