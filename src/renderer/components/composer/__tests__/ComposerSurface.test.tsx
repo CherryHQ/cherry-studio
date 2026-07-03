@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurface'
+import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
 const mocks = vi.hoisted(() => ({
   editorOptions: undefined as any,
@@ -23,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   insertComposerToken: vi.fn(),
   deleteRange: vi.fn(),
   deleteSelection: vi.fn(),
+  setMeta: vi.fn(),
   setContent: vi.fn(),
   setNodeSelection: vi.fn(),
   chainRun: vi.fn(),
@@ -157,6 +159,16 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
           deleteSelection: () => {
             mocks.deleteSelection()
             return { run: mocks.chainRun }
+          },
+          setMeta: (...args: unknown[]) => {
+            mocks.setMeta(...args)
+            return {
+              insertContent: (...contentArgs: unknown[]) => {
+                mocks.insertContent(...contentArgs)
+                return { run: mocks.chainRun }
+              },
+              run: mocks.chainRun
+            }
           },
           insertContent: (...args: unknown[]) => {
             mocks.insertContent(...args)
@@ -376,6 +388,7 @@ describe('ComposerSurface', () => {
     mocks.insertComposerToken.mockReset()
     mocks.deleteRange.mockReset()
     mocks.deleteSelection.mockReset()
+    mocks.setMeta.mockReset()
     mocks.setContent.mockReset()
     mocks.setNodeSelection.mockReset()
     mocks.chainRun.mockReset()
@@ -2550,7 +2563,7 @@ describe('ComposerSurface', () => {
         },
         fallbackText: '/pdf/'
       },
-      { type: 'text', text: ' private' }
+      { type: 'text', text: ' private @scope/package' }
     ])
     const event = {
       preventDefault,
@@ -2577,8 +2590,9 @@ describe('ComposerSurface', () => {
           promptText: 'Use the PDF skill.'
         }
       },
-      { type: 'text', text: ' private' }
+      { type: 'text', text: ' private @scope/package' }
     ])
+    expect(mocks.setMeta).toHaveBeenCalledWith(COMPOSER_SUPPRESS_SUGGESTION_META, true)
     expect(resolveSkillMarker).toHaveBeenCalledWith('pdf')
   })
 
@@ -2713,6 +2727,27 @@ describe('ComposerSurface', () => {
     expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: 'plain paste' }])
     expect(mocks.insertContent).toHaveBeenCalledTimes(1)
     expect(read).not.toHaveBeenCalled()
+  })
+
+  it('suppresses composer suggestions when pasting scoped shell command text', async () => {
+    const pastedText = "-lc 'exec npx -y @agentclientprotocol/claude-agent-acp'"
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? pastedText : ''))
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(mocks.setMeta).toHaveBeenCalledWith(COMPOSER_SUPPRESS_SUGGESTION_META, true)
+    expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: pastedText }])
+    expect(mocks.chainRun).toHaveBeenCalled()
   })
 
   it('prefers paste event private fragments over the session cache', async () => {

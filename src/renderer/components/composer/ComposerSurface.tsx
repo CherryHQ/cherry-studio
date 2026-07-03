@@ -52,6 +52,7 @@ import {
   updateSelectedPromptVariableToken
 } from './promptVariables'
 import {
+  COMPOSER_SUPPRESS_SUGGESTION_META,
   type ComposerSuggestionSource,
   type ComposerUnifiedPanelControl,
   type ComposerUnifiedPanelResourceProvider,
@@ -314,6 +315,10 @@ const getManagedTokenSignature = (
 
 function shouldDelegateLongTextPasteToFileHandler(text: string) {
   return Boolean(text && text.length > LONG_TEXT_PASTE_THRESHOLD)
+}
+
+function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
+  editor.chain().focus().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertContent(content).run()
 }
 
 function exceedsComposerInputMaxLength(currentText: string, nextText: string, replacedText = '') {
@@ -1449,7 +1454,7 @@ export default function ComposerSurface({
 
         if (clipboardPasteOverride !== null) {
           event.preventDefault()
-          editor.chain().focus().insertContent(clipboardPasteOverride.content).run()
+          insertComposerPastedContent(editor, clipboardPasteOverride.content)
           if (clipboardPasteOverride.files.length > 0) {
             setFiles((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
           }
@@ -1465,7 +1470,10 @@ export default function ComposerSurface({
 
       if (plainTextOverride !== null) {
         event.preventDefault()
-        editorRef.current?.chain().focus().insertContent(plainTextOverride).run()
+        const currentEditor = editorRef.current
+        if (currentEditor) {
+          insertComposerPastedContent(currentEditor, plainTextOverride)
+        }
         return true
       }
 
