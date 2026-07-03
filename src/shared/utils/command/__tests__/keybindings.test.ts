@@ -81,6 +81,27 @@ describe('command definitions', () => {
   it('resolves commands by id', () => {
     expect(findCommandDefinition('topic.create')?.titleKey).toBe('settings.shortcuts.new_topic')
   })
+
+  it('defines notes print as a renderer command with a configurable print shortcut', () => {
+    const command = 'notes.print' as CommandId
+
+    expect(findCommandDefinition(command)).toMatchObject({
+      id: command,
+      titleKey: 'settings.shortcuts.print_note',
+      categoryKey: 'settings.shortcuts.general',
+      scope: 'renderer'
+    })
+    expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === command)).toMatchObject({
+      command,
+      defaultBinding: ['CommandOrControl', 'P'],
+      preferenceKey: 'shortcut.notes.print',
+      scope: 'renderer'
+    })
+    expect(getCommandDefaultShortcutPreference(command)).toEqual({
+      binding: ['CommandOrControl', 'P'],
+      enabled: true
+    })
+  })
 })
 
 describe('commandShortcutPreferenceKey', () => {

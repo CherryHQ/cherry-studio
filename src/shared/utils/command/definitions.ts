@@ -92,6 +92,15 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'notes.print',
+    titleKey: 'settings.shortcuts.print_note',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'P']
+    }
+  }),
+  defineCommand({
     id: 'chat.message.copy_last',
     titleKey: 'settings.shortcuts.copy_last_message',
     categoryKey: 'settings.shortcuts.chat',

@@ -23,6 +23,9 @@ const mocks = vi.hoisted(() => {
     getNode: vi.fn(),
     invalidateFileContent: vi.fn(),
     ipcRequest: vi.fn(),
+    commandHandlers: new Map<string, { handler: () => void | Promise<void>; enabled: boolean }>(),
+    isActiveTab: true,
+    printShortcutLabel: 'Ctrl+P',
     noteByPath: new Map(),
     patchNode: vi.fn(),
     removePath: vi.fn(),
@@ -136,6 +139,26 @@ vi.mock('@renderer/hooks/useNotesSettings', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/tab', () => ({
+  useIsActiveTab: () => mocks.isActiveTab
+}))
+
+vi.mock('@renderer/hooks/command', () => ({
+  useCommandHandler: (command: string, handler: () => void | Promise<void>, options?: { enabled?: boolean }) => {
+    mocks.commandHandlers.set(command, {
+      handler,
+      enabled: options?.enabled !== false
+    })
+  },
+  useResolvedCommand: (command: string) => ({
+    id: command,
+    label: command,
+    enabled: true,
+    shortcutLabel: command === 'notes.print' ? mocks.printShortcutLabel : '',
+    execute: vi.fn()
+  })
+}))
+
 vi.mock('@renderer/hooks/useDirectoryTree', () => ({
   useDirectoryTree: () => ({
     root: mocks.treeRoot,
@@ -241,6 +264,9 @@ describe('NotesPage print payloads', () => {
     mocks.settings.defaultEditMode = 'source'
     mocks.settings.defaultViewMode = 'edit'
     mocks.ipcRequest.mockResolvedValue(true)
+    mocks.commandHandlers.clear()
+    mocks.isActiveTab = true
+    mocks.printShortcutLabel = 'Ctrl+P'
 
     Object.assign(window, {
       toast: {
@@ -276,7 +302,7 @@ describe('NotesPage print payloads', () => {
     await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
 
     fireEvent.click(screen.getByTestId('popover-trigger'))
-    fireEvent.click(screen.getByRole('button', { name: label }))
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${label}`) }))
 
     await waitFor(() => {
       expect(mocks.ipcRequest).toHaveBeenCalledWith(route, {
@@ -312,7 +338,7 @@ describe('NotesPage print payloads', () => {
 
       mocks.richEditorContent = editedRichContent
       fireEvent.click(screen.getByTestId('popover-trigger'))
-      fireEvent.click(screen.getByRole('button', { name: label }))
+      fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${label}`) }))
 
       await waitFor(() => {
         expect(mocks.ipcRequest).toHaveBeenCalledWith(route, {
@@ -350,5 +376,53 @@ describe('NotesPage print payloads', () => {
       expect(window.toast.warning).toHaveBeenCalledWith('notes.no_content_to_export')
     })
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
+  })
+
+  it('routes the notes.print command through the current source editor content', async () => {
+    render(<NotesPage />)
+
+    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
+    await waitFor(() => expect(mocks.editorReady).toHaveBeenCalled())
+
+    let command: { handler: () => void | Promise<void>; enabled: boolean } | undefined
+    await waitFor(() => {
+      command = mocks.commandHandlers.get('notes.print')
+      expect(command?.enabled).toBe(true)
+    })
+
+    await command?.handler()
+
+    await waitFor(() => {
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('print.print', {
+        title: 'note',
+        source: {
+          markdown: mocks.sourceEditorContent
+        },
+        sourcePath: '/notes/note.md'
+      })
+    })
+  })
+
+  it('keeps the notes.print command disabled for inactive tabs', async () => {
+    mocks.isActiveTab = false
+
+    render(<NotesPage />)
+
+    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
+    await waitFor(() => {
+      expect(mocks.commandHandlers.get('notes.print')?.enabled).toBe(false)
+    })
+  })
+
+  it('shows the resolved print shortcut next to the print menu item', async () => {
+    mocks.printShortcutLabel = '⌘P'
+
+    render(<NotesPage />)
+
+    await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('popover-trigger'))
+
+    expect(screen.getByRole('button', { name: /notes\.print/ })).toHaveTextContent('⌘P')
   })
 })

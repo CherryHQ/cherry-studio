@@ -18,6 +18,8 @@ import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/app/Navbar'
 import BaseNavbarIcon from '@renderer/components/NavbarIcon'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
+import { useCommandHandler, useResolvedCommand } from '@renderer/hooks/command'
+import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
@@ -60,6 +62,8 @@ const HeaderNavbar = ({
   const [menuOpen, setMenuOpen] = useState(false)
   const titleInputRef = useRef<HTMLInputElement>(null)
   const { settings, updateSettings } = useNotesSettings()
+  const isActiveTab = useIsActiveTab()
+  const printCommand = useResolvedCommand('notes.print')
   const canShowStarButton = activeNode?.type === 'file' && onToggleStar
 
   const handleToggleShowWorkspace = useCallback(() => {
@@ -152,6 +156,8 @@ const HeaderNavbar = ({
     }
   }, [getPrintableDocumentPayload])
 
+  useCommandHandler('notes.print', handlePrint, { enabled: isActiveTab && activeNode?.type === 'file' })
+
   const handleShowSettings = useCallback(() => {
     void GeneralPopup.show({
       title: t('notes.settings.title'),
@@ -223,13 +229,21 @@ const HeaderNavbar = ({
       )
     }
 
+    const isActive = item.isActive?.(settings)
+    const suffix =
+      item.printAction && printCommand.shortcutLabel ? (
+        <span className="text-muted-foreground text-xs">{printCommand.shortcutLabel}</span>
+      ) : isActive ? (
+        <Check size={14} />
+      ) : undefined
+
     return (
       <MenuItem
         key={item.key}
         label={t(item.labelKey)}
         icon={IconComponent ? <IconComponent size={16} /> : undefined}
-        active={item.isActive?.(settings)}
-        suffix={item.isActive?.(settings) ? <Check size={14} /> : undefined}
+        active={isActive}
+        suffix={suffix}
         onClick={() => {
           if (item.copyAction) {
             void handleCopyContent()

@@ -428,6 +428,19 @@
       "description": "Deleted: command removed (feature not implemented in v2)."
     },
     {
+      "targetKey": "shortcut.notes.print",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "P"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: notes.print (unified command system)"
+    },
+    {
       "targetKey": "shortcut.quick_assistant.toggle",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
