@@ -1,8 +1,8 @@
 {
-  "generated_at": "2026-07-02",
+  "generated_at": "2026-07-03",
   "data_source": "GitHub GraphQL Discussions API",
   "fetch_status": "UNAVAILABLE",
-  "note": "The GitHub MCP server does not expose a GraphQL endpoint. Discussions data requires 'gh api graphql' which is not available in this remote execution environment. Data unchanged from prior run.",
+  "note": "The GitHub MCP server does not expose a GraphQL endpoint for Discussions. The 'gh api graphql' CLI is not available in this remote execution environment. Data unchanged from prior run.",
   "workaround": "To enable: add a GitHub Actions step that runs the GraphQL query and commits the result to this file, or expose a Discussions REST endpoint via the MCP server configuration.",
   "placeholder": {
     "total_discussions": "unknown",
@@ -11,5 +11,13 @@
     "top_by_upvotes": [],
     "top_by_comments": [],
     "recent_active_7d": "unknown"
+  },
+  "proxy_insights_from_issues": {
+    "note": "Issue #6505 ([FAQ&反馈]: 划词助手 / Selection Assistant) has 364 comments — functions as a de facto discussion thread. It is the single most-commented open issue.",
+    "high_engagement_issues": [
+      {"number": 6505, "title": "[FAQ&反馈]: 划词助手 / Selection Assistant", "comments": 364, "updated": "2026-07-03"},
+      {"number": 13925, "title": "[Discussion]: Bundled binary environment isolation strategy", "comments": 9},
+      {"number": 14021, "title": "[Feature]: v2 aiCore Provider 层历史 Issue 总跟踪 (226 issues, 29 categories)", "comments": 1, "note": "Master tracking issue by DeJeune — links to all v2 provider bugs"}
+    ]
   }
 }

@@ -1,104 +1,123 @@
 {
-  "generated_at": "2026-07-02",
+  "generated_at": "2026-07-03",
   "summary": {
     "total_open": 951,
-    "active": 697,
-    "aging": 254,
-    "stale": 0,
-    "zombie": "unknown",
-    "health_score": "FAIR",
-    "health_note": "26.7% aging (30-90d inactive). No stale issues. Active base is healthy at 73.3%."
+    "active": 564,
+    "aging": 239,
+    "stale": 145,
+    "zombie": 3,
+    "health_score": "FAIR-POOR",
+    "health_note": "40.7% of open issues haven't been touched in 30+ days. 145 issues are 90-179d stale (correction from yesterday's API error). Active base at 59.3% is declining. 100 BUG issues — 97% of them dormant 30+ days.",
+    "correction_from_yesterday": "Yesterday stale=0 was wrong (API date filter malfunction). Today's direct queries confirm 387 issues 30d+, 148 issues 90d+, 3 issues 180d+ stale."
   },
   "health_buckets": {
-    "Active": {"count": 697, "pct": 73.3, "definition": "updated within last 30 days (since 2026-06-02)"},
-    "Aging": {"count": 254, "pct": 26.7, "definition": "last updated 30-90 days ago (2026-04-02 to 2026-06-02)"},
-    "Stale": {"count": 0, "pct": 0.0, "definition": "not updated in 90+ days (before 2026-04-02)"},
-    "Zombie": {"count": "unknown", "definition": "opened and never received any update"}
+    "Active": {"count": 564, "pct": 59.3, "definition": "updated within last 30 days (since 2026-06-03)"},
+    "Aging": {"count": 239, "pct": 25.1, "definition": "last updated 30-89 days ago (2026-04-04 to 2026-06-03)"},
+    "Stale": {"count": 145, "pct": 15.2, "definition": "not updated in 90-179 days (2026-01-03 to 2026-04-03)"},
+    "Zombie": {"count": 3, "pct": 0.3, "definition": "not updated in 180+ days (before 2026-01-03)",
+      "list": [
+        {"number": 5712, "title": "【需求汇总】Agents with Workflows / 工作流&协同", "last_updated": "2025-10-23", "created": "2025-05-07"},
+        {"number": 10844, "title": "[Feature]: Backup feature enhance", "last_updated": "2025-11-01", "created": "2025-10-20"},
+        {"number": 11578, "title": "Upgrade to the MCP protocol by November 25, 2025.", "last_updated": "2025-11-30", "created": "2025-11-30"}
+      ]
+    }
   },
   "p1_issues": [
-    {
-      "number": 14899,
-      "title": "[Feature]: Unified Notification Center",
-      "labels": ["Planned", "P1", "feature", "UI/UX"],
-      "milestone": "v2.4.0",
-      "age_days": 56,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
-    },
-    {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": ["P1", "Models"],
-      "age_days": 106,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
-    },
-    {
-      "number": 13193,
-      "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API]",
-      "labels": ["P1", "Models"],
-      "assignee": "DeJeune",
-      "age_days": 120,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
-    }
+    {"number": 14899, "title": "[Feature]: Unified Notification Center", "labels": ["Planned", "P1", "feature", "UI/UX"], "milestone": "v2.4.0", "age_days": 57, "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"},
+    {"number": 13608, "title": "[Bug]: xiaomi mimo response only displays the last line", "labels": ["P1", "Models"], "age_days": 107, "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"},
+    {"number": 13193, "title": "[Bug]: AI_APICallError: Resource not found (Azure OpenAI responses API)", "labels": ["P1", "Models"], "assignee": "DeJeune", "age_days": 121, "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"}
   ],
+  "bug_analysis": {
+    "total_open_bug_label": 100,
+    "stale_30d_plus": 97,
+    "stale_7d_plus": 98,
+    "fresh_last_7d": 2,
+    "assignee_coverage": "high — most BUG issues have assignees (primarily DeJeune, EurFelux, GeorgeDong32)",
+    "top_by_comments": [
+      {"number": 12618, "title": "Unable to configure Azure/Anthropic API", "comments": 14},
+      {"number": 12612, "title": "Azure OpenAI gpt-5.2 Unsupported parameter 'messages'", "comments": 13},
+      {"number": 12268, "title": "Agent Error", "comments": 10},
+      {"number": 12230, "title": "Reasoning effort not set", "comments": 8},
+      {"number": 12890, "title": "Image-based PDF file cannot be read (active today)", "comments": 7},
+      {"number": 12689, "title": "Mac App creates Default Assistant with unconfigured model", "comments": 7},
+      {"number": 11333, "title": "Third-party image generation models only output text", "comments": 7},
+      {"number": 12397, "title": "Expected 'function.name' to be a string", "comments": 6},
+      {"number": 11765, "title": "Provider cannot overwrite User-Agent header", "comments": 6},
+      {"number": 13082, "title": "Frequent lag during normal operations", "comments": 5}
+    ],
+    "top_by_reactions": [
+      {"number": 10241, "title": "Tool calling results dropped in subsequent conversation", "reactions_plus1": 5},
+      {"number": 11765, "title": "Provider cannot overwrite User-Agent header", "reactions_plus1": 4},
+      {"number": 13082, "title": "Frequent lag during normal operations", "reactions_plus1": 3},
+      {"number": 12890, "title": "Image-based PDF cannot be read", "reactions_plus1": 3},
+      {"number": 12534, "title": "No allowed providers available for selected model", "reactions_plus1": 3}
+    ],
+    "oldest_bugs": [
+      {"number": 5825, "title": "[错误]: 使用第三方claude api，输出有问题", "created": "2025-05-10", "updated": "2026-03-11"},
+      {"number": 10073, "title": "API Comma Splitting breaking OpenAI Compatible endpoints", "created": "2025-09-09", "updated": "2026-03-11"},
+      {"number": 10228, "title": "Graphviz codes rendering failure", "created": "2025-09-17", "updated": "2026-03-11"},
+      {"number": 10260, "title": "The conversation data is gone", "created": "2025-09-19", "updated": "2026-03-11"},
+      {"number": 10270, "title": "Selection Assistant Loses Paragraph Structure", "created": "2025-09-19", "updated": "2026-03-11"}
+    ],
+    "note": "The 'BUG' label is applied conservatively. Many bug-titled issues carry other labels (UI/UX, Models, inactive, MCP). True bug count is much higher than 100."
+  },
   "unlabeled_issues": {
     "count": 94,
     "pct": 9.9,
-    "action": "Triage needed. Available labels: bug, feature, UI/UX, Models, RAG, MCP, Performance, Assistant, Data, Docs, Connectivity, needs-repro, needs-more-info, help wanted, discussion, internal_team, Planned, P1, inactive, needs-triage"
+    "sample_today": [
+      {"number": 16722, "title": "[Bug]: Claude Opus 4.8 thinking parameter incompatible in Assistant mode"},
+      {"number": 16719, "title": "Windows tool installs fail via bundled mise"},
+      {"number": 16718, "title": "[Feature]: Track PR #16283 OAuth follow-up hardening items"},
+      {"number": 16693, "title": "provider-registry: catalog data-quality follow-ups from #16401"}
+    ],
+    "action": "Triage needed. Available labels: BUG, feature, UI/UX, Models, RAG, MCP, Performance, Assistant, Data, Connectivity, needs-repro, needs-more-info, help wanted, discussion, internal_team, Planned, P1, inactive, needs-triage, ClaudeCode"
   },
-  "notable_bugs_today": [
-    {
-      "number": 16677,
-      "title": "[Bug]: Knowledge base embedding ignores provider custom headers (Authorization dropped, sends placeholder Bearer)",
-      "created_at": "2026-07-02T11:38:09Z",
-      "labels": ["RAG"],
-      "severity_note": "Security-relevant: auth headers dropped/replaced in RAG requests. Users' custom API keys not sent correctly."
-    },
-    {
-      "number": 16660,
-      "title": "[Bug]: Disabling thinking doesn't work",
-      "created_at": "2026-07-02T06:20:56Z",
-      "labels": ["Models"]
-    },
-    {
-      "number": 16661,
-      "title": "[Bug]: Hyperlinks opened in mini-program cannot show file download progress and download list",
-      "created_at": "2026-07-02T06:38:19Z",
-      "labels": ["UI/UX"]
-    }
-  ],
+  "inactive_label_analysis": {
+    "total": 109,
+    "co_labels_top": {"UI/UX": 31, "Assistant": 21, "Models": 17, "needs-repro": 14, "MCP": 10, "BUG": 8},
+    "most_commented": [
+      {"number": 11101, "title": "Keep Tool Calling Context", "comments": 12},
+      {"number": 10628, "title": "Full DashScope support for Qwen web search", "comments": 10},
+      {"number": 14603, "title": "Web search returns unrelated results", "comments": 10}
+    ]
+  },
   "security_issues_open": [
-    {
-      "number": 15409,
-      "title": "[Bug]: CherryIN OAuth flow can be completed by a different renderer sender",
-      "labels": ["needs-triage", "inactive"],
-      "note": "Cross-renderer OAuth flow hijack — labeled inactive but is a real security issue. FIXED in v1.9.11 per prior analysis but issue not closed."
-    }
+    {"number": 15409, "title": "[Bug]: CherryIN OAuth flow can be completed by different renderer sender", "labels": ["needs-triage", "inactive"], "note": "Cross-renderer OAuth hijack. Labeled inactive — verify if fixed in current build."},
+    {"number": 16677, "title": "[Bug]: Knowledge base embedding ignores provider custom headers (Authorization dropped)", "labels": ["RAG"], "note": "Auth headers stripped in RAG requests — security-relevant"}
   ],
   "data_integrity_issues_open": [
-    {
-      "number": 15316,
-      "title": "[Bug]: agents.db backup races with concurrent writes, producing corrupted restores",
-      "labels": ["needs-triage", "Data"],
-      "milestone": "v1.9.8",
-      "assignee": "kangfenmao",
-      "note": "Data loss on cross-device sync via Nutstore backup. WAL race condition in BackupManager."
-    },
-    {
-      "number": 15423,
-      "title": "[CRITICAL/Data Loss]: Total Wipe of All Chat Sessions due to Monolithic IndexedDB & Full Disk",
-      "labels": ["Data", "inactive"],
-      "note": "Unresolved data-loss bug despite inactive label"
-    }
+    {"number": 15316, "title": "[Bug]: agents.db backup races with concurrent writes, producing corrupted restores", "labels": ["needs-triage", "Data"], "milestone": "v1.9.8", "assignee": "kangfenmao"},
+    {"number": 15423, "title": "[CRITICAL/Data Loss]: Total Wipe of All Chat Sessions due to IndexedDB & Full Disk", "labels": ["Data", "inactive"], "note": "Unresolved data-loss despite inactive label"}
   ],
   "needs_repro_count": 53,
   "needs_triage_count": 5,
-  "aging_sample": {
-    "count": 254,
-    "example": {
-      "number": 15599,
-      "title": "Bug: When agent session list has many items, bottom sessions show rendering anomalies",
-      "updated_at": "2026-06-02T11:32:34Z",
-      "labels": ["needs-repro", "UI/UX"]
-    }
-  }
+  "closed_30d": {
+    "total": 389,
+    "closed_7d": 99,
+    "top_label_on_closed": "inactive (62/100 sampled — large portion auto-closed for inactivity)",
+    "top_closers_sampled": [
+      {"author": "DeJeune", "count": 12},
+      {"author": "kennyzheng-builds", "count": 7},
+      {"author": "SiinXu", "count": 5},
+      {"author": "Huaweidev", "count": 5},
+      {"author": "vaayne", "count": 5}
+    ]
+  },
+  "oldest_open_issue": {
+    "number": 5712,
+    "title": "【需求汇总】Agents with Workflows / 工作流&协同",
+    "created": "2025-05-07",
+    "last_updated": "2025-10-23",
+    "labels": ["invalid", "inactive"],
+    "age_days": 422
+  },
+  "recommendations": [
+    "97/100 BUG issues dormant 30+ days — bulk triage needed. Most assigned to DeJeune; consider distributing.",
+    "3 zombie issues: #5712 (Workflows aggregator) may still be relevant as agent system matures — re-evaluate.",
+    "145 stale issues (90-179d) not captured yesterday due to API bug — this is a larger backlog than previously thought.",
+    "109 inactive-labeled issues contain 8 BUGs — consider closing confirmed-fixed ones or converting to v2 tracking.",
+    "~94 unlabeled issues — auto-labeler or bot triage would significantly improve discoverability.",
+    "Security: #15409 (OAuth hijack) labeled inactive — verify if actually fixed before closure.",
+    "Data integrity: #15316 (agents.db WAL race) has a milestone (v1.9.8) but remains open — needs attention."
+  ]
 }
