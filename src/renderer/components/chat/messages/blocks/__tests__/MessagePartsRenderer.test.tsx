@@ -483,6 +483,110 @@ describe('MessagePartsRenderer', () => {
     expect(screen.getByTestId('mock-attachments').getAttribute('data-file-name')).toBe('doc.pdf')
   })
 
+  it('matches visible composer file tokens to file parts before hiding attachment cards', () => {
+    renderParts(
+      [
+        {
+          type: 'text',
+          text: 'Attach visible.md and latest',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'file:source-visible',
+                    kind: 'file',
+                    label: 'visible.md',
+                    index: 0,
+                    textOffset: 7,
+                    payload: { origin_name: 'visible.md', name: 'visible.md' }
+                  },
+                  {
+                    id: 'file:source-stale',
+                    kind: 'file',
+                    label: 'stale.md',
+                    index: 1,
+                    textOffset: 22,
+                    promptText: 'stale.md',
+                    payload: { origin_name: 'stale.md', name: 'stale.md' }
+                  }
+                ]
+              }
+            }
+          }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///stale.md',
+          mediaType: 'text/markdown',
+          filename: 'stale.md',
+          providerMetadata: { cherry: { fileTokenSourceId: 'source-stale' } }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///visible.md',
+          mediaType: 'text/markdown',
+          filename: 'visible.md',
+          providerMetadata: { cherry: { fileTokenSourceId: 'source-visible' } }
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    const token = document.querySelector('[data-composer-token-kind="file"]')
+    expect(token).toBeInTheDocument()
+    expect(token).toHaveTextContent('visible.md')
+    const attachments = screen.getAllByTestId('mock-attachments')
+    expect(attachments).toHaveLength(1)
+    expect(attachments[0].getAttribute('data-file-name')).toBe('stale.md')
+  })
+
+  it('keeps attachment cards when file-name fallback is ambiguous', () => {
+    renderParts(
+      [
+        {
+          type: 'text',
+          text: 'Attach duplicate.txt',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'file:legacy-visible',
+                    kind: 'file',
+                    label: 'duplicate.txt',
+                    index: 0,
+                    textOffset: 7,
+                    payload: { origin_name: 'duplicate.txt', name: 'duplicate.txt' }
+                  }
+                ]
+              }
+            }
+          }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///first/duplicate.txt',
+          mediaType: 'text/plain',
+          filename: 'duplicate.txt'
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///second/duplicate.txt',
+          mediaType: 'text/plain',
+          filename: 'duplicate.txt'
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
+    const attachments = screen.getAllByTestId('mock-attachments')
+    expect(attachments).toHaveLength(2)
+  })
+
   // -- tool (single) --
   it('renders single dynamic-tool via MessageTools', () => {
     renderParts([

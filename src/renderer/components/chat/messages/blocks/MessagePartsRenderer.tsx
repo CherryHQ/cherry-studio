@@ -21,10 +21,11 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
+import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
-import type { CherryProviderMetadata, ErrorPartData } from '@shared/data/types/uiParts'
+import type { CherryProviderMetadata, ComposerMessageToken, ErrorPartData } from '@shared/data/types/uiParts'
 import { isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { ChevronDown } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
@@ -228,37 +229,106 @@ function isResultPart(part: CherryMessagePart): boolean {
   return isSummaryMessagePart(part) || partType === 'data-error' || partType === 'file' || partType === 'data-video'
 }
 
-function getVisibleComposerFileTokenCount(parts: readonly CherryMessagePart[]): number {
-  return parts.reduce((count, part) => {
-    if ((part.type as string) !== 'text') return count
+interface VisibleComposerFileToken {
+  sourceId?: string
+  names: Set<string>
+}
+
+function isComposerTokenVisibleInText(token: ComposerMessageToken, text: string): boolean {
+  if (!token.promptText) return true
+  const offset = Math.max(0, Math.min(text.length, token.textOffset))
+  return text.slice(offset, offset + token.promptText.length) === token.promptText
+}
+
+function getComposerFileTokenNames(token: ComposerMessageToken): Set<string> {
+  const names = [token.payload?.origin_name, token.payload?.name, token.label].filter((name): name is string => !!name)
+  return new Set(names)
+}
+
+function getVisibleComposerFileTokens(parts: readonly CherryMessagePart[]): VisibleComposerFileToken[] {
+  return parts.flatMap((part) => {
+    if ((part.type as string) !== 'text') return []
     const composer = getCherryMeta(part)?.composer
-    if (!composer) return count
+    if (!composer) return []
     const text = (part as { text?: string }).text ?? ''
-    return (
-      count +
-      getDisplayComposerTokens(composer).filter((token) => {
-        if (token.kind !== 'file') return false
-        if (!token.promptText) return true
-        const offset = Math.max(0, Math.min(text.length, token.textOffset))
-        return text.slice(offset, offset + token.promptText.length) === token.promptText
-      }).length
-    )
-  }, 0)
+
+    return getDisplayComposerTokens(composer).flatMap((token) => {
+      if (token.kind !== 'file' || !isComposerTokenVisibleInText(token, text)) return []
+      return [{ sourceId: readComposerFileTokenIdSuffix(token.id), names: getComposerFileTokenNames(token) }]
+    })
+  })
+}
+
+function getFileEntrySourceId(entry: PartEntry): string | undefined {
+  return getCherryMeta(entry.part)?.fileTokenSourceId
+}
+
+function getFileEntryName(entry: PartEntry): string {
+  const filePart = entry.part as { filename?: string; url?: string }
+  return (
+    filePart.filename ||
+    filePart.url
+      ?.split(/[\\/]/)
+      .pop()
+      ?.replace(/^file:\/\//, '') ||
+    ''
+  )
+}
+
+function findUniqueVisibleFileTokenIndex(
+  tokens: readonly VisibleComposerFileToken[],
+  usedTokenIndexes: ReadonlySet<number>,
+  matches: (token: VisibleComposerFileToken) => boolean
+): number | undefined {
+  const matchingIndexes = tokens.flatMap((token, index) =>
+    !usedTokenIndexes.has(index) && matches(token) ? [index] : []
+  )
+  return matchingIndexes.length === 1 ? matchingIndexes[0] : undefined
 }
 
 function getDisplayEntries(
   entries: readonly PartEntry[],
   message: MessageListItem,
-  visibleComposerFileTokenCount: number
+  visibleComposerFileTokens: readonly VisibleComposerFileToken[]
 ): PartEntry[] {
-  if (message.role !== 'user' || visibleComposerFileTokenCount === 0) return [...entries]
+  if (message.role !== 'user' || visibleComposerFileTokens.length === 0) return [...entries]
 
-  let hiddenAttachmentCount = 0
+  const fileEntryNameCounts = new Map<string, number>()
+  for (const entry of entries) {
+    if ((entry.part.type as string) !== 'file' || isImageFilePart(entry.part)) continue
+
+    const name = getFileEntryName(entry)
+    if (name) fileEntryNameCounts.set(name, (fileEntryNameCounts.get(name) ?? 0) + 1)
+  }
+
+  const usedTokenIndexes = new Set<number>()
   return entries.filter((entry) => {
     if ((entry.part.type as string) !== 'file' || isImageFilePart(entry.part)) return true
-    if (hiddenAttachmentCount >= visibleComposerFileTokenCount) return true
-    hiddenAttachmentCount += 1
-    return false
+
+    const sourceId = getFileEntrySourceId(entry)
+    const sourceMatchIndex = sourceId
+      ? findUniqueVisibleFileTokenIndex(
+          visibleComposerFileTokens,
+          usedTokenIndexes,
+          (token) => token.sourceId === sourceId
+        )
+      : undefined
+    if (sourceMatchIndex !== undefined) {
+      usedTokenIndexes.add(sourceMatchIndex)
+      return false
+    }
+
+    const name = getFileEntryName(entry)
+    const nameMatchIndex =
+      name && fileEntryNameCounts.get(name) === 1
+        ? findUniqueVisibleFileTokenIndex(visibleComposerFileTokens, usedTokenIndexes, (token) => token.names.has(name))
+        : undefined
+    if (nameMatchIndex !== undefined) {
+      usedTokenIndexes.add(nameMatchIndex)
+      return false
+    }
+
+    return true
   })
 }
 
@@ -745,10 +815,10 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   // Everything not folded into the history group renders flat: the answer after
   // the fold, or all parts when there's no fold (no tools / collapse disabled).
   const visibleEntries = toolHistoryGroup?.resultEntries ?? partEntries
-  const visibleComposerFileTokenCount = useMemo(() => getVisibleComposerFileTokenCount(messageParts), [messageParts])
+  const visibleComposerFileTokens = useMemo(() => getVisibleComposerFileTokens(messageParts), [messageParts])
   const displayEntries = useMemo(
-    () => getDisplayEntries(visibleEntries, message, visibleComposerFileTokenCount),
-    [message, visibleComposerFileTokenCount, visibleEntries]
+    () => getDisplayEntries(visibleEntries, message, visibleComposerFileTokens),
+    [message, visibleComposerFileTokens, visibleEntries]
   )
   const grouped = useMemo(() => (displayEntries.length === 0 ? [] : groupPartEntries(displayEntries)), [displayEntries])
 
