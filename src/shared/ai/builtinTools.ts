@@ -461,6 +461,16 @@ export const REPORT_ARTIFACTS_DESCRIPTION =
 
 export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
 
+// ── agent autonomy tools (cron / notify / config) ────────────────
+// Hosted by the same in-process `cherry-tools` MCP server as the tools above, but registered only
+// for sessions with agent context. Their input schemas are plain JSON Schema `Tool` definitions in
+// `src/main/ai/mcp/servers/cherryAutonomyTools.ts`; only the names are shared (approval policy +
+// tool registry reference them).
+
+export const CRON_TOOL_NAME = 'cron'
+export const NOTIFY_TOOL_NAME = 'notify'
+export const CONFIG_TOOL_NAME = 'config'
+
 // ── read_file ────────────────────────────────────────────────────
 
 export const READ_FILE_TOOL_NAME = 'read_file'

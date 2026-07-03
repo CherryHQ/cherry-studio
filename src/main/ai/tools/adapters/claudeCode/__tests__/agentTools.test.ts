@@ -154,15 +154,17 @@ describe('createClaudeAgentToolPolicySnapshot — auto-allow prefix + approval e
     expect(snapshot.resolve('mcp__cherry-tools__kb_read')).toMatchObject({ approval: 'auto' })
   })
 
-  it('keeps the sibling cherry / cherry-tools prefixes from shadowing each other', async () => {
-    // The two production prefixes share the "cherry" stem; the trailing `__` delimiter is what
-    // keeps startsWith() matching exact — an mcp__cherry__ grant must never leak to cherry-tools.
+  it('auto-approves the merged autonomy tools while kb_manage still prompts', async () => {
+    // The former standalone `cherry` server's cron/notify/config now live under cherry-tools and
+    // must stay auto-approved; the mutating kb_manage carve-out must survive the merge.
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), {
-      autoAllowRuntimeNamePrefixes: ['mcp__cherry__']
+      autoAllowRuntimeNamePrefixes: ['mcp__cherry-tools__'],
+      autoAllowRuntimeNameExceptions: ['mcp__cherry-tools__kb_manage']
     })
-    expect(snapshot.resolve('mcp__cherry__cron')).toMatchObject({ approval: 'auto' })
-    // No cherry-tools prefix was granted, so its tools must fall through (undefined), not auto-allow.
-    expect(snapshot.resolve('mcp__cherry-tools__kb_manage')).toBeUndefined()
+    expect(snapshot.resolve('mcp__cherry-tools__cron')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry-tools__notify')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry-tools__config')).toMatchObject({ approval: 'auto' })
+    expect(snapshot.resolve('mcp__cherry-tools__kb_manage')).toMatchObject({ approval: 'prompt' })
   })
 })
 

@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock TaskService before importing CherryServer
+// Mock TaskService before importing CherryAutonomyTools
 const mockCreateTask = vi.fn()
 const mockListTasks = vi.fn()
 const mockDeleteTask = vi.fn()
@@ -80,49 +80,35 @@ vi.mock('@main/services/MainWindowService', () => ({
   }
 }))
 
-const { default: CherryServer } = await import('../cherry')
-type CherryServerInstance = InstanceType<typeof CherryServer>
+const { CherryAutonomyTools } = await import('../cherryAutonomyTools')
+type CherryAutonomyToolsInstance = InstanceType<typeof CherryAutonomyTools>
 const WORKSPACE_SOURCE = { type: 'system' as const }
 const WORKSPACE_PATH = '/tmp/cherry-test-workspace'
 
 function createServer(agentId = 'agent_test', workspacePath = WORKSPACE_PATH) {
-  return new CherryServer(agentId, WORKSPACE_SOURCE, workspacePath)
+  return new CherryAutonomyTools({ agentId, workspaceSource: WORKSPACE_SOURCE, workspacePath })
 }
 
-// Helper to call tools via the Server's request handlers
-async function callTool(server: CherryServerInstance, args: Record<string, unknown>, toolName = 'cron') {
-  // Use the server's internal handler by simulating a CallTool request
-  const handlers = (server.mcpServer.server as any)._requestHandlers
-  const callToolHandler = handlers?.get('tools/call')
-  if (!callToolHandler) {
-    throw new Error('No tools/call handler registered')
-  }
-
-  return callToolHandler(
-    { method: 'tools/call', params: { name: toolName, arguments: args } },
-    {} // extra
-  )
+// Helper mirroring how CherryBuiltinToolsServer's CallTool handler routes autonomy calls
+// (returns `any` so assertions can poke content items without narrowing the SDK union).
+async function callTool(
+  server: CherryAutonomyToolsInstance,
+  args: Record<string, unknown>,
+  toolName = 'cron'
+): Promise<any> {
+  return server.call(toolName, args as Record<string, string | undefined>)
 }
 
-async function listTools(server: CherryServerInstance) {
-  const handlers = (server.mcpServer.server as any)._requestHandlers
-  const listHandler = handlers?.get('tools/list')
-  if (!listHandler) {
-    throw new Error('No tools/list handler registered')
-  }
-  return listHandler({ method: 'tools/list', params: {} }, {})
-}
-
-describe('CherryServer', () => {
+describe('CherryAutonomyTools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('should list all tools', async () => {
+  it('should list all tools', () => {
     const server = createServer()
-    const result = await listTools(server)
-    expect(result.tools).toHaveLength(3)
-    expect(result.tools.map((t: any) => t.name)).toEqual(['cron', 'notify', 'config'])
+    const tools = server.tools()
+    expect(tools).toHaveLength(3)
+    expect(tools.map((t) => t.name)).toEqual(['cron', 'notify', 'config'])
   })
 
   describe('add action', () => {

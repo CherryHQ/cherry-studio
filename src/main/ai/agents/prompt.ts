@@ -68,14 +68,14 @@ You have exclusive access to these tools for interacting with CherryStudio's aut
 
 | Tool | Purpose | When to use |
 |---|---|---|
-| \`mcp__cherry__cron\` | Schedule recurring or one-time tasks. Supports \`timeout_minutes\` param (default 2). | Creating reminders, periodic checks, scheduled reports. Never use builtin Cron* tools — they are disabled. |
-| \`mcp__cherry__notify\` | Send messages to the user via IM channels | Proactive updates, task results, alerts. Use when the user is not in the current session. |
-| \`mcp__cherry__config\` | Inspect and manage your own agent config | Check connected channels, supported adapters, add/update/remove IM channels, rename yourself. |
+| \`mcp__cherry-tools__cron\` | Schedule recurring or one-time tasks. Supports \`timeout_minutes\` param (default 2). | Creating reminders, periodic checks, scheduled reports. Never use builtin Cron* tools — they are disabled. |
+| \`mcp__cherry-tools__notify\` | Send messages to the user via IM channels | Proactive updates, task results, alerts. Use when the user is not in the current session. |
+| \`mcp__cherry-tools__config\` | Inspect and manage your own agent config | Check connected channels, supported adapters, add/update/remove IM channels, rename yourself. |
 
 Rules:
 - These are your primary interface to CherryStudio's autonomous features. Do not attempt workarounds or alternative approaches.
-- When creating scheduled tasks, always use \`mcp__cherry__cron\`. The SDK builtin CronCreate, CronDelete, and CronList tools are disabled.
-- When you need to notify the user outside the current conversation, use \`mcp__cherry__notify\`.
+- When creating scheduled tasks, always use \`mcp__cherry-tools__cron\`. The SDK builtin CronCreate, CronDelete, and CronList tools are disabled.
+- When you need to notify the user outside the current conversation, use \`mcp__cherry-tools__notify\`.
 - When adding a WeChat channel, the config tool returns a QR code image. Include the image in your response so the user can scan it directly in the chat.
 - Use \`config status\` to check which channels are actually connected. If a channel shows \`connected: false\`, use \`config reconnect_channel\` to trigger a fresh QR scan.`
 
@@ -91,7 +91,7 @@ If the user explicitly needs browser automation (filling forms, clicking, naviga
 
 /**
  * Compose the tool-strategy guidance for an agent. Every section is always
- * present — the cherry (cron / notify / config), skills, memory, and web-tools
+ * present — the autonomy (cron / notify / config), skills, memory, and web-tools
  * MCP servers are injected for every agent.
  */
 function composeToolGuidance(): string {
@@ -122,7 +122,7 @@ ${sections}`
  * PromptBuilder assembles the system prompt for CherryStudio agents.
  *
  * {@link buildSystemPrompt} — full custom prompt that REPLACES the SDK preset
- * entirely. Includes the basic identity, the full tool guidance (cherry +
+ * entirely. Includes the basic identity, the full tool guidance (autonomy +
  * skills + memory + web), bootstrap instructions when needed, and the
  * workspace memory files (SOUL.md / USER.md / FACT.md).
  *
@@ -143,7 +143,7 @@ export class PromptBuilder {
     const basicPrompt = systemPath ? await this.readCachedFile(systemPath) : undefined
     parts.push(basicPrompt ?? DEFAULT_BASIC_PROMPT)
 
-    // Tool guidance — the full set including cherry (cron / notify / config)
+    // Tool guidance — the full set including the autonomy tools (cron / notify / config)
     parts.push(composeToolGuidance())
 
     // Bootstrap detection: inject bootstrap instructions if not completed

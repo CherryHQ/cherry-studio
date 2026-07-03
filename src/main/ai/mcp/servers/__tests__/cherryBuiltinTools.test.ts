@@ -40,7 +40,9 @@ vi.mock('@application', () => ({
   }
 }))
 
-const { callCherryBuiltinTool, listCherryBuiltinTools } = await import('../cherryBuiltinTools')
+const { callCherryBuiltinTool, listCherryBuiltinTools, CherryBuiltinToolsServer } = await import(
+  '../cherryBuiltinTools'
+)
 const { WEB_LOOKUP_ERROR_NOTE } = await import('@main/ai/tools/webLookup')
 
 const signal = new AbortController().signal
@@ -437,5 +439,46 @@ describe('cherryBuiltinTools', () => {
     const result = await callCherryBuiltinTool('nope', {}, signal)
     expect(result.isError).toBe(true)
     expect(textOf(result)).toContain('Unknown tool')
+  })
+})
+
+// The autonomy tools (cron / notify / config) act on behalf of a specific agent, so the server
+// must register them only when constructed with an agent context.
+describe('CherryBuiltinToolsServer autonomy tool registration', () => {
+  const agentContext = {
+    agentId: 'agent_1',
+    workspaceSource: { type: 'system' as const },
+    workspacePath: '/tmp/workspace'
+  }
+
+  function handlersOf(server: InstanceType<typeof CherryBuiltinToolsServer>) {
+    return (server.mcpServer.server as any)._requestHandlers
+  }
+
+  async function listVia(server: InstanceType<typeof CherryBuiltinToolsServer>) {
+    return handlersOf(server).get('tools/list')({ method: 'tools/list', params: {} }, {})
+  }
+
+  it('exposes only the stateless tools without an agent context, and cron stays unknown', async () => {
+    const server = new CherryBuiltinToolsServer()
+    const result = await listVia(server)
+    const names = result.tools.map((t: any) => t.name)
+    expect(names).toEqual(listCherryBuiltinTools().map((t) => t.name))
+    expect(names).not.toContain('cron')
+
+    const call = await handlersOf(server).get('tools/call')(
+      { method: 'tools/call', params: { name: 'cron', arguments: { action: 'list' } } },
+      { signal }
+    )
+    expect(call.isError).toBe(true)
+    expect(textOf(call)).toContain('Unknown tool')
+  })
+
+  it('additionally exposes cron/notify/config with an agent context', async () => {
+    const server = new CherryBuiltinToolsServer(agentContext)
+    const result = await listVia(server)
+    const names = result.tools.map((t: any) => t.name)
+    expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config']))
+    expect(names).toEqual(expect.arrayContaining(listCherryBuiltinTools().map((t) => t.name)))
   })
 })

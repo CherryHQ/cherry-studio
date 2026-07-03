@@ -1,7 +1,7 @@
 /**
  * Thin facade — preserves existing DataApi/MCP IPC shape (ScheduledTaskEntity etc.).
  * Internally delegates to JobManager + jobScheduleService + jobService.
- * TODO: migrate callers (data/api/handlers/agents.ts, ai/mcp/servers/cherry.ts) to the
+ * TODO: migrate callers (data/api/handlers/agents.ts, ai/mcp/servers/cherryAutonomyTools.ts) to the
  * generic Job/Scheduler API directly, then delete this facade.
  */
 

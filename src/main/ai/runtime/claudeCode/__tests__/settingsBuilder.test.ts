@@ -92,10 +92,6 @@ vi.mock('@main/ai/mcp/servers/assistant', () => ({
   default: vi.fn(() => ({ mcpServer: {} }))
 }))
 
-vi.mock('@main/ai/mcp/servers/cherry', () => ({
-  default: vi.fn(() => ({ mcpServer: {} }))
-}))
-
 vi.mock('@main/ai/runtime/claudeCode/createSdkMcpServerInstance', () => ({
   createSdkMcpServerInstance: vi.fn()
 }))
@@ -364,8 +360,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read']))
-    // The injected cherry/agent-memory servers are always pre-approved via the allowlist.
-    expect(settings.allowedTools).toEqual(expect.arrayContaining(['mcp__cherry__*', 'mcp__agent-memory__*']))
+    // The injected cherry-tools/agent-memory servers are always pre-approved via the allowlist.
+    expect(settings.allowedTools).toEqual(expect.arrayContaining(['mcp__cherry-tools__cron', 'mcp__agent-memory__*']))
   })
 
   it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup', async () => {

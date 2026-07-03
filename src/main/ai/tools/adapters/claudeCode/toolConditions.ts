@@ -36,8 +36,8 @@ function dirHasGit(cwd: string): boolean {
 const TOOL_ENABLE_PREDICATES: Record<string, (ctx: ClaudeToolContext) => boolean> = {
   EnterWorktree: (ctx) => dirHasGit(ctx.cwd),
   ExitWorktree: (ctx) => dirHasGit(ctx.cwd),
-  mcp__cherry__notify: (ctx) => ctx.channels.length > 0,
-  mcp__cherry__config: (ctx) => ctx.channels.length > 0
+  'mcp__cherry-tools__notify': (ctx) => ctx.channels.length > 0,
+  'mcp__cherry-tools__config': (ctx) => ctx.channels.length > 0
 }
 
 /**

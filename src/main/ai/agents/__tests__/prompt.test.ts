@@ -76,7 +76,7 @@ describe('PromptBuilder', () => {
     expect(result).not.toContain('## Memories')
   })
 
-  it('embeds tool guidance sections in order (cherry, skills, memory, web)', async () => {
+  it('embeds tool guidance sections in order (autonomy, skills, memory, web)', async () => {
     setupFiles({})
 
     const result = await builder.buildSystemPrompt('/workspace')
@@ -89,7 +89,7 @@ describe('PromptBuilder', () => {
     expect(cherryIdx).toBeLessThan(skillsIdx)
     expect(skillsIdx).toBeLessThan(memoryIdx)
     expect(memoryIdx).toBeLessThan(webIdx)
-    expect(result).toContain('mcp__cherry__cron')
+    expect(result).toContain('mcp__cherry-tools__cron')
     expect(result).toContain('mcp__skills__skills')
     expect(result).toContain('mcp__agent-memory__memory')
     expect(result).toContain('mcp__cherry-tools__web_search')

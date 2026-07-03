@@ -36,7 +36,7 @@ export interface ClaudeToolDescriptorDef {
   /** Other tools this one requires — if any is disabled, this tool is disabled too (transitively). */
   dependsOn?: readonly string[]
   /** Set for in-process MCP tools — the server hosting this tool (drives injection). */
-  mcpServer?: 'cherry-tools' | 'cherry' | 'agent-memory' | 'skills'
+  mcpServer?: 'cherry-tools' | 'agent-memory' | 'skills'
 }
 
 /**
@@ -311,28 +311,28 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Adds, deletes, or refreshes knowledge base documents',
     mcpServer: 'cherry-tools'
   },
-  // cherry (agent autonomy / channels). notify/config need a connected channel to do anything.
+  // agent autonomy / channels (hosted by cherry-tools). notify/config need a connected channel to do anything.
   CherryCron: {
-    name: 'mcp__cherry__cron',
+    name: 'mcp__cherry-tools__cron',
     category: 'orchestration',
     exposure: 'user',
     description: 'Manages the in-app scheduler',
-    mcpServer: 'cherry'
+    mcpServer: 'cherry-tools'
   },
   // notify/config are condition-gated (agent has a connected channel) — see toolConditions.ts.
   CherryNotify: {
-    name: 'mcp__cherry__notify',
+    name: 'mcp__cherry-tools__notify',
     category: 'orchestration',
     exposure: 'internal',
     description: 'Sends a notification through a connected channel',
-    mcpServer: 'cherry'
+    mcpServer: 'cherry-tools'
   },
   CherryConfig: {
-    name: 'mcp__cherry__config',
+    name: 'mcp__cherry-tools__config',
     category: 'orchestration',
     exposure: 'internal',
     description: 'Inspects and manages this agent configuration and channels',
-    mcpServer: 'cherry'
+    mcpServer: 'cherry-tools'
   },
   // agent-memory (cross-session memory)
   AgentMemory: {
@@ -399,7 +399,7 @@ const MCP_TOOL_LABELS: Record<string, string> = {
   'mcp__cherry-tools__kb_search': 'Knowledge Search',
   'mcp__cherry-tools__kb_manage': 'Manage Knowledge',
   'mcp__agent-memory__memory': 'Memory',
-  mcp__cherry__cron: 'Scheduler'
+  'mcp__cherry-tools__cron': 'Scheduler'
 }
 
 /**
