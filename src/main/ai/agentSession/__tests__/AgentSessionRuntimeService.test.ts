@@ -1392,7 +1392,7 @@ describe('AgentSessionRuntimeService', () => {
 
   it('publishes runtime context usage through persist cache', async () => {
     const events = createAsyncQueue<any>()
-    const usage = {
+    const initialUsage = {
       categories: [],
       totalTokens: 42,
       maxTokens: 100,
@@ -1406,11 +1406,12 @@ describe('AgentSessionRuntimeService', () => {
       isAutoCompactEnabled: false,
       apiUsage: null
     }
+    const finalUsage = { ...initialUsage, totalTokens: 64, percentage: 64 }
     const connection = {
       events: events.iterable,
       send: vi.fn(),
       close: vi.fn(),
-      getContextUsage: vi.fn().mockResolvedValue(usage)
+      getContextUsage: vi.fn().mockResolvedValueOnce(initialUsage).mockResolvedValueOnce(finalUsage)
     }
     const connect = vi.fn().mockResolvedValue(connection)
     runtimeDriverRegistry.register({
@@ -1432,19 +1433,29 @@ describe('AgentSessionRuntimeService', () => {
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
 
     await vi.waitFor(() =>
-      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', initialUsage)
     )
-    expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', usage, expect.any(Number))
+    expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', initialUsage, expect.any(Number))
     await vi.waitFor(() =>
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage_snapshot.session-1', {
-        usage,
+        usage: initialUsage,
         capturedAt: expect.any(Number)
       })
     )
+    mocks.cacheSetShared.mockClear()
+    mocks.upsertContextUsageSnapshot.mockClear()
 
     events.push({ type: 'turn-complete' })
     await expect(reader.read()).resolves.toMatchObject({ done: true })
     await vi.waitFor(() => expect(connection.getContextUsage).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() =>
+      expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', finalUsage, expect.any(Number))
+    )
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', finalUsage)
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage_snapshot.session-1', {
+      usage: finalUsage,
+      capturedAt: expect.any(Number)
+    })
   })
 
   describe('primeConnection — eager command load on session open', () => {
@@ -1725,7 +1736,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(mocks.cacheSetShared).not.toHaveBeenCalledWith('agent.session.context_usage.session-1', olderUsage)
   })
 
-  it('ignores driver context usage events after turn-complete when the host owns the final refresh', () => {
+  it('keeps accepting driver context usage after turn-complete when host final refresh returns null', () => {
     const usage = {
       categories: [],
       totalTokens: 24,
@@ -1743,6 +1754,7 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
+    const dateNow = vi.spyOn(Date, 'now').mockReturnValue(2)
     entry.connection = {
       getContextUsage: vi.fn().mockResolvedValue(null),
       send: vi.fn(),
@@ -1750,17 +1762,64 @@ describe('AgentSessionRuntimeService', () => {
       events: []
     }
 
+    try {
+      ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+      mocks.upsertContextUsageSnapshot.mockClear()
+      mocks.cacheSetShared.mockClear()
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'context-usage',
+        usage,
+        capturedAt: 1
+      })
+
+      expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', usage, 1)
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+    } finally {
+      dateNow.mockRestore()
+    }
+  })
+
+  it('ignores driver context usage events after turn-complete once the host final refresh persists', async () => {
+    const hostUsage = {
+      categories: [],
+      totalTokens: 64,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage: 64,
+      gridRows: [],
+      model: 'claude-sonnet-4-5',
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      isAutoCompactEnabled: true,
+      apiUsage: null
+    }
+    const driverUsage = { ...hostUsage, totalTokens: 24, percentage: 24 }
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.connection = {
+      getContextUsage: vi.fn().mockResolvedValue(hostUsage),
+      send: vi.fn(),
+      close: vi.fn(),
+      events: []
+    }
+
     ;(service as any).handleRuntimeEvent(entry, { type: 'turn-complete' })
+    await vi.waitFor(() =>
+      expect(mocks.upsertContextUsageSnapshot).toHaveBeenCalledWith('session-1', hostUsage, expect.any(Number))
+    )
     mocks.upsertContextUsageSnapshot.mockClear()
     mocks.cacheSetShared.mockClear()
+
     ;(service as any).handleRuntimeEvent(entry, {
       type: 'context-usage',
-      usage,
-      capturedAt: Date.UTC(2026, 5, 9, 12, 0, 0)
+      usage: driverUsage,
+      capturedAt: Date.now() + 1000
     })
 
     expect(mocks.upsertContextUsageSnapshot).not.toHaveBeenCalled()
-    expect(mocks.cacheSetShared).not.toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+    expect(mocks.cacheSetShared).not.toHaveBeenCalledWith('agent.session.context_usage.session-1', driverUsage)
   })
 
   it('settles compaction and clears live context usage when closing a session', () => {

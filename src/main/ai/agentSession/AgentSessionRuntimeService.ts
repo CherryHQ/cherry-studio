@@ -173,6 +173,7 @@ type AgentSessionRuntimeEntry = {
 type ContextUsagePersistOptions = {
   allowClosed?: boolean
   captureSequence?: number
+  suppressDriverEventsAfterPersist?: boolean
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -799,13 +800,10 @@ export class AgentSessionRuntimeService extends BaseService {
     const capturedAt = Date.now()
     entry.contextUsageCaptureSequence = sequence
     entry.contextUsageLatestCaptureSequence = sequence
-    if (entry.contextUsageLatestCapturedAt === undefined || capturedAt > entry.contextUsageLatestCapturedAt) {
-      entry.contextUsageLatestCapturedAt = capturedAt
-    }
     return { capturedAt, sequence }
   }
 
-  private acceptContextUsageCapture(
+  private getAcceptedContextUsageCapturedAt(
     entry: AgentSessionRuntimeEntry,
     capturedAt: number,
     sequence?: number
@@ -814,7 +812,6 @@ export class AgentSessionRuntimeService extends BaseService {
     if (entry.contextUsageLatestCapturedAt !== undefined && capturedAt < entry.contextUsageLatestCapturedAt) {
       return undefined
     }
-    entry.contextUsageLatestCapturedAt = capturedAt
     return capturedAt
   }
 
@@ -1005,8 +1002,7 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       case 'turn-complete':
         this.closeCurrentTurn(entry, 'success')
-        if (entry.connection?.getContextUsage) entry.ignoreContextUsageEventsUntilNextTurn = true
-        this.refreshContextUsage(entry)
+        this.refreshContextUsage(entry, undefined, { suppressDriverEventsAfterPersist: true })
         break
       case 'error':
         this.handleRuntimeError(entry, event.error)
@@ -1074,10 +1070,13 @@ export class AgentSessionRuntimeService extends BaseService {
       const usage = await connection.getContextUsage?.()
       if (!usage) return
       if (!options.allowClosed && (!this.isCurrentEntry(entry) || entry.connection !== connection)) return
-      this.persistContextUsage(entry, usage, capture.capturedAt, {
+      const persisted = this.persistContextUsage(entry, usage, capture.capturedAt, {
         ...options,
         captureSequence: capture.sequence
       })
+      if (persisted && options.suppressDriverEventsAfterPersist) {
+        entry.ignoreContextUsageEventsUntilNextTurn = true
+      }
     })().catch((error) => {
       logger.warn('Failed to refresh agent session context usage', { sessionId: entry.sessionId, error })
     })
@@ -1088,26 +1087,29 @@ export class AgentSessionRuntimeService extends BaseService {
     usage: AgentSessionContextUsage,
     capturedAt: number,
     options: ContextUsagePersistOptions = {}
-  ): void {
+  ): boolean {
     const currentEntry = this.entries.get(entry.sessionId)
     const isCurrent = currentEntry === entry
-    if (!isCurrent && !options.allowClosed) return
-    if (currentEntry && !isCurrent) return
-    const acceptedCapturedAt = this.acceptContextUsageCapture(entry, capturedAt, options.captureSequence)
-    if (acceptedCapturedAt === undefined) return
+    if (!isCurrent && !options.allowClosed) return false
+    if (currentEntry && !isCurrent) return false
+    const acceptedCapturedAt = this.getAcceptedContextUsageCapturedAt(entry, capturedAt, options.captureSequence)
+    if (acceptedCapturedAt === undefined) return false
 
-    if (isCurrent) {
-      application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), usage)
-    }
     try {
       const snapshot = agentSessionService.upsertContextUsageSnapshot(entry.sessionId, usage, acceptedCapturedAt)
-      if (snapshot) {
-        application
-          .get('CacheService')
-          .setShared(AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY(entry.sessionId), snapshot)
+      if (!snapshot) return false
+
+      entry.contextUsageLatestCapturedAt = acceptedCapturedAt
+      if (isCurrent) {
+        application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), usage)
       }
+      application
+        .get('CacheService')
+        .setShared(AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY(entry.sessionId), snapshot)
+      return true
     } catch (error) {
       logger.warn('Failed to persist agent session context usage snapshot', { sessionId: entry.sessionId, error })
+      return false
     }
   }
 
