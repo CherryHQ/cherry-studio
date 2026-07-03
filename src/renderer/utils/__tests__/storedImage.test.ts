@@ -10,6 +10,18 @@ describe('resolveStoredImageSrc', () => {
     expect(resolveStoredImageSrc(`file:${id}`, filesPath)).toBe(`file:///files/${id}.webp`)
   })
 
+  it('percent-encodes a filesPath containing spaces (e.g. macOS Application Support)', () => {
+    expect(resolveStoredImageSrc(`file:${id}`, '/Users/me/Library/Application Support/CherryStudio/Files')).toBe(
+      `file:///Users/me/Library/Application%20Support/CherryStudio/Files/${id}.webp`
+    )
+  })
+
+  it('encodes a Windows filesPath (drive letter kept, backslashes normalized, spaces encoded)', () => {
+    expect(resolveStoredImageSrc(`file:${id}`, 'C:\\Users\\a b\\AppData\\Files')).toBe(
+      `file:///C:/Users/a%20b/AppData/Files/${id}.webp`
+    )
+  })
+
   it('returns undefined for a file:<id> ref without a filesPath', () => {
     expect(resolveStoredImageSrc(`file:${id}`)).toBeUndefined()
   })

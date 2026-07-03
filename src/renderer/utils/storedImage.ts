@@ -16,6 +16,8 @@
  */
 
 import { STORED_FILE_REF_PREFIX } from '@shared/data/types/file'
+import type { FilePath } from '@shared/types/file/common'
+import { toFileUrl } from '@shared/utils/file/url'
 
 /**
  * Resolve a stored value to something `<img src>` can render. A `file:<id>` ref
@@ -23,6 +25,11 @@ import { STORED_FILE_REF_PREFIX } from '@shared/data/types/file'
  * `icon:<id>` / preset id / a legacy `data:` value / empty) is returned
  * unchanged. `filesPath` is the cached `app.path.files` dir — pass it from
  * `useCache('app.path.files')` so the resolution stays reactive.
+ *
+ * The URL is built with {@link toFileUrl} so the path is properly encoded
+ * (spaces → `%20`, Windows drive letters, `\` → `/`) — a hand-concatenated
+ * `file://${filesPath}/…` breaks under macOS `Application Support` or Windows
+ * paths that contain spaces, leaving an unnormalized URL the `<img>` can't load.
  */
 export function resolveStoredImageSrc(value?: string | null, filesPath?: string): string | undefined {
   if (!value) return undefined
@@ -30,7 +37,8 @@ export function resolveStoredImageSrc(value?: string | null, filesPath?: string)
   // `file://…` URL, which we never re-resolve.
   if (value.startsWith(STORED_FILE_REF_PREFIX) && !value.startsWith('file://')) {
     if (!filesPath) return undefined
-    return `file://${filesPath}/${value.slice(STORED_FILE_REF_PREFIX.length)}.webp`
+    const id = value.slice(STORED_FILE_REF_PREFIX.length)
+    return toFileUrl(`${filesPath}/${id}.webp` as FilePath)
   }
   return value
 }
