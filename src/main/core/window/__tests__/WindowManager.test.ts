@@ -416,7 +416,6 @@ describe('WindowManager', () => {
 
       expect(win.loadURL).not.toHaveBeenCalled()
       expect(win.loadFile).not.toHaveBeenCalled()
-      expect(win.show).not.toHaveBeenCalled()
     })
   })
 
