@@ -98,6 +98,9 @@ export const MockCherrystudioUI = {
   ),
   FieldError: ({ children, ...props }: { children?: ReactNode }) => <p {...props}>{children}</p>,
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  InputGroup: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+  InputGroupAddon: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+  InputGroupInput: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   Label: ({ children, ...props }: { children?: ReactNode }) => <label {...props}>{children}</label>,
   RowFlex: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
   SelectDropdown: ({ items, onSelect, renderItem, renderSelected, selectedId, placeholder }: any) => {
