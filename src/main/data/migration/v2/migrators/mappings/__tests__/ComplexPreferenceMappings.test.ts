@@ -10,6 +10,8 @@ import {
   type TransformResult
 } from '../ComplexPreferenceMappings'
 
+const appFavorite = (id: string) => ({ type: 'app', id })
+
 describe('ComplexPreferenceMappings', () => {
   describe('type exports', () => {
     it('should export SourceDefinition type', () => {
@@ -181,7 +183,12 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': ['assistants', 'agents', 'mini_app', 'translate']
+        'ui.sidebar.favorites': [
+          appFavorite('assistants'),
+          appFavorite('agents'),
+          appFavorite('mini_app'),
+          appFavorite('translate')
+        ]
       })
     })
 
@@ -193,7 +200,12 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': ['assistants', 'agents', 'translate', 'paintings']
+        'ui.sidebar.favorites': [
+          appFavorite('assistants'),
+          appFavorite('agents'),
+          appFavorite('translate'),
+          appFavorite('paintings')
+        ]
       })
     })
 
@@ -205,7 +217,7 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': ['translate', 'agents']
+        'ui.sidebar.favorites': [appFavorite('translate'), appFavorite('agents')]
       })
     })
 
@@ -217,7 +229,7 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': ['assistants', 'agents', 'translate']
+        'ui.sidebar.favorites': [appFavorite('assistants'), appFavorite('agents'), appFavorite('translate')]
       })
     })
 
@@ -241,16 +253,16 @@ describe('ComplexPreferenceMappings', () => {
 
       expect(result).toEqual({
         'ui.sidebar.favorites': [
-          'assistants',
-          'agents',
-          'paintings',
-          'translate',
-          'mini_app',
-          'knowledge',
-          'files',
-          'code_tools',
-          'notes',
-          'openclaw'
+          appFavorite('assistants'),
+          appFavorite('agents'),
+          appFavorite('paintings'),
+          appFavorite('translate'),
+          appFavorite('mini_app'),
+          appFavorite('knowledge'),
+          appFavorite('files'),
+          appFavorite('code_tools'),
+          appFavorite('notes'),
+          appFavorite('openclaw')
         ]
       })
     })
@@ -274,15 +286,15 @@ describe('ComplexPreferenceMappings', () => {
 
       expect(result).toEqual({
         'ui.sidebar.favorites': [
-          'assistants',
-          'agents',
-          'paintings',
-          'translate',
-          'mini_app',
-          'knowledge',
-          'files',
-          'code_tools',
-          'notes'
+          appFavorite('assistants'),
+          appFavorite('agents'),
+          appFavorite('paintings'),
+          appFavorite('translate'),
+          appFavorite('mini_app'),
+          appFavorite('knowledge'),
+          appFavorite('files'),
+          appFavorite('code_tools'),
+          appFavorite('notes')
         ]
       })
     })
@@ -306,15 +318,15 @@ describe('ComplexPreferenceMappings', () => {
 
       expect(result).toEqual({
         'ui.sidebar.favorites': [
-          'assistants',
-          'agents',
-          'paintings',
-          'translate',
-          'mini_app',
-          'knowledge',
-          'files',
-          'code_tools',
-          'notes'
+          appFavorite('assistants'),
+          appFavorite('agents'),
+          appFavorite('paintings'),
+          appFavorite('translate'),
+          appFavorite('mini_app'),
+          appFavorite('knowledge'),
+          appFavorite('files'),
+          appFavorite('code_tools'),
+          appFavorite('notes')
         ]
       })
     })
@@ -327,7 +339,7 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': ['assistants', 'translate']
+        'ui.sidebar.favorites': [appFavorite('assistants'), appFavorite('translate')]
       })
     })
 
@@ -339,7 +351,12 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': ['assistants', 'agents', 'mini_app', 'translate']
+        'ui.sidebar.favorites': [
+          appFavorite('assistants'),
+          appFavorite('agents'),
+          appFavorite('mini_app'),
+          appFavorite('translate')
+        ]
       })
     })
 

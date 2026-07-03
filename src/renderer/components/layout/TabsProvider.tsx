@@ -41,10 +41,18 @@ function withLocalizedRouteTitle(tab: Tab): Tab {
   if (isPageTitledRoute(tab.url)) {
     return tab.title ? tab : { ...tab, title: getDefaultRouteTitle(tab.url) }
   }
-  if (tab.id === 'home') return { ...tab, title: getDefaultRouteTitle(tab.url) }
   // Only auto-localize titles for top-level and settings routes. Parameterized
   // routes (e.g. /app/mini-app/<id>) preserve the title supplied at openTab
   // time so callers can pass per-entity names like a mini-app's display name.
+  //
+  // The `home` tab follows the SAME rule — it must not be special-cased into an
+  // unconditional route-default title. When the home tab is reused for a
+  // per-entity route (e.g. opening a mini-app from the sidebar), forcing the
+  // route default here clobbers the caller-supplied title every render and
+  // fights MiniAppPage's title-sync effect, spinning into an infinite
+  // `updateTab` loop ("Maximum update depth exceeded"). On top-level / settings
+  // routes the branch below still relocalizes the home tab, so language changes
+  // are unaffected.
   if (!isTopLevelRoute(tab.url) && !isSettingsRouteTab(tab)) return tab
   return { ...tab, title: getDefaultRouteTitle(tab.url) }
 }

@@ -687,6 +687,8 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     expect(screen.getByTestId('resource-pane-count')).toHaveTextContent('任务:2')
+    expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-agent-id', 'agent-a')
+    expect(screen.getByTestId('session-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
   })
 
   it('selects the latest historical session by default when entering classic layout without a route session', async () => {

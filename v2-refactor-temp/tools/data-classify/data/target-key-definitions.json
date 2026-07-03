@@ -119,10 +119,22 @@
     },
     {
       "targetKey": "ui.sidebar.favorites",
-      "type": "PreferenceTypes.SidebarFavorite[]",
-      "defaultValue": ["assistants", "agents", "translate", "mini_app"],
+      "type": "PreferenceTypes.SidebarFavoriteItem[]",
+      "defaultValue": [
+        { "id": "assistants", "type": "app" },
+        { "id": "agents", "type": "app" },
+        { "id": "translate", "type": "app" },
+        { "id": "mini_app", "type": "app" }
+      ],
       "status": "classified",
-      "description": "Left sidebar favorite app ids, stored as an ordered subset of the sidebar app catalog"
+      "description": "Left sidebar favorites, an ordered list of tagged items: built-in apps ({type:'app'}) and mini apps ({type:'mini_app'})"
+    },
+    {
+      "targetKey": "ui.launchpad.app_order",
+      "type": "PreferenceTypes.SidebarFavorite[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Launchpad built-in app tile order, independent from the sidebar favorites order (new v2 preference, no v1 source). Empty defaults to the canonical app order; unknown/missing apps are normalized at read time"
     },
     {
       "targetKey": "chat.default_model_id",

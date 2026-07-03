@@ -459,6 +459,7 @@ export function CommandContextMenu({
       }
       const requestId = extraItemsRequestIdRef.current + 1
       extraItemsRequestIdRef.current = requestId
+      onOpenChange?.(true)
 
       let nativeExtraItems: MaybePromise<readonly CommandContextMenuExtraItem[]>
       try {
@@ -507,8 +508,13 @@ export function CommandContextMenu({
         .catch((error) => {
           logger.error('Failed to show native command menu', error as Error)
         })
+        .finally(() => {
+          if (extraItemsRequestIdRef.current === requestId) {
+            onOpenChange?.(false)
+          }
+        })
     },
-    [commandItems, location, mode, resolveExtraItemShortcutLabels, resolveExtraItems, runtime]
+    [commandItems, location, mode, onOpenChange, resolveExtraItemShortcutLabels, resolveExtraItems, runtime]
   )
 
   if (disabled || (!combinedItems.length && !hasLazyExtraItems)) {

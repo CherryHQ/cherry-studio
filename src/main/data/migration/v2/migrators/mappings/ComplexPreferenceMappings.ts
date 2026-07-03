@@ -19,7 +19,7 @@
  */
 
 import { loggerService } from '@logger'
-import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import {
@@ -192,6 +192,8 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
         Array.isArray(arr)
           ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)).filter(isSupportedSidebarFavorite)
           : undefined
+      const toSidebarFavorites = (arr: SidebarFavorite[] | undefined): SidebarFavoriteItem[] | undefined =>
+        arr?.map((id) => ({ type: 'app', id }))
       const addAgents = (
         visible: SidebarFavorite[] | undefined,
         invisible: SidebarFavorite[] | undefined
@@ -214,7 +216,7 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       const invisible = rewrite(sources.disabled)
       const visibleWithAgents = dedup(addAgents(visible, invisible))
       return {
-        'ui.sidebar.favorites': visibleWithAgents
+        'ui.sidebar.favorites': toSidebarFavorites(visibleWithAgents)
       }
     }
   },

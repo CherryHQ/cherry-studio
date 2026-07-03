@@ -1,5 +1,14 @@
 import type { Tab } from '@renderer/hooks/tab'
-import { FileSearch, Folder, Globe, LayoutGrid, MessageCircle, MousePointerClick, NotepadText } from 'lucide-react'
+import {
+  FileSearch,
+  Folder,
+  Globe,
+  LayoutGrid,
+  MessageCircle,
+  MousePointerClick,
+  NotepadText,
+  Rocket
+} from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
 import { OpenClawSidebarIcon } from '../../Icons/SvgIcon'
@@ -30,7 +39,8 @@ describe('getTabIcon', () => {
     ['/app/files', Folder],
     ['/app/notes', NotepadText],
     ['/app/openclaw', OpenClawSidebarIcon],
-    ['/app/mini-app', LayoutGrid]
+    ['/app/mini-app', LayoutGrid],
+    ['/app/launchpad', Rocket]
   ])('returns the shared app icon for %s', (url, Icon) => {
     expect(getTabIcon(routeTab(url))).toBe(Icon)
   })

@@ -958,11 +958,11 @@ function DraftWelcomeChat({
         resourcePane ? (
           <>
             {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
+            <TopicRightPane.Shortcuts />
             <TopicRightPane.Toggle />
           </>
         ) : undefined
       }
-      topRightToolReserve={resourcePaneCount ? 'history' : 'single'}
       center={
         <ConversationStageCenter placement="home" main={null} composer={composer} homeWelcomeText={welcomeText} />
       }
