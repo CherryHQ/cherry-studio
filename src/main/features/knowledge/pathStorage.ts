@@ -39,7 +39,7 @@ export function getKnowledgeMaterialDir(baseId: string): FilePath {
   return path.join(getKnowledgeBaseDir(baseId), MATERIAL_ROOT_DIR) as FilePath
 }
 
-export function getKnowledgeBaseMetaDir(baseId: string): FilePath {
+function getKnowledgeBaseMetaDir(baseId: string): FilePath {
   return path.join(getKnowledgeBaseDir(baseId), CHERRY_META_DIR) as FilePath
 }
 

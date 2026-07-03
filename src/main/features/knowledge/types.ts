@@ -1,6 +1,6 @@
 import type { JobType } from '@main/core/job/jobRegistry'
 
-export type KnowledgeWorkflowJobType = Extract<JobType, `knowledge.${string}`>
+type KnowledgeWorkflowJobType = Extract<JobType, `knowledge.${string}`>
 export const KNOWLEDGE_JOB_TYPES = [
   'knowledge.prepare-root',
   'knowledge.index-documents',

@@ -6,7 +6,6 @@ import { probeKnowledgeFile, probeKnowledgeSourcePath } from './pathStorage'
 export type IndexableKnowledgeItem = KnowledgeItemOf<'file' | 'url' | 'note'>
 
 export type ContainerKnowledgeItem = KnowledgeItemOf<'directory'>
-export type ContainerKnowledgeItemType = ContainerKnowledgeItem['type']
 
 export function isIndexableKnowledgeItem(item: KnowledgeItem): item is IndexableKnowledgeItem {
   return item.type === 'file' || item.type === 'url' || item.type === 'note'

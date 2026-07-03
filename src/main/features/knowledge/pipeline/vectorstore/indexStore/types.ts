@@ -72,12 +72,6 @@ export interface SqliteDriver extends SqliteExecutor {
   close(): void
 }
 
-/** One brute-force vector match: an embedding row and its distance to the query. */
-export interface VectorMatch {
-  embeddingTextHash: string
-  distance: number
-}
-
 /**
  * Engine-specific vector primitives. The store composes the brute-force scan
  * (`SELECT … ORDER BY dist LIMIT k`) over the plain-BLOB `embedding.vector_blob`
