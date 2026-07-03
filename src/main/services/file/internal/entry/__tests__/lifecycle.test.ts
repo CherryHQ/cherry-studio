@@ -21,7 +21,9 @@ const mockLoggerWarn = mockMainLoggerService.warn
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { batchPermanentDelete, batchRestore, batchTrash, permanentDelete, restore, trash } = await import('../lifecycle')
+const { batchPermanentDelete, batchRestore, batchTrash, emptyTrash, permanentDelete, restore, trash } = await import(
+  '../lifecycle'
+)
 const { exists } = await import('@main/utils/file/fs')
 const { createInternal, ensureExternal } = await import('../create')
 
@@ -228,6 +230,34 @@ describe('internal/entry/lifecycle', () => {
       const result = await batchPermanentDelete(deps, [internal, external])
       expect(result.succeeded.sort()).toEqual([internal, external].sort())
       expect(result.failed).toEqual([])
+    })
+
+    it('emptyTrash selects internal trashed entries inside the delete write tx', async () => {
+      const trashed = await makeInternal()
+      const restored = await makeInternal()
+      const active = await makeInternal()
+      const external = await makeExternal()
+      trash(deps, trashed)
+      trash(deps, restored)
+      await restore(deps, restored)
+      const findManySpy = vi.spyOn(deps.fileEntryService, 'findMany')
+      const withWriteTx = MockMainDbServiceExport.dbService.withWriteTx
+
+      withWriteTx.mockClear()
+      withWriteTx.mockImplementationOnce((fn: (tx: unknown) => unknown) => {
+        const callbackResult = fn(dbh.db)
+        expect(callbackResult).not.toBeInstanceOf(Promise)
+        return callbackResult
+      })
+      const result = await emptyTrash(deps)
+
+      expect(withWriteTx).toHaveBeenCalledTimes(1)
+      expect(findManySpy).not.toHaveBeenCalled()
+      expect(result).toEqual({ succeeded: [trashed], failed: [] })
+      expect(fileEntryService.findById(trashed)).toBeNull()
+      expect(fileEntryService.findById(restored)).not.toBeNull()
+      expect(fileEntryService.findById(active)).not.toBeNull()
+      expect(fileEntryService.findById(external)).not.toBeNull()
     })
 
     it('composes each batch DB write loop inside one serialized write tx', async () => {

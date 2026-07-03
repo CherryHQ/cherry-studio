@@ -2385,6 +2385,7 @@
       "no_match_description": "No files match the current filters",
       "no_match_title": "No matching files found"
     },
+    "empty_trash": "Empty trash",
     "error": {
       "delete_failed": "Failed to delete files",
       "delete_partial_failed": "Some files could not be deleted",
@@ -2402,6 +2403,7 @@
     "missing": "Missing",
     "modified_at": "Modified At",
     "name": "Name",
+    "no_actions": "No actions available",
     "open": "Open",
     "other": "Other",
     "permanent_delete": "Permanently delete",
@@ -2415,13 +2417,18 @@
     "remove_from_library": "Remove from library",
     "rename": "Rename",
     "restore": "Restore",
+    "select_all": "Select visible files",
+    "select_all_short": "Select All",
+    "select_file": "Select {{name}}",
     "selected_count": "{{count}} files selected",
+    "selected_missing_hint": "Some selected files are missing. Locate them or remove their records.",
     "show_in_folder": "Show in folder",
     "size": "Size",
     "text": "Text",
     "title": "Files",
     "trash": "Trash",
     "type": "Type",
+    "upload": "Upload files",
     "video": "Video"
   },
   "globalSearch": {
@@ -4791,6 +4798,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Tesseract",
     "together": "Together",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",

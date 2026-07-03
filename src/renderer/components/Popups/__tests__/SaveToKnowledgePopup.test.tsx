@@ -74,17 +74,43 @@ vi.mock('lucide-react', () => ({
   Check: () => <span data-testid="check-icon" />
 }))
 
-vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>()
-  return {
-    ...actual,
-    Button: ({ children, loading, ...props }: React.ComponentProps<'button'> & { loading?: boolean }) => (
-      <button type="button" {...props}>
-        {loading ? 'loading' : children}
-      </button>
-    )
-  }
-})
+vi.mock('@renderer/components/Tags/CustomTag', () => ({
+  default: ({ children }: { children: React.ReactNode }) => <span>{children}</span>
+}))
+
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, loading, ...props }: React.ComponentProps<'button'> & { loading?: boolean }) => (
+    <button type="button" {...props}>
+      {loading ? 'loading' : children}
+    </button>
+  ),
+  ColFlex: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
+  Combobox: ({
+    onChange,
+    options = [],
+    value
+  }: {
+    onChange: (value: string) => void
+    options?: { label: string; value: string; disabled?: boolean }[]
+    value?: string
+  }) => (
+    <select aria-label="knowledge-base" onChange={(event) => onChange(event.target.value)} value={value ?? ''}>
+      {options.map((option) => (
+        <option key={option.value} disabled={option.disabled} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  ),
+  Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
+  DialogContent: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
+  DialogFooter: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
+  DialogHeader: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
+  DialogTitle: ({ children, ...props }: React.ComponentProps<'h2'>) => <h2 {...props}>{children}</h2>,
+  Flex: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
+  HelpTooltip: () => null,
+  Label: ({ children, ...props }: React.ComponentProps<'label'>) => <label {...props}>{children}</label>
+}))
 
 import SaveToKnowledgePopup from '../SaveToKnowledgePopup'
 
