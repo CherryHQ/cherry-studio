@@ -27,13 +27,21 @@ export const agentSessionTable = sqliteTable(
 export type AgentSessionRow = typeof agentSessionTable.$inferSelect
 export type InsertAgentSessionRow = typeof agentSessionTable.$inferInsert
 
-export const agentSessionContextUsageTable = sqliteTable('agent_session_context_usage', {
+// Per-session derived/ephemeral runtime state, kept in a 1:1 side table rather than on
+// `agent_session`. The point of the split is isolation: these columns are written at high
+// frequency (e.g. context-usage refreshes stream during a turn), and writing them on the
+// session row would auto-bump `agent_session.updatedAt` (`$onUpdateFn`), churning the session's
+// recency ordering. Future per-session derived state joins here as a new nullable column — not a
+// new single-field table, and never an EAV key/value blob.
+export const agentSessionStateTable = sqliteTable('agent_session_state', {
   sessionId: text()
     .primaryKey()
     .references(() => agentSessionTable.id, { onDelete: 'cascade' }),
-  snapshot: text({ mode: 'json' }).$type<AgentSessionContextUsageSnapshot>().notNull(),
+  // Latest context-usage snapshot. Nullable: a state row may exist for other per-session state
+  // before/without a usage snapshot.
+  lastContextUsage: text({ mode: 'json' }).$type<AgentSessionContextUsageSnapshot>(),
   ...createUpdateTimestamps
 })
 
-export type AgentSessionContextUsageRow = typeof agentSessionContextUsageTable.$inferSelect
-export type InsertAgentSessionContextUsageRow = typeof agentSessionContextUsageTable.$inferInsert
+export type AgentSessionStateRow = typeof agentSessionStateTable.$inferSelect
+export type InsertAgentSessionStateRow = typeof agentSessionStateTable.$inferInsert
