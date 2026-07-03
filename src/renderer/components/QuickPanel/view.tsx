@@ -870,12 +870,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
           'relative isolate transform-gpu rounded-xl border border-border/80 bg-popover py-1.25 text-popover-foreground transition-[translate,scale,opacity,box-shadow] duration-200 ease-out will-change-transform motion-reduce:translate-y-0 motion-reduce:scale-100 motion-reduce:opacity-100 motion-reduce:transition-none [&::-webkit-scrollbar]:w-0.75',
           constrainBody && 'flex flex-col justify-end',
           ctx.isVisible
-            ? classNames(
-                'translate-y-0 scale-100 opacity-100',
-                fillEffective
-                  ? 'shadow-[0_12px_30px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.05)] dark:shadow-[0_14px_34px_rgba(0,0,0,0.26),0_4px_12px_rgba(0,0,0,0.18)]'
-                  : 'shadow-[0_18px_44px_rgba(15,23,42,0.16),0_4px_12px_rgba(15,23,42,0.10)] dark:shadow-[0_22px_48px_rgba(0,0,0,0.46),0_8px_18px_rgba(0,0,0,0.35)]'
-              )
+            ? classNames('translate-y-0 scale-100 opacity-100', 'shadow-none')
             : 'translate-y-3 scale-[0.985] opacity-0 shadow-none'
         )}
         onKeyDown={handlePanelKeyDown}
