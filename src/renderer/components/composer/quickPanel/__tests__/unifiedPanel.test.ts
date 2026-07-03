@@ -79,6 +79,35 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     ])
   })
 
+  it('renders trailing-placement command items after caller additional items', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'mcp-status',
+          kind: 'panel',
+          label: 'MCP',
+          icon: 'plug',
+          sources: ['root-panel']
+        },
+        {
+          id: 'slash-command',
+          kind: 'command',
+          label: 'Slash command',
+          icon: 'slash',
+          sources: ['root-panel'],
+          rootPanelPlacement: 'trailing'
+        }
+      ],
+      {
+        quickPanel,
+        additionalItems: [{ id: 'skill:pdf', label: 'Agent skill', icon: 'skill' }]
+      }
+    )
+
+    // Non-trailing command items (MCP) stay above skills; trailing ones (slash) below.
+    expect(labels(options.list)).toEqual(['MCP', 'Agent skill', 'Slash command'])
+  })
+
   it('does not reorder items when there is no search text', () => {
     const options = createUnifiedQuickPanelOpenOptions(
       [
@@ -98,6 +127,33 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
 
     const reversedItems = [...options.list].reverse()
     expect(options.sortFn!(reversedItems, '')).toEqual(reversedItems)
+  })
+
+  it('filters by filterText substring and pinyin, without loose fuzzy subsequence', () => {
+    const options = createUnifiedQuickPanelOpenOptions([], {
+      quickPanel,
+      additionalItems: [
+        { id: 'skill:pdf', label: 'pdf', description: 'Read and analyze PDFs', filterText: 'pdf', icon: 'skill' }
+      ],
+      resourceItems: [{ id: 'quick-phrases', label: '提示词管理', icon: 'phrase' }]
+    })
+
+    const filterFn = options.filterFn!
+    const fuzzyRegex = /s.*l/i
+    const pinyinCache = new WeakMap<QuickPanelListItem, string>()
+    const skill = options.list.find((item) => item.label === 'pdf')!
+    const quickPhrases = options.list.find((item) => item.label === '提示词管理')!
+
+    // Skill matches its name...
+    expect(filterFn(skill, 'pdf', fuzzyRegex, pinyinCache)).toBe(true)
+    // ...but not its description (name-only).
+    expect(filterFn(skill, 'analyze', fuzzyRegex, pinyinCache)).toBe(false)
+
+    // Chinese row matches by substring and pinyin substring...
+    expect(filterFn(quickPhrases, '提示词', fuzzyRegex, pinyinCache)).toBe(true)
+    expect(filterFn(quickPhrases, 'tishi', fuzzyRegex, pinyinCache)).toBe(true)
+    // ...but not by a loose fuzzy subsequence of its pinyin (tiShiCiGuanLi).
+    expect(filterFn(quickPhrases, 'sl', fuzzyRegex, pinyinCache)).toBe(false)
   })
 
   it('dispatches generated launcher actions with source and query context', () => {

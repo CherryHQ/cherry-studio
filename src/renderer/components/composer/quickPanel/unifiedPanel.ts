@@ -1,11 +1,13 @@
 import type {
   QuickPanelContextType,
+  QuickPanelFilterFn,
   QuickPanelInputAdapter,
   QuickPanelListItem,
   QuickPanelOpenOptions,
   QuickPanelSortFn,
   QuickPanelTriggerInfo
 } from '@renderer/components/QuickPanel'
+import * as tinyPinyin from 'tiny-pinyin'
 
 import type { ComposerToolLauncher, ComposerToolLauncherSource } from '../toolLauncher'
 import { ComposerPanelSymbol } from './symbols'
@@ -136,6 +138,44 @@ const sortUnifiedQuickPanelItems: QuickPanelSortFn = (items, searchText) => {
       return a.index - b.index
     })
     .map(({ item }) => item)
+}
+
+function getUnifiedQuickPanelMatchText(item: QuickPanelListItem) {
+  // `filterText`, when set, is the authoritative search field for the item
+  // (e.g. skills set it to their name only). Otherwise fall back to the visible
+  // label + description so items without an explicit search field stay searchable.
+  if (item.filterText) return item.filterText
+
+  const parts: string[] = []
+  if (typeof item.label === 'string') parts.push(item.label)
+  if (typeof item.description === 'string') parts.push(item.description)
+  return parts.join(' ')
+}
+
+/**
+ * Root panel filter: substring match, plus pinyin substring for Chinese text.
+ * Intentionally avoids the default loose fuzzy subsequence matching so unrelated
+ * rows (e.g. Quick Phrases) don't surface for a query typed for another item.
+ */
+const filterUnifiedQuickPanelItems: QuickPanelFilterFn = (item, searchText, _fuzzyRegex, pinyinCache) => {
+  if (!searchText) return true
+
+  const matchText = getUnifiedQuickPanelMatchText(item).toLowerCase()
+  if (!matchText) return false
+
+  const query = searchText.toLowerCase()
+  if (matchText.includes(query)) return true
+
+  if (tinyPinyin.isSupported() && /[\u4e00-\u9fa5]/.test(matchText)) {
+    let pinyinText = pinyinCache.get(item)
+    if (pinyinText === undefined) {
+      pinyinText = tinyPinyin.convertToPinyin(matchText, '', true).toLowerCase()
+      pinyinCache.set(item, pinyinText)
+    }
+    return pinyinText.includes(query)
+  }
+
+  return false
 }
 
 function launcherSupportsSource(launcher: ComposerToolLauncher, source: ComposerToolLauncherSource) {
@@ -375,18 +415,33 @@ export function createUnifiedQuickPanelOpenOptions(
     seenLauncherIds,
     getRootPanelOptions
   })
-  const commandItems = createUnifiedSectionItems(launchers, {
-    ...options,
-    source: 'root-panel',
-    seenLauncherIds,
-    getRootPanelOptions
-  })
+  // Trailing launchers (e.g. slash commands) render after caller additional items
+  // (e.g. agent skills); the rest of the root-panel command items stay above them.
+  const commandItems = createUnifiedSectionItems(
+    launchers.filter((launcher) => launcher.rootPanelPlacement !== 'trailing'),
+    {
+      ...options,
+      source: 'root-panel',
+      seenLauncherIds,
+      getRootPanelOptions
+    }
+  )
+  const trailingCommandItems = createUnifiedSectionItems(
+    launchers.filter((launcher) => launcher.rootPanelPlacement === 'trailing'),
+    {
+      ...options,
+      source: 'root-panel',
+      seenLauncherIds,
+      getRootPanelOptions
+    }
+  )
   const nextSortOrder = { value: 0 }
   const list = [
     ...tagUnifiedPanelSectionItems(options.leadingItems, 'primary-tools', nextSortOrder),
     ...tagUnifiedPanelSectionItems(primaryItems, 'primary-tools', nextSortOrder),
     ...tagUnifiedPanelSectionItems(commandItems, 'commands', nextSortOrder),
     ...tagUnifiedPanelSectionItems(options.additionalItems, 'commands', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(trailingCommandItems, 'commands', nextSortOrder),
     ...tagUnifiedPanelSectionItems(options.resourceItems, 'resources', nextSortOrder)
   ]
 
@@ -397,6 +452,7 @@ export function createUnifiedQuickPanelOpenOptions(
     queryAnchor: options.queryAnchor,
     triggerInfo: options.triggerInfo ?? { type: 'button' },
     trackInputQuery: true,
+    filterFn: filterUnifiedQuickPanelItems,
     sortFn: sortUnifiedQuickPanelItems
   }
 }

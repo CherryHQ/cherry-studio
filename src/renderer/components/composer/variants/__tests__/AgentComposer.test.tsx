@@ -922,7 +922,7 @@ describe('AgentComposer', () => {
         label: 'pdf',
         description: 'Read and analyze PDFs',
         suffix: 'plugins.skills',
-        filterText: expect.stringContaining('pdf Read and analyze PDFs plugins.skills')
+        filterText: 'pdf'
       })
     )
     expect(mocks.surfaceProps?.managedTokenKinds).toEqual(['file', 'skill'])

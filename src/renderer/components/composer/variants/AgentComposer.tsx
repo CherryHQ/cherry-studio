@@ -106,7 +106,8 @@ const createSkillQuickPanelItems = (
     description: skill.description ?? undefined,
     icon: <Sparkles size={16} />,
     suffix: options.skillLabel,
-    filterText: `${skill.name} ${skill.description ?? ''} ${options.skillLabel}`,
+    // Skills match by name only in the root panel search.
+    filterText: skill.name,
     action: ({ inputAdapter }) => {
       options.onInsertSkill(skill, inputAdapter)
     }
