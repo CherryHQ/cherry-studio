@@ -10,6 +10,12 @@ export type ChannelMessageEvent = {
   userId: string
   userName: string
   text: string
+  /**
+   * Platform message id of the inbound message, carried so the reply can target it (e.g. QQ
+   * passive reply, Telegram reply-to). Bound to the specific message being answered rather than
+   * looked up from mutable per-chat state at send time. Adapters that don't need it omit it.
+   */
+  messageId?: string
   /** Pre-downloaded base64 images attached to the message. */
   images?: ImageAttachment[]
   /** Pre-downloaded base64 files attached to the message. */
@@ -22,11 +28,14 @@ export type ChannelCommandEvent = {
   userName: string
   command: 'new' | 'compact' | 'help' | 'whoami'
   args?: string
+  /** Platform message id of the command message, so the reply can target it. See `ChannelMessageEvent.messageId`. */
+  messageId?: string
 }
 
 export type SendMessageOptions = {
   parseMode?: 'MarkdownV2' | 'HTML'
-  replyToMessageId?: number
+  /** Inbound message id to reply against. String for QQ (passive `msg_id`); number for Telegram. */
+  replyToMessageId?: string | number
 }
 
 /** Channel type → its config payload, projected from the `AgentChannelEntity` discriminated union. */
@@ -196,6 +205,16 @@ export abstract class ChannelAdapter extends EventEmitter {
 
   abstract sendMessage(chatId: string, text: string, opts?: SendMessageOptions): Promise<void>
   abstract sendTypingIndicator(chatId: string): Promise<void>
+
+  /**
+   * Send a file to a chat. Non-abstract so adapters can adopt outbound file
+   * forwarding incrementally — the default rejects with a clear reason for
+   * adapters whose platform upload isn't wired yet.
+   */
+  // oxlint-disable-next-line no-unused-vars
+  async sendFile(_chatId: string, _file: FileAttachment): Promise<void> {
+    throw new Error(`Channel type "${this.channelType}" does not support sending files`)
+  }
 
   /**
    * Called on every text update during streaming. The adapter decides

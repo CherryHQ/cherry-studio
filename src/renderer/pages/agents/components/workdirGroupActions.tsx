@@ -2,7 +2,7 @@ import { createActionRegistry } from '@renderer/components/chat/actions/actionRe
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ResourceListGroup } from '@renderer/components/chat/resources'
 import { FinderIcon } from '@renderer/components/Icons/SvgIcon'
-import { isMac, isWin } from '@renderer/config/constant'
+import { isMac, isWin } from '@renderer/utils/platform'
 import type { TFunction } from 'i18next'
 import { FolderOpen, SquarePen, Trash2 } from 'lucide-react'
 

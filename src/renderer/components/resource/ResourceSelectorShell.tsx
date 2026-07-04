@@ -30,7 +30,7 @@ export type ResourceSelectorShellItem = {
   name: string
   emoji?: string
   description?: string
-  tags?: string[]
+  tag?: string
   disabled?: boolean
 }
 
@@ -273,7 +273,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   )
 
   const [searchValue, setSearchValue] = useState('')
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([])
+  const [selectedTagName, setSelectedTagName] = useState<string | null>(null)
   const listboxId = useId()
   const listRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -320,9 +320,8 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
   const { pinnedItems, unpinnedItems } = useMemo(() => {
     let filtered = items
-    if (selectedTagIds.length > 0) {
-      const wanted = new Set(selectedTagIds)
-      filtered = filtered.filter((item) => item.tags?.some((tag) => wanted.has(tag)))
+    if (selectedTagName) {
+      filtered = filtered.filter((item) => item.tag === selectedTagName)
     }
 
     const query = searchValue.trim().toLowerCase()
@@ -338,7 +337,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     const unpinned = filtered.filter((item) => !pinnedSet.has(item.id))
     const pinnedOrdered = pinnedIds.map((id) => pinned.find((item) => item.id === id)).filter(Boolean) as T[]
     return { pinnedItems: pinnedOrdered, unpinnedItems: unpinned }
-  }, [items, pinnedIds, pinnedSet, searchValue, selectedTagIds])
+  }, [items, pinnedIds, pinnedSet, searchValue, selectedTagName])
 
   const sections = useMemo<ResourceSelectorSection<T>[]>(() => {
     const nextSections: ResourceSelectorSection<T>[] = []
@@ -569,18 +568,14 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       <>
         {labels.tagFilter ? <span className="mr-1 text-[10px] text-muted-foreground">{labels.tagFilter}</span> : null}
         {tagOptions.map((tag) => {
-          const active = selectedTagIds.includes(tag.name)
+          const active = selectedTagName === tag.name
           return (
             <ResourceTagChip
               key={tag.name}
               tag={tag.name}
               color={tag.color}
               active={active}
-              onClick={() =>
-                setSelectedTagIds((prev) =>
-                  prev.includes(tag.name) ? prev.filter((value) => value !== tag.name) : [...prev, tag.name]
-                )
-              }
+              onClick={() => setSelectedTagName((prev) => (prev === tag.name ? null : tag.name))}
             />
           )
         })}
@@ -607,16 +602,13 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       <span className="flex size-5 shrink-0 items-center justify-center">{fallbackIcon}</span>
     ) : null
 
-    const trailing =
-      item.tags && item.tags.length > 0 ? (
-        <div
-          className="ml-2 flex h-4 max-w-[48%] shrink-0 items-center justify-end gap-1 overflow-hidden"
-          data-resource-selector-tags={item.id}>
-          {item.tags.map((tag) => (
-            <ResourceTagChip key={`${item.id}-${tag}`} tag={tag} color={tagColorByName.get(tag)} />
-          ))}
-        </div>
-      ) : null
+    const trailing = item.tag ? (
+      <div
+        className="ml-2 flex h-4 max-w-[48%] shrink-0 items-center justify-end gap-1 overflow-hidden"
+        data-resource-selector-tags={item.id}>
+        <ResourceTagChip tag={item.tag} color={tagColorByName.get(item.tag)} />
+      </div>
+    ) : null
 
     return (
       <div key={item.id} className="py-0.5">

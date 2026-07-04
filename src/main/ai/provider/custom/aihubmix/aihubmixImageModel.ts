@@ -24,11 +24,12 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { IMAGE_PARAM_CATALOG_KEYS, wireName } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
+import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
-import { readErrorMessage } from '@shared/ai/readErrorMessage'
 import type { CanonicalParamKey } from '@shared/data/types/model'
 import * as z from 'zod'
 
+import { readErrorMessage } from '../readErrorMessage'
 import { fileToDataUrl } from '../transportUtils'
 import { createAihubmixFluxTransport } from './aihubmixFlux'
 
@@ -409,7 +410,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         })
 
         if (!response.ok) {
-          const message = await readErrorMessage(response, 'paintings.generate_failed')
+          const message = await readErrorMessage(response, t('paintings.generate_failed'))
           logger.error('V3 API error:', { message })
           throw createPaintingGenerateError('REMOTE_ERROR', { message })
         }
@@ -461,7 +462,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         })
 
         if (!response.ok) {
-          const message = await readErrorMessage(response, 'paintings.image_mix_failed')
+          const message = await readErrorMessage(response, t('paintings.image_mix_failed'))
           logger.error('V3 Remix API error:', { message })
           throw createPaintingGenerateError('REMOTE_ERROR', { message })
         }
@@ -583,7 +584,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
     const response = await fetchImpl(url, { method: 'POST', headers: reqHeaders, body, signal: abortSignal })
 
     if (!response.ok) {
-      const message = await readErrorMessage(response, 'paintings.generate_failed')
+      const message = await readErrorMessage(response, t('paintings.generate_failed'))
       logger.error('API error:', { message })
       throw createPaintingGenerateError('REMOTE_ERROR', { message })
     }

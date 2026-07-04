@@ -67,11 +67,19 @@ vi.mock('@renderer/data/DataApiService', () => ({
   dataApiService: dataApiMock
 }))
 
-vi.mock('@renderer/hooks/agents/useChannels', () => ({
+vi.mock('@renderer/hooks/agent/useChannels', () => ({
   useChannels: () => ({ channels: [] })
 }))
 
-vi.mock('@renderer/hooks/agents/useTasks', () => ({
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useQuery: () => ({ data: [] })
+}))
+
+vi.mock('@renderer/components/resource', () => ({
+  WorkspaceSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
+}))
+
+vi.mock('@renderer/hooks/agent/useTasks', () => ({
   useCreateTask: () => ({ createTask: taskMutationMocks.createTask }),
   useDeleteTask: () => ({ deleteTask: taskMutationMocks.deleteTask }),
   useRunTask: () => ({ runTask: taskMutationMocks.runTask }),
@@ -441,10 +449,14 @@ describe('TasksSettings task logs', () => {
     expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.cron' }))
+    act(() => {
+      fireEvent.click(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.cron' }))
+    })
 
-    expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).toBeInTheDocument()
+      expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).not.toBeInTheDocument()
+    })
   })
 
   it('moves run and delete into the task detail more menu', async () => {

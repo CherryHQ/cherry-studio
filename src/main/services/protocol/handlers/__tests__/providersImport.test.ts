@@ -37,10 +37,10 @@ describe('providersImport protocol handler', () => {
 
   it('opens provider settings with decoded provider import data', async () => {
     const config = {
-      id: 'tokenflux',
-      baseUrl: 'https://tokenflux.ai/v1',
+      id: 'custom-openai',
+      baseUrl: 'https://api.example.com/v1',
       apiKey: 'sk-test',
-      name: 'TokenFlux',
+      name: 'Custom OpenAI',
       type: 'openai'
     }
     const data = toUrlSafeBase64(config)
@@ -60,7 +60,7 @@ describe('providersImport protocol handler', () => {
   })
 
   it('preserves standard base64 plus and slash characters through URL parsing', async () => {
-    const config = { id: 'tokenflux', apiKey: 'sk-10895-Ͽ' }
+    const config = { id: 'custom-openai', apiKey: 'sk-1919-Ͽ' }
     const data = Buffer.from(JSON.stringify(config), 'utf-8').toString('base64')
 
     expect(data).toContain('+')
@@ -74,8 +74,8 @@ describe('providersImport protocol handler', () => {
   })
 
   it('parses wrapped legacy provider import payloads', () => {
-    const payload = Buffer.from("({'id':'tokenflux'})", 'utf-8').toString('base64')
+    const payload = Buffer.from("({'id':'custom-openai'})", 'utf-8').toString('base64')
 
-    expect(parseProvidersImportData(payload)).toBe(JSON.stringify({ id: 'tokenflux' }))
+    expect(parseProvidersImportData(payload)).toBe(JSON.stringify({ id: 'custom-openai' }))
   })
 })

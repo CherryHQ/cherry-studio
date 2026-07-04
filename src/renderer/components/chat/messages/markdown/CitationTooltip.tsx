@@ -1,9 +1,9 @@
 import { Tooltip } from '@cherrystudio/ui'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import MarqueeText from '@renderer/components/MarqueeText'
-import { fetchXOEmbed, isXPostUrl } from '@renderer/utils/fetch'
-import { useQuery } from '@tanstack/react-query'
+import { fetchXOEmbed, isXPostUrl, xOembedKey } from '@renderer/utils/fetch'
 import React, { memo, useCallback, useMemo, useState } from 'react'
+import useSWRImmutable from 'swr/immutable'
 import * as z from 'zod'
 
 import { useOptionalMessageListActions } from '../MessageListProvider'
@@ -36,12 +36,11 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
   // `staleTime: Infinity` keeps the result cached after the first open.
   const [isOpen, setIsOpen] = useState(false)
 
-  const { data: oembedData } = useQuery({
-    queryKey: ['xOembed', citation.url],
-    queryFn: () => fetchXOEmbed(citation.url),
-    enabled: isXPost && !citation.content?.trim() && isOpen,
-    staleTime: Infinity
-  })
+  const { data: oembedData } = useSWRImmutable(
+    isXPost && !citation.content?.trim() && isOpen ? xOembedKey(citation.url) : null,
+    () => fetchXOEmbed(citation.url),
+    { shouldRetryOnError: false }
+  )
 
   const sourceTitle = useMemo(() => {
     if (isXPost && oembedData?.author) return `@${oembedData.author}`

@@ -24,7 +24,10 @@ const { platformState, prefValues, applicationMock, windowManagerMock, loggerMoc
     },
     onWindowCreatedByType: vi.fn(() => vi.fn()),
     onWindowDestroyedByType: vi.fn(() => vi.fn()),
-    open: vi.fn(() => 'mock-window-id')
+    open: vi.fn(() => 'mock-window-id'),
+    // Bounds are restored declaratively by WindowManager; setupMainWindow reads
+    // the saved maximized flag back through this to re-apply maximize itself.
+    peekWindowBounds: vi.fn()
   }
   const loggerMock = {
     error: vi.fn(),
@@ -84,10 +87,6 @@ vi.mock('electron', () => ({
 
 vi.mock('@electron-toolkit/utils', () => ({ optimizer: { watchWindowShortcuts: vi.fn() } }))
 
-vi.mock('electron-window-state', () => ({
-  default: vi.fn(() => ({ x: 0, y: 0, width: 960, height: 600, isMaximized: false, manage: vi.fn() }))
-}))
-
 vi.mock('@main/utils/windowUtil', () => ({
   getWindowsBackgroundMaterial: vi.fn(() => undefined),
   replaceDevtoolsFont: vi.fn()
@@ -110,6 +109,8 @@ vi.mock('@main/core/lifecycle', async () => {
   return { ...actual, BaseService: StubBase }
 })
 
+import { WindowType } from '@main/core/window/types'
+
 import { MainWindowService } from '../MainWindowService'
 
 interface MockBrowserWindow extends EventEmitter {
@@ -122,6 +123,7 @@ interface MockBrowserWindow extends EventEmitter {
   show: ReturnType<typeof vi.fn>
   focus: ReturnType<typeof vi.fn>
   restore: ReturnType<typeof vi.fn>
+  maximize: ReturnType<typeof vi.fn>
   setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
   setFullScreen: ReturnType<typeof vi.fn>
   webContents: { reload: ReturnType<typeof vi.fn>; on: ReturnType<typeof vi.fn> }
@@ -138,6 +140,7 @@ function createMockWindow(): MockBrowserWindow {
   win.show = vi.fn()
   win.focus = vi.fn()
   win.restore = vi.fn()
+  win.maximize = vi.fn()
   win.setVisibleOnAllWorkspaces = vi.fn()
   win.setFullScreen = vi.fn()
   win.webContents = {
@@ -389,6 +392,83 @@ describe('MainWindowService', () => {
       }
 
       expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    })
+  })
+
+  // Maximize restore stays consumer-side (WindowManager restores position/size
+  // declaratively; the service re-applies the maximized flag on its own show
+  // schedule because tray-on-launch must defer it to the first show).
+  describe('setupMaximize restore', () => {
+    const setupMaximize = (isMaximized: boolean) => (svc as any).setupMaximize(win, isMaximized)
+
+    it('maximizes immediately when restoring a maximized window on a normal launch', () => {
+      prefValues['app.tray.on_launch'] = false
+      setupMaximize(true)
+      expect(win.maximize).toHaveBeenCalledTimes(1)
+    })
+
+    it('defers maximize to first show when launching to tray', () => {
+      prefValues['app.tray.on_launch'] = true
+      setupMaximize(true)
+
+      // Not yet — the window is still hidden in the tray.
+      expect(win.maximize).not.toHaveBeenCalled()
+
+      win.emit('show')
+      expect(win.maximize).toHaveBeenCalledTimes(1)
+    })
+
+    it('does nothing when the saved state was not maximized', () => {
+      prefValues['app.tray.on_launch'] = false
+      setupMaximize(false)
+      win.emit('show')
+      expect(win.maximize).not.toHaveBeenCalled()
+    })
+  })
+
+  // The wiring itself: setupMainWindow must read the saved maximized flag back
+  // from WindowManager (bounds are restored declaratively by WM; the service only
+  // re-applies maximize). Tested via setupMainWindow (not setupMaximize directly)
+  // so a regression that read the wrong type or dropped the call would be caught.
+  describe('setupMainWindow → maximize wiring', () => {
+    beforeEach(() => {
+      // Stub the other (heavy) setup steps so this isolates the read-back path.
+      for (const m of [
+        'setupContextMenu',
+        'setupSpellCheck',
+        'setupWindowEvents',
+        'setupWebContentsHandlers',
+        'setupWindowLifecycleEvents',
+        'setupMainWindowMonitor'
+      ]) {
+        vi.spyOn(svc as any, m).mockImplementation(() => {})
+      }
+      prefValues['app.tray.on_launch'] = false
+    })
+
+    it('reads the saved maximized flag from WindowManager and re-applies maximize', () => {
+      windowManagerMock.peekWindowBounds.mockReturnValue({
+        x: 0,
+        y: 0,
+        width: 800,
+        height: 600,
+        isMaximized: true,
+        displayBounds: { x: 0, y: 0, width: 1920, height: 1080 }
+      })
+
+      ;(svc as any).setupMainWindow(win)
+
+      expect(windowManagerMock.peekWindowBounds).toHaveBeenCalledWith(WindowType.Main)
+      expect(win.maximize).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not maximize when WindowManager has no saved bounds', () => {
+      windowManagerMock.peekWindowBounds.mockReturnValue(undefined)
+
+      ;(svc as any).setupMainWindow(win)
+
+      expect(windowManagerMock.peekWindowBounds).toHaveBeenCalledWith(WindowType.Main)
+      expect(win.maximize).not.toHaveBeenCalled()
     })
   })
 })

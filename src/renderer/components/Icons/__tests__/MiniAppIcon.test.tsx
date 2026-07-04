@@ -4,25 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import MiniAppIcon from '../MiniAppIcon'
 
-vi.mock('@renderer/config/miniApps', () => ({
-  allMiniApps: [
-    {
-      id: 'test-app-1',
-      name: 'Test App 1',
-      logo: '/test-logo-1.png',
-      url: 'https://test1.com',
-      bordered: true,
-      background: '#f0f0f0'
-    },
-    {
-      id: 'test-app-2',
-      name: 'Test App 2',
-      logo: '/test-logo-2.png',
-      url: 'https://test2.com',
-      bordered: false,
-      background: undefined
-    }
-  ],
+vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
   getMiniAppsLogo: (logo: unknown) => {
     if (logo !== 'compound-logo') return logo
     const CompoundLogo = ({
@@ -66,7 +48,7 @@ describe('MiniAppIcon', () => {
 
   it('should render correctly with various props', () => {
     const customStyle = { marginTop: '10px' }
-    const { container } = render(<MiniAppIcon app={mockApp} size={64} style={customStyle} sidebar={true} />)
+    const { container } = render(<MiniAppIcon app={mockApp} size={64} style={customStyle} />)
 
     const img = container.querySelector('img')
     expect(img).toBeInTheDocument()
@@ -78,16 +60,6 @@ describe('MiniAppIcon', () => {
       height: '64px',
       marginTop: '10px',
       backgroundColor: '#f0f0f0'
-    })
-  })
-
-  it('should not apply app.style when sidebar is true', () => {
-    const { container } = render(<MiniAppIcon app={mockApp} sidebar={true} />)
-    const img = container.querySelector('img')
-
-    expect(img).not.toHaveStyle({
-      opacity: '0.8',
-      transform: 'scale(1.1)'
     })
   })
 

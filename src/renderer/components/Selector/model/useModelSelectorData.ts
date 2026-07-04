@@ -1,12 +1,14 @@
 import { modelMatchesDisplayTag } from '@renderer/components/Tags/Model'
+import { modelFilterIncludesAgentOnlyProviders } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { getSearchMatchScore } from '@renderer/utils/modelSearch'
+import { getSearchMatchScore } from '@renderer/utils/model'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { sortBy } from 'lodash'
+import { isExternalCliProvider } from '@shared/utils/provider'
+import { sortBy } from 'es-toolkit/compat'
 import { useCallback, useMemo } from 'react'
 
 import { MODEL_SELECTOR_TAGS, type ModelSelectorTag, useModelTagFilter } from './filters'
@@ -107,6 +109,17 @@ export function useModelSelectorData({
 
   const baseModelFilter = useCallback((model: Model) => filter?.(model) ?? true, [filter])
 
+  // Agent-only providers (e.g. `claude-code`, login-based, no API key) are hidden
+  // from general selectors; only agent pickers (whose filter is marked) surface them.
+  const includeAgentOnlyProviders = useMemo(() => modelFilterIncludesAgentOnlyProviders(filter), [filter])
+
+  // A provider whose credentials come from an external CLI login carries no API
+  // key and cannot serve a normal chat request — it is agent-only.
+  const agentOnlyProviderIds = useMemo(
+    () => new Set(availableProviders.filter(isExternalCliProvider).map((p) => p.id)),
+    [availableProviders]
+  )
+
   const sortedProviders = useMemo(
     () => sortProvidersByPriority(availableProviders, prioritizedProviderIds),
     [availableProviders, prioritizedProviderIds]
@@ -123,6 +136,10 @@ export function useModelSelectorData({
         continue
       }
 
+      if (!includeAgentOnlyProviders && agentOnlyProviderIds.has(model.providerId)) {
+        continue
+      }
+
       const existingModels = grouped.get(model.providerId)
       if (existingModels) {
         existingModels.push(model)
@@ -132,7 +149,7 @@ export function useModelSelectorData({
     }
 
     return grouped
-  }, [availableModels, baseModelFilter, sortedProviders])
+  }, [availableModels, agentOnlyProviderIds, baseModelFilter, includeAgentOnlyProviders, sortedProviders])
 
   const availableTags = useMemo(() => {
     const selectableModels = [...modelsByProvider.values()].flat()
@@ -193,28 +210,6 @@ export function useModelSelectorData({
       return sortModels(providerModels)
     },
     [modelsByProvider, searchText]
-  )
-
-  const filteredModelsByProvider = useMemo(() => {
-    const nextFilteredModels = new Map<string, Model[]>()
-
-    sortedProviders.forEach((provider) => {
-      const filteredModels = searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model)))
-      nextFilteredModels.set(provider.id, filteredModels)
-    })
-
-    return nextFilteredModels
-  }, [searchFilter, showTagFilter, sortedProviders, tagFilter])
-
-  const duplicateNamesByProvider = useMemo(
-    () =>
-      new Map(
-        sortedProviders.map((provider) => [
-          provider.id,
-          getDuplicateModelNames(filteredModelsByProvider.get(provider.id) ?? [])
-        ])
-      ),
-    [filteredModelsByProvider, sortedProviders]
   )
 
   const createModelItem = useCallback(
@@ -313,10 +308,10 @@ export function useModelSelectorData({
     const selectableModelItems = items.filter((item): item is ModelSelectorModelItem => item.type === 'model')
     return { listItems: items, modelItems: selectableModelItems }
   }, [
+    baseModelFilter,
     createModelItem,
-    duplicateNamesByProvider,
-    filteredModelsByProvider,
     pinnedIds,
+    searchFilter,
     selectableModelsById,
     searchText.length,
     showPinnedModels,

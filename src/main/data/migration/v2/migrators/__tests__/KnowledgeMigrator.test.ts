@@ -1,11 +1,11 @@
 import fs from 'node:fs'
 
-import { createClient } from '@libsql/client'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE,
   KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
 } from '@shared/data/types/knowledge'
+import Database from 'better-sqlite3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('node:fs', async () => {
@@ -31,8 +31,8 @@ vi.mock('@logger', () => ({
 import { KNOWLEDGE_DIRECTORY_CHILD_LOADER_REMAP_SHARED_DATA_KEY, KnowledgeMigrator } from '../KnowledgeMigrator'
 import { transformKnowledgeItem } from '../mappings/KnowledgeMappings'
 
-vi.mock('@libsql/client', () => ({
-  createClient: vi.fn()
+vi.mock('better-sqlite3', () => ({
+  default: vi.fn()
 }))
 
 const UUIDV7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -150,13 +150,11 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const existsSyncMock = fs.existsSync as unknown as { mockReturnValue: (value: boolean) => void }
     existsSyncMock.mockReturnValue(true)
 
-    const execute = vi
-      .fn()
-      .mockResolvedValueOnce({ rows: [{ total: 10, with_vector: 10 }] })
-      .mockResolvedValueOnce({ rows: [{ bytes: 4096 }] })
+    const get = vi.fn().mockReturnValueOnce({ total: 10, with_vector: 10 }).mockReturnValueOnce({ bytes: 4096 })
     const close = vi.fn()
-    const createClientMock = createClient as unknown as { mockReturnValue: (value: unknown) => void }
-    createClientMock.mockReturnValue({ execute, close })
+    const prepare = vi.fn(() => ({ get }))
+    const databaseMock = Database as unknown as { mockReturnValue: (value: unknown) => void }
+    databaseMock.mockReturnValue({ prepare, close })
 
     const result = await migrator.resolveDimensionsForBase(
       {
@@ -168,7 +166,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     )
 
     expect(result).toEqual({ dimensions: 1024, reason: 'ok' })
-    expect(execute).toHaveBeenCalledTimes(2)
+    expect(get).toHaveBeenCalledTimes(2)
     expect(close).toHaveBeenCalledTimes(1)
   })
 
@@ -188,7 +186,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     )
 
     expect(result).toEqual({ dimensions: null, reason: 'vector_db_missing' })
-    expect(createClient).not.toHaveBeenCalled()
+    expect(Database).not.toHaveBeenCalled()
   })
 
   it('returns vector_db_empty when vectors table has no rows', async () => {
@@ -198,10 +196,11 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const existsSyncMock = fs.existsSync as unknown as { mockReturnValue: (value: boolean) => void }
     existsSyncMock.mockReturnValue(true)
 
-    const execute = vi.fn().mockResolvedValueOnce({ rows: [{ total: 0, with_vector: null }] })
+    const get = vi.fn().mockReturnValueOnce({ total: 0, with_vector: null })
     const close = vi.fn()
-    const createClientMock = createClient as unknown as { mockReturnValue: (value: unknown) => void }
-    createClientMock.mockReturnValue({ execute, close })
+    const prepare = vi.fn(() => ({ get }))
+    const databaseMock = Database as unknown as { mockReturnValue: (value: unknown) => void }
+    databaseMock.mockReturnValue({ prepare, close })
 
     const result = await migrator.resolveDimensionsForBase(
       {
@@ -212,7 +211,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     )
 
     expect(result).toEqual({ dimensions: null, reason: 'vector_db_empty' })
-    expect(execute).toHaveBeenCalledTimes(1)
+    expect(get).toHaveBeenCalledTimes(1)
     expect(close).toHaveBeenCalledTimes(1)
   })
 
@@ -223,13 +222,11 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const existsSyncMock = fs.existsSync as unknown as { mockReturnValue: (value: boolean) => void }
     existsSyncMock.mockReturnValue(true)
 
-    const execute = vi
-      .fn()
-      .mockResolvedValueOnce({ rows: [{ total: 1, with_vector: 1 }] })
-      .mockResolvedValueOnce({ rows: [{ bytes: 3 }] })
+    const get = vi.fn().mockReturnValueOnce({ total: 1, with_vector: 1 }).mockReturnValueOnce({ bytes: 3 })
     const close = vi.fn()
-    const createClientMock = createClient as unknown as { mockReturnValue: (value: unknown) => void }
-    createClientMock.mockReturnValue({ execute, close })
+    const prepare = vi.fn(() => ({ get }))
+    const databaseMock = Database as unknown as { mockReturnValue: (value: unknown) => void }
+    databaseMock.mockReturnValue({ prepare, close })
 
     const result = await migrator.resolveDimensionsForBase(
       {
@@ -240,7 +237,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     )
 
     expect(result).toEqual({ dimensions: null, reason: 'invalid_vector_dimensions' })
-    expect(execute).toHaveBeenCalledTimes(2)
+    expect(get).toHaveBeenCalledTimes(2)
     expect(close).toHaveBeenCalledTimes(1)
   })
 
@@ -257,7 +254,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     )
 
     expect(result).toEqual({ dimensions: null, reason: 'vector_db_invalid_path' })
-    expect(createClient).not.toHaveBeenCalled()
+    expect(Database).not.toHaveBeenCalled()
   })
 
   it('returns legacy_vector_store_directory when resolved path is a directory', async () => {
@@ -281,7 +278,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     )
 
     expect(result).toEqual({ dimensions: null, reason: 'legacy_vector_store_directory' })
-    expect(createClient).not.toHaveBeenCalled()
+    expect(Database).not.toHaveBeenCalled()
   })
 
   it('records a warning when closing the legacy vector DB client fails', async () => {
@@ -291,15 +288,13 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     const existsSyncMock = fs.existsSync as unknown as { mockReturnValue: (value: boolean) => void }
     existsSyncMock.mockReturnValue(true)
 
-    const execute = vi
-      .fn()
-      .mockResolvedValueOnce({ rows: [{ total: 10, with_vector: 10 }] })
-      .mockResolvedValueOnce({ rows: [{ bytes: 4096 }] })
+    const get = vi.fn().mockReturnValueOnce({ total: 10, with_vector: 10 }).mockReturnValueOnce({ bytes: 4096 })
     const close = vi.fn().mockImplementation(() => {
       throw new Error('close failed')
     })
-    const createClientMock = createClient as unknown as { mockReturnValue: (value: unknown) => void }
-    createClientMock.mockReturnValue({ execute, close })
+    const prepare = vi.fn(() => ({ get }))
+    const databaseMock = Database as unknown as { mockReturnValue: (value: unknown) => void }
+    databaseMock.mockReturnValue({ prepare, close })
 
     const result = await migrator.resolveDimensionsForBase(
       {
@@ -318,7 +313,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     )
   })
 
-  it('returns vector_db_error when createClient throws synchronously', async () => {
+  it('returns vector_db_error when opening the legacy vector DB throws synchronously', async () => {
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'getLegacyKnowledgeDbPath').mockReturnValue('/mock/userData/Data/KnowledgeBase/kb-create-error')
 
@@ -330,8 +325,8 @@ describe('KnowledgeMigrator dimensions resolution', () => {
       isDirectory: () => false
     })
 
-    const createClientMock = createClient as unknown as { mockImplementation: (value: () => never) => void }
-    createClientMock.mockImplementation(() => {
+    const databaseMock = Database as unknown as { mockImplementation: (value: () => never) => void }
+    databaseMock.mockImplementation(() => {
       throw new Error('open failed')
     })
 
@@ -351,7 +346,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
 
   it('prepare skips base and items when vector DB is empty', async () => {
     const migrator = new KnowledgeMigrator() as any
-    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockReturnValue({
       dimensions: null,
       reason: 'vector_db_empty'
     })
@@ -525,7 +520,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
 
   it('prepare keeps the base as a restorable failed row when the legacy store path is a directory', async () => {
     const migrator = new KnowledgeMigrator() as any
-    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockReturnValue({
       dimensions: null,
       reason: 'legacy_vector_store_directory'
     })
@@ -1079,7 +1074,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     // would still tombstone the folder but would needlessly read the DB (and emit a spurious read_error
     // warning when locked); only asserting loadLoaderSourceMap is never called catches that.
     const migrator = new KnowledgeMigrator() as any
-    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: null, reason: 'vector_db_empty' })
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockReturnValue({ dimensions: null, reason: 'vector_db_empty' })
     const loadLoaderSourceMapSpy = vi
       .spyOn(migrator, 'loadLoaderSourceMap')
       .mockResolvedValue({ kind: 'loaded', sources: new Map<string, string>() })
@@ -1854,13 +1849,13 @@ describe('KnowledgeMigrator execute/validate paths', () => {
   })
 
   function createDeleteMock() {
-    const where = vi.fn().mockResolvedValue(undefined)
+    const where = vi.fn().mockReturnValue({ run: vi.fn() })
     const deleteMock = vi.fn().mockReturnValue({ where })
     return Object.assign(deleteMock, { where })
   }
 
   function createUpdateMock() {
-    const where = vi.fn().mockResolvedValue(undefined)
+    const where = vi.fn().mockReturnValue({ run: vi.fn() })
     const set = vi.fn().mockReturnValue({ where })
     const update = vi.fn().mockReturnValue({ set })
     return Object.assign(update, { set, where })
@@ -1871,7 +1866,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     const deleteMock = createDeleteMock()
 
     const result = await migrator.execute({
-      db: { delete: deleteMock, all: vi.fn().mockResolvedValue([]) }
+      db: { delete: deleteMock, all: vi.fn().mockReturnValue([]) }
     } as any)
 
     expect(result).toEqual({
@@ -1894,14 +1889,18 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     ]
     migrator.preparedItems = []
 
-    const values = vi.fn().mockRejectedValue(new Error('insert failed'))
+    const values = vi.fn().mockReturnValue({
+      run: vi.fn(() => {
+        throw new Error('insert failed')
+      })
+    })
     const insert = vi.fn().mockReturnValue({ values })
-    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
-      await callback({ insert, update: createUpdateMock() })
+    const transaction = vi.fn((callback: (tx: any) => void) => {
+      callback({ insert, update: createUpdateMock() })
     })
 
     const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) },
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockReturnValue([]) },
       sharedData: new Map()
     } as any)
 
@@ -1945,15 +1944,15 @@ describe('KnowledgeMigrator execute/validate paths', () => {
       }
     ]
 
-    const values = vi.fn().mockResolvedValue(undefined)
+    const values = vi.fn().mockReturnValue({ run: vi.fn() })
     const insert = vi.fn().mockReturnValue({ values })
     const update = createUpdateMock()
-    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
-      await callback({ insert, update })
+    const transaction = vi.fn((callback: (tx: any) => void) => {
+      callback({ insert, update })
     })
 
     const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) },
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockReturnValue([]) },
       sharedData: new Map()
     } as any)
 
@@ -2010,15 +2009,15 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     const childItems = migrator.preparedItems.filter((item: any) => item.type === 'file')
     expect(childItems).toHaveLength(2)
 
-    const values = vi.fn().mockResolvedValue(undefined)
+    const values = vi.fn().mockReturnValue({ run: vi.fn() })
     const insert = vi.fn().mockReturnValue({ values })
-    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
-      await callback({ insert, update: createUpdateMock() })
+    const transaction = vi.fn((callback: (tx: any) => void) => {
+      callback({ insert, update: createUpdateMock() })
     })
 
     const executeResult = await migrator.execute({
       paths: { knowledgeBaseDir: '/mock/userData/Data/KnowledgeBase', filesDataDir: '/mock/userData/Data/Files' },
-      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) },
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockReturnValue([]) },
       sharedData: new Map()
     } as any)
 
@@ -2058,16 +2057,16 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     migrator.legacyItemIdRemap = new Map([['legacy-note-1', migratedItemId]])
     migrator.directoryChildLoaderRemap = new Map([[migratedBaseId, new Map([['loader-dir-a', 'child-a']])]])
 
-    const values = vi.fn().mockResolvedValue(undefined)
+    const values = vi.fn().mockReturnValue({ run: vi.fn() })
     const insert = vi.fn().mockReturnValue({ values })
     const update = createUpdateMock()
-    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
-      await callback({ insert, update })
+    const transaction = vi.fn((callback: (tx: any) => void) => {
+      callback({ insert, update })
     })
     const sharedData = new Map<string, unknown>()
 
     const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) },
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockReturnValue([]) },
       sharedData
     } as any)
 
@@ -2094,15 +2093,15 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     ]
     migrator.preparedItems = []
 
-    const values = vi.fn().mockResolvedValue(undefined)
+    const values = vi.fn().mockReturnValue({ run: vi.fn() })
     const insert = vi.fn().mockReturnValue({ values })
-    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
-      await callback({ insert, update: createUpdateMock() })
+    const transaction = vi.fn((callback: (tx: any) => void) => {
+      callback({ insert, update: createUpdateMock() })
     })
     const deleteMock = createDeleteMock()
 
     const result = await migrator.execute({
-      db: { transaction, delete: deleteMock, all: vi.fn().mockResolvedValue([]) },
+      db: { transaction, delete: deleteMock, all: vi.fn().mockReturnValue([]) },
       sharedData: new Map()
     } as any)
 
@@ -2149,16 +2148,17 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     ]
 
     const insertedValues: unknown[] = []
-    const values = vi.fn(async (value: unknown) => {
+    const values = vi.fn((value: unknown) => {
       insertedValues.push(value)
+      return { run: vi.fn() }
     })
     const insert = vi.fn().mockReturnValue({ values })
-    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
-      await callback({ insert, update: createUpdateMock() })
+    const transaction = vi.fn((callback: (tx: any) => void) => {
+      callback({ insert, update: createUpdateMock() })
     })
 
     const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) },
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockReturnValue([]) },
       sharedData: new Map()
     } as any)
 
@@ -2218,16 +2218,20 @@ describe('KnowledgeMigrator execute/validate paths', () => {
 
     const values = vi
       .fn()
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('second base failed'))
+      .mockReturnValueOnce({ run: vi.fn() })
+      .mockReturnValueOnce({ run: vi.fn() })
+      .mockReturnValueOnce({
+        run: vi.fn(() => {
+          throw new Error('second base failed')
+        })
+      })
     const insert = vi.fn().mockReturnValue({ values })
-    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
-      await callback({ insert, update: createUpdateMock() })
+    const transaction = vi.fn((callback: (tx: any) => void) => {
+      callback({ insert, update: createUpdateMock() })
     })
 
     const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) }
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockReturnValue([]) }
     } as any)
 
     expect(result.success).toBe(false)
@@ -2245,18 +2249,18 @@ describe('KnowledgeMigrator execute/validate paths', () => {
       .fn()
       .mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
-          get: vi.fn().mockResolvedValue({ count: 2 })
+          get: vi.fn().mockReturnValue({ count: 2 })
         })
       })
       .mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
-          get: vi.fn().mockResolvedValue({ count: 3 })
+          get: vi.fn().mockReturnValue({ count: 3 })
         })
       })
       .mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            get: vi.fn().mockResolvedValue({ count: 1 })
+            get: vi.fn().mockReturnValue({ count: 1 })
           })
         })
       })
@@ -2283,18 +2287,18 @@ describe('KnowledgeMigrator execute/validate paths', () => {
       .fn()
       .mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
-          get: vi.fn().mockResolvedValue({ count: 1 })
+          get: vi.fn().mockReturnValue({ count: 1 })
         })
       })
       .mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
-          get: vi.fn().mockResolvedValue({ count: 6 })
+          get: vi.fn().mockReturnValue({ count: 6 })
         })
       })
       .mockReturnValueOnce({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            get: vi.fn().mockResolvedValue({ count: 0 })
+            get: vi.fn().mockReturnValue({ count: 0 })
           })
         })
       })
@@ -2323,35 +2327,36 @@ describe('KnowledgeMigrator file item path storage', () => {
 
     const makeInsertFn = (bucket: unknown[]) =>
       vi.fn((/* _table */) => ({
-        values: vi.fn(async (rows: unknown) => {
+        values: vi.fn((rows: unknown) => {
           const arr = Array.isArray(rows) ? rows : [rows]
           bucket.push(...arr)
+          return { run: vi.fn() }
         })
       }))
 
     const outerInsert = makeInsertFn(insertedOutsideTx)
     const txInsert = makeInsertFn(insertedInsideTx)
     const update = vi.fn().mockReturnValue({
-      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ run: vi.fn() }) })
     })
-    const deleteMock = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
+    const deleteMock = vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ run: vi.fn() }) })
 
-    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
-      await callback({ insert: txInsert, update })
+    const transaction = vi.fn((callback: (tx: any) => void) => {
+      callback({ insert: txInsert, update })
     })
 
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 
     return {
       sharedData,
-      db: { transaction, insert: outerInsert, delete: deleteMock, all: vi.fn().mockResolvedValue([]) },
+      db: { transaction, insert: outerInsert, delete: deleteMock, all: vi.fn().mockReturnValue([]) },
       logger,
       insertedInsideTx,
       insertedOutsideTx
     }
   }
 
-  it('inserts file items with knowledge-owned relative paths and no file_ref rows', async () => {
+  it('inserts file items with knowledge-owned relative paths and no FileManager refs', async () => {
     const ctx = makeExecCtx()
 
     const migrator = new KnowledgeMigrator() as any

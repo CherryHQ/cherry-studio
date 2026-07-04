@@ -556,6 +556,7 @@
       "list": {
         "title": "Tâches"
       },
+      "new": "Nouvelle tâche",
       "pin": {
         "title": "Épingler la tâche"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Tâches de recherche"
+        "placeholder": "Tâches de recherche",
+        "title": "Rechercher des tâches"
       },
       "unpin": {
         "title": "Détacher la tâche"
@@ -602,9 +604,7 @@
         "select_failed": "Échec de la sélection du dossier."
       },
       "workspace_status": {
-        "inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}",
-        "missing": "Le chemin de l'espace de travail n'existe pas : {{path}}",
-        "not_directory": "Le chemin de l’espace de travail n’est pas un répertoire : {{path}}"
+        "inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}"
       }
     },
     "settings": {
@@ -935,6 +935,10 @@
           "description": "Exécute des commandes shell dans votre environnement",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "Ajoute, supprime ou actualise des documents dans vos bases de connaissances",
+          "label": "Gérer les connaissances"
+        },
         "CherryKbSearch": {
           "description": "Recherche dans vos bases de connaissances",
           "label": "Recherche de connaissances"
@@ -1077,41 +1081,6 @@
       "stopped": "Arrêté"
     },
     "title": "Serveur API"
-  },
-  "appMenu": {
-    "about": "À propos",
-    "close": "Fermer la fenêtre",
-    "copy": "Copier",
-    "cut": "Couper",
-    "delete": "Supprimer",
-    "documentation": "Documentation",
-    "edit": "Modifier",
-    "feedback": "Retour d'information",
-    "file": "Fichier",
-    "forceReload": "Rechargement forcé",
-    "front": "Tout ramener au premier plan",
-    "help": "Aide",
-    "hide": "Cacher",
-    "hideOthers": "Masquer les autres",
-    "minimize": "Minimiser",
-    "paste": "Coller",
-    "quit": "Quitter",
-    "redo": "Refaire",
-    "releases": "Sorties",
-    "reload": "Recharger",
-    "resetZoom": "Taille réelle",
-    "selectAll": "Tout sélectionner",
-    "services": "Services",
-    "toggleDevTools": "Basculer les outils de développement",
-    "toggleFullscreen": "Basculer en plein écran",
-    "undo": "Annuler",
-    "unhide": "Tout afficher",
-    "view": "Vue",
-    "website": "Site web",
-    "window": "Fenêtre",
-    "zoom": "Zoom",
-    "zoomIn": "Zoom Avant",
-    "zoomOut": "Dézoomer"
   },
   "assistants": {
     "abbr": "Aide",
@@ -1593,6 +1562,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "[to be translated]:Cache {{hit_rate}}%",
+        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "Ce message est en cours de modification dans le compositeur",
       "flow": {
         "branches": "branches",
@@ -2055,7 +2028,6 @@
     "copy_failed": "Échec de la copie",
     "create_success": "Créé avec succès",
     "current": "Actuel",
-    "cut": "Couper",
     "default": "Défaut",
     "delete": "Supprimer",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ?",
@@ -2093,7 +2065,6 @@
     "image_preview": "Aperçu de l'image",
     "image_url": "URL de l'image",
     "image_url_or_upload": "Entrez l'URL de l'image ou téléchargez un fichier",
-    "inspect": "Vérifier",
     "invalid_value": "valeur invalide",
     "knowledge_base": "Base de connaissances",
     "language": "Langue",
@@ -2114,7 +2085,6 @@
     "open_in": "Ouvrir dans {{name}}",
     "open_in_new_tab": "Ouvrir dans un nouvel onglet",
     "open_sidebar": "Ouvrir la barre latérale",
-    "paste": "Coller",
     "placeholders": {
       "select": {
         "model": "Choisir le modèle"
@@ -2169,18 +2139,6 @@
     "warning": "Avertissement",
     "yesterday": "Hier",
     "you": "Vous"
-  },
-  "dialog": {
-    "all_files": "Tous les fichiers",
-    "html_files": "Fichiers HTML",
-    "open_file": "Ouvrir le fichier",
-    "pdf_files": "Fichiers PDF",
-    "png_image": "Image PNG",
-    "save_as_html": "Enregistrer au format HTML",
-    "save_as_pdf": "Enregistrer au format PDF",
-    "save_file": "Enregistrer le fichier",
-    "select_folder": "Sélectionner un dossier",
-    "word_document": "Document Word"
   },
   "docs": {
     "title": "Documentation d'aide"
@@ -3162,12 +3120,22 @@
           "agent_title": "Nouvel agent",
           "assistant_title": "Nouvel Assistant",
           "avatar_aria": "Choisir un avatar",
+          "back": "Retour",
+          "capability": {
+            "import": "Importer une compétence",
+            "no_skills": "Aucune compétence installée",
+            "search": "Compétences de recherche"
+          },
           "description_placeholder": "Décrire à quoi cela sert...",
-          "dialog_description": "Créer un assistant ou agent léger.",
-          "model_placeholder": "Sélectionner un modèle",
-          "model_required": "Veuillez sélectionner un modèle",
+          "guided_progress": "Configuration guidée · Étape {{current}} sur {{total}}",
           "name_placeholder": "Entrez un nom",
-          "name_required": "Veuillez entrer un nom",
+          "next": "Suivant",
+          "step": {
+            "basic": "Informations de base",
+            "capability": "Compétences",
+            "knowledge": "Connaissance",
+            "persona": "Persona"
+          },
           "submit": "Créer",
           "submit_failed": "Échec de la création"
         },
@@ -4710,10 +4678,10 @@
     "baichuan": "BaiChuan",
     "baidu-cloud": "Baidu Cloud Qianfan",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copilote",
     "dashscope": "AliCloud BaiLian",
     "deepseek": "DeepSeek",
@@ -4766,7 +4734,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Tesseract",
     "together": "Ensemble",
-    "tokenflux": "TokenFlux",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "CTyun XiRang",
@@ -5258,6 +5226,7 @@
     "assistant": {
       "create_new": "Nouvel Assistant",
       "empty_text": "Pas encore d'assistants",
+      "filter": "Filtrer les assistants",
       "multi_hint": "(mutuellement exclusif avec multi-modèle)",
       "multi_label": "Multi-assistant parallèle",
       "search_placeholder": "Assistant de recherche…"
@@ -6282,12 +6251,6 @@
         "usage": "Utilisation",
         "version": "Version"
       },
-      "oauth": {
-        "callback": {
-          "message": "Vous pouvez fermer cette page et retourner à Cherry Studio",
-          "title": "Authentification Réussie"
-        }
-      },
       "prompts": {
         "arguments": "Arguments",
         "availablePrompts": "Invites disponibles",
@@ -6437,6 +6400,12 @@
         "show_estimated_tokens": "Afficher le nombre estimatif de tokens",
         "title": "Paramètres d'entrée"
       },
+      "layout": {
+        "classic": "Classique",
+        "conversation": "Vue conversation",
+        "modern": "Moderne",
+        "work": "Vue du travail"
+      },
       "markdown_rendering_input_message": "Rendu Markdown des messages d'entrée",
       "metrics": "Latence initiale {{time_first_token_millsec}}ms | Vitesse de tokenisation {{token_speed}} tokens/s",
       "model": {
@@ -6465,6 +6434,8 @@
         "logo_upload_label": "Загрузить логотип",
         "name": "Имя",
         "name_placeholder": "Введите имя",
+        "remove_confirm_description": "Supprimer le mini-app personnalisé \"{{name}}\" ? Cette action ne peut pas être annulée.",
+        "remove_confirm_title": "Supprimer le mini-app personnalisé ?",
         "remove_error": "Не удалось удалить пользовательское приложение.",
         "remove_success": "Пользовательское приложение успешно удалено.",
         "save_error": "Не удалось сохранить пользовательское приложение.",
@@ -6493,6 +6464,7 @@
         "title": "Filtrage par zone de la mini-application"
       },
       "reset_tooltip": "Réinitialiser aux valeurs par défaut",
+      "title": "Paramètres des Mini Apps",
       "visible": "Applications visibles"
     },
     "model": "Modèle par défaut",
@@ -6644,6 +6616,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Certains modèles sont utilisés comme modèles par défaut et ne peuvent pas être supprimés.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6965,9 +6938,19 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Domaine d'accélération",
-          "backup": "Domaine de sauvegarde",
           "international": "Domaine international"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7438,6 +7421,7 @@
           "exa": "API de recherche neuronale pour applications IA, optimisée pour la récupération sémantique sur le web.",
           "exa_mcp": "Exposez la recherche Exa aux agents via le serveur MCP Exa.",
           "fetch": "Fournisseur d’extraction d’URL intégré. Récupère le contenu des pages web à partir d’une URL pour enrichir les résultats de recherche.",
+          "firecrawl": "Service d'exploration et de recherche Firecrawl, optimisé pour transformer les sites web en Markdown.",
           "jina": "APIs de recherche et de lecture Jina Reader pour récupérer du contenu web propre.",
           "querit": "Service de recherche pour applications IA avec résultats de récupération web.",
           "searxng": "Moteur de méta-recherche internet gratuit auto-hébergeable couvrant de nombreuses sources.",
@@ -7757,11 +7741,6 @@
     "tooltip": {
       "newline": "saut de ligne"
     }
-  },
-  "tray": {
-    "quit": "Quitter",
-    "show_quick_assistant": "Assistant Rapide",
-    "show_window": "Afficher la fenêtre"
   },
   "update": {
     "install": "Installer",

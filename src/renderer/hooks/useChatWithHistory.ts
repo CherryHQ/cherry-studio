@@ -1,7 +1,7 @@
 import { Chat, useChat } from '@ai-sdk/react'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
+import { ipcChatTransport } from '@renderer/services/aiTransport'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { ChatRequestOptions, FileUIPart } from 'ai'

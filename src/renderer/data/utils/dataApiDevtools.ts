@@ -1,4 +1,4 @@
-import { isDev } from '@renderer/config/constant'
+import { isDev } from '@renderer/utils/platform'
 import type { DataResponse, HttpMethod } from '@shared/data/api/apiTypes'
 
 type DataApiDevtoolsRequestState = 'pending' | 'success' | 'error' | 'retry'

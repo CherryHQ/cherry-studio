@@ -303,9 +303,9 @@ export default defineConfig([
   {
     // Boundary guard: the main process and preload must not import renderer code.
     // Cross-process symbols belong in `@shared`; main-only symbols in `src/main`.
-    // (The relative `../../renderer/i18n` imports in src/main/utils/language.ts are
-    // a known remaining violation, deferred to the i18n migration PR — once that
-    // lands, add `**/renderer/**` to the banned group below.)
+    // Both the `@renderer` alias and relative `**/renderer/**` paths are banned; the
+    // main i18n catalog now lives in `src/main/i18n`, and tests that need renderer
+    // catalog data read it from disk (fs) rather than importing it.
     files: ['src/main/**/*.{ts,tsx,js,jsx}', 'src/preload/**/*.{ts,tsx,js,jsx}'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
@@ -313,7 +313,7 @@ export default defineConfig([
         {
           patterns: [
             {
-              group: ['@renderer', '@renderer/**'],
+              group: ['@renderer', '@renderer/**', '**/renderer/**'],
               message:
                 'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/shared-layer-architecture.md.'
             }

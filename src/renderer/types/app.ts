@@ -25,7 +25,6 @@ export type AppInfo = {
   configPath: string
   appDataPath: string
   resourcesPath: string
-  filesPath: string
   logsPath: string
   arch: string
   isPortable: boolean

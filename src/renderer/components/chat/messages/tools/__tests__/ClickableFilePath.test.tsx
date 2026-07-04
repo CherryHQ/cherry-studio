@@ -9,6 +9,8 @@ import { setInlineFilePathHomePath } from '../../utils/filePath'
 import { ClickableFilePath } from '../agent/ClickableFilePath'
 
 const mockOpenArtifactFile = vi.fn().mockResolvedValue(undefined)
+const mockOpenPath = vi.fn().mockResolvedValue(undefined)
+const mockIsDirectory = vi.fn().mockResolvedValue(false)
 const mockShowInFolder = vi.fn().mockResolvedValue(undefined)
 const mockOpenInExternalApp = vi.fn()
 const mockNotifyError = vi.fn()
@@ -40,7 +42,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   isMac: true,
   isWin: false
 }))
@@ -82,6 +84,7 @@ describe('ClickableFilePath', () => {
       modifiedAt: 1,
       mime: 'text/plain'
     })
+    mockIsDirectory.mockResolvedValue(false)
   })
 
   it('should render the path as text', () => {
@@ -140,6 +143,48 @@ describe('ClickableFilePath', () => {
     fireEvent.click(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }))
     await waitFor(() => {
       expect(mockNotifyError).toHaveBeenCalledWith('Failed to open file: /Users/foo/bar.tsx')
+    })
+  })
+
+  it('should open a directory in the system file manager instead of the preview pane', async () => {
+    mockIsDirectory.mockResolvedValue(true)
+    renderWithProvider(<ClickableFilePath path="/Users/foo/essays/" />, {
+      openArtifactFile: mockOpenArtifactFile,
+      openPath: mockOpenPath,
+      isDirectory: mockIsDirectory
+    })
+    fireEvent.click(screen.getByRole('link', { name: '/Users/foo/essays/' }))
+    await waitFor(() => {
+      expect(mockOpenPath).toHaveBeenCalledWith('/Users/foo/essays/')
+    })
+    expect(mockOpenArtifactFile).not.toHaveBeenCalled()
+  })
+
+  it('should open a non-directory path in the preview pane', async () => {
+    renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" />, {
+      openArtifactFile: mockOpenArtifactFile,
+      openPath: mockOpenPath,
+      isDirectory: mockIsDirectory
+    })
+    fireEvent.click(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }))
+    await waitFor(() => {
+      expect(mockOpenArtifactFile).toHaveBeenCalledWith('/Users/foo/bar.tsx')
+    })
+    expect(mockOpenPath).not.toHaveBeenCalled()
+  })
+
+  it('should open via openPath when only openPath is available (no preview pane)', async () => {
+    // Home-chat surfaces wire openPath but neither openArtifactFile nor
+    // isDirectory; a non-directory path must still open via the file manager
+    // rather than silently dead-ending on the missing preview pane.
+    renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" />, {
+      openPath: mockOpenPath
+    })
+    const link = screen.getByRole('link', { name: '/Users/foo/bar.tsx' })
+    expect(link).toBeInTheDocument()
+    fireEvent.click(link)
+    await waitFor(() => {
+      expect(mockOpenPath).toHaveBeenCalledWith('/Users/foo/bar.tsx')
     })
   })
 

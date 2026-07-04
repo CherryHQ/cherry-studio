@@ -1,5 +1,8 @@
-import type { MessageMenuBarScope } from '@renderer/config/registry/messageMenuBar'
-import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenuBarConfig } from '@renderer/config/registry/messageMenuBar'
+import type { MessageMenuBarScope } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
+import {
+  DEFAULT_MESSAGE_MENUBAR_SCOPE,
+  getMessageMenuBarConfig
+} from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import type { Topic } from '@renderer/types/topic'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'

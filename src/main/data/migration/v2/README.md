@@ -98,9 +98,9 @@ Path Safety section above.
 
 ### Foreign Keys Caveat
 
-The engine keeps `foreign_keys = OFF` for the **entire** migration: `MigrationDbService` registers
-it via the patched `client.setPragma()`, which replays on every (re)connection (libsql defaults to
-`foreign_keys = ON` and resets PRAGMAs after each `transaction()`). **Migrators must NOT toggle FK
+The engine keeps `foreign_keys = OFF` for the **entire** migration: `MigrationDbService` sets the
+pragma once after migrations run. better-sqlite3 keeps a single connection, so that pragma persists
+for the whole migration with no per-transaction replay. **Migrators must NOT toggle FK
 themselves.** Verify integrity with `this.assertOwnedForeignKeys(ctx.db, [...])` at the end of
 `execute()` (own, fully-resolved tables only — exclude cross-domain-deferred and shared polymorphic
 tables); the engine runs a final whole-database `foreign_key_check` as backstop. See the

@@ -2,8 +2,6 @@ import type { MessageListActions } from '@renderer/components/chat/messages/type
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { getMessageTitle } from '@renderer/services/MessagesService'
-import type { MessageExportView } from '@renderer/types/messageExport'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
@@ -12,7 +10,9 @@ import {
   exportMessageToNotes,
   exportMessageToNotion,
   messageToMarkdown
-} from '@renderer/utils/export'
+} from '@renderer/services/ExportService'
+import { getMessageTitle } from '@renderer/services/MessagesService'
+import type { MessageExportView } from '@renderer/types/messageExport'
 import { useCallback, useMemo } from 'react'
 
 type MessageExportActions = Pick<

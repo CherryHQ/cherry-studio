@@ -118,7 +118,7 @@ function stubPlatform(isDev: boolean) {
   vi.doMock('@main/core/platform', () => ({ isDev }))
 }
 
-/** Build the wrapped libsql SQLITE_ERROR thrown when a stale DB meets fresh migration SQL. */
+/** Build the wrapped SQLITE_ERROR thrown when a stale DB meets fresh migration SQL. */
 function schemaOutOfSyncError(): Error {
   const inner = Object.assign(new Error('table `agent` already exists'), { code: 'SQLITE_ERROR' })
   return Object.assign(new Error('SQLITE_ERROR: table `agent` already exists'), { code: 'SQLITE_ERROR', cause: inner })
@@ -131,7 +131,7 @@ async function loadModule() {
 beforeEach(() => {
   vi.resetModules()
   resolveMigrationPathsMock.mockReset().mockReturnValue(defaultResolveResult)
-  initializeMock.mockReset().mockResolvedValue(undefined)
+  initializeMock.mockReset().mockReturnValue(undefined)
   registerMigratorsMock.mockReset()
   needsMigrationMock.mockReset()
   closeMock.mockReset()
@@ -229,7 +229,9 @@ describe('runV2MigrationGate', () => {
 
   describe('handled path — migration check fails', () => {
     it("returns 'handled', shows an error dialog, and quits when the engine fails to initialize", async () => {
-      initializeMock.mockRejectedValue(new Error('DB unavailable'))
+      initializeMock.mockImplementation(() => {
+        throw new Error('DB unavailable')
+      })
       stubMigrationV2()
       stubElectron()
       stubApplication()
@@ -272,7 +274,9 @@ describe('runV2MigrationGate', () => {
 
   describe('handled path — schema out of sync (dev)', () => {
     it('shows the dev reset dialog with the DB path and quits when running in dev', async () => {
-      initializeMock.mockRejectedValue(schemaOutOfSyncError())
+      initializeMock.mockImplementation(() => {
+        throw schemaOutOfSyncError()
+      })
       stubMigrationV2()
       stubElectron()
       stubApplication()
@@ -290,7 +294,9 @@ describe('runV2MigrationGate', () => {
     })
 
     it('falls back to the neutral production dialog when the schema is out of sync but not in dev', async () => {
-      initializeMock.mockRejectedValue(schemaOutOfSyncError())
+      initializeMock.mockImplementation(() => {
+        throw schemaOutOfSyncError()
+      })
       stubMigrationV2()
       stubElectron()
       stubApplication()
@@ -309,7 +315,9 @@ describe('runV2MigrationGate', () => {
     })
 
     it('shows the dev migration-failed dialog (both causes + DB path) for non-schema errors in dev', async () => {
-      initializeMock.mockRejectedValue(new Error('DB unavailable'))
+      initializeMock.mockImplementation(() => {
+        throw new Error('DB unavailable')
+      })
       stubMigrationV2()
       stubElectron()
       stubApplication()

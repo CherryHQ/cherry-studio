@@ -22,8 +22,8 @@ import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { Base64String, URLString } from '@shared/types/file/common'
-import { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
+import type { Base64String, UrlString } from '@shared/types/file/common'
+import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
@@ -33,8 +33,8 @@ import {
 } from 'ai'
 
 import { isAgentSessionTopic } from './agentSession/topic'
+import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities } from './messages/messageCapabilities'
-import { resolveUIMessageFileUrls } from './messages/messageConverter'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
@@ -46,10 +46,12 @@ import type { AgentLoopHooks } from './runtime/aiSdk/loop'
 import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
 import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
 import type { RequestFeature } from './runtime/aiSdk/params/feature'
+import { skillService } from './skills/SkillService'
 import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
 import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
+import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 
 const logger = loggerService.withContext('AiService')
@@ -114,10 +116,10 @@ export interface AiImageResult {
  */
 export function imageInputEntryParams(
   value: string
-): { source: 'base64'; data: Base64String } | { source: 'url'; url: URLString } {
+): { source: 'base64'; data: Base64String } | { source: 'url'; url: UrlString } {
   return value.startsWith('data:')
     ? { source: 'base64', data: value as Base64String }
-    : { source: 'url', url: value as URLString }
+    : { source: 'url', url: value as UrlString }
 }
 
 /**
@@ -180,7 +182,14 @@ export class AiService extends BaseService {
   protected async onInit(): Promise<void> {
     registerBuiltinTools()
     this.registerIpcHandlers()
+    // Restore provider custom `User-Agent` headers that Chromium's net.fetch stack
+    // would otherwise overwrite (see installProviderUserAgentInterceptor).
+    this.registerDisposable(installProviderUserAgentInterceptor())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
+    // Heal the CLAUDE_CONFIG_DIR/skills mirror once at startup; fire-and-forget so it never blocks init.
+    void skillService.reconcileSkills().catch((error) => {
+      logger.error('Failed to reconcile skills', error)
+    })
     logger.info('AiService initialized')
   }
 
@@ -258,7 +267,7 @@ export class AiService extends BaseService {
     // stale parts and clobber each other's decision (or both compute a stale "still pending" and
     // neither resume). Returns the committed parts, or null when the anchor row is gone — a stale
     // click on a deleted message, resolved through the result shape instead of throwing.
-    const approvalResult = await messageService.applyToolApprovalDecisions(payload.anchorId, [decision])
+    const approvalResult = messageService.applyToolApprovalDecisions(payload.anchorId, [decision])
     if (approvalResult === null) {
       logger.warn('Tool-approval response anchor is missing or deleted', {
         approvalId: payload.approvalId,
@@ -345,13 +354,17 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
     }
 
-    const { sdkConfig, tools, plugins, system, options, model, hookParts } = await this.buildAgentParamsFor(
-      request,
-      signal,
-      extraFeatures
-    )
+    const { sdkConfig, tools, plugins, system, options, model, hookParts, nativeFileSupport, fileAttachments } =
+      await this.buildAgentParamsFor(request, signal, extraFeatures)
 
-    const preparedMessages = await resolveUIMessageFileUrls(request.messages ?? [])
+    // Route attachments: native files stay inline, non-native become capped text
+    // (always visible — never gated on the model calling read_file).
+    const preparedMessages = await prepareChatMessages(request.messages ?? [], {
+      attachments: fileAttachments,
+      nativeSupport: nativeFileSupport,
+      isToolCapable: isFunctionCallingModel(model),
+      signal
+    })
 
     const agent = new Agent({
       providerId: sdkConfig.providerId,
@@ -582,7 +595,7 @@ export class AiService extends BaseService {
       // resume reaches the right endpoint / response family.
       const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
       const mode = request.mode ?? 'generate'
-      const support = await providerRegistryService.getImageGenerationSupport(providerId, modelId)
+      const support = providerRegistryService.getImageGenerationSupport(providerId, modelId)
       const vendorTransport = support?.modes?.[mode]?.vendorTransport
       const modelDescriptor = vendorTransport?.endpoint
         ? { id: modelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode }
@@ -599,7 +612,7 @@ export class AiService extends BaseService {
         ...(modelDescriptor && { modelDescriptor }),
         providerParams
       }
-      handle = await jobManager.enqueue('image-generation.generate', payload)
+      handle = jobManager.enqueue('image-generation.generate', payload)
     } catch (error) {
       // Setup failed before the job owns the payload — clean up what we created.
       await deleteImageInputEntries(createdEntryIds)
@@ -695,7 +708,12 @@ export class AiService extends BaseService {
   async listModels(request: ListModelsRequest): Promise<Partial<Model>[]> {
     let providerId = request.providerId
     if (!providerId && request.assistantId) {
-      const assistant = await assistantDataService.getById(request.assistantId).catch(() => undefined)
+      let assistant: Assistant | undefined
+      try {
+        assistant = assistantDataService.getById(request.assistantId)
+      } catch {
+        assistant = undefined
+      }
       if (assistant?.modelId) {
         providerId = parseUniqueModelId(assistant.modelId).providerId
       }
@@ -703,7 +721,13 @@ export class AiService extends BaseService {
     if (!providerId) {
       throw new Error('Cannot resolve providerId: not in request and assistant has no model')
     }
-    const provider = await providerService.getByProviderId(providerId)
+    const provider = providerService.getByProviderId(providerId)
+    // Registry-sourced providers (login-based, no API model list) return their
+    // shipped catalog instead of calling the upstream API. The rest of the pull
+    // flow (enrich → reconcile → enable) is unchanged.
+    if (provider.modelListSource === 'registry') {
+      return providerRegistryService.listProviderRegistryModels({ providerId })
+    }
     return listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
   }
 
@@ -711,7 +735,7 @@ export class AiService extends BaseService {
 
   /** Dispatches to `rerank` / `embedMany` for those model types, `generateText` otherwise. */
   async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
-    const { model } = await this.getProviderAndModel(request)
+    const { model } = this.getProviderAndModel(request)
     const start = performance.now()
     const timeout = request.timeout ?? 15000
 
@@ -758,7 +782,7 @@ export class AiService extends BaseService {
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = []
   ) {
-    const { provider, model, assistant } = await this.getProviderAndModel(request)
+    const { provider, model, assistant } = this.getProviderAndModel(request)
     const built = await buildAgentParams({ request, signal, provider, model, assistant, extraFeatures })
     return { ...built, provider, model, assistant }
   }
@@ -785,10 +809,14 @@ export class AiService extends BaseService {
   }
 
   /** Priority: explicit `uniqueModelId` > `assistant.modelId`. */
-  private async getProviderAndModel(request: AiBaseRequest & { chatId?: string }) {
+  private getProviderAndModel(request: AiBaseRequest & { chatId?: string }) {
     let assistant: Assistant | undefined
     if (request.assistantId) {
-      assistant = await assistantDataService.getById(request.assistantId).catch(() => undefined)
+      try {
+        assistant = assistantDataService.getById(request.assistantId)
+      } catch {
+        assistant = undefined
+      }
     }
 
     let providerId: string | undefined
@@ -805,8 +833,8 @@ export class AiService extends BaseService {
     if (!providerId) throw new Error('Cannot resolve providerId: not in request and assistant has no model')
     if (!modelId) throw new Error('Cannot resolve modelId: not in request and assistant has no model')
 
-    const provider = await providerService.getByProviderId(providerId)
-    const model = await modelService.getByKey(providerId, modelId)
+    const provider = providerService.getByProviderId(providerId)
+    const model = modelService.getByKey(providerId, modelId)
 
     return { provider, model, assistant }
   }

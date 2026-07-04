@@ -1,6 +1,7 @@
 import {
   Badge,
   Button,
+  Checkbox,
   Command,
   CommandGroup,
   CommandInput,
@@ -61,7 +62,9 @@ export const CatalogToggleGrid: FC<{
   disabled?: boolean
   emptyLabel: ReactNode
   portalContainer?: HTMLElement | null
-}> = ({ items, enabledIds, onToggle, loading, disabled, emptyLabel, portalContainer }) => {
+  /** Toggle control style. `switch` (default) suits the edit dialog; `checkbox` suits the multi-select create wizard. */
+  variant?: 'switch' | 'checkbox'
+}> = ({ items, enabledIds, onToggle, loading, disabled, emptyLabel, portalContainer, variant = 'switch' }) => {
   const { t } = useTranslation()
 
   if (loading) {
@@ -72,29 +75,54 @@ export const CatalogToggleGrid: FC<{
   }
 
   return (
-    <div className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2">
+    <div className={cn('grid grid-cols-1 sm:grid-cols-2', variant === 'checkbox' ? 'gap-3' : 'gap-x-8 gap-y-3')}>
       {items.map((item) => {
         const checked = enabledIds.has(item.id)
         const toggleDisabled = Boolean(disabled || item.disableToggle || (item.pickable === false && !checked))
         const disabledReason =
           item.disabledReason ?? (toggleDisabled && item.inactiveBadge ? item.inactiveBadge : undefined)
 
+        const info = (
+          <div className="min-w-0">
+            <div className={cn('flex min-w-0 items-center gap-1.5 text-sm', toggleDisabled && 'text-muted-foreground')}>
+              <span className="truncate" title={item.name}>
+                {item.name}
+              </span>
+              <CatalogBadges item={item} />
+            </div>
+            {item.description ? (
+              <div className="mt-0.5 truncate text-muted-foreground/80 text-xs" title={item.description}>
+                {item.description}
+              </div>
+            ) : null}
+          </div>
+        )
+
+        if (variant === 'checkbox') {
+          return (
+            <label
+              key={item.id}
+              className={cn(
+                'flex min-w-0 items-center gap-3 rounded-xl border px-4 py-3 transition-colors',
+                checked ? 'border-primary/40 bg-accent/30' : 'border-border/50 hover:bg-accent/20',
+                toggleDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+              )}>
+              <Checkbox
+                size="sm"
+                checked={checked}
+                disabled={toggleDisabled}
+                onCheckedChange={(nextChecked) => onToggle(item.id, nextChecked === true)}
+                aria-label={item.name}
+                className="shrink-0"
+              />
+              {info}
+            </label>
+          )
+        }
+
         return (
           <div key={item.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1">
-            <div className="min-w-0">
-              <div
-                className={cn('flex min-w-0 items-center gap-1.5 text-sm', toggleDisabled && 'text-muted-foreground')}>
-                <span className="truncate" title={item.name}>
-                  {item.name}
-                </span>
-                <CatalogBadges item={item} />
-              </div>
-              {item.description ? (
-                <div className="mt-0.5 truncate text-muted-foreground/80 text-xs" title={item.description}>
-                  {item.description}
-                </div>
-              ) : null}
-            </div>
+            {info}
             <Tooltip
               content={disabledReason}
               isDisabled={!disabledReason}

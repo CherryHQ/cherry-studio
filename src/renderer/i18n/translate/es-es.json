@@ -556,6 +556,7 @@
       "list": {
         "title": "Tareas"
       },
+      "new": "Nueva tarea",
       "pin": {
         "title": "Anclar tarea"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Tareas de búsqueda"
+        "placeholder": "Tareas de búsqueda",
+        "title": "Buscar tareas"
       },
       "unpin": {
         "title": "Desanclar tarea"
@@ -602,9 +604,7 @@
         "select_failed": "Error al seleccionar la carpeta."
       },
       "workspace_status": {
-        "inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}",
-        "missing": "La ruta del espacio de trabajo no existe: {{path}}",
-        "not_directory": "La ruta del espacio de trabajo no es un directorio: {{path}}"
+        "inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}"
       }
     },
     "settings": {
@@ -935,6 +935,10 @@
           "description": "Ejecuta comandos de shell en tu entorno",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "Agrega, elimina o actualiza documentos en tus bases de conocimiento",
+          "label": "Gestionar conocimiento"
+        },
         "CherryKbSearch": {
           "description": "Busca en tus bases de conocimiento",
           "label": "Búsqueda de conocimiento"
@@ -1077,41 +1081,6 @@
       "stopped": "Detenido"
     },
     "title": "Servidor API"
-  },
-  "appMenu": {
-    "about": "Acerca de",
-    "close": "Cerrar ventana",
-    "copy": "Copiar",
-    "cut": "Cortar",
-    "delete": "Eliminar",
-    "documentation": "Documentación",
-    "edit": "Editar",
-    "feedback": "Retroalimentación",
-    "file": "Archivo",
-    "forceReload": "Forzar recarga",
-    "front": "Traer todo al frente",
-    "help": "Ayuda",
-    "hide": "Ocultar",
-    "hideOthers": "Ocultar Otros",
-    "minimize": "Minimizar",
-    "paste": "Pegar",
-    "quit": "Abandonar",
-    "redo": "Rehacer",
-    "releases": "Lanzamientos",
-    "reload": "Recargar",
-    "resetZoom": "Tamaño Real",
-    "selectAll": "Seleccionar todo",
-    "services": "Servicios",
-    "toggleDevTools": "Alternar herramientas de desarrollo",
-    "toggleFullscreen": "Activar pantalla completa",
-    "undo": "Deshacer",
-    "unhide": "Mostrar todo",
-    "view": "Vista",
-    "website": "Sitio web",
-    "window": "Ventana",
-    "zoom": "Zoom",
-    "zoomIn": "Acercar",
-    "zoomOut": "Alejar"
   },
   "assistants": {
     "abbr": "Asistente",
@@ -1593,6 +1562,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "[to be translated]:Cache {{hit_rate}}%",
+        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "Este mensaje está siendo editado en el compositor",
       "flow": {
         "branches": "ramas",
@@ -2055,7 +2028,6 @@
     "copy_failed": "Error al copiar",
     "create_success": "Creado con éxito",
     "current": "Actual",
-    "cut": "Cortar",
     "default": "Predeterminado",
     "delete": "Eliminar",
     "delete_confirm": "¿Está seguro de que desea eliminarlo?",
@@ -2093,7 +2065,6 @@
     "image_preview": "Vista previa de imagen",
     "image_url": "URL de la imagen",
     "image_url_or_upload": "Introduce la URL de la imagen o sube un archivo",
-    "inspect": "Inspeccionar",
     "invalid_value": "Valor inválido",
     "knowledge_base": "Base de conocimiento",
     "language": "Idioma",
@@ -2114,7 +2085,6 @@
     "open_in": "Abrir en {{name}}",
     "open_in_new_tab": "Abrir en nueva pestaña",
     "open_sidebar": "Abrir barra lateral",
-    "paste": "Pegar",
     "placeholders": {
       "select": {
         "model": "Seleccionar modelo"
@@ -2169,18 +2139,6 @@
     "warning": "Advertencia",
     "yesterday": "Ayer",
     "you": "Usuario"
-  },
-  "dialog": {
-    "all_files": "Todos los archivos",
-    "html_files": "Archivos HTML",
-    "open_file": "Abrir archivo",
-    "pdf_files": "Archivos PDF",
-    "png_image": "Imagen PNG",
-    "save_as_html": "Guardar como HTML",
-    "save_as_pdf": "Guardar como PDF",
-    "save_file": "Guardar archivo",
-    "select_folder": "Seleccionar carpeta",
-    "word_document": "Documento de Word"
   },
   "docs": {
     "title": "Documentación de Ayuda"
@@ -3162,12 +3120,22 @@
           "agent_title": "Nuevo Agente",
           "assistant_title": "Nuevo Asistente",
           "avatar_aria": "Elegir avatar",
+          "back": "Atrás",
+          "capability": {
+            "import": "Importar habilidad",
+            "no_skills": "No hay habilidades instaladas",
+            "search": "Habilidades de búsqueda"
+          },
           "description_placeholder": "Describe para qué sirve...",
-          "dialog_description": "Crea un asistente o agente ligero.",
-          "model_placeholder": "Selecciona un modelo",
-          "model_required": "Por favor selecciona un modelo",
+          "guided_progress": "Configuración guiada · Paso {{current}} de {{total}}",
           "name_placeholder": "Introduce un nombre",
-          "name_required": "Por favor, introduce un nombre",
+          "next": "Siguiente",
+          "step": {
+            "basic": "Información básica",
+            "capability": "Habilidades",
+            "knowledge": "Conocimiento",
+            "persona": "Persona"
+          },
           "submit": "Crear",
           "submit_failed": "Creación fallida"
         },
@@ -4710,10 +4678,10 @@
     "baichuan": "BaiChuan",
     "baidu-cloud": "Baidu Nube Qiánfān",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copiloto",
     "dashscope": "Álibaba Nube BaiLiàn",
     "deepseek": "Profundo Buscar",
@@ -4766,7 +4734,7 @@
     "tencent-cloud-ti": "Tencent Nube TI",
     "tesseract": "Tesseract",
     "together": "Juntos",
-    "tokenflux": "TokenFlux",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "Telecom Nube XiRang",
@@ -5258,6 +5226,7 @@
     "assistant": {
       "create_new": "Nuevo Asistente",
       "empty_text": "Aún no hay asistentes",
+      "filter": "Asistentes de filtro",
       "multi_hint": "(mutualmente excluyente con multi-modelo)",
       "multi_label": "Asistente múltiple en paralelo",
       "search_placeholder": "Asistentes de búsqueda…"
@@ -6282,12 +6251,6 @@
         "usage": "Uso",
         "version": "Versión"
       },
-      "oauth": {
-        "callback": {
-          "message": "Puede cerrar esta página y volver a Cherry Studio",
-          "title": "Autenticación Exitosa"
-        }
-      },
       "prompts": {
         "arguments": "Argumentos",
         "availablePrompts": "Indicaciones disponibles",
@@ -6437,6 +6400,12 @@
         "show_estimated_tokens": "Mostrar número estimado de tokens",
         "title": "Configuración de entrada"
       },
+      "layout": {
+        "classic": "Clásico",
+        "conversation": "Vista de conversación",
+        "modern": "Moderno",
+        "work": "Vista de trabajo"
+      },
       "markdown_rendering_input_message": "Renderizar mensajes de entrada en Markdown",
       "metrics": "Retraso inicial {{time_first_token_millsec}}ms | {{token_speed}} tokens por segundo",
       "model": {
@@ -6465,6 +6434,8 @@
         "logo_upload_label": "Cargar Logo",
         "name": "Nombre",
         "name_placeholder": "Por favor, introduzca el nombre",
+        "remove_confirm_description": "¿Eliminar la miniaplicación personalizada \"{{name}}\"? Esta acción no se puede deshacer.",
+        "remove_confirm_title": "¿Eliminar miniaplicación personalizada?",
         "remove_error": "No se pudo eliminar la aplicación pequeña personalizada.",
         "remove_success": "La aplicación pequeña personalizada se eliminó correctamente.",
         "save_error": "No se pudo guardar la aplicación pequeña personalizada.",
@@ -6493,6 +6464,7 @@
         "title": "Filtro de área de la miniaplicación"
       },
       "reset_tooltip": "Restablecer a los valores predeterminados",
+      "title": "Configuración de Mini Apps",
       "visible": "Miniaplicaciones visibles"
     },
     "model": "Modelo predeterminado",
@@ -6644,6 +6616,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Algunos modelos están en uso como modelo predeterminado y no se pueden eliminar.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6965,9 +6938,19 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Dominio de aceleración",
-          "backup": "Dominio de respaldo",
           "international": "Dominio internacional"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7438,6 +7421,7 @@
           "exa": "API de búsqueda neuronal para aplicaciones de IA, optimizada para la recuperación semántica en la web.",
           "exa_mcp": "Expón la búsqueda de Exa a los agentes a través del Servidor MCP de Exa.",
           "fetch": "Proveedor de obtención de URL integrado. Obtiene el contenido de la página web desde una URL para enriquecer los resultados de búsqueda.",
+          "firecrawl": "Servicio de rastreo y búsqueda Firecrawl, optimizado para convertir sitios web en Markdown.",
           "jina": "APIs de búsqueda y lectura de Jina Reader para recuperar contenido web limpio.",
           "querit": "Servicio de búsqueda para aplicaciones de IA con resultados de recuperación web.",
           "searxng": "Motor de búsqueda metainternet gratuito autoalojable a través de muchas fuentes.",
@@ -7757,11 +7741,6 @@
     "tooltip": {
       "newline": "Salto de línea"
     }
-  },
-  "tray": {
-    "quit": "Salir",
-    "show_quick_assistant": "Asistente rápido",
-    "show_window": "Mostrar ventana"
   },
   "update": {
     "install": "Instalar",

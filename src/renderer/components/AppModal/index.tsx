@@ -198,7 +198,11 @@ function AppModalItem({
               {props.title ? <DialogTitle className="text-base leading-6">{props.title}</DialogTitle> : null}
               {props.content ? (
                 <DialogDescription asChild>
-                  <div className={cn('mt-2 text-muted-foreground text-sm leading-5', props.title ? '' : 'mt-0')}>
+                  <div
+                    className={cn(
+                      'wrap-anywhere mt-2 min-w-0 max-w-full text-muted-foreground text-sm leading-5',
+                      props.title ? '' : 'mt-0'
+                    )}>
                     {props.content}
                   </div>
                 </DialogDescription>

@@ -1,7 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { isMac, isWin } from '@renderer/config/constant'
 import { ThemeContext } from '@renderer/hooks/useTheme'
 import useUserTheme from '@renderer/hooks/useUserTheme'
+import { isMac, isWin } from '@renderer/utils/platform'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { PropsWithChildren } from 'react'

@@ -13,6 +13,8 @@ const mockProviderGetByProviderId = vi.fn()
 const mockProviderGetRotatedApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
 const mockGetImageGenerationSupport = vi.fn()
+const mockListProviderRegistryModels = vi.fn()
+const mockListModelsFromProvider = vi.fn()
 
 vi.mock('@main/core/application', () => ({
   application: {
@@ -35,10 +37,14 @@ vi.mock('@main/data/services/ModelService', () => ({
 
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
-    getImageGenerationSupport: (...args: unknown[]) => mockGetImageGenerationSupport(...args)
+    getImageGenerationSupport: (...args: unknown[]) => mockGetImageGenerationSupport(...args),
+    listProviderRegistryModels: (...args: unknown[]) => mockListProviderRegistryModels(...args)
   }
 }))
 
+vi.mock('../provider/listModels', () => ({
+  listModels: (...args: unknown[]) => mockListModelsFromProvider(...args)
+}))
 vi.mock('@main/utils/downloadAsBase64', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
 }))
@@ -73,8 +79,8 @@ function createService(): InstanceType<typeof AiService> {
 describe('AiService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockProviderGetRotatedApiKey.mockResolvedValue('test-key')
-    mockProviderGetByProviderId.mockResolvedValue({
+    mockProviderGetRotatedApiKey.mockReturnValue('test-key')
+    mockProviderGetByProviderId.mockReturnValue({
       id: 'test-provider',
       name: 'Test Provider',
       apiKeys: [],
@@ -89,7 +95,7 @@ describe('AiService', () => {
       settings: {},
       isEnabled: true
     })
-    mockModelGetByKey.mockResolvedValue({
+    mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-model',
       providerId: 'test-provider',
       apiModelId: 'test-model',
@@ -422,7 +428,7 @@ describe('AiService tool approval', () => {
     ]
     const apply = vi
       .spyOn(messageService, 'applyToolApprovalDecisions')
-      .mockResolvedValue(approvalMutationResult(committed, ['mcp-approval-1']) as never)
+      .mockReturnValue(approvalMutationResult(committed, ['mcp-approval-1']) as never)
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -460,7 +466,7 @@ describe('AiService tool approval', () => {
       return undefined
     })
     const committed = [{ ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' }]
-    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue(
+    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockReturnValue(
       approvalMutationResult(committed, ['mcp-approval-1']) as never
     )
 
@@ -519,7 +525,7 @@ describe('AiService tool approval', () => {
     // Overlay-only: the target part isn't on the row, so the committed parts carry no pending approval.
     const apply = vi
       .spyOn(messageService, 'applyToolApprovalDecisions')
-      .mockResolvedValue(approvalMutationResult([{ type: 'text', text: 'hello' }]) as never)
+      .mockReturnValue(approvalMutationResult([{ type: 'text', text: 'hello' }]) as never)
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -552,7 +558,7 @@ describe('AiService tool approval', () => {
     })
 
     // Committed parts: this approval decided, but a sibling is still approval-requested.
-    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue(
+    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockReturnValue(
       approvalMutationResult(
         [
           { ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' },
@@ -586,7 +592,7 @@ describe('AiService tool approval', () => {
 
     const apply = vi
       .spyOn(messageService, 'applyToolApprovalDecisions')
-      .mockResolvedValue(
+      .mockReturnValue(
         approvalMutationResult(
           [{ ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' }],
           [],
@@ -617,7 +623,7 @@ describe('AiService tool approval', () => {
     })
 
     // A stale click on a deleted message: the atomic mutation reports the anchor is gone (null).
-    const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue(null)
+    const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions').mockReturnValue(null)
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -699,7 +705,7 @@ describe('AiService tool approval', () => {
     const embedSpy = vi.spyOn(service, 'embedMany')
     const generateSpy = vi.spyOn(service, 'generateText')
 
-    mockModelGetByKey.mockResolvedValue({
+    mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-reranker',
       providerId: 'test-provider',
       apiModelId: 'test-reranker',
@@ -729,7 +735,7 @@ describe('AiService tool approval', () => {
     const service = createService()
     vi.spyOn(service, 'rerank').mockResolvedValue({ ranking: [] })
 
-    mockModelGetByKey.mockResolvedValue({
+    mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-reranker',
       providerId: 'test-provider',
       apiModelId: 'test-reranker',
@@ -781,7 +787,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     const createInternalEntry = vi.fn().mockResolvedValue({ id: 'in-1' })
     const permanentDelete = vi.fn().mockResolvedValue(undefined)
     const outputFiles = [{ id: 'out-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }]
-    const enqueue = vi.fn().mockResolvedValue({
+    const enqueue = vi.fn().mockReturnValue({
       id: 'job-1',
       snapshot: {},
       finished: Promise.resolve({ status: 'completed', output: { files: outputFiles }, error: null })
@@ -816,7 +822,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     // assertion catches a mis-classified native binding.
     const service = createService()
     stubResolution(service)
-    const enqueue = vi.fn().mockResolvedValue({
+    const enqueue = vi.fn().mockReturnValue({
       id: 'job-1',
       snapshot: {},
       finished: Promise.resolve({ status: 'completed', output: { files: [] }, error: null })
@@ -862,7 +868,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
         return { createInternalEntry: vi.fn(), permanentDelete: vi.fn().mockResolvedValue(undefined) }
       if (name === 'JobManager') {
         return {
-          enqueue: vi.fn().mockResolvedValue({
+          enqueue: vi.fn().mockReturnValue({
             id: 'job-1',
             snapshot: {},
             finished: Promise.resolve({ status: 'failed', output: null, error: { message: 'vendor exploded' } })
@@ -889,7 +895,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
         return { createInternalEntry: vi.fn(), permanentDelete: vi.fn().mockResolvedValue(undefined) }
       if (name === 'JobManager') {
         return {
-          enqueue: vi.fn().mockResolvedValue({
+          enqueue: vi.fn().mockReturnValue({
             id: 'job-1',
             snapshot: {},
             finished: Promise.resolve({ status: 'cancelled', output: null, error: null })
@@ -922,7 +928,12 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       // enqueue fails after the temp input entry was already created → the entry is in
       // no payload, so generateImageViaJob's setup catch must delete it.
       if (name === 'JobManager')
-        return { enqueue: vi.fn().mockRejectedValue(new Error('enqueue boom')), cancel: vi.fn() }
+        return {
+          enqueue: vi.fn().mockImplementation(() => {
+            throw new Error('enqueue boom')
+          }),
+          cancel: vi.fn()
+        }
       return undefined
     })
 
@@ -935,5 +946,38 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       })
     ).rejects.toThrow('enqueue boom')
     expect(permanentDelete).toHaveBeenCalledWith('in-1')
+  })
+})
+
+describe('AiService.listModels', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns the shipped registry catalog for a registry-sourced provider without calling the API', async () => {
+    const service = createService()
+    const registryModels = [{ id: 'claude-code::haiku' }, { id: 'claude-code::sonnet' }]
+    mockProviderGetByProviderId.mockReturnValue({ id: 'claude-code', modelListSource: 'registry' })
+    mockListProviderRegistryModels.mockReturnValue(registryModels)
+
+    const result = await service.listModels({ providerId: 'claude-code' })
+
+    expect(result).toBe(registryModels)
+    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({ providerId: 'claude-code' })
+    expect(mockListModelsFromProvider).not.toHaveBeenCalled()
+  })
+
+  it('pulls the model list over the API for an api-sourced provider', async () => {
+    const service = createService()
+    const provider = { id: 'openai', modelListSource: 'api' }
+    const apiModels = [{ id: 'openai::gpt-4o-mini' }]
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockListModelsFromProvider.mockResolvedValue(apiModels)
+
+    const result = await service.listModels({ providerId: 'openai' })
+
+    expect(result).toBe(apiModels)
+    expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, { throwOnError: undefined })
+    expect(mockListProviderRegistryModels).not.toHaveBeenCalled()
   })
 })

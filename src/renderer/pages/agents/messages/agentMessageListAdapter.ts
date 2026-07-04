@@ -152,6 +152,20 @@ export function useAgentMessageListProviderValue({
     [workspacePath]
   )
 
+  const isDirectory = useCallback(
+    (path: string) => {
+      return window.api.file.isDirectory(resolveWorkspaceFilePath(workspacePath, path))
+    },
+    [workspacePath]
+  )
+
+  const openInExternalApp = useMemo<MessageListActions['openInExternalApp']>(() => {
+    const open = leafCapabilities.openInExternalApp
+    if (!open) return undefined
+
+    return (app, path) => open(app, resolveWorkspaceFilePath(workspacePath, path))
+  }, [leafCapabilities.openInExternalApp, workspacePath])
+
   const abortTool = useCallback((toolId: string) => {
     return window.api.mcp.abortTool(toolId)
   }, [])
@@ -244,10 +258,12 @@ export function useAgentMessageListProviderValue({
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
       openPath,
+      openInExternalApp,
       openArtifactFile,
       openCitationsPanel,
       openAgentToolFlow,
       showInFolder,
+      isDirectory,
       abortTool,
       bindMessageRuntime,
       bindMessageGroupRuntime,
@@ -265,6 +281,7 @@ export function useAgentMessageListProviderValue({
       errorActions,
       exportActions,
       headerCapabilities,
+      isDirectory,
       leafCapabilities,
       navigateToRoute,
       loadOlder,
@@ -273,6 +290,7 @@ export function useAgentMessageListProviderValue({
       openCitationsPanel,
       openArtifactFile,
       openAgentToolFlow,
+      openInExternalApp,
       openPath,
       respondToolApproval,
       selectionController.actions,

@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
-import { resolveSidebarAppTabEntryUrl } from '@renderer/config/sidebar'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { type OpenTabOptions, TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
+import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ReactNode } from 'react'
@@ -22,6 +22,17 @@ const DEFAULT_TAB: Tab = {
   isDormant: false
 }
 
+const LEGACY_LIBRARY_ROUTE_PATH = '/app/library'
+
+function isLegacyLibraryTab(tab: Tab): boolean {
+  if (tab.type !== 'route') return false
+  try {
+    return new URL(tab.url, 'https://www.cherry-ai.com').pathname === LEGACY_LIBRARY_ROUTE_PATH
+  } catch {
+    return false
+  }
+}
+
 function withLocalizedRouteTitle(tab: Tab): Tab {
   if (tab.type !== 'route') return tab
   // Chat / agent tabs are page-titled (topic / session name + assistant / agent
@@ -30,10 +41,18 @@ function withLocalizedRouteTitle(tab: Tab): Tab {
   if (isPageTitledRoute(tab.url)) {
     return tab.title ? tab : { ...tab, title: getDefaultRouteTitle(tab.url) }
   }
-  if (tab.id === 'home') return { ...tab, title: getDefaultRouteTitle(tab.url) }
   // Only auto-localize titles for top-level and settings routes. Parameterized
   // routes (e.g. /app/mini-app/<id>) preserve the title supplied at openTab
   // time so callers can pass per-entity names like a mini-app's display name.
+  //
+  // The `home` tab follows the SAME rule — it must not be special-cased into an
+  // unconditional route-default title. When the home tab is reused for a
+  // per-entity route (e.g. opening a mini-app from the sidebar), forcing the
+  // route default here clobbers the caller-supplied title every render and
+  // fights MiniAppPage's title-sync effect, spinning into an infinite
+  // `updateTab` loop ("Maximum update depth exceeded"). On top-level / settings
+  // routes the branch below still relocalizes the home tab, so language changes
+  // are unaffected.
   if (!isTopLevelRoute(tab.url) && !isSettingsRouteTab(tab)) return tab
   return { ...tab, title: getDefaultRouteTitle(tab.url) }
 }
@@ -56,25 +75,10 @@ export function TabsProvider({
   // Route-derived tab titles are localized, so recompute them on language change.
   const { i18n } = useTranslation()
 
-  // Pinned tabs - persistent storage
-  const [pinnedTabs, setPinnedTabsRaw] = usePersistCache('ui.tab.pinned_tabs')
-
-  // Use ref to keep a reference to the latest pinnedTabs, avoiding closure issues
-  const pinnedTabsRef = useRef(pinnedTabs)
-  pinnedTabsRef.current = pinnedTabs
-
-  // Wrap setter to support functional updates
-  const setPinnedTabs = useCallback(
-    (updater: Tab[] | ((prev: Tab[]) => Tab[])) => {
-      if (typeof updater === 'function') {
-        const newValue = updater(pinnedTabsRef.current || [])
-        setPinnedTabsRaw(newValue)
-      } else {
-        setPinnedTabsRaw(updater)
-      }
-    },
-    [setPinnedTabsRaw]
-  )
+  // Pinned tabs - persistent storage. The setter natively supports functional
+  // updates resolved against the latest persisted value, so callers can use
+  // `setPinnedTabs(prev => ...)` directly (no manual ref mirroring needed).
+  const [pinnedTabs, setPinnedTabs] = usePersistCache('ui.tab.pinned_tabs')
 
   // Whether a tab's `isPinned` should route it into the persistent pinned list. The main
   // window surfaces pinned tabs, so it follows the flag. A detached sub-window passes
@@ -85,6 +89,20 @@ export function TabsProvider({
     (tab: Pick<Tab, 'isPinned'>) => includePinnedTabs && !!tab.isPinned,
     [includePinnedTabs]
   )
+  const restoredPinnedTabs = useMemo(() => pinnedTabs || [], [pinnedTabs])
+  const availablePinnedTabs = useMemo(
+    () => restoredPinnedTabs.filter((tab) => !isLegacyLibraryTab(tab)),
+    [restoredPinnedTabs]
+  )
+
+  useEffect(() => {
+    if (!includePinnedTabs || restoredPinnedTabs.length === availablePinnedTabs.length) return
+
+    setPinnedTabs(availablePinnedTabs)
+    logger.info('Dropped legacy library pinned tabs', {
+      count: restoredPinnedTabs.length - availablePinnedTabs.length
+    })
+  }, [availablePinnedTabs, includePinnedTabs, restoredPinnedTabs, setPinnedTabs])
 
   // Normal tabs - in-memory storage (cleared on restart)
   const [normalTabs, setNormalTabs] = useState<Tab[]>(() => (initialDefaultTab ? [initialDefaultTab] : []))
@@ -117,9 +135,9 @@ export function TabsProvider({
 
   // Merge tabs: pinned + normal (route titles follow current i18n language)
   const tabs = useMemo(() => {
-    const currentPinnedTabs = includePinnedTabs ? pinnedTabs || [] : []
+    const currentPinnedTabs = includePinnedTabs ? availablePinnedTabs : []
     return [...currentPinnedTabs.map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
-  }, [includePinnedTabs, pinnedTabs, normalTabs, i18n.language])
+  }, [availablePinnedTabs, includePinnedTabs, normalTabs, i18n.language])
 
   const updateTab = useCallback(
     (id: string, updates: Partial<Tab>) => {

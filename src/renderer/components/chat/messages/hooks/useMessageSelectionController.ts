@@ -10,8 +10,8 @@ import {
   getSelectedMessagesPlainText,
   getSelectedMessagesRichClipboardContent
 } from '@renderer/components/chat/messages/utils/messageSelection'
+import { messagesToMarkdown } from '@renderer/services/ExportService'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { messagesToMarkdown } from '@renderer/utils/export'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -69,15 +69,11 @@ export function useMessageSelectionController({
 
   const selectMessage = useCallback(
     (messageId: string, selected: boolean) => {
-      setSelectedMessageIds(
-        selected
-          ? selectedIds.includes(messageId)
-            ? selectedIds
-            : [...selectedIds, messageId]
-          : selectedIds.filter((id) => id !== messageId)
+      setSelectedMessageIds((prev) =>
+        selected ? (prev.includes(messageId) ? [...prev] : [...prev, messageId]) : prev.filter((id) => id !== messageId)
       )
     },
-    [selectedIds, setSelectedMessageIds]
+    [setSelectedMessageIds]
   )
 
   const resolveMessageIds = useCallback(

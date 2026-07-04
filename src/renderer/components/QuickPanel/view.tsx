@@ -1,5 +1,5 @@
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import { isMac } from '@renderer/config/constant'
+import { isMac } from '@renderer/utils/platform'
 import { classNames } from '@renderer/utils/style'
 import { t } from 'i18next'
 import React, { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -42,6 +42,10 @@ function isInputQueryTerminated(searchText: string) {
   return INPUT_QUERY_TERMINATOR_REGEX.test(searchText.slice(1))
 }
 
+function isInputQueryRestarted(searchText: string, triggerSymbol?: string) {
+  return Boolean(triggerSymbol && searchText.slice(triggerSymbol.length).includes(triggerSymbol))
+}
+
 function isInputQueryCursorAtEnd(text: string, cursorOffset: number) {
   const nextChar = text.slice(cursorOffset, cursorOffset + 1)
   return nextChar.length === 0 || /\s/.test(nextChar)
@@ -70,6 +74,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
 
   const closePanel = ctx.close
   const isPanelVisible = ctx.isVisible
+  // Keep close animation layout mounted until provider clears the panel payload.
+  const isPanelPresent = ctx.isVisible || Boolean(ctx.symbol)
   const registerKeyDownHandler = ctx.registerKeyDownHandler
   const getPanelGeneration = ctx.getPanelGeneration
 
@@ -97,7 +103,9 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const inputQueryConsumedRef = useRef(false)
   const prevPanelGenerationRef = useRef<number | undefined>(undefined)
   const inputTriggerSymbol = ctx.triggerInfo?.originalText?.slice(0, 1)
-  const isTrackedInputPanel = Boolean(ctx.trackInputQuery && ctx.triggerInfo?.type === 'input')
+  const isTrackedInputPanel = Boolean(
+    ctx.trackInputQuery && (ctx.triggerInfo?.type === 'input' || ctx.triggerInfo?.type === 'button')
+  )
   const activeSearchText = isTrackedInputPanel ? inputSearchText : ''
   const activeSearchQuery = getInputQueryText(activeSearchText, inputTriggerSymbol)
 
@@ -266,8 +274,13 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
     if (cursorOffset <= queryAnchor) return
 
+    if (ctx.triggerInfo?.type === 'button') {
+      const currentInputQuery = text.slice(queryAnchor, cursorOffset)
+      if (!activeSearchQuery || currentInputQuery !== activeSearchQuery) return
+    }
+
     inputAdapter.deleteTriggerRange({ from: queryAnchor, to: cursorOffset })
-  }, [ctx.queryAnchor, inputAdapter])
+  }, [activeSearchQuery, ctx.queryAnchor, ctx.triggerInfo?.type, inputAdapter])
 
   const consumeInputQueryOnce = useCallback(() => {
     if (inputQueryConsumedRef.current) return
@@ -342,7 +355,11 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       }
 
       if (item.isMenu) {
-        consumeInputTriggerSymbol()
+        if (ctx.triggerInfo?.type === 'button' && ctx.trackInputQuery) {
+          consumeInputQueryOnce()
+        } else {
+          consumeInputTriggerSymbol()
+        }
       } else {
         consumeInputQuery()
       }
@@ -391,7 +408,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    if (!isInputQueryAnchorAllowed(text, queryAnchor)) {
+    if (ctx.triggerInfo?.type === 'input' && !isInputQueryAnchorAllowed(text, queryAnchor)) {
       closePanel('input_prefix_invalid')
       return
     }
@@ -406,12 +423,17 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     const nextSearchText = text.slice(queryAnchor, cursorOffset)
-    if (isInputQueryTerminated(nextSearchText)) {
+    if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')
       return
     }
 
-    if (!isInputQueryCursorAtEnd(text, cursorOffset)) {
+    if (ctx.triggerInfo?.type === 'input' && isInputQueryRestarted(nextSearchText, inputTriggerSymbol)) {
+      closePanel('input_trigger_restarted')
+      return
+    }
+
+    if (ctx.triggerInfo?.type === 'input' && !isInputQueryCursorAtEnd(text, cursorOffset)) {
       closePanel('input_cursor_invalid')
       return
     }
@@ -446,7 +468,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    if (!isInputQueryAnchorAllowed(text, queryAnchor)) {
+    if (ctx.triggerInfo?.type === 'input' && !isInputQueryAnchorAllowed(text, queryAnchor)) {
       closePanel('input_prefix_invalid')
       return
     }
@@ -457,12 +479,17 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     }
 
     const nextSearchText = text.slice(queryAnchor, cursorOffset)
-    if (isInputQueryTerminated(nextSearchText)) {
+    if (ctx.triggerInfo?.type === 'input' && isInputQueryTerminated(nextSearchText)) {
       closePanel('input_query_terminated')
       return
     }
 
-    if (!isInputQueryCursorAtEnd(text, cursorOffset)) {
+    if (ctx.triggerInfo?.type === 'input' && isInputQueryRestarted(nextSearchText, inputTriggerSymbol)) {
+      closePanel('input_trigger_restarted')
+      return
+    }
+
+    if (ctx.triggerInfo?.type === 'input' && !isInputQueryCursorAtEnd(text, cursorOffset)) {
       closePanel('input_cursor_invalid')
       return
     }
@@ -705,7 +732,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   const [measuredChromeHeight, setMeasuredChromeHeight] = useState<number | null>(null)
 
   useLayoutEffect(() => {
-    if (!ctx.isVisible || ctx.readOnly) {
+    if (!isPanelPresent || ctx.readOnly) {
       setMeasuredChromeHeight(null)
       return
     }
@@ -726,12 +753,12 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     resizeObserver.observe(footerElement)
 
     return () => resizeObserver.disconnect()
-  }, [ctx.isVisible, ctx.readOnly])
+  }, [isPanelPresent, ctx.readOnly])
 
   // Fill (home placement) measures the available height above the input against the dock layer.
   // Docked composers keep the original fixed height and skip this cap.
   useLayoutEffect(() => {
-    if (!ctx.isVisible || !ctx.fillToAvailableHeight) {
+    if (!isPanelPresent || !ctx.fillToAvailableHeight) {
       setAvailableHeight(null)
       return
     }
@@ -765,7 +792,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       resizeObserver?.disconnect()
       window.removeEventListener('resize', syncPlacementMetrics)
     }
-  }, [ctx.isVisible, ctx.fillToAvailableHeight])
+  }, [isPanelPresent, ctx.fillToAvailableHeight])
 
   const hasSearchText = useMemo(() => activeSearchQuery.length > 0, [activeSearchQuery])
   // Collapse is based only on regular matches. Pinned-only results still count as no match.
@@ -774,7 +801,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
   // Read-only panels keep the original fixed height to avoid header offset changes.
   const fillEffective = fill && !ctx.readOnly
   const { panelMaxHeight, listHeight } = getQuickPanelHeights({
-    isVisible: ctx.isVisible,
+    isVisible: isPanelPresent,
     collapsed,
     readOnly: ctx.readOnly ?? false,
     pageSize: ctx.pageSize,
@@ -828,7 +855,8 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       ref={panelRef}
       style={{ maxHeight: panelMaxHeight }}
       className={classNames(
-        '-top-1 -translate-y-full absolute right-2 left-2 flex origin-bottom flex-col justify-end transition-[max-height] duration-200 ease-in-out',
+        '-top-1 -translate-y-full absolute right-2 left-2 flex origin-bottom flex-col justify-end',
+        ctx.isVisible ? 'transition-[max-height] duration-200 ease-in-out' : 'transition-none',
         ctx.isVisible ? 'overflow-visible' : 'overflow-hidden',
         ctx.isVisible && 'visible',
         ctx.isVisible ? 'pointer-events-auto' : 'pointer-events-none'
@@ -839,15 +867,10 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
         data-testid="quick-panel-body"
         style={constrainBody ? { height: panelMaxHeight } : undefined}
         className={classNames(
-          'relative isolate transform-gpu rounded-xl border border-border/80 bg-popover py-1.25 text-popover-foreground transition-[transform,opacity,box-shadow] duration-200 ease-out will-change-transform motion-reduce:translate-y-0 motion-reduce:scale-100 motion-reduce:opacity-100 motion-reduce:transition-none [&::-webkit-scrollbar]:w-0.75',
+          'relative isolate transform-gpu rounded-xl border border-border/80 bg-popover py-1.25 text-popover-foreground transition-[translate,scale,opacity,box-shadow] duration-200 ease-out will-change-transform motion-reduce:translate-y-0 motion-reduce:scale-100 motion-reduce:opacity-100 motion-reduce:transition-none [&::-webkit-scrollbar]:w-0.75',
           constrainBody && 'flex flex-col justify-end',
           ctx.isVisible
-            ? classNames(
-                'translate-y-0 scale-100 opacity-100',
-                fillEffective
-                  ? 'shadow-[0_12px_30px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.05)] dark:shadow-[0_14px_34px_rgba(0,0,0,0.26),0_4px_12px_rgba(0,0,0,0.18)]'
-                  : 'shadow-[0_18px_44px_rgba(15,23,42,0.16),0_4px_12px_rgba(15,23,42,0.10)] dark:shadow-[0_22px_48px_rgba(0,0,0,0.46),0_8px_18px_rgba(0,0,0,0.35)]'
-              )
+            ? classNames('translate-y-0 scale-100 opacity-100', 'shadow-none')
             : 'translate-y-3 scale-[0.985] opacity-0 shadow-none'
         )}
         onKeyDown={handlePanelKeyDown}

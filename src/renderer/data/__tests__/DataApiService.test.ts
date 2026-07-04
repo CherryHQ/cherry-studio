@@ -5,7 +5,7 @@ const configMock = vi.hoisted(() => ({
   isDev: true
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   get isDev() {
     return configMock.isDev
   }

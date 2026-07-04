@@ -1,5 +1,8 @@
+import {
+  DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS,
+  getMessageMenuBarConfig
+} from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
 import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
-import { DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS, getMessageMenuBarConfig } from '@renderer/config/registry/messageMenuBar'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, MouseEvent, ReactElement, ReactNode } from 'react'
@@ -110,8 +113,11 @@ vi.mock('@renderer/services/MessagesService', () => ({
   getMessageTitle: vi.fn()
 }))
 
+vi.mock('@renderer/services/ExportService', () => ({
+  messageToMarkdown: vi.fn()
+}))
+
 vi.mock('@renderer/utils/export', () => ({
-  messageToMarkdown: vi.fn(),
   messageToPlainText: vi.fn(() => 'plain text')
 }))
 
@@ -132,7 +138,7 @@ import {
 
 const t = ((key: string) => key) as any
 
-function createContext(overrides: Partial<MessageMenuBarActionContext> = {}): MessageMenuBarActionContext {
+function createActionContext(overrides: Partial<MessageMenuBarActionContext> = {}): MessageMenuBarActionContext {
   const baseActions = {
     copyText: vi.fn(),
     copyImage: vi.fn(),
@@ -187,7 +193,7 @@ function createContext(overrides: Partial<MessageMenuBarActionContext> = {}): Me
 describe('messageMenuBarActions', () => {
   it('keeps write actions hidden when capabilities are absent', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createContext({
+      createActionContext({
         message: {
           id: 'message-1',
           role: 'user',
@@ -206,7 +212,7 @@ describe('messageMenuBarActions', () => {
 
   it('keeps user edit toolbar action for root messages', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createContext({
+      createActionContext({
         message: {
           id: 'message-1',
           role: 'user',
@@ -228,7 +234,7 @@ describe('messageMenuBarActions', () => {
 
   it('keeps user edit toolbar action for non-root messages', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createContext({
+      createActionContext({
         message: {
           id: 'message-1',
           role: 'user',
@@ -250,7 +256,7 @@ describe('messageMenuBarActions', () => {
 
   it('keeps edit menu action for root messages', () => {
     const menuActions = resolveMessageMenuBarMenuActions(
-      createContext({
+      createActionContext({
         message: {
           id: 'message-1',
           role: 'user',
@@ -272,7 +278,7 @@ describe('messageMenuBarActions', () => {
 
   it('resolves assistant toolbar actions from capabilities', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createContext({
+      createActionContext({
         actions: {
           deleteMessage: vi.fn(),
           exportToNotes: vi.fn(),
@@ -306,7 +312,7 @@ describe('messageMenuBarActions', () => {
 
   it('does not require confirmation before regenerating an assistant message', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createContext({
+      createActionContext({
         actions: {
           regenerateMessage: vi.fn()
         } as MessageListActions
@@ -318,7 +324,7 @@ describe('messageMenuBarActions', () => {
 
   it('renders mention-model picker with a direct button trigger', () => {
     const renderRegenerateModelPicker = vi.fn(({ trigger }) => <div data-testid="model-picker">{trigger}</div>)
-    const context = createContext({
+    const context = createActionContext({
       actions: { renderRegenerateModelPicker } as unknown as MessageListActions
     })
     const action = resolveMessageMenuBarToolbarActions(context).find((item) => item.id === 'assistant-mention-model')
@@ -349,7 +355,7 @@ describe('messageMenuBarActions', () => {
   it('keeps the more menu tooltip controlled while opening the menu with one click', () => {
     tooltipOpenValues.length = 0
 
-    const context = createContext()
+    const context = createActionContext()
     const action = resolveMessageMenuBarToolbarActions(context).find((item) => item.id === 'more-menu')
     const executeAction = vi.fn()
 
@@ -395,7 +401,7 @@ describe('messageMenuBarActions', () => {
   it('suppresses the more menu tooltip after the menu closes until the trigger is left', () => {
     tooltipOpenValues.length = 0
 
-    const MessageMenuActionContext = createContext()
+    const MessageMenuActionContext = createActionContext()
     const action = resolveMessageMenuBarToolbarActions(MessageMenuActionContext).find((item) => item.id === 'more-menu')
 
     expect(action).toBeTruthy()
@@ -444,7 +450,7 @@ describe('messageMenuBarActions', () => {
   it('keeps the translate tooltip controlled while opening the language menu with one click', () => {
     tooltipOpenValues.length = 0
 
-    const context = createContext({
+    const context = createActionContext({
       actions: {
         translateMessage: vi.fn()
       } as unknown as MessageListActions,
@@ -486,7 +492,7 @@ describe('messageMenuBarActions', () => {
   it('suppresses the translate tooltip after the language menu closes until a new trigger hover starts', () => {
     tooltipOpenValues.length = 0
 
-    const MessageMenuActionContext = createContext({
+    const MessageMenuActionContext = createActionContext({
       actions: {
         translateMessage: vi.fn()
       } as unknown as MessageListActions,
@@ -531,7 +537,7 @@ describe('messageMenuBarActions', () => {
   it('keeps session scope capability-driven for toolbar actions', () => {
     const sessionConfig = getMessageMenuBarConfig(TopicType.Session)
     const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createContext({
+      createActionContext({
         actions: {
           deleteMessage: vi.fn(),
           exportToNotes: vi.fn(),
@@ -549,7 +555,7 @@ describe('messageMenuBarActions', () => {
 
   it('keeps menu actions capability-driven instead of filtering by session roots', () => {
     const menuActions = resolveMessageMenuBarMenuActions(
-      createContext({
+      createActionContext({
         actions: {
           exportMessageAsMarkdown: vi.fn(),
           saveTextFile: vi.fn(),
@@ -578,7 +584,7 @@ describe('messageMenuBarActions', () => {
 
   it('hides new branch from the latest message menu', () => {
     const menuActions = resolveMessageMenuBarMenuActions(
-      createContext({
+      createActionContext({
         actions: {
           startMessageBranch: vi.fn(),
           toggleMultiSelectMode: vi.fn()
@@ -597,7 +603,7 @@ describe('messageMenuBarActions', () => {
 
   it('hides new branch from user message menus', () => {
     const menuActions = resolveMessageMenuBarMenuActions(
-      createContext({
+      createActionContext({
         actions: {
           startMessageBranch: vi.fn(),
           toggleMultiSelectMode: vi.fn()
@@ -617,7 +623,7 @@ describe('messageMenuBarActions', () => {
 
   it('disables streaming-unsafe toolbar actions while keeping copy enabled', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createContext({
+      createActionContext({
         actions: {
           deleteMessage: vi.fn(),
           regenerateMessage: vi.fn()
@@ -635,7 +641,7 @@ describe('messageMenuBarActions', () => {
     const translateMessage = vi.fn()
     const language = { langCode: 'fr', label: 'French' } as any
     const translationItems = resolveMessageMenuBarTranslationItems(
-      createContext({
+      createActionContext({
         actions: { translateMessage } as MessageListActions,
         translateLanguages: [language],
         getTranslationLanguageLabel: () => 'French'
@@ -657,7 +663,7 @@ describe('messageMenuBarActions', () => {
 
   it('keeps copy-translation item available without translate capability', () => {
     const translationItems = resolveMessageMenuBarTranslationItems(
-      createContext({
+      createActionContext({
         hasTranslationBlocks: true,
         messageParts: [{ type: 'data-translation', data: { content: 'translated text' } }] as any
       })
@@ -670,7 +676,7 @@ describe('messageMenuBarActions', () => {
     const removeMessageTranslation = vi.fn()
     const notifySuccess = vi.fn()
     const translationItems = resolveMessageMenuBarTranslationItems(
-      createContext({
+      createActionContext({
         hasTranslationBlocks: true,
         messageParts: [{ type: 'data-translation', data: { content: 'translated text' } }] as any,
         actions: { copyText: vi.fn(), removeMessageTranslation, notifySuccess } as MessageListActions
@@ -692,7 +698,7 @@ describe('messageMenuBarActions', () => {
 
   it('enables the translate toolbar action as abort while translation is running', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createContext({
+      createActionContext({
         actions: { abortMessageTranslation: vi.fn() } as MessageListActions,
         isTranslating: true
       })
@@ -704,7 +710,7 @@ describe('messageMenuBarActions', () => {
   it('routes copy through the injected clipboard action', async () => {
     const copyText = vi.fn()
     const setCopied = vi.fn()
-    const context = createContext({
+    const context = createActionContext({
       actions: { copyText } as MessageListActions,
       setCopied
     })
@@ -719,7 +725,7 @@ describe('messageMenuBarActions', () => {
     const copyText = vi.fn()
     const copyRichContent = vi.fn()
     const setCopied = vi.fn()
-    const context = createContext({
+    const context = createActionContext({
       actions: { copyText, copyRichContent } as unknown as MessageListActions,
       message: {
         id: 'message-1',
@@ -776,7 +782,7 @@ describe('messageMenuBarActions', () => {
     const copyText = vi.fn().mockRejectedValue(new Error('clipboard denied'))
     const notifyError = vi.fn()
     const setCopied = vi.fn()
-    const context = createContext({
+    const context = createActionContext({
       actions: { copyText, notifyError } as MessageListActions,
       setCopied
     })

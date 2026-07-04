@@ -68,6 +68,7 @@ describe('createWebSearchProvider', () => {
       'exa',
       'exa-mcp',
       'fetch',
+      'firecrawl',
       'jina',
       'querit',
       'searxng',

@@ -2,7 +2,6 @@ import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
 import { useTranslation } from 'react-i18next'
 
-import { isRerankModel, KnowledgeModelSelect } from '../../components/KnowledgeModelSelect'
 import { RagFieldLabel, RagSelectField, RagSliderField } from './panelPrimitives'
 
 const DEFAULT_HYBRID_ALPHA = 0.5
@@ -13,12 +12,13 @@ interface RetrievalSectionProps {
   threshold: number
   searchMode: KnowledgeSearchMode
   hybridAlpha: number | null
+  // Read-only here: the rerank picker lives in its own section, but its value still
+  // drives whether the relevance threshold slider is shown.
   rerankModelId: string | null
   onDocumentCountChange: (value: number) => void
   onThresholdChange: (value: number) => void
   onSearchModeChange: (value: KnowledgeSearchMode) => void
   onHybridAlphaChange: (value: number) => void
-  onRerankModelChange: (value: string | null) => void
 }
 
 const RetrievalSection = ({
@@ -31,8 +31,7 @@ const RetrievalSection = ({
   onDocumentCountChange,
   onThresholdChange,
   onSearchModeChange,
-  onHybridAlphaChange,
-  onRerankModelChange
+  onHybridAlphaChange
 }: RetrievalSectionProps) => {
   const { t } = useTranslation()
   const isHybridMode = searchMode === 'hybrid'
@@ -91,19 +90,6 @@ const RetrievalSection = ({
           formatValue={(value) => value.toFixed(1)}
         />
       ) : null}
-
-      <div>
-        <RagFieldLabel label={t('knowledge.rag.rerank_model')} hint={t('knowledge.rag.hints.rerank_model')} />
-        <KnowledgeModelSelect
-          aria-label={t('knowledge.rag.rerank_model')}
-          value={rerankModelId}
-          placeholder={t('knowledge.rag.rerank_disabled')}
-          filter={isRerankModel}
-          allowClear
-          clearAriaLabel={t('knowledge.rag.rerank_disabled')}
-          onChange={onRerankModelChange}
-        />
-      </div>
     </div>
   )
 }
