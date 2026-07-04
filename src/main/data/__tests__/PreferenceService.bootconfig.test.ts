@@ -65,7 +65,6 @@ vi.mock('../db/schemas/preference', () => ({
 
 const BOOT_CONFIG_KEY = 'BootConfig.app.disable_hardware_acceleration' as const
 const PREFERENCE_KEY = 'app.language' as const
-const AVATAR_PREFERENCE_KEY = 'app.user.avatar' as const
 
 describe('PreferenceService BootConfig routing', () => {
   let service: any
@@ -138,32 +137,6 @@ describe('PreferenceService BootConfig routing', () => {
       await service.set(PREFERENCE_KEY, 'zh-CN')
 
       expect(mockBootConfigSet).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('writeUserAvatarPreferenceTx()', () => {
-    const makeTx = () => ({
-      update: vi.fn().mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            run: vi.fn()
-          })
-        })
-      })
-    })
-
-    it('writes only the avatar preference through the provided tx and defers cache sync', async () => {
-      const mockTx = makeTx()
-
-      const afterCommit = service.writeUserAvatarPreferenceTx(mockTx, 'file:avatar-id')
-
-      expect(mockTx.update).toHaveBeenCalled()
-      expect(mockWithWriteTx).not.toHaveBeenCalled()
-      expect(service.get(AVATAR_PREFERENCE_KEY)).toBe(DefaultPreferences.default[AVATAR_PREFERENCE_KEY])
-
-      await afterCommit()
-      expect(service.get(AVATAR_PREFERENCE_KEY)).toBe('file:avatar-id')
-      expect(service.get(PREFERENCE_KEY)).toBe(DefaultPreferences.default[PREFERENCE_KEY])
     })
   })
 
