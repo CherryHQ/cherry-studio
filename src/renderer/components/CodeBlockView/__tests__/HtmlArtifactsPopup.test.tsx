@@ -57,7 +57,7 @@ vi.mock('@renderer/utils/platform', () => ({
 
 vi.mock('@renderer/utils/image', () => ({
   captureScrollableIframeAsBlob: vi.fn(),
-  captureScrollableIframeAsDataURL: vi.fn()
+  captureScrollableIframeAsDataUrl: vi.fn()
 }))
 
 describe('HtmlArtifactsPopup', () => {

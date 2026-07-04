@@ -1,57 +1,51 @@
-import type React from 'react'
 import { describe, expect, it } from 'vitest'
 
 import { createOutputScrollHandler } from '../scrollSync'
 
 describe('createOutputScrollHandler', () => {
-  const createTextareaWithScrollMetrics = (scrollHeight: number, clientHeight: number) => {
-    const input = document.createElement('textarea')
-    Object.defineProperty(input, 'scrollHeight', { configurable: true, value: scrollHeight })
-    Object.defineProperty(input, 'clientHeight', { configurable: true, value: clientHeight })
-    return input
+  const createElementWithScrollMetrics = (scrollHeight: number, clientHeight: number, scrollTop = 0) => {
+    const element = document.createElement('div')
+    element.scrollTop = scrollTop
+    Object.defineProperty(element, 'scrollHeight', { configurable: true, value: scrollHeight })
+    Object.defineProperty(element, 'clientHeight', { configurable: true, value: clientHeight })
+    return element
   }
 
-  const createOutputEvent = (overrides?: Partial<HTMLDivElement>) =>
-    ({
-      currentTarget: {
-        scrollTop: 20,
-        scrollHeight: 240,
-        clientHeight: 120,
-        ...overrides
-      }
-    }) as React.UIEvent<HTMLDivElement>
-
-  it('syncs scroll when textarea ref points to native HTMLTextAreaElement', () => {
-    const input = createTextareaWithScrollMetrics(300, 150)
-    const textAreaRef = { current: input }
+  it('syncs scroll when refs point to scroll containers', () => {
+    const source = createElementWithScrollMetrics(240, 120, 20)
+    const input = createElementWithScrollMetrics(300, 150)
+    const sourceRef = { current: source }
+    const inputRef = { current: input }
     const isProgrammaticScrollRef = { current: false }
 
-    const onScroll = createOutputScrollHandler(textAreaRef, isProgrammaticScrollRef, true)
-    onScroll(createOutputEvent())
+    const onScroll = createOutputScrollHandler(sourceRef, inputRef, isProgrammaticScrollRef, true)
+    onScroll()
 
     expect(input.scrollTop).toBeGreaterThan(0)
   })
 
   it('short-circuits when scroll sync is disabled', () => {
-    const input = document.createElement('textarea')
-    input.scrollTop = 0
-    const textAreaRef = { current: input }
+    const source = createElementWithScrollMetrics(240, 120, 20)
+    const input = createElementWithScrollMetrics(300, 150)
+    const sourceRef = { current: source }
+    const inputRef = { current: input }
     const isProgrammaticScrollRef = { current: false }
 
-    const onScroll = createOutputScrollHandler(textAreaRef, isProgrammaticScrollRef, false)
-    onScroll(createOutputEvent())
+    const onScroll = createOutputScrollHandler(sourceRef, inputRef, isProgrammaticScrollRef, false)
+    onScroll()
 
     expect(input.scrollTop).toBe(0)
   })
 
   it('short-circuits when programmatic scroll guard is active', () => {
-    const input = document.createElement('textarea')
-    input.scrollTop = 0
-    const textAreaRef = { current: input }
+    const source = createElementWithScrollMetrics(240, 120, 20)
+    const input = createElementWithScrollMetrics(300, 150)
+    const sourceRef = { current: source }
+    const inputRef = { current: input }
     const isProgrammaticScrollRef = { current: true }
 
-    const onScroll = createOutputScrollHandler(textAreaRef, isProgrammaticScrollRef, true)
-    onScroll(createOutputEvent())
+    const onScroll = createOutputScrollHandler(sourceRef, inputRef, isProgrammaticScrollRef, true)
+    onScroll()
 
     expect(input.scrollTop).toBe(0)
   })

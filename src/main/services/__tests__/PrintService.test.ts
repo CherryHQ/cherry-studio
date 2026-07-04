@@ -9,7 +9,7 @@ const { writeFile } = vi.hoisted(() => ({
   writeFile: vi.fn()
 }))
 
-vi.mock('@main/utils/language', () => ({
+vi.mock('@main/i18n', () => ({
   t: (key: string) => key
 }))
 

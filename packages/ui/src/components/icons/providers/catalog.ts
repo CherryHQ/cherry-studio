@@ -34,6 +34,7 @@ import { BurncloudIcon } from './burncloud'
 import { BytedanceIcon } from './bytedance'
 import { CerebrasIcon } from './cerebras'
 import { CherryinIcon } from './cherryin'
+import { ClaudeCodeIcon } from './claude-code'
 import { CloudflareIcon } from './cloudflare'
 import { CohereIcon } from './cohere'
 import { ComposioIcon } from './composio'
@@ -195,6 +196,7 @@ export const PROVIDER_ICON_CATALOG = {
   bytedance: BytedanceIcon,
   cerebras: CerebrasIcon,
   cherryin: CherryinIcon,
+  'claude-code': ClaudeCodeIcon,
   cloudflare: CloudflareIcon,
   cohere: CohereIcon,
   composio: ComposioIcon,

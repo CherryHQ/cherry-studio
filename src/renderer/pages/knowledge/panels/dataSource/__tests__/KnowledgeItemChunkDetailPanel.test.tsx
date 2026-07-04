@@ -47,7 +47,9 @@ const chunks: KnowledgeItemChunk[] = [
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-    <button {...props}>{children}</button>
+    <button type="button" {...props}>
+      {children}
+    </button>
   ),
   EmptyState: ({ title, description }: { title?: ReactNode; description?: ReactNode }) => (
     <div>

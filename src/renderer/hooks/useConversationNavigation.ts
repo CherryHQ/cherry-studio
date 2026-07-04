@@ -1,9 +1,6 @@
-import {
-  emitResourceListReveal,
-  type ResourceListRevealSource
-} from '@renderer/components/chat/resources/resourceListRevealEvents'
-import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { type TabsContextValue, useOptionalTabsContext } from '@renderer/hooks/tab'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
   buildSidebarAppOpenMetadata,

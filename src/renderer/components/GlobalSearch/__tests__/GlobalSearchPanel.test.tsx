@@ -221,12 +221,12 @@ vi.mock('@renderer/components/resource/dialogs', () => ({
     target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
 }))
 
-vi.mock('@renderer/components/Icons/SvgIcon', () => ({
+vi.mock('@renderer/components/icons/SvgIcon', () => ({
   OpenClawIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />,
   OpenClawSidebarIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />
 }))
 
-vi.mock('@renderer/components/Icons/MiniAppIcon', () => ({
+vi.mock('@renderer/components/icons/MiniAppIcon', () => ({
   default: ({ app }: any) => <span aria-hidden="true">{app.logo ?? 'mini-app-icon'}</span>
 }))
 

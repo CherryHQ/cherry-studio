@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { LogoAvatar } from '@renderer/components/Icons'
-import { getMiniAppsLogo } from '@renderer/components/Icons/miniAppsLogo'
+import { LogoAvatar } from '@renderer/components/icons'
+import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
