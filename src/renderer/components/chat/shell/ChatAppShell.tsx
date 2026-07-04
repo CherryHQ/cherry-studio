@@ -38,6 +38,7 @@ interface ChatAppShellBaseProps {
   centerRef?: Ref<HTMLDivElement>
   centerClassName?: string
   onPaneCollapse?: () => void
+  onPaneAutoCollapseChange?: (collapsed: boolean) => void
 }
 
 type ChatAppShellMainProps = ChatAppShellBaseProps & {
@@ -72,14 +73,16 @@ export function ChatAppShell({
   centerId,
   centerRef,
   centerClassName,
-  onPaneCollapse
+  onPaneCollapse,
+  onPaneAutoCollapseChange
 }: ChatAppShellProps) {
   const hasCenterContent = centerContent !== undefined
   const leftPaneOpen = Boolean(paneOpen && panePosition === 'left')
   const rootRef = useRef<HTMLDivElement>(null)
   const centerInnerRef = useRef<HTMLDivElement | null>(null)
   const leftPaneOpenRef = useRef(leftPaneOpen)
-  const onPaneCollapseRef = useRef(onPaneCollapse)
+  const onPaneAutoCollapseChangeRef = useRef(onPaneAutoCollapseChange)
+  const autoCollapsedRef = useRef(false)
   const previousShellWidthRef = useRef<number | null>(null)
   const previousCenterWidthRef = useRef<number | null>(null)
 
@@ -110,14 +113,14 @@ export function ChatAppShell({
 
   useEffect(() => {
     leftPaneOpenRef.current = leftPaneOpen
-    onPaneCollapseRef.current = onPaneCollapse
-  }, [leftPaneOpen, onPaneCollapse])
+    onPaneAutoCollapseChangeRef.current = onPaneAutoCollapseChange
+  }, [leftPaneOpen, onPaneAutoCollapseChange])
 
   useLayoutEffect(() => {
     const center = centerInnerRef.current
     if (!center || typeof ResizeObserver === 'undefined') return
     const initialCenterWidth = center.getBoundingClientRect().width
-    previousCenterWidthRef.current = initialCenterWidth > 0 ? initialCenterWidth : CHAT_CENTER_MIN_USABLE_WIDTH
+    previousCenterWidthRef.current = initialCenterWidth > 0 ? initialCenterWidth : null
     setCenterWidth(initialCenterWidth)
     const observer = new ResizeObserver(([entry]) => {
       const previousCenterWidth = previousCenterWidthRef.current
@@ -126,11 +129,25 @@ export function ChatAppShell({
       setCenterWidth(nextCenterWidth)
 
       if (previousCenterWidth === null) return
-      if (!leftPaneOpenRef.current) return
-      if (previousCenterWidth < CHAT_CENTER_MIN_USABLE_WIDTH) return
-      if (nextCenterWidth >= CHAT_CENTER_MIN_USABLE_WIDTH) return
 
-      onPaneCollapseRef.current?.()
+      if (
+        leftPaneOpenRef.current &&
+        previousCenterWidth >= CHAT_CENTER_MIN_USABLE_WIDTH &&
+        nextCenterWidth < CHAT_CENTER_MIN_USABLE_WIDTH
+      ) {
+        autoCollapsedRef.current = true
+        onPaneAutoCollapseChangeRef.current?.(true)
+        return
+      }
+
+      if (
+        autoCollapsedRef.current &&
+        previousCenterWidth < CHAT_CENTER_MIN_USABLE_WIDTH &&
+        nextCenterWidth >= CHAT_CENTER_MIN_USABLE_WIDTH
+      ) {
+        autoCollapsedRef.current = false
+        onPaneAutoCollapseChangeRef.current?.(false)
+      }
     })
     observer.observe(center)
     return () => observer.disconnect()
@@ -146,11 +163,25 @@ export function ChatAppShell({
       previousShellWidthRef.current = nextShellWidth
 
       if (previousShellWidth === null) return
-      if (!leftPaneOpenRef.current) return
-      if (previousShellWidth < RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH) return
-      if (nextShellWidth >= RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH) return
 
-      onPaneCollapseRef.current?.()
+      if (
+        leftPaneOpenRef.current &&
+        previousShellWidth >= RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH &&
+        nextShellWidth < RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH
+      ) {
+        autoCollapsedRef.current = true
+        onPaneAutoCollapseChangeRef.current?.(true)
+        return
+      }
+
+      if (
+        autoCollapsedRef.current &&
+        previousShellWidth < RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH &&
+        nextShellWidth >= RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH
+      ) {
+        autoCollapsedRef.current = false
+        onPaneAutoCollapseChangeRef.current?.(false)
+      }
     })
 
     observer.observe(root)

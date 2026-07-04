@@ -337,7 +337,8 @@ vi.mock('../AgentChat', () => ({
     showResourceListControls,
     sessionPaneOpen,
     onSessionPaneOpenChange,
-    onPaneCollapse
+    onPaneCollapse,
+    onPaneAutoCollapseChange
   }: {
     activeSession?: { id: string } | null
     activeSessionLoading?: boolean
@@ -369,6 +370,7 @@ vi.mock('../AgentChat', () => ({
     sessionPaneOpen?: boolean
     onSessionPaneOpenChange?: (open: boolean) => void
     onPaneCollapse?: () => void
+    onPaneAutoCollapseChange?: (collapsed: boolean) => void
   }) => (
     <section data-testid="agent-chat">
       <output data-testid="active-session">{activeSession?.id ?? ''}</output>
@@ -382,6 +384,16 @@ vi.mock('../AgentChat', () => ({
       <output data-testid="pane-open">{String(paneOpen)}</output>
       <output data-testid="session-pane-open">{String(sessionPaneOpen)}</output>
       <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
+      {onPaneAutoCollapseChange && (
+        <>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
+            Auto collapse pane
+          </button>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(false)}>
+            Auto restore pane
+          </button>
+        </>
+      )}
       {resourcePaneCount && (
         <output data-testid="resource-pane-count">
           {resourcePaneCount.label}:{resourcePaneCount.count}
@@ -1337,6 +1349,25 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.setShowSidebar).toHaveBeenCalledWith(false))
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+  })
+  it('temporarily hides and restores the agent sidebar for responsive auto-collapse without changing the user preference', async () => {
+    agentPageMocks.showSidebar = true
+
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auto collapse pane' }))
+
+    await waitFor(() => expect(screen.getByTestId('pane-open')).toHaveTextContent('false'))
+    expect(agentPageMocks.setShowSidebar).not.toHaveBeenCalled()
+    expect(agentPageMocks.showSidebar).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auto restore pane' }))
+
+    await waitFor(() => expect(screen.getByTestId('pane-open')).toHaveTextContent('true'))
+    expect(agentPageMocks.setShowSidebar).not.toHaveBeenCalled()
+    expect(agentPageMocks.showSidebar).toBe(true)
   })
 
   it('removes the session sidebar entirely in a detached agent window, shortcut included', () => {

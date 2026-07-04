@@ -155,15 +155,27 @@ vi.mock('@renderer/components/chat/shell/ConversationPageShell', () => ({
     center,
     pane,
     paneOpen,
-    topBar
+    topBar,
+    onPaneAutoCollapseChange
   }: {
     center?: { content?: ReactNode }
     pane?: ReactNode
     paneOpen?: boolean
     topBar?: ReactNode
+    onPaneAutoCollapseChange?: (collapsed: boolean) => void
   }) => (
     <section data-testid="home-conversation-page-shell">
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      {onPaneAutoCollapseChange && (
+        <>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
+            Auto collapse pane
+          </button>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(false)}>
+            Auto restore pane
+          </button>
+        </>
+      )}
       <div>{topBar}</div>
       <div>{pane}</div>
       <div>{center?.content}</div>
@@ -176,15 +188,27 @@ vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
     topBar,
     pane,
     paneOpen,
-    center
+    center,
+    onPaneAutoCollapseChange
   }: {
     topBar?: ReactNode
     pane?: ReactNode
     paneOpen?: boolean
     center?: ReactNode
+    onPaneAutoCollapseChange?: (collapsed: boolean) => void
   }) => (
     <section>
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      {onPaneAutoCollapseChange && (
+        <>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
+            Auto collapse pane
+          </button>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(false)}>
+            Auto restore pane
+          </button>
+        </>
+      )}
       <div>{topBar}</div>
       <div>{pane}</div>
       <div>{center}</div>
@@ -405,7 +429,8 @@ vi.mock('../Chat', () => ({
     onCreateEmptyTopic,
     onNewTopic,
     onLocateMessageHandled,
-    onPaneCollapse
+    onPaneCollapse,
+    onPaneAutoCollapseChange
   }: {
     activeTopic: Topic
     pane?: ReactNode
@@ -417,6 +442,7 @@ vi.mock('../Chat', () => ({
     onNewTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
     onLocateMessageHandled?: () => void
     onPaneCollapse?: () => void
+    onPaneAutoCollapseChange?: (collapsed: boolean) => void
   }) => (
     <section>
       <output data-testid="active-topic">{activeTopic.id}</output>
@@ -458,6 +484,16 @@ vi.mock('../Chat', () => ({
         <button type="button" onClick={onPaneCollapse}>
           Collapse pane
         </button>
+      )}
+      {onPaneAutoCollapseChange && (
+        <>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
+            Auto collapse pane
+          </button>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(false)}>
+            Auto restore pane
+          </button>
+        </>
       )}
       {pane}
     </section>
@@ -1141,6 +1177,25 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false))
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+  })
+  it('temporarily hides and restores the topic sidebar for responsive auto-collapse without changing the user preference', async () => {
+    homeMocks.preferenceValues.set('topic.tab.show', true)
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auto collapse pane' }))
+
+    await waitFor(() => expect(screen.getByTestId('pane-open')).toHaveTextContent('false'))
+    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
+    expect(homeMocks.preferenceValues.get('topic.tab.show')).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auto restore pane' }))
+
+    await waitFor(() => expect(screen.getByTestId('pane-open')).toHaveTextContent('true'))
+    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
+    expect(homeMocks.preferenceValues.get('topic.tab.show')).toBe(true)
   })
 
   it('starts a draft assistant selection when history clears the selected topic', async () => {

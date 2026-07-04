@@ -122,6 +122,7 @@ const HomePage: FC = () => {
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const [autoCollapsedResourceList, setAutoCollapsedResourceList] = useState(false)
   const [topicLayout] = usePreference('topic.layout')
   const isClassicTopicLayout = topicLayout === 'classic'
   // Classic-layout right-pane open state, cached on the assistant surface's own key.
@@ -148,7 +149,7 @@ const HomePage: FC = () => {
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   // Detached windows are single-topic: no topic list, so no sidebar at all.
   const isWindowFrame = useWindowFrame().mode === 'window'
-  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar
+  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar && !autoCollapsedResourceList
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
     isMessageOnlyView ? routeTopicId : undefined
   )
@@ -392,10 +393,14 @@ const HomePage: FC = () => {
   )
   const setResourceListOpen = useCallback(
     (open: boolean) => {
+      setAutoCollapsedResourceList(false)
       void setShowSidebar(open)
     },
     [setShowSidebar]
   )
+  const handleResourceListAutoCollapseChange = useCallback((collapsed: boolean) => {
+    setAutoCollapsedResourceList(collapsed)
+  }, [])
   const toggleResourceListOpen = useCallback(() => {
     if (isMessageOnlyView || isWindowFrame) return
 
@@ -815,6 +820,7 @@ const HomePage: FC = () => {
             paneOpen={effectiveShowSidebar}
             panePosition={panePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
+            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
           />
         </ContentContainer>
         {assistantPickerDialog}
@@ -834,6 +840,7 @@ const HomePage: FC = () => {
             paneOpen={effectiveShowSidebar}
             panePosition={panePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
+            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
             onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
             onCreateEmptyTopic={isClassicTopicLayout && !isMessageOnlyView ? createAndActivateEmptyTopic : undefined}
             onDraftAssistantChange={updateDraftAssistantSelection}
@@ -863,6 +870,7 @@ const HomePage: FC = () => {
           paneOpen={effectiveShowSidebar}
           panePosition={panePosition}
           onPaneCollapse={() => setResourceListOpen(false)}
+          onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
           onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
           onCreateEmptyTopic={isClassicTopicLayout && !isMessageOnlyView ? createAndActivateEmptyTopic : undefined}
           showResourceListControls={!isMessageOnlyView && !isWindowFrame}
@@ -886,6 +894,7 @@ type DraftWelcomeChatProps = {
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   onPaneCollapse?: () => void
+  onPaneAutoCollapseChange?: (collapsed: boolean) => void
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
@@ -904,6 +913,7 @@ function DraftWelcomeChat({
   paneOpen,
   panePosition,
   onPaneCollapse,
+  onPaneAutoCollapseChange,
   onNewTopic,
   onCreateEmptyTopic,
   onDraftAssistantChange,
@@ -936,6 +946,7 @@ function DraftWelcomeChat({
       paneOpen={paneOpen}
       panePosition={panePosition}
       onPaneCollapse={onPaneCollapse}
+      onPaneAutoCollapseChange={onPaneAutoCollapseChange}
       topBar={
         <ChatNavbar
           showSidebarControls={showResourceListControls}

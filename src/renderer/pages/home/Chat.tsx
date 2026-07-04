@@ -41,6 +41,7 @@ interface Props {
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
+  onPaneAutoCollapseChange?: (collapsed: boolean) => void
   resourcePaneCount?: ResourcePaneCountButtonProps
 }
 
@@ -215,6 +216,7 @@ const Chat: FC<Props> = (props) => {
       paneOpen={props.paneOpen}
       panePosition={props.panePosition}
       onPaneCollapse={props.onPaneCollapse}
+      onPaneAutoCollapseChange={props.onPaneAutoCollapseChange}
       topBar={
         <ChatNavbar
           showSidebarControls={props.showResourceListControls}
