@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import type { CodeCli } from '@shared/types/codeCli'
-import { useCallback, useState } from 'react'
+import { type Dispatch, type SetStateAction, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CLI_BINARY_NAMES } from '../constants/cliTools'
@@ -19,23 +19,29 @@ export function useBinaryActions() {
   const [installingTools, setInstallingTools] = useState<Set<string>>(() => new Set())
   const [upgradingTools, setUpgradingTools] = useState<Set<string>>(() => new Set())
 
-  const install = useCallback(
-    async (toolId: CodeCli) => {
+  // install and upgrade share one body — both run the same `binary.install_tool`
+  // request; they differ only in the busy Set, the toast keys, and the log label.
+  const runInstallTool = useCallback(
+    async (
+      toolId: CodeCli,
+      setBusy: Dispatch<SetStateAction<Set<string>>>,
+      messages: { successKey: string; errorKey: string; logLabel: string }
+    ) => {
       try {
-        setInstallingTools((prev) => new Set(prev).add(toolId))
+        setBusy((prev) => new Set(prev).add(toolId))
         const cliPreset = CLI_TOOL_PRESET_MAP[toolId]
         if (cliPreset) {
           await ipcApi.request('binary.install_tool', {
             name: CLI_BINARY_NAMES[toolId],
             tool: cliPreset.miseTool
           })
-          window.toast.success(t('code.install_success'))
+          window.toast.success(t(messages.successKey))
         }
       } catch (error) {
-        logger.error('Failed to install:', error as Error)
-        window.toast.error(t('code.install_error'))
+        logger.error(messages.logLabel, error as Error)
+        window.toast.error(t(messages.errorKey))
       } finally {
-        setInstallingTools((prev) => {
+        setBusy((prev) => {
           const next = new Set(prev)
           next.delete(toolId)
           return next
@@ -45,30 +51,24 @@ export function useBinaryActions() {
     [t]
   )
 
+  const install = useCallback(
+    (toolId: CodeCli) =>
+      runInstallTool(toolId, setInstallingTools, {
+        successKey: 'code.install_success',
+        errorKey: 'code.install_error',
+        logLabel: 'Failed to install:'
+      }),
+    [runInstallTool]
+  )
+
   const upgrade = useCallback(
-    async (toolId: CodeCli) => {
-      try {
-        setUpgradingTools((prev) => new Set(prev).add(toolId))
-        const cliPreset = CLI_TOOL_PRESET_MAP[toolId]
-        if (cliPreset) {
-          await ipcApi.request('binary.install_tool', {
-            name: CLI_BINARY_NAMES[toolId],
-            tool: cliPreset.miseTool
-          })
-          window.toast.success(t('code.upgrade_success'))
-        }
-      } catch (error) {
-        logger.error('Failed to upgrade:', error as Error)
-        window.toast.error(t('code.upgrade_error'))
-      } finally {
-        setUpgradingTools((prev) => {
-          const next = new Set(prev)
-          next.delete(toolId)
-          return next
-        })
-      }
-    },
-    [t]
+    (toolId: CodeCli) =>
+      runInstallTool(toolId, setUpgradingTools, {
+        successKey: 'code.upgrade_success',
+        errorKey: 'code.upgrade_error',
+        logLabel: 'Failed to upgrade:'
+      }),
+    [runInstallTool]
   )
 
   const remove = useCallback(

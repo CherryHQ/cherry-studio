@@ -1,10 +1,10 @@
 import { Input, SelectDropdown } from '@cherrystudio/ui'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TogglePill } from '../TogglePill'
-import { Field, getRecord } from './ConfigFieldPrimitives'
+import { Field, getRecord, makeUpdateField, makeUpdateSectionField } from './ConfigFieldPrimitives'
 
 export interface KimiConfigFieldsProps {
   config: Record<string, unknown>
@@ -26,28 +26,9 @@ export const KimiConfigFields: FC<KimiConfigFieldsProps> = ({ config, onChange, 
   const background = useMemo(() => getRecord(config.background), [config.background])
   const experimental = useMemo(() => getRecord(config.experimental), [config.experimental])
 
-  const updateField = useCallback(
-    (key: string, value: string | number | boolean | undefined) => {
-      const next = { ...config }
-      if (value !== undefined && value !== '') next[key] = value
-      else delete next[key]
-      onChange(next)
-    },
-    [config, onChange]
-  )
+  const updateField = useMemo(() => makeUpdateField(config, onChange), [config, onChange])
 
-  const updateSectionField = useCallback(
-    (section: string, key: string, value: string | number | boolean | undefined) => {
-      const next = { ...config }
-      const sectionValue = { ...getRecord(next[section]) }
-      if (value !== undefined && value !== '') sectionValue[key] = value
-      else delete sectionValue[key]
-      if (Object.keys(sectionValue).length > 0) next[section] = sectionValue
-      else delete next[section]
-      onChange(next)
-    },
-    [config, onChange]
-  )
+  const updateSectionField = useMemo(() => makeUpdateSectionField(config, onChange), [config, onChange])
 
   return (
     <div className="space-y-3">

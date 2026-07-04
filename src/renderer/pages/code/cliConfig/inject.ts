@@ -16,7 +16,7 @@ import {
   buildOpenCodeConfig,
   buildQwenConfig
 } from './builders'
-import { CHERRY_PREFIX, CODEX_RESPONSES_ENDPOINT, FILE_CONFIGURED_CLI_TOOLS } from './constants'
+import { CHERRY_PROVIDER_PREFIX, CODEX_RESPONSES_ENDPOINT, FILE_CONFIGURED_CLI_TOOLS } from './constants'
 import { parseDotenv } from './dotenv'
 import {
   readExternal,
@@ -84,11 +84,11 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
   }
   const { providerId, modelId: model } = parseUniqueModelId(args.modelId)
 
-  const provider = (await dataApiService.get(`/providers/${providerId}`)) as Provider | undefined
-  const apiKeysRes = (await dataApiService.get(`/providers/${providerId}/api-keys`)) as
-    | { keys?: ApiKeyEntry[] }
-    | undefined
-  const modelRecord = await dataApiService.get(`/models/${args.modelId}`).catch(() => null)
+  const [provider, apiKeysRes, modelRecord] = await Promise.all([
+    dataApiService.get(`/providers/${providerId}`) as Promise<Provider | undefined>,
+    dataApiService.get(`/providers/${providerId}/api-keys`) as Promise<{ keys?: ApiKeyEntry[] } | undefined>,
+    dataApiService.get(`/models/${args.modelId}`).catch(() => null)
+  ])
 
   if (!provider) {
     throw new Error(`Provider not found: ${providerId}`)
@@ -177,11 +177,11 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       if (!apiKey) {
         throw new Error('Gemini CLI config is missing the API key')
       }
-      const envMap = parseDotenv(await readExternal(await resolveAbs(GEMINI_ENV_PATH)))
-      const settings = await readValidatedJson(await resolveAbs(GEMINI_SETTINGS_PATH), 'Gemini CLI settings')
-      const blob = getConfigBlob(configBlob)
       const envAbsPath = await resolveAbs(GEMINI_ENV_PATH)
       const settingsAbsPath = await resolveAbs(GEMINI_SETTINGS_PATH)
+      const envMap = parseDotenv(await readExternal(envAbsPath))
+      const settings = await readValidatedJson(settingsAbsPath, 'Gemini CLI settings')
+      const blob = getConfigBlob(configBlob)
       await window.api.file.write(envAbsPath, renderDotenvFile(buildGeminiEnvConfig(envMap, { apiKey, baseUrl })))
       await window.api.file.write(settingsAbsPath, renderJsonFile(buildGeminiSettingsConfig(settings, { model }, blob)))
       logger.info(`Applied Gemini CLI config to ${envAbsPath} + ${settingsAbsPath}`)
@@ -217,7 +217,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       const absPath = await resolveAbs(KIMI_CONFIG_PATH)
       const existing = await readValidatedToml(absPath, 'Kimi Code config')
       const providerName = sanitizeProviderName(provider.name, provider.id)
-      const modelKey = `${CHERRY_PREFIX}${providerName}`
+      const modelKey = `${CHERRY_PROVIDER_PREFIX}${providerName}`
       const maxContextSize = modelRecord?.contextWindow ?? 128000
       const blob = getConfigBlob(configBlob)
       await window.api.file.write(

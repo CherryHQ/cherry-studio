@@ -4,7 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TogglePill } from '../TogglePill'
-import { Field, formatCommaList, getRecord, parseCommaList } from './ConfigFieldPrimitives'
+import { Field, formatCommaList, getRecord, makeUpdateSectionField, parseCommaList } from './ConfigFieldPrimitives'
 
 export interface GeminiConfigFieldsProps {
   config: Record<string, unknown>
@@ -40,22 +40,7 @@ export const GeminiConfigFields: FC<GeminiConfigFieldsProps> = ({ config, onChan
   const tools = useMemo(() => getRecord(config.tools), [config.tools])
   const advanced = useMemo(() => getRecord(config.advanced), [config.advanced])
 
-  const updateSectionField = useCallback(
-    (
-      section: string,
-      key: string,
-      value: string | number | boolean | string[] | Record<string, unknown> | undefined
-    ) => {
-      const next = { ...config }
-      const sectionValue = { ...getRecord(next[section]) }
-      if (value !== undefined && value !== '') sectionValue[key] = value
-      else delete sectionValue[key]
-      if (Object.keys(sectionValue).length > 0) next[section] = sectionValue
-      else delete next[section]
-      onChange(next)
-    },
-    [config, onChange]
-  )
+  const updateSectionField = useMemo(() => makeUpdateSectionField(config, onChange), [config, onChange])
 
   const toggleBoolean = useCallback(
     (section: string, key: string, active: boolean, onValue: boolean, offValue?: boolean) => {

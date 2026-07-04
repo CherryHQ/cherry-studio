@@ -1,7 +1,7 @@
 import { CodeCli } from '@shared/types/codeCli'
 import { stringify as stringifyToml } from 'smol-toml'
 
-import { CHERRY_PREFIX, CHERRY_PROVIDER_PREFIX, FILE_CONFIGURED_CLI_TOOLS } from './constants'
+import { CHERRY_PROVIDER_PREFIX, FILE_CONFIGURED_CLI_TOOLS } from './constants'
 import { parseDotenv } from './dotenv'
 import {
   readExternal,
@@ -158,7 +158,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
         if (next[table] && typeof next[table] === 'object') {
           const cleaned: Record<string, any> = {}
           for (const [key, value] of Object.entries(next[table] as Record<string, any>)) {
-            if (!key.startsWith(CHERRY_PREFIX)) cleaned[key] = value
+            if (!key.startsWith(CHERRY_PROVIDER_PREFIX)) cleaned[key] = value
           }
           next[table] = cleaned
         }

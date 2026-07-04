@@ -19,7 +19,6 @@ export const GEMINI_AGGREGATOR_BASE_URLS: Record<string, string> = {
 
 export const OPENCODE_SCHEMA = 'https://opencode.ai/config.json'
 export const CHERRY_PROVIDER_PREFIX = 'cherry-'
-export const CHERRY_PREFIX = 'cherry-'
 
 export const OPEN_CODE_ENDPOINTS: readonly EndpointType[] = [
   'google-generate-content',

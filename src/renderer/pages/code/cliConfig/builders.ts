@@ -1,4 +1,4 @@
-import { CHERRY_PREFIX, CHERRY_PROVIDER_PREFIX, OPENCODE_SCHEMA } from './constants'
+import { CHERRY_PROVIDER_PREFIX, OPENCODE_SCHEMA } from './constants'
 import {
   applyManagedJsonSettings,
   applyManagedTomlSettings,
@@ -230,13 +230,13 @@ export function buildKimiConfig(
 ): Record<string, any> {
   const providerTable = { ...asRecord(existing.providers) }
   for (const key of Object.keys(providerTable)) {
-    if (key.startsWith(CHERRY_PREFIX)) delete providerTable[key]
+    if (key.startsWith(CHERRY_PROVIDER_PREFIX)) delete providerTable[key]
   }
   providerTable[resolved.modelKey] = { type: 'openai', base_url: resolved.baseUrl, api_key: resolved.apiKey }
 
   const modelsTable = { ...asRecord(existing.models) }
   for (const key of Object.keys(modelsTable)) {
-    if (key.startsWith(CHERRY_PREFIX)) delete modelsTable[key]
+    if (key.startsWith(CHERRY_PROVIDER_PREFIX)) delete modelsTable[key]
   }
   const modelConfig: Record<string, any> = {
     provider: resolved.modelKey,

@@ -82,8 +82,14 @@ export function asRecord(value: unknown): Record<string, any> {
 export function applyManagedJsonSettings(
   target: Record<string, any>,
   source: Record<string, any>,
-  managedKeys: ManagedSettingsKeys
+  managedKeys: ManagedSettingsKeys,
+  topLevelKeys: readonly string[] = []
 ): void {
+  for (const key of topLevelKeys) {
+    delete target[key]
+    if (source[key] !== undefined) target[key] = source[key]
+  }
+
   for (const [section, keys] of Object.entries(managedKeys)) {
     const nextSection = { ...asRecord(target[section]) }
     for (const key of keys) delete nextSection[key]
@@ -98,22 +104,7 @@ export function applyManagedJsonSettings(
   }
 }
 
+/** Kimi's TOML config adds managed top-level keys on top of the section merge. */
 export function applyManagedTomlSettings(target: Record<string, any>, source: Record<string, any>): void {
-  for (const key of KIMI_MANAGED_TOP_LEVEL_KEYS) {
-    delete target[key]
-    if (source[key] !== undefined) target[key] = source[key]
-  }
-
-  for (const [section, keys] of Object.entries(KIMI_MANAGED_SECTION_KEYS)) {
-    const nextSection = { ...asRecord(target[section]) }
-    for (const key of keys) delete nextSection[key]
-
-    const sourceSection = asRecord(source[section])
-    for (const key of keys) {
-      if (sourceSection[key] !== undefined) nextSection[key] = sourceSection[key]
-    }
-
-    if (Object.keys(nextSection).length > 0) target[section] = nextSection
-    else delete target[section]
-  }
+  applyManagedJsonSettings(target, source, KIMI_MANAGED_SECTION_KEYS, KIMI_MANAGED_TOP_LEVEL_KEYS)
 }

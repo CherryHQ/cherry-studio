@@ -1,10 +1,10 @@
 import { Input, SelectDropdown } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TogglePill } from '../TogglePill'
+import { Field } from './ConfigFieldPrimitives'
 
 export interface CodexConfigFieldsProps {
   config: Record<string, unknown>
@@ -18,15 +18,6 @@ const EFFORT_OPTIONS = ['low', 'medium', 'high'] as const
 const EFFORT_ITEMS = EFFORT_OPTIONS.map((id) => ({ id }))
 const VERBOSITY_OPTIONS = ['low', 'medium', 'high'] as const
 const VERBOSITY_ITEMS = VERBOSITY_OPTIONS.map((id) => ({ id }))
-
-function Field({ label, children, className }: { label: string; children: React.ReactNode; className?: string }) {
-  return (
-    <label className={cn('min-w-0 flex-1', className)}>
-      <span className="mb-1 block text-[10px] text-muted-foreground/60">{label}</span>
-      {children}
-    </label>
-  )
-}
 
 export const CodexConfigFields: FC<CodexConfigFieldsProps> = ({ config, onChange, section = 'all' }) => {
   const { t } = useTranslation()

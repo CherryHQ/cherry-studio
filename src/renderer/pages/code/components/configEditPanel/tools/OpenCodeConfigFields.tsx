@@ -1,24 +1,15 @@
 import { Input, SelectDropdown } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils/style'
-import type { FC, ReactNode } from 'react'
+import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TogglePill } from '../TogglePill'
+import { Field, makeUpdateField } from './ConfigFieldPrimitives'
 
 export interface OpenCodeConfigFieldsProps {
   config: Record<string, unknown>
   onChange: (next: Record<string, unknown>) => void
   section?: 'all' | 'basic' | 'advanced'
-}
-
-function Field({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
-  return (
-    <label className={cn('min-w-0 flex-1', className)}>
-      <span className="mb-1 block text-[10px] text-muted-foreground/60">{label}</span>
-      {children}
-    </label>
-  )
 }
 
 export const OpenCodeConfigFields: FC<OpenCodeConfigFieldsProps> = ({ config, onChange, section = 'all' }) => {
@@ -48,15 +39,7 @@ export const OpenCodeConfigFields: FC<OpenCodeConfigFieldsProps> = ({ config, on
     [config, env, onChange]
   )
 
-  const updateField = useCallback(
-    (key: string, value: string | number | boolean | undefined) => {
-      const next = { ...config }
-      if (value !== undefined && value !== '') next[key] = value
-      else delete next[key]
-      onChange(next)
-    },
-    [config, onChange]
-  )
+  const updateField = useMemo(() => makeUpdateField(config, onChange), [config, onChange])
 
   const effortLabel = useCallback(
     (opt: string) =>

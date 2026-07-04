@@ -1,31 +1,11 @@
-import {
-  ClaudeCode,
-  GeminiCli,
-  GithubCopilotCli,
-  KimiCli as KimiCode,
-  OpenaiCodex,
-  Openclaw,
-  OpenCode,
-  QoderCli,
-  QwenCode
-} from '@cherrystudio/ui/icons'
-import { CodeCli } from '@shared/types/codeCli'
-import type { SVGProps } from 'react'
-import type { ComponentType, FC } from 'react'
+import type { ComponentType, FC, SVGProps } from 'react'
+
+import { CLI_TOOLS } from '../constants/cliTools'
 
 type SvgIcon = ComponentType<SVGProps<SVGSVGElement>>
 
-const CLI_ICONS: Record<string, SvgIcon> = {
-  [CodeCli.CLAUDE_CODE]: ClaudeCode,
-  [CodeCli.OPENAI_CODEX]: OpenaiCodex,
-  [CodeCli.OPEN_CODE]: OpenCode,
-  [CodeCli.OPENCLAW]: Openclaw,
-  [CodeCli.GEMINI_CLI]: GeminiCli,
-  [CodeCli.QWEN_CODE]: QwenCode,
-  [CodeCli.KIMI_CODE]: KimiCode,
-  [CodeCli.QODER_CLI]: QoderCli,
-  [CodeCli.GITHUB_COPILOT_CLI]: GithubCopilotCli
-}
+// Single icon registry: derived from CLI_TOOLS so a tool's icon is declared once.
+const CLI_ICONS: Record<string, SvgIcon> = Object.fromEntries(CLI_TOOLS.map((tool) => [tool.value, tool.icon]))
 
 interface CLIIconProps {
   id: string

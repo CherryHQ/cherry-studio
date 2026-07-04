@@ -16,7 +16,7 @@ import {
   buildOpenCodeConfig,
   buildQwenConfig
 } from './builders'
-import { CHERRY_PREFIX, CODEX_RESPONSES_ENDPOINT, FILE_CONFIGURED_CLI_TOOLS } from './constants'
+import { CHERRY_PROVIDER_PREFIX, CODEX_RESPONSES_ENDPOINT, FILE_CONFIGURED_CLI_TOOLS } from './constants'
 import { parseDotenv } from './dotenv'
 import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
 import { parseJsonOrThrow, parseTomlOrThrow, renderDotenvFile, renderJsonFile, resolveAbs } from './file'
@@ -69,20 +69,22 @@ async function resolveContext(args: InjectCliConfigArgs): Promise<ResolvedCliCon
     throw new Error(`Invalid model id: ${args.modelId}`)
   }
   const { providerId, modelId: model } = parseUniqueModelId(args.modelId)
-  const provider = (await dataApiService.get(`/providers/${providerId}`)) as Provider | undefined
+  // The three reads are independent; run them concurrently (this resolver reruns
+  // on every advanced-field keystroke in the edit panel).
+  const [provider, apiKeysRes, modelRecord] = await Promise.all([
+    dataApiService.get(`/providers/${providerId}`) as Promise<Provider | undefined>,
+    dataApiService.get(`/providers/${providerId}/api-keys`) as Promise<{ keys?: ApiKeyEntry[] } | undefined>,
+    dataApiService.get(`/models/${args.modelId}`).catch(() => null)
+  ])
   if (!provider) {
     throw new Error(`Provider not found: ${providerId}`)
   }
-  const apiKeysRes = (await dataApiService.get(`/providers/${providerId}/api-keys`)) as
-    | { keys?: ApiKeyEntry[] }
-    | undefined
-  const modelRecord = await dataApiService.get(`/models/${args.modelId}`).catch(() => null)
 
   return {
     provider,
     apiKey: firstApiKey(apiKeysRes?.keys),
     model,
-    modelRecord: modelRecord,
+    modelRecord,
     configBlob: getConfigBlob(args.configBlob)
   }
 }
@@ -206,7 +208,7 @@ export async function readCliConfigDraft(
                 apiKey,
                 baseUrl,
                 model,
-                modelKey: `${CHERRY_PREFIX}${providerName}`,
+                modelKey: `${CHERRY_PROVIDER_PREFIX}${providerName}`,
                 maxContextSize: modelRecord?.contextWindow ?? 128000
               },
               configBlob
