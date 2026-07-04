@@ -18,6 +18,7 @@ import { parseJsonOrThrow, parseTomlOrThrow, renderDotenvFile, renderJsonFile } 
 import { asRecord } from './managedKeys'
 import { extractConnectionFromCliConfigDraft } from './parser'
 import type { OpenCodeNpmInfo } from './resolvers'
+import { sanitizeCliConfigBlob } from './sanitize'
 import type { CliConfigFileDraft, CliConfigTarget } from './types'
 import { getConfigBlob, numberValue, stringValue } from './values'
 
@@ -74,7 +75,7 @@ export function updateCliConfigDraftConfig(
   configBlob: Record<string, unknown>
 ): CliConfigFileDraft[] {
   const connection = extractConnectionFromCliConfigDraft(cliTool, files)
-  const blob = getConfigBlob(configBlob)
+  const blob = sanitizeCliConfigBlob(cliTool, getConfigBlob(configBlob))
   if (!connection) return files
 
   switch (cliTool) {
@@ -131,10 +132,7 @@ export function updateCliConfigDraftConfig(
         {
           reasoning: env.OPENCODE_REASONING === 'true',
           supportsReasoningEffort: true,
-          reasoningEffort: stringValue(blob.reasoningEffort),
-          thinkingBudgetTokens: numberValue(blob.thinkingBudgetTokens),
-          autoCompact: blob.autoCompact === true,
-          maxTurns: numberValue(blob.maxTurns)
+          autoCompact: blob.autoCompact === true
         }
       )
       return replaceDraftContent(files, 'opencode-config', renderJsonFile(nextConfig))

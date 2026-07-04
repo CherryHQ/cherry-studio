@@ -38,42 +38,67 @@ export const CODEX_MANAGED_TOP_LEVEL_KEYS = [
   'review_model'
 ] as const
 
+export const OPEN_CODE_MANAGED_TOP_LEVEL_KEYS = ['autoCompact', 'maxTurns'] as const
+
+export const OPEN_CODE_WRITABLE_TOP_LEVEL_KEYS = ['autoCompact'] as const
+
 export const GEMINI_MANAGED_ENV_KEYS = ['GEMINI_API_KEY', 'GOOGLE_GEMINI_BASE_URL'] as const
 
-export const GEMINI_MANAGED_SETTINGS_KEYS = {
-  general: ['vimMode', 'preferredEditor', 'defaultApprovalMode', 'checkpointing'] as const,
+export const GEMINI_WRITABLE_SETTINGS_KEYS = {
+  general: ['vimMode', 'checkpointing'] as const,
   ui: ['hideBanner'] as const,
-  privacy: ['usageStatisticsEnabled'] as const,
+  privacy: ['usageStatisticsEnabled'] as const
+} as const
+
+export const GEMINI_MANAGED_SETTINGS_KEYS = mergeManagedSettingsKeys(GEMINI_WRITABLE_SETTINGS_KEYS, {
+  general: ['preferredEditor', 'defaultApprovalMode'] as const,
   model: ['maxSessionTurns', 'compressionThreshold'] as const,
   context: ['fileName', 'includeDirectories'] as const,
   tools: ['exclude'] as const,
   advanced: ['excludedEnvVars'] as const
-} as const
+})
 
-export const QWEN_MANAGED_SETTINGS_KEYS = {
-  general: ['vimMode', 'preferredEditor', 'enableAutoUpdate', 'outputLanguage', 'cleanupPeriodDays'] as const,
+export const QWEN_WRITABLE_SETTINGS_KEYS = {
+  general: ['vimMode', 'enableAutoUpdate'] as const,
   ui: ['hideBanner'] as const,
   privacy: ['usageStatisticsEnabled'] as const,
-  tools: ['approvalMode'] as const,
-  context: ['fileName'] as const,
   permissions: ['autoMode'] as const
 } as const
 
-export const KIMI_MANAGED_TOP_LEVEL_KEYS = [
-  'default_permission_mode',
-  'default_plan_mode',
-  'merge_all_available_skills',
-  'telemetry'
-] as const
+export const QWEN_MANAGED_SETTINGS_KEYS = mergeManagedSettingsKeys(QWEN_WRITABLE_SETTINGS_KEYS, {
+  general: ['preferredEditor', 'outputLanguage', 'cleanupPeriodDays'] as const,
+  tools: ['approvalMode'] as const,
+  context: ['fileName'] as const
+})
 
-export const KIMI_MANAGED_SECTION_KEYS = {
+export const KIMI_WRITABLE_TOP_LEVEL_KEYS = ['default_plan_mode', 'merge_all_available_skills', 'telemetry'] as const
+
+export const KIMI_MANAGED_TOP_LEVEL_KEYS = ['default_permission_mode', ...KIMI_WRITABLE_TOP_LEVEL_KEYS] as const
+
+export const KIMI_WRITABLE_SECTION_KEYS = {
+  thinking: ['enabled'] as const,
+  background: ['keep_alive_on_exit'] as const,
+  experimental: ['micro_compaction'] as const
+} as const
+
+export const KIMI_MANAGED_SECTION_KEYS = mergeManagedSettingsKeys(KIMI_WRITABLE_SECTION_KEYS, {
   thinking: ['enabled', 'effort'] as const,
   loop_control: ['max_steps_per_turn', 'max_retries_per_step', 'reserved_context_size'] as const,
   background: ['max_running_tasks', 'keep_alive_on_exit'] as const,
   experimental: ['micro_compaction'] as const
-} as const
+})
 
 export type ManagedSettingsKeys = Record<string, readonly string[]>
+
+export function mergeManagedSettingsKeys(...groups: ManagedSettingsKeys[]): ManagedSettingsKeys {
+  const merged: Record<string, string[]> = {}
+  for (const group of groups) {
+    for (const [section, keys] of Object.entries(group)) {
+      merged[section] = [...new Set([...(merged[section] ?? []), ...keys])]
+    }
+  }
+  return merged
+}
 
 export function asRecord(value: unknown): Record<string, any> {
   return value && typeof value === 'object' ? (value as Record<string, any>) : {}

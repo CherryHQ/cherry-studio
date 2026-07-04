@@ -523,7 +523,7 @@ describe('injectCliConfig', () => {
   describe('gemini-cli (~/.gemini/.env + settings.json)', () => {
     const findWrite = (suffix: string) => writes.find((w) => w.path.endsWith(suffix))!
 
-    it('applies advanced settings from the config blob', async () => {
+    it('applies supported settings from the config blob and drops removed settings', async () => {
       mockGet({
         '/providers/gemini': () => geminiProvider,
         '/providers/gemini/api-keys': () => ({ keys: [enabledKey] }),
@@ -546,18 +546,18 @@ describe('injectCliConfig', () => {
 
       expect(findWrite('.env').content).toContain('GEMINI_API_KEY=sk-secret')
       const settings = JSON.parse(findWrite('settings.json').content)
-      expect(settings.general).toMatchObject({ vimMode: true, defaultApprovalMode: 'auto_edit' })
+      expect(settings.general).toEqual({ vimMode: true })
       expect(settings.ui.hideBanner).toBe(true)
       expect(settings.privacy.usageStatisticsEnabled).toBe(false)
-      expect(settings.model).toMatchObject({ name: 'gemini-2.5-pro', maxSessionTurns: 10 })
-      expect(settings.context).toEqual({ fileName: ['GEMINI.md', 'AGENTS.md'], includeDirectories: ['../shared'] })
-      expect(settings.tools.exclude).toEqual(['write_file'])
-      expect(settings.advanced.excludedEnvVars).toEqual(['DEBUG'])
+      expect(settings.model).toEqual({ name: 'gemini-2.5-pro' })
+      expect(settings.context).toBeUndefined()
+      expect(settings.tools).toBeUndefined()
+      expect(settings.advanced).toBeUndefined()
     })
   })
 
   describe('qwen-code (~/.qwen/settings.json)', () => {
-    it('applies advanced settings from the config blob', async () => {
+    it('applies supported settings from the config blob and drops removed settings', async () => {
       mockGet({
         '/providers/deepseek': () => openaiCompatProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -589,17 +589,14 @@ describe('injectCliConfig', () => {
       expect(mkdirMock.mock.invocationCallOrder[0]).toBeLessThan(writeMock.mock.invocationCallOrder[0])
       expect(parsed.general).toMatchObject({
         vimMode: true,
-        enableAutoUpdate: false,
-        outputLanguage: 'zh-CN',
-        cleanupPeriodDays: 7
+        enableAutoUpdate: false
       })
       expect(parsed.ui.hideBanner).toBe(true)
       expect(parsed.privacy.usageStatisticsEnabled).toBe(false)
-      expect(parsed.tools.approvalMode).toBe('auto')
-      expect(parsed.context.fileName).toEqual(['QWEN.md', 'AGENTS.md'])
+      expect(parsed.tools).toBeUndefined()
+      expect(parsed.context).toBeUndefined()
       expect(parsed.permissions.autoMode).toEqual({
-        classifyAllShell: true,
-        hints: { allow: ['Run local tests'], softDeny: ['Touch production DB'] }
+        classifyAllShell: true
       })
       expect(parsed.modelProviders.openai[0]).toMatchObject({
         id: 'deepseek-chat',
@@ -611,7 +608,7 @@ describe('injectCliConfig', () => {
   })
 
   describe('kimi-code (~/.kimi-code/config.toml)', () => {
-    it('applies advanced settings from the config blob', async () => {
+    it('applies supported settings from the config blob and drops removed settings', async () => {
       mockGet({
         '/providers/deepseek': () => openaiCompatProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -639,16 +636,12 @@ describe('injectCliConfig', () => {
       expect(mkdirMock).toHaveBeenCalledWith('/resolved~/.kimi-code')
       expect(mkdirMock.mock.invocationCallOrder[0]).toBeLessThan(writeMock.mock.invocationCallOrder[0])
       expect(parsed.default_model).toBe('cherry-DeepSeek')
-      expect(parsed.default_permission_mode).toBe('auto')
+      expect(parsed.default_permission_mode).toBeUndefined()
       expect(parsed.default_plan_mode).toBe(true)
       expect(parsed.telemetry).toBe(false)
-      expect(parsed.thinking).toEqual({ enabled: true, effort: 'high' })
-      expect(parsed.loop_control).toEqual({
-        max_steps_per_turn: 12,
-        max_retries_per_step: 2,
-        reserved_context_size: 50000
-      })
-      expect(parsed.background).toEqual({ max_running_tasks: 4, keep_alive_on_exit: true })
+      expect(parsed.thinking).toEqual({ enabled: true })
+      expect(parsed.loop_control).toBeUndefined()
+      expect(parsed.background).toEqual({ keep_alive_on_exit: true })
       expect(parsed.experimental).toEqual({ micro_compaction: true })
       expect(parsed.models['cherry-DeepSeek'].max_context_size).toBe(65536)
     })

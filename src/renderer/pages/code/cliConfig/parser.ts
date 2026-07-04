@@ -8,13 +8,14 @@ import {
   asRecord,
   CLAUDE_MANAGED_ENV_KEYS,
   CLAUDE_MANAGED_TOP_LEVEL_KEYS,
-  GEMINI_MANAGED_SETTINGS_KEYS,
-  KIMI_MANAGED_SECTION_KEYS,
-  KIMI_MANAGED_TOP_LEVEL_KEYS,
-  QWEN_MANAGED_SETTINGS_KEYS
+  GEMINI_WRITABLE_SETTINGS_KEYS,
+  KIMI_WRITABLE_SECTION_KEYS,
+  KIMI_WRITABLE_TOP_LEVEL_KEYS,
+  QWEN_WRITABLE_SETTINGS_KEYS
 } from './managedKeys'
+import { sanitizeQwenConfigBlob } from './sanitize'
 import type { CliConfigConnection, CliConfigFileDraft } from './types'
-import { numberValue, stringValue } from './values'
+import { stringValue } from './values'
 
 export function extractConnectionFromCliConfigDraft(
   cliTool: string,
@@ -125,15 +126,6 @@ export function extractConfigFromCliConfigDraft(
         const out: Record<string, any> = {}
         if (asRecord(config.features).goals === true) out.goalMode = true
         if (config.disable_response_storage === true) out.disableResponseStorage = true
-        if (stringValue(config.model_reasoning_effort)) out.modelReasoningEffort = config.model_reasoning_effort
-        if (stringValue(config.model_verbosity)) out.modelVerbosity = config.model_verbosity
-        const contextWindow = numberValue(config.model_context_window)
-        if (contextWindow !== undefined) out.modelContextWindow = contextWindow
-        const autoCompactTokenLimit = numberValue(config.model_auto_compact_token_limit)
-        if (autoCompactTokenLimit !== undefined) {
-          out.modelAutoCompactTokenLimit = autoCompactTokenLimit
-        }
-        if (stringValue(config.personality)) out.personality = config.personality
         const providerKey = stringValue(config.model_provider)
         const provider = providerKey ? asRecord(asRecord(config.model_providers)[providerKey]) : {}
         if (provider.name === 'OpenAI') out.remoteCompaction = true
@@ -143,28 +135,18 @@ export function extractConfigFromCliConfigDraft(
         const config = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
         const out: Record<string, any> = {}
         if (config.autoCompact === true) out.autoCompact = true
-        const maxTurns = numberValue(config.maxTurns)
-        if (maxTurns !== undefined) out.maxTurns = maxTurns
         const providers = asRecord(config.provider)
         const provider = asRecord(
           Object.entries(providers).find(([key]) => key.startsWith(CHERRY_PROVIDER_PREFIX))?.[1]
         )
         const model = asRecord(Object.entries(asRecord(provider.models))[0]?.[1])
-        const options = asRecord(model.options)
         if (model.reasoning === true) out.env = { OPENCODE_REASONING: 'true' }
-        if (stringValue(options.reasoningEffort)) out.reasoningEffort = options.reasoningEffort
-        const thinking = asRecord(options.thinking)
-        const thinkingConfig = asRecord(options.thinkingConfig)
-        const budgetTokens = numberValue(thinking.budgetTokens)
-        const thinkingBudget = numberValue(thinkingConfig.thinkingBudget)
-        if (budgetTokens !== undefined) out.thinkingBudgetTokens = budgetTokens
-        else if (thinkingBudget !== undefined) out.thinkingBudgetTokens = thinkingBudget
         return out
       }
       case CodeCli.GEMINI_CLI: {
         const settings = parseJsonOrThrow(getDraftFile(files, 'gemini-settings')?.content ?? '')
         const out: Record<string, any> = {}
-        for (const [section, keys] of Object.entries(GEMINI_MANAGED_SETTINGS_KEYS)) {
+        for (const [section, keys] of Object.entries(GEMINI_WRITABLE_SETTINGS_KEYS)) {
           const sourceSection = asRecord(settings[section])
           for (const key of keys) {
             if (sourceSection[key] !== undefined)
@@ -176,22 +158,22 @@ export function extractConfigFromCliConfigDraft(
       case CodeCli.QWEN_CODE: {
         const settings = parseJsonOrThrow(getDraftFile(files, 'qwen-settings')?.content ?? '')
         const out: Record<string, any> = {}
-        for (const [section, keys] of Object.entries(QWEN_MANAGED_SETTINGS_KEYS)) {
+        for (const [section, keys] of Object.entries(QWEN_WRITABLE_SETTINGS_KEYS)) {
           const sourceSection = asRecord(settings[section])
           for (const key of keys) {
             if (sourceSection[key] !== undefined)
               out[section] = { ...asRecord(out[section]), [key]: sourceSection[key] }
           }
         }
-        return out
+        return sanitizeQwenConfigBlob(out)
       }
       case CodeCli.KIMI_CODE: {
         const config = parseTomlOrThrow(getDraftFile(files, 'kimi-config')?.content ?? '')
         const out: Record<string, any> = {}
-        for (const key of KIMI_MANAGED_TOP_LEVEL_KEYS) {
+        for (const key of KIMI_WRITABLE_TOP_LEVEL_KEYS) {
           if (config[key] !== undefined) out[key] = config[key]
         }
-        for (const [section, keys] of Object.entries(KIMI_MANAGED_SECTION_KEYS)) {
+        for (const [section, keys] of Object.entries(KIMI_WRITABLE_SECTION_KEYS)) {
           const sourceSection = asRecord(config[section])
           for (const key of keys) {
             if (sourceSection[key] !== undefined)

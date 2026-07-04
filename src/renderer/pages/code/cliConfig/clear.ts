@@ -12,6 +12,7 @@ import {
   CODEX_MANAGED_TOP_LEVEL_KEYS,
   GEMINI_MANAGED_ENV_KEYS,
   GEMINI_MANAGED_SETTINGS_KEYS,
+  OPEN_CODE_MANAGED_TOP_LEVEL_KEYS,
   QWEN_MANAGED_SETTINGS_KEYS
 } from './managedKeys'
 import {
@@ -128,6 +129,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
       const existing = await readExistingValidatedJson(absPath, 'OpenCode config')
       if (!existing) return
       const next: Record<string, any> = { ...existing }
+      for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
       if (next.provider && typeof next.provider === 'object') {
         const providers: Record<string, any> = {}
         for (const [key, value] of Object.entries(next.provider as Record<string, any>)) {

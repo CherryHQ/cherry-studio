@@ -17,4 +17,5 @@ export { formatCliConfigDraftFile, updateCliConfigDraftConfig } from './draftUpd
 export { injectCliConfig, type InjectCliConfigArgs } from './inject'
 export { extractConfigFromCliConfigDraft, extractConnectionFromCliConfigDraft } from './parser'
 export { cliConfigConnectionMatchesProvider } from './providerMatching'
+export { sanitizeCliConfigBlob } from './sanitize'
 export type { CliConfigConnection, CliConfigFileDraft, CliConfigLanguage, CliConfigTarget } from './types'

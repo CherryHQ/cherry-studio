@@ -22,6 +22,7 @@ import {
   hasClaudeDetailedModels,
   readCliConfigDraft,
   readCliConfigFiles,
+  sanitizeCliConfigBlob,
   stripClaudeDetailedModels,
   updateCliConfigDraftConfig,
   validateCliConfigDraftForWrite
@@ -128,6 +129,8 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
 
   const draftRef = useRef<ConfigDraft>(EMPTY_DRAFT)
   const initialDraftSnapshotRef = useRef(createDraftSnapshot(EMPTY_DRAFT))
+  const claudeModelModeRef = useRef<ClaudeModelMode>('common')
+  const initialClaudeModelModeRef = useRef<ClaudeModelMode>('common')
   const loadIdRef = useRef(0)
   const apiKeysRef = useRef<Parameters<typeof cliConfigConnectionMatchesProvider>[3]>(undefined)
 
@@ -138,12 +141,25 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     apiKeysRef.current = apiKeysData?.keys
   }, [apiKeysData?.keys])
 
-  const commitDraft = useCallback((next: ConfigDraft | ((prev: ConfigDraft) => ConfigDraft)) => {
-    const resolved = typeof next === 'function' ? next(draftRef.current) : next
-    draftRef.current = resolved
-    setDraft(resolved)
-    setIsDirty(createDraftSnapshot(resolved) !== initialDraftSnapshotRef.current)
-  }, [])
+  const computeIsDirty = useCallback(
+    (nextDraft: ConfigDraft, modelMode = claudeModelModeRef.current) => {
+      const draftChanged = createDraftSnapshot(nextDraft) !== initialDraftSnapshotRef.current
+      const commonModeWillClearDetailedModels =
+        cliTool === CodeCli.CLAUDE_CODE && initialClaudeModelModeRef.current === 'detailed' && modelMode === 'common'
+      return draftChanged || commonModeWillClearDetailedModels
+    },
+    [cliTool]
+  )
+
+  const commitDraft = useCallback(
+    (next: ConfigDraft | ((prev: ConfigDraft) => ConfigDraft)) => {
+      const resolved = typeof next === 'function' ? next(draftRef.current) : next
+      draftRef.current = resolved
+      setDraft(resolved)
+      setIsDirty(computeIsDirty(resolved))
+    },
+    [computeIsDirty]
+  )
 
   const commitCleanDraft = useCallback((next: ConfigDraft | ((prev: ConfigDraft) => ConfigDraft)) => {
     const resolved = typeof next === 'function' ? next(draftRef.current) : next
@@ -253,10 +269,12 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     setAdvancedOpen(false)
     const saved = providerConfig && isUniqueModelId(providerConfig.modelId) ? providerConfig.modelId : undefined
     const nextModelId = saved
-    const nextConfig = providerConfig?.config ?? {}
+    const nextConfig = sanitizeCliConfigBlob(cliTool, providerConfig?.config ?? {})
     const initialClaudeModelMode =
       cliTool === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(nextConfig) ? 'detailed' : 'common'
     const initialDraftOptions = resolveManagedDraftOptions(initialClaudeModelMode, nextConfig, nextModelId)
+    claudeModelModeRef.current = initialClaudeModelMode
+    initialClaudeModelModeRef.current = initialClaudeModelMode
     setClaudeModelMode(initialClaudeModelMode)
     const initialDraft: ConfigDraft = {
       modelId: nextModelId,
@@ -383,21 +401,26 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
 
   const handleConfigChange = useCallback(
     (nextConfig: Record<string, unknown>) => {
+      const sanitizedConfig = sanitizeCliConfigBlob(cliTool, nextConfig)
       const current = draftRef.current
       if (current.mode === 'foreign') {
         try {
-          const nextFiles = updateCliConfigDraftConfig(cliTool, current.files, nextConfig)
-          commitDraft({ ...current, config: nextConfig, files: nextFiles, error: '' })
+          const nextFiles = updateCliConfigDraftConfig(cliTool, current.files, sanitizedConfig)
+          commitDraft({ ...current, config: sanitizedConfig, files: nextFiles, error: '' })
         } catch (error) {
-          commitDraft({ ...current, config: nextConfig, error: error instanceof Error ? error.message : String(error) })
+          commitDraft({
+            ...current,
+            config: sanitizedConfig,
+            error: error instanceof Error ? error.message : String(error)
+          })
         }
       } else {
-        commitDraft({ ...current, config: nextConfig, error: '' })
+        commitDraft({ ...current, config: sanitizedConfig, error: '' })
         loadManagedDraft(
           current.modelId,
-          nextConfig,
+          sanitizedConfig,
           current.files,
-          resolveManagedDraftOptions(claudeModelMode, nextConfig, current.modelId)
+          resolveManagedDraftOptions(claudeModelMode, sanitizedConfig, current.modelId)
         )
       }
     },
@@ -407,29 +430,11 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   const handleClaudeModelModeChange = useCallback(
     (nextMode: ClaudeModelMode) => {
       if (nextMode === claudeModelMode) return
+      claudeModelModeRef.current = nextMode
       setClaudeModelMode(nextMode)
-
-      if (nextMode !== 'common') return
-
-      const current = draftRef.current
-      const nextConfig = stripClaudeDetailedModels(current.config)
-      if (current.mode === 'foreign') {
-        try {
-          const nextFiles = updateCliConfigDraftConfig(cliTool, current.files, nextConfig)
-          commitDraft({ ...current, config: nextConfig, files: nextFiles, error: '' })
-        } catch (error) {
-          commitDraft({ ...current, config: nextConfig, error: error instanceof Error ? error.message : String(error) })
-        }
-        return
-      }
-
-      commitDraft({ ...current, config: nextConfig, error: '' })
-      loadManagedDraft(current.modelId, nextConfig, current.files, {
-        cliConfigModelId: current.modelId,
-        writePrimaryModel: true
-      })
+      setIsDirty(computeIsDirty(draftRef.current, nextMode))
     },
-    [claudeModelMode, cliTool, commitDraft, loadManagedDraft]
+    [claudeModelMode, computeIsDirty]
   )
 
   const handleCliConfigFilesChange = useCallback(
@@ -443,7 +448,10 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
       }
 
       const connection = extractConnectionFromCliConfigDraft(cliTool, files)
-      const nextConfig = extractConfigFromCliConfigDraft(cliTool, files) ?? current.config
+      const nextConfig = sanitizeCliConfigBlob(
+        cliTool,
+        extractConfigFromCliConfigDraft(cliTool, files) ?? current.config
+      )
       if (connection && !connectionMatchesProvider(connection, current.modelId)) {
         commitDraft({
           ...current,
@@ -481,18 +489,29 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
         })
       } else {
         const isClaudeDetailedSubmit = cliTool === CodeCli.CLAUDE_CODE && claudeModelMode === 'detailed'
+        const sanitizedConfig = sanitizeCliConfigBlob(cliTool, current.config)
         const cliConfigModelId = isClaudeDetailedSubmit
-          ? getClaudeContextModelId(provider.id, current.config)
+          ? getClaudeContextModelId(provider.id, sanitizedConfig)
           : current.modelId
         const nextConfig =
           cliTool === CodeCli.CLAUDE_CODE && !isClaudeDetailedSubmit
-            ? stripClaudeDetailedModels(current.config)
-            : current.config
+            ? stripClaudeDetailedModels(sanitizedConfig)
+            : sanitizedConfig
+        const submitDraft = cliConfigModelId
+          ? await createManagedDraft(current.modelId, nextConfig, current.files, {
+              cliConfigModelId,
+              writePrimaryModel: !isClaudeDetailedSubmit
+            })
+          : null
+        if (submitDraft?.error) {
+          commitDraft(submitDraft)
+          return
+        }
         await onSubmit({
           modelId: isClaudeDetailedSubmit ? undefined : current.modelId,
           cliConfigModelId,
           config: nextConfig,
-          ...(cliConfigModelId ? { cliConfigFiles: current.files } : {}),
+          ...(submitDraft ? { cliConfigFiles: submitDraft.files } : {}),
           writePrimaryModel: !isClaudeDetailedSubmit
         })
       }
@@ -500,7 +519,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     } finally {
       setSubmitting(false)
     }
-  }, [canSave, claudeModelMode, cliTool, onSubmit, onClose, provider.id])
+  }, [canSave, claudeModelMode, cliTool, commitDraft, createManagedDraft, onSubmit, onClose, provider.id])
 
   const renderToolFields = (section: 'basic' | 'advanced'): ReactNode => {
     switch (cliTool) {

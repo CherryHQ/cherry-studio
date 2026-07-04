@@ -36,9 +36,10 @@ import {
   resolveOpenAIBaseUrl,
   resolveOpenCodeNpmInfo
 } from './resolvers'
+import { sanitizeCliConfigBlob } from './sanitize'
 import { CLI_CONFIG_FILE_SPECS, FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets } from './targets'
 import type { CliConfigFileDraft } from './types'
-import { firstApiKey, getConfigBlob, numberValue, sanitizeProviderName, stringValue } from './values'
+import { firstApiKey, sanitizeProviderName } from './values'
 
 interface FileSnapshot {
   path: string
@@ -92,7 +93,7 @@ async function resolveContext(args: InjectCliConfigArgs): Promise<ResolvedCliCon
     apiKey: firstApiKey(apiKeysRes?.keys),
     model,
     modelRecord,
-    configBlob: getConfigBlob(args.configBlob)
+    configBlob: sanitizeCliConfigBlob(args.cliTool, args.configBlob)
   }
 }
 
@@ -167,10 +168,7 @@ export async function readCliConfigDraft(
               {
                 reasoning: env.OPENCODE_REASONING === 'true',
                 supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord),
-                reasoningEffort: stringValue(configBlob.reasoningEffort),
-                thinkingBudgetTokens: numberValue(configBlob.thinkingBudgetTokens),
-                autoCompact: configBlob.autoCompact === true,
-                maxTurns: numberValue(configBlob.maxTurns)
+                autoCompact: configBlob.autoCompact === true
               }
             )
           )

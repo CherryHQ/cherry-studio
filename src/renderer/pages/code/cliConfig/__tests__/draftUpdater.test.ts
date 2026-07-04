@@ -79,12 +79,13 @@ describe('updateCliConfigDraftConfig', () => {
 
     const updated = updateCliConfigDraftConfig(CodeCli.OPENAI_CODEX, files, {
       goalMode: true,
-      modelReasoningEffort: 'high'
+      modelReasoningEffort: 'high',
+      disableResponseStorage: true
     })
 
     expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, updated)).toEqual({
       goalMode: true,
-      modelReasoningEffort: 'high'
+      disableResponseStorage: true
     })
     // baseUrl / apiKey / model are untouched by a config-only edit.
     expect(extractConnectionFromCliConfigDraft(CodeCli.OPENAI_CODEX, updated)).toEqual(before)

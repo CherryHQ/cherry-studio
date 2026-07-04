@@ -26,6 +26,7 @@ import {
   hasClaudeDetailedModels,
   injectCliConfig,
   readCliConfigFiles,
+  sanitizeCliConfigBlob,
   writeCliConfigDraft
 } from './cliConfig'
 import { CodeCliSidebar } from './components/CodeCliSidebar'
@@ -71,7 +72,7 @@ function resolveCliConfigApplyContext(
   providerId: string,
   providerConfig: { modelId?: string; config?: Record<string, unknown> } | undefined
 ): { modelId: UniqueModelId; providerId: string; rawModelId: string; writePrimaryModel: boolean } | null {
-  const config = providerConfig?.config ?? {}
+  const config = sanitizeCliConfigBlob(cliTool, providerConfig?.config ?? {})
   if (cliTool === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(config)) {
     const detailedModelId = getClaudeContextModelId(providerId, config)
     const parsedDetailedModelId = parseConfiguredModelId(detailedModelId)
@@ -206,7 +207,8 @@ const CodeCliPage: FC = () => {
       const hasModelValue = 'modelId' in values
       const modelId = values.modelId ?? (hasModelValue ? '' : (providerConfigs[editingProvider.id]?.modelId ?? ''))
       const hasConfigValue = 'config' in values
-      const configPatch = hasConfigValue && values.config !== undefined ? { config: values.config } : {}
+      const sanitizedConfig = hasConfigValue ? sanitizeCliConfigBlob(selectedCliTool, values.config ?? {}) : undefined
+      const configPatch = hasConfigValue ? { config: sanitizedConfig ?? {} } : {}
       if (values.cliConfigOnly) {
         if (!values.cliConfigFiles?.length) {
           throw new Error('Cannot save CLI config without config files')
@@ -236,7 +238,7 @@ const CodeCliPage: FC = () => {
       logger.info('Updated CLI provider config', { toolId: selectedCliTool, providerId: editingProvider.id })
       const resolvedCliConfigContext = resolveCliConfigApplyContext(selectedCliTool, editingProvider.id, {
         modelId,
-        config: values.config ?? providerConfigs[editingProvider.id]?.config
+        config: sanitizedConfig ?? providerConfigs[editingProvider.id]?.config
       })
       const cliConfigModelId = values.cliConfigModelId ?? resolvedCliConfigContext?.modelId
       const writePrimaryModel = values.writePrimaryModel ?? resolvedCliConfigContext?.writePrimaryModel
@@ -247,7 +249,7 @@ const CodeCliPage: FC = () => {
           await writeCliConfigDraft({
             cliTool: selectedCliTool,
             modelId: cliConfigModelId,
-            configBlob: values.config,
+            configBlob: sanitizedConfig,
             files: values.cliConfigFiles,
             writePrimaryModel
           })

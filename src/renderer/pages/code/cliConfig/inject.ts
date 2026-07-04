@@ -33,6 +33,7 @@ import {
   resolveOpenAIBaseUrl,
   resolveOpenCodeNpmInfo
 } from './resolvers'
+import { sanitizeCliConfigBlob } from './sanitize'
 import {
   CLAUDE_SETTINGS_PATH,
   CODEX_AUTH_PATH,
@@ -44,7 +45,7 @@ import {
   OPENCODE_CONFIG_PATH,
   QWEN_CONFIG_PATH
 } from './targets'
-import { firstApiKey, getConfigBlob, sanitizeProviderName } from './values'
+import { firstApiKey, sanitizeProviderName } from './values'
 
 const logger = loggerService.withContext('injectCliConfig')
 
@@ -102,7 +103,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       const baseUrl = provider.endpointConfigs?.['anthropic-messages']?.baseUrl ?? ''
       const absPath = await resolveAbs(CLAUDE_SETTINGS_PATH)
       const existing = await readValidatedJson(absPath, 'Claude Code settings')
-      const blob = getConfigBlob(configBlob)
+      const blob = sanitizeCliConfigBlob(cliTool, configBlob)
       await writeExternalConfigFile(
         absPath,
         renderJsonFile(
@@ -128,7 +129,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       const authAbsPath = await resolveAbs(CODEX_AUTH_PATH)
       const existing = await readValidatedToml(absPath, 'Codex config')
       const existingAuth = await readValidatedJson(authAbsPath, 'Codex auth')
-      const blob = getConfigBlob(configBlob)
+      const blob = sanitizeCliConfigBlob(cliTool, configBlob)
       const nextConfig = buildCodexConfig(existing, { baseUrl, providerName, model }, blob)
       const nextAuth = buildCodexAuthConfig(existingAuth, apiKey)
       await writeExternalConfigFile(absPath, stringifyToml(nextConfig))
@@ -152,7 +153,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       }
       const absPath = await resolveAbs(OPENCODE_CONFIG_PATH)
       const existing = await readValidatedJson(absPath, 'OpenCode config')
-      const blob = getConfigBlob(configBlob)
+      const blob = sanitizeCliConfigBlob(cliTool, configBlob)
       const env = blob.env && typeof blob.env === 'object' ? (blob.env as Record<string, any>) : {}
       const nextConfig = buildOpenCodeConfig(
         existing,
@@ -162,10 +163,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
         {
           reasoning: env.OPENCODE_REASONING === 'true',
           supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord),
-          reasoningEffort: typeof blob.reasoningEffort === 'string' ? blob.reasoningEffort : undefined,
-          thinkingBudgetTokens: typeof blob.thinkingBudgetTokens === 'number' ? blob.thinkingBudgetTokens : undefined,
-          autoCompact: blob.autoCompact === true,
-          maxTurns: typeof blob.maxTurns === 'number' ? blob.maxTurns : undefined
+          autoCompact: blob.autoCompact === true
         }
       )
       await writeExternalConfigFile(absPath, renderJsonFile(nextConfig))
@@ -181,7 +179,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       const settingsAbsPath = await resolveAbs(GEMINI_SETTINGS_PATH)
       const envMap = parseDotenv(await readExternal(envAbsPath))
       const settings = await readValidatedJson(settingsAbsPath, 'Gemini CLI settings')
-      const blob = getConfigBlob(configBlob)
+      const blob = sanitizeCliConfigBlob(cliTool, configBlob)
       await writeExternalConfigFile(envAbsPath, renderDotenvFile(buildGeminiEnvConfig(envMap, { apiKey, baseUrl })))
       await writeExternalConfigFile(
         settingsAbsPath,
@@ -201,7 +199,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       const absPath = await resolveAbs(QWEN_CONFIG_PATH)
       const existing = await readValidatedJson(absPath, 'Qwen Code config')
       const modelLabel = modelRecord?.name ?? model
-      const blob = getConfigBlob(configBlob)
+      const blob = sanitizeCliConfigBlob(cliTool, configBlob)
       await writeExternalConfigFile(
         absPath,
         renderJsonFile(buildQwenConfig(existing, { apiKey, baseUrl, model, modelLabel }, blob))
@@ -222,7 +220,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       const providerName = sanitizeProviderName(provider.name, provider.id)
       const modelKey = `${CHERRY_PROVIDER_PREFIX}${providerName}`
       const maxContextSize = modelRecord?.contextWindow ?? 128000
-      const blob = getConfigBlob(configBlob)
+      const blob = sanitizeCliConfigBlob(cliTool, configBlob)
       await writeExternalConfigFile(
         absPath,
         stringifyToml(buildKimiConfig(existing, { apiKey, baseUrl, model, modelKey, maxContextSize }, blob))

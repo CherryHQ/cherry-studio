@@ -141,8 +141,9 @@ vi.mock('@renderer/pages/code/cliConfig', () => ({
   },
   readCliConfigDraft: (...args: unknown[]) => readCliConfigDraftMock(...args),
   readCliConfigFiles: (...args: unknown[]) => readCliConfigFilesMock(...args),
+  sanitizeCliConfigBlob: (_cliTool: string, config: Record<string, unknown> | undefined) => config ?? {},
   stripClaudeDetailedModels: (config: Record<string, unknown>) => {
-    const env = { ...((config.env as Record<string, string> | undefined) ?? {}) }
+    const env = { ...(config.env as Record<string, string> | undefined) }
     delete env.ANTHROPIC_DEFAULT_FABLE_MODEL
     delete env.ANTHROPIC_DEFAULT_FABLE_MODEL_NAME
     const next = { ...config }
@@ -160,25 +161,33 @@ vi.mock('../CliConfigEditor', () => ({
 
 vi.mock('../tools/ClaudeConfigFields', () => ({
   ClaudeConfigFields: ({
+    config,
     onChange,
     section = 'all'
   }: {
+    config: Record<string, unknown>
     onChange: (next: Record<string, unknown>) => void
     section?: string
-  }) => (
-    <div data-testid={`claude-config-fields-${section}`}>
-      {section === 'basic' && (
-        <button type="button" onClick={() => onChange({ changed: true })}>
-          change config
-        </button>
-      )}
-      {section === 'advanced' && (
-        <button type="button" onClick={() => onChange({ env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } })}>
-          select detailed model
-        </button>
-      )}
-    </div>
-  )
+  }) => {
+    const env = config.env as Record<string, string> | undefined
+    return (
+      <div data-testid={`claude-config-fields-${section}`}>
+        {section === 'basic' && (
+          <button type="button" onClick={() => onChange({ changed: true })}>
+            change config
+          </button>
+        )}
+        {section === 'advanced' && (
+          <>
+            <span data-testid="selected-detailed-model">{env?.ANTHROPIC_DEFAULT_FABLE_MODEL ?? ''}</span>
+            <button type="button" onClick={() => onChange({ env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } })}>
+              select detailed model
+            </button>
+          </>
+        )}
+      </div>
+    )
+  }
 }))
 
 vi.mock('../tools/CodexConfigFields', () => ({
@@ -334,6 +343,24 @@ describe('ConfigEditPanel', () => {
       cliConfigFiles,
       writePrimaryModel: true
     })
+  })
+
+  it('keeps an unsaved detailed Claude model when toggling back to common and detailed modes', async () => {
+    renderPanel(vi.fn(), { isCurrentProvider: false, providerConfig: null })
+
+    await waitFor(() =>
+      expect(readCliConfigFilesMock).toHaveBeenCalledWith(CodeCli.CLAUDE_CODE, { includeEmpty: true })
+    )
+
+    fireEvent.click(screen.getByText('code.model_mode.detailed'))
+    fireEvent.click(screen.getByText('select detailed model'))
+
+    await waitFor(() => expect(screen.getByTestId('selected-detailed-model')).toHaveTextContent('claude-new'))
+
+    fireEvent.click(screen.getByText('code.model_mode.common'))
+    fireEvent.click(screen.getByText('code.model_mode.detailed'))
+
+    expect(screen.getByTestId('selected-detailed-model')).toHaveTextContent('claude-new')
   })
 
   it('enables save after choosing a detailed Claude model without a saved common model', async () => {

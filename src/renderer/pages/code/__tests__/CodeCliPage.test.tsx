@@ -160,6 +160,7 @@ vi.mock('../cliConfig', () => ({
   },
   injectCliConfig: (...args: unknown[]) => injectCliConfigMock(...args),
   readCliConfigFiles: (...args: unknown[]) => readCliConfigFilesMock(...args),
+  sanitizeCliConfigBlob: (_cliTool: string, config: Record<string, unknown> | undefined) => config ?? {},
   writeCliConfigDraft: (...args: unknown[]) => writeCliConfigDraftMock(...args)
 }))
 

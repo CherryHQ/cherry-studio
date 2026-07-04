@@ -8,9 +8,11 @@ import {
   CODEX_MANAGED_TOP_LEVEL_KEYS,
   GEMINI_MANAGED_ENV_KEYS,
   GEMINI_MANAGED_SETTINGS_KEYS,
+  OPEN_CODE_MANAGED_TOP_LEVEL_KEYS,
   QWEN_MANAGED_SETTINGS_KEYS
 } from './managedKeys'
 import type { OpenCodeNpmInfo } from './resolvers'
+import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import { normalizeUrl, sanitizeProviderName } from './values'
 
 interface OpenCodeProviderIdentity {
@@ -84,14 +86,7 @@ export function buildCodexConfig(
       }
     }
   }
-  if (typeof options.modelReasoningEffort === 'string') merged.model_reasoning_effort = options.modelReasoningEffort
   if (options.disableResponseStorage === true) merged.disable_response_storage = true
-  if (typeof options.modelVerbosity === 'string') merged.model_verbosity = options.modelVerbosity
-  if (typeof options.modelContextWindow === 'number') merged.model_context_window = options.modelContextWindow
-  if (typeof options.modelAutoCompactTokenLimit === 'number') {
-    merged.model_auto_compact_token_limit = options.modelAutoCompactTokenLimit
-  }
-  if (typeof options.personality === 'string') merged.personality = options.personality
   if (options.goalMode === true) {
     const features = asRecord(merged.features)
     features.goals = true
@@ -110,9 +105,9 @@ function buildOpenCodeModelOptions(
   options: Record<string, any>
 ): void {
   if (npmInfo.providerType === 'anthropic') {
-    if (options.reasoning === true || typeof options.thinkingBudgetTokens === 'number') {
+    if (options.reasoning === true) {
       modelConfig.reasoning = true
-      modelConfig.options = { thinking: { budgetTokens: options.thinkingBudgetTokens ?? 10000, type: 'enabled' } }
+      modelConfig.options = { thinking: { budgetTokens: 10000, type: 'enabled' } }
     }
     return
   }
@@ -121,7 +116,7 @@ function buildOpenCodeModelOptions(
     if (options.reasoning === true) {
       modelConfig.reasoning = true
       modelConfig.options = {
-        thinkingConfig: { includeThoughts: true, thinkingBudget: options.thinkingBudgetTokens ?? -1 }
+        thinkingConfig: { includeThoughts: true, thinkingBudget: -1 }
       }
     }
     return
@@ -129,9 +124,7 @@ function buildOpenCodeModelOptions(
 
   if (options.reasoning === true && options.supportsReasoningEffort === true) {
     modelConfig.reasoning = true
-    modelConfig.options = { reasoningEffort: options.reasoningEffort || 'medium' }
-  } else if (typeof options.reasoningEffort === 'string') {
-    modelConfig.options = { reasoningEffort: options.reasoningEffort }
+    modelConfig.options = { reasoningEffort: 'medium' }
   }
 }
 
@@ -145,14 +138,19 @@ export function buildOpenCodeConfig(
   const providerName = sanitizeProviderName(provider.name, provider.id)
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${providerName}`
   const modelConfig: Record<string, any> = { name: resolved.model }
-  buildOpenCodeModelOptions(modelConfig, npmInfo, options)
+  buildOpenCodeModelOptions(modelConfig, npmInfo, {
+    reasoning: options.reasoning === true,
+    supportsReasoningEffort: options.supportsReasoningEffort === true
+  })
   const existingProviders = existing.provider && typeof existing.provider === 'object' ? existing.provider : {}
   const preservedProviders = Object.fromEntries(
     Object.entries(existingProviders).filter(([key]) => !key.startsWith(CHERRY_PROVIDER_PREFIX))
   )
+  const cleaned: Record<string, any> = { ...existing }
+  for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete cleaned[key]
   const merged: Record<string, any> = {
     $schema: OPENCODE_SCHEMA,
-    ...existing,
+    ...cleaned,
     provider: {
       ...preservedProviders,
       [providerKey]: {
@@ -164,7 +162,6 @@ export function buildOpenCodeConfig(
     }
   }
   if (options.autoCompact === true) merged.autoCompact = true
-  if (typeof options.maxTurns === 'number') merged.maxTurns = options.maxTurns
   return merged
 }
 
@@ -185,7 +182,7 @@ export function buildGeminiSettingsConfig(
   configBlob: Record<string, any>
 ): Record<string, any> {
   const next = { ...settings }
-  applyManagedJsonSettings(next, configBlob, GEMINI_MANAGED_SETTINGS_KEYS)
+  applyManagedJsonSettings(next, sanitizeGeminiConfigBlob(configBlob), GEMINI_MANAGED_SETTINGS_KEYS)
   next.model = { ...asRecord(next.model), name: resolved.model }
   return next
 }
@@ -195,6 +192,7 @@ export function buildQwenConfig(
   resolved: { apiKey: string; baseUrl: string; model: string; modelLabel: string },
   configBlob: Record<string, any>
 ): Record<string, any> {
+  const sanitizedConfigBlob = sanitizeQwenConfigBlob(configBlob)
   const envKey = 'CHERRY_QWEN_API_KEY'
   const existingModels = Array.isArray(existing.modelProviders?.openai) ? [...existing.modelProviders.openai] : []
   const userModels = existingModels.filter(
@@ -219,7 +217,7 @@ export function buildQwenConfig(
     },
     model: { name: resolved.model }
   }
-  applyManagedJsonSettings(merged, configBlob, QWEN_MANAGED_SETTINGS_KEYS)
+  applyManagedJsonSettings(merged, sanitizedConfigBlob, QWEN_MANAGED_SETTINGS_KEYS)
   return merged
 }
 
@@ -228,6 +226,7 @@ export function buildKimiConfig(
   resolved: { apiKey: string; baseUrl: string; model: string; modelKey: string; maxContextSize?: number },
   configBlob: Record<string, any>
 ): Record<string, any> {
+  const sanitizedConfigBlob = sanitizeKimiConfigBlob(configBlob)
   const providerTable = { ...asRecord(existing.providers) }
   for (const key of Object.keys(providerTable)) {
     if (key.startsWith(CHERRY_PROVIDER_PREFIX)) delete providerTable[key]
@@ -246,6 +245,6 @@ export function buildKimiConfig(
   modelsTable[resolved.modelKey] = modelConfig
 
   const merged = { ...existing, default_model: resolved.modelKey, providers: providerTable, models: modelsTable }
-  applyManagedTomlSettings(merged, configBlob)
+  applyManagedTomlSettings(merged, sanitizedConfigBlob)
   return merged
 }

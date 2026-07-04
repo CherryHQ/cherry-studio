@@ -74,6 +74,8 @@ describe('clearCliConfig', () => {
     existing['/resolved~/.config/opencode/opencode.json'] = JSON.stringify({
       $schema: 'https://opencode.ai/config.json',
       provider: { 'cherry-deepseek': { npm: 'x' }, userprov: { npm: 'y' } },
+      autoCompact: true,
+      maxTurns: 30,
       userTop: 'keep'
     })
 

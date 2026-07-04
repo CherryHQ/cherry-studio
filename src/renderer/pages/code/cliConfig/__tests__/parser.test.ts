@@ -99,10 +99,13 @@ describe('extractConnectionFromCliConfigDraft', () => {
 })
 
 describe('extractConfigFromCliConfigDraft', () => {
-  it('round-trips codex managed settings from the config blob', async () => {
+  it('round-trips only supported codex managed settings from the config blob', async () => {
     const blob = { goalMode: true, disableResponseStorage: true, modelReasoningEffort: 'high' }
     const files = await buildDraft(CodeCli.OPENAI_CODEX, responsesProvider, 'gpt-5', blob)
-    expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, files)).toEqual(blob)
+    expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, files)).toEqual({
+      goalMode: true,
+      disableResponseStorage: true
+    })
   })
 
   it('round-trips gemini managed settings from the config blob', async () => {
