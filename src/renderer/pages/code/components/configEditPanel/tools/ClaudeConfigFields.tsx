@@ -9,10 +9,10 @@ import { ModelSelectorTrigger } from '../ModelSelectorTrigger'
 import { TogglePill } from '../TogglePill'
 
 const MODEL_ROLES = [
-  { roleKey: 'fable', labelKey: 'code.adv.claude.fable_model', placeholder: 'claude-fable-1', supports1M: true },
-  { roleKey: 'opus', labelKey: 'code.adv.claude.opus_model', placeholder: 'claude-opus-4-1', supports1M: true },
-  { roleKey: 'sonnet', labelKey: 'code.adv.claude.sonnet_model', placeholder: 'claude-sonnet-4-5', supports1M: true },
-  { roleKey: 'haiku', labelKey: 'code.adv.claude.haiku_model', placeholder: 'claude-haiku-4-5', supports1M: false }
+  { roleKey: 'fable', labelKey: 'code.adv.claude.fable_model', supports1M: true },
+  { roleKey: 'opus', labelKey: 'code.adv.claude.opus_model', supports1M: true },
+  { roleKey: 'sonnet', labelKey: 'code.adv.claude.sonnet_model', supports1M: true },
+  { roleKey: 'haiku', labelKey: 'code.adv.claude.haiku_model', supports1M: false }
 ] as const
 
 const ROLE_ENV: Record<string, { model: string; name: string }> = {
@@ -206,7 +206,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
                   <span className="w-14 shrink-0 text-foreground text-xs">{t(field.labelKey)}</span>
                   <ClaudeRoleModelSelector
                     value={toProviderModelId(providerId, displayedModelId)}
-                    placeholder={field.placeholder}
+                    placeholder={t('settings.models.empty')}
                     filter={modelFilter}
                     onSelect={(nextModelId) => {
                       const nextRawModelId = getRawModelId(nextModelId)

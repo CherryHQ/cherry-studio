@@ -156,7 +156,14 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
       files?: CliConfigFileDraft[]
     ): Promise<ConfigDraft> => {
       if (!nextModelId) {
-        return { modelId: undefined, config: nextConfig, files: [], connection: null, mode: 'managed', error: '' }
+        return {
+          modelId: undefined,
+          config: nextConfig,
+          files: files ?? [],
+          connection: null,
+          mode: 'managed',
+          error: ''
+        }
       }
       try {
         const nextFiles = await readCliConfigDraft({
@@ -214,13 +221,21 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     }
     commitCleanDraft(initialDraft)
 
-    if (!nextModelId) return
-
     const loadId = ++loadIdRef.current
     void (async () => {
       let rawFiles: CliConfigFileDraft[] = []
       try {
-        rawFiles = await readCliConfigFiles(cliTool)
+        rawFiles = await readCliConfigFiles(cliTool, { includeEmpty: true })
+
+        if (!nextModelId) {
+          if (loadId !== loadIdRef.current) return
+          commitCleanDraft({
+            ...initialDraft,
+            files: rawFiles
+          })
+          return
+        }
+
         const connection = extractConnectionFromCliConfigDraft(cliTool, rawFiles)
 
         if (isCurrentProvider && connection && !connectionMatchesProvider(connection, nextModelId)) {
@@ -274,7 +289,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
       commitDraft({
         ...current,
         modelId: nextModelId,
-        files: nextModelId ? current.files : [],
+        files: current.files,
         connection: null,
         mode: 'managed',
         error: ''

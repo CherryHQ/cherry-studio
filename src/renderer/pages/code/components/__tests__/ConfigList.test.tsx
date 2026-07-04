@@ -27,7 +27,7 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('../ConfigCard', () => ({
   ProviderCard: ({ providerName, modelName }: { providerName: string; modelName?: string }) => (
-    <div data-testid="provider-card">
+    <div data-testid="provider-card" data-model-name={modelName ?? ''}>
       <span>{providerName}</span>
       {modelName && <span>{modelName}</span>}
     </div>
@@ -56,7 +56,7 @@ describe('ConfigList', () => {
     expect(screen.getByTestId('code-config-reorderable-list')).toHaveAttribute('data-gap', '0.5rem')
   })
 
-  it('shows the empty model placeholder when a provider has no configured model', () => {
+  it('does not pass a placeholder model name when a provider has no configured model', () => {
     render(
       <ConfigList
         providers={[provider]}
@@ -69,6 +69,7 @@ describe('ConfigList', () => {
       />
     )
 
-    expect(screen.getByText('settings.models.empty')).toBeInTheDocument()
+    expect(screen.getByTestId('provider-card')).toHaveAttribute('data-model-name', '')
+    expect(screen.queryByText('settings.models.empty')).not.toBeInTheDocument()
   })
 })

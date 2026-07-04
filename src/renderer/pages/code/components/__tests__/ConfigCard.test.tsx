@@ -18,14 +18,15 @@ const provider = {
   name: 'Anthropic'
 } as Provider
 
-function renderCard(options: { isCurrent?: boolean } = {}) {
+function renderCard(options: { isCurrent?: boolean; modelName?: string } = {}) {
   const onConfigure = vi.fn()
   const onToggleCurrent = vi.fn()
+  const modelName = 'modelName' in options ? options.modelName : 'claude-sonnet-4-5'
   render(
     <ProviderCard
       provider={provider}
       providerName="Anthropic"
-      modelName="claude-sonnet-4-5"
+      modelName={modelName}
       isCurrent={options.isCurrent ?? false}
       onConfigure={onConfigure}
       onToggleCurrent={onToggleCurrent}
@@ -105,6 +106,15 @@ describe('ProviderCard', () => {
     expect(separator.compareDocumentPosition(modelId) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(name.parentElement).toContainElement(separator)
     expect(name.parentElement).toContainElement(modelId)
+  })
+
+  it('shows the provider name without model details when no model is configured', () => {
+    renderCard({ modelName: undefined })
+
+    expect(screen.getByText('Anthropic')).toBeInTheDocument()
+    expect(screen.queryByText('settings.models.empty')).not.toBeInTheDocument()
+    expect(screen.queryByText('｜')).not.toBeInTheDocument()
+    expect(screen.queryByText('claude-sonnet-4-5')).not.toBeInTheDocument()
   })
 
   it('toggles the provider with Enter and Space when the card has focus', () => {

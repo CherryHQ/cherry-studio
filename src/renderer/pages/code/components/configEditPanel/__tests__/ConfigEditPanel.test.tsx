@@ -138,6 +138,12 @@ vi.mock('../tools/ClaudeConfigFields', () => ({
   )
 }))
 
+vi.mock('../tools/CodexConfigFields', () => ({
+  CodexConfigFields: ({ section = 'all' }: { section?: string }) => (
+    <div data-testid={`codex-config-fields-${section}`} />
+  )
+}))
+
 const provider = {
   id: 'anthropic',
   name: 'Anthropic',
@@ -161,6 +167,7 @@ const cliConfigFiles: CliConfigFileDraft[] = [
 function renderPanel(
   onSubmit = vi.fn(),
   options: {
+    cliTool?: CodeCli
     isCurrentProvider?: boolean
     providerConfig?: CliProviderConfig | null
   } = {}
@@ -177,7 +184,7 @@ function renderPanel(
     <ConfigEditPanel
       open
       onClose={vi.fn()}
-      cliTool={CodeCli.CLAUDE_CODE}
+      cliTool={options.cliTool ?? CodeCli.CLAUDE_CODE}
       provider={provider}
       providerConfig={
         options.providerConfig === undefined
@@ -214,14 +221,52 @@ describe('ConfigEditPanel', () => {
     expect(screen.getByTestId('model-selector')).toBeInTheDocument()
   })
 
-  it('shows the empty model placeholder when the provider has no saved model', () => {
+  it('shows the empty model placeholder when the provider has no saved model', async () => {
     renderPanel(vi.fn(), { isCurrentProvider: false, providerConfig: null })
+
+    await waitFor(() =>
+      expect(readCliConfigFilesMock).toHaveBeenCalledWith(CodeCli.CLAUDE_CODE, { includeEmpty: true })
+    )
 
     expect(screen.getByText('settings.models.empty')).toBeInTheDocument()
     expect(screen.queryByText('Claude Old')).not.toBeInTheDocument()
     expect(screen.queryByText('Claude New')).not.toBeInTheDocument()
     expect(screen.getByText('common.save')).toBeDisabled()
-    expect(readCliConfigFilesMock).not.toHaveBeenCalled()
+    expect(readCliConfigDraftMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps the CLI config editor visible without a saved model', async () => {
+    const codexFiles: CliConfigFileDraft[] = [
+      {
+        target: 'codex-config',
+        label: 'Codex config.toml',
+        path: '/tmp/config.toml',
+        language: 'toml',
+        content: ''
+      },
+      {
+        target: 'codex-auth',
+        label: 'Codex auth.json',
+        path: '/tmp/auth.json',
+        language: 'json',
+        content: ''
+      }
+    ]
+    readCliConfigFilesMock.mockResolvedValue(codexFiles)
+
+    renderPanel(vi.fn(), {
+      cliTool: CodeCli.OPENAI_CODEX,
+      isCurrentProvider: false,
+      providerConfig: null
+    })
+
+    await waitFor(() =>
+      expect(readCliConfigFilesMock).toHaveBeenCalledWith(CodeCli.OPENAI_CODEX, { includeEmpty: true })
+    )
+
+    fireEvent.click(screen.getByText('common.advanced_settings'))
+
+    expect(screen.getByTestId('cli-config-editor')).toBeInTheDocument()
     expect(readCliConfigDraftMock).not.toHaveBeenCalled()
   })
 

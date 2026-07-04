@@ -50,18 +50,20 @@ vi.mock('../../ModelSelectorTrigger', () => ({
 function renderFields(
   options: {
     config?: Record<string, unknown>
-    currentModelId?: UniqueModelId
+    currentModelId?: UniqueModelId | undefined
     onChange?: (next: Record<string, unknown>) => void
   } = {}
 ) {
   const onChange = options.onChange ?? vi.fn()
+  const currentModelId =
+    'currentModelId' in options ? options.currentModelId : ('anthropic::claude-sonnet-4-5' as UniqueModelId)
   render(
     <ClaudeConfigFields
       config={options.config ?? {}}
       onChange={onChange}
       section="advanced"
       providerId="anthropic"
-      currentModelId={options.currentModelId ?? ('anthropic::claude-sonnet-4-5' as UniqueModelId)}
+      currentModelId={currentModelId}
       modelFilter={() => true}
     />
   )
@@ -108,6 +110,23 @@ describe('ClaudeConfigFields', () => {
       'anthropic::claude-sonnet-4-5',
       'anthropic::claude-sonnet-4-5',
       'anthropic::claude-sonnet-4-5'
+    ])
+  })
+
+  it('shows the empty model placeholder for role selectors when no main model exists', () => {
+    renderFields({ currentModelId: undefined })
+
+    expect(screen.getAllByTestId('role-model-selector').map((selector) => selector.dataset.value)).toEqual([
+      '',
+      '',
+      '',
+      ''
+    ])
+    expect(screen.getAllByTestId('model-selector-trigger').map((trigger) => trigger.textContent)).toEqual([
+      'settings.models.empty',
+      'settings.models.empty',
+      'settings.models.empty',
+      'settings.models.empty'
     ])
   })
 

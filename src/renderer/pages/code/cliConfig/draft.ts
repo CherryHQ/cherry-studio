@@ -87,11 +87,14 @@ async function resolveContext(args: InjectCliConfigArgs): Promise<ResolvedCliCon
   }
 }
 
-export async function readCliConfigFiles(cliTool: string): Promise<CliConfigFileDraft[]> {
+export async function readCliConfigFiles(
+  cliTool: string,
+  options: { includeEmpty?: boolean } = {}
+): Promise<CliConfigFileDraft[]> {
   const files = await Promise.all(
     getCliConfigTargets(cliTool).map(async (target) => makeDraftFile(target, await readDraftFileText(target)))
   )
-  return files.some((file) => file.content.trim()) ? files : []
+  return options.includeEmpty || files.some((file) => file.content.trim()) ? files : []
 }
 
 export async function readCliConfigDraft(
