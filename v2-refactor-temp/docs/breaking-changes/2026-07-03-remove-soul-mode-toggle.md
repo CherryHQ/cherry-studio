@@ -33,9 +33,15 @@ autonomy tools can restrict individual tools via the agent's tool settings.
 
 ## Notes for release manager
 
-- Spans the four commits of PR #16726: unconditional soul-mode behavior in
-  main, renderer/schema flag removal, CherryClaw branding removal, and the
-  i18n cleanup.
+- Spans the commits of PR #16726: unconditional soul-mode behavior in main,
+  renderer/schema flag removal, CherryClaw branding removal, the i18n cleanup,
+  the interactive-tool overlay removal, and the claw→cherry-tools server
+  rename/merge.
+- The blanket disallowed-tools overlay was removed in the same PR: agents
+  regain `AskUserQuestion`, the plan-mode tools, and the worktree tools.
+  `Cron*` / `TodoWrite` / `NotebookEdit` remain blocked by their registry
+  `exposure: 'disabled'` classification; the assistant-only `AskUserQuestion`
+  disable is kept.
 - Related earlier entry: `2026-06-18-agent-create-defaults-bypass-soul.md` —
   the create-flow default it describes is superseded for the soul half
   (`soul_enabled` no longer exists); merge when aggregating.

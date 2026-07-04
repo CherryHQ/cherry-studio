@@ -1,6 +1,12 @@
 # Declarative Claude Code Tool Registry
 
 > Design doc. Status: approved, implementation in progress (PR-by-PR).
+>
+> **Update (PR #16726):** soul mode and its tool gating are gone — `soul_enabled`,
+> `SOUL_MODE_DISALLOWED_TOOLS`, and the PR-7 de-gating items below have landed.
+> The `claw` server was renamed and merged into `cherry-tools`; the autonomy
+> tools' final names are `mcp__cherry-tools__cron/notify/config`. References to
+> `claw` / soul gating below are historical context, not current state.
 
 ## Context
 
