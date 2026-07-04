@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { withCreatedImageEntry } from '@main/ipc/handlers/utils/entityImageBinding'
+import { withCreatedImageEntry } from '@main/services/file/utils/entityImageBinding'
 import { tagStoredFileRef } from '@shared/data/types/file'
 import type { profileRequestSchemas } from '@shared/ipc/schemas/profile'
 import type { IpcHandlersFor } from '@shared/ipc/types'

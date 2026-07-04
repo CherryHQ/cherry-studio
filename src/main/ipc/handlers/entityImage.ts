@@ -1,6 +1,6 @@
 import { miniAppService } from '@data/services/MiniAppService'
 import { providerService } from '@data/services/ProviderService'
-import { bindLogoImage } from '@main/ipc/handlers/utils/entityImageBinding'
+import { bindLogoImage } from '@main/services/file/utils/entityImageBinding'
 import type { entityImageRequestSchemas } from '@shared/ipc/schemas/entityImage'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
