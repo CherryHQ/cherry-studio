@@ -46,7 +46,7 @@ export const ConfigList: FC<ConfigListProps> = ({
       items={providers}
       getId={(p) => p.id}
       onReorder={onReorder}
-      gap="1px"
+      gap="0.5rem"
       renderItem={(provider, _index, { dragging }) => {
         const cfg = providerConfigs[provider.id]
         const meta = resolveMeta(provider, cfg)
