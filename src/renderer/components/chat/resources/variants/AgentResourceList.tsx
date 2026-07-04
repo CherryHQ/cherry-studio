@@ -1,5 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
@@ -10,7 +11,9 @@ import { usePins } from '@renderer/hooks/usePins'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { Pin, PinOff, Plus, SquarePen, Trash2 } from 'lucide-react'
+import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { Check, Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -24,7 +27,25 @@ const logger = loggerService.withContext('AgentResourceList')
 
 const AGENT_ENTITY_EDIT_ACTION_ID = 'agent-entity.edit'
 const AGENT_ENTITY_TOGGLE_PIN_ACTION_ID = 'agent-entity.toggle-pin'
+const AGENT_ENTITY_ICON_TYPE_ACTION_ID = 'agent-entity.icon-type'
 const AGENT_ENTITY_DELETE_ACTION_ID = 'agent-entity.delete'
+const ASSISTANT_ICON_TYPE_OPTIONS: AssistantIconType[] = ['emoji', 'model', 'none']
+const ASSISTANT_ICON_TYPE_LABEL_KEYS: Record<AssistantIconType, string> = {
+  emoji: 'settings.assistant.icon.type.emoji',
+  model: 'settings.assistant.icon.type.model',
+  none: 'settings.assistant.icon.type.none'
+}
+
+function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null | undefined) {
+  if (!isUniqueModelId(uniqueModelId)) return undefined
+
+  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  return {
+    id: modelId,
+    name: modelName || modelId,
+    providerId
+  }
+}
 
 type SessionListItem = AgentSessionEntity & {
   pinned?: boolean
@@ -59,6 +80,8 @@ export function AgentResourceList({
   onActiveAgentDeleted
 }: AgentResourceListProps) {
   const { t } = useTranslation()
+  const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
+  const [defaultModelId] = usePreference('chat.default_model_id')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
@@ -95,21 +118,29 @@ export function AgentResourceList({
 
   const entities = useMemo<ResourceEntityRailItem[]>(
     () =>
-      agents.map((agent) => ({
-        id: agent.id,
-        name: agent.name,
-        orderKey: agent.orderKey,
-        pinned: agentPinnedIdSet.has(agent.id),
-        icon: (
-          <EmojiIcon
-            emoji={getAgentAvatarFromConfiguration(agent.configuration)}
-            size={24}
-            fontSize={14}
-            className="mr-0"
-          />
-        )
-      })),
-    [agents, agentPinnedIdSet]
+      agents.map((agent) => {
+        const modelAvatarModel = buildModelAvatarModel(agent.model ?? defaultModelId, agent.modelName ?? undefined)
+        const icon =
+          assistantIconType === 'none' ? undefined : assistantIconType === 'model' && modelAvatarModel ? (
+            <ModelAvatar model={modelAvatarModel} size={24} />
+          ) : (
+            <EmojiIcon
+              emoji={getAgentAvatarFromConfiguration(agent.configuration)}
+              size={24}
+              fontSize={14}
+              className="mr-0"
+            />
+          )
+
+        return {
+          id: agent.id,
+          name: agent.name,
+          orderKey: agent.orderKey,
+          pinned: agentPinnedIdSet.has(agent.id),
+          icon
+        }
+      }),
+    [agentPinnedIdSet, agents, assistantIconType, defaultModelId]
   )
 
   const sortSessionsForEntity = useCallback(
@@ -229,6 +260,23 @@ export function AgentResourceList({
           children: []
         },
         {
+          id: AGENT_ENTITY_ICON_TYPE_ACTION_ID,
+          label: t('assistants.icon.type'),
+          icon: <Smile size={14} />,
+          order: 25,
+          danger: false,
+          availability: { visible: true, enabled: true },
+          children: ASSISTANT_ICON_TYPE_OPTIONS.map((type) => ({
+            id: `${AGENT_ENTITY_ICON_TYPE_ACTION_ID}.${type}`,
+            label: t(ASSISTANT_ICON_TYPE_LABEL_KEYS[type]),
+            icon: assistantIconType === type ? <Check size={14} /> : <span className="block size-4" />,
+            order: 0,
+            danger: false,
+            availability: { visible: true, enabled: true },
+            children: []
+          }))
+        },
+        {
           id: AGENT_ENTITY_DELETE_ACTION_ID,
           label: t('agent.delete.title'),
           icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
@@ -240,7 +288,7 @@ export function AgentResourceList({
         }
       ]
     },
-    [agentPinnedIdSet, deletingAgentId, isAgentPinActionDisabled, t]
+    [agentPinnedIdSet, assistantIconType, deletingAgentId, isAgentPinActionDisabled, t]
   )
 
   const handleContextMenuAction = useCallback(
@@ -253,11 +301,15 @@ export function AgentResourceList({
         void handleToggleAgentPin(item.id)
         return
       }
+      if (action.id.startsWith(`${AGENT_ENTITY_ICON_TYPE_ACTION_ID}.`)) {
+        void setAssistantIconType(action.id.slice(AGENT_ENTITY_ICON_TYPE_ACTION_ID.length + 1) as AssistantIconType)
+        return
+      }
       if (action.id === AGENT_ENTITY_DELETE_ACTION_ID) {
         void handleDeleteAgent(item.id)
       }
     },
-    [handleDeleteAgent, handleToggleAgentPin, openAgentEditor]
+    [handleDeleteAgent, handleToggleAgentPin, openAgentEditor, setAssistantIconType]
   )
 
   return (

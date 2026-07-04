@@ -349,6 +349,26 @@ describe('ResourceEntityRail', () => {
     requestAnimationFrameSpy.mockRestore()
   })
 
+  it('does not reserve a leading slot for entities without icons', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        items={[{ id: 'assistant-a', name: 'Assistant A' }]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(
+      screen
+        .getByText('Assistant A')
+        .closest('[role="option"]')
+        ?.querySelector('[data-resource-list-leading-slot=true]')
+    ).toBeNull()
+  })
+
   it('splits pinned and non-pinned entities into two flush section headers while keeping avatars', () => {
     render(
       <ResourceEntityRail

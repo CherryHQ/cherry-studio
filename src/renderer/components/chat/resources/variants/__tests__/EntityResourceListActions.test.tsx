@@ -90,6 +90,10 @@ vi.mock('@renderer/components/EmojiIcon', () => ({
   default: ({ emoji }: { emoji: string }) => <span>{emoji}</span>
 }))
 
+vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
+  default: () => <span data-testid="model-avatar" />
+}))
+
 vi.mock('@renderer/components/resource/dialogs', () => ({
   ResourceEditDialogHost: () => null
 }))
@@ -115,41 +119,48 @@ vi.mock('@renderer/components/chat/resources/variants/ResourceEntityRail', () =>
     headerActions?: ReactNode
     items: readonly ResourceEntityRailItem[]
     onContextMenuAction?: (item: ResourceEntityRailItem, action: ResolvedAction) => void | Promise<void>
-  }) => (
-    <div>
-      {headerActions}
-      {items.map((item) => {
-        const actions = getContextMenuActions?.(item) ?? []
+  }) => {
+    const flattenActions = (actions: readonly ResolvedAction[]): readonly ResolvedAction[] =>
+      actions.flatMap((action) => [action, ...flattenActions(action.children)])
 
-        return (
-          <section key={item.id} aria-label={item.name}>
-            <div data-testid={`${item.id}-context-menu`}>
-              {actions.map((action) => (
-                <button
-                  key={`context-${action.id}`}
-                  type="button"
-                  disabled={!action.availability.enabled}
-                  onClick={() => onContextMenuAction?.(item, action)}>
-                  {action.label}
-                </button>
-              ))}
-            </div>
-            <div data-testid={`${item.id}-more-menu`}>
-              {actions.map((action) => (
-                <button
-                  key={`more-${action.id}`}
-                  type="button"
-                  disabled={!action.availability.enabled}
-                  onClick={() => onContextMenuAction?.(item, action)}>
-                  {action.label}
-                </button>
-              ))}
-            </div>
-          </section>
-        )
-      })}
-    </div>
-  )
+    return (
+      <div>
+        {headerActions}
+        {items.map((item) => {
+          const actions = getContextMenuActions?.(item) ?? []
+          const renderedActions = flattenActions(actions)
+
+          return (
+            <section key={item.id} aria-label={item.name}>
+              {item.icon}
+              <div data-testid={`${item.id}-context-menu`}>
+                {renderedActions.map((action) => (
+                  <button
+                    key={`context-${action.id}`}
+                    type="button"
+                    disabled={!action.availability.enabled}
+                    onClick={() => onContextMenuAction?.(item, action)}>
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+              <div data-testid={`${item.id}-more-menu`}>
+                {renderedActions.map((action) => (
+                  <button
+                    key={`more-${action.id}`}
+                    type="button"
+                    disabled={!action.availability.enabled}
+                    onClick={() => onContextMenuAction?.(item, action)}>
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )
+        })}
+      </div>
+    )
+  }
 }))
 
 vi.mock('@renderer/hooks/resourceViewSources', () => ({
@@ -181,7 +192,9 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
         id: 'assistant-1',
         name: 'Assistant 1',
         orderKey: 'a',
-        emoji: 'A'
+        emoji: 'A',
+        modelId: 'openai::gpt-4o',
+        modelName: 'GPT-4o'
       }
     ],
     error: null,
@@ -197,7 +210,9 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
         id: 'agent-1',
         name: 'Agent 1',
         orderKey: 'a',
-        configuration: {}
+        configuration: {},
+        model: 'anthropic::claude-sonnet-4',
+        modelName: 'Claude Sonnet 4'
       }
     ],
     deleteAgent: agentDataMocks.deleteAgent,
@@ -313,6 +328,18 @@ describe('classic layout entity resource list actions', () => {
     expect(preferenceMocks.setSortType).toHaveBeenCalledWith('tags')
   })
 
+  it('lets the classic assistant rail switch icon display mode from the context menu', () => {
+    render(
+      <AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onStartDraftAssistant={vi.fn()} />
+    )
+
+    expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.icon.type')
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'settings.assistant.icon.type.model' })[0])
+
+    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('assistant.icon_type', 'model')
+  })
+
   it('offers turning tag grouping off when already grouping (tags → list)', () => {
     preferenceMocks.sortType = 'tags'
 
@@ -386,6 +413,23 @@ describe('classic layout entity resource list actions', () => {
     // Classic layout resets via the dedicated callback, never the draft compose.
     await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1'))
     expect(onStartMissingAgentDraft).not.toHaveBeenCalled()
+  })
+
+  it('lets the classic agent rail switch icon display mode from the context menu', () => {
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        onSelectSession={vi.fn()}
+        onStartDraftAgent={vi.fn()}
+        onStartMissingAgentDraft={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('assistants.icon.type')
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'settings.assistant.icon.type.none' })[0])
+
+    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('assistant.icon_type', 'none')
   })
 
   it('lets the classic agent rail switch back to the workdir session view', () => {

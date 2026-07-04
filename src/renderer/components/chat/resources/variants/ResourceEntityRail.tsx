@@ -21,7 +21,7 @@ import {
 export type ResourceEntityRailItem = {
   id: string
   name: string
-  icon: ReactNode
+  icon?: ReactNode
   orderKey?: string
   /**
    * When true, a *visible* entity floats into the "已固定" section at the top and cannot be dragged.
@@ -185,9 +185,11 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         : []
       const row = (
         <ResourceList.Item item={item} data-testid="resource-entity-rail-row" onClick={() => handleItemClick(item)}>
-          <ResourceList.ItemLeadingSlot className={ENTITY_RAIL_LEADING_SLOT_CLASS}>
-            {item.icon}
-          </ResourceList.ItemLeadingSlot>
+          {item.icon && (
+            <ResourceList.ItemLeadingSlot className={ENTITY_RAIL_LEADING_SLOT_CLASS}>
+              {item.icon}
+            </ResourceList.ItemLeadingSlot>
+          )}
           <ResourceList.ItemTitle
             className={cn(ENTITY_RAIL_TITLE_CLASS, 'transition-[padding]', trailingActionPaddingClassName)}
             title={item.name}>

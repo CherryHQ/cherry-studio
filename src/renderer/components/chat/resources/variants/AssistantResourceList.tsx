@@ -1,5 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
@@ -10,7 +11,9 @@ import { usePins } from '@renderer/hooks/usePins'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { Bot, Edit3, PinIcon, PinOffIcon, Plus, Tags, Trash2 } from 'lucide-react'
+import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import { Bot, Check, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,7 +28,25 @@ const logger = loggerService.withContext('AssistantResourceList')
 const ASSISTANT_ENTITY_EDIT_ACTION_ID = 'assistant-entity.edit'
 const ASSISTANT_ENTITY_TOGGLE_PIN_ACTION_ID = 'assistant-entity.toggle-pin'
 const ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID = 'assistant-entity.toggle-tag-grouping'
+const ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID = 'assistant-entity.icon-type'
 const ASSISTANT_ENTITY_DELETE_ACTION_ID = 'assistant-entity.delete'
+const ASSISTANT_ICON_TYPE_OPTIONS: AssistantIconType[] = ['emoji', 'model', 'none']
+const ASSISTANT_ICON_TYPE_LABEL_KEYS: Record<AssistantIconType, string> = {
+  emoji: 'settings.assistant.icon.type.emoji',
+  model: 'settings.assistant.icon.type.model',
+  none: 'settings.assistant.icon.type.none'
+}
+
+function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null | undefined) {
+  if (!isUniqueModelId(uniqueModelId)) return undefined
+
+  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  return {
+    id: modelId,
+    name: modelName || modelId,
+    providerId
+  }
+}
 
 type AssistantResourceListProps = {
   activeAssistantId?: string | null
@@ -55,6 +76,8 @@ export function AssistantResourceList({
 }: AssistantResourceListProps) {
   const { t } = useTranslation()
   const [assistantSortType, setAssistantSortType] = usePreference('assistant.tab.sort_type')
+  const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
+  const [defaultModelId] = usePreference('chat.default_model_id')
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const isTagGrouping = assistantSortType === 'tags'
   const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
@@ -96,21 +119,32 @@ export function AssistantResourceList({
 
   const entities = useMemo<ResourceEntityRailItem[]>(
     () =>
-      assistants.map((assistant) => ({
-        id: assistant.id,
-        name: assistant.name,
-        orderKey: assistant.orderKey,
-        pinned: assistantPinnedIdSet.has(assistant.id),
-        tag: assistant.tags?.[0]?.name,
-        icon: assistant.emoji ? (
-          <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
-        ) : (
-          <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
-            <Bot size={14} />
-          </span>
+      assistants.map((assistant) => {
+        const modelAvatarModel = buildModelAvatarModel(
+          assistant.modelId ?? defaultModelId,
+          assistant.modelName ?? undefined
         )
-      })),
-    [assistants, assistantPinnedIdSet]
+        const icon =
+          assistantIconType === 'none' ? undefined : assistantIconType === 'model' && modelAvatarModel ? (
+            <ModelAvatar model={modelAvatarModel} size={24} />
+          ) : assistant.emoji ? (
+            <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
+          ) : (
+            <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
+              <Bot size={14} />
+            </span>
+          )
+
+        return {
+          id: assistant.id,
+          name: assistant.name,
+          orderKey: assistant.orderKey,
+          pinned: assistantPinnedIdSet.has(assistant.id),
+          tag: assistant.tags?.[0]?.name,
+          icon
+        }
+      }),
+    [assistantIconType, assistants, assistantPinnedIdSet, defaultModelId]
   )
 
   const sortTopicsForEntity = useCallback(
@@ -235,10 +269,27 @@ export function AssistantResourceList({
           children: []
         },
         {
+          id: ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID,
+          label: t('assistants.icon.type'),
+          icon: <Smile size={14} />,
+          order: 25,
+          danger: false,
+          availability: { visible: true, enabled: true },
+          children: ASSISTANT_ICON_TYPE_OPTIONS.map((type) => ({
+            id: `${ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID}.${type}`,
+            label: t(ASSISTANT_ICON_TYPE_LABEL_KEYS[type]),
+            icon: assistantIconType === type ? <Check size={14} /> : <span className="block size-4" />,
+            order: 0,
+            danger: false,
+            availability: { visible: true, enabled: true },
+            children: []
+          }))
+        },
+        {
           id: ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID,
           label: isTagGrouping ? t('assistants.tags.ungroup') : t('assistants.tags.group_by'),
           icon: <Tags size={14} />,
-          order: 25,
+          order: 30,
           danger: false,
           availability: { visible: true, enabled: true },
           children: []
@@ -255,7 +306,7 @@ export function AssistantResourceList({
         }
       ]
     },
-    [assistantPinnedIdSet, deletingAssistantId, isAssistantPinActionDisabled, isTagGrouping, t]
+    [assistantIconType, assistantPinnedIdSet, deletingAssistantId, isAssistantPinActionDisabled, isTagGrouping, t]
   )
 
   const handleContextMenuAction = useCallback(
@@ -272,11 +323,22 @@ export function AssistantResourceList({
         void setAssistantSortType(isTagGrouping ? 'list' : 'tags')
         return
       }
+      if (action.id.startsWith(`${ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID}.`)) {
+        void setAssistantIconType(action.id.slice(ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID.length + 1) as AssistantIconType)
+        return
+      }
       if (action.id === ASSISTANT_ENTITY_DELETE_ACTION_ID) {
         void handleDeleteAssistant(item.id)
       }
     },
-    [handleDeleteAssistant, handleToggleAssistantPin, isTagGrouping, openAssistantEditor, setAssistantSortType]
+    [
+      handleDeleteAssistant,
+      handleToggleAssistantPin,
+      isTagGrouping,
+      openAssistantEditor,
+      setAssistantIconType,
+      setAssistantSortType
+    ]
   )
 
   return (
