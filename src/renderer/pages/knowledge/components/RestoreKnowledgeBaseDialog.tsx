@@ -109,7 +109,7 @@ const RestoreKnowledgeBaseDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg">
+      <DialogContent closeOnOverlayClick={false} size="lg">
         <CreateKnowledgeBaseDialog.Header title={t('knowledge.restore.title')} />
 
         <CreateKnowledgeBaseDialog.Form onSubmit={handleSubmit}>

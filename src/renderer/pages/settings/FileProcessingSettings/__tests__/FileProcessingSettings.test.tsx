@@ -142,11 +142,18 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     },
     Dialog: ({ children, open }: React.HTMLAttributes<HTMLDivElement> & { open?: boolean }) =>
       open === false ? null : <>{children}</>,
-    DialogContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-      <div role="dialog" {...props}>
-        {children}
-      </div>
-    ),
+    DialogContent: ({
+      children,
+      closeOnOverlayClick,
+      ...props
+    }: React.HTMLAttributes<HTMLDivElement> & { closeOnOverlayClick?: boolean }) => {
+      void closeOnOverlayClick
+      return (
+        <div role="dialog" {...props}>
+          {children}
+        </div>
+      )
+    },
     DialogHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
     DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
     InfoTooltip: ({

@@ -139,8 +139,10 @@ vi.mock('@cherrystudio/ui', () => {
 
   const passthrough =
     (tag: keyof React.JSX.IntrinsicElements) =>
-    ({ children, ...props }: { children?: React.ReactNode }) =>
-      React.createElement(tag, props, children)
+    ({ children, closeOnOverlayClick, ...props }: { children?: React.ReactNode; closeOnOverlayClick?: boolean }) => {
+      void closeOnOverlayClick
+      return React.createElement(tag, props, children)
+    }
 
   return {
     Badge: passthrough('span'),
