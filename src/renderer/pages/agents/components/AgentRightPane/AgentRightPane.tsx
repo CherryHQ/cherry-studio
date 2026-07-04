@@ -188,7 +188,8 @@ function AgentRightPaneStateProvider({
   modelFallback,
   statusEnabled = true
 }: AgentRightPaneProviderProps) {
-  const { activeTab } = useShellState()
+  const shellState = useShellState()
+  const { activeTab } = shellState
   const { openTab } = useShellActions()
   const [flowTabs, setFlowTabs] = useState<AgentFlowTab[]>([])
   const [previewFileSelection, setPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(null)
@@ -198,12 +199,13 @@ function AgentRightPaneStateProvider({
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const workspaceKey = `${workspaceId ?? ''}\0${workspacePath ?? ''}`
   const previousWorkspaceKeyRef = useRef(workspaceKey)
+  const fileTreeModelOpen = filesEnabled !== false && fileTreeOpen && shellState.open
 
   // Built once here (the provider survives the Host↔Overlay maximize swap), so
   // maximize/minimize no longer remounts + rematerializes the workspace tree.
   const fileTreeModel = useArtifactFileTreeModel({
     workspacePath,
-    treeOpen: fileTreeOpen,
+    treeOpen: fileTreeModelOpen,
     expandedIds: fileTreeExpandedIds,
     searchKeyword: fileTreeSearchKeyword,
     enableFileSearch: true,
