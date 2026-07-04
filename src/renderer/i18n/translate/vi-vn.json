@@ -191,7 +191,6 @@
       "welcome_title": "Hôm nay chúng ta sẽ nói về điều gì?"
     },
     "input": {
-      "agent_placeholder": "Giúp tôi kết nối với Telegram",
       "placeholder": "Nhập tin nhắn của bạn ở đây, gửi bằng {{key}} - @ chọn đường dẫn, / chọn lệnh"
     },
     "list": {

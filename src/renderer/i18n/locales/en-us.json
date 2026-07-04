@@ -191,7 +191,6 @@
       "welcome_title": "What shall we talk about today?"
     },
     "input": {
-      "agent_placeholder": "Help me connect to Telegram",
       "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands."
     },
     "list": {

@@ -191,7 +191,6 @@
       "welcome_title": "¿De qué hablaremos hoy?"
     },
     "input": {
-      "agent_placeholder": "Ayúdame a conectarme a Telegram",
       "placeholder": "Introduce tu mensaje aquí, envía con {{key}} - @ seleccionar ruta, / seleccionar comando"
     },
     "list": {

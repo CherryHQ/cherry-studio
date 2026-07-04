@@ -191,7 +191,6 @@
       "welcome_title": "今天想聊点什么？"
     },
     "input": {
-      "agent_placeholder": "帮我连接微信",
       "placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令"
     },
     "list": {

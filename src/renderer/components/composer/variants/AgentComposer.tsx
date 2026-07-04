@@ -635,6 +635,7 @@ const AgentComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
+  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [sessionLayout] = usePreference('agent.layout')
   const { t } = useTranslation()
   const modelProviderName = useProviderDisplayName(model?.providerId)
@@ -874,7 +875,10 @@ const AgentComposerInner = ({
     [availableSkills, draftCacheKey, reconcileTokens]
   )
 
-  const placeholderText = useMemo(() => t('agent.input.agent_placeholder'), [t])
+  const placeholderText = useMemo(
+    () => t('agent.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) }),
+    [sendMessageShortcut, t]
+  )
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null =>

@@ -191,7 +191,6 @@
       "welcome_title": "今天我們該談些什麼？"
     },
     "input": {
-      "agent_placeholder": "幫我連接微信",
       "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 搜尋路徑或指令"
     },
     "list": {
