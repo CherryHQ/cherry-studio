@@ -32,6 +32,7 @@ describe('clearCliConfig', () => {
   it('claude: strips managed top-level + env keys, keeps user keys', async () => {
     existing['/resolved~/.claude/settings.json'] = JSON.stringify({
       userTop: 'keep',
+      effortLevel: 'high',
       permissions: { defaultMode: 'bypassPermissions', allow: ['Bash(ls)'] },
       env: { ANTHROPIC_BASE_URL: 'x', ANTHROPIC_AUTH_TOKEN: 'y', USER_ENV: 'keep' }
     })

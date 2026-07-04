@@ -14,7 +14,13 @@ import {
   KIMI_WRITABLE_TOP_LEVEL_KEYS,
   QWEN_WRITABLE_SETTINGS_KEYS
 } from './managedKeys'
-import { codexConfigToPermissionMode, isClaudePermissionMode, isOpenCodePermissionMode } from './permissionModes'
+import {
+  codexConfigToPermissionMode,
+  isClaudePermissionMode,
+  isClaudeReasoningEffort,
+  isCodexReasoningEffort,
+  isOpenCodePermissionMode
+} from './permissionModes'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import type { CliConfigConnection, CliConfigFileDraft } from './types'
 import { stringValue } from './values'
@@ -112,7 +118,9 @@ export function extractConfigFromCliConfigDraft(
         const settings = parseJsonOrThrow(getDraftFile(files, 'claude-settings')?.content ?? '')
         const out: Record<string, any> = {}
         for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) {
-          if (settings[key] !== undefined) out[key] = settings[key]
+          if (key === 'effortLevel') {
+            if (isClaudeReasoningEffort(settings[key])) out[key] = settings[key]
+          } else if (settings[key] !== undefined) out[key] = settings[key]
         }
         const permissions = asRecord(settings.permissions)
         for (const key of CLAUDE_MANAGED_PERMISSION_KEYS) {
@@ -136,6 +144,7 @@ export function extractConfigFromCliConfigDraft(
         if (config.disable_response_storage === true) out.disableResponseStorage = true
         const permissionMode = codexConfigToPermissionMode(config)
         if (permissionMode) out.permissionMode = permissionMode
+        if (isCodexReasoningEffort(config.model_reasoning_effort)) out.reasoningEffort = config.model_reasoning_effort
         const providerKey = stringValue(config.model_provider)
         const provider = providerKey ? asRecord(asRecord(config.model_providers)[providerKey]) : {}
         if (provider.name === 'OpenAI') out.remoteCompaction = true

@@ -1,7 +1,7 @@
 import { Button, Checkbox } from '@cherrystudio/ui'
 import { ModelSelector } from '@renderer/components/Selector/model'
 import { CLAUDE_DETAILED_MODEL_ROLES, stripClaudeOneMMarker } from '@renderer/pages/code/cliConfig/claudeModels'
-import { CLAUDE_PERMISSION_MODES } from '@renderer/pages/code/cliConfig/permissionModes'
+import { CLAUDE_PERMISSION_MODES, CLAUDE_REASONING_EFFORTS } from '@renderer/pages/code/cliConfig/permissionModes'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
@@ -69,8 +69,14 @@ const PERMISSION_MODE_LABEL_KEYS: Record<(typeof CLAUDE_PERMISSION_MODES)[number
   acceptEdits: 'code.adv.permission_modes.accept_edits',
   plan: 'code.adv.permission_modes.plan',
   auto: 'code.adv.permission_modes.auto',
-  dontAsk: 'code.adv.permission_modes.deny_by_default',
   bypassPermissions: 'code.adv.permission_modes.bypass_high_risk'
+}
+
+const REASONING_EFFORT_LABEL_KEYS: Record<(typeof CLAUDE_REASONING_EFFORTS)[number], string> = {
+  low: 'code.adv.reasoning_efforts.low',
+  medium: 'code.adv.reasoning_efforts.medium',
+  high: 'code.adv.reasoning_efforts.high',
+  xhigh: 'code.adv.reasoning_efforts.xhigh'
 }
 
 export interface ClaudeConfigFieldsProps {
@@ -171,6 +177,16 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
     [config, onChange]
   )
 
+  const updateReasoningEffort = useCallback(
+    (effortLevel: string | undefined) => {
+      const next = { ...config }
+      if (effortLevel) next.effortLevel = effortLevel
+      else delete next.effortLevel
+      onChange(next)
+    },
+    [config, onChange]
+  )
+
   const updatePermissionMode = useCallback(
     (defaultMode: string | undefined) => {
       const next = { ...config }
@@ -185,16 +201,31 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
     <div className="space-y-3">
       {section !== 'advanced' && (
         <>
-          <ConfigSelectField
-            label={t('code.adv.permission_mode')}
-            value={permissions.defaultMode}
-            placeholder={t('code.adv.select_placeholder')}
-            options={CLAUDE_PERMISSION_MODES.map((mode) => ({
-              value: mode,
-              label: t(PERMISSION_MODE_LABEL_KEYS[mode])
-            }))}
-            onChange={updatePermissionMode}
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <ConfigSelectField
+              label={t('code.adv.permission_mode')}
+              className="max-w-none"
+              value={permissions.defaultMode}
+              placeholder={t('code.adv.select_placeholder')}
+              options={CLAUDE_PERMISSION_MODES.map((mode) => ({
+                value: mode,
+                label: t(PERMISSION_MODE_LABEL_KEYS[mode])
+              }))}
+              onChange={updatePermissionMode}
+            />
+            <ConfigSelectField
+              label={t('code.adv.reasoning_effort')}
+              className="max-w-none"
+              value={typeof config.effortLevel === 'string' ? config.effortLevel : undefined}
+              placeholder={t('code.adv.select_placeholder')}
+              unsetLabel={t('code.adv.reasoning_efforts.default')}
+              options={CLAUDE_REASONING_EFFORTS.map((effort) => ({
+                value: effort,
+                label: t(REASONING_EFFORT_LABEL_KEYS[effort])
+              }))}
+              onChange={updateReasoningEffort}
+            />
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {visibleToggles.map((field) => {
               const active = env[field.envKey] === field.onValue

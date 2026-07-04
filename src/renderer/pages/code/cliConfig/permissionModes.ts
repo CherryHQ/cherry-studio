@@ -1,13 +1,10 @@
-export const CLAUDE_PERMISSION_MODES = [
-  'default',
-  'acceptEdits',
-  'plan',
-  'auto',
-  'dontAsk',
-  'bypassPermissions'
-] as const
+export const CLAUDE_PERMISSION_MODES = ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'] as const
+
+export const CLAUDE_REASONING_EFFORTS = ['low', 'medium', 'high', 'xhigh'] as const
 
 export const CODEX_PERMISSION_MODES = ['readOnly', 'workspace', 'fullAccess'] as const
+
+export const CODEX_REASONING_EFFORTS = ['minimal', 'low', 'medium', 'high', 'xhigh'] as const
 
 export const OPEN_CODE_PERMISSION_MODES = ['ask', 'deny'] as const
 
@@ -33,8 +30,16 @@ export function isClaudePermissionMode(value: unknown): value is (typeof CLAUDE_
   return isOneOf(CLAUDE_PERMISSION_MODES, value)
 }
 
+export function isClaudeReasoningEffort(value: unknown): value is (typeof CLAUDE_REASONING_EFFORTS)[number] {
+  return isOneOf(CLAUDE_REASONING_EFFORTS, value)
+}
+
 export function isCodexPermissionMode(value: unknown): value is CodexPermissionMode {
   return isOneOf(CODEX_PERMISSION_MODES, value)
+}
+
+export function isCodexReasoningEffort(value: unknown): value is (typeof CODEX_REASONING_EFFORTS)[number] {
+  return isOneOf(CODEX_REASONING_EFFORTS, value)
 }
 
 export function isOpenCodePermissionMode(value: unknown): value is (typeof OPEN_CODE_PERMISSION_MODES)[number] {

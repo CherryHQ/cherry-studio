@@ -1,7 +1,7 @@
 import type { UniqueModelId } from '@shared/data/types/model'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ButtonHTMLAttributes } from 'react'
-import type { ReactNode } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ClaudeConfigFields } from '../ClaudeConfigFields'
@@ -10,8 +10,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@cherrystudio/ui', () => {
-  let selectOnValueChange: ((value: string) => void) | undefined
+vi.mock('@cherrystudio/ui', async () => {
+  const React = await vi.importActual<typeof import('react')>('react')
   return {
     Button: ({
       variant,
@@ -52,16 +52,31 @@ vi.mock('@cherrystudio/ui', () => {
       value?: string
       onValueChange: (value: string) => void
     }) => {
-      selectOnValueChange = onValueChange
       return (
         <div data-testid="select" data-value={value}>
-          {children}
+          {React.Children.map(children, (child) =>
+            React.isValidElement(child) ? React.cloneElement(child as ReactElement<any>, { onValueChange }) : child
+          )}
         </div>
       )
     },
-    SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    SelectItem: ({ children, value }: { children: ReactNode; value: string }) => (
-      <button type="button" onClick={() => selectOnValueChange?.(value)}>
+    SelectContent: ({ children, onValueChange }: { children: ReactNode; onValueChange?: (value: string) => void }) => (
+      <div>
+        {React.Children.map(children, (child) =>
+          React.isValidElement(child) ? React.cloneElement(child as ReactElement<any>, { onValueChange }) : child
+        )}
+      </div>
+    ),
+    SelectItem: ({
+      children,
+      value,
+      onValueChange
+    }: {
+      children: ReactNode
+      value: string
+      onValueChange?: (value: string) => void
+    }) => (
+      <button type="button" onClick={() => onValueChange?.(value)}>
         {children}
       </button>
     ),
@@ -141,6 +156,9 @@ describe('ClaudeConfigFields', () => {
 
     expect(screen.getByText('code.adv.permission_mode')).toBeInTheDocument()
     expect(screen.getByText('code.adv.permission_modes.bypass_high_risk')).toBeInTheDocument()
+    expect(screen.queryByText('code.adv.permission_modes.deny_by_default')).not.toBeInTheDocument()
+    expect(screen.getByText('code.adv.reasoning_effort')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.reasoning_efforts.xhigh')).toBeInTheDocument()
     expect(screen.getByText('code.adv.claude.enable_tool_search')).toBeInTheDocument()
     expect(screen.getByText('code.adv.claude.enable_teammates')).toBeInTheDocument()
     expect(screen.getByText('code.adv.claude.disable_auto_upgrade')).toBeInTheDocument()
@@ -168,6 +186,14 @@ describe('ClaudeConfigFields', () => {
     expect(onChange).toHaveBeenCalledWith({
       permissions: { defaultMode: 'bypassPermissions' }
     })
+  })
+
+  it('writes Claude reasoning effort selections', () => {
+    const { onChange } = renderFields({ section: 'basic' })
+
+    fireEvent.click(screen.getByText('code.adv.reasoning_efforts.high'))
+
+    expect(onChange).toHaveBeenCalledWith({ effortLevel: 'high' })
   })
 
   it('orders role model selectors as Fable, Opus, Sonnet, Haiku', () => {

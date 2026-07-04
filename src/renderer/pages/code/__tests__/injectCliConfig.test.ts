@@ -176,13 +176,14 @@ describe('injectCliConfig', () => {
       expect(parsed.env.ANTHROPIC_AUTH_TOKEN).toBe('sk-secret')
     })
 
-    it('drops previous config quick-options / model-roles / attribution on switch', async () => {
+    it('drops previous config quick-options / model-roles / attribution / reasoning effort on switch', async () => {
       // Simulate a CLI config file written by a previous config that had every
       // Cherry-managed field set. The new config asserts none of them, so all
       // Cherry-managed keys must be cleared (each config is independent).
       existing['/resolved~/.claude/settings.json'] = JSON.stringify({
         theme: 'dark',
         attribution: { commit: '', pr: '' },
+        effortLevel: 'xhigh',
         permissions: { defaultMode: 'bypassPermissions', allow: ['Bash(ls)'] },
         env: {
           KEEP: '1',
@@ -223,6 +224,8 @@ describe('injectCliConfig', () => {
       expect(parsed.env).not.toHaveProperty('DISABLE_AUTOUPDATER')
       // stale attribution dropped
       expect(parsed).not.toHaveProperty('attribution')
+      // stale reasoning effort dropped
+      expect(parsed).not.toHaveProperty('effortLevel')
       // stale managed permission mode dropped, user-owned permission rules preserved
       expect(parsed.permissions).toEqual({ allow: ['Bash(ls)'] })
     })
@@ -248,6 +251,25 @@ describe('injectCliConfig', () => {
         allow: ['Bash(ls)'],
         defaultMode: 'acceptEdits'
       })
+    })
+
+    it('writes the managed Claude reasoning effort', async () => {
+      existing['/resolved~/.claude/settings.json'] = JSON.stringify({ theme: 'dark' })
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'anthropic::claude-sonnet-4-5',
+        configBlob: { effortLevel: 'high' }
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.effortLevel).toBe('high')
+      expect(parsed.theme).toBe('dark')
     })
   })
 
@@ -323,7 +345,7 @@ describe('injectCliConfig', () => {
       expect(authParsed.OPENAI_API_KEY).toBe('sk-secret')
     })
 
-    it('applies goal mode + remote compaction + permission mode from the config blob', async () => {
+    it('applies goal mode + remote compaction + permission mode + reasoning effort from the config blob', async () => {
       mockGet({
         '/providers/deepseek': () => codexProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -333,7 +355,7 @@ describe('injectCliConfig', () => {
       await injectCliConfig({
         cliTool: CodeCli.OPENAI_CODEX,
         modelId: 'deepseek::deepseek-chat',
-        configBlob: { goalMode: true, remoteCompaction: true, permissionMode: 'workspace' }
+        configBlob: { goalMode: true, remoteCompaction: true, permissionMode: 'workspace', reasoningEffort: 'high' }
       })
 
       const { parse: parseToml } = await import('smol-toml')
@@ -342,6 +364,7 @@ describe('injectCliConfig', () => {
       expect(parsed.model_providers['cherry-DeepSeek'].name).toBe('OpenAI')
       expect(parsed.approval_policy).toBe('on-request')
       expect(parsed.sandbox_mode).toBe('workspace-write')
+      expect(parsed.model_reasoning_effort).toBe('high')
       expect(parsed).not.toHaveProperty('default_permissions')
     })
 
@@ -354,6 +377,7 @@ describe('injectCliConfig', () => {
         'approval_policy = "never"',
         'sandbox_mode = "danger-full-access"',
         'default_permissions = ":danger-full-access"',
+        'model_reasoning_effort = "high"',
         '',
         '[features]',
         'goals = true',
@@ -383,6 +407,7 @@ describe('injectCliConfig', () => {
       expect(parsed).not.toHaveProperty('approval_policy')
       expect(parsed).not.toHaveProperty('sandbox_mode')
       expect(parsed).not.toHaveProperty('default_permissions')
+      expect(parsed).not.toHaveProperty('model_reasoning_effort')
       expect(parsed.model_providers['cherry-DeepSeek'].name).toBe('DeepSeek')
     })
 

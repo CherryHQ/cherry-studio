@@ -79,7 +79,7 @@ describe('updateCliConfigDraftConfig', () => {
 
     const updated = updateCliConfigDraftConfig(CodeCli.OPENAI_CODEX, files, {
       goalMode: true,
-      modelReasoningEffort: 'high',
+      reasoningEffort: 'high',
       disableResponseStorage: true,
       permissionMode: 'workspace'
     })
@@ -87,15 +87,19 @@ describe('updateCliConfigDraftConfig', () => {
     expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, updated)).toEqual({
       goalMode: true,
       disableResponseStorage: true,
-      permissionMode: 'workspace'
+      permissionMode: 'workspace',
+      reasoningEffort: 'high'
     })
     // baseUrl / apiKey / model are untouched by a config-only edit.
     expect(extractConnectionFromCliConfigDraft(CodeCli.OPENAI_CODEX, updated)).toEqual(before)
   })
 
   it('clears a managed flag when it is dropped from the blob', async () => {
-    const files = await buildCodexDraft({ goalMode: true })
-    expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, files)).toEqual({ goalMode: true })
+    const files = await buildCodexDraft({ goalMode: true, reasoningEffort: 'high' })
+    expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, files)).toEqual({
+      goalMode: true,
+      reasoningEffort: 'high'
+    })
 
     const updated = updateCliConfigDraftConfig(CodeCli.OPENAI_CODEX, files, {})
     expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, updated)).toEqual({})

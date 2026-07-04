@@ -1,4 +1,4 @@
-export const CLAUDE_MANAGED_TOP_LEVEL_KEYS = ['attribution'] as const
+export const CLAUDE_MANAGED_TOP_LEVEL_KEYS = ['attribution', 'effortLevel'] as const
 
 export const CLAUDE_MANAGED_PERMISSION_KEYS = ['defaultMode'] as const
 

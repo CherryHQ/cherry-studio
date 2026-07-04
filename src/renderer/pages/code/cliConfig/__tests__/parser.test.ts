@@ -104,13 +104,26 @@ describe('extractConfigFromCliConfigDraft', () => {
       goalMode: true,
       disableResponseStorage: true,
       permissionMode: 'fullAccess',
-      modelReasoningEffort: 'high'
+      reasoningEffort: 'high'
     }
     const files = await buildDraft(CodeCli.OPENAI_CODEX, responsesProvider, 'gpt-5', blob)
     expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, files)).toEqual({
       goalMode: true,
       disableResponseStorage: true,
-      permissionMode: 'fullAccess'
+      permissionMode: 'fullAccess',
+      reasoningEffort: 'high'
+    })
+  })
+
+  it('round-trips supported Claude managed settings from the config blob', async () => {
+    const blob = {
+      effortLevel: 'xhigh',
+      permissions: { defaultMode: 'auto', allow: ['Bash(ls)'] }
+    }
+    const files = await buildDraft(CodeCli.CLAUDE_CODE, anthropicProvider, 'claude-sonnet-4-5', blob)
+    expect(extractConfigFromCliConfigDraft(CodeCli.CLAUDE_CODE, files)).toEqual({
+      effortLevel: 'xhigh',
+      permissions: { defaultMode: 'auto' }
     })
   })
 

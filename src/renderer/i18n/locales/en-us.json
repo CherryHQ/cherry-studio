@@ -1981,7 +1981,6 @@
         "default": "Default",
         "default_allow_all": "Default (Allow All)",
         "deny": "Deny",
-        "deny_by_default": "Deny By Default",
         "full_access_high_risk": "Full Access (High Risk)",
         "manual": "Manual",
         "plan": "Plan",
@@ -1995,6 +1994,15 @@
         "disable_usage_stats": "Disable Usage Statistics",
         "hide_banner": "Hide Startup Banner",
         "vim_mode": "Enable Vim Mode"
+      },
+      "reasoning_effort": "Reasoning Effort",
+      "reasoning_efforts": {
+        "default": "Default",
+        "high": "High",
+        "low": "Low",
+        "medium": "Medium",
+        "minimal": "Minimal",
+        "xhigh": "Extra High"
       },
       "select_placeholder": "Select…"
     },

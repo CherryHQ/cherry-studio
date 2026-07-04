@@ -1981,7 +1981,6 @@
         "default": "默认",
         "default_allow_all": "默认（允许全部）",
         "deny": "拒绝",
-        "deny_by_default": "默认拒绝",
         "full_access_high_risk": "完全访问（高风险）",
         "manual": "手动",
         "plan": "计划",
@@ -1995,6 +1994,15 @@
         "disable_usage_stats": "禁用使用统计",
         "hide_banner": "隐藏启动横幅",
         "vim_mode": "启用 Vim 模式"
+      },
+      "reasoning_effort": "推理强度",
+      "reasoning_efforts": {
+        "default": "默认",
+        "high": "高",
+        "low": "低",
+        "medium": "中",
+        "minimal": "最小",
+        "xhigh": "超高"
       },
       "select_placeholder": "请选择…"
     },

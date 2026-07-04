@@ -12,7 +12,12 @@ import {
   OPEN_CODE_MANAGED_TOP_LEVEL_KEYS,
   QWEN_MANAGED_SETTINGS_KEYS
 } from './managedKeys'
-import { codexPermissionModeToConfig, isCodexPermissionMode, isOpenCodePermissionMode } from './permissionModes'
+import {
+  codexPermissionModeToConfig,
+  isCodexPermissionMode,
+  isCodexReasoningEffort,
+  isOpenCodePermissionMode
+} from './permissionModes'
 import type { OpenCodeNpmInfo } from './resolvers'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import { normalizeUrl, sanitizeProviderName } from './values'
@@ -107,6 +112,7 @@ export function buildCodexConfig(
   if (isCodexPermissionMode(options.permissionMode)) {
     Object.assign(merged, codexPermissionModeToConfig(options.permissionMode))
   }
+  if (isCodexReasoningEffort(options.reasoningEffort)) merged.model_reasoning_effort = options.reasoningEffort
   return merged
 }
 

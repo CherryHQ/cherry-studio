@@ -1,4 +1,4 @@
-import { CODEX_PERMISSION_MODES } from '@renderer/pages/code/cliConfig/permissionModes'
+import { CODEX_PERMISSION_MODES, CODEX_REASONING_EFFORTS } from '@renderer/pages/code/cliConfig/permissionModes'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,6 +19,14 @@ const PERMISSION_MODE_LABEL_KEYS: Record<(typeof CODEX_PERMISSION_MODES)[number]
   readOnly: 'code.adv.permission_modes.read_only',
   workspace: 'code.adv.permission_modes.workspace',
   fullAccess: 'code.adv.permission_modes.full_access_high_risk'
+}
+
+const REASONING_EFFORT_LABEL_KEYS: Record<(typeof CODEX_REASONING_EFFORTS)[number], string> = {
+  minimal: 'code.adv.reasoning_efforts.minimal',
+  low: 'code.adv.reasoning_efforts.low',
+  medium: 'code.adv.reasoning_efforts.medium',
+  high: 'code.adv.reasoning_efforts.high',
+  xhigh: 'code.adv.reasoning_efforts.xhigh'
 }
 
 export const CodexConfigFields: FC<CodexConfigFieldsProps> = ({ config, onChange, section = 'all' }) => {
@@ -44,16 +52,31 @@ export const CodexConfigFields: FC<CodexConfigFieldsProps> = ({ config, onChange
 
   return (
     <div className="space-y-3">
-      <ConfigSelectField
-        label={t('code.adv.permission_mode')}
-        value={typeof config.permissionMode === 'string' ? config.permissionMode : undefined}
-        placeholder={t('code.adv.select_placeholder')}
-        options={CODEX_PERMISSION_MODES.map((mode) => ({
-          value: mode,
-          label: t(PERMISSION_MODE_LABEL_KEYS[mode])
-        }))}
-        onChange={(value) => updateField('permissionMode', value)}
-      />
+      <div className="grid grid-cols-2 gap-2">
+        <ConfigSelectField
+          label={t('code.adv.permission_mode')}
+          className="max-w-none"
+          value={typeof config.permissionMode === 'string' ? config.permissionMode : undefined}
+          placeholder={t('code.adv.select_placeholder')}
+          options={CODEX_PERMISSION_MODES.map((mode) => ({
+            value: mode,
+            label: t(PERMISSION_MODE_LABEL_KEYS[mode])
+          }))}
+          onChange={(value) => updateField('permissionMode', value)}
+        />
+        <ConfigSelectField
+          label={t('code.adv.reasoning_effort')}
+          className="max-w-none"
+          value={typeof config.reasoningEffort === 'string' ? config.reasoningEffort : undefined}
+          placeholder={t('code.adv.select_placeholder')}
+          unsetLabel={t('code.adv.reasoning_efforts.default')}
+          options={CODEX_REASONING_EFFORTS.map((effort) => ({
+            value: effort,
+            label: t(REASONING_EFFORT_LABEL_KEYS[effort])
+          }))}
+          onChange={(value) => updateField('reasoningEffort', value)}
+        />
+      </div>
       <div className="flex flex-wrap gap-1.5">
         <TogglePill
           label={t('code.adv.codex.goal_mode')}

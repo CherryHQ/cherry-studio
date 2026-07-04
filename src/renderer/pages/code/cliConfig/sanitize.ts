@@ -11,7 +11,9 @@ import {
 } from './managedKeys'
 import {
   isClaudePermissionMode,
+  isClaudeReasoningEffort,
   isCodexPermissionMode,
+  isCodexReasoningEffort,
   isGeminiApprovalMode,
   isKimiPermissionMode,
   isOpenCodePermissionMode,
@@ -46,6 +48,7 @@ export function sanitizeClaudeConfigBlob(configBlob: Record<string, unknown> | u
   const defaultMode = asRecord(blob.permissions).defaultMode
   if (isClaudePermissionMode(defaultMode)) next.permissions = { defaultMode }
   else delete next.permissions
+  if (!isClaudeReasoningEffort(next.effortLevel)) delete next.effortLevel
   return next
 }
 
@@ -53,6 +56,7 @@ export function sanitizeCodexConfigBlob(configBlob: Record<string, unknown> | un
   const blob = getConfigBlob(configBlob)
   const next = pickTopLevel(blob, ['goalMode', 'remoteCompaction', 'commonConfig', 'disableResponseStorage'])
   if (isCodexPermissionMode(blob.permissionMode)) next.permissionMode = blob.permissionMode
+  if (isCodexReasoningEffort(blob.reasoningEffort)) next.reasoningEffort = blob.reasoningEffort
   return next
 }
 
