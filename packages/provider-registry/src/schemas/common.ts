@@ -10,10 +10,13 @@ import { CURRENCY, objectValues } from './enums'
 export const ModelIdSchema = z.string().min(1)
 export const ProviderIdSchema = z.string().min(1)
 
-/** Version string (e.g., "2026-03-09" or "2026.03.09") */
-export const VersionSchema = z.string().regex(/^\d{4}[-./]\d{2}[-./]\d{2}$/, {
-  message: 'Version must be a date-like string (e.g., YYYY-MM-DD or YYYY.MM.DD)'
-})
+/**
+ * Opaque change-detection token for a generated artifact. The generator stamps it with a hash of the
+ * artifact's content, so equal content ⇒ equal version and ANY content change ⇒ new version — that's
+ * the contract seeders rely on (`SeedRunner` skips a seeder whose journal version matches). Older
+ * artifacts carried a generation date; treat the value as opaque, never parse it.
+ */
+export const VersionSchema = z.string().min(1)
 
 /** ISO 8601 datetime timestamp */
 export const ISOTimestampSchema = z.iso.datetime()

@@ -1,11 +1,10 @@
 import { Alert, Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { DeleteIcon } from '@renderer/components/Icons'
+import { DeleteIcon } from '@renderer/components/icons'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServerMutations } from '@renderer/hooks/useMcpServer'
-import { useMcpServerTrust } from '@renderer/hooks/useMcpServerTrust'
 import { getMcpTypeLabelKey } from '@renderer/i18n/label'
 import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -18,6 +17,8 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
+
+import { useMcpServerTrust } from './useMcpServerTrust'
 
 const logger = loggerService.withContext('McpServerCard')
 

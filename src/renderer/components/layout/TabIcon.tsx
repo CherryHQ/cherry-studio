@@ -1,5 +1,5 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { getMiniAppsLogo } from '@renderer/components/Icons/miniAppsLogo'
+import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
 import { cn } from '@renderer/utils/style'
 import { TAB_ICON_EMOJI_PREFIX } from '@renderer/utils/tabIcons'
 import type { FC } from 'react'

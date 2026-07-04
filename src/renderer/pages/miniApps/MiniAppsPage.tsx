@@ -1,6 +1,6 @@
 import { Button, EmptyState, SearchInput } from '@cherrystudio/ui'
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import App from '@renderer/components/MiniApp/MiniApp'
+import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { isDataApiError } from '@shared/data/api'

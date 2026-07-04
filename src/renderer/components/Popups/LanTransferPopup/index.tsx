@@ -1,6 +1,6 @@
 import { TopView } from '@renderer/components/TopView'
 
-import { getHideCallback, PopupContainer } from './popup'
+import { getHideCallback, PopupContainer } from './PopupContainer'
 import type { PopupResolveData } from './types'
 
 // Re-export types for external use

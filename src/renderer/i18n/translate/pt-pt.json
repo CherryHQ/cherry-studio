@@ -604,9 +604,7 @@
         "select_failed": "Falha ao selecionar pasta."
       },
       "workspace_status": {
-        "inaccessible": "O caminho do workspace não está acessível: {{path}}",
-        "missing": "O caminho do espaço de trabalho não existe: {{path}}",
-        "not_directory": "O caminho do workspace não é um diretório: {{path}}"
+        "inaccessible": "O caminho do workspace não está acessível: {{path}}"
       }
     },
     "settings": {
@@ -1083,41 +1081,6 @@
       "stopped": "Parado"
     },
     "title": "Servidor API"
-  },
-  "appMenu": {
-    "about": "Sobre",
-    "close": "Fechar Janela",
-    "copy": "Copiar",
-    "cut": "Corte",
-    "delete": "Excluir",
-    "documentation": "Documentação",
-    "edit": "Editar",
-    "feedback": "Feedback",
-    "file": "Arquivo",
-    "forceReload": "Forçar Recarregamento",
-    "front": "Trazer Tudo para a Frente",
-    "help": "Ajuda",
-    "hide": "Esconder",
-    "hideOthers": "Ocultar Outros",
-    "minimize": "Minimizar",
-    "paste": "Colar",
-    "quit": "Sair",
-    "redo": "Refazer",
-    "releases": "Lançamentos",
-    "reload": "Recarregar",
-    "resetZoom": "Tamanho Real",
-    "selectAll": "Selecionar Todos",
-    "services": "Serviços",
-    "toggleDevTools": "Alternar Ferramentas de Desenvolvedor",
-    "toggleFullscreen": "Alternar Tela Cheia",
-    "undo": "Desfazer",
-    "unhide": "Mostrar Todos",
-    "view": "Visualizar",
-    "website": "Site",
-    "window": "Janela",
-    "zoom": "Zoom",
-    "zoomIn": "Ampliar",
-    "zoomOut": "Reduzir Zoom"
   },
   "assistants": {
     "abbr": "Assistente",
@@ -1601,6 +1564,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "[to be translated]:Cache {{hit_rate}}%",
+        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "Esta mensagem está sendo editada no compositor",
       "flow": {
         "branches": "ramos",
@@ -2063,7 +2030,6 @@
     "copy_failed": "Falha ao copiar",
     "create_success": "Criado com sucesso",
     "current": "Atual",
-    "cut": "Cortar",
     "default": "Padrão",
     "delete": "Excluir",
     "delete_confirm": "Tem certeza de que deseja excluir?",
@@ -2101,7 +2067,6 @@
     "image_preview": "Pré-visualização da imagem",
     "image_url": "URL da imagem",
     "image_url_or_upload": "Insira o URL da imagem ou carregue o arquivo",
-    "inspect": "Verificar",
     "invalid_value": "Valor inválido",
     "knowledge_base": "Base de Conhecimento",
     "language": "Língua",
@@ -2122,7 +2087,6 @@
     "open_in": "Abrir em {{name}}",
     "open_in_new_tab": "Abrir em nova aba",
     "open_sidebar": "Abrir barra lateral",
-    "paste": "Colar",
     "placeholders": {
       "select": {
         "model": "Selecionar modelo"
@@ -2177,18 +2141,6 @@
     "warning": "Aviso",
     "yesterday": "Ontem",
     "you": "Você"
-  },
-  "dialog": {
-    "all_files": "Todos os Arquivos",
-    "html_files": "Arquivos HTML",
-    "open_file": "Abrir Arquivo",
-    "pdf_files": "Arquivos PDF",
-    "png_image": "Imagem PNG",
-    "save_as_html": "Salvar como HTML",
-    "save_as_pdf": "Salvar como PDF",
-    "save_file": "Salvar Arquivo",
-    "select_folder": "Selecionar Pasta",
-    "word_document": "Documento do Word"
   },
   "docs": {
     "title": "Documentação de Ajuda"
@@ -4731,6 +4683,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copiloto",
     "dashscope": "Área de Atuação AliCloud",
     "deepseek": "Busca Profunda",
@@ -4784,6 +4737,7 @@
     "tencent-cloud-ti": "Nuvem TI da Tencent",
     "tesseract": "Tesseract",
     "together": "Juntos",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "XiRang do Nuvem Telecom",
@@ -6304,12 +6258,6 @@
         "usage": "Uso",
         "version": "Versão"
       },
-      "oauth": {
-        "callback": {
-          "message": "Você pode fechar esta página e retornar ao Cherry Studio",
-          "title": "Autenticação Bem-Sucedida"
-        }
-      },
       "prompts": {
         "arguments": "Argumentos",
         "availablePrompts": "Dicas disponíveis",
@@ -6993,6 +6941,17 @@
           "acceleration": "Domínio de aceleração",
           "international": "Domínio internacional"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7783,11 +7742,6 @@
     "tooltip": {
       "newline": "Quebra de linha"
     }
-  },
-  "tray": {
-    "quit": "Sair",
-    "show_quick_assistant": "Atalho de Assistente",
-    "show_window": "Exibir Janela"
   },
   "update": {
     "install": "Instalar",

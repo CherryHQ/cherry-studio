@@ -42,7 +42,7 @@ vi.mock('../hooks', () => ({
   useDeleteKnowledgeGroup: () => mockUseDeleteKnowledgeGroup()
 }))
 
-vi.mock('@renderer/components/app/Navbar', () => ({
+vi.mock('@renderer/components/Navbar', () => ({
   Navbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   NavbarCenter: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
@@ -192,15 +192,11 @@ vi.mock('../components/DetailHeader', () => ({
   default: ({
     base,
     onOpenRagConfig,
-    onOpenRecallTest,
-    onRenameBase,
-    onDeleteBase
+    onOpenRecallTest
   }: {
     base: KnowledgeBase
     onOpenRagConfig: () => void
     onOpenRecallTest: () => void
-    onRenameBase: (base: { id: string; name: string }) => void
-    onDeleteBase: (baseId: string) => Promise<void> | void
   }) => (
     <div>
       <div data-testid="detail-header">{base.name}</div>
@@ -209,12 +205,6 @@ vi.mock('../components/DetailHeader', () => ({
       </button>
       <button type="button" onClick={onOpenRecallTest}>
         OpenRecallTest
-      </button>
-      <button type="button" onClick={() => onRenameBase(base)}>
-        HeaderRename {base.name}
-      </button>
-      <button type="button" onClick={() => void onDeleteBase(base.id)}>
-        HeaderDelete {base.name}
       </button>
     </div>
   )
@@ -902,8 +892,8 @@ describe('KnowledgePage', () => {
 
     await waitFor(() => {
       expect(createGroupMock).toHaveBeenCalledWith('Group 2')
+      expect(screen.queryByTestId('create-group-dialog')).not.toBeInTheDocument()
     })
-    expect(screen.queryByTestId('create-group-dialog')).not.toBeInTheDocument()
   })
 
   it('opens the rename dialog with the current name and updates the selected group', async () => {
@@ -1014,46 +1004,6 @@ describe('KnowledgePage', () => {
     expect(screen.queryByTestId('rename-base-dialog')).not.toBeInTheDocument()
   })
 
-  it('reuses the same rename-base flow when the detail header triggers it', () => {
-    mockUseKnowledgeBases.mockReturnValue({
-      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
-      isLoading: false,
-      error: undefined,
-      refetch: vi.fn()
-    })
-
-    render(<KnowledgePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'HeaderRename Base 1' }))
-
-    expect(screen.getByTestId('rename-base-dialog')).toBeInTheDocument()
-    expect(screen.getByTestId('base-dialog-initial-name')).toHaveTextContent('Base 1')
-  })
-
-  it('wires detail header delete to the knowledge base delete hook', async () => {
-    const deleteBase = vi.fn().mockResolvedValue(undefined)
-
-    mockUseKnowledgeBases.mockReturnValue({
-      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
-      isLoading: false,
-      error: undefined,
-      refetch: vi.fn()
-    })
-    mockUseDeleteKnowledgeBase.mockReturnValue({
-      deleteBase,
-      isDeleting: false,
-      deleteError: undefined
-    })
-
-    render(<KnowledgePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'HeaderDelete Base 1' }))
-
-    await waitFor(() => {
-      expect(deleteBase).toHaveBeenCalledWith('base-1')
-    })
-  })
-
   it('shows a toast when knowledge base deletion fails', async () => {
     const deleteBase = vi.fn().mockRejectedValue(new Error('delete failed'))
 
@@ -1071,7 +1021,7 @@ describe('KnowledgePage', () => {
 
     render(<KnowledgePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'HeaderDelete Base 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Base 1' }))
 
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('知识库删除失败: delete failed')

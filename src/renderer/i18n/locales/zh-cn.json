@@ -340,7 +340,7 @@
       "welcome_title": "今天想聊点什么？"
     },
     "input": {
-      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择路径， / 选择命令",
+      "placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令",
       "soul_placeholder": "帮我连接微信"
     },
     "list": {
@@ -604,9 +604,7 @@
         "select_failed": "选择文件夹失败。"
       },
       "workspace_status": {
-        "inaccessible": "工作区路径不可访问：{{path}}",
-        "missing": "工作区路径不存在：{{path}}",
-        "not_directory": "工作区路径不是目录：{{path}}"
+        "inaccessible": "工作区路径不可访问：{{path}}"
       }
     },
     "settings": {
@@ -1084,41 +1082,6 @@
     },
     "title": "API 网关"
   },
-  "appMenu": {
-    "about": "关于",
-    "close": "关闭窗口",
-    "copy": "复制",
-    "cut": "剪切",
-    "delete": "删除",
-    "documentation": "文档",
-    "edit": "编辑",
-    "feedback": "反馈",
-    "file": "文件",
-    "forceReload": "强制重新加载",
-    "front": "全部置于顶层",
-    "help": "帮助",
-    "hide": "隐藏",
-    "hideOthers": "隐藏其他",
-    "minimize": "最小化",
-    "paste": "粘贴",
-    "quit": "退出",
-    "redo": "重做",
-    "releases": "版本发布",
-    "reload": "重新加载",
-    "resetZoom": "实际大小",
-    "selectAll": "全选",
-    "services": "服务",
-    "toggleDevTools": "切换开发者工具",
-    "toggleFullscreen": "切换全屏",
-    "undo": "撤销",
-    "unhide": "全部显示",
-    "view": "视图",
-    "website": "网站",
-    "window": "窗口",
-    "zoom": "缩放",
-    "zoomIn": "放大",
-    "zoomOut": "缩小"
-  },
   "assistants": {
     "abbr": "助手",
     "clear": {
@@ -1495,7 +1458,7 @@
       "paste_text_file": "粘贴到输入框",
       "pasted_text_file_name": "已粘贴的文本.txt",
       "pause": "暂停",
-      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择模型， / 选择工具",
+      "placeholder": "输入消息，按 {{key}} 发送，输入 / 选择工具或操作",
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
       "resource_panel": {
         "categories": {
@@ -1506,7 +1469,7 @@
         "description": "从文件、Agents 或 Skills 中选择",
         "loading": "加载中...",
         "no_file_found": {
-          "description": "可访问目录中没有可用文件",
+          "description": "当前工作区没有可搜索的文件",
           "label": "未找到文件"
         },
         "no_items_found": {
@@ -1601,6 +1564,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "缓存 {{hit_rate}}%",
+        "tooltip": "缓存读取 {{cache_read}} / 写入 {{cache_write}} / 未缓存 {{no_cache}} · 节省 {{saved}} 输入 Token"
+      },
       "editing_current": "这条消息正在输入框中编辑",
       "flow": {
         "branches": "分支",
@@ -1648,6 +1615,13 @@
       "top": "回到顶部"
     },
     "resend": "重新发送",
+    "resource_view": {
+      "menu": {
+        "agent": "智能体",
+        "assistant": "助手",
+        "skill": "技能"
+      }
+    },
     "save": {
       "file": {
         "title": "保存到本地文件"
@@ -2063,7 +2037,6 @@
     "copy_failed": "复制失败",
     "create_success": "创建成功",
     "current": "当前",
-    "cut": "剪切",
     "default": "默认",
     "delete": "删除",
     "delete_confirm": "确定要删除吗？",
@@ -2101,7 +2074,6 @@
     "image_preview": "图片预览",
     "image_url": "图片链接",
     "image_url_or_upload": "输入图片链接或上传文件",
-    "inspect": "检查",
     "invalid_value": "无效值",
     "knowledge_base": "知识库",
     "language": "语言",
@@ -2122,7 +2094,6 @@
     "open_in": "在 {{name}} 中打开",
     "open_in_new_tab": "在新标签页打开",
     "open_sidebar": "打开侧边栏",
-    "paste": "粘贴",
     "placeholders": {
       "select": {
         "model": "选择模型"
@@ -2177,18 +2148,6 @@
     "warning": "警告",
     "yesterday": "昨天",
     "you": "用户"
-  },
-  "dialog": {
-    "all_files": "所有文件",
-    "html_files": "HTML 文件",
-    "open_file": "打开文件",
-    "pdf_files": "PDF 文件",
-    "png_image": "PNG 图片",
-    "save_as_html": "保存为 HTML",
-    "save_as_pdf": "保存为 PDF",
-    "save_file": "保存文件",
-    "select_folder": "选择文件夹",
-    "word_document": "Word 文档"
   },
   "docs": {
     "title": "帮助文档"
@@ -2378,6 +2337,7 @@
       "no_match_description": "当前筛选条件下没有文件",
       "no_match_title": "没有找到匹配的文件"
     },
+    "empty_trash": "清空回收站",
     "error": {
       "delete_failed": "删除文件失败",
       "delete_partial_failed": "部分文件删除失败",
@@ -2395,6 +2355,7 @@
     "missing": "缺失",
     "modified_at": "修改时间",
     "name": "文件名",
+    "no_actions": "暂无可用操作",
     "open": "打开",
     "other": "其他",
     "permanent_delete": "永久删除",
@@ -2408,13 +2369,18 @@
     "remove_from_library": "从库中移除",
     "rename": "重命名",
     "restore": "恢复",
+    "select_all": "全选当前列表",
+    "select_all_short": "全选",
+    "select_file": "选择 {{name}}",
     "selected_count": "已选择 {{count}} 个文件",
+    "selected_missing_hint": "所选文件中有缺失文件，只能定位或移除记录",
     "show_in_folder": "打开所在文件夹",
     "size": "大小",
     "text": "文本",
     "title": "文件",
     "trash": "回收站",
     "type": "类型",
+    "upload": "上传文件",
     "video": "视频"
   },
   "globalSearch": {
@@ -2815,7 +2781,7 @@
       "chunk_size_invalid": "分块大小必须大于 0",
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
-      "document_count": "请求文档片段数 (Top K)",
+      "document_count": "Top K",
       "embedding_model": "嵌入模型",
       "embedding_model_select": "模型选择",
       "file_processing": "文档处理",
@@ -2837,7 +2803,7 @@
       "hybrid_alpha": "Hybrid Alpha",
       "processor": "处理服务商",
       "rerank_disabled": "不使用",
-      "rerank_model": "重排模型 (Rerank)",
+      "rerank_model": "重排模型",
       "reset_action": "恢复默认",
       "reset_defaults": "恢复默认",
       "retrieval": "Retrieval",
@@ -2896,7 +2862,7 @@
     "subtitle_file": "字幕文件",
     "tabs": {
       "data_source": "数据源",
-      "rag_config": "RAG 配置",
+      "rag_config": "知识库设置",
       "recall_test": "召回测试"
     },
     "title": "知识库",
@@ -2929,8 +2895,8 @@
     "apps": "应用",
     "minapps": "小程序",
     "miniApps": "小程序",
-    "pin_to_sidebar": "固定到侧边栏",
-    "unpin_from_sidebar": "取消固定"
+    "pin_to_sidebar": "添加到侧边栏",
+    "unpin_from_sidebar": "从侧边栏移除"
   },
   "library": {
     "action": {
@@ -2957,7 +2923,8 @@
       "preview_description": "简介",
       "preview_prompt": "提示词",
       "scroll_left": "向左滚动分类",
-      "scroll_right": "向右滚动分类"
+      "scroll_right": "向右滚动分类",
+      "title": "助手库"
     },
     "badge": {
       "update": "更新"
@@ -4730,6 +4697,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "阿里云百炼",
     "deepseek": "深度求索",
@@ -4742,6 +4710,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "腾讯混元",
@@ -4765,6 +4734,7 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
     "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
@@ -4783,6 +4753,7 @@
     "tencent-cloud-ti": "腾讯云 TI",
     "tesseract": "Tesseract",
     "together": "Together",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "天翼云息壤",
@@ -6303,12 +6274,6 @@
         "usage": "用法",
         "version": "版本"
       },
-      "oauth": {
-        "callback": {
-          "message": "您可以关闭此页面并返回 Cherry Studio",
-          "title": "认证成功"
-        }
-      },
       "prompts": {
         "arguments": "参数",
         "availablePrompts": "可用提示",
@@ -6447,7 +6412,7 @@
       "input": {
         "confirm_delete_message": "删除消息前确认",
         "confirm_regenerate_message": "重新生成消息前确认",
-        "enable_quick_triggers": "启用 / 和 @ 触发快捷菜单",
+        "enable_quick_triggers": "启用 / 触发输入快捷面板",
         "send_shortcuts": "发送快捷键",
         "show_estimated_tokens": "显示预估 Token 数",
         "title": "输入设置"
@@ -6846,6 +6811,7 @@
         "reorderFailed": "调整提示词顺序失败",
         "updateFailed": "更新提示词失败"
       },
+      "manage": "管理提示词",
       "title": "提示词管理",
       "titleLabel": "标题",
       "titlePlaceholder": "请输入提示词标题",
@@ -6993,6 +6959,27 @@
           "international": "国际域名"
         }
       },
+      "claude_code": {
+        "agent_only_note": "Claude Code 提供商仅供 Agent 使用，无法在聊天或助手中使用。",
+        "description": "使用 Claude 订阅登录",
+        "description_detail": "该提供商复用 Claude Code CLI 的登录信息（Claude Pro/Max），仅供 Agent 使用。请打开终端运行 `claude /login` 完成登录。",
+        "launch_failed": "打开终端失败，请手动运行 `claude /login` 登录。",
+        "legal_link": "法律与合规",
+        "logged_in": "已登录 Claude Code",
+        "logged_in_detail": "Agent 将使用你的 Claude Code CLI 订阅凭据。",
+        "open_terminal": "打开终端登录",
+        "recheck": "重新检测"
+      },
+      "codex": {
+        "account": "账号:{{accountId}}",
+        "description": "使用你的 ChatGPT 订阅登录",
+        "description_detail": "该提供商通过你的 ChatGPT Plus/Pro 登录(OAuth)访问 OpenAI Codex 模型。将打开浏览器完成登录。",
+        "logged_in": "已登录 OpenAI Codex",
+        "sign_in_button": "使用 ChatGPT 登录",
+        "sign_in_failed": "登录失败,请重试。",
+        "sign_in_success": "已登录 OpenAI Codex",
+        "signing_in": "等待浏览器授权…"
+      },
       "copilot": {
         "add_request_header": "添加请求头",
         "auth_failed": "Github Copilot 认证失败",
@@ -7067,6 +7054,15 @@
       },
       "filter_agent": "筛选支持 Agent 的服务商",
       "get_api_key": "获取密钥",
+      "grok_cli": {
+        "description": "使用你的 SuperGrok 订阅登录",
+        "description_detail": "该 provider 使用你的 xAI SuperGrok 登录（OAuth）来访问 Grok CLI 模型（Grok Build、Composer）。将打开浏览器完成登录。",
+        "logged_in": "已登录 Grok CLI",
+        "sign_in_button": "使用 xAI 登录",
+        "sign_in_failed": "登录失败，请重试。",
+        "sign_in_success": "已登录 Grok CLI",
+        "signing_in": "等待浏览器…"
+      },
       "logo_upload_failed": "无法处理所选图片",
       "misc": "其他",
       "more_endpoints": {
@@ -7197,10 +7193,10 @@
         "unknownServer": "未知 MCP 服务器"
       },
       "multiple": "多选",
-      "noResult": "未找到结果",
+      "noResult": "没有匹配项",
       "page": "翻页",
       "select": "选择",
-      "title": "快捷菜单"
+      "title": "输入快捷面板"
     },
     "quickPhrase": {
       "add": "添加短语",
@@ -7587,7 +7583,6 @@
     "openclaw": "OpenClaw",
     "paintings": "绘画",
     "settings": "设置",
-    "store": "助手库",
     "translate": "翻译",
     "work": "工作"
   },
@@ -7782,11 +7777,6 @@
     "tooltip": {
       "newline": "换行"
     }
-  },
-  "tray": {
-    "quit": "退出",
-    "show_quick_assistant": "快捷助手",
-    "show_window": "显示窗口"
   },
   "update": {
     "install": "立即安装",

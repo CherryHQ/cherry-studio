@@ -1,13 +1,5 @@
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import {
-  ResourceEntityRail,
-  type ResourceEntityRailItem
-} from '@renderer/components/chat/resources/variants/ResourceEntityRail'
-import {
-  type ResourceEntityRailReorderAnchor,
-  useResourceEntityRail
-} from '@renderer/components/chat/resources/variants/useResourceEntityRail'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
@@ -21,7 +13,10 @@ import { Pin, PinOff, Plus, SquarePen, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ConversationResourceMenuItem } from '../ConversationResourceMenu'
+import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
 import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
+import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'
 
 const logger = loggerService.withContext('AgentResourceList')
 
@@ -40,6 +35,7 @@ type AgentResourceListProps = {
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
   onStartDraftAgent: (agentId: string) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
+  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   /**
    * Called after the currently-active agent is deleted so the classic-layout page can
    * settle (select the latest remaining session / clear). This is the classic
@@ -55,6 +51,7 @@ export function AgentResourceList({
   onSelectSession,
   onStartDraftAgent,
   onStartMissingAgentDraft,
+  resourceMenuItems,
   onActiveAgentDeleted
 }: AgentResourceListProps) {
   const { t } = useTranslation()
@@ -269,6 +266,7 @@ export function AgentResourceList({
         addLabel={t('agent.add.title')}
         onAdd={onAddAgent ?? (() => onStartMissingAgentDraft?.())}
         onOpenHistoryRecords={onOpenHistoryRecords}
+        resourceMenuItems={resourceMenuItems}
         onSelect={handleSelect}
         onReorder={handleReorder}
         getContextMenuActions={getContextMenuActions}

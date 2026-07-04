@@ -4,7 +4,6 @@ export enum IpcChannel {
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
   App_SetEnableSpellCheck = 'app:set-enable-spell-check',
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
-  Application_Quit = 'application:quit',
   App_Info = 'app:info',
   App_HandleZoomFactor = 'app:handle-zoom-factor',
   App_Select = 'app:select',
@@ -21,7 +20,6 @@ export enum IpcChannel {
   Application_Relaunch = 'application:relaunch',
   App_ResetData = 'app:reset-data',
   App_IsBinaryExist = 'app:is-binary-exist',
-  App_GetBinaryPath = 'app:get-binary-path',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
   App_GetSystemFonts = 'app:get-system-fonts',
@@ -49,16 +47,9 @@ export enum IpcChannel {
   Open_Path = 'open:path',
   Open_Website = 'open:website',
 
-  MiniApp = 'mini-app',
-
-  Config_Set = 'config:set',
-  Config_Get = 'config:get',
-
   // Quick Assistant
-  QuickAssistant_Show = 'quick-assistant:show',
   QuickAssistant_Hide = 'quick-assistant:hide',
   QuickAssistant_Close = 'quick-assistant:close',
-  QuickAssistant_Toggle = 'quick-assistant:toggle',
   QuickAssistant_SetPin = 'quick-assistant:set-pin',
   QuickAssistant_Shown = 'quick-assistant:shown',
 
@@ -68,14 +59,8 @@ export enum IpcChannel {
   Mcp_RestartServer = 'mcp:restart-server',
   Mcp_StopServer = 'mcp:stop-server',
   Mcp_RefreshTools = 'mcp:refresh-tools',
-  Mcp_CallTool = 'mcp:call-tool',
   Mcp_ListPrompts = 'mcp:list-prompts',
-  Mcp_GetPrompt = 'mcp:get-prompt',
   Mcp_ListResources = 'mcp:list-resources',
-  Mcp_GetResource = 'mcp:get-resource',
-  Mcp_GetInstallInfo = 'mcp:get-install-info',
-  Mcp_ServersChanged = 'mcp:servers-changed',
-  Mcp_ServersUpdated = 'mcp:servers-updated',
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
   Mcp_UploadDxt = 'mcp:upload-dxt',
   Mcp_UploadMcpb = 'mcp:upload-mcpb',
@@ -85,7 +70,6 @@ export enum IpcChannel {
   Mcp_GetServerLogs = 'mcp:get-server-logs',
   Mcp_ServerLog = 'mcp:server-log',
   // Python
-  Python_Execute = 'python:execute',
   Python_ExecutionRequest = 'python:execution-request',
   Python_ExecutionResponse = 'python:execution-response',
 
@@ -110,16 +94,6 @@ export enum IpcChannel {
   Copilot_Logout = 'copilot:logout',
   Copilot_GetUser = 'copilot:get-user',
 
-  // CherryIN OAuth
-  CherryIN_SaveToken = 'cherryin:save-token',
-  CherryIN_HasToken = 'cherryin:has-token',
-  CherryIN_GetBalance = 'cherryin:get-balance',
-  CherryIN_Logout = 'cherryin:logout',
-  CherryIN_StartOAuthFlow = 'cherryin:start-oauth-flow',
-  // Main → renderer push: OAuth callback result, addressed to the flow initiator
-  // captured at startOAuthFlow time. Replaces the renderer-pulled exchange-token IPC.
-  CherryIN_OAuthResult = 'cherryin:oauth-result',
-
   // obsidian
   Obsidian_GetVaults = 'obsidian:get-vaults',
   Obsidian_GetFiles = 'obsidian:get-files',
@@ -130,23 +104,10 @@ export enum IpcChannel {
   Nutstore_GetDirectoryContents = 'nutstore:get-directory-contents',
 
   //aes
-  Aes_Encrypt = 'aes:encrypt',
   Aes_Decrypt = 'aes:decrypt',
-
-  Gemini_UploadFile = 'gemini:upload-file',
-  Gemini_Base64File = 'gemini:base64-file',
-  Gemini_RetrieveFile = 'gemini:retrieve-file',
-  Gemini_ListFiles = 'gemini:list-files',
-  Gemini_DeleteFile = 'gemini:delete-file',
-
-  // VertexAI
-  VertexAI_GetAuthHeaders = 'vertexai:get-auth-headers',
-  VertexAI_GetAccessToken = 'vertexai:get-access-token',
-  VertexAI_ClearAuthCache = 'vertexai:clear-auth-cache',
 
   // MainWindow: handlers in MainWindowService, operate on main window only.
   MainWindow_Reload = 'main-window:reload',
-  MainWindow_CrashRenderProcess = 'main-window:crash-render-process',
   MainWindow_ResetMinimumSize = 'main-window:reset-minimum-size',
   MainWindow_SetMinimumSize = 'main-window:set-minimum-size',
 
@@ -168,12 +129,7 @@ export enum IpcChannel {
   File_OpenPath = 'file:openPath',
   File_Save = 'file:save',
   File_Select = 'file:select',
-  File_Upload = 'file:upload',
-  File_Clear = 'file:clear',
-  File_Read = 'file:read',
   File_ReadExternal = 'file:readExternal',
-  File_Delete = 'file:delete',
-  File_DeleteDir = 'file:deleteDir',
   File_DeleteExternalFile = 'file:deleteExternalFile',
   File_DeleteExternalDir = 'file:deleteExternalDir',
   File_Move = 'file:move',
@@ -185,19 +141,11 @@ export enum IpcChannel {
   File_CreateTempFile = 'file:createTempFile',
   File_Mkdir = 'file:mkdir',
   File_Write = 'file:write',
-  File_WriteWithId = 'file:writeWithId',
   File_SaveImage = 'file:saveImage',
-  File_Base64Image = 'file:base64Image',
-  File_SaveBase64Image = 'file:saveBase64Image',
   File_SavePastedImage = 'file:savePastedImage',
-  File_Download = 'file:download',
-  File_Copy = 'file:copy',
   File_BinaryImage = 'file:binaryImage',
-  File_Base64File = 'file:base64File',
-  File_GetPdfInfo = 'file:getPdfInfo',
   Fs_Read = 'fs:read',
   Fs_ReadText = 'fs:readText',
-  File_OpenWithRelativePath = 'file:openWithRelativePath',
   File_IsTextFile = 'file:isTextFile',
   File_IsDirectory = 'file:isDirectory',
   File_GetMetadata = 'file:getMetadata',
@@ -219,9 +167,6 @@ export enum IpcChannel {
   File_TreeDispose = 'file:tree:dispose',
   File_TreeRename = 'file:tree:rename',
   File_TreeMutation = 'file:tree:mutation',
-
-  // PDF
-  Pdf_ExtractText = 'pdf:extractText',
 
   Export_Word = 'export:word',
 
@@ -246,28 +191,12 @@ export enum IpcChannel {
   Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
   Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 
-  // data migration
-  DataMigrate_CheckNeeded = 'data-migrate:check-needed',
-  DataMigrate_GetProgress = 'data-migrate:get-progress',
-  DataMigrate_Cancel = 'data-migrate:cancel',
-  DataMigrate_RequireBackup = 'data-migrate:require-backup',
-  DataMigrate_BackupCompleted = 'data-migrate:backup-completed',
-  DataMigrate_ShowBackupDialog = 'data-migrate:show-backup-dialog',
-  DataMigrate_StartFlow = 'data-migrate:start-flow',
-  DataMigrate_ProceedToBackup = 'data-migrate:proceed-to-backup',
-  DataMigrate_StartMigration = 'data-migrate:start-migration',
-  DataMigrate_RetryMigration = 'data-migrate:retry-migration',
-  DataMigrate_RestartApp = 'data-migrate:restart-app',
-  DataMigrate_CloseWindow = 'data-migrate:close-window',
-
   // zip
-  Zip_Compress = 'zip:compress',
   Zip_Decompress = 'zip:decompress',
 
   // system
   System_GetDeviceType = 'system:getDeviceType',
   System_GetHostname = 'system:getHostname',
-  System_GetCpuName = 'system:getCpuName',
   // Git Bash has no IPC channel; resolved in-process (settingsBuilder).
 
   // DevTools
@@ -275,7 +204,6 @@ export enum IpcChannel {
 
   // events
   BackupProgress = 'backup-progress',
-  DataMigrateProgress = 'data-migrate-progress',
   NativeThemeUpdated = 'native-theme:updated',
   RestoreProgress = 'restore-progress',
   UpdateError = 'update-error',
@@ -283,17 +211,6 @@ export enum IpcChannel {
   UpdateNotAvailable = 'update-not-available',
   DownloadProgress = 'download-progress',
   UpdateDownloaded = 'update-downloaded',
-  DownloadUpdate = 'download-update',
-
-  DirectoryProcessingPercent = 'directory-processing-percent',
-
-  // Search Window
-  SearchWindow_Open = 'search-window:open',
-  SearchWindow_Close = 'search-window:close',
-  SearchWindow_OpenUrl = 'search-window:open-url',
-
-  // Provider
-  Provider_AddKey = 'provider:add-key',
 
   // Data: Preference
   Preference_Get = 'preference:get',
@@ -353,11 +270,7 @@ export enum IpcChannel {
   Ovms_RunOVMS = 'ovms:run-ovms',
   Ovms_StopOVMS = 'ovms:stop-ovms',
 
-  // CherryAI
-  Cherryai_GetSignature = 'cherryai:get-signature',
-
   // Global Skills
-  Skill_List = 'skill:list',
   Skill_Install = 'skill:install',
   Skill_Uninstall = 'skill:uninstall',
   Skill_Toggle = 'skill:toggle',
@@ -386,15 +299,10 @@ export enum IpcChannel {
   OpenClaw_StartGateway = 'openclaw:start-gateway',
   OpenClaw_StopGateway = 'openclaw:stop-gateway',
   OpenClaw_GetStatus = 'openclaw:get-status',
-  OpenClaw_CheckHealth = 'openclaw:check-health',
   OpenClaw_GetDashboardUrl = 'openclaw:get-dashboard-url',
   OpenClaw_SyncConfig = 'openclaw:sync-config',
-  OpenClaw_GetChannels = 'openclaw:get-channels',
   OpenClaw_CheckUpdate = 'openclaw:check-update',
   OpenClaw_PerformUpdate = 'openclaw:perform-update',
-
-  // Analytics
-  Analytics_TrackTokenUsage = 'analytics:track-token-usage',
 
   // AI capability IPC (model ops, streaming chat, agent-session warm-up, tool approval,
   // agent run-task) migrated to IpcApi (`ai.*`). Only `translate.open` remains on legacy IPC.

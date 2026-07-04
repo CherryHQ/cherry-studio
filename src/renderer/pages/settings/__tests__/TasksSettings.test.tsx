@@ -278,6 +278,7 @@ vi.mock('@cherrystudio/ui', () => {
       const context = React.use(PopoverContext)
 
       if (React.isValidElement<{ onClick?: React.MouseEventHandler }>(children)) {
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, {
           onClick: (event: React.MouseEvent) => {
             children.props.onClick?.(event)
@@ -453,10 +454,10 @@ describe('TasksSettings task logs', () => {
       fireEvent.click(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.cron' }))
     })
 
-    expect(await screen.findByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).toBeInTheDocument()
-    await waitFor(() =>
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).toBeInTheDocument()
       expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).not.toBeInTheDocument()
-    )
+    })
   })
 
   it('moves run and delete into the task detail more menu', async () => {
