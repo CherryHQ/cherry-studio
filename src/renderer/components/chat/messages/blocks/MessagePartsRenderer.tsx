@@ -647,6 +647,8 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
         type="button"
         aria-expanded={isExpanded}
         aria-controls={contentId}
+        data-testid="message-tool-history"
+        data-tool-count={toolCount}
         className={triggerClassName}
         onClick={() => setIsExpanded((expanded) => !expanded)}>
         {!showLiveProgress && (

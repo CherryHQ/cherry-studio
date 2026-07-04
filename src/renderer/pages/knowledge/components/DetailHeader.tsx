@@ -31,12 +31,18 @@ const DetailHeader = ({ base, onOpenRagConfig, onOpenRecallTest, onRebuild }: De
               aria-label={`${statusLabel}, ${t('knowledge.restore.action')}`}
               title={t('knowledge.restore.action')}
               className="h-auto min-h-0 shrink-0 cursor-pointer rounded-full p-0 shadow-none transition-opacity hover:bg-transparent hover:opacity-80">
-              <Badge variant="outline" className={statusBadgeClassNames[base.status]}>
+              <Badge
+                data-testid="kb-base-status"
+                data-status={base.status}
+                variant="outline"
+                className={statusBadgeClassNames[base.status]}>
                 {statusLabel}
               </Badge>
             </Button>
           ) : (
             <Badge
+              data-testid="kb-base-status"
+              data-status={base.status}
               variant="outline"
               className={`${statusBadgeClassNames[base.status]} shrink-0`}
               aria-label={statusLabel}

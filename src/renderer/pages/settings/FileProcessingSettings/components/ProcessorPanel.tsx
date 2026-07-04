@@ -178,9 +178,11 @@ export function ProcessorPanel({
           </div>
         </div>
         {isDefault ? (
-          <Badge className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-600 text-xs dark:text-emerald-400">
-            {t('common.default')}
-          </Badge>
+          <span data-testid="fp-panel-default-badge" data-feature={entry.feature} data-processor-id={processor.id}>
+            <Badge className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-600 text-xs dark:text-emerald-400">
+              {t('common.default')}
+            </Badge>
+          </span>
         ) : (
           <Button variant="outline" size="sm" onClick={() => void handleSetDefault()}>
             {t('settings.tool.file_processing.actions.set_as_default')}

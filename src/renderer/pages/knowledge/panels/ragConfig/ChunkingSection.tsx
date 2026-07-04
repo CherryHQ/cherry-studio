@@ -71,6 +71,7 @@ const ChunkingSection = ({
           suffix={t('knowledge.rag.tokens_unit')}
           inputMode="numeric"
           onChange={onChunkSizeChange}
+          inputId="kb-rag-chunk-size"
         />
         <RagInlineField
           label={t('knowledge.rag.chunk_overlap')}
@@ -79,6 +80,7 @@ const ChunkingSection = ({
           suffix={t('knowledge.rag.tokens_unit')}
           inputMode="numeric"
           onChange={onChunkOverlapChange}
+          inputId="kb-rag-chunk-overlap"
         />
       </div>
 
