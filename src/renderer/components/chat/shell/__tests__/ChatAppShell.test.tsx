@@ -434,6 +434,30 @@ describe('ChatAppShell', () => {
     expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(1, true)
     expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(2, false)
   })
+  it('keeps the pane auto-collapsed until every responsive constraint has recovered', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+
+    render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+
+    notifyObservedShellWidth(540)
+    notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH - 1)
+    notifyObservedShellWidth(539)
+    notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH)
+
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(1)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(1, true)
+
+    notifyObservedShellWidth(540)
+
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(2, false)
+  })
   it('does not auto-collapse from the first center width observation when the initial measurement is zero', () => {
     const onPaneAutoCollapseChange = vi.fn()
 

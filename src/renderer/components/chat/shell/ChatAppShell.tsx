@@ -55,6 +55,8 @@ type ChatAppShellCenterContentProps = ChatAppShellBaseProps & {
 
 export type ChatAppShellProps = ChatAppShellMainProps | ChatAppShellCenterContentProps
 
+type AutoCollapseSource = 'center' | 'shell'
+
 export function ChatAppShell({
   topBar,
   pane,
@@ -82,7 +84,7 @@ export function ChatAppShell({
   const centerInnerRef = useRef<HTMLDivElement | null>(null)
   const leftPaneOpenRef = useRef(leftPaneOpen)
   const onPaneAutoCollapseChangeRef = useRef(onPaneAutoCollapseChange)
-  const autoCollapsedRef = useRef(false)
+  const autoCollapseReasonsRef = useRef<Record<AutoCollapseSource, boolean>>({ center: false, shell: false })
   const previousShellWidthRef = useRef<number | null>(null)
   const previousCenterWidthRef = useRef<number | null>(null)
 
@@ -100,6 +102,16 @@ export function ChatAppShell({
     () => resolveImmersiveNavbar({ narrow, centerWidth, isWindow }),
     [narrow, centerWidth, isWindow]
   )
+  const updatePaneAutoCollapse = useCallback((source: AutoCollapseSource, collapsed: boolean) => {
+    const reasons = autoCollapseReasonsRef.current
+    const wasCollapsed = reasons.center || reasons.shell
+    reasons[source] = collapsed
+    const isCollapsed = reasons.center || reasons.shell
+
+    if (wasCollapsed !== isCollapsed) {
+      onPaneAutoCollapseChangeRef.current?.(isCollapsed)
+    }
+  }, [])
 
   // Merge the forwarded centerRef with our own ref so we can measure the center element's width.
   const assignCenterRef = useCallback(
@@ -135,23 +147,17 @@ export function ChatAppShell({
         previousCenterWidth >= CHAT_CENTER_MIN_USABLE_WIDTH &&
         nextCenterWidth < CHAT_CENTER_MIN_USABLE_WIDTH
       ) {
-        autoCollapsedRef.current = true
-        onPaneAutoCollapseChangeRef.current?.(true)
+        updatePaneAutoCollapse('center', true)
         return
       }
 
-      if (
-        autoCollapsedRef.current &&
-        previousCenterWidth < CHAT_CENTER_MIN_USABLE_WIDTH &&
-        nextCenterWidth >= CHAT_CENTER_MIN_USABLE_WIDTH
-      ) {
-        autoCollapsedRef.current = false
-        onPaneAutoCollapseChangeRef.current?.(false)
+      if (previousCenterWidth < CHAT_CENTER_MIN_USABLE_WIDTH && nextCenterWidth >= CHAT_CENTER_MIN_USABLE_WIDTH) {
+        updatePaneAutoCollapse('center', false)
       }
     })
     observer.observe(center)
     return () => observer.disconnect()
-  }, [])
+  }, [updatePaneAutoCollapse])
 
   useEffect(() => {
     const root = rootRef.current
@@ -169,24 +175,21 @@ export function ChatAppShell({
         previousShellWidth >= RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH &&
         nextShellWidth < RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH
       ) {
-        autoCollapsedRef.current = true
-        onPaneAutoCollapseChangeRef.current?.(true)
+        updatePaneAutoCollapse('shell', true)
         return
       }
 
       if (
-        autoCollapsedRef.current &&
         previousShellWidth < RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH &&
         nextShellWidth >= RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH
       ) {
-        autoCollapsedRef.current = false
-        onPaneAutoCollapseChangeRef.current?.(false)
+        updatePaneAutoCollapse('shell', false)
       }
     })
 
     observer.observe(root)
     return () => observer.disconnect()
-  }, [])
+  }, [updatePaneAutoCollapse])
 
   return (
     <div
