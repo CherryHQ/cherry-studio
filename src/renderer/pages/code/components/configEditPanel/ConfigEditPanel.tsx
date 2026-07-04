@@ -259,7 +259,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
       } else {
         setCliConfigSelection(null)
         if (connection?.model) {
-          setModelId(`${provider.id}::${connection.model}` as UniqueModelId)
+          setModelId(`${provider.id}::${connection.model}`)
         }
       }
 

@@ -82,7 +82,7 @@ async function resolveContext(args: InjectCliConfigArgs): Promise<ResolvedCliCon
     provider,
     apiKey: firstApiKey(apiKeysRes?.keys),
     model,
-    modelRecord: modelRecord as Model | null,
+    modelRecord: modelRecord,
     configBlob: getConfigBlob(args.configBlob)
   }
 }
