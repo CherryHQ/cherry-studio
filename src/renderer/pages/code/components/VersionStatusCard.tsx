@@ -44,7 +44,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   const canUpgrade = isInstalled && status.canUpgrade
 
   return (
-    <div className="rounded-lg border border-border/40 bg-card px-4 py-3">
+    <div className="rounded-lg border border-border/40 bg-background px-4 py-3">
       <div className="flex items-center gap-3">
         <CLIIcon id={toolId} size={28} className="size-7 shrink-0" />
 

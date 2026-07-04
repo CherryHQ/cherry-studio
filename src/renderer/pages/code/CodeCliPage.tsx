@@ -598,7 +598,7 @@ const CodeCliPage: FC = () => {
         {/* Right content */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {activeMeta ? (
-            <div className="scrollbar-thin flex-1 overflow-y-auto px-6 py-5">
+            <div className="flex-1 overflow-y-auto px-6 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="mx-auto max-w-2xl space-y-5">
                 {/* Version status card */}
                 {cliPreset && (
