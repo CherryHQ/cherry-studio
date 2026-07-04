@@ -238,7 +238,17 @@ export function AssistantResourceList({
           onSelectTopic(actualRemainingTopics[0])
         }
 
-        window.toast.success(t('chat.topics.manage.delete.success', { count: result.deletedCount }))
+        void window.modal.success({
+          title: t('assistants.clear.success_title', { count: result.deletedCount }),
+          content: (
+            <div className="space-y-1">
+              <p>{t('assistants.clear.success_content.line1')}</p>
+              <p>{t('assistants.clear.success_content.line2')}</p>
+            </div>
+          ),
+          okText: t('common.i_know'),
+          centered: true
+        })
         await refreshTopics()
       } catch (err) {
         logger.error('Failed to clear assistant topics from classic-layout rail', { assistantId, err })

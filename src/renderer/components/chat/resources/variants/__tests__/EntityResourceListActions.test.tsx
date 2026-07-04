@@ -51,7 +51,8 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string, options?: { count?: number }) =>
+      key === 'assistants.clear.success_title' ? `${key}:${options?.count}` : key
   })
 }))
 
@@ -299,7 +300,8 @@ describe('classic layout entity resource list actions', () => {
     agentDataMocks.refetchAgents.mockClear()
 
     window.modal = {
-      confirm: vi.fn().mockResolvedValue(true)
+      confirm: vi.fn().mockResolvedValue(true),
+      success: vi.fn()
     } as unknown as typeof window.modal
     window.toast = {
       error: vi.fn(),
@@ -367,7 +369,23 @@ describe('classic layout entity resource list actions', () => {
     await waitFor(() => expect(assistantDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
     await waitFor(() => expect(assistantDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
     expect(onSelectTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-2' }))
-    expect(window.toast.success).toHaveBeenCalledWith('chat.topics.manage.delete.success')
+    expect(window.toast.success).not.toHaveBeenCalled()
+    expect(window.modal.success).toHaveBeenCalledWith(
+      expect.objectContaining({
+        centered: true,
+        okText: 'common.i_know',
+        title: 'assistants.clear.success_title:1'
+      })
+    )
+    const successOptions = vi.mocked(window.modal.success).mock.calls[0][0]
+    expect(successOptions.content).toMatchObject({
+      props: {
+        children: [
+          expect.objectContaining({ props: { children: 'assistants.clear.success_content.line1' } }),
+          expect.objectContaining({ props: { children: 'assistants.clear.success_content.line2' } })
+        ]
+      }
+    })
   })
 
   it('keeps at least one topic when clearing classic assistant topics would delete all topics', async () => {
