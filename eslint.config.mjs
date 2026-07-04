@@ -213,12 +213,13 @@ export default defineConfig([
     }
   },
   // FilePath brand integrity — `as FilePath` forges the brand, skipping
-  // FilePathSchema's canonicalization (NFC normalize + segment resolution).
-  // Production code must build a FilePath via FilePathSchema.parse(value).
+  // FilePathSchema's shape validation. Production code must build a FilePath
+  // via FilePathSchema.parse(value).
   // Exemptions: test fixtures; and two deliberate raw-OS-path regimes — the
-  // directory watcher emits the raw path by design, and the tree builder
-  // compares rootPath against raw absPaths — where canonicalizing would
-  // reintroduce the NFC divergence this brand exists to prevent.
+  // directory watcher (watcher/**) and the tree builder (tree/**) hold raw
+  // chokidar/OS event paths that are compared byte-for-byte against event
+  // paths and are trusted as-is, so they `as FilePath` rather than routing
+  // through validation.
   {
     files: ['src/**/*.{ts,tsx}'],
     ignores: [

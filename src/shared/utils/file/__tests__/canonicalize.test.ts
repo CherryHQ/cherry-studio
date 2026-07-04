@@ -4,8 +4,9 @@
  *
  * For inputs that match the host platform, the result must equal what the
  * main-side `path.resolve` + NFC + trailing-strip pipeline produces; this
- * keeps the canonicalize-on-write (main) and canonicalize-on-parse (schema)
- * sides in lockstep. Cross-platform cases (Windows-shaped paths processed on
+ * keeps the canonicalize-on-write path (`canonicalizeFilePath`, applied at the
+ * external-path boundary) and the schema's `externalPath` canonical-equivalence
+ * refine in lockstep. Cross-platform cases (Windows-shaped paths processed on
  * POSIX hosts and vice versa) are pinned by handcrafted expectations because
  * `path.resolve` is host-aware and can't be used as the oracle there.
  */
@@ -14,7 +15,7 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { canonicalizeAbsolutePath } from '../canonicalize'
+import { canonicalizeAbsolutePath, canonicalizeFilePath } from '../canonicalize'
 
 function nodeCanonicalize(raw: string): string {
   let normalized = path.resolve(raw)
@@ -77,5 +78,19 @@ describe('canonicalizeAbsolutePath — Windows', () => {
   it('strips trailing separator (except drive root)', () => {
     expect(canonicalizeAbsolutePath('C:\\foo\\')).toBe('C:\\foo')
     expect(canonicalizeAbsolutePath('C:\\')).toBe('C:\\')
+  })
+})
+
+describe('canonicalizeFilePath (branding factory)', () => {
+  // The sole sanctioned producer of the CanonicalFilePath brand. At runtime it
+  // is exactly canonicalizeAbsolutePath + a phantom (compile-time) brand.
+  it('returns the canonicalized string (same result as canonicalizeAbsolutePath)', () => {
+    expect(canonicalizeFilePath('/foo/./bar/../baz')).toBe('/foo/baz')
+    expect(canonicalizeFilePath('/foo/bar/')).toBe('/foo/bar')
+  })
+
+  it('throws on non-absolute / null-byte input (delegated to canonicalizeAbsolutePath)', () => {
+    expect(() => canonicalizeFilePath('foo/bar')).toThrow(/absolute/i)
+    expect(() => canonicalizeFilePath('/foo/\0bar')).toThrow(/null byte/i)
   })
 })

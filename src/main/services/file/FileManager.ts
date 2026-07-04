@@ -149,6 +149,7 @@ import type {
 import { SafeExtSchema } from '@shared/types/file/common'
 import type { FileHandle } from '@shared/types/file/handle'
 import { FileHandleSchema } from '@shared/types/file/handle'
+import { canonicalizeFilePath } from '@shared/utils/file/canonicalize'
 import mime from 'mime'
 import * as z from 'zod'
 
@@ -824,7 +825,7 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async findByExternalPath(path: FilePath): Promise<FileEntry | null> {
-    return this.deps.fileEntryService.findByExternalPath(path)
+    return this.deps.fileEntryService.findByExternalPath(canonicalizeFilePath(path))
   }
 
   async ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry> {
@@ -914,19 +915,22 @@ export class FileManager extends BaseService implements IFileManager {
   async batchEnsureExternalEntries(items: EnsureExternalEntryParams[]): Promise<BatchCreateResult> {
     // Within-batch path duplicates resolve to the same entry per the public
     // contract; the second occurrence reuses the just-inserted row. The
-    // canonical-path memoization here ensures both items end up in
-    // `succeeded` even though only one DB insert happens — and each carries
-    // its own `sourceRef`, so the caller can still correlate every input.
+    // in-memory memo keys on the branded `externalPath` directly — no re-parse,
+    // trusting the already-validated `FilePath` param. Byte-identical inputs
+    // dedup here; any canonically-equal-but-byte-different pair still coalesces
+    // one level down (`ensureExternalEntry` canonicalizes and hits the DB
+    // upsert). Both items end up in `succeeded` even though only one DB insert
+    // happens — and each carries its own `sourceRef`, so the caller can still
+    // correlate every input.
     const seen = new Map<string, FileEntry>()
     const succeeded: BatchCreateResult['succeeded'] = []
     const failed: BatchCreateResult['failed'] = []
     for (const params of items) {
       const sourceRef = params.externalPath
       try {
-        const canonical = FilePathSchema.parse(params.externalPath)
-        const cached = seen.get(canonical)
+        const cached = seen.get(params.externalPath)
         const entry = cached ?? (await this.ensureExternalEntry(params))
-        if (!cached) seen.set(canonical, entry)
+        if (!cached) seen.set(params.externalPath, entry)
         succeeded.push({ id: entry.id, sourceRef })
       } catch (err) {
         // Wire format only carries `.message`; preserve the stack via the

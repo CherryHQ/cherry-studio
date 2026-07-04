@@ -1,11 +1,13 @@
 /**
  * Pure-JS canonicalization for absolute filesystem paths.
  *
- * Lives in shared (no `node:*` imports) so `FilePathSchema` (`@shared/types/file/common`)
- * can `.transform` its input through the same canonicalization rule on every
- * parse. That transform is what gives the `FilePath` brand real runtime
- * backing — any value that survives parsing IS canonical, not just typed as
- * if it were.
+ * Lives in shared (no `node:*` imports). This module owns two things: the
+ * canonicalization algorithm (`canonicalizeAbsolutePath`) and the branding
+ * factory (`canonicalizeFilePath`). `FilePath` (`@shared/types/file/common`)
+ * is shape-validated only — it does NOT canonicalize on parse. Canonicalization
+ * is applied explicitly via `canonicalizeFilePath`, which produces the
+ * `CanonicalFilePath` sub-brand, at the external-path persistence / lookup
+ * boundary.
  *
  * ## Scope (this function's contract)
  *
@@ -30,6 +32,8 @@
  * discipline`.
  */
 
+import type { CanonicalFilePath } from '@shared/types/file/common'
+
 export function canonicalizeAbsolutePath(raw: string): string {
   if (raw.includes('\0')) {
     throw new Error('canonicalizeAbsolutePath: input contains null byte')
@@ -37,6 +41,19 @@ export function canonicalizeAbsolutePath(raw: string): string {
   const isWindows = /^[A-Za-z]:[/\\]/.test(raw)
   const normalized = isWindows ? canonicalizeWindows(raw) : canonicalizePosix(raw)
   return normalized.normalize('NFC')
+}
+
+/**
+ * The sole sanctioned producer of `CanonicalFilePath`: run the pure-JS
+ * canonicalization and brand the result. Callers needing a canonical
+ * lookup/persistence key (external-entry write + `findByExternalPath`) go
+ * through here instead of `as`-casting into the brand.
+ *
+ * @throws if `input` is not absolute / contains a null byte (delegated to
+ *   `canonicalizeAbsolutePath`).
+ */
+export function canonicalizeFilePath(input: string): CanonicalFilePath {
+  return canonicalizeAbsolutePath(input) as CanonicalFilePath
 }
 
 function canonicalizePosix(raw: string): string {

@@ -14,7 +14,7 @@ import { loggerService } from '@logger'
 import { exists, isSameFile, move as fsMove } from '@main/utils/file/fs'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import { SafeNameSchema } from '@shared/data/types/file'
-import { FilePathSchema } from '@shared/types/file'
+import { canonicalizeFilePath } from '@shared/utils/file/canonicalize'
 
 import type { FileManagerDeps } from '../deps'
 
@@ -43,7 +43,7 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   // canonical (written through `ensureExternalEntry`), so string equality
   // here is a reliable "same logical path" test.
   const oldPath = entry.externalPath
-  const target = FilePathSchema.parse(path.join(dir, `${newName}${ext}`))
+  const target = canonicalizeFilePath(path.join(dir, `${newName}${ext}`))
   // Defense in depth: `SafeNameSchema.parse(newName)` above already rejects
   // path separators and `..`, but a future regression in the schema (or any
   // canonicalization behaviour change) must not be able to relocate the

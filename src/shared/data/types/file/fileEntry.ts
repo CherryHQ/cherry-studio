@@ -98,7 +98,8 @@
  *   unmanaged `@main/utils/file/fs.remove(path)` separately.
  */
 
-import { FilePathSchema, SafeExtSchema } from '@shared/types/file/common'
+import { type CanonicalFilePath, FilePathSchema, SafeExtSchema } from '@shared/types/file/common'
+import { canonicalizeAbsolutePath } from '@shared/utils/file/canonicalize'
 import * as z from 'zod'
 
 import { SafeNameSchema, TimestampSchema } from './essential'
@@ -209,13 +210,26 @@ export const ExternalEntrySchema = z.strictObject({
   ...CommonEntryFields,
   origin: z.literal('external'),
   /**
-   * Absolute filesystem path to the user-provided file. `FilePathSchema`
-   * transforms the value through `canonicalizeAbsolutePath` (NFC + resolve +
-   * trailing-strip + null-byte reject) and brands it `FilePath`, so any value
-   * the BO exposes is provably canonical — no `as FilePath` casts at read
-   * sites (rename.ts, lifecycle.ts, danglingCache.ts, …).
+   * Absolute filesystem path to the user-provided file, as a
+   * `CanonicalFilePath`. Canonical form is guaranteed at WRITE time by
+   * `canonicalizeFilePath` (external-entry insert / rename); this field does
+   * NOT re-canonicalize on read. A stored value that is not already canonical
+   * is REJECTED at parse (surfaced via `rowToFileEntrySafe`'s warn-skip) —
+   * reads never silently rewrite the value. Rejecting rather than repairing
+   * keeps the lookup/dedup key stable: a re-canonicalization migration is the
+   * only sanctioned way to fix historically non-canonical rows.
    */
-  externalPath: FilePathSchema
+  externalPath: FilePathSchema.refine((s) => {
+    // Reject a stored value that is not already canonical (no silent repair):
+    // canonicalizeAbsolutePath throws on structural failure, absorbed here.
+    try {
+      return s === canonicalizeAbsolutePath(s)
+    } catch {
+      return false
+    }
+  }, 'externalPath must be canonical (produced via canonicalizeFilePath) before persistence').transform(
+    (s): CanonicalFilePath => s as CanonicalFilePath
+  )
 })
 
 /**

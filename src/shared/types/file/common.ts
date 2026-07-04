@@ -2,7 +2,6 @@
  * General file module types — used across ops, FileManager, and IPC.
  */
 
-import { canonicalizeAbsolutePath } from '@shared/utils/file/canonicalize'
 import * as z from 'zod'
 
 // ─── File Type Classification ───
@@ -30,8 +29,15 @@ export type FileType = z.infer<typeof FileTypeSchema>
 // ─── Content Source Types ───
 
 /**
- * Absolute filesystem path that has passed through `FilePathSchema`:
- * NFC-normalized, segment-resolved, trailing-separator-stripped, no null bytes.
+ * Absolute filesystem path validated by `FilePathSchema`. Validates the path
+ * SHAPE only — absolute form, no null bytes — and does NOT canonicalize:
+ * `FilePathSchema.parse(x)` returns `x` unchanged (the path exactly as given).
+ *
+ * The canonical form of a path (NFC + segment-resolve + trailing-separator
+ * strip + drive-letter upcase) is a distinct `CanonicalFilePath` produced by
+ * `canonicalizeFilePath()` (`@shared/utils/file/canonicalize`); it is applied
+ * explicitly at the external-path persistence / lookup boundary, not on every
+ * `FilePath` parse.
  *
  * The `z.brand` is a phantom brand — zero runtime cost, dropped on IPC
  * serialization; receivers re-assert via `FilePathSchema.parse()` at the
@@ -39,18 +45,34 @@ export type FileType = z.infer<typeof FileTypeSchema>
  * - Production: `FilePathSchema.parse(raw)` / `.safeParse(raw)`
  * - Tests / fixtures: `'…' as FilePath` for readability
  *
- * Accepts POSIX (`/…`) and Windows (`X:\…` or `X:/…`) absolute forms; the
- * canonical output is always backslash on Windows. Rejects `file://` URLs.
+ * Accepts POSIX (`/…`) and Windows (`X:\…` or `X:/…`) absolute forms.
+ * Rejects `file://` URLs.
  */
 export const FilePathSchema = z
   .string()
   .min(1)
   .refine((s) => !s.includes('\0'), 'must not contain null bytes')
   .refine((s) => s.startsWith('/') || /^[A-Za-z]:[/\\]/.test(s), 'must be an absolute filesystem path')
-  .transform((v) => canonicalizeAbsolutePath(v))
   .brand<'FilePath'>()
 
 export type FilePath = z.infer<typeof FilePathSchema>
+
+/**
+ * A `FilePath` additionally proven to be in canonical form
+ * (`canonicalizeAbsolutePath`: NFC + segment-resolve + trailing-separator
+ * strip + drive-letter upcase). This is the form persisted in
+ * `file_entry.externalPath` and used as the dedup / lookup key.
+ *
+ * TS-only phantom brand with a STRING-LITERAL key (not a `unique symbol`):
+ * `FileEntry.externalPath` flows into preload's inferred `WindowApiType`
+ * aggregate, where a transitively-embedded `unique symbol` brand triggers
+ * TS2527/TS4023. The ONLY sanctioned producer is `canonicalizeFilePath()`
+ * in `@shared/utils/file/canonicalize`; production code obtains it from that
+ * factory (directly or transitively), never via a bare `as` cast. A
+ * `CanonicalFilePath` IS a `FilePath`, so it is accepted anywhere a
+ * `FilePath` is.
+ */
+export type CanonicalFilePath = FilePath & { readonly __canonical: 'CanonicalFilePath' }
 export type Base64String = `data:${string};base64,${string}`
 export type UrlString = `http://${string}` | `https://${string}`
 

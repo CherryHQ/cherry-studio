@@ -17,6 +17,7 @@ import { loggerService } from '@logger'
 import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { FileEntry } from '@shared/data/types/file'
 import { type FilePath, FilePathSchema } from '@shared/types/file'
+import { canonicalizeFilePath } from '@shared/utils/file/canonicalize'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -164,16 +165,17 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
 
 /**
  * Ensure an entry exists for a user-provided absolute path. Pure upsert keyed
- * by `params.externalPath`, which is already a canonical `FilePath` — the
- * `FilePathSchema` brand at the IPC boundary is the sole canonicalization
- * step, so this function derives every downstream value directly from it
- * without re-canonicalizing. Path existence is verified via `fs.stat` before
- * insert; ENOENT propagates.
+ * by the canonical form of `params.externalPath`: `FilePathSchema` at the IPC
+ * boundary validates shape only, so this function canonicalizes the input via
+ * `canonicalizeFilePath` and derives every downstream value (lookup, dedup,
+ * name/ext projection, persisted `externalPath`) from that `CanonicalFilePath`.
+ * Path existence is verified via `fs.stat` before insert; ENOENT propagates.
  */
 export async function ensureExternal(deps: FileManagerDeps, params: EnsureExternalEntryParams): Promise<FileEntry> {
-  const existing = deps.fileEntryService.findByExternalPath(params.externalPath)
+  const canonical = canonicalizeFilePath(params.externalPath)
+  const existing = deps.fileEntryService.findByExternalPath(canonical)
   if (existing) return existing
-  await fsStat(params.externalPath)
+  await fsStat(canonical)
   // Case-insensitive peer lookup is index-backed via the
   // `fe_external_path_lower_unique_idx` functional UNIQUE on `lower(externalPath)`.
   // The same index hard-rejects an INSERT that would collide with an existing
@@ -194,12 +196,12 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   // subsequent INSERT would fail at the same boundary with a more
   // diagnosable stack, so wrapping in try/catch here only hides the real
   // error one stack frame earlier.
-  const peers = deps.fileEntryService.findCaseInsensitivePeers(params.externalPath)
+  const peers = deps.fileEntryService.findCaseInsensitivePeers(canonical)
   if (peers.length > 0) {
-    const reusable = await resolveCaseCollisionPeer(params.externalPath, peers)
+    const reusable = await resolveCaseCollisionPeer(canonical, peers)
     if (reusable) {
       logger.info('ensureExternal: reusing case-collision peer (fs.realpath confirmed same FS entry)', {
-        newPath: params.externalPath,
+        newPath: canonical,
         peerId: reusable.id,
         peerPath: (reusable as { externalPath: string }).externalPath
       })
@@ -214,7 +216,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
     // uniqueness is what option (c) brings.
     throw new Error(
       `ensureExternal: case-collision with existing entries — fs.realpath confirms different FS entities. ` +
-        `New: ${params.externalPath}; conflicting peers: ${peers
+        `New: ${canonical}; conflicting peers: ${peers
           .map((p) => `${p.id}=${(p as { externalPath: string }).externalPath}`)
           .join(', ')}`
     )
@@ -225,20 +227,20 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   // architecture §3.3) is now enforced by the IPC type lacking a `name`
   // override field. Phase 2 consumers that want a different display name
   // must `rename` after `ensureExternalEntry` returns.
-  const name = defaultNameFromPath(params.externalPath)
-  const ext = extWithoutDot(params.externalPath)
+  const name = defaultNameFromPath(canonical)
+  const ext = extWithoutDot(canonical)
   const inserted = deps.fileEntryService.create({
     origin: 'external',
     name,
     ext,
-    externalPath: params.externalPath
+    externalPath: canonical
   })
   // Reverse-index hook: subsequent watcher / opportunistic ops events for
-  // `params.externalPath` should reach this entry id. The fs.stat above
-  // succeeded — record a fresh 'present' observation so any imminent UI
-  // query short-circuits the cold-stat path.
-  deps.danglingCache.addEntry(inserted.id, params.externalPath)
-  deps.danglingCache.onFsEvent(params.externalPath, 'present', 'ops')
+  // `canonical` should reach this entry id. The fs.stat above succeeded —
+  // record a fresh 'present' observation so any imminent UI query
+  // short-circuits the cold-stat path.
+  deps.danglingCache.addEntry(inserted.id, canonical)
+  deps.danglingCache.onFsEvent(canonical, 'present', 'ops')
   return inserted
 }
 
