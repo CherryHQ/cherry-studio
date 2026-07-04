@@ -24,7 +24,8 @@ import {
   readValidatedToml,
   renderDotenvFile,
   renderJsonFile,
-  resolveAbs
+  resolveAbs,
+  writeExternalConfigFile
 } from './file'
 import {
   modelSupportsReasoningEffort,
@@ -102,7 +103,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       const absPath = await resolveAbs(CLAUDE_SETTINGS_PATH)
       const existing = await readValidatedJson(absPath, 'Claude Code settings')
       const blob = getConfigBlob(configBlob)
-      await window.api.file.write(
+      await writeExternalConfigFile(
         absPath,
         renderJsonFile(
           buildClaudeConfig(existing, blob, { apiKey, baseUrl, model, writePrimaryModel: args.writePrimaryModel })
@@ -130,15 +131,13 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       const blob = getConfigBlob(configBlob)
       const nextConfig = buildCodexConfig(existing, { baseUrl, providerName, model }, blob)
       const nextAuth = buildCodexAuthConfig(existingAuth, apiKey)
-      await window.api.file.write(absPath, stringifyToml(nextConfig))
+      await writeExternalConfigFile(absPath, stringifyToml(nextConfig))
       try {
-        await window.api.file.write(authAbsPath, renderJsonFile(nextAuth))
+        await writeExternalConfigFile(authAbsPath, renderJsonFile(nextAuth))
       } catch (err) {
-        await window.api.file
-          .write(absPath, stringifyToml(existing))
-          .catch((rollbackErr) =>
-            logger.error('Failed to roll back Codex config.toml after auth.json write failure:', rollbackErr as Error)
-          )
+        await writeExternalConfigFile(absPath, stringifyToml(existing)).catch((rollbackErr) =>
+          logger.error('Failed to roll back Codex config.toml after auth.json write failure:', rollbackErr as Error)
+        )
         throw err
       }
       logger.info(`Applied Codex config to ${absPath} + ${authAbsPath}`)
@@ -169,7 +168,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
           maxTurns: typeof blob.maxTurns === 'number' ? blob.maxTurns : undefined
         }
       )
-      await window.api.file.write(absPath, renderJsonFile(nextConfig))
+      await writeExternalConfigFile(absPath, renderJsonFile(nextConfig))
       logger.info(`Applied OpenCode config to ${absPath}`)
       return
     }
@@ -183,8 +182,11 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       const envMap = parseDotenv(await readExternal(envAbsPath))
       const settings = await readValidatedJson(settingsAbsPath, 'Gemini CLI settings')
       const blob = getConfigBlob(configBlob)
-      await window.api.file.write(envAbsPath, renderDotenvFile(buildGeminiEnvConfig(envMap, { apiKey, baseUrl })))
-      await window.api.file.write(settingsAbsPath, renderJsonFile(buildGeminiSettingsConfig(settings, { model }, blob)))
+      await writeExternalConfigFile(envAbsPath, renderDotenvFile(buildGeminiEnvConfig(envMap, { apiKey, baseUrl })))
+      await writeExternalConfigFile(
+        settingsAbsPath,
+        renderJsonFile(buildGeminiSettingsConfig(settings, { model }, blob))
+      )
       logger.info(`Applied Gemini CLI config to ${envAbsPath} + ${settingsAbsPath}`)
       return
     }
@@ -200,7 +202,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       const existing = await readValidatedJson(absPath, 'Qwen Code config')
       const modelLabel = modelRecord?.name ?? model
       const blob = getConfigBlob(configBlob)
-      await window.api.file.write(
+      await writeExternalConfigFile(
         absPath,
         renderJsonFile(buildQwenConfig(existing, { apiKey, baseUrl, model, modelLabel }, blob))
       )
@@ -221,7 +223,7 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       const modelKey = `${CHERRY_PROVIDER_PREFIX}${providerName}`
       const maxContextSize = modelRecord?.contextWindow ?? 128000
       const blob = getConfigBlob(configBlob)
-      await window.api.file.write(
+      await writeExternalConfigFile(
         absPath,
         stringifyToml(buildKimiConfig(existing, { apiKey, baseUrl, model, modelKey, maxContextSize }, blob))
       )

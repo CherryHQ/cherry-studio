@@ -67,6 +67,7 @@ describe('injectCliConfig', () => {
         resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
         file: {
           readExternal: vi.fn(async (absPath: string) => existing[absPath] ?? ''),
+          mkdir: vi.fn(async () => undefined),
           write: vi.fn(async (absPath: string, content: string) => {
             written = { path: absPath, content }
             writes.push({ path: absPath, content })
@@ -582,6 +583,10 @@ describe('injectCliConfig', () => {
       })
 
       const parsed = JSON.parse(written!.content)
+      const mkdirMock = vi.mocked(window.api.file.mkdir)
+      const writeMock = vi.mocked(window.api.file.write)
+      expect(mkdirMock).toHaveBeenCalledWith('/resolved~/.qwen')
+      expect(mkdirMock.mock.invocationCallOrder[0]).toBeLessThan(writeMock.mock.invocationCallOrder[0])
       expect(parsed.general).toMatchObject({
         vimMode: true,
         enableAutoUpdate: false,
@@ -629,6 +634,10 @@ describe('injectCliConfig', () => {
 
       const { parse: parseToml } = await import('smol-toml')
       const parsed = parseToml(written!.content) as Record<string, any>
+      const mkdirMock = vi.mocked(window.api.file.mkdir)
+      const writeMock = vi.mocked(window.api.file.write)
+      expect(mkdirMock).toHaveBeenCalledWith('/resolved~/.kimi-code')
+      expect(mkdirMock.mock.invocationCallOrder[0]).toBeLessThan(writeMock.mock.invocationCallOrder[0])
       expect(parsed.default_model).toBe('cherry-DeepSeek')
       expect(parsed.default_permission_mode).toBe('auto')
       expect(parsed.default_plan_mode).toBe(true)
@@ -642,6 +651,23 @@ describe('injectCliConfig', () => {
       expect(parsed.background).toEqual({ max_running_tasks: 4, keep_alive_on_exit: true })
       expect(parsed.experimental).toEqual({ micro_compaction: true })
       expect(parsed.models['cherry-DeepSeek'].max_context_size).toBe(65536)
+    })
+
+    it('does not write when parent directory creation fails', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ id: 'deepseek-chat', contextWindow: 65536 })
+      })
+      vi.mocked(window.api.file.mkdir).mockRejectedValueOnce(new Error('mkdir failed'))
+
+      await expect(
+        injectCliConfig({
+          cliTool: CodeCli.KIMI_CODE,
+          modelId: 'deepseek::deepseek-chat'
+        })
+      ).rejects.toThrow('mkdir failed')
+      expect(window.api.file.write).not.toHaveBeenCalled()
     })
   })
 

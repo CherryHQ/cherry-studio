@@ -6,6 +6,24 @@ export async function resolveAbs(p: string): Promise<string> {
   return window.api.resolvePath(p)
 }
 
+function getParentDir(absPath: string): string | null {
+  const slash = absPath.lastIndexOf('/')
+  const backslash = absPath.lastIndexOf('\\')
+  const index = Math.max(slash, backslash)
+  if (index < 0) return null
+  if (index === 0) return absPath.slice(0, 1)
+  if (index === 2 && /^[A-Za-z]:[\\/]/.test(absPath)) return absPath.slice(0, 3)
+  return absPath.slice(0, index)
+}
+
+export async function writeExternalConfigFile(absPath: string, content: Uint8Array | string): Promise<void> {
+  const parentDir = getParentDir(absPath)
+  if (parentDir) {
+    await window.api.file.mkdir(parentDir)
+  }
+  await window.api.file.write(absPath, content)
+}
+
 /** Read an external file as text; returns '' when missing or unreadable. */
 export async function readExternal(absPath: string): Promise<string> {
   try {

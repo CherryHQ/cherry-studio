@@ -19,7 +19,14 @@ import {
 import { CHERRY_PROVIDER_PREFIX, CODEX_RESPONSES_ENDPOINT } from './constants'
 import { parseDotenv } from './dotenv'
 import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
-import { parseJsonOrThrow, parseTomlOrThrow, renderDotenvFile, renderJsonFile, resolveAbs } from './file'
+import {
+  parseJsonOrThrow,
+  parseTomlOrThrow,
+  renderDotenvFile,
+  renderJsonFile,
+  resolveAbs,
+  writeExternalConfigFile
+} from './file'
 import type { InjectCliConfigArgs } from './inject'
 import { injectCliConfig } from './inject'
 import { asRecord } from './managedKeys'
@@ -251,12 +258,12 @@ export async function writeCliConfigDraft(args: {
   try {
     for (const target of writeTargets) {
       snapshots.push(await snapshotFile(target.path))
-      await window.api.file.write(target.path, target.content)
+      await writeExternalConfigFile(target.path, target.content)
     }
   } catch (error) {
     for (const snapshot of snapshots.reverse()) {
       if (snapshot.existed) {
-        await window.api.file.write(snapshot.path, snapshot.previousContent)
+        await writeExternalConfigFile(snapshot.path, snapshot.previousContent)
       } else {
         await window.api.file.deleteExternalFile(snapshot.path).catch(() => undefined)
       }

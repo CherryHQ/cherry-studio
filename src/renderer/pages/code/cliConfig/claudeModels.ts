@@ -72,7 +72,7 @@ export function getClaudeContextModelId(
   const env = getEnv(config)
   for (const role of CLAUDE_DETAILED_MODEL_ROLES) {
     const modelId = stripClaudeOneMMarker(stringValue(env[role.model])).trim()
-    if (modelId) return `${providerId}::${modelId}` as UniqueModelId
+    if (modelId) return `${providerId}::${modelId}`
   }
   return undefined
 }

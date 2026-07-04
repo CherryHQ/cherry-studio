@@ -15,7 +15,11 @@ beforeEach(() => {
     value: {
       resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
       file: {
-        readExternal: vi.fn(async (p: string) => existing[p] ?? ''),
+        readExternal: vi.fn(async (p: string) => {
+          if (p in existing) return existing[p]
+          throw new Error(`File does not exist: ${p}`)
+        }),
+        mkdir: vi.fn(async () => undefined),
         write: vi.fn(async (p: string, content: string) => {
           writes[p] = content
         })
@@ -79,6 +83,75 @@ describe('clearCliConfig', () => {
       $schema: 'https://opencode.ai/config.json',
       provider: { userprov: { npm: 'y' } },
       userTop: 'keep'
+    })
+  })
+
+  it('qwen: missing config is already clear and does not create files', async () => {
+    await clearCliConfig({ cliTool: CodeCli.QWEN_CODE })
+
+    expect(writes).toEqual({})
+    expect(window.api.file.mkdir).not.toHaveBeenCalled()
+    expect(window.api.file.write).not.toHaveBeenCalled()
+  })
+
+  it('qwen: strips managed settings when config exists', async () => {
+    existing['/resolved~/.qwen/settings.json'] = JSON.stringify({
+      env: { CHERRY_QWEN_API_KEY: 'sk', USER_ENV: 'keep' },
+      general: { vimMode: true, userSetting: 'keep' },
+      model: 'qwen3-max',
+      modelProviders: {
+        openai: [
+          { id: 'qwen3-max', envKey: 'CHERRY_QWEN_API_KEY' },
+          { id: 'user-model', envKey: 'USER_API_KEY' }
+        ]
+      }
+    })
+
+    await clearCliConfig({ cliTool: CodeCli.QWEN_CODE })
+
+    expect(JSON.parse(writes['/resolved~/.qwen/settings.json'])).toEqual({
+      env: { USER_ENV: 'keep' },
+      general: { userSetting: 'keep' },
+      modelProviders: {
+        openai: [{ id: 'user-model', envKey: 'USER_API_KEY' }]
+      }
+    })
+  })
+
+  it('kimi: missing config is already clear and does not create files', async () => {
+    await clearCliConfig({ cliTool: CodeCli.KIMI_CODE })
+
+    expect(writes).toEqual({})
+    expect(window.api.file.mkdir).not.toHaveBeenCalled()
+    expect(window.api.file.write).not.toHaveBeenCalled()
+  })
+
+  it('kimi: strips Cherry-managed entries when config exists', async () => {
+    existing['/resolved~/.kimi-code/config.toml'] = [
+      'default_model = "cherry-DeepSeek"',
+      'default_permission_mode = "auto"',
+      'user_key = "keep"',
+      '',
+      '[providers.cherry-DeepSeek]',
+      'type = "openai"',
+      '',
+      '[providers.userprov]',
+      'type = "openai"',
+      '',
+      '[models.cherry-DeepSeek]',
+      'provider = "cherry-DeepSeek"',
+      '',
+      '[models.user-model]',
+      'provider = "userprov"',
+      ''
+    ].join('\n')
+
+    await clearCliConfig({ cliTool: CodeCli.KIMI_CODE })
+
+    expect(parseToml(writes['/resolved~/.kimi-code/config.toml'])).toEqual({
+      user_key: 'keep',
+      providers: { userprov: { type: 'openai' } },
+      models: { 'user-model': { provider: 'userprov' } }
     })
   })
 
