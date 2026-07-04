@@ -48,11 +48,22 @@ vi.mock('@cherrystudio/ui', () => {
     ),
     Dialog: ({ children, open }: { children?: ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void }) =>
       open ? <div data-testid="dialog">{children}</div> : null,
-    DialogContent: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
-      <div data-testid="dialog-content" {...props}>
-        {children}
-      </div>
-    ),
+    DialogContent: ({
+      children,
+      closeOnOverlayClick,
+      ...props
+    }: {
+      children?: ReactNode
+      closeOnOverlayClick?: boolean
+      [key: string]: unknown
+    }) => {
+      void closeOnOverlayClick
+      return (
+        <div data-testid="dialog-content" {...props}>
+          {children}
+        </div>
+      )
+    },
     DialogHeader: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
       <div data-testid="dialog-header" {...props}>
         {children}

@@ -1,9 +1,12 @@
 import i18n from '@renderer/i18n'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const toastError = vi.fn()
+const dialogMock = vi.hoisted(() => ({
+  onOpenChange: undefined as ((open: boolean) => void) | undefined
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -19,13 +22,37 @@ vi.mock('@cherrystudio/ui', () => {
   return {
     Button: ({ children, loadingIcon, loading, ...props }) =>
       React.createElement('button', props, loading ? loadingIcon : null, children),
-    Dialog: ({ children, open }) => (open ? React.createElement(React.Fragment, null, children) : null),
-    DialogContent: ({ children, ...props }) => {
+    Dialog: ({ children, open, onOpenChange }) => {
+      dialogMock.onOpenChange = onOpenChange
+      return open ? React.createElement(React.Fragment, null, children) : null
+    },
+    DialogContent: ({ children, closeOnOverlayClick = true, onInteractOutside, ...props }) => {
       delete props.showCloseButton
-      delete props.onInteractOutside
       delete props.overlayClassName
 
-      return React.createElement('div', { role: 'dialog', ...props }, children)
+      return React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('button', {
+          type: 'button',
+          'data-testid': 'dialog-overlay',
+          onClick: () => {
+            const event = {
+              defaultPrevented: false,
+              preventDefault: () => {
+                event.defaultPrevented = true
+              }
+            }
+
+            onInteractOutside?.(event)
+
+            if (closeOnOverlayClick) {
+              dialogMock.onOpenChange?.(false)
+            }
+          }
+        }),
+        React.createElement('div', { role: 'dialog', ...props }, children)
+      )
     },
     DialogDescription: ({ children }) => React.createElement('div', null, children),
     DialogFooter: ({ children, ...props }) => React.createElement('div', props, children),
@@ -38,6 +65,7 @@ import AppModalProvider, { type AppModalApi } from '..'
 
 beforeEach(() => {
   toastError.mockClear()
+  dialogMock.onOpenChange = undefined
   Object.defineProperty(window, 'toast', {
     configurable: true,
     value: { error: toastError }
@@ -224,6 +252,37 @@ describe('AppModalProvider', () => {
     await waitFor(() => {
       expect(screen.queryByText('Almost done.')).not.toBeInTheDocument()
     })
+  })
+
+  it('keeps maskClosable false modals open when clicking the overlay', async () => {
+    const modal = await renderModalProvider()
+    const onCancel = vi.fn()
+
+    let loadingModal: ReturnType<AppModalApi['info']>
+    act(() => {
+      loadingModal = modal.info({
+        title: 'Migrating data',
+        content: 'Copying files.',
+        closable: false,
+        maskClosable: false,
+        okButtonProps: { style: { display: 'none' } },
+        onCancel
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Migrating data')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByTestId('dialog-overlay'))
+
+    expect(onCancel).not.toHaveBeenCalled()
+    expect(screen.getByText('Migrating data')).toBeInTheDocument()
+
+    act(() => {
+      loadingModal!.destroy()
+    })
+    await expect(loadingModal!).resolves.toBe(false)
   })
 
   it('destroyAll resolves every open modal as cancelled', async () => {

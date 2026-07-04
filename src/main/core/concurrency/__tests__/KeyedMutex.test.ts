@@ -46,4 +46,23 @@ describe('KeyedMutex', () => {
     // Lock is free again → a subsequent task on the same key still runs.
     await expect(km.runExclusive('k', async () => 'ok')).resolves.toBe('ok')
   })
+
+  it('accepts a synchronous task — serialised and returned like an async one', async () => {
+    const km = new KeyedMutex()
+    const order: string[] = []
+
+    const first = km.runExclusive('k', async () => {
+      order.push('async:start')
+      await tick()
+      order.push('async:end')
+      return 'async'
+    })
+    const second = km.runExclusive('k', () => {
+      order.push('sync:run')
+      return 'sync'
+    })
+
+    await expect(Promise.all([first, second])).resolves.toEqual(['async', 'sync'])
+    expect(order).toEqual(['async:start', 'async:end', 'sync:run'])
+  })
 })

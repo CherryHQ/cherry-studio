@@ -2,7 +2,7 @@ import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue }
 import { cn } from '@renderer/utils/style'
 import { X } from 'lucide-react'
 import type { FC } from 'react'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -26,6 +26,7 @@ function decodeTagSelectValue(value: string) {
 
 export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled, portalContainer }) => {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
 
   // `value` may be a name not present in `/tags` yet, for example while a
   // caller waits for SWR refresh. Keep the selected name visible in the options.
@@ -38,11 +39,20 @@ export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled,
     return sortedNames
   }, [allTagNames, value])
 
+  const hasTagOptions = tagNames.length > 0
+  const selectOpen = hasTagOptions && open
+
+  useEffect(() => {
+    if (!hasTagOptions) setOpen(false)
+  }, [hasTagOptions])
+
   return (
     <div className="group/tag-select relative flex w-full min-w-0 items-center">
       <Select
         disabled={disabled}
+        open={selectOpen}
         value={value ? encodeTagSelectValue(value) : ''}
+        onOpenChange={(nextOpen) => setOpen(hasTagOptions && nextOpen)}
         onValueChange={(selectedValue) => onChange(decodeTagSelectValue(selectedValue))}>
         <SelectTrigger
           size="sm"
@@ -52,7 +62,9 @@ export const TagSelector: FC<Props> = ({ value, onChange, allTagNames, disabled,
               '[&_svg]:transition-opacity group-focus-within/tag-select:[&_svg]:opacity-0 group-hover/tag-select:[&_svg]:opacity-0'
           )}
           aria-label={t('library.config.basic.tags')}>
-          <SelectValue placeholder={t('library.config.basic.tag_placeholder')} />
+          <SelectValue
+            placeholder={t(hasTagOptions ? 'library.config.basic.tag_placeholder' : 'library.config.basic.tag_empty')}
+          />
         </SelectTrigger>
         <SelectContent portalContainer={portalContainer ?? undefined}>
           {tagNames.map((name) => (

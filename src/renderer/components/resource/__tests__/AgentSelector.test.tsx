@@ -104,7 +104,7 @@ vi.mock('@renderer/hooks/usePromptProcessor', () => ({
   usePromptProcessor: ({ prompt }: { prompt: string }) => prompt
 }))
 
-vi.mock('@renderer/services/ApiService', () => ({
+vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchGenerate: vi.fn()
 }))
 

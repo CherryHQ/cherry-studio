@@ -400,7 +400,7 @@ export const ResourceGrid: FC<Props> = ({
           onOpenChange={(open) => {
             if (!open && !renaming) setRenamingTag(null)
           }}>
-          <DialogContent size="sm">
+          <DialogContent closeOnOverlayClick={false} size="sm">
             <DialogHeader>
               <DialogTitle>{t('common.rename')}</DialogTitle>
             </DialogHeader>
