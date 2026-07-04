@@ -1,1 +1,0 @@
-DROP TABLE `user_avatar_file_ref`;
