@@ -22,9 +22,11 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
+import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { getFunctionalKeys, parseJSONC } from '@main/utils/jsonc'
-import { getBinaryExecutionEnv, getBinaryPath, isBinaryExists } from '@main/utils/process'
-import { removeEnvProxy } from '@main/utils/shell-env'
+import { removeEnvProxy } from '@main/utils/processRunner'
+import { getShellEnv } from '@main/utils/shellEnv'
 import { IpcChannel } from '@shared/IpcChannel'
 import { CodeCli, TerminalApp, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
@@ -83,7 +85,7 @@ export class CodeCliService extends BaseService {
         model: string,
         directory: string,
         env: Record<string, string>,
-        options?: { autoUpdateToLatest?: boolean; terminal?: string }
+        options?: { autoUpdateToLatest?: boolean; terminal?: string; loginFlow?: boolean }
       ) => this.run(event, cliTool, model, directory, env, options)
     )
     this.ipcHandle(IpcChannel.CodeCli_GetAvailableTerminals, () => this.getAvailableTerminalsForPlatform())
@@ -96,6 +98,52 @@ export class CodeCliService extends BaseService {
     this.ipcHandle(IpcChannel.CodeCli_RemoveCustomTerminalPath, (_, terminalId: string) =>
       this.removeCustomTerminalPath(terminalId)
     )
+    // `checkClaudeLogin` is exposed through the IpcApi `oauth.check_external_login`
+    // route (see src/main/ipc/handlers/oauth.ts), not a legacy IpcChannel.
+  }
+
+  /**
+   * Read-only probe of whether the user already has a Claude Code CLI
+   * subscription login (Claude Pro/Max OAuth) usable by the Agent SDK. Never
+   * reads or stores the credential value itself — only its presence.
+   *
+   * macOS: the OAuth token lives in the global login Keychain under the generic
+   * password service `Claude Code-credentials` (independent of CLAUDE_CONFIG_DIR);
+   * we query existence without `-w` so no secret is read and no ACL prompt fires.
+   * Linux/Windows: it lives in `<CLAUDE_CONFIG_DIR>/.credentials.json` (default
+   * `~/.claude`). A present token may still be expired — the SDK refreshes on use;
+   * this is a best-effort "is the user signed in" hint for the settings UI.
+   */
+  public async checkClaudeLogin(): Promise<boolean> {
+    if (isMac) {
+      try {
+        await execAsync('security find-generic-password -s "Claude Code-credentials"', { timeout: 3000 })
+        return true
+      } catch {
+        // `security` exits non-zero when the keychain item is absent — the
+        // normal "not signed in" signal, so this path stays silent.
+        return false
+      }
+    }
+    try {
+      // Resolve from the same source the runtime uses (settingsBuilder reads the
+      // shell CLAUDE_CONFIG_DIR), not raw process.env: a GUI-launched Electron
+      // process does not inherit rc-exported vars, so probing process.env alone
+      // falsely reports "not signed in".
+      const shellEnv = await getShellEnv()
+      const configDir =
+        shellEnv.CLAUDE_CONFIG_DIR ||
+        process.env.CLAUDE_CONFIG_DIR ||
+        path.join(application.getPath('sys.home'), '.claude')
+      return fs.existsSync(path.join(configDir, '.credentials.json'))
+    } catch (error) {
+      // A probe failure here (e.g. login-shell env resolution throwing on a
+      // broken rc file) is NOT "not signed in" — log it so a genuinely
+      // signed-in user's stuck "not signed in" card is diagnosable instead of
+      // silently swallowed.
+      logger.warn('Failed to probe Claude login state; reporting not signed in', error as Error)
+      return false
+    }
   }
 
   protected async onStop(): Promise<void> {
@@ -855,7 +903,7 @@ export class CodeCliService extends BaseService {
     _model: string,
     directory: string,
     env: Record<string, string>,
-    options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
+    options: { autoUpdateToLatest?: boolean; terminal?: string; loginFlow?: boolean } = {}
   ): Promise<CodeToolsRunResult> {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     env = { ...getBinaryExecutionEnv(), ...env }
@@ -1026,6 +1074,15 @@ export class CodeCliService extends BaseService {
 
       // Add --model flag with dynamic provider prefix to avoid race conditions
       baseCommand = `${baseCommand} --model Cherry-${providerName}/${modelId}`
+    }
+
+    // The Claude Code settings panel lands its terminal on the login flow rather
+    // than a bare REPL. Modeled as a fixed boolean, NOT a free-form arg string:
+    // this command is assembled into a shell string (and a Windows .bat), and
+    // CodeCli_Run has no sender validation, so a renderer-supplied string would
+    // be a shell-injection surface. A plain launch from the CLI page is unaffected.
+    if (options.loginFlow) {
+      baseCommand = `${baseCommand} /login`
     }
 
     switch (platform) {

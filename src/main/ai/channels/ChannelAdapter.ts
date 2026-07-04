@@ -207,6 +207,16 @@ export abstract class ChannelAdapter extends EventEmitter {
   abstract sendTypingIndicator(chatId: string): Promise<void>
 
   /**
+   * Send a file to a chat. Non-abstract so adapters can adopt outbound file
+   * forwarding incrementally — the default rejects with a clear reason for
+   * adapters whose platform upload isn't wired yet.
+   */
+  // oxlint-disable-next-line no-unused-vars
+  async sendFile(_chatId: string, _file: FileAttachment): Promise<void> {
+    throw new Error(`Channel type "${this.channelType}" does not support sending files`)
+  }
+
+  /**
    * Called on every text update during streaming. The adapter decides
    * internally when/how to flush to the platform (throttle, mutex, etc.).
    * @param fullText - The full cumulative response text so far.

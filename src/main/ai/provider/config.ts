@@ -3,12 +3,15 @@
  * Always async because `providerService.getRotatedApiKey` is async.
  */
 
+import { application } from '@application'
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders } from '@main/utils/http'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
+import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -23,9 +26,11 @@ import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from 
 import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { generateSignature } from './cherryai'
+import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
+import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 
 interface BaseConfig {
   baseURL: string
@@ -102,6 +107,8 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
 
   const builders: ConfigBuilderEntry[] = [
     { match: (p) => p.id === SystemProviderIds.copilot, build: buildCopilotConfig },
+    { match: (p) => p.id === OPENAI_CODEX_PROVIDER_ID, build: buildCodexConfig },
+    { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: buildGrokCliConfig },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: buildCherryAIConfig },
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
@@ -184,6 +191,122 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
       headers: { ...headers, ...getExtraHeaders(ctx.actualProvider) },
       name: ctx.actualProvider.id
     }
+  }
+}
+
+/**
+ * OpenAI Codex routes through the standard OpenAI Responses adapter, but against
+ * the ChatGPT backend codex endpoint (`…/backend-api/codex/responses`, no `/v1`
+ * segment) with OAuth bearer auth instead of an API key. The per-request `fetch`
+ * is the single place that (1) injects a freshly-refreshed OAuth token + account
+ * header, and (2) coerces the body to what the codex backend demands —
+ * `store: false` plus encrypted-reasoning round-tripping — neither of which the
+ * generic Responses adapter sets on its own.
+ */
+function buildCodexConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
+  // Use the raw configured baseURL (the adapter appends `/responses`); the
+  // formatted one in baseConfig has `/v1` tacked on, which the codex path rejects.
+  const rawBaseUrl =
+    getBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_RESPONSES) || 'https://chatgpt.com/backend-api/codex'
+  const baseURL = rawBaseUrl.replace(/\/+$/, '')
+
+  return {
+    providerId: 'openai',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL,
+      // The SDK rejects an empty key; the real bearer token is injected per
+      // request in the custom fetch below, overriding this placeholder.
+      apiKey: 'codex-oauth',
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+      fetch: buildCodexFetch()
+    }
+  }
+}
+
+function buildCodexFetch() {
+  // Token fetch + not-signed-in guard + 401 force-refresh retry live in
+  // OAuthRuntimeService.authenticatedFetch; this wrapper only shapes the codex
+  // request (headers + body coercion), re-applied with the fresh token on retry.
+  return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
+    application.get('OAuthRuntimeService').authenticatedFetch(
+      OPENAI_CODEX_PROVIDER_ID,
+      (creds) => ({
+        input,
+        init: {
+          ...init,
+          headers: buildCodexRequestHeaders(init?.headers, {
+            accessToken: creds.accessToken,
+            accountId: creds.accountId ?? null
+          }),
+          body: coerceCodexRequestBody(init?.body)
+        }
+      }),
+      customFetch,
+      { notSignedInMessage: 'Not signed in to OpenAI Codex. Open the provider settings and sign in again.' }
+    )
+}
+
+/**
+ * Grok CLI routes through the OpenAI Responses adapter against xAI's Grok CLI
+ * proxy (`cli-chat-proxy.grok.com/v1/responses`) with OAuth bearer auth. The
+ * per-request `fetch` injects a freshly-refreshed token + the Grok-CLI proxy
+ * headers, and rewrites the body into the shape the proxy accepts (hoisting
+ * system turns into `instructions`, dropping reasoning knobs) — none of which
+ * the generic Responses adapter does on its own.
+ */
+function buildGrokCliConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
+  // Use the raw configured baseURL (already `…/v1`; the adapter appends
+  // `/responses`); the formatted one in baseConfig would double the `/v1`.
+  const rawBaseUrl =
+    getBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_RESPONSES) || 'https://cli-chat-proxy.grok.com/v1'
+  const baseURL = rawBaseUrl.replace(/\/+$/, '')
+
+  return {
+    providerId: 'openai',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL,
+      // The SDK rejects an empty key; the real bearer token is injected per
+      // request in the custom fetch below, overriding this placeholder.
+      apiKey: 'grok-cli-oauth',
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+      fetch: buildGrokCliFetch()
+    }
+  }
+}
+
+function buildGrokCliFetch() {
+  // See buildCodexFetch: shared token/refresh/401-retry lives in
+  // OAuthRuntimeService.authenticatedFetch; this only shapes the Grok request.
+  return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    let modelId = ''
+    let body = init?.body
+    if (typeof body === 'string') {
+      try {
+        const json = JSON.parse(body)
+        modelId = typeof json.model === 'string' ? json.model : ''
+        body = JSON.stringify(rewriteGrokCliResponsesBody(json))
+      } catch {
+        // Non-JSON body (shouldn't happen for responses) — leave untouched.
+      }
+    }
+
+    return application.get('OAuthRuntimeService').authenticatedFetch(
+      GROK_CLI_PROVIDER_ID,
+      (creds) => ({
+        input,
+        init: {
+          ...init,
+          headers: buildGrokCliRequestHeaders(init?.headers, { accessToken: creds.accessToken, modelId }),
+          body
+        }
+      }),
+      customFetch,
+      { notSignedInMessage: 'Not signed in to Grok CLI. Open the provider settings and sign in again.' }
+    )
   }
 }
 

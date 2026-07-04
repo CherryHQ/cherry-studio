@@ -5,6 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMessageLeafCapabilities } from '../useMessageLeafCapabilities'
 
+// Keep t() returning raw keys: the renderer setup now initializes real i18n, but
+// these assertions embed key strings in the expected display names.
+vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
+  useTranslation: () => ({ t: (key: string) => key })
+}))
+
 const { mockUseExternalApps, mockPreview, mockSafeOpen } = vi.hoisted(() => ({
   mockUseExternalApps: vi.fn(() => ({ data: [] })),
   mockPreview: vi.fn(),

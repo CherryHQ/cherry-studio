@@ -30,7 +30,11 @@ const mocks = vi.hoisted(() => ({
   tabs: [] as Tab[],
   preferenceValues: {
     'app.user.name': 'JD',
-    'ui.sidebar.favorites': ['assistants', 'agents', 'translate'],
+    'ui.sidebar.favorites': [
+      { type: 'app', id: 'assistants' },
+      { type: 'app', id: 'agents' },
+      { type: 'app', id: 'translate' }
+    ],
     'feature.paintings.default_provider': 'zhipu'
   } as Record<string, unknown>,
   persistCacheValues: {
@@ -566,7 +570,11 @@ describe('GlobalSearchPanel', () => {
     mocks.sessionMessageQueryResult = undefined
     mocks.preferenceValues = {
       'app.user.name': 'JD',
-      'ui.sidebar.favorites': ['assistants', 'agents', 'translate'],
+      'ui.sidebar.favorites': [
+        { type: 'app', id: 'assistants' },
+        { type: 'app', id: 'agents' },
+        { type: 'app', id: 'translate' }
+      ],
       'feature.paintings.default_provider': 'zhipu'
     }
     mocks.persistCacheValues = {
@@ -2143,6 +2151,43 @@ describe('GlobalSearchPanel', () => {
         lastAccessTime: 20
       }
     ])
+  })
+
+  it('cleans legacy assistant library route recents on open', async () => {
+    const user = userEvent.setup()
+    const settingsRecent = {
+      kind: 'route' as const,
+      url: '/app/settings',
+      title: 'Settings',
+      icon: 'settings',
+      lastAccessTime: 20
+    }
+    mocks.recentItems = [
+      {
+        kind: 'route',
+        url: '/app/library?resourceType=assistant',
+        title: 'Library',
+        icon: 'library',
+        lastAccessTime: 30
+      },
+      settingsRecent
+    ]
+
+    render(<GlobalSearchPanel onClose={mocks.onClose} />)
+
+    expect(screen.queryByRole('option', { name: /Library/ })).not.toBeInTheDocument()
+    const settingsOption = screen.getByRole('option', { name: /Settings/ })
+    await waitFor(() => {
+      expect(mocks.recentItems).toEqual([settingsRecent])
+    })
+
+    await user.click(settingsOption)
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/settings', { title: 'Settings', icon: 'settings' })
+    expect(mocks.openTab).not.toHaveBeenCalledWith(
+      '/app/library?resourceType=assistant',
+      expect.objectContaining({ title: 'Library' })
+    )
   })
 
   it('only refreshes up to the display limit items ordered by lastAccessTime', async () => {

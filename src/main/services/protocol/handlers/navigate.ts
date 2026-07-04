@@ -16,7 +16,6 @@ const ALLOWED_ROUTE_PREFIXES = [
   '/notes',
   '/apps',
   '/code',
-  '/store',
   '/launchpad'
 ]
 

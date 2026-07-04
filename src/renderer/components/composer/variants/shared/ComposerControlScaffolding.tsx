@@ -1,8 +1,7 @@
-import { Tooltip } from '@cherrystudio/ui'
 import { ComposerActiveToolControls, ComposerToolMenu } from '@renderer/components/composer/ComposerToolRuntime'
+import type { ComposerUnifiedPanelControl } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils/style'
-import { MessageSquarePlus } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { useComposerBottomToolbarIconOnly } from '../useComposerBottomToolbarIconOnly'
@@ -15,42 +14,18 @@ export const COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS = 'w-8 justify-center px-0
 export const COMPOSER_ICON_ONLY_LABEL_CLASS = 'sr-only'
 
 type RenderContextControls = (args: { side: 'top' | 'bottom'; iconOnly: boolean }) => ReactNode
-export type ComposerNewConversationAction = {
-  label: string
-  disabled?: boolean
-  onClick: () => void | Promise<void>
-}
-
-const COMPOSER_CIRCLE_TOOL_BUTTON_CLASS =
-  'flex size-[30px] shrink-0 items-center justify-center rounded-full text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-foreground-secondary'
-
-const ComposerNewConversationButton = ({ action }: { action: ComposerNewConversationAction }) => (
-  <Tooltip content={action.label}>
-    <button
-      type="button"
-      className={COMPOSER_CIRCLE_TOOL_BUTTON_CLASS}
-      aria-label={action.label}
-      disabled={action.disabled}
-      onClick={() => {
-        void action.onClick()
-      }}>
-      <MessageSquarePlus size={18} />
-    </button>
-  </Tooltip>
-)
 
 /** The shared "+" tool menu plus the active-tool controls rendered on the composer's left. */
 export const ComposerToolMenuControls = ({
   inputAdapter,
-  newConversationAction
+  unifiedPanelControl
 }: {
   inputAdapter?: QuickPanelInputAdapter
-  newConversationAction?: ComposerNewConversationAction
+  unifiedPanelControl?: ComposerUnifiedPanelControl
 }) => {
   return (
     <>
-      {newConversationAction ? <ComposerNewConversationButton action={newConversationAction} /> : null}
-      <ComposerToolMenu inputAdapter={inputAdapter} />
+      <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
       <ComposerActiveToolControls inputAdapter={inputAdapter} />
     </>
   )
@@ -59,13 +34,13 @@ export const ComposerToolMenuControls = ({
 /** Toolbar (top) layout: variant-specific context controls + the shared tool menu. */
 export const ComposerToolbarControls = ({
   inputAdapter,
-  newConversationAction,
   renderContextControls,
+  unifiedPanelControl,
   toolMenuPlacement = 'afterContext'
 }: {
   inputAdapter?: QuickPanelInputAdapter
-  newConversationAction?: ComposerNewConversationAction
   renderContextControls: RenderContextControls
+  unifiedPanelControl?: ComposerUnifiedPanelControl
   toolMenuPlacement?: 'beforeContext' | 'afterContext'
 }) => {
   const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
@@ -74,19 +49,8 @@ export const ComposerToolbarControls = ({
   if (toolMenuPlacement === 'beforeContext') {
     return (
       <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
-        <ComposerToolMenuControls inputAdapter={inputAdapter} />
-        {newConversationAction ? <ComposerNewConversationButton action={newConversationAction} /> : null}
+        <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
         {contextControls}
-      </div>
-    )
-  }
-
-  if (newConversationAction) {
-    return (
-      <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
-        <ComposerNewConversationButton action={newConversationAction} />
-        {contextControls}
-        <ComposerToolMenuControls inputAdapter={inputAdapter} />
       </div>
     )
   }
@@ -94,7 +58,7 @@ export const ComposerToolbarControls = ({
   return (
     <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
       {contextControls}
-      <ComposerToolMenuControls inputAdapter={inputAdapter} />
+      <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
     </div>
   )
 }
