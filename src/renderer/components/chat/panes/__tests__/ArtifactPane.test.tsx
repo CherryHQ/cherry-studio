@@ -440,7 +440,7 @@ vi.mock('@data/hooks/useCache', () => ({
       : [null, vi.fn()]
 }))
 
-vi.mock('@renderer/components/Icons/SvgIcon', () => ({
+vi.mock('@renderer/components/icons/SvgIcon', () => ({
   FinderIcon: (props: React.SVGProps<SVGSVGElement>) => <svg aria-hidden="true" data-testid="finder-icon" {...props} />
 }))
 
@@ -453,8 +453,12 @@ vi.mock('@renderer/hooks/useExternalApps', () => ({
   useExternalApps: () => ({ data: mocks.externalApps })
 }))
 
-vi.mock('@renderer/utils/editorUtils', () => ({
+vi.mock('@renderer/utils/editor', () => ({
   buildEditorUrl: (app: { id: string }, path: string) => `editor://${app.id}${path}`,
+  getEditorIcon: (app: { id: string }) => <span aria-hidden="true">{app.id}</span>
+}))
+
+vi.mock('@renderer/components/icons/EditorIcon', () => ({
   getEditorIcon: (app: { id: string }) => <span aria-hidden="true">{app.id}</span>
 }))
 

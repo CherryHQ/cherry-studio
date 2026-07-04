@@ -329,7 +329,7 @@ vi.mock('@renderer/components/resource', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resource/dialogs/ResourceEditDialogHost', () => ({
+vi.mock('@renderer/components/resource/dialogs/edit/ResourceEditDialogHost', () => ({
   ResourceEditDialogHost: ({ target, onOpenChange }: any) => (
     <div data-testid="resource-edit-dialog-host" data-kind={target?.kind ?? ''} data-id={target?.id ?? ''}>
       <button type="button" onClick={() => onOpenChange(false)}>
@@ -2530,6 +2530,69 @@ describe('ChatComposer', () => {
     expect(forkAndResend).toHaveBeenCalledWith('message-1', [{ type: 'text', text: 'new text' }])
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1')
+    expect(mocks.toastError).toHaveBeenCalledWith('message.error.operation_unavailable')
+  })
+
+  it('keeps editing and errors out when buildEditedMessageParts fails (e.g. attachment builder rejects)', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+
+    vi.mocked(window.api.file.createInternalEntry).mockRejectedValue(new Error('filesystem error'))
+
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    const newFile = {
+      id: 'file-1',
+      name: 'doc.pdf',
+      path: '/tmp/doc.pdf',
+      size: 100,
+      mime: 'application/pdf',
+      composerFileKind: 'file',
+      fileTokenSourceId: 'source-1'
+    }
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    act(() => {
+      mocks.files = [newFile as any]
+      mocks.surfaceProps?.onTextChange('new text')
+    })
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('new text'))
+
+    const fileToken = {
+      id: 'file:source-1',
+      kind: 'file' as const,
+      label: 'doc.pdf',
+      payload: newFile,
+      index: 0,
+      textOffset: 0
+    }
+
+    await expect(
+      mocks.surfaceProps?.onSendDraft({
+        text: 'new text',
+        tokens: [fileToken]
+      })
+    ).resolves.toBeUndefined()
+
+    expect(forkAndResend).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1')
     expect(mocks.toastError).toHaveBeenCalledWith('message.error.operation_unavailable')
   })

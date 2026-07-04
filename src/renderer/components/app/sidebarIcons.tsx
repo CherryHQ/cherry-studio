@@ -1,4 +1,4 @@
-import { OpenClawSidebarIcon } from '@renderer/components/Icons/SvgIcon'
+import { OpenClawSidebarIcon } from '@renderer/components/icons/SvgIcon'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -7,7 +7,6 @@ import {
   Folder,
   Languages,
   LayoutGrid,
-  Library,
   MessageSquare,
   MousePointerClick,
   NotepadText,
@@ -25,7 +24,6 @@ export const SIDEBAR_ICON_COMPONENTS: Record<SidebarAppId, LucideIcon> = {
   agents: MousePointerClick,
   paintings: Palette,
   translate: Languages,
-  store: Library,
   mini_app: LayoutGrid,
   knowledge: FileSearch,
   files: Folder,

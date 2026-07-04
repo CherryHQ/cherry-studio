@@ -1,5 +1,5 @@
 import { EmojiIcon } from '@cherrystudio/ui'
-import MiniAppLogo from '@renderer/components/Icons/MiniAppIcon'
+import MiniAppLogo from '@renderer/components/icons/MiniAppIcon'
 import { isEmoji } from '@renderer/utils/naming'
 
 import type { SidebarMiniAppTab, SidebarUser } from './types'

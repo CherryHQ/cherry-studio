@@ -76,7 +76,14 @@ vi.mock('@cherrystudio/ui', async () => {
     },
     PopoverTrigger: ({ children }: PropsWithChildren<{ asChild?: boolean }>) => {
       const { setOpen } = ReactActual.use(PopoverContext)
-      return <span onClick={() => setOpen(true)}>{children}</span>
+      return ReactActual.isValidElement(children) ? (
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
+        ReactActual.cloneElement(children as React.ReactElement<{ onClick?: () => void }>, {
+          onClick: () => setOpen(true)
+        })
+      ) : (
+        <>{children}</>
+      )
     }
   }
 })
@@ -85,7 +92,7 @@ vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: () => [mocks.lastUsedTarget, mocks.setLastUsedTarget]
 }))
 
-vi.mock('@renderer/components/Icons/SvgIcon', () => ({
+vi.mock('@renderer/components/icons/SvgIcon', () => ({
   FinderIcon: (props: React.SVGProps<SVGSVGElement>) => <svg aria-hidden="true" {...props} />
 }))
 
@@ -98,8 +105,11 @@ vi.mock('@renderer/hooks/useExternalApps', () => ({
   useExternalApps: () => ({ data: mocks.externalApps })
 }))
 
-vi.mock('@renderer/utils/editorUtils', () => ({
-  buildEditorUrl: (app: { id: string }, workdir: string) => `editor://${app.id}${workdir}`,
+vi.mock('@renderer/utils/editor', () => ({
+  buildEditorUrl: (app: { id: string }, workdir: string) => `editor://${app.id}${workdir}`
+}))
+
+vi.mock('@renderer/components/icons/EditorIcon', () => ({
   getEditorIcon: (app: { id: string }) => <span aria-hidden="true">{app.id}</span>
 }))
 

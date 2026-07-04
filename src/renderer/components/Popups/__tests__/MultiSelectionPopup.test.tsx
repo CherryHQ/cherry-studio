@@ -12,7 +12,7 @@ vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: any) => <>{children}</>
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
+vi.mock('@renderer/components/icons', () => ({
   CopyIcon: () => <span data-testid="copy-icon" />,
   DeleteIcon: () => <span data-testid="delete-icon" />
 }))

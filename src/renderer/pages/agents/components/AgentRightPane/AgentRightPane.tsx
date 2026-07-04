@@ -3,7 +3,6 @@ import { EmptyState } from '@renderer/components/chat'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import { resolveInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
 import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
@@ -27,15 +26,16 @@ import {
   useArtifactFileTreeModel
 } from '@renderer/components/chat/panes/useArtifactFileTreeModel'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useIsActiveTab } from '@renderer/hooks/tab'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import {
@@ -291,7 +291,11 @@ function AgentRightPaneStateProvider({
       return
     }
     if (lastSelectableFileRef.current !== selectedFile) return
-    if (previewFileSelection?.workspacePath === workspacePath && previewFileSelection.filePath === selectedFile) {
+    if (
+      previewFileSelection &&
+      previewFileSelection.workspacePath === workspacePath &&
+      previewFileSelection.filePath === selectedFile
+    ) {
       setPreviewFileSelection(null)
     }
     lastSelectableFileRef.current = null

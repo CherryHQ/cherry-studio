@@ -1,7 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { NavbarHeader } from '@renderer/components/app/Navbar'
+import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { CommandTooltip } from '@renderer/components/command'
-import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/Icons'
+import { NavbarHeader } from '@renderer/components/Navbar'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useResolvedCommand } from '@renderer/hooks/command'
 import { t } from 'i18next'
@@ -15,17 +15,9 @@ interface HeaderNavbarProps {
 }
 
 const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true, sidebarOpen, onSidebarToggle }) => {
-  const [preferredShowSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const [preferredShowSidebar] = usePreference('topic.tab.show')
   const showSidebar = sidebarOpen ?? preferredShowSidebar
   const newTopic = useResolvedCommand('topic.create')
-  const toggleShowSidebar = () => {
-    if (onSidebarToggle) {
-      onSidebarToggle()
-      return
-    }
-
-    void setShowSidebar(!showSidebar)
-  }
 
   return (
     <NavbarHeader
@@ -35,30 +27,19 @@ const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true, sideb
         <div data-navbar-left-occupant className="flex shrink-0 items-center">
           {showSidebarControls &&
             (showSidebar ? (
-              <CommandTooltip
-                command="app.sidebar.toggle"
-                label={t('navbar.hide_sidebar')}
-                placement="bottom"
-                delay={800}>
-                <NavbarIcon tone="conversation" aria-pressed={showSidebar} onClick={toggleShowSidebar}>
-                  <SidebarCollapseIcon />
-                </NavbarIcon>
-              </CommandTooltip>
+              <ConversationSidebarToggleButton
+                sidebarOpen={showSidebar}
+                onSidebarToggle={onSidebarToggle}
+                tooltipPlacement="bottom"
+              />
             ) : (
               <>
-                <CommandTooltip
-                  command="app.sidebar.toggle"
-                  label={t('navbar.show_sidebar')}
-                  placement="bottom"
-                  delay={800}>
-                  <NavbarIcon
-                    tone="conversation"
-                    aria-pressed={showSidebar}
-                    onClick={toggleShowSidebar}
-                    style={{ marginRight: 2 }}>
-                    <SidebarExpandIcon />
-                  </NavbarIcon>
-                </CommandTooltip>
+                <ConversationSidebarToggleButton
+                  sidebarOpen={showSidebar}
+                  onSidebarToggle={onSidebarToggle}
+                  tooltipPlacement="bottom"
+                  style={{ marginRight: 2 }}
+                />
                 <CommandTooltip
                   command="topic.create"
                   label={t('chat.conversation.new')}

@@ -14,7 +14,7 @@ import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { messagesToPlainText, processCitations } from '@renderer/utils/export'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
+import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
 import { getComposerTextFromMessage } from '@renderer/utils/message/composerTokens'
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/message/find'
@@ -1084,7 +1084,7 @@ const exportNoteAsImageFile = async (noteName: string): Promise<void> => {
   const scrollableRef = getScrollableRef()
   if (!scrollableRef) return
 
-  const dataUrl = await captureScrollableAsDataURL(scrollableRef)
+  const dataUrl = await captureScrollableAsDataUrl(scrollableRef)
   if (dataUrl) {
     const fileName = removeSpecialCharactersForFileName(noteName)
     await window.api.file.saveImage(fileName, dataUrl)

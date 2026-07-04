@@ -19,6 +19,7 @@ export const jobHandlers: HandlersFor<JobSchemas> = {
         queue: parsed.queue,
         type: parsed.type,
         scheduleId: parsed.scheduleId,
+        parentId: parsed.parentId,
         limit: parsed.limit,
         offset: parsed.offset
       })

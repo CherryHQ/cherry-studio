@@ -4,6 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PaintingData } from '../../model/types/paintingData'
 
+// Keep t() returning raw keys: the renderer setup now initializes real i18n, but
+// these assertions match the params button on its stable `common.settings` key.
+vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
+  useTranslation: () => ({ t: (key: string) => key })
+}))
+
 const captured = { surfaceProps: undefined as ComposerSurfaceProps | undefined }
 const mockUseImageGenerationSupport = vi.hoisted(() => vi.fn())
 

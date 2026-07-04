@@ -18,7 +18,7 @@ import { Flex } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
-import { ResetIcon } from '@renderer/components/Icons'
+import { ResetIcon } from '@renderer/components/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
@@ -847,7 +847,6 @@ const CommonSettings: FC = () => {
             checked={enableDataCollection}
             onCheckedChange={(v) => {
               void setEnableDataCollection(v)
-              void window.api.config.set('enableDataCollection', v)
             }}
           />
         </SettingRow>

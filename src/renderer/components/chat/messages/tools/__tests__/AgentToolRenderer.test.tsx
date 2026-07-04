@@ -95,7 +95,7 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 
 // Mock LoadingIcon
-vi.mock('@renderer/components/Icons', () => ({
+vi.mock('@renderer/components/icons', () => ({
   LoadingIcon: () => <span data-testid="loading-icon" />
 }))
 
