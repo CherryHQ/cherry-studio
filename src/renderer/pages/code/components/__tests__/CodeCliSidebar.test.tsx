@@ -62,4 +62,10 @@ describe('CodeCliSidebar', () => {
     expect(name.parentElement).toContainElement(status)
     expect(name.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
+
+  it('renders installed versions with the brand color', () => {
+    renderSidebar()
+
+    expect(screen.getByText('v1.2.3')).toHaveClass('text-primary')
+  })
 })

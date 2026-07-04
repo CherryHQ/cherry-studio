@@ -53,14 +53,16 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             <span className="truncate font-medium text-foreground text-sm">{toolName}</span>
             {isInstalled &&
               (canUpgrade ? (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={onUpgrade}
                   disabled={isUpgrading}
-                  className="flex h-auto shrink-0 items-center gap-1 rounded px-1.5 py-0 text-[10px] text-warning transition-colors hover:bg-warning/10 hover:text-warning disabled:opacity-50">
+                  className="h-auto min-h-0 shrink-0 gap-1 rounded px-1.5 py-0 text-[10px] text-warning hover:bg-warning/10 hover:text-warning">
                   <ArrowUpCircle size={10} />
                   {t('code.upgrade')}
-                </button>
+                </Button>
               ) : (
                 <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
                   {t('code.up_to_date')}
@@ -101,11 +103,13 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
           )}
 
           {isInstalled ? (
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={running ? onStop : onLaunch}
               disabled={running ? stopping : !canLaunch || launching}
-              className="flex shrink-0 items-center gap-1.5 rounded-md border border-border/60 px-3 py-1.5 text-muted-foreground text-xs transition-colors hover:border-border hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50">
+              className="shrink-0 text-muted-foreground hover:text-foreground">
               {running && stopping ? (
                 <>
                   <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
@@ -127,13 +131,15 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
                   {t('code.launch.label')}
                 </>
               )}
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={onInstall}
               disabled={isInstalling}
-              className="flex shrink-0 items-center gap-1.5 rounded-md border border-border/60 px-3 py-1.5 text-muted-foreground text-xs transition-colors hover:border-border hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50">
+              className="shrink-0 text-muted-foreground hover:border-border hover:text-foreground">
               {isInstalling ? (
                 <>
                   <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
@@ -145,7 +151,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
                   {t('code.install')}
                 </>
               )}
-            </button>
+            </Button>
           )}
         </div>
       </div>

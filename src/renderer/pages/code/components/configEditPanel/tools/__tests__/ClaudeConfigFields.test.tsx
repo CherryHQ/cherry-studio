@@ -1,5 +1,6 @@
 import type { UniqueModelId } from '@shared/data/types/model'
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import type { ButtonHTMLAttributes } from 'react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,6 +11,27 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({
+    variant,
+    size,
+    loading,
+    children,
+    ...props
+  }: ButtonHTMLAttributes<HTMLButtonElement> & {
+    variant?: string
+    size?: string
+    loading?: boolean
+    children?: ReactNode
+  }) => {
+    void variant
+    void size
+    void loading
+    return (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    )
+  },
   Checkbox: ({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (checked: boolean) => void }) => (
     <button
       type="button"

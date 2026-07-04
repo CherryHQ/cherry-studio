@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
@@ -97,13 +98,15 @@ export const ProviderCard: FC<ProviderCardProps> = ({
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={handleConfigure}
-            className="flex items-center gap-1 rounded-md border border-border/50 px-2.5 py-1 text-muted-foreground text-xs transition-colors hover:text-foreground">
+            className="min-h-0 border-border/50 px-2.5 py-1 text-muted-foreground hover:text-foreground">
             <Pencil size={11} />
             {t('code.configure')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

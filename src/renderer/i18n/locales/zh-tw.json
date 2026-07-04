@@ -2104,6 +2104,7 @@
     "raw_config": "原始設定 (JSON)",
     "search_cli_placeholder": "搜尋 CLI…",
     "select_folder": "選擇資料夾",
+    "select_provider_before_launch": "請選擇一個服務商後啟動 {{toolName}}",
     "select_tool_to_start": "從左側選擇一個 CLI 工具開始設定",
     "set_custom_path": "設定自訂終端機路徑",
     "supported_providers": "支援的供應商",
@@ -2123,7 +2124,7 @@
       "qwen_code": "阿里巴巴 Qwen Code CLI 程式助理"
     },
     "tool_parameters": "參數設定",
-    "up_to_date": "已是最新",
+    "up_to_date": "最新版本",
     "update_options": "更新選項",
     "upgrade": "升級",
     "upgrade_error": "升級失敗",

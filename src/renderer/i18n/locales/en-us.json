@@ -2104,6 +2104,7 @@
     "raw_config": "Raw Config (JSON)",
     "search_cli_placeholder": "Search CLI…",
     "select_folder": "Select Folder",
+    "select_provider_before_launch": "Select a provider before launching {{toolName}}",
     "select_tool_to_start": "Select a CLI tool from the left to start configuring",
     "set_custom_path": "Set custom terminal path",
     "supported_providers": "Supported Providers",

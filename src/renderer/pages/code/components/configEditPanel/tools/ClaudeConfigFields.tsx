@@ -1,4 +1,4 @@
-import { Checkbox } from '@cherrystudio/ui'
+import { Button, Checkbox } from '@cherrystudio/ui'
 import { ModelSelector } from '@renderer/components/Selector/model'
 import { CLAUDE_DETAILED_MODEL_ROLES, stripClaudeOneMMarker } from '@renderer/pages/code/cliConfig'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -175,12 +175,14 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
             />
           )}
           {hiddenToggleCount > 0 && (
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => setShowAllToggles((expanded) => !expanded)}
-              className="inline-flex items-center rounded-full border border-border/50 px-2.5 py-1 text-[11px] text-muted-foreground/60 transition-colors hover:border-border hover:text-foreground">
+              className="h-auto min-h-0 rounded-full border-border/50 px-2.5 py-1 text-[11px] text-muted-foreground/60 hover:border-border hover:text-foreground">
               {showAllToggles ? t('code.collapse') : t('code.more')}
-            </button>
+            </Button>
           )}
         </div>
       )}

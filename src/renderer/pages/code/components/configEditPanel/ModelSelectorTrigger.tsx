@@ -1,5 +1,7 @@
+import { Button } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useModelById } from '@renderer/hooks/useModel'
+import { cn } from '@renderer/utils/style'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown } from 'lucide-react'
 import { type ButtonHTMLAttributes, type Ref } from 'react'
@@ -14,17 +16,23 @@ export const ModelSelectorTrigger = ({
   ref,
   value,
   placeholder,
+  className,
   ...props
 }: ModelSelectorTriggerProps & { ref?: Ref<HTMLButtonElement> }) => {
   const { t } = useTranslation()
   const { model } = useModelById(value ?? null)
 
   return (
-    <button
+    <Button
       ref={ref}
       type="button"
+      variant="outline"
+      size="sm"
       {...props}
-      className="group flex h-7.5 w-full min-w-0 items-center justify-between rounded-lg border border-border bg-muted/30 px-2.5 text-[13px] transition-colors hover:bg-muted/50">
+      className={cn(
+        'group h-7.5 w-full min-w-0 justify-between rounded-lg border-border bg-muted/30 px-2.5 text-[13px] shadow-none hover:bg-muted/50',
+        className
+      )}>
       <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
         {model ? (
           <>
@@ -41,7 +49,7 @@ export const ModelSelectorTrigger = ({
         size={14}
         className="ml-2 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
       />
-    </button>
+    </Button>
   )
 }
 

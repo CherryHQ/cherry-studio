@@ -1,4 +1,4 @@
-import { ConfirmDialog } from '@cherrystudio/ui'
+import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
@@ -11,7 +11,7 @@ import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@sh
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { useNavigate } from '@tanstack/react-router'
-import { ExternalLink } from 'lucide-react'
+import { CircleAlert, ExternalLink } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -541,6 +541,8 @@ const CodeCliPage: FC = () => {
   const statuses = useCliVersionStatuses(CLI_TOOL_IDS)
   const versionStatus: VersionStatus = statuses[selectedCliTool] ?? { installed: false, canUpgrade: false }
   const cliPreset = CLI_TOOL_PRESET_MAP[selectedCliTool]
+  const showProviderSelectionHint =
+    !!cliPreset && versionStatus.installed && !isProviderlessTool && supportedProviders.length > 0 && !currentProviderId
 
   // Refresh the shared MCP bun-presence cache once on mount (MCP relies on it).
   useEffect(() => {
@@ -620,6 +622,13 @@ const CodeCliPage: FC = () => {
                   />
                 )}
 
+                {showProviderSelectionHint && activeMeta && (
+                  <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-warning text-xs">
+                    <CircleAlert className="size-3.5 shrink-0" />
+                    <span>{t('code.select_provider_before_launch', { toolName: activeMeta.label })}</span>
+                  </div>
+                )}
+
                 {/* Enabled-provider list */}
                 {isProviderlessTool ? (
                   <div className="rounded-lg border border-border/40 bg-accent/10 px-4 py-3 text-muted-foreground text-xs">
@@ -640,13 +649,15 @@ const CodeCliPage: FC = () => {
                       onReorder={handleReorder}
                     />
 
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={() => void navigate({ to: '/settings/provider' })}
-                      className="flex w-full items-center justify-center gap-1 rounded-xl border border-border/50 border-dashed py-2 text-muted-foreground/55 text-xs transition-colors hover:border-border hover:text-foreground">
+                      className="w-full rounded-xl border-border/50 border-dashed py-2 text-muted-foreground/55 hover:border-border hover:text-foreground">
                       {t('code.add_provider_hint')}
                       <ExternalLink size={10} />
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>

@@ -3,6 +3,7 @@ import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preferenc
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CodeCliPage from '../CodeCliPage'
@@ -24,6 +25,7 @@ const {
   upgradeMock,
   removeMock,
   navigateMock,
+  mockProviders,
   mockProviderConfigs
 } = vi.hoisted(() => ({
   clearCliConfigMock: vi.fn(),
@@ -42,6 +44,7 @@ const {
   upgradeMock: vi.fn(),
   removeMock: vi.fn(),
   navigateMock: vi.fn(),
+  mockProviders: [] as Provider[],
   mockProviderConfigs: {} as Record<string, CliProviderConfig>
 }))
 
@@ -71,6 +74,27 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({
+    variant,
+    size,
+    loading,
+    children,
+    ...props
+  }: ButtonHTMLAttributes<HTMLButtonElement> & {
+    variant?: string
+    size?: string
+    loading?: boolean
+    children?: ReactNode
+  }) => {
+    void variant
+    void size
+    void loading
+    return (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    )
+  },
   ConfirmDialog: () => null
 }))
 
@@ -93,7 +117,7 @@ vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [provider] })
+  useProviders: () => ({ providers: mockProviders })
 }))
 
 vi.mock('@renderer/ipc', () => ({
@@ -117,7 +141,8 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@shared/data/presets/codeCliTools', () => ({
   CLI_TOOL_PRESET_MAP: {
-    [CodeCli.CLAUDE_CODE]: {}
+    [CodeCli.CLAUDE_CODE]: {},
+    [CodeCli.QODER_CLI]: {}
   }
 }))
 
@@ -153,6 +178,7 @@ vi.mock('../components/ConfigList', () => ({
     onToggleCurrent: (provider: Provider) => void
   }) => (
     <div>
+      {providers.length === 0 && <div data-testid="empty-config-list" />}
       {providers.map((item) => (
         <div key={item.id}>
           <button type="button" onClick={() => onToggleCurrent(item)}>
@@ -217,12 +243,17 @@ vi.mock('../components/LaunchDialog', () => ({
 }))
 
 vi.mock('../components/VersionStatusCard', () => ({
-  VersionStatusCard: () => <div data-testid="version-status-card" />
+  VersionStatusCard: ({ canLaunch }: { canLaunch?: boolean }) => (
+    <div data-can-launch={String(canLaunch)} data-testid="version-status-card" />
+  )
 }))
 
 vi.mock('../constants/cliTools', () => ({
-  CLI_TOOLS: [{ value: CodeCli.CLAUDE_CODE, label: 'Claude Code', icon: () => null }],
-  PROVIDERLESS_CLI_TOOLS: new Set()
+  CLI_TOOLS: [
+    { value: CodeCli.CLAUDE_CODE, label: 'Claude Code', icon: () => null },
+    { value: CodeCli.QODER_CLI, label: 'Qoder CLI', icon: () => null }
+  ],
+  PROVIDERLESS_CLI_TOOLS: new Set([CodeCli.QODER_CLI])
 }))
 
 vi.mock('../hooks/useAvailableTerminals', () => ({
@@ -241,7 +272,8 @@ vi.mock('../hooks/useBinaryActions', () => ({
 
 vi.mock('../hooks/useCliVersionStatuses', () => ({
   useCliVersionStatuses: () => ({
-    [CodeCli.CLAUDE_CODE]: { installed: true, canUpgrade: false }
+    [CodeCli.CLAUDE_CODE]: { installed: true, canUpgrade: false },
+    [CodeCli.QODER_CLI]: { installed: true, canUpgrade: false }
   })
 }))
 
@@ -258,10 +290,12 @@ vi.mock('../hooks/useConfigMetadata', () => ({
 
 function mockCodeCliState({
   providerConfigs = {},
-  currentProviderId = null
+  currentProviderId = null,
+  selectedCliTool = CodeCli.CLAUDE_CODE
 }: {
   providerConfigs?: Record<string, CliProviderConfig>
   currentProviderId?: string | null
+  selectedCliTool?: CodeCli
 } = {}) {
   Object.keys(mockProviderConfigs).forEach((key) => delete mockProviderConfigs[key])
   Object.assign(mockProviderConfigs, providerConfigs)
@@ -272,7 +306,7 @@ function mockCodeCliState({
   }
 
   useCodeCliMock.mockReturnValue({
-    selectedCliTool: CodeCli.CLAUDE_CODE,
+    selectedCliTool,
     currentToolState,
     currentProviderId,
     currentProviderConfig: currentProviderId ? (mockProviderConfigs[currentProviderId] ?? null) : null,
@@ -291,6 +325,7 @@ function mockCodeCliState({
 describe('CodeCliPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockProviders.splice(0, mockProviders.length, provider)
     mockCodeCliState()
     clearCliConfigMock.mockResolvedValue(undefined)
     injectCliConfigMock.mockResolvedValue(undefined)
@@ -384,5 +419,45 @@ describe('CodeCliPage', () => {
       })
     )
     expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
+  })
+
+  it('shows a provider selection hint when launch needs a current provider', () => {
+    render(<CodeCliPage />)
+
+    expect(screen.getByText('code.select_provider_before_launch')).toBeInTheDocument()
+    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'false')
+  })
+
+  it('hides the provider selection hint once a current provider is selected', () => {
+    mockCodeCliState({
+      providerConfigs: {
+        anthropic: { modelId: 'anthropic::claude-new', config: {} }
+      },
+      currentProviderId: 'anthropic'
+    })
+
+    render(<CodeCliPage />)
+
+    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
+    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'true')
+  })
+
+  it('does not show the provider selection hint for provider-less tools', () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.QODER_CLI })
+
+    render(<CodeCliPage />)
+
+    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
+    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'true')
+  })
+
+  it('does not show the provider selection hint when no supported providers exist', () => {
+    mockProviders.splice(0, mockProviders.length)
+    mockCodeCliState()
+
+    render(<CodeCliPage />)
+
+    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
+    expect(screen.getByTestId('empty-config-list')).toBeInTheDocument()
   })
 })

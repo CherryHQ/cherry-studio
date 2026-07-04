@@ -12,9 +12,112 @@ const aihubmixProvider = {
   }
 } as unknown as Provider
 
+const openAIProvider = {
+  id: 'deepseek',
+  name: 'DeepSeek',
+  endpointConfigs: {
+    'openai-chat-completions': { baseUrl: 'https://express-ent-admin.cherryin.ai' },
+    'openai-responses': { baseUrl: 'https://responses.example.com' }
+  }
+} as unknown as Provider
+
+const openAIChatProvider = {
+  id: 'deepseek-chat',
+  name: 'DeepSeek Chat',
+  endpointConfigs: {
+    'openai-chat-completions': { baseUrl: 'https://express-ent-admin.cherryin.ai' }
+  }
+} as unknown as Provider
+
+const anthropicProvider = {
+  id: 'anthropic',
+  name: 'Anthropic',
+  endpointConfigs: {
+    'anthropic-messages': { baseUrl: 'https://api.anthropic.com' }
+  }
+} as unknown as Provider
+
+const geminiProvider = {
+  id: 'gemini',
+  name: 'Gemini',
+  endpointConfigs: {
+    'google-generate-content': { baseUrl: 'https://generativelanguage.googleapis.com' }
+  }
+} as unknown as Provider
+
 const apiKeys: ApiKeyEntry[] = [{ id: 'k1', key: 'sk-secret', isEnabled: true }]
 
 describe('cliConfigConnectionMatchesProvider', () => {
+  it('matches Qwen and Kimi against the formatted OpenAI endpoint', () => {
+    for (const cliTool of [CodeCli.QWEN_CODE, CodeCli.KIMI_CODE]) {
+      expect(
+        cliConfigConnectionMatchesProvider(
+          cliTool,
+          { baseUrl: 'https://express-ent-admin.cherryin.ai/v1', apiKey: 'sk-secret' },
+          openAIChatProvider,
+          apiKeys
+        )
+      ).toBe(true)
+    }
+  })
+
+  it('matches Codex and OpenCode against formatted /v1 endpoints', () => {
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.OPENAI_CODEX,
+        { baseUrl: 'https://responses.example.com/v1', apiKey: 'sk-secret' },
+        openAIProvider,
+        apiKeys
+      )
+    ).toBe(true)
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.OPEN_CODE,
+        { baseUrl: 'https://express-ent-admin.cherryin.ai/v1', apiKey: 'sk-secret' },
+        openAIProvider,
+        apiKeys
+      )
+    ).toBe(true)
+  })
+
+  it('keeps Claude matching on the raw Anthropic endpoint', () => {
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.CLAUDE_CODE,
+        { baseUrl: 'https://api.anthropic.com/v1', apiKey: 'sk-secret' },
+        anthropicProvider,
+        apiKeys
+      )
+    ).toBe(false)
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.CLAUDE_CODE,
+        { baseUrl: 'https://api.anthropic.com', apiKey: 'sk-secret' },
+        anthropicProvider,
+        apiKeys
+      )
+    ).toBe(true)
+  })
+
+  it('keeps Gemini matching on the resolved Gemini endpoint', () => {
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.GEMINI_CLI,
+        { baseUrl: 'https://generativelanguage.googleapis.com/v1', apiKey: 'sk-secret' },
+        geminiProvider,
+        apiKeys
+      )
+    ).toBe(false)
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.GEMINI_CLI,
+        { baseUrl: 'https://generativelanguage.googleapis.com', apiKey: 'sk-secret' },
+        geminiProvider,
+        apiKeys
+      )
+    ).toBe(true)
+  })
+
   it('accepts a Gemini aggregator provider when the config uses its resolved Gemini base URL', () => {
     expect(
       cliConfigConnectionMatchesProvider(
@@ -70,5 +173,16 @@ describe('cliConfigConnectionMatchesProvider', () => {
         'gemini-2.5-pro'
       )
     ).toBe(true)
+  })
+
+  it('rejects a connection for the same provider when the configured api key differs', () => {
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.QWEN_CODE,
+        { baseUrl: 'https://express-ent-admin.cherryin.ai/v1', apiKey: 'sk-other' },
+        openAIProvider,
+        apiKeys
+      )
+    ).toBe(false)
   })
 })

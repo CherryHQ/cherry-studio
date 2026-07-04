@@ -38,7 +38,7 @@ const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ st
   }
   return (
     <div className="flex shrink-0 items-center gap-1.5">
-      <span className="truncate font-mono text-[11px] text-muted-foreground/50">
+      <span className="truncate font-mono text-[11px] text-primary">
         v{status.canUpgrade && status.latest ? status.latest : status.current}
       </span>
       {status.canUpgrade && <ArrowUpCircle size={12} className="shrink-0 text-warning" />}

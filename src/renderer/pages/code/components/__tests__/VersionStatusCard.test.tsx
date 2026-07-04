@@ -26,4 +26,33 @@ describe('VersionStatusCard', () => {
     expect(screen.queryByText('code.not_installed')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'code.install' })).toBeInTheDocument()
   })
+
+  it('renders a disabled launch action when launch requirements are missing', () => {
+    render(
+      <VersionStatusCard
+        toolId="qwen-code"
+        toolName="Qwen Code"
+        status={{ installed: true, canUpgrade: false }}
+        onLaunch={vi.fn()}
+        canLaunch={false}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeDisabled()
+  })
+
+  it('renders the launching state', () => {
+    render(
+      <VersionStatusCard
+        toolId="qwen-code"
+        toolName="Qwen Code"
+        status={{ installed: true, canUpgrade: false }}
+        onLaunch={vi.fn()}
+        canLaunch
+        launching
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'code.launching' })).toBeDisabled()
+  })
 })
