@@ -1,0 +1,87 @@
+{
+  "agent": {
+    "session": {
+      "workspace_status": {
+        "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",
+        "missing": "Arbeitsbereichspfad existiert nicht: {{path}}",
+        "not_directory": "Der Workspace-Pfad ist kein Verzeichnis: {{path}}"
+      }
+    }
+  },
+  "appMenu": {
+    "about": "Über",
+    "close": "Fenster schließen",
+    "copy": "Kopieren",
+    "cut": "Schneiden",
+    "delete": "Löschen",
+    "documentation": "Dokumentation",
+    "edit": "Bearbeiten",
+    "feedback": "Rückmeldung",
+    "file": "Datei",
+    "forceReload": "Neu laden erzwingen",
+    "front": "Alle in den Vordergrund bringen",
+    "help": "Hilfe",
+    "hide": "Verstecken",
+    "hideOthers": "Andere ausblenden",
+    "minimize": "Minimieren",
+    "paste": "Einfügen",
+    "quit": "Aufhören",
+    "redo": "Wiederholen",
+    "releases": "Veröffentlichungen",
+    "reload": "Neu laden",
+    "resetZoom": "Tatsächliche Größe",
+    "selectAll": "Alle auswählen",
+    "services": "Dienstleistungen",
+    "toggleDevTools": "Entwicklertools ein-/ausblenden",
+    "toggleFullscreen": "Vollbild umschalten",
+    "undo": "Rückgängig machen",
+    "unhide": "Alle anzeigen",
+    "view": "Ansicht",
+    "website": "Website",
+    "window": "Fenster",
+    "zoom": "Zoom",
+    "zoomIn": "Heranzoomen",
+    "zoomOut": "Herauszoomen"
+  },
+  "common": {
+    "copy": "Kopieren",
+    "cut": "Ausschneiden",
+    "inspect": "Prüfen",
+    "paste": "Einfügen"
+  },
+  "dialog": {
+    "all_files": "Alle Dateien",
+    "html_files": "HTML-Dateien",
+    "open_file": "Datei öffnen",
+    "pdf_files": "PDF-Dateien",
+    "png_image": "PNG-Bild",
+    "save_as_html": "Als HTML speichern",
+    "save_as_pdf": "Als PDF speichern",
+    "save_file": "Datei speichern",
+    "select_folder": "Ordner auswählen",
+    "word_document": "Word-Dokument"
+  },
+  "paintings": {
+    "generate_failed": "Fehler beim Generieren des Bildes",
+    "image_mix_failed": "Fehler beim Mischen der Bilder"
+  },
+  "selection": {
+    "name": "Textauswahl-Assistent"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "Sie können diese Seite schließen und zu Cherry Studio zurückkehren",
+          "title": "Authentifizierung erfolgreich"
+        }
+      }
+    },
+    "title": "Einstellungen"
+  },
+  "tray": {
+    "quit": "Beenden",
+    "show_quick_assistant": "Schnellassistent",
+    "show_window": "Fenster anzeigen"
+  }
+}

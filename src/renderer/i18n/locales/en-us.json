@@ -340,7 +340,7 @@
       "welcome_title": "What shall we talk about today?"
     },
     "input": {
-      "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command",
+      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands.",
       "soul_placeholder": "Help me connect to Telegram"
     },
     "list": {
@@ -604,9 +604,7 @@
         "select_failed": "Failed to select folder."
       },
       "workspace_status": {
-        "inaccessible": "Workspace path is not accessible: {{path}}",
-        "missing": "Workspace path does not exist: {{path}}",
-        "not_directory": "Workspace path is not a directory: {{path}}"
+        "inaccessible": "Workspace path is not accessible: {{path}}"
       }
     },
     "settings": {
@@ -1084,41 +1082,6 @@
     },
     "title": "API Gateway"
   },
-  "appMenu": {
-    "about": "About",
-    "close": "Close Window",
-    "copy": "Copy",
-    "cut": "Cut",
-    "delete": "Delete",
-    "documentation": "Documentation",
-    "edit": "Edit",
-    "feedback": "Feedback",
-    "file": "File",
-    "forceReload": "Force Reload",
-    "front": "Bring All to Front",
-    "help": "Help",
-    "hide": "Hide",
-    "hideOthers": "Hide Others",
-    "minimize": "Minimize",
-    "paste": "Paste",
-    "quit": "Quit",
-    "redo": "Redo",
-    "releases": "Releases",
-    "reload": "Reload",
-    "resetZoom": "Actual Size",
-    "selectAll": "Select All",
-    "services": "Services",
-    "toggleDevTools": "Toggle Developer Tools",
-    "toggleFullscreen": "Toggle Fullscreen",
-    "undo": "Undo",
-    "unhide": "Show All",
-    "view": "View",
-    "website": "Website",
-    "window": "Window",
-    "zoom": "Zoom",
-    "zoomIn": "Zoom In",
-    "zoomOut": "Zoom Out"
-  },
   "assistants": {
     "abbr": "Assistants",
     "clear": {
@@ -1495,7 +1458,7 @@
       "paste_text_file": "Paste into input",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
-      "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
+      "placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions.",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
       "resource_panel": {
         "categories": {
@@ -1506,7 +1469,7 @@
         "description": "Select from files, agents, or skills",
         "loading": "Loading...",
         "no_file_found": {
-          "description": "No files available in accessible directories",
+          "description": "No searchable files in the current workspace",
           "label": "No File Found"
         },
         "no_items_found": {
@@ -1601,6 +1564,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "Cache {{hit_rate}}%",
+        "tooltip": "Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "This message is being edited in the composer",
       "flow": {
         "branches": "branches",
@@ -1648,6 +1615,13 @@
       "top": "Back to top"
     },
     "resend": "Resend",
+    "resource_view": {
+      "menu": {
+        "agent": "Agents",
+        "assistant": "Assistants",
+        "skill": "Skills"
+      }
+    },
     "save": {
       "file": {
         "title": "Save to Local File"
@@ -2063,7 +2037,6 @@
     "copy_failed": "Copy failed",
     "create_success": "Created successfully",
     "current": "Current",
-    "cut": "Cut",
     "default": "Default",
     "delete": "Delete",
     "delete_confirm": "Are you sure you want to delete?",
@@ -2101,7 +2074,6 @@
     "image_preview": "Image preview",
     "image_url": "Image URL",
     "image_url_or_upload": "Enter image URL or upload file",
-    "inspect": "Inspect",
     "invalid_value": "Invalid Value",
     "knowledge_base": "Knowledge Base",
     "language": "Language",
@@ -2122,7 +2094,6 @@
     "open_in": "Open in {{name}}",
     "open_in_new_tab": "Open in new tab",
     "open_sidebar": "Open sidebar",
-    "paste": "Paste",
     "placeholders": {
       "select": {
         "model": "Select a model"
@@ -2177,18 +2148,6 @@
     "warning": "Warning",
     "yesterday": "Yesterday",
     "you": "You"
-  },
-  "dialog": {
-    "all_files": "All Files",
-    "html_files": "HTML Files",
-    "open_file": "Open File",
-    "pdf_files": "PDF Files",
-    "png_image": "PNG Image",
-    "save_as_html": "Save as HTML",
-    "save_as_pdf": "Save as PDF",
-    "save_file": "Save File",
-    "select_folder": "Select Folder",
-    "word_document": "Word Document"
   },
   "docs": {
     "title": "Docs"
@@ -2378,6 +2337,7 @@
       "no_match_description": "No files match the current filters",
       "no_match_title": "No matching files found"
     },
+    "empty_trash": "Empty trash",
     "error": {
       "delete_failed": "Failed to delete files",
       "delete_partial_failed": "Some files could not be deleted",
@@ -2395,6 +2355,7 @@
     "missing": "Missing",
     "modified_at": "Modified At",
     "name": "Name",
+    "no_actions": "No actions available",
     "open": "Open",
     "other": "Other",
     "permanent_delete": "Permanently delete",
@@ -2408,13 +2369,18 @@
     "remove_from_library": "Remove from library",
     "rename": "Rename",
     "restore": "Restore",
+    "select_all": "Select visible files",
+    "select_all_short": "Select All",
+    "select_file": "Select {{name}}",
     "selected_count": "{{count}} files selected",
+    "selected_missing_hint": "Some selected files are missing. Locate them or remove their records.",
     "show_in_folder": "Show in folder",
     "size": "Size",
     "text": "Text",
     "title": "Files",
     "trash": "Trash",
     "type": "Type",
+    "upload": "Upload files",
     "video": "Video"
   },
   "globalSearch": {
@@ -2815,7 +2781,7 @@
       "chunk_size_invalid": "Chunk size must be greater than 0",
       "chunking": "Chunking",
       "default_separator": "Auto (recommended)",
-      "document_count": "Requested Chunks (Top K)",
+      "document_count": "Top K",
       "embedding_model": "Embedding Model",
       "embedding_model_select": "Model Selection",
       "file_processing": "File Processing",
@@ -2896,7 +2862,7 @@
     "subtitle_file": "subtitle file",
     "tabs": {
       "data_source": "Data Sources",
-      "rag_config": "RAG Config",
+      "rag_config": "Knowledge Base Settings",
       "recall_test": "Recall Test"
     },
     "title": "Knowledge Base",
@@ -2957,7 +2923,8 @@
       "preview_description": "Overview",
       "preview_prompt": "Prompt",
       "scroll_left": "Scroll categories left",
-      "scroll_right": "Scroll categories right"
+      "scroll_right": "Scroll categories right",
+      "title": "Assistant Library"
     },
     "badge": {
       "update": "Update"
@@ -4730,6 +4697,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -4742,6 +4710,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
@@ -4765,6 +4734,7 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
     "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
@@ -4783,6 +4753,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Tesseract",
     "together": "Together",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",
@@ -6299,12 +6270,6 @@
         "usage": "Usage",
         "version": "Version"
       },
-      "oauth": {
-        "callback": {
-          "message": "You can close this page and return to Cherry Studio",
-          "title": "Authentication Successful"
-        }
-      },
       "prompts": {
         "arguments": "Arguments",
         "availablePrompts": "Available Prompts",
@@ -6449,7 +6414,7 @@
       "input": {
         "confirm_delete_message": "Confirm before deleting messages",
         "confirm_regenerate_message": "Confirm before regenerating messages",
-        "enable_quick_triggers": "Enable / and @ triggers",
+        "enable_quick_triggers": "Enable / to open the input quick panel",
         "send_shortcuts": "Send shortcuts",
         "show_estimated_tokens": "Show estimated tokens",
         "title": "Input Settings"
@@ -6848,6 +6813,7 @@
         "reorderFailed": "Failed to reorder prompts",
         "updateFailed": "Failed to update prompt"
       },
+      "manage": "Manage Prompts",
       "title": "Prompt Management",
       "titleLabel": "Title",
       "titlePlaceholder": "Enter prompt title",
@@ -6995,6 +6961,27 @@
           "international": "International domain"
         }
       },
+      "claude_code": {
+        "agent_only_note": "The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "Sign in with your Claude subscription",
+        "description_detail": "This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "Legal & Compliance",
+        "logged_in": "Signed in to Claude Code",
+        "logged_in_detail": "Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "Open terminal to sign in",
+        "recheck": "Recheck"
+      },
+      "codex": {
+        "account": "Account: {{accountId}}",
+        "description": "Sign in with your ChatGPT subscription",
+        "description_detail": "This provider uses your ChatGPT Plus/Pro login (OAuth) to access OpenAI Codex models. Your browser will open to complete sign-in.",
+        "logged_in": "Signed in to OpenAI Codex",
+        "sign_in_button": "Sign in with ChatGPT",
+        "sign_in_failed": "Sign-in failed. Please try again.",
+        "sign_in_success": "Signed in to OpenAI Codex",
+        "signing_in": "Waiting for browser…"
+      },
       "copilot": {
         "add_request_header": "Add header",
         "auth_failed": "Github Copilot authentication failed.",
@@ -7069,6 +7056,15 @@
       },
       "filter_agent": "Filter Agent Supported Providers",
       "get_api_key": "Get API Key",
+      "grok_cli": {
+        "description": "Sign in with your SuperGrok subscription",
+        "description_detail": "This provider uses your xAI SuperGrok login (OAuth) to access Grok CLI models (Grok Build, Composer). Your browser will open to complete sign-in.",
+        "logged_in": "Signed in to Grok CLI",
+        "sign_in_button": "Sign in with xAI",
+        "sign_in_failed": "Sign-in failed. Please try again.",
+        "sign_in_success": "Signed in to Grok CLI",
+        "signing_in": "Waiting for browser…"
+      },
       "logo_upload_failed": "Failed to process the selected image",
       "misc": "Other",
       "more_endpoints": {
@@ -7199,10 +7195,10 @@
         "unknownServer": "Unknown MCP server"
       },
       "multiple": "Multiple Select",
-      "noResult": "No results found",
+      "noResult": "No matching items",
       "page": "Page",
       "select": "Select",
-      "title": "Quick Menu"
+      "title": "Input Quick Panel"
     },
     "quickPhrase": {
       "add": "Add Phrase",
@@ -7589,7 +7585,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Paintings",
     "settings": "Settings",
-    "store": "Assistant Library",
     "translate": "Translate",
     "work": "Work"
   },
@@ -7784,11 +7779,6 @@
     "tooltip": {
       "newline": "Newline"
     }
-  },
-  "tray": {
-    "quit": "Quit",
-    "show_quick_assistant": "Quick Assistant",
-    "show_window": "Show Window"
   },
   "update": {
     "install": "Install",

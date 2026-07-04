@@ -17,10 +17,11 @@ Exactly these, each with a single charter:
 | `features` | **Domain modules** | Business domains, one directory each. A complex domain bundles its own related services / utils / etc. under `features/<domain>/`. |
 | `services` | **Business services** | Business feature services. A simple service is a single file; a larger one is organized into its own subdirectory. |
 | `utils` | **Pure helpers** | Cross-domain pure functions with no single owner. |
+| `i18n` | **Main-process localization** | Main's own locale catalog (`locales/` human + `translate/` machine) and its `t()` / `getI18n()` resolver. A deliberate, governed expansion of the closed set (§4), mirroring `src/renderer/i18n/` so each process owns an independent catalog; the `utils/i18n/` alternative was rejected for that cross-process symmetry. |
 
 Entry files: `index.ts` (process entry — runs preboot, then `application.bootstrap()`) and `ipc.ts` (legacy IPC registration, being retired into `ipc/`).
 
-Naming follows [Naming Conventions §4.9](./naming-conventions.md): `core` / `data` / `ai` / `ipc` are singular namespaces; `features` / `services` / `utils` are plural buckets.
+Naming follows [Naming Conventions §4.9](./naming-conventions.md): `core` / `data` / `ai` / `ipc` / `i18n` are singular namespaces; `features` / `services` / `utils` are plural buckets.
 
 ```text
 src/main/
@@ -72,7 +73,7 @@ There is no automated enforcement of the **internal** direction edges above yet 
 
 ## 4. Closed Top-Level Governance
 
-> **The seven top-level directories are the complete, locked set — treat adding a new one under `src/main/` as off the table.** This is [Naming Conventions §4.8](./naming-conventions.md) (top-level closed by default) at its strict end: §4.8 admits a new top-level directory only on proven *necessity* (no existing category can host the files) and *completeness*, and main's seven categories already span the space — so a new capability is routed into an existing category, never given its own directory. The [renderer (§6)](./renderer-architecture.md) and [`@shared` (§2)](./shared-layer-architecture.md) top levels are held to the same governance.
+> **The top-level set is closed and locked — treat adding a new directory under `src/main/` as off the table.** This is [Naming Conventions §4.8](./naming-conventions.md) (top-level closed by default) at its strict end: §4.8 admits a new top-level directory only on proven *necessity* (no existing category can host the files) and *completeness*, and main's categories already span the space — so a new capability is routed into an existing category, never given its own directory. The one deliberate expansion is `i18n/` (§1), added so the main process owns a locale catalog symmetric with `src/renderer/i18n/`; it is a governed exception with a recorded rationale, not a loosening of the rule. The [renderer (§6)](./renderer-architecture.md) and [`@shared` (§2)](./shared-layer-architecture.md) top levels are held to the same governance.
 
 A new capability **never** earns a new top-level directory; route it by nature:
 
@@ -116,7 +117,6 @@ This page describes the **target**. Where current code does not yet match it, th
 |---|---|---|
 | `utils/index.ts` | a bucket-root `index.ts` holds loose helpers (`debounce`, `makeSureDirExists`, `toAsarUnpackedPath`, …) — the junk-drawer root barrel §2.1 forbids | split into named topic files (`utils/<topic>.ts`); `@shared` has already done exactly this — see [Shared Layer Architecture §6](./shared-layer-architecture.md) |
 | legacy `ipc.ts` | v1 IPC registration at the process root, coexisting with IpcApi | domains migrate into `ipc/` (IpcApi) incrementally until `ipc.ts` is retired (§1) |
-| `utils/language.ts` i18n | imports renderer i18n JSON via relative path (`../../renderer/i18n/locales/*`, `translate/*`) to build the main-process `t()` table — a main→renderer edge (§3 No-renderer-imports) the ESLint rule does not yet catch (relative `**/renderer/**` is intentionally left unbanned so this still compiles) | relocate the locale JSON to a process-neutral on-disk resource loaded per-process via `i18next-fs-backend`, so main reads its own slice. Marked `TODO(i18n-migration)` in the file; once done, tighten the ESLint group to also ban relative `**/renderer/**` |
 
 By-design edges are **not** deviations and are deliberately omitted: the `data/migration/v2/` migrators reading domain data (§1) and `@logger` / `@application` ambient access from any tier (§3).
 

@@ -160,14 +160,6 @@ export class MainWindowService extends BaseService {
     this.ipcHandle(IpcChannel.Notification_OnClick, (_, notification) => {
       application.get('WindowManager').broadcastToType(WindowType.Main, 'notification-click', notification)
     })
-
-    // Dev-only: force a renderer crash to test render-process-gone recovery
-    // (see the render-process-gone handler in setupMainWindowMonitor).
-    if (isDev) {
-      this.ipcHandle(IpcChannel.MainWindow_CrashRenderProcess, () => {
-        this.mainWindow?.webContents.forcefullyCrashRenderer()
-      })
-    }
   }
 
   /**

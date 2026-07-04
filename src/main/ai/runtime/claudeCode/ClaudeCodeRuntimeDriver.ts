@@ -330,6 +330,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // adapter emits the buffered text + a `truncated` finish through the sink)
       // instead of dropping the partial response and surfacing an error.
       const salvaged = this.adapter?.handleTruncationError(error) ?? false
+      if (!salvaged && !this.abortController.signal.aborted) {
+        logger.error('Claude Code query loop failed', {
+          sessionId: this.input.sessionId,
+          modelId: this.adapterModelId ?? this.input.modelId,
+          error
+        })
+      }
       this.adapter = undefined
       // The query stream ended (errored) → the connection is dead; tear the whole session down here
       // rather than relying on a later close() to dispose the steer holder / snapshot.
@@ -382,6 +389,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const promptTokens = v3Usage.inputTokens.total ?? 0
     const completionTokens = v3Usage.outputTokens.total ?? 0
     const reasoningTokens = v3Usage.outputTokens.reasoning
+    const noCacheTokens = v3Usage.inputTokens.noCache
+    const cacheReadTokens = v3Usage.inputTokens.cacheRead
+    const cacheWriteTokens = v3Usage.inputTokens.cacheWrite
     this.eventQueue.push({
       type: 'chunk',
       chunk: {
@@ -390,7 +400,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           totalTokens: promptTokens + completionTokens,
           promptTokens,
           completionTokens,
-          ...(reasoningTokens !== undefined ? { thoughtsTokens: reasoningTokens } : {})
+          ...(reasoningTokens !== undefined ? { thoughtsTokens: reasoningTokens } : {}),
+          ...(noCacheTokens !== undefined ? { noCacheTokens } : {}),
+          ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
+          ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {})
         }
       }
     })

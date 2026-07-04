@@ -7,6 +7,8 @@ import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
+  ConversationResourceMenu,
+  type ConversationResourceMenuItem,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
   type ResourceListItemReorderPayload,
@@ -88,6 +90,7 @@ interface Props {
   onOpenHistoryRecords?: () => void
   presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
+  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   setActiveTopic: (topic: Topic) => void
 }
 
@@ -204,6 +207,7 @@ export function Topics({
   onOpenHistoryRecords,
   presentation = 'sidebar',
   revealRequest,
+  resourceMenuItems,
   setActiveTopic
 }: Props) {
   const { t } = useTranslation()
@@ -655,6 +659,7 @@ export function Topics({
     (isAssistantDisplayMode && (isAssistantsLoading || isAssistantPinsLoading))
   const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
+  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
   }, [])
@@ -1040,7 +1045,7 @@ export function Topics({
         className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
         items={visibleFilteredTopics}
         status={listStatus}
-        selectedId={activeTopic?.id}
+        selectedId={hasActiveResourceMenuItem ? null : activeTopic?.id}
         groupBy={topicGroupBy}
         sectionBy={topicSectionBy}
         collapsedState={collapsedTopicState}
@@ -1076,15 +1081,18 @@ export function Topics({
               wrapperClassName="pt-1"
             />
           ) : (
-            <ResourceList.HeaderItem
-              type="button"
-              command="topic.create"
-              aria-label={t('chat.conversation.new')}
-              icon={<SquarePen />}
-              label={t('chat.conversation.new')}
-              onClick={() => void onNewTopic?.(headerCreateTopicPayload)}
-              actions={<TopicHistoryButton onOpenHistoryRecords={onOpenHistoryRecords} />}
-            />
+            <>
+              <ResourceList.HeaderItem
+                type="button"
+                command="topic.create"
+                aria-label={t('chat.conversation.new')}
+                icon={<SquarePen />}
+                label={t('chat.conversation.new')}
+                onClick={() => void onNewTopic?.(headerCreateTopicPayload)}
+                actions={<TopicHistoryButton onOpenHistoryRecords={onOpenHistoryRecords} />}
+              />
+              <ConversationResourceMenu items={resourceMenuItems} />
+            </>
           )}
         </ResourceList.Header>
 

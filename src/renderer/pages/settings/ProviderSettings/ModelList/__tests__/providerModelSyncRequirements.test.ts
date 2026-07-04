@@ -40,6 +40,19 @@ describe('providerNeedsApiKeyForModelSync', () => {
     expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'aws-bedrock', authType: 'iam-aws' }))).toBe(false)
   })
 
+  // Login-based CLI providers (claude-code, codex, grok-cli) carry no API key and
+  // serve models from the shipped registry catalog, so model sync must run
+  // without a key — otherwise nothing materializes into user_model after login.
+  it('exempts registry-sourced providers (login-based CLI providers)', () => {
+    expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'claude-code', modelListSource: 'registry' }))).toBe(
+      false
+    )
+    expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'openai-codex', modelListSource: 'registry' }))).toBe(
+      false
+    )
+    expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'grok-cli', modelListSource: 'registry' }))).toBe(false)
+  })
+
   it('requires an API key for normal cloud providers, including duplicated ones', () => {
     expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'openai' }))).toBe(true)
     expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'openai-copy', presetProviderId: 'openai' }))).toBe(true)

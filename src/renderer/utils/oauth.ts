@@ -1,5 +1,7 @@
 import { loggerService } from '@logger'
 import i18n, { getLanguageCode } from '@renderer/i18n'
+import { ipcApi } from '@renderer/ipc'
+import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 const logger = loggerService.withContext('Utils:oauth')
 
@@ -29,7 +31,7 @@ export const oauthWithSiliconFlow = async (setKey) => {
 }
 
 export const oauthWithAihubmix = async (setKey) => {
-  const authUrl = ` https://console.inferera.com/token?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`
+  const authUrl = ` https://console.inferera.com/token?client_id=cherry_studio_oauth&lang=${await getLanguageCode()}&aff=SJyh`
 
   const popup = window.open(
     authUrl,
@@ -190,9 +192,9 @@ export interface NewApiOAuthConfig {
  * CherryIN OAuth flow using Authorization Code with PKCE.
  *
  * PKCE, token exchange and API-key fetch all happen in the main process
- * (`CherryInOauthService`); the deep-link callback is routed by `ProtocolService`
- * directly to this renderer's webContents (captured at `startOAuthFlow` time),
- * so we just await a single point-to-point IPC event keyed by `state`.
+ * (`OAuthRuntimeService`); the deep-link callback is routed by `ProtocolService`
+ * directly to this renderer's webContents (captured at flow-start time), so we
+ * just await a single point-to-point IPC event keyed by `state`.
  */
 export const oauthWithCherryIn = async (
   setKey: (key: string) => void | Promise<void>,
@@ -200,7 +202,11 @@ export const oauthWithCherryIn = async (
 ): Promise<string> => {
   const { oauthServer, apiHost } = config
 
-  const { authUrl, state } = await window.api.cherryin.startOAuthFlow(oauthServer, apiHost)
+  const { authUrl, state } = await ipcApi.request('oauth.start_deep_link_flow', {
+    providerId: SystemProviderIds.cherryin,
+    oauthServer,
+    apiHost
+  })
 
   logger.debug('Opening authorization URL')
 
@@ -213,7 +219,7 @@ export const oauthWithCherryIn = async (
   return new Promise<string>((resolve, reject) => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null
 
-    const removeListener = window.api.cherryin.onOAuthResult(async (result) => {
+    const removeListener = ipcApi.on('oauth.deep_link_result', async (result) => {
       // Defensive: another concurrent CherryIN flow on the same window would
       // hit the same listener; main only ever pushes for our state, but filter
       // anyway to keep the contract explicit.
@@ -262,6 +268,7 @@ export const oauthWithCherryIn = async (
 }
 
 export const providerCharge = async (provider: string) => {
+  const lang = await getLanguageCode()
   const chargeUrlMap = {
     silicon: {
       url: 'https://cloud.siliconflow.cn/expensebill',
@@ -269,7 +276,7 @@ export const providerCharge = async (provider: string) => {
       height: 700
     },
     aihubmix: {
-      url: `https://console.inferera.com/topup?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
+      url: `https://console.inferera.com/topup?client_id=cherry_studio_oauth&lang=${lang}&aff=SJyh`,
       width: 720,
       height: 900
     },
@@ -300,6 +307,7 @@ export const providerCharge = async (provider: string) => {
 }
 
 export const providerBills = async (provider: string) => {
+  const lang = await getLanguageCode()
   const billsUrlMap = {
     silicon: {
       url: 'https://cloud.siliconflow.cn/bills',
@@ -307,7 +315,7 @@ export const providerBills = async (provider: string) => {
       height: 700
     },
     aihubmix: {
-      url: `https://console.inferera.com/statistics?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
+      url: `https://console.inferera.com/statistics?client_id=cherry_studio_oauth&lang=${lang}&aff=SJyh`,
       width: 900,
       height: 700
     },

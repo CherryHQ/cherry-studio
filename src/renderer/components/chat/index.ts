@@ -19,6 +19,11 @@ export {
 export * from './primitives'
 export { ChatAppShell, type ChatAppShellProps } from './shell/ChatAppShell'
 export { default as ConversationCenterState } from './shell/ConversationCenterState'
+export {
+  type ConversationCenterSlot,
+  default as ConversationPageShell,
+  type ConversationPageShellProps
+} from './shell/ConversationPageShell'
 export { default as ConversationShell, type ConversationShellProps } from './shell/ConversationShell'
 export { default as ConversationStageCenter, type ConversationStageCenterProps } from './shell/ConversationStageCenter'
 export { OverlayHost, type OverlayHostProps } from './shell/OverlayHost'

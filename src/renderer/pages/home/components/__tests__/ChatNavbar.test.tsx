@@ -29,6 +29,15 @@ vi.mock('@renderer/components/Icons', () => ({
   SidebarExpandIcon: () => <span data-testid="expand-icon" />
 }))
 
+vi.mock('@renderer/hooks/command', () => ({
+  useResolvedCommand: () => ({
+    enabled: true,
+    execute: vi.fn(),
+    label: '',
+    shortcutLabel: ''
+  })
+}))
+
 vi.mock('i18next', () => ({
   t: (key: string) => key
 }))
