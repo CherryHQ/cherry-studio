@@ -254,18 +254,26 @@ export async function writeCliConfigDraft(args: {
   )
 
   try {
+    let writeQueue = Promise.resolve()
     for (const target of writeTargets) {
-      snapshots.push(await snapshotFile(target.path))
-      await writeExternalConfigFile(target.path, target.content)
+      writeQueue = writeQueue.then(async () => {
+        snapshots.push(await snapshotFile(target.path))
+        await writeExternalConfigFile(target.path, target.content)
+      })
     }
+    await writeQueue
   } catch (error) {
-    for (const snapshot of snapshots.reverse()) {
-      if (snapshot.existed) {
-        await writeExternalConfigFile(snapshot.path, snapshot.previousContent)
-      } else {
-        await window.api.file.deleteExternalFile(snapshot.path).catch(() => undefined)
-      }
+    let rollbackQueue = Promise.resolve()
+    for (const snapshot of snapshots.slice().reverse()) {
+      rollbackQueue = rollbackQueue.then(async () => {
+        if (snapshot.existed) {
+          await writeExternalConfigFile(snapshot.path, snapshot.previousContent)
+        } else {
+          await window.api.file.deleteExternalFile(snapshot.path).catch(() => undefined)
+        }
+      })
     }
+    await rollbackQueue
     throw error
   }
   return undefined

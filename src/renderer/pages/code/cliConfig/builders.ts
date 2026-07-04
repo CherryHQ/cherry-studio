@@ -15,6 +15,8 @@ import type { OpenCodeNpmInfo } from './resolvers'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import { normalizeUrl, sanitizeProviderName } from './values'
 
+const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
+
 interface OpenCodeProviderIdentity {
   id: string
   name: string
@@ -61,7 +63,7 @@ export function buildCodexConfig(
   )
   const cleaned: Record<string, any> = {}
   for (const [key, value] of Object.entries(existingToml)) {
-    if (!CODEX_MANAGED_TOP_LEVEL_KEYS.includes(key as (typeof CODEX_MANAGED_TOP_LEVEL_KEYS)[number])) {
+    if (!CODEX_MANAGED_TOP_LEVEL_KEY_SET.has(key)) {
       cleaned[key] = value
     }
   }

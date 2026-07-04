@@ -1916,6 +1916,8 @@
   },
   "code": {
     "add_provider_hint": "在 设置 → 模型服务 添加服务商",
+    "add_provider_hint_anthropic_messages": "在 设置 → 模型服务 配置 Anthropic Messages 端点",
+    "add_provider_hint_openai_responses": "在 设置 → 模型服务 配置 OpenAI Responses 端点",
     "adv": {
       "claude": {
         "context_column": "1M",

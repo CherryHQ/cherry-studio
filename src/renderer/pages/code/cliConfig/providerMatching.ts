@@ -16,18 +16,23 @@ function providerBaseUrls(provider: Provider, cliTool: string): string[] {
         Boolean
       )
     case CodeCli.OPEN_CODE:
-      return OPEN_CODE_ENDPOINTS.map((endpoint) =>
-        normalizeUrl(formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl))
-      ).filter(Boolean)
+      return OPEN_CODE_ENDPOINTS.flatMap((endpoint) => {
+        const baseUrl = normalizeUrl(formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl))
+        return baseUrl ? [baseUrl] : []
+      })
     case CodeCli.GEMINI_CLI:
       return [normalizeUrl(resolveGeminiBaseUrl(provider))].filter(Boolean)
     case CodeCli.QWEN_CODE:
     case CodeCli.KIMI_CODE:
       return [normalizeUrl(resolveOpenAIBaseUrl(provider))].filter(Boolean)
-    default:
-      return Object.values(provider.endpointConfigs ?? {})
-        .map((config) => normalizeUrl(config?.baseUrl))
-        .filter(Boolean)
+    default: {
+      const baseUrls: string[] = []
+      for (const config of Object.values(provider.endpointConfigs ?? {})) {
+        const baseUrl = normalizeUrl(config?.baseUrl)
+        if (baseUrl) baseUrls.push(baseUrl)
+      }
+      return baseUrls
+    }
   }
 }
 
@@ -58,6 +63,9 @@ export function cliConfigConnectionMatchesProvider(
     return true
   }
 
-  const validKeys = apiKeys.filter((entry) => entry.isEnabled).map((entry) => entry.key)
-  return validKeys.length === 0 ? true : validKeys.includes(connection.apiKey)
+  const validKeys = new Set<string>()
+  for (const entry of apiKeys) {
+    if (entry.isEnabled) validKeys.add(entry.key)
+  }
+  return validKeys.size === 0 ? true : validKeys.has(connection.apiKey)
 }

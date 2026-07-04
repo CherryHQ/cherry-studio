@@ -3,7 +3,7 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TogglePill } from '../TogglePill'
-import { getRecord, makeUpdateSectionField } from './ConfigFieldPrimitives'
+import { getRecord, makeUpdateSectionField } from './configFieldUtils'
 
 export interface QwenConfigFieldsProps {
   config: Record<string, unknown>

@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TogglePill } from '../TogglePill'
-import { getRecord, makeUpdateField, makeUpdateSectionField } from './ConfigFieldPrimitives'
+import { getRecord, makeUpdateField, makeUpdateSectionField } from './configFieldUtils'
 
 export interface KimiConfigFieldsProps {
   config: Record<string, unknown>

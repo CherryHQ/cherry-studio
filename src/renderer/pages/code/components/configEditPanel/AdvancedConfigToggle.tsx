@@ -1,6 +1,6 @@
 import { cn } from '@renderer/utils/style'
 import { ChevronDown } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, domAnimation, LazyMotion, m } from 'motion/react'
 import type { FC, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -24,18 +24,20 @@ export const AdvancedConfigToggle: FC<{ open: boolean; onToggle: () => void; chi
         <ChevronDown size={16} className={cn('transition-transform duration-200', open && 'rotate-180')} />
         {t('common.advanced_settings')}
       </AdvancedSettingsButton>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            className="overflow-hidden"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}>
-            <div className="pt-4">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <LazyMotion features={domAnimation}>
+        <AnimatePresence initial={false}>
+          {open && (
+            <m.div
+              className="overflow-hidden"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}>
+              <div className="pt-4">{children}</div>
+            </m.div>
+          )}
+        </AnimatePresence>
+      </LazyMotion>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
+import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -234,7 +234,6 @@ function renderPanel(
 
   render(
     <ConfigEditPanel
-      open
       onClose={vi.fn()}
       cliTool={options.cliTool ?? CodeCli.CLAUDE_CODE}
       provider={provider}

@@ -1,6 +1,6 @@
 import { Button, Checkbox } from '@cherrystudio/ui'
 import { ModelSelector } from '@renderer/components/Selector/model'
-import { CLAUDE_DETAILED_MODEL_ROLES, stripClaudeOneMMarker } from '@renderer/pages/code/cliConfig'
+import { CLAUDE_DETAILED_MODEL_ROLES, stripClaudeOneMMarker } from '@renderer/pages/code/cliConfig/claudeModels'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'

@@ -1,4 +1,4 @@
-import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
+import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
@@ -142,6 +142,8 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('@shared/data/presets/codeCliTools', () => ({
   CLI_TOOL_PRESET_MAP: {
     [CodeCli.CLAUDE_CODE]: {},
+    [CodeCli.OPENAI_CODEX]: {},
+    [CodeCli.OPEN_CODE]: {},
     [CodeCli.QODER_CLI]: {}
   }
 }))
@@ -252,6 +254,8 @@ vi.mock('../components/VersionStatusCard', () => ({
 vi.mock('../constants/cliTools', () => ({
   CLI_TOOLS: [
     { value: CodeCli.CLAUDE_CODE, label: 'Claude Code', icon: () => null },
+    { value: CodeCli.OPENAI_CODEX, label: 'OpenAI Codex', icon: () => null },
+    { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: () => null },
     { value: CodeCli.QODER_CLI, label: 'Qoder CLI', icon: () => null }
   ],
   PROVIDERLESS_CLI_TOOLS: new Set([CodeCli.QODER_CLI])
@@ -274,6 +278,8 @@ vi.mock('../hooks/useBinaryActions', () => ({
 vi.mock('../hooks/useCliVersionStatuses', () => ({
   useCliVersionStatuses: () => ({
     [CodeCli.CLAUDE_CODE]: { installed: true, canUpgrade: false },
+    [CodeCli.OPENAI_CODEX]: { installed: true, canUpgrade: false },
+    [CodeCli.OPEN_CODE]: { installed: true, canUpgrade: false },
     [CodeCli.QODER_CLI]: { installed: true, canUpgrade: false }
   })
 }))
@@ -429,6 +435,30 @@ describe('CodeCliPage', () => {
     expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'false')
   })
 
+  it('shows the Anthropic Messages endpoint hint for Claude Code provider setup', () => {
+    render(<CodeCliPage />)
+
+    expect(screen.getByRole('button', { name: /code.add_provider_hint_anthropic_messages/ })).toBeInTheDocument()
+  })
+
+  it('shows the OpenAI Responses endpoint hint for Codex provider setup', () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.OPENAI_CODEX })
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByRole('button', { name: /code.add_provider_hint_openai_responses/ })).toBeInTheDocument()
+  })
+
+  it('shows the generic provider setup hint for other provider-backed tools', () => {
+    mockCodeCliState({ selectedCliTool: CodeCli.OPEN_CODE })
+
+    render(<CodeCliPage />)
+
+    expect(screen.getByRole('button', { name: /code.add_provider_hint/ })).toBeInTheDocument()
+    expect(screen.queryByText('code.add_provider_hint_anthropic_messages')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.add_provider_hint_openai_responses')).not.toBeInTheDocument()
+  })
+
   it('hides the provider selection hint once a current provider is selected', () => {
     mockCodeCliState({
       providerConfigs: {
@@ -449,6 +479,9 @@ describe('CodeCliPage', () => {
     render(<CodeCliPage />)
 
     expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.add_provider_hint')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.add_provider_hint_anthropic_messages')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.add_provider_hint_openai_responses')).not.toBeInTheDocument()
     expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'true')
   })
 

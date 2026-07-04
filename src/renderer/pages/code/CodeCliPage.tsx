@@ -1,4 +1,3 @@
-import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
@@ -10,30 +9,19 @@ import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { useNavigate } from '@tanstack/react-router'
-import { CircleAlert, ExternalLink } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { ComponentProps, FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  clearCliConfig,
-  type CliConfigConnection,
-  cliConfigConnectionMatchesProvider,
-  type CliConfigFileDraft,
-  extractConnectionFromCliConfigDraft,
-  getClaudeContextModelId,
-  hasClaudeDetailedModels,
-  injectCliConfig,
-  readCliConfigFiles,
-  sanitizeCliConfigBlob,
-  writeCliConfigDraft
-} from './cliConfig'
-import { CodeCliSidebar } from './components/CodeCliSidebar'
-import { ConfigEditPanel } from './components/configEditPanel/ConfigEditPanel'
-import { ConfigList } from './components/ConfigList'
-import { LaunchDialog } from './components/LaunchDialog'
-import { VersionStatusCard } from './components/VersionStatusCard'
+import { getClaudeContextModelId, hasClaudeDetailedModels } from './cliConfig/claudeModels'
+import { clearCliConfig } from './cliConfig/clear'
+import { readCliConfigFiles, writeCliConfigDraft } from './cliConfig/draft'
+import { injectCliConfig } from './cliConfig/inject'
+import { extractConnectionFromCliConfigDraft } from './cliConfig/parser'
+import { cliConfigConnectionMatchesProvider } from './cliConfig/providerMatching'
+import { sanitizeCliConfigBlob } from './cliConfig/sanitize'
+import type { CliConfigConnection, CliConfigFileDraft } from './cliConfig/types'
+import { CodeCliPageView } from './components/CodeCliPageView'
 import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from './constants/cliTools'
 import { useAvailableTerminals } from './hooks/useAvailableTerminals'
 import { useBinaryActions } from './hooks/useBinaryActions'
@@ -96,7 +84,7 @@ function resolveCliConfigApplyContext(
   }
 }
 
-const CodeCliPage: FC = () => {
+function useCodeCliPageViewProps(): ComponentProps<typeof CodeCliPageView> {
   const { t } = useTranslation()
   const [, setIsBunInstalled] = usePersistCache('feature.mcp.is_bun_installed')
   const {
@@ -120,7 +108,6 @@ const CodeCliPage: FC = () => {
   const availableTerminals = useAvailableTerminals()
   const { providers } = useProviders()
   const { filterProviders, makeModelFilter, resolveProviderMeta } = useConfigMetadata(selectedCliTool)
-  const navigate = useNavigate()
   const [optimisticProviderOrder, setOptimisticProviderOrder] = useState<{ toolId: CodeCli; ids: string[] } | null>(
     null
   )
@@ -184,13 +171,13 @@ const CodeCliPage: FC = () => {
   const [stoppingOpenClaw, setStoppingOpenClaw] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<CodeCli | null>(null)
   const [currentCliConfigConnection, setCurrentCliConfigConnection] = useState<CliConfigConnection | null>(null)
-  const [pendingEnableProviderId, setPendingEnableProviderId] = useState<string | null>(null)
+  const pendingEnableProviderIdRef = useRef<string | null>(null)
   const openConfigurePanel = useCallback((provider: Provider) => {
-    setPendingEnableProviderId(null)
+    pendingEnableProviderIdRef.current = null
     setEditingProvider(provider)
   }, [])
   const closePanel = useCallback(() => {
-    setPendingEnableProviderId(null)
+    pendingEnableProviderIdRef.current = null
     setEditingProvider(null)
   }, [])
 
@@ -228,7 +215,7 @@ const CodeCliPage: FC = () => {
         logger.info('Updated CLI config file draft', { toolId: selectedCliTool })
         return
       }
-      const shouldEnableAfterSave = pendingEnableProviderId === editingProvider.id
+      const shouldEnableAfterSave = pendingEnableProviderIdRef.current === editingProvider.id
       if (hasModelValue || hasConfigValue) {
         await upsertProviderConfig(editingProvider.id, {
           modelId,
@@ -263,16 +250,7 @@ const CodeCliPage: FC = () => {
         }
       }
     },
-    [
-      editingProvider,
-      selectedCliTool,
-      pendingEnableProviderId,
-      currentProviderId,
-      providerConfigs,
-      upsertProviderConfig,
-      setCurrentProvider,
-      t
-    ]
+    [editingProvider, selectedCliTool, currentProviderId, providerConfigs, upsertProviderConfig, setCurrentProvider, t]
   )
 
   const handleToggleCurrent = useCallback(
@@ -296,13 +274,13 @@ const CodeCliPage: FC = () => {
         const cliConfigContext = resolveCliConfigApplyContext(selectedCliTool, provider.id, cfg)
         if (cfg?.modelId && !parseConfiguredModelId(cfg.modelId) && !cliConfigContext) {
           await upsertProviderConfig(provider.id, { modelId: '' })
-          setPendingEnableProviderId(provider.id)
+          pendingEnableProviderIdRef.current = provider.id
           setEditingProvider(provider)
           window.toast.error(t('code.launch.validation_error'))
           return
         }
         if (!cliConfigContext) {
-          setPendingEnableProviderId(provider.id)
+          pendingEnableProviderIdRef.current = provider.id
           setEditingProvider(provider)
           return
         }
@@ -585,132 +563,90 @@ const CodeCliPage: FC = () => {
     }
   }, [isOpenClawTool])
 
-  return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden text-foreground">
-      <div className="flex min-h-0 flex-1">
-        {/* Left sidebar: CLI tools list */}
-        <CodeCliSidebar
-          tools={CLI_TOOLS}
-          selectedCliTool={selectedCliTool}
-          onSelectTool={selectTool}
-          toMeta={toMeta}
-          statuses={statuses}
-          installingTools={installingTools}
-          upgradingTools={upgradingTools}
-        />
+  return {
+    sidebarProps: {
+      tools: CLI_TOOLS,
+      selectedCliTool,
+      onSelectTool: selectTool,
+      toMeta,
+      statuses,
+      installingTools,
+      upgradingTools
+    },
+    contentProps: activeMeta
+      ? {
+          selectedCliTool,
+          activeMeta,
+          versionStatus,
+          versionCard: {
+            visible: !!cliPreset,
+            canLaunch,
+            launching: launching || (isOpenClawTool && openClawGatewayStatus === 'starting'),
+            running: isOpenClawGatewayRunning,
+            stopping: stoppingOpenClaw
+          },
+          installingTools,
+          upgradingTools,
+          providerState: {
+            providerless: isProviderlessTool,
+            showSelectionHint: showProviderSelectionHint
+          },
+          supportedProviders,
+          providerConfigs,
+          currentProviderId,
+          currentProviderModelName: currentCliConfigConnection ? t('code.cli_config.unknown_provider') : undefined,
+          resolveProviderMeta,
+          onInstall: () => void install(selectedCliTool),
+          onUpgrade: () => void upgrade(selectedCliTool),
+          onRemove: () => setRemoveTarget(selectedCliTool),
+          onLaunch: () => (isOpenClawTool ? void handleOpenClawLaunch() : setLaunchOpen(true)),
+          onStop: () => void handleOpenClawStop(),
+          onConfigure: openConfigurePanel,
+          onToggleCurrent: handleToggleCurrent,
+          onReorder: handleReorder
+        }
+      : undefined,
+    emptyMessage: t('code.select_tool_to_start'),
+    launchDialogProps: {
+      open: launchOpen,
+      onClose: () => setLaunchOpen(false),
+      toolName: activeMeta?.label ?? '',
+      directory,
+      terminals: availableTerminals,
+      selectedTerminal,
+      onSelectFolder: () => void handleSelectFolder(),
+      onSelectTerminal: (terminal) => void setTerminal(terminal),
+      onLaunch: () => void handleLaunch(),
+      launching
+    },
+    removeDialogProps: {
+      open: !!removeTarget,
+      onOpenChange: (open) => !open && setRemoveTarget(null),
+      title: t('settings.plugins.removeConfirmTitle'),
+      description: t('settings.plugins.removeConfirmMessage', { name: activeMeta?.label ?? '' }),
+      destructive: true,
+      onConfirm: async () => {
+        if (removeTarget) await remove(removeTarget)
+      }
+    },
+    configPanelKey: editingProvider ? `${selectedCliTool}:${editingProvider.id}` : undefined,
+    configPanelProps: editingProvider
+      ? {
+          onClose: closePanel,
+          cliTool: selectedCliTool,
+          provider: editingProvider,
+          providerConfig: providerConfigs[editingProvider.id] ?? null,
+          isCurrentProvider: currentProviderId === editingProvider.id,
+          modelFilter: makeModelFilter(editingProvider.id),
+          onSubmit: handlePanelSubmit
+        }
+      : undefined
+  }
+}
 
-        {/* Right content */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {activeMeta ? (
-            <div className="flex-1 overflow-y-auto px-6 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="mx-auto max-w-2xl space-y-5">
-                {/* Version status card */}
-                {cliPreset && (
-                  <VersionStatusCard
-                    toolId={selectedCliTool}
-                    toolName={activeMeta.label}
-                    status={versionStatus}
-                    onInstall={() => void install(selectedCliTool)}
-                    onUpgrade={() => void upgrade(selectedCliTool)}
-                    onRemove={() => setRemoveTarget(selectedCliTool)}
-                    onLaunch={() => (isOpenClawTool ? void handleOpenClawLaunch() : setLaunchOpen(true))}
-                    onStop={() => void handleOpenClawStop()}
-                    canLaunch={canLaunch}
-                    launching={launching || (isOpenClawTool && openClawGatewayStatus === 'starting')}
-                    running={isOpenClawGatewayRunning}
-                    stopping={stoppingOpenClaw}
-                    isInstalling={installingTools.has(selectedCliTool)}
-                    isUpgrading={upgradingTools.has(selectedCliTool)}
-                  />
-                )}
-
-                {showProviderSelectionHint && activeMeta && (
-                  <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-warning text-xs">
-                    <CircleAlert className="size-3.5 shrink-0" />
-                    <span>{t('code.select_provider_before_launch', { toolName: activeMeta.label })}</span>
-                  </div>
-                )}
-
-                {/* Enabled-provider list */}
-                {isProviderlessTool ? (
-                  <div className="rounded-lg border border-border/40 bg-accent/10 px-4 py-3 text-muted-foreground text-xs">
-                    {t('code.providerless_hint')}
-                  </div>
-                ) : (
-                  <>
-                    <ConfigList
-                      providers={supportedProviders}
-                      providerConfigs={providerConfigs}
-                      currentProviderId={currentProviderId}
-                      currentProviderModelName={
-                        currentCliConfigConnection ? t('code.cli_config.unknown_provider') : undefined
-                      }
-                      resolveMeta={resolveProviderMeta}
-                      onConfigure={openConfigurePanel}
-                      onToggleCurrent={handleToggleCurrent}
-                      onReorder={handleReorder}
-                    />
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void navigate({ to: '/settings/provider' })}
-                      className="w-full rounded-xl border-border/50 border-dashed py-2 text-muted-foreground/55 hover:border-border hover:text-foreground">
-                      {t('code.add_provider_hint')}
-                      <ExternalLink size={10} />
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-1 items-center justify-center text-muted-foreground/50 text-sm">
-              {t('code.select_tool_to_start')}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <LaunchDialog
-        open={launchOpen}
-        onClose={() => setLaunchOpen(false)}
-        toolName={activeMeta?.label ?? ''}
-        directory={directory}
-        terminals={availableTerminals}
-        selectedTerminal={selectedTerminal}
-        onSelectFolder={() => void handleSelectFolder()}
-        onSelectTerminal={(terminal) => void setTerminal(terminal)}
-        onLaunch={() => void handleLaunch()}
-        launching={launching}
-      />
-
-      <ConfirmDialog
-        open={!!removeTarget}
-        onOpenChange={(open) => !open && setRemoveTarget(null)}
-        title={t('settings.plugins.removeConfirmTitle')}
-        description={t('settings.plugins.removeConfirmMessage', { name: activeMeta?.label ?? '' })}
-        destructive
-        onConfirm={async () => {
-          if (removeTarget) await remove(removeTarget)
-        }}
-      />
-
-      {/* Configure dialog */}
-      {editingProvider && (
-        <ConfigEditPanel
-          open={true}
-          onClose={closePanel}
-          cliTool={selectedCliTool}
-          provider={editingProvider}
-          providerConfig={providerConfigs[editingProvider.id] ?? null}
-          isCurrentProvider={currentProviderId === editingProvider.id}
-          modelFilter={makeModelFilter(editingProvider.id)}
-          onSubmit={handlePanelSubmit}
-        />
-      )}
-    </div>
-  )
+const CodeCliPage: FC = () => {
+  const viewProps = useCodeCliPageViewProps()
+  return <CodeCliPageView {...viewProps} />
 }
 
 export default CodeCliPage

@@ -1,12 +1,12 @@
 import { Button, CodeEditor, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
-import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
-import { formatCliConfigDraftFile } from '@renderer/pages/code/cliConfig'
+import { formatCliConfigDraftFile } from '@renderer/pages/code/cliConfig/draftUpdater'
+import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 import { cn } from '@renderer/utils/style'
 import { Wand2 } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface CliConfigEditorProps {
@@ -19,13 +19,10 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
   const { t } = useTranslation()
   const [fontSize] = usePreference('chat.message.font_size')
   const { activeCmTheme } = useCodeStyle()
-  const [activeTarget, setActiveTarget] = useState<string>(files[0]?.target ?? '')
-
-  useEffect(() => {
-    if (!files.some((file) => file.target === activeTarget)) {
-      setActiveTarget(files[0]?.target ?? '')
-    }
-  }, [activeTarget, files])
+  const [requestedTarget, setRequestedTarget] = useState<string>(files[0]?.target ?? '')
+  const activeTarget = files.some((file) => file.target === requestedTarget)
+    ? requestedTarget
+    : (files[0]?.target ?? '')
 
   const activeFile = useMemo(
     () => files.find((file) => file.target === activeTarget) ?? files[0],
@@ -69,7 +66,7 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
       </div>
 
       {files.length > 1 ? (
-        <Tabs value={activeFile?.target} onValueChange={setActiveTarget} className="min-w-0">
+        <Tabs value={activeFile?.target} onValueChange={setRequestedTarget} className="min-w-0">
           <TabsList className="h-8 max-w-full overflow-x-auto rounded-md bg-muted/40 p-0.5">
             {files.map((file) => (
               <TabsTrigger key={file.target} value={file.target} className="h-7 shrink-0 px-2 text-xs">

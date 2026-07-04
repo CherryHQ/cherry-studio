@@ -3,7 +3,7 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TogglePill } from '../TogglePill'
-import { makeUpdateField } from './ConfigFieldPrimitives'
+import { makeUpdateField } from './configFieldUtils'
 
 export interface OpenCodeConfigFieldsProps {
   config: Record<string, unknown>

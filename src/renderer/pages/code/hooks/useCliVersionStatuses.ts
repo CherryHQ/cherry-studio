@@ -3,7 +3,7 @@ import { useIpcOn } from '@renderer/ipc/useIpcOn'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { BinaryState } from '@shared/data/preference/preferenceTypes'
 import type { CodeCli } from '@shared/types/codeCli'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { CLI_BINARY_NAMES } from '../constants/cliTools'
 import type { VersionStatus } from '../types/codeCli'
@@ -49,10 +49,10 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
   // installed state only) so canUpgrade stays accurate without a registry re-query.
   const latestRef = useRef<Record<string, string | undefined>>({})
   const toolKey = toolIds.join('|')
+  const tools = useMemo(() => (toolKey ? (toolKey.split('|') as CodeCli[]) : []), [toolKey])
 
   useEffect(() => {
     let cancelled = false
-    const tools = [...toolIds]
 
     const refresh = async () => {
       const [state, registry] = await Promise.all([
@@ -90,14 +90,11 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
     return () => {
       cancelled = true
     }
-    // `toolIds` is a stable module-level constant; keying the effect on its joined
-    // value avoids re-fetching on referential-identity changes alone.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toolKey])
+  }, [toolKey, tools])
 
   useIpcOn('binary.state_changed', (state) => {
     const next: Record<string, VersionStatus> = {}
-    for (const toolId of toolIds) {
+    for (const toolId of tools) {
       next[toolId] = buildStatus(state, CLI_BINARY_NAMES[toolId], latestRef.current[toolId])
     }
     setStatuses(next)

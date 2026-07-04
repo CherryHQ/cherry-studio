@@ -1,43 +1,32 @@
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  SegmentedControl
-} from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { ModelSelector } from '@renderer/components/Selector/model'
-import { SettingContainer, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { getProviderDisplayName, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
-import type { CliConfigConnection, CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
 import {
-  cliConfigConnectionMatchesProvider,
-  extractConfigFromCliConfigDraft,
-  extractConnectionFromCliConfigDraft,
   getClaudeContextModelId,
   hasClaudeDetailedModels,
-  readCliConfigDraft,
-  readCliConfigFiles,
-  sanitizeCliConfigBlob,
-  stripClaudeDetailedModels,
-  updateCliConfigDraftConfig,
-  validateCliConfigDraftForWrite
-} from '@renderer/pages/code/cliConfig'
+  stripClaudeDetailedModels
+} from '@renderer/pages/code/cliConfig/claudeModels'
+import { readCliConfigDraft, readCliConfigFiles } from '@renderer/pages/code/cliConfig/draft'
+import { validateCliConfigDraftForWrite } from '@renderer/pages/code/cliConfig/draftFiles'
+import { updateCliConfigDraftConfig } from '@renderer/pages/code/cliConfig/draftUpdater'
+import {
+  extractConfigFromCliConfigDraft,
+  extractConnectionFromCliConfigDraft
+} from '@renderer/pages/code/cliConfig/parser'
+import { cliConfigConnectionMatchesProvider } from '@renderer/pages/code/cliConfig/providerMatching'
+import { sanitizeCliConfigBlob } from '@renderer/pages/code/cliConfig/sanitize'
+import type { CliConfigConnection, CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import type { FC } from 'react'
+import type { ComponentProps, FC } from 'react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { AdvancedConfigToggle } from './AdvancedConfigToggle'
-import { CliConfigEditor } from './CliConfigEditor'
+import { ConfigEditDialogBody } from './ConfigEditDialogBody'
 import { ModelSelectorTrigger } from './ModelSelectorTrigger'
 import { ClaudeConfigFields } from './tools/ClaudeConfigFields'
 import { CodexConfigFields } from './tools/CodexConfigFields'
@@ -56,15 +45,6 @@ interface ConfigDraft {
   connection: CliConfigConnection | null
   mode: ConfigDraftMode
   error: string
-}
-
-const EMPTY_DRAFT: ConfigDraft = {
-  modelId: undefined,
-  config: {},
-  files: [],
-  connection: null,
-  mode: 'managed',
-  error: ''
 }
 
 function normalizeDraftForDirtyCheck(draft: ConfigDraft) {
@@ -98,7 +78,6 @@ function createDraftSnapshot(draft: ConfigDraft): string {
 }
 
 export interface ConfigEditPanelProps {
-  open: boolean
   onClose: () => void
   cliTool: CodeCli
   provider: Provider
@@ -115,28 +94,123 @@ export interface ConfigEditPanelProps {
   }) => Promise<void>
 }
 
-export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
-  const { open, onClose, cliTool, provider, providerConfig, isCurrentProvider, modelFilter, onSubmit } = props
+function renderToolFields({
+  cliTool,
+  config,
+  onChange,
+  section,
+  providerId,
+  modelFilter
+}: {
+  cliTool: CodeCli
+  config: Record<string, unknown>
+  onChange: (next: Record<string, unknown>) => void
+  section: 'basic' | 'advanced'
+  providerId: string
+  modelFilter: (model: Model) => boolean
+}): ReactNode {
+  switch (cliTool) {
+    case CodeCli.CLAUDE_CODE:
+      if (section === 'advanced') return null
+      return (
+        <ClaudeConfigFields
+          config={config}
+          onChange={onChange}
+          section={section}
+          providerId={providerId}
+          modelFilter={modelFilter}
+        />
+      )
+    case CodeCli.OPENAI_CODEX:
+      return <CodexConfigFields config={config} onChange={onChange} section={section} />
+    case CodeCli.OPEN_CODE:
+      return <OpenCodeConfigFields config={config} onChange={onChange} section={section} />
+    case CodeCli.GEMINI_CLI:
+      return <GeminiConfigFields config={config} onChange={onChange} section={section} />
+    case CodeCli.QWEN_CODE:
+      return <QwenConfigFields config={config} onChange={onChange} section={section} />
+    case CodeCli.KIMI_CODE:
+      return <KimiConfigFields config={config} onChange={onChange} section={section} />
+    default:
+      return null
+  }
+}
+
+function renderClaudeDetailedModelSlot({
+  hint,
+  config,
+  onChange,
+  providerId,
+  modelFilter
+}: {
+  hint: ReactNode
+  config: Record<string, unknown>
+  onChange: (next: Record<string, unknown>) => void
+  providerId: string
+  modelFilter: (model: Model) => boolean
+}): ReactNode {
+  return (
+    <>
+      {hint}
+      {hint && <div className="h-2" />}
+      <ClaudeConfigFields
+        config={config}
+        onChange={onChange}
+        section="advanced"
+        providerId={providerId}
+        modelFilter={modelFilter}
+      />
+    </>
+  )
+}
+
+/* oxlint-disable react-doctor/no-event-handler -- ConfigEditPanel is keyed by tool/provider, so prop changes remount instead of driving event-like effects. */
+function useConfigEditPanelBodyProps({
+  onClose,
+  cliTool,
+  provider,
+  providerConfig,
+  isCurrentProvider,
+  modelFilter,
+  onSubmit
+}: ConfigEditPanelProps): ComponentProps<typeof ConfigEditDialogBody> {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { data: apiKeysData } = useProviderApiKeys(provider.id)
+  const initialModelId = providerConfig && isUniqueModelId(providerConfig.modelId) ? providerConfig.modelId : undefined
+  const initialConfig = sanitizeCliConfigBlob(cliTool, providerConfig?.config ?? {})
+  const initialClaudeModelMode: ClaudeModelMode =
+    cliTool === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(initialConfig) ? 'detailed' : 'common'
+  const initialDraftSeed: ConfigDraft = {
+    modelId: initialModelId,
+    config: initialConfig,
+    files: [],
+    connection: null,
+    mode: 'managed',
+    error: ''
+  }
 
-  const [draft, setDraft] = useState<ConfigDraft>(EMPTY_DRAFT)
+  const [draft, setDraft] = useState<ConfigDraft>(initialDraftSeed)
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [claudeModelMode, setClaudeModelMode] = useState<ClaudeModelMode>('common')
+  const [claudeModelMode, setClaudeModelMode] = useState<ClaudeModelMode>(initialClaudeModelMode)
   const [submitting, setSubmitting] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
 
-  const draftRef = useRef<ConfigDraft>(EMPTY_DRAFT)
-  const initialDraftSnapshotRef = useRef(createDraftSnapshot(EMPTY_DRAFT))
-  const claudeModelModeRef = useRef<ClaudeModelMode>('common')
-  const initialClaudeModelModeRef = useRef<ClaudeModelMode>('common')
+  const draftRef = useRef<ConfigDraft>(initialDraftSeed)
+  const initialDraftSnapshotRef = useRef<string | undefined>(undefined)
+  const claudeModelModeRef = useRef<ClaudeModelMode>(initialClaudeModelMode)
+  const initialClaudeModelModeRef = useRef<ClaudeModelMode>(initialClaudeModelMode)
   const loadIdRef = useRef(0)
   const apiKeysRef = useRef<Parameters<typeof cliConfigConnectionMatchesProvider>[3]>(undefined)
+
+  if (initialDraftSnapshotRef.current === undefined) {
+    initialDraftSnapshotRef.current = createDraftSnapshot(initialDraftSeed)
+  }
 
   const providerName = getProviderDisplayName(provider)
   const providerIcon = resolveProviderIcon(provider.id)
 
+  /* oxlint-disable react-doctor/no-pass-data-to-parent -- Reads external CLI config files after the keyed dialog mounts and commits the loaded local draft state. */
   useEffect(() => {
     apiKeysRef.current = apiKeysData?.keys
   }, [apiKeysData?.keys])
@@ -160,14 +234,6 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     },
     [computeIsDirty]
   )
-
-  const commitCleanDraft = useCallback((next: ConfigDraft | ((prev: ConfigDraft) => ConfigDraft)) => {
-    const resolved = typeof next === 'function' ? next(draftRef.current) : next
-    draftRef.current = resolved
-    initialDraftSnapshotRef.current = createDraftSnapshot(resolved)
-    setDraft(resolved)
-    setIsDirty(false)
-  }, [])
 
   const isForeignDraft = draft.mode === 'foreign'
 
@@ -264,27 +330,37 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     [commitDraft, createManagedDraft]
   )
 
+  const initialLoadContextRef = useRef({
+    isCurrentProvider,
+    cliTool,
+    connectionMatchesProvider,
+    createManagedDraft,
+    resolveManagedDraftOptions,
+    initialModelId,
+    initialConfig,
+    initialClaudeModelMode,
+    initialDraftSeed
+  })
+
   useEffect(() => {
-    if (!open) return
-    setAdvancedOpen(false)
-    const saved = providerConfig && isUniqueModelId(providerConfig.modelId) ? providerConfig.modelId : undefined
-    const nextModelId = saved
-    const nextConfig = sanitizeCliConfigBlob(cliTool, providerConfig?.config ?? {})
-    const initialClaudeModelMode =
-      cliTool === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(nextConfig) ? 'detailed' : 'common'
-    const initialDraftOptions = resolveManagedDraftOptions(initialClaudeModelMode, nextConfig, nextModelId)
-    claudeModelModeRef.current = initialClaudeModelMode
-    initialClaudeModelModeRef.current = initialClaudeModelMode
-    setClaudeModelMode(initialClaudeModelMode)
-    const initialDraft: ConfigDraft = {
-      modelId: nextModelId,
-      config: nextConfig,
-      files: [],
-      connection: null,
-      mode: 'managed',
-      error: ''
+    const {
+      isCurrentProvider,
+      cliTool,
+      connectionMatchesProvider,
+      createManagedDraft,
+      resolveManagedDraftOptions,
+      initialModelId,
+      initialConfig,
+      initialClaudeModelMode,
+      initialDraftSeed
+    } = initialLoadContextRef.current
+    const commitLoadedDraft = (nextDraft: ConfigDraft) => {
+      draftRef.current = nextDraft
+      initialDraftSnapshotRef.current = createDraftSnapshot(nextDraft)
+      setDraft(nextDraft)
+      setIsDirty(false)
     }
-    commitCleanDraft(initialDraft)
+    const initialDraftOptions = resolveManagedDraftOptions(initialClaudeModelMode, initialConfig, initialModelId)
 
     const loadId = ++loadIdRef.current
     void (async () => {
@@ -292,23 +368,23 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
       try {
         rawFiles = await readCliConfigFiles(cliTool, { includeEmpty: true })
 
-        if (!nextModelId && !initialDraftOptions.cliConfigModelId) {
+        if (!initialModelId && !initialDraftOptions.cliConfigModelId) {
           if (loadId !== loadIdRef.current) return
-          commitCleanDraft({
-            ...initialDraft,
+          commitLoadedDraft({
+            ...initialDraftSeed,
             files: rawFiles
           })
           return
         }
 
         const connection = extractConnectionFromCliConfigDraft(cliTool, rawFiles)
-        const expectedModelId = initialClaudeModelMode === 'detailed' ? undefined : nextModelId
+        const expectedModelId = initialClaudeModelMode === 'detailed' ? undefined : initialModelId
 
         if (isCurrentProvider && connection && !connectionMatchesProvider(connection, expectedModelId)) {
-          const nextDraftConfig = extractConfigFromCliConfigDraft(cliTool, rawFiles) ?? nextConfig
+          const nextDraftConfig = extractConfigFromCliConfigDraft(cliTool, rawFiles) ?? initialConfig
           if (loadId !== loadIdRef.current) return
-          commitCleanDraft({
-            modelId: nextModelId,
+          commitLoadedDraft({
+            modelId: initialModelId,
             config: nextDraftConfig,
             files: rawFiles,
             connection,
@@ -320,32 +396,24 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
 
         if (isCurrentProvider && !rawFiles.length) {
           if (loadId !== loadIdRef.current) return
-          commitCleanDraft(initialDraft)
+          commitLoadedDraft(initialDraftSeed)
           return
         }
 
-        const nextDraft = await createManagedDraft(nextModelId, nextConfig, rawFiles, initialDraftOptions)
+        const nextDraft = await createManagedDraft(initialModelId, initialConfig, rawFiles, initialDraftOptions)
         if (loadId !== loadIdRef.current) return
-        commitCleanDraft(nextDraft)
+        commitLoadedDraft(nextDraft)
       } catch (error) {
         if (loadId !== loadIdRef.current) return
-        commitCleanDraft({
-          ...initialDraft,
+        commitLoadedDraft({
+          ...initialDraftSeed,
           files: rawFiles,
           error: error instanceof Error ? error.message : String(error)
         })
       }
     })()
-  }, [
-    open,
-    providerConfig,
-    isCurrentProvider,
-    cliTool,
-    connectionMatchesProvider,
-    commitCleanDraft,
-    createManagedDraft,
-    resolveManagedDraftOptions
-  ])
+  }, [])
+  /* oxlint-enable react-doctor/no-pass-data-to-parent */
 
   const canSubmit = isForeignDraft ? draft.files.length > 0 && !draft.error : !draft.error
   const canSave = canSubmit && isDirty
@@ -521,120 +589,62 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     }
   }, [canSave, claudeModelMode, cliTool, commitDraft, createManagedDraft, onSubmit, onClose, provider.id])
 
-  const renderToolFields = (section: 'basic' | 'advanced'): ReactNode => {
-    switch (cliTool) {
-      case CodeCli.CLAUDE_CODE:
-        if (section === 'advanced') return null
-        return (
-          <ClaudeConfigFields
-            config={draft.config}
-            onChange={handleConfigChange}
-            section={section}
-            providerId={provider.id}
-            modelFilter={modelFilter}
-          />
-        )
-      case CodeCli.OPENAI_CODEX:
-        return <CodexConfigFields config={draft.config} onChange={handleConfigChange} section={section} />
-      case CodeCli.OPEN_CODE:
-        return <OpenCodeConfigFields config={draft.config} onChange={handleConfigChange} section={section} />
-      case CodeCli.GEMINI_CLI:
-        return <GeminiConfigFields config={draft.config} onChange={handleConfigChange} section={section} />
-      case CodeCli.QWEN_CODE:
-        return <QwenConfigFields config={draft.config} onChange={handleConfigChange} section={section} />
-      case CodeCli.KIMI_CODE:
-        return <KimiConfigFields config={draft.config} onChange={handleConfigChange} section={section} />
-      default:
-        return null
-    }
-  }
-
   const isClaudeTool = cliTool === CodeCli.CLAUDE_CODE
-  const claudeDetailedModelSlot: ReactNode = isClaudeTool ? (
-    <>
-      {unknownCliConfigModelHint}
-      {unknownCliConfigModelHint && <div className="h-2" />}
-      <ClaudeConfigFields
-        config={draft.config}
-        onChange={handleConfigChange}
-        section="advanced"
-        providerId={provider.id}
-        modelFilter={modelFilter}
-      />
-    </>
-  ) : null
+  const claudeDetailedModelSlot = isClaudeTool
+    ? renderClaudeDetailedModelSlot({
+        hint: unknownCliConfigModelHint,
+        config: draft.config,
+        onChange: handleConfigChange,
+        providerId: provider.id,
+        modelFilter
+      })
+    : null
   const modelSectionSlot = isClaudeTool && claudeModelMode === 'detailed' ? claudeDetailedModelSlot : modelSlot
-  const advancedFields = renderToolFields('advanced')
-  const toolFields = renderToolFields('basic')
+  const advancedFields = renderToolFields({
+    cliTool,
+    config: draft.config,
+    onChange: handleConfigChange,
+    section: 'advanced',
+    providerId: provider.id,
+    modelFilter
+  })
+  const toolFields = renderToolFields({
+    cliTool,
+    config: draft.config,
+    onChange: handleConfigChange,
+    section: 'basic',
+    providerId: provider.id,
+    modelFilter
+  })
   const hasAdvancedSection = !!advancedFields || draft.files.length > 0
 
-  return (
-    <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : undefined)}>
-      <DialogContent
-        size="lg"
-        aria-describedby={undefined}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        className="flex max-h-[85vh] flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex min-w-0 items-center gap-2">
-            <ProviderAvatarPrimitive
-              providerId={provider.id}
-              providerName={providerName}
-              logo={providerIcon}
-              size={22}
-              className="shrink-0 rounded-md border border-border/30 [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]"
-            />
-            <span className="min-w-0 truncate">{providerName}</span>
-          </DialogTitle>
-        </DialogHeader>
+  return {
+    open: true,
+    onClose,
+    provider,
+    providerName,
+    providerIcon,
+    theme,
+    isClaudeTool,
+    claudeModelMode,
+    onClaudeModelModeChange: handleClaudeModelModeChange,
+    modelSectionSlot,
+    toolFields,
+    advancedFields,
+    hasAdvancedSection,
+    advancedOpen,
+    onAdvancedToggle: () => setAdvancedOpen((o) => !o),
+    files: draft.files,
+    error: draft.error,
+    onFilesChange: handleCliConfigFilesChange,
+    submitting,
+    canSave,
+    onSubmit: handleSubmit
+  }
+}
+/* oxlint-enable react-doctor/no-event-handler */
 
-        <SettingContainer theme={theme} style={{ background: 'transparent' }} className="gap-5 p-0">
-          <SettingGroup theme={theme} className="border-t-0 pt-0">
-            <div className="mb-2.5 flex min-w-0 items-center justify-between gap-3">
-              <SettingTitle className="mb-0 min-w-0">{t('code.model_selection')}</SettingTitle>
-              {isClaudeTool && (
-                <SegmentedControl<ClaudeModelMode>
-                  size="sm"
-                  value={claudeModelMode}
-                  onValueChange={handleClaudeModelModeChange}
-                  options={[
-                    { value: 'common', label: t('code.model_mode.common') },
-                    { value: 'detailed', label: t('code.model_mode.detailed') }
-                  ]}
-                />
-              )}
-            </div>
-            {modelSectionSlot}
-          </SettingGroup>
-          {toolFields && (
-            <SettingGroup theme={theme} className="border-t-0 pt-0">
-              <SettingTitle className="mb-2.5">{t('code.tool_parameters')}</SettingTitle>
-              {toolFields}
-            </SettingGroup>
-          )}
-          {hasAdvancedSection && (
-            <SettingGroup theme={theme} className="border-t-0 pt-0">
-              <AdvancedConfigToggle open={advancedOpen} onToggle={() => setAdvancedOpen((o) => !o)}>
-                <div className="space-y-5">
-                  {advancedFields}
-                  {draft.files.length > 0 && (
-                    <CliConfigEditor files={draft.files} error={draft.error} onChange={handleCliConfigFilesChange} />
-                  )}
-                </div>
-              </AdvancedConfigToggle>
-            </SettingGroup>
-          )}
-        </SettingContainer>
-
-        <DialogFooter className="justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
-            {t('common.cancel')}
-          </Button>
-          <Button variant="default" size="sm" onClick={handleSubmit} disabled={!canSave} loading={submitting}>
-            {t('common.save')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
+export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
+  const bodyProps = useConfigEditPanelBodyProps(props)
+  return <ConfigEditDialogBody {...bodyProps} />
 }

@@ -27,6 +27,8 @@ import {
   QWEN_CONFIG_PATH
 } from './targets'
 
+const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
+
 export interface ClearCliConfigArgs {
   /** CLI tool whose config file should be scrubbed. */
   cliTool: string
@@ -94,11 +96,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
       if (existing) {
         const next: Record<string, any> = {}
         for (const [key, value] of Object.entries(existing)) {
-          if (
-            !(CODEX_MANAGED_TOP_LEVEL_KEYS as readonly string[]).includes(key) &&
-            key !== 'model' &&
-            key !== 'model_provider'
-          ) {
+          if (!CODEX_MANAGED_TOP_LEVEL_KEY_SET.has(key) && key !== 'model' && key !== 'model_provider') {
             next[key] = value
           }
         }
