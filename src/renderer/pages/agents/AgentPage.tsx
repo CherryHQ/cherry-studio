@@ -957,7 +957,10 @@ const AgentPage = () => {
       }}
       onOpenHistoryRecords={openHistoryRecords}
       onSelectSession={handleResourceSessionSelect}
-      onSelectedAgentClick={() => setSessionPaneOpen(!sessionPaneOpen)}
+      onSelectedAgentClick={() => {
+        closeResourceView()
+        setSessionPaneOpen(!sessionPaneOpen)
+      }}
       onStartDraftAgent={(agentId) => startDraftSession({ agentId })}
       onStartMissingAgentDraft={startMissingAgentDraft}
       resourceMenuItems={resourceMenuItems}

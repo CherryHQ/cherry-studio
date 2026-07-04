@@ -787,6 +787,11 @@
       }
     },
     "sidebar_title": "Agents",
+    "skill": {
+      "manage": {
+        "title": "Manage skills"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {

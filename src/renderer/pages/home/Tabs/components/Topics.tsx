@@ -1065,7 +1065,7 @@ export function Topics({
         onGroupHeaderSelectItem={handleGroupHeaderSelectTopic}
         onReorder={handleTopicReorder}
         onCollapsedStateChange={handleTopicCollapsedStateChange}>
-        <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-2')}>
+        <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-1')}>
           {isRightPanel ? (
             <ResourceList.Search
               aria-label={t('chat.topics.search.title')}

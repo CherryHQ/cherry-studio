@@ -288,6 +288,37 @@ describe('ResourceEntityRail', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
+  it('selects the entity instead of toggling it while a resource menu item is active', () => {
+    const onSelect = vi.fn()
+    const onSelectedClick = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        items={ITEMS}
+        selectedId="assistant-a"
+        resourceMenuItems={[
+          {
+            active: true,
+            id: 'assistant-view',
+            label: 'Assistants',
+            onSelect: vi.fn()
+          }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={onSelect}
+        onSelectedClick={onSelectedClick}
+      />
+    )
+
+    fireEvent.click(screen.getByText('Assistant A').closest('[role="option"]') as HTMLElement)
+
+    expect(onSelect).toHaveBeenCalledWith(ITEMS[0])
+    expect(onSelectedClick).not.toHaveBeenCalled()
+  })
+
   it('does not select the entity when a context-menu action is picked', () => {
     const onSelect = vi.fn()
     const onContextMenuAction = vi.fn()

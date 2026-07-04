@@ -787,6 +787,11 @@
       }
     },
     "sidebar_title": "智能体",
+    "skill": {
+      "manage": {
+        "title": "管理技能"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {

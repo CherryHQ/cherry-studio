@@ -20,23 +20,33 @@ const SESSION_DISPLAY_ICONS: Record<AgentSessionDisplayMode, ReactNode> = {
 
 type SessionListOptionsMenuProps = {
   manageAgentsActive?: boolean
+  manageSkillsActive?: boolean
+  manageSkillsIcon?: ReactNode
   mode: AgentSessionDisplayMode
   onChange: (mode: AgentSessionDisplayMode) => void
   onManageAgents?: () => void | Promise<void>
+  onManageSkills?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   sectionId?: string
 }
 
 export function SessionListOptionsMenu({
   manageAgentsActive,
+  manageSkillsActive,
+  manageSkillsIcon,
   mode,
   onChange,
   onManageAgents,
+  onManageSkills,
   onOpenHistoryRecords,
   sectionId
 }: SessionListOptionsMenuProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const hasManagementItems = !!(onManageAgents || onManageSkills)
+  const manageSkillsMenuIcon = manageSkillsIcon ? (
+    <span className="inline-flex size-4 items-center justify-center [&_svg]:size-4">{manageSkillsIcon}</span>
+  ) : undefined
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -91,7 +101,7 @@ export function SessionListOptionsMenu({
               }}
             />
           )}
-          {onManageAgents && <MenuDivider />}
+          {hasManagementItems && <MenuDivider />}
           {onManageAgents && (
             <MenuItem
               size="sm"
@@ -100,6 +110,18 @@ export function SessionListOptionsMenu({
               active={manageAgentsActive}
               onClick={() => {
                 void onManageAgents()
+                setOpen(false)
+              }}
+            />
+          )}
+          {onManageSkills && (
+            <MenuItem
+              size="sm"
+              icon={manageSkillsMenuIcon}
+              label={t('agent.skill.manage.title')}
+              active={manageSkillsActive}
+              onClick={() => {
+                void onManageSkills()
                 setOpen(false)
               }}
             />

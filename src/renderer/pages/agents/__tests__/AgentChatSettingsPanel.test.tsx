@@ -38,9 +38,9 @@ vi.mock('@renderer/ipc', () => ({
 
 vi.mock('@renderer/components/chat', () => ({
   ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 300,
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 280,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH: 540,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 300,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 280,
   ConversationCenterState: ({ state }: { state: string }) => (
     <div data-testid="conversation-center-state" data-state={state} />
   ),
@@ -78,9 +78,9 @@ vi.mock('@renderer/components/chat', () => ({
 
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
   ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 300,
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 280,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH: 540,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 300,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 280,
   RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
     <div data-testid="right-pane-host" data-open={String(Boolean(open))}>
       {open ? children : null}

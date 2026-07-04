@@ -141,7 +141,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   const effectiveListRef = listRef ?? fallbackListRef
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const effectiveSelectedId = hasActiveResourceMenuItem ? null : selectedId
-  const effectiveSelectedClickId = selectedClickId ?? selectedId
+  const effectiveSelectedClickId = hasActiveResourceMenuItem ? null : (selectedClickId ?? selectedId)
   const handleItemClick = useCallback(
     (item: T) => {
       if (effectiveSelectedClickId === item.id && onSelectedClick) {

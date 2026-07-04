@@ -30,9 +30,9 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
 
 vi.mock('@renderer/components/chat', () => ({
   ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 300,
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 280,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 300,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 280,
   ChatAppShell: ({
     pane,
     paneOpen,

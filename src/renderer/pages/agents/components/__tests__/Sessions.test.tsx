@@ -451,6 +451,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.yesterday': 'Yesterday',
         'agent.session.list.title': 'Tasks',
         'agent.session.new': 'New task',
+        'agent.skill.manage.title': 'Manage skills',
         'agent.pin.title': 'Pin Agent',
         'agent.session.pin.title': 'Pin task',
         'agent.session.reorder.error.failed': 'Failed to reorder tasks',
@@ -1165,6 +1166,39 @@ describe('Sessions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Manage Agents' }))
     expect(onSelectResourceView).toHaveBeenCalled()
     expect(screen.getByText('Alpha session').closest('[role="option"]')).not.toHaveAttribute('data-selected')
+  })
+
+  it('shows the skill resource menu entry with agent management in the display menu', () => {
+    const onManageAgents = vi.fn()
+    const onManageSkills = vi.fn()
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' })]
+    })
+
+    render(
+      <SessionsForTest
+        resourceMenuItems={[
+          {
+            id: 'agent-resource-view',
+            label: 'Agents',
+            onSelect: onManageAgents
+          },
+          {
+            id: 'skill-resource-view',
+            label: 'Skills',
+            onSelect: onManageSkills
+          }
+        ]}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: 'Manage skills' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
+    expect(screen.getByRole('button', { name: 'Manage Agents' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Manage skills' }))
+
+    expect(onManageSkills).toHaveBeenCalledTimes(1)
+    expect(onManageAgents).not.toHaveBeenCalled()
   })
 
   it('creates sessions from agent group actions', async () => {

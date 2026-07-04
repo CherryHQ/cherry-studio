@@ -403,6 +403,36 @@ describe('classic layout entity resource list actions', () => {
     expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
   })
 
+  it('passes skill management entries into the classic agent rail display menu', () => {
+    const onManageSkills = vi.fn()
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        resourceMenuItems={[
+          {
+            id: 'agent-resource-view',
+            label: 'Manage agents',
+            onSelect: vi.fn()
+          },
+          {
+            id: 'skill-resource-view',
+            label: 'Manage skills',
+            onSelect: onManageSkills
+          }
+        ]}
+        onSelectSession={vi.fn()}
+        onStartDraftAgent={vi.fn()}
+        onStartMissingAgentDraft={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.skill.manage.title' }))
+
+    expect(onManageSkills).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'agent.manage.title' })).toBeInTheDocument()
+  })
+
   it('keeps classic agent rail history in the shared display menu without section toggles', () => {
     const onOpenHistoryRecords = vi.fn()
 

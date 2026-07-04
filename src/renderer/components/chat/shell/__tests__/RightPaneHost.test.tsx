@@ -20,7 +20,7 @@ interface ResizeObserverMockInstance {
 const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
 
 const persistCacheMock = vi.hoisted(() => {
-  const state = { width: 300 }
+  const state = { width: 280 }
 
   return {
     state,
@@ -118,6 +118,11 @@ describe('RightPaneHost', () => {
     expect(container.querySelector('[data-right-pane-resize-handle]')).not.toBeInTheDocument()
   })
 
+  it('uses the configured right pane default and minimum widths', () => {
+    expect(ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH).toBe(280)
+    expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH).toBe(280)
+  })
+
   it('caps its width when reserving space for the conversation center', () => {
     render(
       <RightPaneHost open width={460} reservedCenterWidth={360}>
@@ -209,7 +214,7 @@ describe('RightPaneHost', () => {
     expect(onOpenAnimationComplete).not.toHaveBeenCalled()
 
     fireEvent.mouseMove(document, { clientX: 300 })
-    fireEvent.mouseMove(document, { clientX: 500 })
+    fireEvent.mouseMove(document, { clientX: 600 })
     fireEvent.mouseMove(document, { clientX: 20 })
 
     expect(persistCacheMock.setWidth).toHaveBeenNthCalledWith(1, 500)

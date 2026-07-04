@@ -1367,6 +1367,7 @@ const Sessions = ({
         : 'idle'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
+  const manageSkillsMenuItem = resourceMenuItems?.find((item) => item.id === 'skill-resource-view')
 
   return (
     <SessionResourceList<SessionListItem>
@@ -1404,7 +1405,7 @@ const Sessions = ({
       onGroupHeaderSelectItem={handleSelectSession}
       onReorder={handleSessionReorder}
       onCollapsedStateChange={handleSessionCollapsedStateChange}>
-      <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-2')}>
+      <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-1')}>
         {isRightPanel ? (
           <ResourceList.Search
             aria-label={t('agent.session.search.title')}
@@ -1425,9 +1426,12 @@ const Sessions = ({
               actions={
                 <SessionListOptionsMenu
                   manageAgentsActive={manageAgentsMenuItem?.active}
+                  manageSkillsActive={manageSkillsMenuItem?.active}
+                  manageSkillsIcon={manageSkillsMenuItem?.icon}
                   mode={displayMode}
                   onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
                   onManageAgents={manageAgentsMenuItem?.onSelect}
+                  onManageSkills={manageSkillsMenuItem?.onSelect}
                   onOpenHistoryRecords={onOpenHistoryRecords}
                   sectionId={
                     displayMode === 'agent'
