@@ -8,6 +8,11 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
+vi.mock('@cherrystudio/ui/icons', () => ({
+  resolveProviderIcon: (id: string) =>
+    id === 'anthropic' ? () => <span data-testid={`provider-icon-${id}`} /> : undefined
+}))
+
 const provider = {
   id: 'anthropic',
   name: 'Anthropic'
@@ -78,6 +83,15 @@ describe('ProviderCard', () => {
 
     expect(card).toHaveClass('bg-muted')
     expect(card).not.toHaveClass('bg-success/[0.04]')
+  })
+
+  it('renders the provider icon before the provider name', () => {
+    renderCard()
+
+    const icon = screen.getByTestId('provider-icon-anthropic')
+    const name = screen.getByText('Anthropic')
+
+    expect(icon.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('toggles the provider with Enter and Space when the card has focus', () => {

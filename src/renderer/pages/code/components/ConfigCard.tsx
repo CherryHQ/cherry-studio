@@ -1,3 +1,5 @@
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
 import { GripVertical, Pencil } from 'lucide-react'
 import type { FC } from 'react'
@@ -26,6 +28,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
   onToggleCurrent
 }) => {
   const { t } = useTranslation()
+  const providerIcon = resolveProviderIcon(provider.id)
 
   const handleToggle = () => {
     onToggleCurrent(provider)
@@ -63,6 +66,16 @@ export const ProviderCard: FC<ProviderCardProps> = ({
           onClick={(event) => event.stopPropagation()}
           className="shrink-0 cursor-grab text-muted-foreground/25 hover:text-muted-foreground/55 active:cursor-grabbing"
         />
+
+        <span aria-hidden className="shrink-0">
+          <ProviderAvatarPrimitive
+            providerId={provider.id}
+            providerName={providerName}
+            logo={providerIcon}
+            size={24}
+            className="rounded-md border border-border/30 [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]"
+          />
+        </span>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
