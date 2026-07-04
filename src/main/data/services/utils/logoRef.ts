@@ -51,23 +51,18 @@ export function clearSingleFileRefTx(tx: DbOrTx, slot: SingleFileRefSlot): void 
 /**
  * Insert a single-file ref row for `slot` pointing at `fileId`, inside `tx`.
  * Does NOT clear an existing row — callers that replace a slot use
- * {@link setSingleFileRefTx}; the migrator inserts into an empty slot. The ref
- * role is fixed per source type (`logo` for provider / mini-app), so it is not
- * a parameter.
+ * {@link setSingleFileRefTx}; the migrator inserts into an empty slot. These
+ * slot tables are roleless (one implicit purpose per source type).
  */
 export function insertSingleFileRefTx(tx: Pick<DbType, 'insert'>, slot: SingleFileRefSlot, fileId: FileEntryId): void {
   const now = Date.now()
-  const base = { id: uuidv4(), fileEntryId: fileId, sourceId: slot.sourceId, createdAt: now, updatedAt: now }
+  const row = { id: uuidv4(), fileEntryId: fileId, sourceId: slot.sourceId, createdAt: now, updatedAt: now }
   switch (slot.sourceType) {
     case providerLogoRef.sourceType:
-      tx.insert(providerLogoFileRefTable)
-        .values({ ...base, role: 'logo' })
-        .run()
+      tx.insert(providerLogoFileRefTable).values(row).run()
       return
     case miniAppLogoRef.sourceType:
-      tx.insert(miniAppLogoFileRefTable)
-        .values({ ...base, role: 'logo' })
-        .run()
+      tx.insert(miniAppLogoFileRefTable).values(row).run()
       return
   }
 }

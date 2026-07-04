@@ -20,26 +20,23 @@ import * as z from 'zod'
 import { createRefSchema } from './essential'
 
 /**
- * Define a single-file `file_ref` variant for `sourceType` with the given
- * `roles`. `sourceId` is a free-form string (provider/app/avatar ids are
- * opaque). Returns the source-type literal, roles tuple, role schema, ref
- * fields, and the assembled discriminated-union member schema.
+ * Define a single-file `file_ref` variant for `sourceType`. `sourceId` is a
+ * free-form string (provider / app ids are opaque). These variants are
+ * **roleless**: an owner holds at most one file for one implicit purpose, so a
+ * `role` column would be a constant carrying no information and is dropped
+ * (nothing downstream reads it). Returns the source-type literal, ref fields,
+ * and the assembled discriminated-union member schema.
  */
-export function defineSingleFileRef<const T extends string, const R extends readonly [string, ...string[]]>(
-  sourceType: T,
-  roles: R
-) {
-  const roleSchema = z.enum(roles)
+export function defineSingleFileRef<const T extends string>(sourceType: T) {
   const refFields = {
     sourceType: z.literal(sourceType),
-    sourceId: z.string().min(1),
-    role: roleSchema
+    sourceId: z.string().min(1)
   }
-  return { sourceType, roles, roleSchema, refFields, schema: createRefSchema(refFields) } as const
+  return { sourceType, refFields, schema: createRefSchema(refFields) } as const
 }
 
-export const providerLogoRef = defineSingleFileRef('provider_logo', ['logo'])
-export const miniAppLogoRef = defineSingleFileRef('mini_app_logo', ['logo'])
+export const providerLogoRef = defineSingleFileRef('provider_logo')
+export const miniAppLogoRef = defineSingleFileRef('mini_app_logo')
 
 /**
  * Prefix tagging an uploaded entity image in its owner's **display value**

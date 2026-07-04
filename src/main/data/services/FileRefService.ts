@@ -112,7 +112,15 @@ function tempSessionRowToFileRef(row: TempSessionFileRef): FileRef {
 }
 
 function isDuplicateTempRef(left: CreateTempSessionFileRefRow, right: FileRef): boolean {
-  return left.fileEntryId === right.fileEntryId && left.sourceId === right.sourceId && left.role === right.role
+  // `right` is always a temp_session ref here (this dedups within that cache),
+  // but the FileRef union now includes roleless single-file variants, so guard
+  // the `role` compare instead of assuming every variant carries it.
+  return (
+    left.fileEntryId === right.fileEntryId &&
+    left.sourceId === right.sourceId &&
+    'role' in right &&
+    left.role === right.role
+  )
 }
 
 class FileRefServiceImpl implements FileRefService {

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "670e1970-3665-4d8d-98bd-3a790f689ecc",
+  "id": "c3ea3df7-11d4-4001-850f-e71de841a35e",
   "prevId": "53ba65df-7a61-4a0c-a563-3e32dfba69fa",
   "tables": {
     "agent": {
@@ -1455,13 +1455,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -1483,9 +1476,9 @@
           "columns": ["file_entry_id"],
           "isUnique": false
         },
-        "malfr_source_id_role_idx": {
-          "name": "malfr_source_id_role_idx",
-          "columns": ["source_id", "role"],
+        "malfr_source_id_idx": {
+          "name": "malfr_source_id_idx",
+          "columns": ["source_id"],
           "isUnique": true
         }
       },
@@ -1502,12 +1495,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "malfr_role_check": {
-          "name": "malfr_role_check",
-          "value": "\"mini_app_logo_file_ref\".\"role\" IN ('logo')"
-        }
-      }
+      "checkConstraints": {}
     },
     "painting_file_ref": {
       "name": "painting_file_ref",
@@ -1625,13 +1613,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -1653,9 +1634,9 @@
           "columns": ["file_entry_id"],
           "isUnique": false
         },
-        "plfr_source_id_role_idx": {
-          "name": "plfr_source_id_role_idx",
-          "columns": ["source_id", "role"],
+        "plfr_source_id_idx": {
+          "name": "plfr_source_id_idx",
+          "columns": ["source_id"],
           "isUnique": true
         }
       },
@@ -1672,12 +1653,7 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "plfr_role_check": {
-          "name": "plfr_role_check",
-          "value": "\"provider_logo_file_ref\".\"role\" IN ('logo')"
-        }
-      }
+      "checkConstraints": {}
     },
     "group": {
       "name": "group",

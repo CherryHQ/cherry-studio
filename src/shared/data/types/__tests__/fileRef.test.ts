@@ -102,34 +102,33 @@ describe('paintingFileRefSchema', () => {
 })
 
 describe('single-file ref variants (provider_logo / mini_app_logo)', () => {
-  it('accepts a well-formed provider/mini-app logo ref (role "logo", free-string sourceId)', () => {
+  it('accepts a well-formed roleless logo ref (free-string sourceId)', () => {
     for (const ref of [providerLogoRef, miniAppLogoRef]) {
       const parsed = ref.schema.parse({
         id: REF_ID,
         fileEntryId: ENTRY_ID,
         sourceType: ref.sourceType,
         sourceId: 'preset-or-uuid-id',
-        role: 'logo',
         createdAt: TS,
         updatedAt: TS
       })
       expect(parsed.sourceType).toBe(ref.sourceType)
-      expect(parsed.role).toBe('logo')
+      // Roleless: the variant has no `role` field (constant, unread downstream).
+      expect('role' in parsed).toBe(false)
     }
   })
 
-  it('rejects a role outside the variant vocabulary', () => {
-    expect(() =>
-      providerLogoRef.schema.parse({
-        id: REF_ID,
-        fileEntryId: ENTRY_ID,
-        sourceType: providerLogoRef.sourceType,
-        sourceId: 'p1',
-        role: 'avatar',
-        createdAt: TS,
-        updatedAt: TS
-      })
-    ).toThrow()
+  it('drops a stray role rather than carrying it (the slot has no role field)', () => {
+    const parsed = providerLogoRef.schema.parse({
+      id: REF_ID,
+      fileEntryId: ENTRY_ID,
+      sourceType: providerLogoRef.sourceType,
+      sourceId: 'p1',
+      role: 'logo',
+      createdAt: TS,
+      updatedAt: TS
+    })
+    expect('role' in parsed).toBe(false)
   })
 })
 
@@ -158,7 +157,8 @@ describe('FileRefSchema discriminated union', () => {
       updatedAt: TS
     })
     expect(parsed.sourceType).toBe('chat_message')
-    expect(parsed.role).toBe('attachment')
+    // Narrow the heterogeneous union (single-file variants are roleless).
+    if (parsed.sourceType === 'chat_message') expect(parsed.role).toBe('attachment')
   })
 
   it('dispatches to the painting variant', () => {

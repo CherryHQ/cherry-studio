@@ -475,7 +475,6 @@ describe('MiniAppService', () => {
       const refs = await logoRefs('logo-app')
       expect(refs).toHaveLength(1)
       expect(refs[0].fileEntryId).toBe(FILE_ID)
-      expect(refs[0].role).toBe('logo')
     })
 
     it('update from upload to preset clears the slot ref and preserves the file_entry', async () => {

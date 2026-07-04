@@ -28,14 +28,19 @@ export type BusinessRefShape = {
   sourceType: z.ZodLiteral<string>
   /** The owning business entity's ID (e.g. a message ID, a knowledge item ID) */
   sourceId: z.ZodType<string>
-  /** How the file is used within that domain (e.g. 'attachment', 'source', 'asset') */
-  role: z.ZodEnum
+  /**
+   * How the file is used within that domain (e.g. 'attachment', 'source').
+   * Optional: single-file slot variants (provider / mini-app logo) omit it —
+   * their role is a constant carrying no information, so it is dropped rather
+   * than stored on every row and never read downstream.
+   */
+  role?: z.ZodEnum
 }
 
 /**
  * Factory: creates a typed FileRef schema by merging common fields
  * (`id`, `fileEntryId`, `createdAt`, `updatedAt`) with business-specific fields
- * (`sourceType`, `sourceId`, `role`).
+ * (`sourceType`, `sourceId`, and — for multi-role variants — `role`).
  *
  * Each sourceType variant should call this once. See `./tempSession.ts` for
  * a minimal working example.

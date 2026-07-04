@@ -91,9 +91,11 @@ export const paintingFileRefTable = sqliteTable(
  * delete flow clears it explicitly — so `sourceId` carries **no FK** (this also
  * avoids ordering coupling: the owner row and its logo are created together).
  * Only `fileEntryId` cascades, so deleting the file drops the row and
- * orphan-counting stays exact. The unique `(sourceId, role)` index enforces at
- * most one file per slot. (The user avatar deliberately has no slot table — it
- * is persisted only in the `app.user.avatar` preference.)
+ * orphan-counting stays exact. There is **no `role` column**: the slot's role
+ * is a constant ('logo') carrying no information and read by nothing, so it is
+ * dropped and the unique `(sourceId)` index alone enforces at most one file per
+ * slot. (The user avatar deliberately has no slot table — it is persisted only
+ * in the `app.user.avatar` preference.)
  */
 export const providerLogoFileRefTable = sqliteTable(
   'provider_logo_file_ref',
@@ -103,14 +105,9 @@ export const providerLogoFileRefTable = sqliteTable(
       .notNull()
       .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
     sourceId: text().notNull(),
-    role: text().notNull().$type<(typeof providerLogoRef.roles)[number]>(),
     ...createUpdateTimestamps
   },
-  (t) => [
-    index('plfr_entry_id_idx').on(t.fileEntryId),
-    uniqueIndex('plfr_source_id_role_idx').on(t.sourceId, t.role),
-    check('plfr_role_check', roleCheck(t.role, providerLogoRef.roles))
-  ]
+  (t) => [index('plfr_entry_id_idx').on(t.fileEntryId), uniqueIndex('plfr_source_id_idx').on(t.sourceId)]
 )
 
 export const miniAppLogoFileRefTable = sqliteTable(
@@ -121,14 +118,9 @@ export const miniAppLogoFileRefTable = sqliteTable(
       .notNull()
       .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
     sourceId: text().notNull(),
-    role: text().notNull().$type<(typeof miniAppLogoRef.roles)[number]>(),
     ...createUpdateTimestamps
   },
-  (t) => [
-    index('malfr_entry_id_idx').on(t.fileEntryId),
-    uniqueIndex('malfr_source_id_role_idx').on(t.sourceId, t.role),
-    check('malfr_role_check', roleCheck(t.role, miniAppLogoRef.roles))
-  ]
+  (t) => [index('malfr_entry_id_idx').on(t.fileEntryId), uniqueIndex('malfr_source_id_idx').on(t.sourceId)]
 )
 export const persistentFileRefTablesBySourceType = {
   [chatMessageSourceType]: chatMessageFileRefTable,
