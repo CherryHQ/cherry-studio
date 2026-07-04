@@ -339,6 +339,9 @@
     "home": {
       "welcome_title": "What shall we talk about today?"
     },
+    "icon": {
+      "type": "Agent Icon"
+    },
     "input": {
       "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands.",
       "soul_placeholder": "Help me connect to Telegram"
@@ -3065,7 +3068,7 @@
             "skills_coming_soon": "Skill bindings coming soon",
             "skills_require_save": "Save before enabling skills",
             "tab": {
-              "mcp": "MCP Server",
+              "mcp": "MCP",
               "skills": "Skills",
               "tools": "Built-in tools"
             },

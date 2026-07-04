@@ -28,7 +28,7 @@ import { useProviderDisplayName } from '@renderer/hooks/useProvider'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
 import { type ComponentProps, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import type { FieldValues, Path, UseFormReturn } from 'react-hook-form'
+import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { AddCatalogPopover, type CatalogItem } from '../components/CatalogPicker'
@@ -50,12 +50,18 @@ export type EditDialogTab = {
   children?: EditDialogTab[]
 }
 
+export type EditDialogGroupExpansion = 'collapsed' | 'all'
+export type EditDialogGroupPresentation = 'grouped' | 'inline'
+
 function resolveTabValue(tabs: EditDialogTab[], value: string) {
   const matched = tabs.find((tab) => tab.id === value)
   return matched?.children?.[0]?.id ?? value
 }
 
-function getDefaultExpandedGroupIds() {
+function getDefaultExpandedGroupIds(tabs: EditDialogTab[], groupExpansion: EditDialogGroupExpansion) {
+  if (groupExpansion === 'all') {
+    return new Set(tabs.filter((tab) => tab.children?.length).map((tab) => tab.id))
+  }
   return new Set<string>()
 }
 
@@ -185,7 +191,8 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   const { data, isLoading } = useQuery('/knowledge-bases', { query: { limit: 100 } })
   const bases = useMemo(() => data?.items ?? [], [data])
   const fieldName = 'knowledgeBaseIds' as Path<TValues>
-  const value = (form.watch(fieldName) ?? []) as string[]
+  const watchedValue = useWatch({ control: form.control, name: fieldName })
+  const value = useMemo(() => (watchedValue ?? []) as string[], [watchedValue])
 
   const { catalog, linkedItems } = useMemo(() => {
     const byId = new Map(bases.map((base) => [base.id, base]))
@@ -288,12 +295,16 @@ export function EditDialogShell<TValues extends FieldValues>({
   rootError,
   setDialogContentElement,
   tabs,
-  title
+  title,
+  groupExpansion = 'collapsed',
+  groupPresentation = 'grouped'
 }: {
   activeTab: string
   canSave: boolean
   children: ReactNode
   form: UseFormReturn<TValues>
+  groupExpansion?: EditDialogGroupExpansion
+  groupPresentation?: EditDialogGroupPresentation
   isSubmitting: boolean
   onActiveTabChange: (tab: string) => void
   onOpenChange: (open: boolean) => void
@@ -306,7 +317,9 @@ export function EditDialogShell<TValues extends FieldValues>({
 }) {
   const { t } = useTranslation()
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
-  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(() => getDefaultExpandedGroupIds())
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(() =>
+    getDefaultExpandedGroupIds(tabs, groupExpansion)
+  )
 
   useEffect(() => {
     if (scrollContainerRef.current) {
@@ -315,8 +328,8 @@ export function EditDialogShell<TValues extends FieldValues>({
   }, [activeTab])
 
   useEffect(() => {
-    setExpandedGroupIds(open ? getDefaultExpandedGroupIds() : new Set())
-  }, [open, tabs])
+    setExpandedGroupIds(open ? getDefaultExpandedGroupIds(tabs, groupExpansion) : new Set())
+  }, [groupExpansion, open, tabs])
 
   useEffect(() => {
     const activeGroup = tabs.find((tab) => tab.children?.some((child) => child.id === activeTab))
@@ -372,6 +385,14 @@ export function EditDialogShell<TValues extends FieldValues>({
                   <MenuList>
                     {tabs.map((tab) => {
                       const hasChildren = Boolean(tab.children?.length)
+                      if (hasChildren && groupPresentation === 'inline') {
+                        return tab.children?.map((child) => (
+                          <TabsTrigger key={child.id} value={child.id} className={EDIT_DIALOG_TAB_TRIGGER_CLASS}>
+                            <span className="min-w-0 flex-1 truncate px-1 text-left">{child.label}</span>
+                          </TabsTrigger>
+                        ))
+                      }
+
                       const groupExpanded = expandedGroupIds.has(tab.id)
 
                       return (

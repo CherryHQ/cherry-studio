@@ -339,6 +339,9 @@
     "home": {
       "welcome_title": "今天想聊点什么？"
     },
+    "icon": {
+      "type": "智能体图标"
+    },
     "input": {
       "placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令",
       "soul_placeholder": "帮我连接微信"
@@ -3065,7 +3068,7 @@
             "skills_coming_soon": "Skill 绑定即将支持",
             "skills_require_save": "保存后才能启用技能",
             "tab": {
-              "mcp": "MCP Server",
+              "mcp": "MCP",
               "skills": "Skills",
               "tools": "内置工具"
             },

@@ -518,7 +518,7 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('assistants.icon.type')
+    expect(screen.getByTestId('agent-1-context-menu')).toHaveTextContent('agent.icon.type')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'settings.assistant.icon.type.none' })[0])
 

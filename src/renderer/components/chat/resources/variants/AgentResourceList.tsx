@@ -261,7 +261,7 @@ export function AgentResourceList({
         },
         {
           id: AGENT_ENTITY_ICON_TYPE_ACTION_ID,
-          label: t('assistants.icon.type'),
+          label: t('agent.icon.type'),
           icon: <Smile size={14} />,
           order: 25,
           danger: false,
