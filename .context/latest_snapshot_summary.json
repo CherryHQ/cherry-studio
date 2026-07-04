@@ -1,14 +1,13 @@
 {
-  "generated_at": "2026-07-03",
+  "generated_at": "2026-07-04",
   "data_source": "GitHub API via MCP (mcp__github__*); search API for totals; 100-item pages for detail analysis",
   "repository": "CherryHQ/cherry-studio",
   "open_issues": {
-    "total": 951,
-    "delta_from_yesterday": 0,
-    "delta_note": "Net 0 change vs yesterday (935→951 yesterday was +16; today closes offset new openings). Bug #12890 (image PDF) active today with new comment.",
-    "no_label_count": 94,
-    "needs_repro_count": 53,
-    "needs_more_info_count": 6,
+    "total": 953,
+    "delta_from_yesterday": 2,
+    "no_label_count": 98,
+    "needs_repro_count": 17,
+    "needs_more_info_count": 3,
     "needs_triage_count": 5,
     "p1_open_active": 3,
     "p1_active_list": [
@@ -17,34 +16,34 @@
         "title": "[Feature]: Unified Notification Center",
         "labels": ["Planned", "P1", "feature", "UI/UX"],
         "milestone": "v2.4.0",
-        "age_days": 57
+        "age_days": 58
       },
       {
         "number": 13608,
         "title": "[Bug]: xiaomi mimo response only displays the last line",
         "labels": ["P1", "Models"],
-        "age_days": 107
+        "age_days": 108
       },
       {
         "number": 13193,
         "title": "[Bug]: AI_APICallError: Resource not found, default use responses API (Azure OpenAI)",
         "labels": ["P1", "Models"],
         "assignee": "DeJeune",
-        "age_days": 121
+        "age_days": 122
       }
     ],
-    "high_severity_unlabeled_p1": [
+    "high_severity_unlabeled_or_misclassified": [
       {
-        "number": 16722,
-        "title": "[Bug]: Claude Opus 4.8 thinking parameter is incompatible in Assistant mode",
+        "number": 16742,
+        "title": "[Bug]: Error invoking remote method 'backup:backupToWebdav': FetchError socket hang up",
         "labels": [],
-        "note": "Filed today — thinking incompatibility in latest Claude model"
+        "note": "Filed today — WebDAV backup fails when using system proxy"
       },
       {
         "number": 16719,
         "title": "Windows tool installs fail via bundled mise for gh, hermes-agent, and claude",
         "labels": [],
-        "note": "Filed today — binary install failures on Windows"
+        "note": "Filed recently — binary install failures on Windows"
       },
       {
         "number": 16677,
@@ -56,7 +55,7 @@
         "number": 16610,
         "title": "[Bug]: Adding a folder with thousands of files to a knowledge base crashes the main process",
         "labels": ["Data"],
-        "note": "Crash-level severity, not labeled P1 but should be"
+        "note": "Crash-level severity"
       },
       {
         "number": 15423,
@@ -65,107 +64,110 @@
         "note": "Critical data-loss — labeled inactive but unresolved"
       }
     ],
-    "spam_candidate": {
-      "number": 16675,
-      "title": "Independent Hlido review: Cherry Studio scored 72/100 — live badge available, no strings",
-      "note": "Appears to be promotional/spam content. Recommend closing."
-    },
     "needs_triage_list": [
       {"number": 15983, "title": "[Bug]: MCP/Skill references in Agent SOUL.md lack automatic validation", "labels": ["MCP", "needs-triage"]},
       {"number": 15826, "title": "@cherrystudio/ai-core CJS/type exports point to missing dist files", "labels": ["needs-triage"]},
       {"number": 15409, "title": "[Bug]: CherryIN OAuth flow can be completed by a different renderer sender", "labels": ["needs-triage", "inactive"], "note": "Security bug — cross-renderer OAuth"},
       {"number": 15316, "title": "[Bug]: agents.db backup races with concurrent writes (corrupted restores)", "labels": ["needs-triage", "Data"], "milestone": "v1.9.8", "assignee": "kangfenmao"},
       {"number": 14022, "title": "[Feature]: Track Vercel AI SDK v7 features and migration plan", "labels": ["needs-triage"], "assignee": "DeJeune"}
-    ]
+    ],
+    "new_last_7d": 68
   },
   "open_prs": {
-    "total": 302,
-    "draft_count": 32,
-    "draft_pct": "10.6%",
-    "targeting_main": "~274",
-    "targeting_v1": 3,
+    "total": 304,
+    "draft_count": 19,
+    "non_draft": 285,
+    "targeting_main": 84,
+    "targeting_v1": 0,
     "targeting_v2": 0,
     "stacked_series": {
       "ui_design_system": {
-        "description": "SiinXu/ui-design-system-* chain (12 PRs targeting each other in sequence)",
-        "count": 12
-      },
-      "backup": {
-        "description": "GeorgeDong32/backup-* chain (4 PRs)",
-        "count": 4
+        "description": "SiinXu/ui-design-system-* chain (9+ PRs targeting each other in sequence)",
+        "count": 9
       }
     },
     "top_authors": [
-      {"author": "DeJeune", "count": 16},
-      {"author": "SiinXu", "count": 12},
+      {"author": "DeJeune",       "count": 16},
       {"author": "zhangjiadi225", "count": 7},
-      {"author": "GeorgeDong32", "count": 7},
-      {"author": "eeee0717", "count": 6},
-      {"author": "kangfenmao", "count": 6},
-      {"author": "Pleasurecruise", "count": 5},
-      {"author": "LWWZH", "count": 5},
-      {"author": "vaayne", "count": 4},
-      {"author": "he-yufeng", "count": 4}
+      {"author": "eeee0717",      "count": 6},
+      {"author": "kangfenmao",    "count": 6},
+      {"author": "ousugo",        "count": 5},
+      {"author": "vaayne",        "count": 5}
     ],
-    "notable_large_drafts": [
-      {"number": 16727, "title": "feat(file-manager): policy-based file entry GC with cleanup_policy", "author": "EurFelux", "note": "Just opened today — large architectural PR"},
-      {"number": 16726, "title": "refactor(agent): remove CherryClaw branding and Soul Mode toggle", "author": "vaayne", "is_draft": true},
-      {"number": 16716, "title": "docs(multi-profile): RFC for multi-profile data isolation", "author": "defi-failure", "is_draft": true},
-      {"number": 16444, "title": "feat(paintings): infinite canvas paint mode with React Flow", "author": "DeJeune", "is_draft": true},
-      {"number": 16462, "title": "docs(unified-runtime): AI SDK v7 migration plan", "author": "DeJeune", "is_draft": true}
-    ]
+    "oldest_non_draft": [
+      {"number": 14493, "age_days": 74, "base": "main", "title": "chore: version packages"},
+      {"number": 14988, "age_days": 55, "base": "main", "title": "feat: Add 'embedding' endpoint type for NEWAPI"},
+      {"number": 15239, "age_days": 45, "base": "main", "title": "Feature/expand branch chat v2"},
+      {"number": 15507, "age_days": 34, "base": "main", "title": "feat(library): add 6 official vendor preset assistants"},
+      {"number": 15621, "age_days": 31, "base": "main", "title": "feat(tabs): close tabs with middle and double click"}
+    ],
+    "new_last_7d": 74
   },
   "v2_branch": {
     "open_prs": 0,
-    "note": "v2 branch merged into main (~April 2026). v1 and v2 code coexist. No open PRs targeting v2 branch."
+    "note": "v2 branch merged into main. v1 and v2 code coexist. No open PRs targeting v2 branch."
   },
   "issue_health": {
-    "active_30d": 564,
-    "aging_30_89d": 239,
-    "stale_90_179d": 145,
+    "active_30d": 505,
+    "aging_31_90d": 298,
+    "stale_91_180d": 147,
     "zombie_180d_plus": 3,
-    "correction_note": "Yesterday's stale=0 was an API query error. Direct date-filter queries today confirm 148 issues 90d+ stale (145 stale + 3 zombie). Health picture is worse than yesterday's snapshot indicated."
+    "note": "Buckets based on last-updated date. Active=updated in last 30d. Zombie issues unchanged from yesterday."
   },
   "merged_prs_30d": {
-    "total": 282,
-    "last_7d": 101,
+    "total": 324,
+    "last_7d": 94,
+    "avg_time_to_merge_days": 1.8,
     "top_contributors": [
-      {"author": "DeJeune", "merges": 18},
-      {"author": "zhangjiadi225", "merges": 17},
-      {"author": "eeee0717", "merges": 15},
-      {"author": "kangfenmao", "merges": 10},
-      {"author": "AtomsH4", "merges": 9},
-      {"author": "vaayne", "merges": 8},
-      {"author": "ousugo", "merges": 7}
+      {"author": "zhangjiadi225", "merges": 16},
+      {"author": "DeJeune",       "merges": 16},
+      {"author": "eeee0717",      "merges": 15},
+      {"author": "ousugo",        "merges": 10},
+      {"author": "vaayne",        "merges": 10},
+      {"author": "AtomsH4",       "merges": 9},
+      {"author": "kangfenmao",    "merges": 6}
     ],
-    "type_breakdown": {
-      "fix": 55, "feat": 23, "refactor": 13, "chore": 3, "perf": 2, "docs": 1
-    },
-    "notable_today": [
-      "feat(provider): login-based providers — Claude Code, OpenAI Codex & Grok CLI (#16283)",
-      "refactor(agent): remove CherryClaw branding and Soul Mode toggle (#16726 — open)",
-      "feat(file-manager): policy-based file entry GC (#16727 — open)",
-      "refactor(db): replace libsql with better-sqlite3 + sqlite-vec (#16626, merged yesterday)",
-      "fix(custom-fetch): apply provider custom User-Agent request header (#16527)",
-      "fix(anthropic): strip unsupported JSON Schema keywords from tool schemas (#16480)"
+    "merges_per_day": {
+      "2026-06-27": 5,
+      "2026-06-28": 5,
+      "2026-06-29": 21,
+      "2026-06-30": 12,
+      "2026-07-01": 3,
+      "2026-07-02": 28,
+      "2026-07-03": 19,
+      "2026-07-04": 6
+    }
+  },
+  "closed_issues_30d": {
+    "total": 369,
+    "avg_time_to_close_days": 43.8,
+    "top_label_on_closed": "inactive (majority auto-closed for inactivity)",
+    "top_closers_sampled": [
+      {"author": "DeJeune", "count": 12},
+      {"author": "kennyzheng-builds", "count": 7},
+      {"author": "SiinXu", "count": 5},
+      {"author": "vaayne", "count": 5}
     ]
   },
   "label_distribution_sample": {
-    "source": "First 100 most-recently-updated open issues (2026-07-03)",
+    "source": "200 most-recently-updated open issues (2026-07-04)",
     "top_labels": [
-      {"label": "inactive", "count": 37},
-      {"label": "UI/UX", "count": 30},
-      {"label": "internal_team", "count": 23},
-      {"label": "feature", "count": 22},
-      {"label": "Models", "count": 20},
-      {"label": "Assistant", "count": 16},
-      {"label": "needs-repro", "count": 7},
-      {"label": "MCP", "count": 7},
-      {"label": "discussion", "count": 6},
-      {"label": "Data", "count": 5},
-      {"label": "help wanted", "count": 5},
-      {"label": "RAG", "count": 4}
+      {"label": "inactive",      "count": 82},
+      {"label": "UI/UX",         "count": 59},
+      {"label": "Models",        "count": 37},
+      {"label": "internal_team", "count": 37},
+      {"label": "feature",       "count": 35},
+      {"label": "Assistant",     "count": 30},
+      {"label": "needs-repro",   "count": 17},
+      {"label": "MCP",           "count": 14},
+      {"label": "Performance",   "count": 10},
+      {"label": "discussion",    "count": 9},
+      {"label": "help wanted",   "count": 8},
+      {"label": "Data",          "count": 8},
+      {"label": "RAG",           "count": 8},
+      {"label": "Connectivity",  "count": 6},
+      {"label": "BUG",           "count": 100}
     ],
-    "no_label_in_sample": 10
+    "no_label_in_sample": 18
   }
 }

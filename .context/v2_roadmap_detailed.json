@@ -1,140 +1,99 @@
 {
-  "generated_at": "2026-07-03",
-  "v2_branch_status": {
-    "open_prs": 0,
-    "merged_prs_30d": 282,
-    "merged_prs_7d": 101,
-    "note": "v2 branch merged into main (~April 2026). Both v1 and v2 code coexist on main. No open PRs targeting v2 branch. All active development now on main."
+  "generated_at": "2026-07-04",
+  "v2_status": {
+    "branch": "merged_into_main",
+    "summary": "v2 refactor branch has been merged into main. main is now the active development branch with v1 and v2 code coexisting. Large, frequent, breaking changes expected.",
+    "open_prs_targeting_v2": 0,
+    "open_prs_targeting_main": 304,
+    "note": "No open PRs target the v2 branch. All active development goes to main."
   },
-  "active_tracks": {
-    "Data Layer": {
-      "status": "in_progress — cleanup stage",
-      "replacing": ["Redux (done)", "Dexie (in progress)", "ElectronStore (in progress)"],
-      "adopting": ["Cache", "Preference", "DataApi (SQLite + Drizzle ORM)", "IpcApi"],
-      "recent_merged": ["refactor(db): replace libsql with better-sqlite3 + sqlite-vec (#16626)"],
-      "note": "Opportunistic v1 residue removal when editing. File manager refactor in progress (#16452, #16532, #16727)."
-    },
-    "UI Layer": {
-      "status": "in_progress — large stacked PR series active",
-      "replacing": ["antd", "HeroUI", "styled-components"],
-      "adopting": ["@cherrystudio/ui (Tailwind CSS + Shadcn UI)"],
-      "active_prs": {
-        "description": "SiinXu's 12-PR stacked chain for full UI design system rollout",
-        "chain": [
-          "ui-design-system → ui-design-system-02-primitives",
-          "→ ui-design-system-03-composites",
-          "→ ui-design-system-04-window-shell",
-          "→ ui-design-system-05-sidebar-nav",
-          "→ ui-design-system-06-ps-base",
-          "→ ui-design-system-07-ps-lists",
-          "→ ui-design-system-08-ps-components",
-          "→ ui-design-system-09-data-settings",
-          "→ ui-design-system-10-tool-settings",
-          "→ ui-design-system-11-launchpad",
-          "→ ui-design-system-12-other-pages",
-          "(additional launchpad PR)"
-        ]
+  "data_layer_migration": {
+    "removing": ["Dexie", "ElectronStore"],
+    "adopting": ["Cache", "Preference", "DataApi"],
+    "redux_status": "fully_removed",
+    "dexie_status": "in_progress — PR #16440 removes last v2 Dexie settings table dependencies (avatar→Preference, provider logos→DataApi, MCP cache→persist-cache)"
+  },
+  "recent_v2_pr_activity": {
+    "merged_prs_last_30d": 324,
+    "merged_prs_last_7d": 94,
+    "avg_merge_time_days": 1.8,
+    "top_contributors": [
+      {"author": "zhangjiadi225", "merges": 16},
+      {"author": "DeJeune",       "merges": 16},
+      {"author": "eeee0717",      "merges": 15},
+      {"author": "ousugo",        "merges": 10},
+      {"author": "vaayne",        "merges": 10},
+      {"author": "AtomsH4",       "merges": 9},
+      {"author": "kangfenmao",    "merges": 6}
+    ],
+    "notable_open_prs": [
+      {
+        "number": 16440,
+        "title": "refactor(dexie): retire the settings table from v2 storage paths",
+        "age_days": 9,
+        "author": "DeJeune",
+        "significance": "Removes last v2 Dexie settings table dependencies. Adds migration 0015."
+      },
+      {
+        "number": 16743,
+        "title": "fix(knowledge-tools): scope kb_* tools to composer-selected KB only",
+        "age_days": 1,
+        "author": "unknown"
+      },
+      {
+        "number": 16713,
+        "title": "feat(agent-file-preview): show previews in files overlay",
+        "age_days": 2,
+        "author": "unknown"
+      },
+      {
+        "number": 16704,
+        "title": "fix(preboot): complete user data relocation flow",
+        "age_days": 3,
+        "author": "unknown"
       }
-    },
-    "Backup System": {
-      "status": "in_progress",
-      "active_prs": [
-        {"number": 16682, "title": "feat(backup): schema-refs codegen + neutral layer + v2 docs [1/4]", "base": "main"},
-        {"number": 16683, "title": "feat(backup): add contributor manager + finalize [3/4]"},
-        {"number": 16684, "title": "feat(backup): add 9 domain contributors [2/4]"},
-        {"number": 16697, "title": "feat(backup): add 5 core domain contributors [4/4]"}
-      ],
-      "author": "GeorgeDong32"
-    },
-    "Agent_System": {
-      "status": "active feature development + major cleanup",
-      "recent_merged": [
-        "feat(provider): login-based providers — Claude Code, OpenAI Codex & Grok CLI (#16283)",
-        "feat(channels): outbound file forwarding to IM clients (#16600)",
-        "feat(agent-runtime): guide agents to bundled bun/uv and block global installs (#16544)"
-      ],
-      "open_notable": [
-        {"number": 16726, "title": "refactor(agent): remove CherryClaw branding and Soul Mode toggle", "author": "vaayne", "is_draft": true, "note": "Removes ~1900 lines — all agents get autonomy features unconditionally"},
-        {"number": 16630, "title": "feat(agent-runtime): add pi as second agent-session runtime", "author": "vaayne", "is_draft": true},
-        {"number": 16579, "title": "feat(agents): separate agent root directory and persona", "author": "DeJeune", "is_draft": true}
-      ],
-      "tracking_issues": [
-        {"number": 16655, "title": "Configurable Auto-Retry on Interrupted Replies", "labels": ["feature", "internal_team"]},
-        {"number": 16656, "title": "Control Whether Reasoning CoT Included in Historical Context", "labels": ["feature", "internal_team"]},
-        {"number": 16657, "title": "Cross-Device Agent Task Continuation", "labels": ["feature", "internal_team"]},
-        {"number": 16658, "title": "Background Agent Task Recovery After Process Restart", "labels": ["feature", "internal_team"]},
-        {"number": 16659, "title": "Streaming Idle Watchdog with Auto-Retry", "labels": ["feature", "internal_team"]}
-      ]
-    },
-    "AI_SDK": {
-      "status": "tracking",
-      "tracking_issue": 14022,
-      "assigned": "DeJeune",
-      "note": "Vercel AI SDK v7 migration plan. RFC drafted in #16462. Key breaking changes: CallSettings split, image-*→file-*, context→runtimeContext rename, CJS removal."
-    },
-    "File_Manager": {
-      "status": "active",
-      "recent_merged": ["refactor(file-manager): remove renderer FileManager (#16452)", "refactor(file-ref): split persistent ref ownership (#16532)"],
-      "open_notable": [
-        {"number": 16727, "title": "feat(file-manager): policy-based file entry GC with cleanup_policy and scan reaper", "author": "EurFelux", "note": "Large PR opened today — file storage cleanup architecture"}
-      ]
-    },
-    "Provider_Registry": {
-      "status": "active",
-      "recent_merged": ["feat(provider-registry): generate catalog from src/creators + src/providers (#16401)", "feat(provider-registry): add OpenCode Go provider (#16618)"],
-      "tracking_issue": {"number": 14021, "title": "v2 aiCore Provider 层历史 Issue 总跟踪 (226 issues, 29 categories, 5 solution pivots)", "author": "DeJeune"}
-    },
-    "Knowledge_RAG": {
-      "status": "active",
-      "recent_merged": ["feat(knowledge): agent tool surface for knowledge bases (#16345)", "feat(knowledge): optional embedding model with BM25-only fallback (#16553)", "refactor(knowledge): streamline settings panel & navigator UI (#16692)"],
-      "open_bugs": [
-        {"number": 16677, "title": "[Bug]: Knowledge base embedding ignores provider custom headers", "severity": "security-relevant"}
-      ]
-    }
+    ],
+    "notable_merged_recently": [
+      "fix(custom-fetch): apply provider custom User-Agent request header (#16527)",
+      "fix(anthropic): strip unsupported JSON Schema keywords from tool schemas (#16480)",
+      "refactor(db): replace libsql with better-sqlite3 + sqlite-vec (#16626)",
+      "feat(provider): login-based providers — Claude Code, OpenAI Codex & Grok CLI (#16283)"
+    ]
   },
-  "v2_provider_bug_tracking": {
-    "tracking_issue": 14021,
-    "total_issues_cataloged": 226,
-    "categories": 29,
-    "solution_pivots": 5,
-    "p0_clusters": {
-      "MCP_Tool_Calling": {"count": 7, "examples": [13961, 13841, 13706, 13653, 13523, 14009, 13937]},
-      "Agent_Provider_Lock": {"count": 5, "examples": [14019, 13745, 13629, 13625, 13516]},
-      "Azure_OpenAI_Routing": {"count": 4, "examples": [13193, 12962, 12612, 13738]},
-      "Thinking_CrossProvider": {"count": 4, "examples": [14020, 13574, 12996, 12973]},
-      "Token_Context_Overflow": {"count": 3, "examples": [13583, 13000, 12912]},
-      "Audio_Video_TTS": {"count": 2, "examples": [14018, 13826]},
-      "Vertex_AI": {"count": 2, "examples": [13194, 13403]},
-      "Volcano_Engine": {"count": 2, "examples": [13905, 13144]},
-      "Web_Search": {"count": 1, "examples": [13075]},
-      "Stream_Content_Loss": {"count": 2, "examples": [13060, 13953]}
+  "open_issues_v2_labeled": 1,
+  "stale_bugs_v2_labeled": [
+    {
+      "number": 13082,
+      "title": "[Bug]: Frequent lag during normal operations",
+      "labels": ["BUG", "Planned", "Performance", "v2"],
+      "days_since_update": 76,
+      "upvotes": 3,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13082"
     },
-    "five_solution_pivots": {
-      "1_providerOptions_passthrough": "Covers ~25 issues — custom params, ZDR, provider-specific options, headers",
-      "2_model_template_capabilities": "Covers ~20 issues — capability misdetection, output truncation, per-model config",
-      "3_explicit_url_template": "Covers ~10 issues — deprecates '#' hack, api-version, endpoint format",
-      "4_unified_reasoning_abstraction": "Covers ~30 issues — cross-provider thinking contamination, param format mapping",
-      "5_agent_provider_unlock": "Covers ~15 issues — non-Anthropic models in Agent/OpenClaw"
+    {
+      "number": 11571,
+      "title": "[Bug]: There is a Minor Issue with MessageContentLoading",
+      "labels": ["BUG", "v2"],
+      "days_since_update": 88,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/11571"
     }
+  ],
+  "ui_design_system_prs": {
+    "note": "9+ stacked SiinXu/ui-design-system-* PRs open, chained against each other (not main). These are large UI redesign PRs progressing incrementally.",
+    "base_branches_detected": [
+      "SiinXu/ui-design-system-12-other-pages",
+      "SiinXu/ui-design-system-11-launchpad",
+      "SiinXu/ui-design-system-09-data-settings",
+      "SiinXu/ui-design-system-08-ps-components",
+      "SiinXu/ui-design-system-07-ps-lists",
+      "SiinXu/ui-design-system-06-ps-base",
+      "SiinXu/ui-design-system-05-sidebar-nav",
+      "SiinXu/ui-design-system-04-window-shell",
+      "SiinXu/ui-design-system-03-composites"
+    ]
   },
-  "milestones": {
-    "v2.4.0": {
-      "state": "open",
-      "open_issues": 37,
-      "closed_issues": 5,
-      "key_p1": "#14899 Unified Notification Center"
-    },
-    "v1.9.8": {
-      "state": "open",
-      "open_issues": 11,
-      "closed_issues": 1,
-      "key_issue": "#15316 agents.db backup race condition (WAL)"
-    }
-  },
-  "breaking_changes_recent": [
-    "2026-07-03: Soul Mode/Autonomous Mode toggle removed — all agents get autonomy features (#16726, pending merge)",
-    "2026-07-03 (upcoming): File cleanup GC — files owned by deleted chats auto-cleaned after grace period (#16727)",
-    "2026-07-02: libsql replaced with better-sqlite3 + sqlite-vec for vector store (#16626)",
-    "2026-07-03: Outbound IM file forwarding for Channels (#16600)"
-  ]
+  "schema_migration_status": {
+    "note": "Drizzle schemas in src/main/data/db/schemas/; migrations in migrations/sqlite-drizzle/. Dev-only artifacts — will be regenerated as clean initial migration before release.",
+    "latest_migration": "0015_tranquil_terrax.sql (adds logo column to user_provider — from PR #16440)"
+  }
 }

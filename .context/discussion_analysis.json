@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-03",
+  "generated_at": "2026-07-04",
   "data_source": "GitHub GraphQL Discussions API",
   "fetch_status": "UNAVAILABLE",
   "note": "The GitHub MCP server does not expose a GraphQL endpoint for Discussions. The 'gh api graphql' CLI is not available in this remote execution environment. Data unchanged from prior run.",
@@ -15,9 +15,34 @@
   "proxy_insights_from_issues": {
     "note": "Issue #6505 ([FAQ&反馈]: 划词助手 / Selection Assistant) has 364 comments — functions as a de facto discussion thread. It is the single most-commented open issue.",
     "high_engagement_issues": [
-      {"number": 6505, "title": "[FAQ&反馈]: 划词助手 / Selection Assistant", "comments": 364, "updated": "2026-07-03"},
-      {"number": 13925, "title": "[Discussion]: Bundled binary environment isolation strategy", "comments": 9},
+      {"number": 6505,  "title": "[FAQ&反馈]: 划词助手 / Selection Assistant",                                      "comments": 364, "updated": "2026-07-04"},
+      {"number": 13925, "title": "[Discussion]: Bundled binary environment isolation strategy",                      "comments": 9},
       {"number": 14021, "title": "[Feature]: v2 aiCore Provider 层历史 Issue 总跟踪 (226 issues, 29 categories)", "comments": 1, "note": "Master tracking issue by DeJeune — links to all v2 provider bugs"}
     ]
+  },
+  "activity_summary": {
+    "issues_opened_last_7d": 68,
+    "issues_closed_last_30d": 369,
+    "prs_merged_last_30d": 324,
+    "prs_merged_last_7d": 94,
+    "velocity_note": "Strong merge velocity: 94 PRs merged in the last 7 days (Jun 28 – Jul 4). Peak day was Jul 2 with 28 merges."
+  },
+  "closed_issues_30d_label_breakdown": {
+    "total": 369,
+    "top_closed_labels": [
+      {"name": "inactive",       "count": 65},
+      {"name": "UI/UX",         "count": 29},
+      {"name": "Assistant",     "count": 18},
+      {"name": "Models",        "count": 17},
+      {"name": "internal_team", "count": 11},
+      {"name": "Performance",   "count": 8},
+      {"name": "MCP",           "count": 7},
+      {"name": "help wanted",   "count": 6},
+      {"name": "discussion",    "count": 6},
+      {"name": "needs-repro",   "count": 4},
+      {"name": "BUG",           "count": 4}
+    ],
+    "avg_time_to_close_days": 43.8,
+    "fast_close_within_1d": 13
   }
 }
