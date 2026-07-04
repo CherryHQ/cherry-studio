@@ -445,12 +445,13 @@ export function ArtifactFilePreview({
   }
 
   if (isHtmlFile(filePath)) {
+    const parsedHtmlBase = FilePathSchema.safeParse(joinPath(workspacePath, filePath))
     return (
       <HtmlPreviewFrame
         key={`html-${filePath}-${contentRefreshKey}`}
         html={fileContent ?? ''}
         title={filePath}
-        baseUrl={toFileUrl(FilePathSchema.parse(joinPath(workspacePath, filePath)))}
+        baseUrl={parsedHtmlBase.success ? toFileUrl(parsedHtmlBase.data) : undefined}
       />
     )
   }

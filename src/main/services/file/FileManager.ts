@@ -823,8 +823,8 @@ export class FileManager extends BaseService implements IFileManager {
     return this.deps.fileEntryService.findById(id)
   }
 
-  async findByExternalPath(rawPath: string): Promise<FileEntry | null> {
-    return this.deps.fileEntryService.findByExternalPath(FilePathSchema.parse(rawPath))
+  async findByExternalPath(path: FilePath): Promise<FileEntry | null> {
+    return this.deps.fileEntryService.findByExternalPath(path)
   }
 
   async ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry> {
