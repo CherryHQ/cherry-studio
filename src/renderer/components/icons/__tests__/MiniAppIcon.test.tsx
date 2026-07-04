@@ -12,7 +12,7 @@ vi.mock('@renderer/utils/storedImage', () => ({
   )
 }))
 
-vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
+vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
   getMiniAppsLogo: (logo: unknown) => {
     if (typeof logo === 'string' && logo.startsWith('file:')) return undefined
     if (logo !== 'compound-logo') return logo

@@ -19,7 +19,7 @@ vi.mock('@renderer/components/Popups/SearchPopup', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/resources/resourceListRevealEvents', () => ({
+vi.mock('@renderer/services/resourceListRevealEvents', () => ({
   emitResourceListReveal: mocks.emitResourceListReveal
 }))
 
@@ -38,7 +38,7 @@ vi.mock('@renderer/utils/platform', () => ({
   platform: 'linux'
 }))
 
-vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
+vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
   getMiniAppsLogo: () => undefined
 }))
 

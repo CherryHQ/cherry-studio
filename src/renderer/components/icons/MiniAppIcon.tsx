@@ -1,5 +1,5 @@
 import { useCache } from '@data/hooks/useCache'
-import { getMiniAppsLogo } from '@renderer/components/Icons/miniAppsLogo'
+import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
 import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC } from 'react'

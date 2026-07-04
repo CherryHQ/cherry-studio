@@ -1,9 +1,9 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
-import { setInlineFilePathHomePath } from '@renderer/components/chat/messages/utils/filePath'
 import { useAppUpdateHandler } from '@renderer/hooks/useAppUpdate'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
+import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import { defaultLanguage } from '@shared/utils/languages'
 import { useEffect } from 'react'
 

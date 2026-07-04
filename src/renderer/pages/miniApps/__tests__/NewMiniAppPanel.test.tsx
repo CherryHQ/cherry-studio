@@ -36,11 +36,11 @@ vi.mock('@data/hooks/useCache', () => ({
   useCache: () => ['/files', vi.fn()]
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
+vi.mock('@renderer/components/icons', () => ({
   LogoAvatar: ({ logo }: { logo: unknown }) => <img alt="miniapp-logo-preview" data-logo={String(logo)} />
 }))
 
-vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
+vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
   getMiniAppsLogo: (logo?: string) => (logo === 'application' ? 'application-icon' : undefined)
 }))
 

@@ -99,7 +99,7 @@ vi.mock('@renderer/utils/routeTitle', () => ({
     })[url] ?? 'Chat'
 }))
 
-vi.mock('@renderer/components/chat/resources/resourceListRevealEvents', () => ({
+vi.mock('@renderer/services/resourceListRevealEvents', () => ({
   emitResourceListReveal: mocks.emitResourceListReveal
 }))
 
@@ -124,7 +124,7 @@ vi.mock('../../Popups/UserPopup', () => ({
   }
 }))
 
-vi.mock('../../Icons/SVGIcon', () => ({
+vi.mock('../../icons/SvgIcon', () => ({
   OpenClawSidebarIcon: () => null
 }))
 

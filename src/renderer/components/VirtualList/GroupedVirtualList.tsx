@@ -1,7 +1,7 @@
 import type React from 'react'
 import { memo, useCallback, useMemo } from 'react'
 
-import DynamicVirtualList, { type DynamicVirtualListProps } from './dynamic'
+import DynamicVirtualList, { type DynamicVirtualListProps } from './DynamicVirtualList'
 
 export type GroupedVirtualListGroup<TGroup, TItem, THeader = TGroup, TFooter = unknown> = {
   group: TGroup

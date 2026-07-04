@@ -363,7 +363,7 @@ export const FinderIcon = (props: SVGProps<SVGSVGElement>) => {
 }
 
 // https://code.visualstudio.com/brand
-export const VSCodeIcon = (props: SVGProps<SVGSVGElement>) => {
+export const VsCodeIcon = (props: SVGProps<SVGSVGElement>) => {
   const uid = useId()
   const maskId = `mask0${uid}`
   const filter0Id = `filter0_d${uid}`

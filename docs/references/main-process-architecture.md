@@ -16,7 +16,7 @@ Exactly these, each with a single charter:
 | `ai` | **Core domain** | Cherry Studio *is* an AI client, so AI earns its own top-level home: everything tied to the AI essence lives here (providers, middleware, MCP, agents, stream manager). Mirrors `@shared/ai`. |
 | `features` | **Domain modules** | Business domains, one directory each. A complex domain bundles its own related services / utils / etc. under `features/<domain>/`. |
 | `services` | **Business services** | Business feature services. A simple service is a single file; a larger one is organized into its own subdirectory. |
-| `utils` | **Pure helpers** | Cross-domain pure functions with no single owner. |
+| `utils` | **Stateless helpers** | Cross-domain stateless, domain-agnostic functions with no single owner. "Stateless" is the bar, not "pure": a helper may reach infra through the ambient `@application` / `@logger` (§3); it just owns no state and carries no business orchestration. |
 | `i18n` | **Main-process localization** | Main's own locale catalog (`locales/` human + `translate/` machine) and its `t()` / `getI18n()` resolver. A deliberate, governed expansion of the closed set (§4), mirroring `src/renderer/i18n/` so each process owns an independent catalog; the `utils/i18n/` alternative was rejected for that cross-process symmetry. |
 
 Entry files: `index.ts` (process entry — runs preboot, then `application.bootstrap()`) and `ipc.ts` (legacy IPC registration, being retired into `ipc/`).
@@ -33,7 +33,7 @@ src/main/
 ├── ai/          # the AI subsystem — the product's core domain
 ├── features/    # business domains, one dir each (each bundles its own services/utils)
 ├── services/    # business feature services (single file, or a subdirectory)
-└── utils/       # cross-domain pure helpers
+└── utils/       # cross-domain stateless helpers
 ```
 
 ## 2. `features` vs `services` (Placement)
@@ -42,7 +42,7 @@ src/main/
 
 - **Promotion, not default — and in steps.** A small, self-contained service starts as a single file at the bucket root — `services/<Topic>Service.ts` (a stateful `Service`/`Manager` class is `PascalCase` matching its class name, [Naming §5.2](./naming-conventions.md); a pure helper is `utils/<topic>.ts`). When one file can no longer hold it, grow it **in place** into a `camelCase` topic subdirectory first — `services/<topic>/` holding `<Topic>Service.ts` plus its helpers — **not** straight into a feature. Mind the shape: the **directory is the topic name and carries no `Service` suffix** ([Naming §4.5](./naming-conventions.md)); only the class file keeps the suffix (e.g. `services/webSearch/WebSearchService.ts`). It earns a `features/<domain>/` home only once it grows into a **large, multi-file domain** bundling its own services, utils, and helpers (knowledge, apiGateway, fileProcessing). Do not pre-create a subdirectory or a feature for an anticipated module.
 - **`ai/` is not an ordinary feature.** It is the product's core domain and has its own top-level home (§1); it is foundational, not one domain among many.
-- **Route by shape** ([Naming Conventions §5.2](./naming-conventions.md)): a stateful class owning long-lived resources or persistent side effects → a lifecycle `Service` ([Lifecycle Reference](./lifecycle/README.md)); a stateless, independent service → `services/`; pure logic → `utils/`; a large domain → `features/<domain>/`.
+- **Route by role** ([Naming Conventions §5.2](./naming-conventions.md)): a stateful class owning long-lived resources or persistent side effects → a lifecycle `Service` ([Lifecycle Reference](./lifecycle/README.md)); a stateless module whose role is business/domain orchestration → `services/`; a stateless, domain-agnostic helper → `utils/`; a large domain → `features/<domain>/`. The decisive line is **role (business orchestration vs domain-agnostic helper), not purity** — a helper touching infra is still a helper.
 
 ### 2.1 Subdirectories and Barrels
 
