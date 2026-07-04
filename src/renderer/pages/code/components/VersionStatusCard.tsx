@@ -51,24 +51,21 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate font-medium text-foreground text-sm">{toolName}</span>
-            {!isInstalled ? (
-              <span className="shrink-0 rounded bg-accent/60 px-1.5 py-0.5 text-[10px] text-muted-foreground/70">
-                {t('code.not_installed')}
-              </span>
-            ) : canUpgrade ? (
-              <button
-                type="button"
-                onClick={onUpgrade}
-                disabled={isUpgrading}
-                className="flex h-auto shrink-0 items-center gap-1 rounded px-1.5 py-0 text-[10px] text-warning transition-colors hover:bg-warning/10 hover:text-warning disabled:opacity-50">
-                <ArrowUpCircle size={10} />
-                {t('code.upgrade')}
-              </button>
-            ) : (
-              <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
-                {t('code.up_to_date')}
-              </span>
-            )}
+            {isInstalled &&
+              (canUpgrade ? (
+                <button
+                  type="button"
+                  onClick={onUpgrade}
+                  disabled={isUpgrading}
+                  className="flex h-auto shrink-0 items-center gap-1 rounded px-1.5 py-0 text-[10px] text-warning transition-colors hover:bg-warning/10 hover:text-warning disabled:opacity-50">
+                  <ArrowUpCircle size={10} />
+                  {t('code.upgrade')}
+                </button>
+              ) : (
+                <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
+                  {t('code.up_to_date')}
+                </span>
+              ))}
           </div>
 
           <div className="mt-1 flex items-center gap-1.5 text-muted-foreground/60 text-xs">
