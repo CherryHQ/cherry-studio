@@ -4,9 +4,6 @@ import {
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
   getClaudeContextModelId,
-  hasClaudeDetailedModels,
-  readCliConfigDraft,
-  readCliConfigFiles,
   sanitizeCliConfigBlob,
   stripClaudeDetailedModels,
   updateCliConfigDraftConfig,
@@ -16,7 +13,14 @@ import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared
 import { CodeCli } from '@shared/types/codeCli'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { createDraftSnapshot } from './draftSnapshot'
+import {
+  createDraftSnapshot,
+  createInitialConfigDraftState,
+  createManagedConfigDraft,
+  isConfigDraftDirty,
+  loadInitialConfigDraft,
+  resolveManagedDraftOptions
+} from './configDraftState'
 import type { ClaudeModelMode, ConfigDraft, ConfigEditPanelProps } from './types'
 
 interface ConfigDraftControllerOptions
@@ -48,18 +52,11 @@ export function useConfigDraftController({
   apiKeys,
   onSubmit
 }: ConfigDraftControllerOptions): ConfigDraftController {
-  const initialModelId = providerConfig && isUniqueModelId(providerConfig.modelId) ? providerConfig.modelId : undefined
-  const initialConfig = sanitizeCliConfigBlob(cliTool, providerConfig?.config ?? {})
-  const initialClaudeModelMode: ClaudeModelMode =
-    cliTool === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(initialConfig) ? 'detailed' : 'common'
-  const initialDraftSeed: ConfigDraft = {
-    modelId: initialModelId,
-    config: initialConfig,
-    files: [],
-    connection: null,
-    mode: 'managed',
-    error: ''
-  }
+  const initialState = createInitialConfigDraftState(cliTool, providerConfig)
+  const initialModelId = initialState.modelId
+  const initialConfig = initialState.config
+  const initialClaudeModelMode = initialState.claudeModelMode
+  const initialDraftSeed = initialState.draft
 
   const [draft, setDraft] = useState<ConfigDraft>(initialDraftSeed)
   const [claudeModelMode, setClaudeModelMode] = useState<ClaudeModelMode>(initialClaudeModelMode)
@@ -84,10 +81,13 @@ export function useConfigDraftController({
 
   const computeIsDirty = useCallback(
     (nextDraft: ConfigDraft, modelMode = claudeModelModeRef.current) => {
-      const draftChanged = createDraftSnapshot(nextDraft) !== initialDraftSnapshotRef.current
-      const commonModeWillClearDetailedModels =
-        cliTool === CodeCli.CLAUDE_CODE && initialClaudeModelModeRef.current === 'detailed' && modelMode === 'common'
-      return draftChanged || commonModeWillClearDetailedModels
+      return isConfigDraftDirty({
+        cliTool,
+        initialClaudeModelMode: initialClaudeModelModeRef.current,
+        initialDraftSnapshot: initialDraftSnapshotRef.current,
+        nextDraft,
+        nextClaudeModelMode: modelMode
+      })
     },
     [cliTool]
   )
@@ -113,23 +113,9 @@ export function useConfigDraftController({
     [cliTool, provider]
   )
 
-  const resolveManagedDraftOptions = useCallback(
-    (
-      modelMode: ClaudeModelMode,
-      config: Record<string, unknown>,
-      modelId: UniqueModelId | undefined
-    ): { cliConfigModelId?: UniqueModelId; writePrimaryModel?: boolean } => {
-      if (cliTool === CodeCli.CLAUDE_CODE && modelMode === 'detailed') {
-        return {
-          cliConfigModelId: getClaudeContextModelId(provider.id, config),
-          writePrimaryModel: false
-        }
-      }
-      return {
-        cliConfigModelId: modelId,
-        writePrimaryModel: true
-      }
-    },
+  const resolveManagedOptions = useCallback(
+    (modelMode: ClaudeModelMode, config: Record<string, unknown>, modelId: UniqueModelId | undefined) =>
+      resolveManagedDraftOptions(cliTool, provider.id, modelMode, config, modelId),
     [cliTool, provider.id]
   )
 
@@ -139,45 +125,14 @@ export function useConfigDraftController({
       nextConfig: Record<string, unknown>,
       files?: CliConfigFileDraft[],
       options: { cliConfigModelId?: UniqueModelId; writePrimaryModel?: boolean } = {}
-    ): Promise<ConfigDraft> => {
-      const cliConfigModelId = options.cliConfigModelId ?? nextModelId
-      if (!cliConfigModelId) {
-        return {
-          modelId: nextModelId,
-          config: nextConfig,
-          files: files ?? [],
-          connection: null,
-          mode: 'managed',
-          error: ''
-        }
-      }
-      try {
-        const nextFiles = await readCliConfigDraft({
-          cliTool,
-          modelId: cliConfigModelId,
-          configBlob: nextConfig,
-          files,
-          writePrimaryModel: options.writePrimaryModel
-        })
-        return {
-          modelId: nextModelId,
-          config: nextConfig,
-          files: nextFiles,
-          connection: null,
-          mode: 'managed',
-          error: ''
-        }
-      } catch (error) {
-        return {
-          modelId: nextModelId,
-          config: nextConfig,
-          files: files ?? [],
-          connection: null,
-          mode: 'managed',
-          error: error instanceof Error ? error.message : String(error)
-        }
-      }
-    },
+    ): Promise<ConfigDraft> =>
+      createManagedConfigDraft({
+        cliTool,
+        modelId: nextModelId,
+        config: nextConfig,
+        files,
+        options
+      }),
     [cliTool]
   )
 
@@ -200,9 +155,8 @@ export function useConfigDraftController({
   const initialLoadContextRef = useRef({
     isCurrentProvider,
     cliTool,
+    providerId: provider.id,
     connectionMatchesProvider,
-    createManagedDraft,
-    resolveManagedDraftOptions,
     initialModelId,
     initialConfig,
     initialClaudeModelMode,
@@ -213,9 +167,8 @@ export function useConfigDraftController({
     const {
       isCurrentProvider,
       cliTool,
+      providerId,
       connectionMatchesProvider,
-      createManagedDraft,
-      resolveManagedDraftOptions,
       initialModelId,
       initialConfig,
       initialClaudeModelMode,
@@ -227,58 +180,20 @@ export function useConfigDraftController({
       setDraft(nextDraft)
       setIsDirty(false)
     }
-    const initialDraftOptions = resolveManagedDraftOptions(initialClaudeModelMode, initialConfig, initialModelId)
-
     const loadId = ++loadIdRef.current
-    void (async () => {
-      let rawFiles: CliConfigFileDraft[] = []
-      try {
-        rawFiles = await readCliConfigFiles(cliTool, { includeEmpty: true })
-
-        if (!initialModelId && !initialDraftOptions.cliConfigModelId) {
-          if (loadId !== loadIdRef.current) return
-          commitLoadedDraft({
-            ...initialDraftSeed,
-            files: rawFiles
-          })
-          return
-        }
-
-        const connection = extractConnectionFromCliConfigDraft(cliTool, rawFiles)
-        const expectedModelId = initialClaudeModelMode === 'detailed' ? undefined : initialModelId
-
-        if (isCurrentProvider && connection && !connectionMatchesProvider(connection, expectedModelId)) {
-          const nextDraftConfig = extractConfigFromCliConfigDraft(cliTool, rawFiles) ?? initialConfig
-          if (loadId !== loadIdRef.current) return
-          commitLoadedDraft({
-            modelId: initialModelId,
-            config: nextDraftConfig,
-            files: rawFiles,
-            connection,
-            mode: 'foreign',
-            error: ''
-          })
-          return
-        }
-
-        if (isCurrentProvider && !rawFiles.length) {
-          if (loadId !== loadIdRef.current) return
-          commitLoadedDraft(initialDraftSeed)
-          return
-        }
-
-        const nextDraft = await createManagedDraft(initialModelId, initialConfig, rawFiles, initialDraftOptions)
-        if (loadId !== loadIdRef.current) return
-        commitLoadedDraft(nextDraft)
-      } catch (error) {
-        if (loadId !== loadIdRef.current) return
-        commitLoadedDraft({
-          ...initialDraftSeed,
-          files: rawFiles,
-          error: error instanceof Error ? error.message : String(error)
-        })
-      }
-    })()
+    void loadInitialConfigDraft({
+      cliTool,
+      providerId,
+      isCurrentProvider,
+      initialModelId,
+      initialConfig,
+      initialClaudeModelMode,
+      initialDraftSeed,
+      connectionMatchesProvider
+    }).then((nextDraft) => {
+      if (loadId !== loadIdRef.current) return
+      commitLoadedDraft(nextDraft)
+    })
   }, [])
   /* oxlint-enable react-doctor/no-pass-data-to-parent */
 
@@ -329,11 +244,11 @@ export function useConfigDraftController({
           current.modelId,
           sanitizedConfig,
           current.files,
-          resolveManagedDraftOptions(claudeModelMode, sanitizedConfig, current.modelId)
+          resolveManagedOptions(claudeModelMode, sanitizedConfig, current.modelId)
         )
       }
     },
-    [claudeModelMode, cliTool, commitDraft, loadManagedDraft, resolveManagedDraftOptions]
+    [claudeModelMode, cliTool, commitDraft, loadManagedDraft, resolveManagedOptions]
   )
 
   const handleClaudeModelModeChange = useCallback(

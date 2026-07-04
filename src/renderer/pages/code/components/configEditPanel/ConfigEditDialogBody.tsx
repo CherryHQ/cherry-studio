@@ -81,7 +81,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
               providerName={providerName}
               logo={providerIcon}
               size={22}
-              className="shrink-0 rounded-md border border-border/30 [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]"
+              className="shrink-0 rounded-md border border-border/30 **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
             />
             <span className="min-w-0 truncate">{providerName}</span>
           </DialogTitle>
