@@ -12,7 +12,7 @@ import { type IsTextState, useIsTextFile } from '@renderer/hooks/useIsTextFile'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { joinPath } from '@renderer/utils/path'
-import type { FilePath } from '@shared/types/file/common'
+import { FilePathSchema } from '@shared/types/file/common'
 import { toFileUrl } from '@shared/utils/file/url'
 import { AlertCircle, FileText, Folder, FolderOpen, Maximize2, Minimize2, RotateCw, Sparkles } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -450,7 +450,7 @@ export function ArtifactFilePreview({
         key={`html-${filePath}-${contentRefreshKey}`}
         html={fileContent ?? ''}
         title={filePath}
-        baseUrl={toFileUrl(joinPath(workspacePath, filePath) as FilePath)}
+        baseUrl={toFileUrl(FilePathSchema.parse(joinPath(workspacePath, filePath)))}
       />
     )
   }

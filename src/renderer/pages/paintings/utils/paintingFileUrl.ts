@@ -1,5 +1,5 @@
 import type { FileMetadata } from '@renderer/types/file'
-import type { FilePath, FileUrlString } from '@shared/types/file'
+import { FilePathSchema, type FileUrlString } from '@shared/types/file'
 import { toSafeFileUrl } from '@shared/utils/file'
 
 type PaintingFileUrlSource = Pick<FileMetadata, 'path' | 'ext'>
@@ -11,5 +11,7 @@ type PaintingFileUrlSource = Pick<FileMetadata, 'path' | 'ext'>
  */
 export function getPaintingFileUrl(file: PaintingFileUrlSource): FileUrlString | undefined {
   if (!file.path) return undefined
-  return toSafeFileUrl(file.path as FilePath, file.ext || null)
+  const parsedPath = FilePathSchema.safeParse(file.path)
+  if (!parsedPath.success) return undefined
+  return toSafeFileUrl(parsedPath.data, file.ext || null)
 }

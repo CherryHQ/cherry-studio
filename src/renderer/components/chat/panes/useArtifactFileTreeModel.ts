@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { type FileTreeNode } from '@renderer/components/FileTree'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { joinPath } from '@renderer/utils/path'
-import type { FilePath } from '@shared/types/file/common'
+import { FilePathSchema } from '@shared/types/file/common'
 import type {
   CreateTreeIpcResult,
   DirectoryTreeOptions,
@@ -248,7 +248,7 @@ function useArtifactFileSearch(workspacePath: string | undefined, searchKeyword:
     const timeout = setTimeout(() => {
       void (async () => {
         try {
-          const entries = await window.api.file.listDirectoryEntries(workspacePath as FilePath, {
+          const entries = await window.api.file.listDirectoryEntries(FilePathSchema.parse(workspacePath), {
             recursive: true,
             maxDepth: 0,
             includeHidden: false,
@@ -366,7 +366,7 @@ function useLazyArtifactFileTree({
         try {
           // One round trip that classifies each entry — avoids an `isDirectory`
           // IPC call per entry (was N+1 round trips per expanded folder).
-          const entries = await window.api.file.listDirectoryEntries(dirPath as FilePath, {
+          const entries = await window.api.file.listDirectoryEntries(FilePathSchema.parse(dirPath), {
             recursive: false,
             includeHidden: false,
             includeFiles: true,

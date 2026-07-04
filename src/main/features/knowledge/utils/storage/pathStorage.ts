@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import { getFileExt } from '@main/utils/file'
 import { copy, ensureDir, type PathReadability, probeReadable, remove, removeDir, write } from '@main/utils/file/fs'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
-import type { FilePath } from '@shared/types/file'
+import { type FilePath, FilePathSchema } from '@shared/types/file'
 import { knowledgeFileProcessingExts } from '@shared/utils/file'
 
 const logger = loggerService.withContext('Knowledge:PathStorage')
@@ -31,16 +31,16 @@ const VECTOR_STORE_FILE = 'index.sqlite'
 const MATERIAL_ROOT_DIR = 'raw'
 
 export function getKnowledgeBaseDir(baseId: string): FilePath {
-  return path.join(application.getPath('feature.knowledgebase.data'), baseId) as FilePath
+  return FilePathSchema.parse(path.join(application.getPath('feature.knowledgebase.data'), baseId))
 }
 
 /** The material root (`{baseDir}/raw`) under which every `relativePath` resolves. */
 export function getKnowledgeMaterialDir(baseId: string): FilePath {
-  return path.join(getKnowledgeBaseDir(baseId), MATERIAL_ROOT_DIR) as FilePath
+  return FilePathSchema.parse(path.join(getKnowledgeBaseDir(baseId), MATERIAL_ROOT_DIR))
 }
 
 export function getKnowledgeBaseMetaDir(baseId: string): FilePath {
-  return path.join(getKnowledgeBaseDir(baseId), CHERRY_META_DIR) as FilePath
+  return FilePathSchema.parse(path.join(getKnowledgeBaseDir(baseId), CHERRY_META_DIR))
 }
 
 /**
@@ -51,12 +51,12 @@ export function getKnowledgeBaseMetaDir(baseId: string): FilePath {
  */
 export function getKnowledgeVectorStoreFilePathSync(baseId: string): FilePath {
   const metaDir = getKnowledgeBaseMetaDir(baseId)
-  return path.join(metaDir, VECTOR_STORE_FILE) as FilePath
+  return FilePathSchema.parse(path.join(metaDir, VECTOR_STORE_FILE))
 }
 
 export function getKnowledgeBaseFilePath(baseId: string, relativePath: string): FilePath {
   assertSafeKnowledgeRelativePath(relativePath)
-  return path.join(getKnowledgeMaterialDir(baseId), relativePath) as FilePath
+  return FilePathSchema.parse(path.join(getKnowledgeMaterialDir(baseId), relativePath))
 }
 
 /**
@@ -75,7 +75,7 @@ export async function probeKnowledgeFile(baseId: string, relativePath: string): 
  * is already absolute, so it is probed as-is.
  */
 export async function probeKnowledgeSourcePath(absolutePath: string): Promise<PathReadability> {
-  return probeReadable(absolutePath as FilePath)
+  return probeReadable(FilePathSchema.parse(absolutePath))
 }
 
 export function getKnowledgeSourceRelativePath(sourcePath: string): string {
@@ -135,8 +135,8 @@ export async function copyFileIntoKnowledgeBaseAt(
 ): Promise<string> {
   const destPath = getKnowledgeBaseFilePath(baseId, relativePath)
   await assertTargetAvailable(destPath)
-  await ensureDir(path.dirname(destPath) as FilePath)
-  await copy(sourcePath as FilePath, destPath)
+  await ensureDir(FilePathSchema.parse(path.dirname(destPath)))
+  await copy(FilePathSchema.parse(sourcePath), destPath)
   return relativePath
 }
 
@@ -148,7 +148,7 @@ export async function writeFileIntoKnowledgeBaseAt(
 ): Promise<string> {
   const destPath = getKnowledgeBaseFilePath(baseId, relativePath)
   await assertTargetAvailable(destPath)
-  await ensureDir(path.dirname(destPath) as FilePath)
+  await ensureDir(FilePathSchema.parse(path.dirname(destPath)))
   await write(destPath, content)
   return relativePath
 }

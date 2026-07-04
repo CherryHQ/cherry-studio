@@ -1,4 +1,4 @@
-import type { FilePath } from '@shared/types/file'
+import { FilePathSchema } from '@shared/types/file'
 
 import { stat } from './fs'
 
@@ -27,7 +27,7 @@ export async function getPathStatus(path: string): Promise<PathStatus> {
   }
 
   try {
-    const stats = await stat(path as FilePath)
+    const stats = await stat(FilePathSchema.parse(path))
     return { ok: true, kind: stats.isDirectory ? 'directory' : 'file' }
   } catch (error) {
     // `ENOENT` (nothing there) and `ENOTDIR` (a path component is a

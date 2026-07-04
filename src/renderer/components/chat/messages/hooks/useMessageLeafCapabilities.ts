@@ -9,7 +9,8 @@ import { parseFileTypes } from '@renderer/utils/file'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { FileHandle, FilePath } from '@shared/types/file'
+import type { FileHandle } from '@shared/types/file'
+import { FilePathSchema } from '@shared/types/file'
 import type { McpProgressEvent } from '@shared/types/mcp'
 import { createFileEntryHandle, createFilePathHandle, toSafeFileUrl } from '@shared/utils/file'
 import dayjs from 'dayjs'
@@ -53,7 +54,7 @@ function isMcpToolPart(part: CherryMessagePart): boolean {
 function fileMetadataToHandle(file: FileMetadata): FileHandle {
   if (file.path) {
     try {
-      return createFilePathHandle(file.path as FilePath)
+      return createFilePathHandle(FilePathSchema.parse(file.path))
     } catch {
       // Fall back to the entry id for legacy FileMetadata whose path is not an
       // absolute filesystem path. The IPC schema is still the authority.
@@ -134,9 +135,10 @@ export function useMessageLeafCapabilities({
 
   const getFileView = useCallback<NonNullable<MessageListState['getFileView']>>(
     (file) => {
+      const parsedPath = file.path ? FilePathSchema.safeParse(file.path) : undefined
       return {
         displayName: formatMessageAttachmentFileName(file, t),
-        previewUrl: file.path ? toSafeFileUrl(file.path as FilePath, file.ext || null) : undefined
+        previewUrl: parsedPath?.success ? toSafeFileUrl(parsedPath.data, file.ext || null) : undefined
       }
     },
     [t]

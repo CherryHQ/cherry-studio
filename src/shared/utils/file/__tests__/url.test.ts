@@ -154,6 +154,6 @@ describe('toSafeFileUrl', () => {
     // renderer would end up with `file:///payload.exe`, which `<embed>` /
     // `<img src>` can hand to OS file associations.
     expect(toSafeFileUrl('/payload.exe' as FilePath, 'exe')).toBe('file:///')
-    expect(toSafeFileUrl('C:\\payload.exe' as FilePath, 'exe')).toBe('file:///C:')
+    expect(toSafeFileUrl('C:\\payload.exe' as FilePath, 'exe')).toBe('file:///C:/')
   })
 })

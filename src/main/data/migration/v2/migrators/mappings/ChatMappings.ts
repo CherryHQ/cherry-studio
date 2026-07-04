@@ -64,7 +64,7 @@ import type {
 } from '@shared/data/types/message'
 import type { CherryDataPartTypes, CherryToolMeta } from '@shared/data/types/uiParts'
 import { withCherryMeta } from '@shared/data/types/uiParts'
-import type { Base64String, FilePath } from '@shared/types/file/common'
+import { type Base64String, FilePathSchema } from '@shared/types/file/common'
 import type { SourceUrlUIPart } from 'ai'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
@@ -953,7 +953,7 @@ async function promoteBase64ToFileEntry(
   const ext = mime.getExtension(mimeType)
   const id = uuidv7()
   const filename = ext ? `${id}.${ext}` : id
-  const physicalPath = path.join(filesDataDir, filename) as FilePath
+  const physicalPath = FilePathSchema.parse(path.join(filesDataDir, filename))
   const bytes = Buffer.from(payload, 'base64')
   let physicalWritten = false
 

@@ -22,7 +22,7 @@ import {
   KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
 } from '@shared/data/types/knowledge'
 import { UNIQUE_MODEL_ID_SEPARATOR, type UniqueModelId } from '@shared/data/types/model'
-import type { FilePath } from '@shared/types/file'
+import { FilePathSchema } from '@shared/types/file'
 import Database from 'better-sqlite3'
 import { eq, sql } from 'drizzle-orm'
 
@@ -1054,8 +1054,8 @@ export class KnowledgeMigrator extends BaseMigrator {
 
       const destPath = path.join(ctx.paths.knowledgeBaseDir, baseId, 'raw', relativePath)
       try {
-        await ensureDir(path.dirname(destPath) as FilePath)
-        await copy(sourcePath as FilePath, destPath as FilePath)
+        await ensureDir(FilePathSchema.parse(path.dirname(destPath)))
+        await copy(FilePathSchema.parse(sourcePath), FilePathSchema.parse(destPath))
       } catch (error) {
         this.recordWarning(
           `Failed to copy knowledge file for item ${item.id} (${sourcePath} → ${destPath}): ${

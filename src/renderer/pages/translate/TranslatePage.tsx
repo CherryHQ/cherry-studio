@@ -43,7 +43,7 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { TranslateHistory } from '@shared/data/types/translate'
-import type { FilePath } from '@shared/types/file'
+import { FilePathSchema } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file/fileExtensions'
@@ -501,7 +501,7 @@ const TranslatePage: FC = () => {
       try {
         const snapshot = await ipcApi.request('file_processing.start_job', {
           feature: 'image_to_text',
-          file: createFilePathHandle(file.path as FilePath)
+          file: createFilePathHandle(FilePathSchema.parse(file.path))
         })
         jobId = snapshot.id
       } catch (error) {

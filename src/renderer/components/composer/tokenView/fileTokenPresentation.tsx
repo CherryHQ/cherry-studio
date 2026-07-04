@@ -1,6 +1,6 @@
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import type { FilePath } from '@shared/types/file'
+import { FilePathSchema } from '@shared/types/file'
 import { toSafeFileUrl } from '@shared/utils/file/url'
 import { File, FileCode2, FileImage, FileJson, FileSpreadsheet, FileText, FileType2, Presentation } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
@@ -112,7 +112,9 @@ function getFileExtensionLabel(file: ComposerAttachment | undefined, fallbackLab
 
 function getFilePreviewUrl(file: ComposerAttachment | undefined) {
   if (!file?.path || file.type !== FILE_TYPE.IMAGE) return undefined
-  return toSafeFileUrl(file.path as FilePath, file.ext || null)
+  const parsedPath = FilePathSchema.safeParse(file.path)
+  if (!parsedPath.success) return undefined
+  return toSafeFileUrl(parsedPath.data, file.ext || null)
 }
 
 function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel: string): FileTokenVariant {

@@ -16,6 +16,11 @@ describe('getPaintingFileUrl', () => {
     ).toBe('file:///resolved%20output/paint%20result.png')
   })
 
+  it('returns undefined without throwing when the path is not absolute', () => {
+    expect(() => getPaintingFileUrl({ path: 'relative/legacy.png', ext: '.png' })).not.toThrow()
+    expect(getPaintingFileUrl({ path: 'relative/legacy.png', ext: '.png' })).toBeUndefined()
+  })
+
   it('keeps shared file-url safety behavior', () => {
     expect(
       getPaintingFileUrl({

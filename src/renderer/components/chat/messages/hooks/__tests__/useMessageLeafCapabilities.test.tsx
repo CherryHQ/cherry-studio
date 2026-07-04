@@ -180,6 +180,28 @@ describe('useMessageLeafCapabilities', () => {
     })
   })
 
+  it('omits the preview url without throwing when the shared attachment path is not absolute', () => {
+    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
+
+    const file: FileMetadata = {
+      id: 'file-1',
+      type: FILE_TYPE.DOCUMENT,
+      ext: '.pdf',
+      path: 'relative/legacy.pdf',
+      origin_name: 'file.pdf',
+      name: 'stored-file.pdf',
+      size: 100,
+      created_at: '2026-01-01T00:00:00.000Z',
+      count: 1
+    }
+
+    expect(() => result.current.getFileView?.(file)).not.toThrow()
+    expect(result.current.getFileView?.(file)).toEqual({
+      displayName: 'file.pdf',
+      previewUrl: undefined
+    })
+  })
+
   it('keeps legacy pasted temp-file display behavior local to message attachments', () => {
     const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
 

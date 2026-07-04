@@ -33,7 +33,7 @@
  * access, or main-process singletons belongs in File IPC.
  */
 
-import { type FilePath, type FileUrlString, SafeExtSchema } from '@shared/types/file/common'
+import { type FilePath, FilePathSchema, type FileUrlString, SafeExtSchema } from '@shared/types/file/common'
 
 // ─── Danger extension policy ───
 
@@ -147,10 +147,19 @@ export function isDangerExt(ext: string | null | undefined): boolean {
  * `sepIdx === 0` is the POSIX-root case (`/payload.exe`): degrade to `'/'` so
  * the safety wrap in `toSafeFileUrl` still strips the filename. Returning the
  * original string here would defeat the entire danger-ext policy.
+ *
+ * The Windows-drive-root case (`C:\payload.exe`) needs the same treatment:
+ * slicing off just the separator would leave a bare `C:`, which
+ * `FilePathSchema` rejects as non-absolute (it requires the trailing
+ * separator to recognize a drive letter as a root). Keep the separator so
+ * the result stays a valid, canonical drive root (`C:\`).
  */
 function dirnameSimple(absolutePath: string): string {
   const sepIdx = Math.max(absolutePath.lastIndexOf('/'), absolutePath.lastIndexOf('\\'))
-  if (sepIdx > 0) return absolutePath.slice(0, sepIdx)
+  if (sepIdx > 0) {
+    const dir = absolutePath.slice(0, sepIdx)
+    return /^[A-Za-z]:$/.test(dir) ? absolutePath.slice(0, sepIdx + 1) : dir
+  }
   if (sepIdx === 0) return '/'
   return absolutePath
 }
@@ -224,5 +233,5 @@ export function fileUrlToPath(fileUrl: FileUrlString | URL): string {
  */
 export function toSafeFileUrl(absolutePath: FilePath, ext: string | null): FileUrlString {
   const effectivePath = isDangerExt(ext) ? dirnameSimple(absolutePath) : absolutePath
-  return toFileUrl(effectivePath as FilePath)
+  return toFileUrl(FilePathSchema.parse(effectivePath))
 }
