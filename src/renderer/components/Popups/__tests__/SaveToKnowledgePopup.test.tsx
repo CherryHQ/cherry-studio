@@ -77,7 +77,7 @@ vi.mock('lucide-react', () => ({
   Check: () => <span data-testid="check-icon" />
 }))
 
-vi.mock('@renderer/components/tags/CustomTag', () => ({
+vi.mock('@renderer/components/Tags/CustomTag', () => ({
   default: ({ children }: { children: React.ReactNode }) => <span>{children}</span>
 }))
 

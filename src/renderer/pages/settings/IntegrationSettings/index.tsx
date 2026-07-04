@@ -1,5 +1,5 @@
 import { MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
-import { JoplinIcon, SiyuanIcon } from '@renderer/components/icons'
+import { JoplinIcon, SiyuanIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { BookOpen } from 'lucide-react'

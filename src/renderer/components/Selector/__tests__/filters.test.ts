@@ -5,7 +5,7 @@
  * capability tag dispatch, and cherryai special-casing.
  */
 
-import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
+import { modelMatchesDisplayTag } from '@renderer/components/Tags/Model'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 

@@ -13,7 +13,7 @@ import {
   useDndReorder
 } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { EditIcon } from '@renderer/components/icons'
+import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { matchKeywordsInString } from '@renderer/utils/match'

@@ -1,4 +1,4 @@
-import { MODEL_DISPLAY_TAGS, type ModelDisplayTag, modelMatchesDisplayTag } from '@renderer/components/tags/Model'
+import { MODEL_DISPLAY_TAGS, type ModelDisplayTag, modelMatchesDisplayTag } from '@renderer/components/Tags/Model'
 import type { Model } from '@shared/data/types/model'
 import { useCallback, useMemo, useState } from 'react'
 

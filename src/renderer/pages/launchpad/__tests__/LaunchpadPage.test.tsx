@@ -43,7 +43,7 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
-vi.mock('@renderer/components/icons/SvgIcon', () => ({
+vi.mock('@renderer/components/Icons/SvgIcon', () => ({
   OpenClawSidebarIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />
 }))
 

@@ -30,7 +30,7 @@ vi.mock('lucide-react', () => ({
   Scan: () => <span data-testid="scan">⊞</span>
 }))
 
-vi.mock('@renderer/components/icons', () => ({
+vi.mock('@renderer/components/Icons', () => ({
   ResetIcon: () => <span data-testid="reset">↻</span>
 }))
 

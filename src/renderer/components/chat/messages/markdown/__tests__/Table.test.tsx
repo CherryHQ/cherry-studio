@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => {
 })
 
 // Mock dependencies
-vi.mock('@renderer/components/icons', () => ({
+vi.mock('@renderer/components/Icons', () => ({
   CopyIcon: ({ size }: { size: number }) => <div data-testid="copy-icon" style={{ width: size, height: size }} />
 }))
 

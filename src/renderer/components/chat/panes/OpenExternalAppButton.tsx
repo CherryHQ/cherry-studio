@@ -9,8 +9,8 @@ import {
   PopoverTrigger
 } from '@cherrystudio/ui'
 import { usePersistCache } from '@data/hooks/useCache'
-import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
-import { FinderIcon } from '@renderer/components/icons/SvgIcon'
+import { getEditorIcon } from '@renderer/components/Icons/EditorIcon'
+import { FinderIcon } from '@renderer/components/Icons/SvgIcon'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import { buildEditorUrl } from '@renderer/utils/editor'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'

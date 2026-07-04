@@ -1,5 +1,5 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Tooltip } from '@cherrystudio/ui'
-import { EditIcon } from '@renderer/components/icons'
+import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { TopView } from '@renderer/components/TopView'
 import { maskApiKey } from '@renderer/utils/api'

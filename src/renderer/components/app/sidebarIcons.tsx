@@ -1,4 +1,4 @@
-import { OpenClawSidebarIcon } from '@renderer/components/icons/SvgIcon'
+import { OpenClawSidebarIcon } from '@renderer/components/Icons/SvgIcon'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import type { LucideIcon } from 'lucide-react'
 import {

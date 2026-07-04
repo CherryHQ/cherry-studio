@@ -385,7 +385,7 @@ vi.mock('@data/hooks/useCache', () => ({
       : [null, vi.fn()]
 }))
 
-vi.mock('@renderer/components/icons/SvgIcon', () => ({
+vi.mock('@renderer/components/Icons/SvgIcon', () => ({
   FinderIcon: (props: React.SVGProps<SVGSVGElement>) => <svg aria-hidden="true" {...props} />
 }))
 

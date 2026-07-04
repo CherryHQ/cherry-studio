@@ -38,7 +38,7 @@ vi.mock('@renderer/utils/platform', () => ({
   platform: 'linux'
 }))
 
-vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
+vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
   getMiniAppsLogo: () => undefined
 }))
 

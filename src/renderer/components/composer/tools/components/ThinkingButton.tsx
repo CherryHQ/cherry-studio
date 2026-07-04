@@ -8,7 +8,7 @@ import {
   MdiLightbulbOn80,
   MdiLightbulbOn90,
   MdiLightbulbQuestion
-} from '@renderer/components/icons/SvgIcon'
+} from '@renderer/components/Icons/SvgIcon'
 import { cacheService } from '@renderer/data/CacheService'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { ThinkingOption } from '@renderer/types/reasoning'

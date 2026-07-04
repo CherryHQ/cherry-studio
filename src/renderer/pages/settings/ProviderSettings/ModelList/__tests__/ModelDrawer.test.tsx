@@ -75,7 +75,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
   })
 }))
 
-vi.mock('@renderer/components/tags/Model', () => ({
+vi.mock('@renderer/components/Tags/Model', () => ({
   VisionTag: ({ onClick }: any) => (
     <button type="button" onClick={onClick}>
       vision
@@ -108,7 +108,7 @@ vi.mock('@renderer/components/tags/Model', () => ({
   )
 }))
 
-vi.mock('@renderer/components/icons/CopyIcon', () => ({
+vi.mock('@renderer/components/Icons/CopyIcon', () => ({
   default: () => <span>copy-icon</span>
 }))
 

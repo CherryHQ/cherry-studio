@@ -100,7 +100,7 @@ vi.mock('@renderer/components/command', () => ({
   )
 }))
 
-vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
+vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
   getMiniAppsLogo: (logo?: string) => {
     if (logo !== 'qwen') return undefined
 

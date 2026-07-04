@@ -31,7 +31,7 @@ vi.mock('@renderer/utils/markdown', () => ({
   findCitationInChildren: mocks.findCitationInChildren
 }))
 
-vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
+vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
   __esModule: true,
   default: mocks.Favicon
 }))

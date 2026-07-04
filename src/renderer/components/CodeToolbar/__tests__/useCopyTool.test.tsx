@@ -35,7 +35,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/components/icons', () => ({
+vi.mock('@renderer/components/Icons', () => ({
   CopyIcon: () => <div data-testid="copy-icon" />
 }))
 

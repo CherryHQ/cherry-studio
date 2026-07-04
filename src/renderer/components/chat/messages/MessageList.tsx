@@ -1,7 +1,7 @@
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import { useImmersiveNavbar, useReportImmersiveNarrow } from '@renderer/components/chat/layout/ImmersiveNavbarContext'
-import { LoadingIcon } from '@renderer/components/icons'
+import { LoadingIcon } from '@renderer/components/Icons'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'

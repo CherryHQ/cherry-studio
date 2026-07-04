@@ -62,7 +62,7 @@ vi.mock('@renderer/components/command', () => ({
   )
 }))
 
-vi.mock('@renderer/components/icons/MiniAppIcon', () => ({
+vi.mock('@renderer/components/Icons/MiniAppIcon', () => ({
   default: ({ app }: { app: MiniAppType }) => <div data-testid={`mini-app-icon-${app.appId}`} />
 }))
 

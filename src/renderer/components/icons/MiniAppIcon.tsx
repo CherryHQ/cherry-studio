@@ -1,4 +1,4 @@
-import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
+import { getMiniAppsLogo } from '@renderer/components/Icons/miniAppsLogo'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC } from 'react'
 

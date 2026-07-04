@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import MiniAppIcon from '../MiniAppIcon'
 
-vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
+vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
   getMiniAppsLogo: (logo: unknown) => {
     if (logo !== 'compound-logo') return logo
     const CompoundLogo = ({

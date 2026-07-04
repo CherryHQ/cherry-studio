@@ -40,7 +40,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/components/tags/Model', () => ({
+vi.mock('@renderer/components/Tags/Model', () => ({
   getModelDisplayTags: () => [],
   ModelTag: () => null
 }))

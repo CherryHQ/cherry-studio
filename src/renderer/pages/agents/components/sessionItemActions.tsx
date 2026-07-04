@@ -1,6 +1,6 @@
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import { DeleteIcon, EditIcon, OpenInNewWindowIcon } from '@renderer/components/icons'
+import { DeleteIcon, EditIcon, OpenInNewWindowIcon } from '@renderer/components/Icons'
 import type { TFunction } from 'i18next'
 import { ExternalLink, PinIcon, PinOffIcon } from 'lucide-react'
 

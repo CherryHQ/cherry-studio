@@ -1,4 +1,4 @@
-import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
+import { modelMatchesDisplayTag } from '@renderer/components/Tags/Model'
 import { modelFilterIncludesAgentOnlyProviders } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'

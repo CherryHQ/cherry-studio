@@ -24,7 +24,7 @@ vi.mock('@renderer/components/TopView', () => ({
   }
 }))
 
-vi.mock('@renderer/components/icons', () => ({
+vi.mock('@renderer/components/Icons', () => ({
   EditIcon: ({ size }: { size?: number }) => <span data-size={size}>edit</span>
 }))
 

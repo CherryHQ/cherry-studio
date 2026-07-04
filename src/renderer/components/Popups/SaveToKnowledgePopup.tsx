@@ -12,7 +12,7 @@ import {
   Label
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import CustomTag from '@renderer/components/tags/CustomTag'
+import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TopView } from '@renderer/components/TopView'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'

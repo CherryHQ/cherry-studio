@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
+import { getModelDisplayTags, ModelTag } from '@renderer/components/Tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { isDev } from '@renderer/utils/platform'

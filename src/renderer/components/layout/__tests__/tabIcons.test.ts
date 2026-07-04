@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
-import { OpenClawSidebarIcon } from '../../icons/SvgIcon'
+import { OpenClawSidebarIcon } from '../../Icons/SvgIcon'
 import { getTabIcon } from '../tabIcons'
 
 function routeTab(url: string): Tab {

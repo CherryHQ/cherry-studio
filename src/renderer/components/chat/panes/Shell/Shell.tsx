@@ -1,6 +1,6 @@
 import { HorizontalScrollContainer, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { CommandTooltip } from '@renderer/components/command'
-import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/icons'
+import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
