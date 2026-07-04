@@ -1,7 +1,7 @@
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
-import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CodeCli } from '@shared/types/codeCli'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
@@ -18,15 +18,6 @@ import { CLI_TOOL_PROVIDER_MAP, modelSupportsCliTool } from '../constants/cliToo
 export function useConfigMetadata(selectedCliTool: CodeCli) {
   const { models: allModels } = useModels({ enabled: true })
   const modelById = useMemo(() => new Map(allModels.map((m) => [m.id, m])), [allModels])
-  const firstModelByProvider = useMemo(() => {
-    const map = new Map<string, UniqueModelId>()
-    for (const model of allModels) {
-      if (isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) continue
-      if (!modelSupportsCliTool(selectedCliTool, model)) continue
-      if (!map.has(model.providerId)) map.set(model.providerId, model.id)
-    }
-    return map
-  }, [allModels, selectedCliTool])
 
   const filterProviders = useCallback(
     (providers: Provider[]): Provider[] => {
@@ -64,5 +55,5 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
     [modelById]
   )
 
-  return { filterProviders, makeModelFilter, resolveProviderMeta, firstModelByProvider }
+  return { filterProviders, makeModelFilter, resolveProviderMeta }
 }

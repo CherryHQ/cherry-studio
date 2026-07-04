@@ -2,21 +2,28 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useModelById } from '@renderer/hooks/useModel'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown } from 'lucide-react'
-import type { FC } from 'react'
+import { type ButtonHTMLAttributes, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface ModelSelectorTriggerProps {
+interface ModelSelectorTriggerProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   value?: UniqueModelId
   placeholder?: string
 }
 
-export const ModelSelectorTrigger: FC<ModelSelectorTriggerProps> = ({ value, placeholder }) => {
+export const ModelSelectorTrigger = ({
+  ref,
+  value,
+  placeholder,
+  ...props
+}: ModelSelectorTriggerProps & { ref?: Ref<HTMLButtonElement> }) => {
   const { t } = useTranslation()
   const { model } = useModelById(value ?? null)
 
   return (
     <button
+      ref={ref}
       type="button"
+      {...props}
       className="group flex h-9 w-full min-w-0 items-center justify-between rounded-lg border border-border bg-muted/30 px-3 text-sm transition-colors hover:bg-muted/50">
       <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
         {model ? (
@@ -37,3 +44,5 @@ export const ModelSelectorTrigger: FC<ModelSelectorTriggerProps> = ({ value, pla
     </button>
   )
 }
+
+ModelSelectorTrigger.displayName = 'ModelSelectorTrigger'

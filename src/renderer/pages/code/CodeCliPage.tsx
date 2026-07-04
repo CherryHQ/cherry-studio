@@ -87,8 +87,7 @@ const CodeCliPage: FC = () => {
   const { openSmartMiniApp } = useMiniAppPopup()
   const availableTerminals = useAvailableTerminals()
   const { providers } = useProviders()
-  const { filterProviders, makeModelFilter, resolveProviderMeta, firstModelByProvider } =
-    useConfigMetadata(selectedCliTool)
+  const { filterProviders, makeModelFilter, resolveProviderMeta } = useConfigMetadata(selectedCliTool)
   const navigate = useNavigate()
   const [optimisticProviderOrder, setOptimisticProviderOrder] = useState<{ toolId: CodeCli; ids: string[] } | null>(
     null
@@ -153,8 +152,15 @@ const CodeCliPage: FC = () => {
   const [stoppingOpenClaw, setStoppingOpenClaw] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<CodeCli | null>(null)
   const [currentCliConfigConnection, setCurrentCliConfigConnection] = useState<CliConfigConnection | null>(null)
-  const openConfigurePanel = useCallback((provider: Provider) => setEditingProvider(provider), [])
-  const closePanel = useCallback(() => setEditingProvider(null), [])
+  const [pendingEnableProviderId, setPendingEnableProviderId] = useState<string | null>(null)
+  const openConfigurePanel = useCallback((provider: Provider) => {
+    setPendingEnableProviderId(null)
+    setEditingProvider(provider)
+  }, [])
+  const closePanel = useCallback(() => {
+    setPendingEnableProviderId(null)
+    setEditingProvider(null)
+  }, [])
 
   const handlePanelSubmit = useCallback(
     async (values: {
@@ -181,13 +187,14 @@ const CodeCliPage: FC = () => {
         return
       }
       if (!values.modelId) return
+      const shouldEnableAfterSave = pendingEnableProviderId === editingProvider.id
       await upsertProviderConfig(editingProvider.id, {
         modelId: values.modelId,
         ...(values.config ? { config: values.config } : {})
       })
       logger.info('Updated CLI provider config', { toolId: selectedCliTool, providerId: editingProvider.id })
       // Re-apply to the CLI config file when editing the currently active provider.
-      if (currentProviderId === editingProvider.id) {
+      if (currentProviderId === editingProvider.id || shouldEnableAfterSave) {
         try {
           await writeCliConfigDraft({
             cliTool: selectedCliTool,
@@ -195,6 +202,9 @@ const CodeCliPage: FC = () => {
             configBlob: values.config,
             files: values.cliConfigFiles
           })
+          if (shouldEnableAfterSave) {
+            await setCurrentProvider(editingProvider.id)
+          }
           setCurrentCliConfigConnection(null)
         } catch (err) {
           logger.error('Failed to inject CLI config on edit:', err as Error)
@@ -202,7 +212,15 @@ const CodeCliPage: FC = () => {
         }
       }
     },
-    [editingProvider, selectedCliTool, currentProviderId, upsertProviderConfig, t]
+    [
+      editingProvider,
+      selectedCliTool,
+      pendingEnableProviderId,
+      currentProviderId,
+      upsertProviderConfig,
+      setCurrentProvider,
+      t
+    ]
   )
 
   const handleToggleCurrent = useCallback(
@@ -220,25 +238,22 @@ const CodeCliPage: FC = () => {
           setCurrentCliConfigConnection(null)
           return
         }
-        // Ensure the provider has a config + modelId before injecting. Auto-pick
-        // the provider's first enabled model when the user hasn't configured one.
-        let cfg = providerConfigs[provider.id]
-        let modelId = cfg?.modelId
+        // Ensure the provider has a model before injecting. If none is saved,
+        // open configuration so the user chooses explicitly.
+        const cfg = providerConfigs[provider.id]
+        const modelId = cfg?.modelId
         const configuredModelId = parseConfiguredModelId(modelId)
         if (modelId && !configuredModelId) {
           await upsertProviderConfig(provider.id, { modelId: '' })
+          setPendingEnableProviderId(provider.id)
+          setEditingProvider(provider)
           window.toast.error(t('code.launch.validation_error'))
           return
         }
         if (!modelId) {
-          const firstModel = firstModelByProvider.get(provider.id)
-          if (!firstModel) {
-            window.toast.error(t('code.no_model_for_provider'))
-            return
-          }
-          modelId = firstModel
-          await upsertProviderConfig(provider.id, { modelId: firstModel })
-          cfg = providerConfigs[provider.id]
+          setPendingEnableProviderId(provider.id)
+          setEditingProvider(provider)
+          return
         }
         // Inject first; only mark as current on success so the UI never shows a
         // provider as active while its CLI config file failed to write.
@@ -256,15 +271,7 @@ const CodeCliPage: FC = () => {
         }
       })()
     },
-    [
-      currentProviderId,
-      selectedCliTool,
-      firstModelByProvider,
-      providerConfigs,
-      upsertProviderConfig,
-      setCurrentProvider,
-      t
-    ]
+    [currentProviderId, selectedCliTool, providerConfigs, upsertProviderConfig, setCurrentProvider, t]
   )
 
   useEffect(() => {
