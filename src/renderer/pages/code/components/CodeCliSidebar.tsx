@@ -24,7 +24,7 @@ const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ st
   const { t } = useTranslation()
   if (isBusy) {
     return (
-      <span className="flex items-center gap-1 text-[11px] text-muted-foreground/60">
+      <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] text-muted-foreground/60">
         <Loader2 className="size-2.5 motion-safe:animate-spin" />
         {t('code.installing')}
       </span>
@@ -32,10 +32,12 @@ const SidebarStatusTag: FC<{ status?: VersionStatus; isBusy?: boolean }> = ({ st
   }
   if (!status) return null
   if (!status.installed) {
-    return <span className="truncate text-[11px] text-muted-foreground/55">{t('code.not_installed')}</span>
+    return (
+      <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground/55">{t('code.not_installed')}</span>
+    )
   }
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex shrink-0 items-center gap-1.5">
       <span className="truncate font-mono text-[11px] text-muted-foreground/50">
         v{status.canUpgrade && status.latest ? status.latest : status.current}
       </span>
@@ -84,7 +86,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
             {searchTerm ? t('code.no_matching_tools') : t('code.no_tools')}
           </div>
         ) : (
-          <div className="space-y-0.5">
+          <div className="space-y-2">
             {displayedTools.map((tool) => {
               const meta = toMeta(tool)
               const isSelected = selectedCliTool === tool.value
@@ -97,8 +99,8 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
                     isSelected ? 'bg-accent/55' : 'hover:bg-accent/30'
                   }`}>
                   <CLIIcon id={tool.value} size={28} className="size-7 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] text-foreground">{meta.label}</div>
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <div className="min-w-0 flex-1 truncate text-[13px] text-foreground">{meta.label}</div>
                     <SidebarStatusTag
                       status={statuses[tool.value]}
                       isBusy={installingTools.has(tool.value) || upgradingTools.has(tool.value)}
