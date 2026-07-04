@@ -1,7 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { NavbarHeader } from '@renderer/components/app/Navbar'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { CommandTooltip } from '@renderer/components/command'
+import { NavbarHeader } from '@renderer/components/Navbar'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useResolvedCommand } from '@renderer/hooks/command'
 import { t } from 'i18next'

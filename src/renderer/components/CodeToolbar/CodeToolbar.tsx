@@ -4,7 +4,7 @@ import { EllipsisVertical } from 'lucide-react'
 import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import CodeToolButton from './button'
+import CodeToolButton from './CodeToolButton'
 import { ToolWrapper } from './styles'
 
 const CodeToolbar = ({ tools }: { tools: ActionTool[] }) => {

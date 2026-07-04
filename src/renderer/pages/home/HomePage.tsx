@@ -16,10 +16,8 @@ import {
   useResourcePane
 } from '@renderer/components/chat/panes/Shell'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { AssistantResourceList } from '@renderer/components/chat/resources/variants/AssistantResourceList'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
-import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { ChatHomePlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
 import {
   createRecentTopicEntryFromTopic,
@@ -39,8 +37,10 @@ import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssist
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'

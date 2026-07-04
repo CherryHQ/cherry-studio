@@ -34,7 +34,7 @@ vi.mock('@renderer/utils/export', () => ({
 
 vi.mock('@renderer/utils/image', () => ({
   captureScrollableAsBlob: vi.fn(),
-  captureScrollableAsDataURL: vi.fn()
+  captureScrollableAsDataUrl: vi.fn()
 }))
 
 vi.mock('@renderer/utils/message/partsHelpers', () => ({

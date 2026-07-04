@@ -22,10 +22,10 @@ import type {
   MessageListState,
   MessageRuntime
 } from '@renderer/components/chat/messages/types'
-import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
+import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'

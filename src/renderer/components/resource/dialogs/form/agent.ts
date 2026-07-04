@@ -1,9 +1,9 @@
+import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import {
   DEFAULT_HEARTBEAT_ENABLED,
   DEFAULT_HEARTBEAT_INTERVAL,
   normalizePermissionMode
-} from '@renderer/hooks/agent/permissionMode'
-import type { AgentDetail } from '@renderer/types/resourceCatalog'
+} from '@renderer/utils/agent/permissionMode'
 import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
