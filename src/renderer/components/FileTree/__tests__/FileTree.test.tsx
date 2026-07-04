@@ -166,6 +166,26 @@ describe('FileTree - editable form (all callbacks)', () => {
 
     expect(screen.getByText('Menu for Root')).toBeInTheDocument()
   })
+
+  it('allows row context-menu events to reach the menu wrapper', () => {
+    const onWrapperContextMenu = vi.fn()
+
+    render(
+      <div onContextMenu={onWrapperContextMenu}>
+        <FileTree
+          nodes={nodes}
+          defaultExpandedIds={new Set(['root'])}
+          getMenuItems={(n) => [{ type: 'item', id: `menu-${n.id}`, label: `Menu for ${n.name}`, onSelect: () => {} }]}
+          renderList={passthroughRenderList}
+        />
+      </div>
+    )
+
+    const rootRow = screen.getByText('Root').closest('[data-node-id="root"]')!
+    fireEvent.contextMenu(rootRow)
+
+    expect(onWrapperContextMenu).toHaveBeenCalledOnce()
+  })
 })
 
 describe('FileTree - icon behaviour', () => {
