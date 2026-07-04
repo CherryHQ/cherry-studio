@@ -69,8 +69,18 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   const configRef = useRef<Record<string, unknown>>({})
   const cliConfigFilesRef = useRef<CliConfigFileDraft[]>([])
   const loadIdRef = useRef(0)
+  const modelIdRef = useRef<UniqueModelId | undefined>(undefined)
+  const apiKeysRef = useRef<Parameters<typeof cliConfigConnectionMatchesProvider>[3]>(undefined)
 
   const { model: selectedModelRecord } = useModelById(modelId ?? null)
+
+  useEffect(() => {
+    modelIdRef.current = modelId
+  }, [modelId])
+
+  useEffect(() => {
+    apiKeysRef.current = apiKeysData?.keys
+  }, [apiKeysData?.keys])
 
   const endpointUrl = getProviderHostTopology(provider).primaryBaseUrl
   const displayedProviderName = cliConfigSelection
@@ -79,12 +89,12 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   const displayedEndpointUrl = cliConfigSelection?.baseUrl ?? endpointUrl
 
   const connectionMatchesProvider = useCallback(
-    (connection: CliConfigConnection | null, expectedModelId = modelId): boolean => {
+    (connection: CliConfigConnection | null, expectedModelId = modelIdRef.current): boolean => {
       const expectedModel =
         expectedModelId && isUniqueModelId(expectedModelId) ? parseUniqueModelId(expectedModelId).modelId : undefined
-      return cliConfigConnectionMatchesProvider(cliTool, connection, provider, apiKeysData?.keys, expectedModel)
+      return cliConfigConnectionMatchesProvider(cliTool, connection, provider, apiKeysRef.current, expectedModel)
     },
-    [apiKeysData, cliTool, modelId, provider]
+    [cliTool, provider]
   )
 
   const loadCliConfig = useCallback(
@@ -196,28 +206,38 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     </div>
   )
 
-  const modelSlot: ReactNode = cliConfigSelection ? (
+  const handleModelSelect = useCallback(
+    (nextModelId: UniqueModelId | undefined) => {
+      setModelId(nextModelId)
+      setCliConfigSelection(null)
+      if (nextModelId) void loadCliConfig(nextModelId, configRef.current, cliConfigFilesRef.current)
+    },
+    [loadCliConfig]
+  )
+
+  const unknownCliConfigModelHint: ReactNode = cliConfigSelection ? (
     <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2">
       <div className="font-medium text-warning text-xs">{t('code.cli_config.unknown_provider')}</div>
       <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
         {cliConfigSelection.model || t('code.cli_config.unknown_model')}
       </div>
     </div>
-  ) : (
+  ) : null
+
+  const modelSlot: ReactNode = (
     <>
+      {unknownCliConfigModelHint}
+      {unknownCliConfigModelHint && <div className="h-2" />}
       <ModelSelector
         multiple={false}
         selectionType="id"
         value={modelId}
-        onSelect={(nextModelId) => {
-          setModelId(nextModelId)
-          if (nextModelId) void loadCliConfig(nextModelId, configRef.current, cliConfigFilesRef.current)
-        }}
+        onSelect={handleModelSelect}
         filter={modelFilter}
         showTagFilter
         trigger={renderModelTrigger()}
       />
-      <SettingHelpText className="mt-2">{t('code.model_hint_config')}</SettingHelpText>
+      {!unknownCliConfigModelHint && <SettingHelpText className="mt-2">{t('code.model_hint_config')}</SettingHelpText>}
     </>
   )
 
