@@ -78,17 +78,22 @@ export const ProviderCard: FC<ProviderCardProps> = ({
         </span>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-foreground text-sm">{providerName}</span>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="min-w-0 truncate text-foreground text-sm">{providerName}</span>
+            {modelName && (
+              <>
+                <span aria-hidden className="shrink-0 text-muted-foreground/35 text-xs">
+                  ｜
+                </span>
+                <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground/50">{modelName}</span>
+              </>
+            )}
             {isCurrent && (
               <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
                 {t('code.enabled')}
               </span>
             )}
           </div>
-          {modelName && (
-            <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground/50">{modelName}</div>
-          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">

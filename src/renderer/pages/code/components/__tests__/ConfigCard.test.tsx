@@ -94,6 +94,19 @@ describe('ProviderCard', () => {
     expect(icon.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it('renders provider name and model id in one row separated by a bar', () => {
+    renderCard()
+
+    const name = screen.getByText('Anthropic')
+    const separator = screen.getByText('｜')
+    const modelId = screen.getByText('claude-sonnet-4-5')
+
+    expect(name.compareDocumentPosition(separator) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(separator.compareDocumentPosition(modelId) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(name.parentElement).toContainElement(separator)
+    expect(name.parentElement).toContainElement(modelId)
+  })
+
   it('toggles the provider with Enter and Space when the card has focus', () => {
     const { card, onToggleCurrent } = renderCard()
 
