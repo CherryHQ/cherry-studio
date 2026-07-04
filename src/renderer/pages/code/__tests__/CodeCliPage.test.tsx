@@ -168,9 +168,9 @@ vi.mock('../components/configEditPanel/ConfigEditPanel', () => ({
     provider: Provider
     providerConfig: CliProviderConfig | null
     onSubmit: (values: {
-      modelId: string
-      config: Record<string, unknown>
-      cliConfigFiles: CliConfigFileDraft[]
+      modelId?: string
+      config?: Record<string, unknown>
+      cliConfigFiles?: CliConfigFileDraft[]
     }) => Promise<void>
   }) => (
     <div data-testid="config-panel" data-provider-id={provider.id} data-model-id={providerConfig?.modelId ?? ''}>
@@ -184,6 +184,16 @@ vi.mock('../components/configEditPanel/ConfigEditPanel', () => ({
           })
         }>
         save model
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          void onSubmit({
+            modelId: undefined,
+            config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
+          })
+        }>
+        save detailed config
       </button>
     </div>
   )
@@ -314,5 +324,21 @@ describe('CodeCliPage', () => {
       files: cliConfigFiles
     })
     expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
+  })
+
+  it('saves detailed config without enabling when the pending dialog has no common model', async () => {
+    render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByText('toggle anthropic'))
+    fireEvent.click(await screen.findByText('save detailed config'))
+
+    await waitFor(() =>
+      expect(upsertProviderConfigMock).toHaveBeenCalledWith('anthropic', {
+        modelId: '',
+        config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
+      })
+    )
+    expect(writeCliConfigDraftMock).not.toHaveBeenCalled()
+    expect(setCurrentProviderMock).not.toHaveBeenCalled()
   })
 })

@@ -144,11 +144,9 @@ vi.mock('../CliConfigEditor', () => ({
 vi.mock('../tools/ClaudeConfigFields', () => ({
   ClaudeConfigFields: ({
     onChange,
-    onDefaultModelSelect,
     section = 'all'
   }: {
     onChange: (next: Record<string, unknown>) => void
-    onDefaultModelSelect?: (modelId: UniqueModelId) => void
     section?: string
   }) => (
     <div data-testid={`claude-config-fields-${section}`}>
@@ -158,12 +156,7 @@ vi.mock('../tools/ClaudeConfigFields', () => ({
         </button>
       )}
       {section === 'advanced' && (
-        <button
-          type="button"
-          onClick={() => {
-            onDefaultModelSelect?.('anthropic::claude-new' as UniqueModelId)
-            onChange({ env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } })
-          }}>
+        <button type="button" onClick={() => onChange({ env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } })}>
           select detailed model
         </button>
       )}
@@ -271,8 +264,9 @@ describe('ConfigEditPanel', () => {
     expect(screen.getByTestId('claude-config-fields-advanced')).toBeInTheDocument()
   })
 
-  it('enables save after choosing a detailed Claude model without a saved default model', async () => {
-    renderPanel(vi.fn(), { isCurrentProvider: false, providerConfig: null })
+  it('enables save after choosing a detailed Claude model without a saved common model', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    renderPanel(onSubmit, { isCurrentProvider: false, providerConfig: null })
 
     await waitFor(() =>
       expect(readCliConfigFilesMock).toHaveBeenCalledWith(CodeCli.CLAUDE_CODE, { includeEmpty: true })
@@ -285,12 +279,15 @@ describe('ConfigEditPanel', () => {
     fireEvent.click(screen.getByText('select detailed model'))
 
     await waitFor(() => expect(saveButton).not.toBeDisabled())
-    expect(readCliConfigDraftMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        modelId: 'anthropic::claude-new',
-        configBlob: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
-      })
-    )
+    expect(readCliConfigDraftMock).not.toHaveBeenCalled()
+
+    fireEvent.click(saveButton)
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit).toHaveBeenCalledWith({
+      modelId: undefined,
+      config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
+    })
   })
 
   it('shows the empty model placeholder when the provider has no saved model', async () => {

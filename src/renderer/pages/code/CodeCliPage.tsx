@@ -170,6 +170,10 @@ const CodeCliPage: FC = () => {
       cliConfigOnly?: boolean
     }) => {
       if (!editingProvider) return
+      const hasModelValue = 'modelId' in values
+      const modelId = values.modelId ?? (hasModelValue ? '' : (providerConfigs[editingProvider.id]?.modelId ?? ''))
+      const hasConfigValue = 'config' in values
+      const configPatch = hasConfigValue && values.config !== undefined ? { config: values.config } : {}
       if (values.cliConfigOnly) {
         if (!values.cliConfigFiles?.length) {
           throw new Error('Cannot save CLI config without config files')
@@ -179,20 +183,25 @@ const CodeCliPage: FC = () => {
           cliTool: selectedCliTool,
           files
         })
-        if (values.modelId) {
-          await upsertProviderConfig(editingProvider.id, { modelId: values.modelId })
+        if (hasModelValue || hasConfigValue) {
+          await upsertProviderConfig(editingProvider.id, {
+            modelId,
+            ...configPatch
+          })
         }
         setCurrentCliConfigConnection(extractConnectionFromCliConfigDraft(selectedCliTool, files))
         logger.info('Updated CLI config file draft', { toolId: selectedCliTool })
         return
       }
-      if (!values.modelId) return
       const shouldEnableAfterSave = pendingEnableProviderId === editingProvider.id
-      await upsertProviderConfig(editingProvider.id, {
-        modelId: values.modelId,
-        ...(values.config ? { config: values.config } : {})
-      })
+      if (hasModelValue || hasConfigValue) {
+        await upsertProviderConfig(editingProvider.id, {
+          modelId,
+          ...configPatch
+        })
+      }
       logger.info('Updated CLI provider config', { toolId: selectedCliTool, providerId: editingProvider.id })
+      if (!values.modelId) return
       // Re-apply to the CLI config file when editing the currently active provider.
       if (currentProviderId === editingProvider.id || shouldEnableAfterSave) {
         try {

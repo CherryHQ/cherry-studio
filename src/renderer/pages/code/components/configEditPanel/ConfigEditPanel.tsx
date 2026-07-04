@@ -291,7 +291,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     createManagedDraft
   ])
 
-  const canSubmit = isForeignDraft ? draft.files.length > 0 && !draft.error : !!draft.modelId && !draft.error
+  const canSubmit = isForeignDraft ? draft.files.length > 0 && !draft.error : !draft.error
   const canSave = canSubmit && isDirty
 
   const handleModelSelect = useCallback(
@@ -396,9 +396,17 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     try {
       setSubmitting(true)
       if (current.mode === 'foreign') {
-        await onSubmit({ modelId: current.modelId, cliConfigFiles: current.files, cliConfigOnly: true })
-      } else if (current.modelId) {
-        await onSubmit({ modelId: current.modelId, config: current.config, cliConfigFiles: current.files })
+        await onSubmit({
+          ...(current.modelId ? { modelId: current.modelId } : {}),
+          cliConfigFiles: current.files,
+          cliConfigOnly: true
+        })
+      } else {
+        await onSubmit({
+          modelId: current.modelId,
+          config: current.config,
+          ...(current.modelId ? { cliConfigFiles: current.files } : {})
+        })
       }
       onClose()
     } finally {
@@ -416,7 +424,6 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
             onChange={handleConfigChange}
             section={section}
             providerId={provider.id}
-            currentModelId={draft.modelId}
             modelFilter={modelFilter}
           />
         )
@@ -445,9 +452,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
         onChange={handleConfigChange}
         section="advanced"
         providerId={provider.id}
-        currentModelId={draft.modelId}
         modelFilter={modelFilter}
-        onDefaultModelSelect={handleModelSelect}
       />
     </>
   ) : null

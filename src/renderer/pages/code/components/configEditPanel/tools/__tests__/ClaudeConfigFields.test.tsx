@@ -49,25 +49,16 @@ vi.mock('../../ModelSelectorTrigger', () => ({
 }))
 
 function renderFields(
-  options: {
-    config?: Record<string, unknown>
-    currentModelId?: UniqueModelId | undefined
-    onChange?: (next: Record<string, unknown>) => void
-    onDefaultModelSelect?: (modelId: UniqueModelId) => void
-  } = {}
+  options: { config?: Record<string, unknown>; onChange?: (next: Record<string, unknown>) => void } = {}
 ) {
   const onChange = options.onChange ?? vi.fn()
-  const currentModelId =
-    'currentModelId' in options ? options.currentModelId : ('anthropic::claude-sonnet-4-5' as UniqueModelId)
   render(
     <ClaudeConfigFields
       config={options.config ?? {}}
       onChange={onChange}
       section="advanced"
       providerId="anthropic"
-      currentModelId={currentModelId}
       modelFilter={() => true}
-      onDefaultModelSelect={options.onDefaultModelSelect}
     />
   )
 
@@ -112,23 +103,12 @@ describe('ClaudeConfigFields', () => {
     expect(screen.queryByText('code.adv.claude.role_column')).not.toBeInTheDocument()
     expect(screen.queryByText('code.adv.claude.model_column')).not.toBeInTheDocument()
     expect(screen.queryByText('code.adv.claude.context_column')).not.toBeInTheDocument()
-    expect(screen.getAllByText('1M')).toHaveLength(3)
-    expect(screen.getAllByTestId('one-million-context-checkbox')).toHaveLength(3)
+    expect(screen.queryByText('1M')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('one-million-context-checkbox')).not.toBeInTheDocument()
   })
 
-  it('defaults every role selector to the main selected model when no role override exists', () => {
-    renderFields({ currentModelId: 'anthropic::claude-sonnet-4-5' as UniqueModelId })
-
-    expect(screen.getAllByTestId('role-model-selector').map((selector) => selector.dataset.value)).toEqual([
-      'anthropic::claude-sonnet-4-5',
-      'anthropic::claude-sonnet-4-5',
-      'anthropic::claude-sonnet-4-5',
-      'anthropic::claude-sonnet-4-5'
-    ])
-  })
-
-  it('shows the empty model placeholder for role selectors when no main model exists', () => {
-    renderFields({ currentModelId: undefined })
+  it('shows the empty model placeholder for role selectors without role-specific models', () => {
+    renderFields()
 
     expect(screen.getAllByTestId('role-model-selector').map((selector) => selector.dataset.value)).toEqual([
       '',
@@ -142,12 +122,24 @@ describe('ClaudeConfigFields', () => {
       'settings.models.empty',
       'settings.models.empty'
     ])
+  })
+
+  it('hides 1M controls until a role has its own selected model', () => {
+    renderFields()
+
     expect(screen.queryByText('1M')).not.toBeInTheDocument()
     expect(screen.queryByTestId('one-million-context-checkbox')).not.toBeInTheDocument()
   })
 
   it('toggles 1M only after a role has a selected model', () => {
-    const { onChange } = renderFields({ currentModelId: 'anthropic::claude-sonnet-4-5' as UniqueModelId })
+    const { onChange } = renderFields({
+      config: {
+        env: {
+          ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-sonnet-4-5',
+          ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-sonnet-4-5'
+        }
+      }
+    })
 
     const fableRow = screen.getByText('code.adv.claude.fable_model').closest('div')
     expect(fableRow).not.toBeNull()
@@ -162,16 +154,14 @@ describe('ClaudeConfigFields', () => {
     })
   })
 
-  it('uses the first detailed role selection as the default model when none exists', () => {
-    const onDefaultModelSelect = vi.fn()
-    const { onChange } = renderFields({ currentModelId: undefined, onDefaultModelSelect })
+  it('writes only the selected detailed role model', () => {
+    const { onChange } = renderFields()
 
     const fableRow = screen.getByText('code.adv.claude.fable_model').closest('div')
     expect(fableRow).not.toBeNull()
 
     fireEvent.click(within(fableRow as HTMLElement).getByText('select role model'))
 
-    expect(onDefaultModelSelect).toHaveBeenCalledWith('anthropic::claude-opus-4-1')
     expect(onChange).toHaveBeenCalledWith({
       env: {
         ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-opus-4-1',
@@ -186,15 +176,20 @@ describe('ClaudeConfigFields', () => {
         env: {
           ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-fable-1'
         }
-      },
-      currentModelId: 'anthropic::claude-sonnet-4-5' as UniqueModelId
+      }
     })
 
     expect(screen.getAllByTestId('role-model-selector')[0]).toHaveAttribute('data-value', 'anthropic::claude-fable-1')
+    expect(
+      screen
+        .getAllByTestId('role-model-selector')
+        .slice(1)
+        .map((selector) => selector.dataset.value)
+    ).toEqual(['', '', ''])
   })
 
   it('writes a raw model id override when the user selects a different role model', () => {
-    const { onChange } = renderFields({ currentModelId: 'anthropic::claude-sonnet-4-5' as UniqueModelId })
+    const { onChange } = renderFields()
 
     const fableRow = screen.getByText('code.adv.claude.fable_model').closest('div')
     expect(fableRow).not.toBeNull()

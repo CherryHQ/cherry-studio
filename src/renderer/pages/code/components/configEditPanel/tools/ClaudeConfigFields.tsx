@@ -66,9 +66,7 @@ export interface ClaudeConfigFieldsProps {
   onChange: (next: Record<string, unknown>) => void
   section?: 'all' | 'basic' | 'advanced'
   providerId?: string
-  currentModelId?: UniqueModelId
   modelFilter?: (model: Model) => boolean
-  onDefaultModelSelect?: (modelId: UniqueModelId) => void
 }
 
 function getEnv(config: Record<string, unknown>): Record<string, string> {
@@ -116,9 +114,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
   onChange,
   section = 'all',
   providerId,
-  currentModelId,
-  modelFilter,
-  onDefaultModelSelect
+  modelFilter
 }) => {
   const { t } = useTranslation()
 
@@ -189,27 +185,21 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
             const envKey = ROLE_ENV[field.roleKey].model
             const rawValue = env[envKey] ?? ''
             const roleModelId = stripOneMMarker(rawValue).trim()
-            const defaultModelId = getRawModelId(currentModelId)
-            const displayedModelId = roleModelId || defaultModelId
             const uses1M = hasOneMMarker(rawValue)
             return (
               <div key={field.roleKey} className="flex items-center gap-2">
                 <span className="w-14 shrink-0 text-foreground text-xs">{t(field.labelKey)}</span>
                 <ClaudeRoleModelSelector
-                  value={toProviderModelId(providerId, displayedModelId)}
+                  value={toProviderModelId(providerId, roleModelId)}
                   placeholder={t('settings.models.empty')}
                   filter={modelFilter}
                   onSelect={(nextModelId) => {
                     const nextRawModelId = getRawModelId(nextModelId)
-                    if (!currentModelId && nextModelId) {
-                      onDefaultModelSelect?.(nextModelId)
-                    }
-                    const nextOverride = nextRawModelId && nextRawModelId !== defaultModelId ? nextRawModelId : ''
-                    updateModelRole(field.roleKey, nextOverride ? setOneMMarker(nextOverride, uses1M) : '')
+                    updateModelRole(field.roleKey, nextRawModelId ? setOneMMarker(nextRawModelId, uses1M) : '')
                   }}
                 />
                 <div className="flex w-16 shrink-0 justify-end">
-                  {field.supports1M && displayedModelId && (
+                  {field.supports1M && roleModelId && (
                     <div className="flex items-center gap-1.5">
                       <span className="text-[11px] text-muted-foreground/55">1M</span>
                       <Checkbox
@@ -219,7 +209,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
                         onCheckedChange={(checked) =>
                           updateModelRole(
                             field.roleKey,
-                            displayedModelId ? setOneMMarker(displayedModelId, checked === true) : ''
+                            roleModelId ? setOneMMarker(roleModelId, checked === true) : ''
                           )
                         }
                       />
