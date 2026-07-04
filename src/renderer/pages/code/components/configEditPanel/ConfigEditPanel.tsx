@@ -1,4 +1,12 @@
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  SegmentedControl
+} from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { ModelSelector } from '@renderer/components/Selector/model'
@@ -35,6 +43,7 @@ import { OpenCodeConfigFields } from './tools/OpenCodeConfigFields'
 import { QwenConfigFields } from './tools/QwenConfigFields'
 
 type ConfigDraftMode = 'managed' | 'foreign'
+type ClaudeModelMode = 'common' | 'detailed'
 
 interface ConfigDraft {
   modelId: UniqueModelId | undefined
@@ -108,6 +117,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
 
   const [draft, setDraft] = useState<ConfigDraft>(EMPTY_DRAFT)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [claudeModelMode, setClaudeModelMode] = useState<ClaudeModelMode>('common')
   const [submitting, setSubmitting] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
 
@@ -208,6 +218,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   useEffect(() => {
     if (!open) return
     setAdvancedOpen(false)
+    setClaudeModelMode('common')
     const saved = providerConfig && isUniqueModelId(providerConfig.modelId) ? providerConfig.modelId : undefined
     const nextModelId = saved
     const nextConfig = providerConfig?.config ?? {}
@@ -398,6 +409,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   const renderToolFields = (section: 'basic' | 'advanced'): ReactNode => {
     switch (cliTool) {
       case CodeCli.CLAUDE_CODE:
+        if (section === 'advanced') return null
         return (
           <ClaudeConfigFields
             config={draft.config}
@@ -423,6 +435,22 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     }
   }
 
+  const isClaudeTool = cliTool === CodeCli.CLAUDE_CODE
+  const claudeDetailedModelSlot: ReactNode = isClaudeTool ? (
+    <>
+      {unknownCliConfigModelHint}
+      {unknownCliConfigModelHint && <div className="h-2" />}
+      <ClaudeConfigFields
+        config={draft.config}
+        onChange={handleConfigChange}
+        section="advanced"
+        providerId={provider.id}
+        currentModelId={draft.modelId}
+        modelFilter={modelFilter}
+      />
+    </>
+  ) : null
+  const modelSectionSlot = isClaudeTool && claudeModelMode === 'detailed' ? claudeDetailedModelSlot : modelSlot
   const advancedFields = renderToolFields('advanced')
   const toolFields = renderToolFields('basic')
   const hasAdvancedSection = !!advancedFields || draft.files.length > 0
@@ -449,8 +477,21 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
 
         <SettingContainer theme={theme} style={{ background: 'transparent' }} className="gap-5 p-0">
           <SettingGroup theme={theme} className="border-t-0 pt-0">
-            <SettingTitle className="mb-2.5">{t('code.model_selection')}</SettingTitle>
-            {modelSlot}
+            <div className="mb-2.5 flex min-w-0 items-center justify-between gap-3">
+              <SettingTitle className="mb-0 min-w-0">{t('code.model_selection')}</SettingTitle>
+              {isClaudeTool && (
+                <SegmentedControl<ClaudeModelMode>
+                  size="sm"
+                  value={claudeModelMode}
+                  onValueChange={setClaudeModelMode}
+                  options={[
+                    { value: 'common', label: t('code.model_mode.common') },
+                    { value: 'detailed', label: t('code.model_mode.detailed') }
+                  ]}
+                />
+              )}
+            </div>
+            {modelSectionSlot}
           </SettingGroup>
           {toolFields && (
             <SettingGroup theme={theme} className="border-t-0 pt-0">

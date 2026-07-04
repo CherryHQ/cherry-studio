@@ -55,7 +55,28 @@ vi.mock('@cherrystudio/ui', () => ({
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>
+  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+  SegmentedControl: <TValue extends string>({
+    options,
+    value,
+    onValueChange
+  }: {
+    options: readonly { value: TValue; label: ReactNode }[]
+    value: TValue
+    onValueChange: (value: TValue) => void
+  }) => (
+    <div role="radiogroup">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={option.value === value}
+          onClick={() => onValueChange(option.value)}>
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
 }))
 
 vi.mock('@cherrystudio/ui/icons', () => ({
@@ -219,6 +240,23 @@ describe('ConfigEditPanel', () => {
     expect(screen.queryByText('code.endpoint_hint')).not.toBeInTheDocument()
     expect(screen.queryByText('code.model_hint_config')).not.toBeInTheDocument()
     expect(screen.getByTestId('model-selector')).toBeInTheDocument()
+    expect(screen.getByText('code.model_mode.common')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('code.model_mode.detailed')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByTestId('claude-config-fields-advanced')).not.toBeInTheDocument()
+  })
+
+  it('switches Claude model selection between common and detailed modes', async () => {
+    renderPanel()
+
+    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
+
+    expect(screen.getByTestId('model-selector')).toBeInTheDocument()
+    expect(screen.queryByTestId('claude-config-fields-advanced')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('code.model_mode.detailed'))
+
+    expect(screen.queryByTestId('model-selector')).not.toBeInTheDocument()
+    expect(screen.getByTestId('claude-config-fields-advanced')).toBeInTheDocument()
   })
 
   it('shows the empty model placeholder when the provider has no saved model', async () => {
@@ -298,14 +336,13 @@ describe('ConfigEditPanel', () => {
 
     fireEvent.click(advancedToggle)
 
-    const advancedFields = screen.getByTestId('claude-config-fields-advanced')
     const cliConfigEditor = screen.getByTestId('cli-config-editor')
 
     expectBefore(modelTitle, toolTitle)
     expectBefore(toolTitle, basicFields)
     expectBefore(basicFields, advancedToggle)
-    expectBefore(advancedToggle, advancedFields)
-    expectBefore(advancedFields, cliConfigEditor)
+    expectBefore(advancedToggle, cliConfigEditor)
+    expect(screen.queryByTestId('claude-config-fields-advanced')).not.toBeInTheDocument()
   })
 
   it('keeps save disabled until the draft changes', async () => {

@@ -2084,6 +2084,10 @@
     "model": "Model",
     "model_hint": "Choose which AI model the CLI tool should use",
     "model_hint_config": "Select the model to use",
+    "model_mode": {
+      "common": "General",
+      "detailed": "Detailed"
+    },
     "model_placeholder": "Select the model to use",
     "model_required": "Please select a model",
     "model_selection": "Model Selection",

@@ -2084,6 +2084,10 @@
     "model": "模型",
     "model_hint": "为 CLI 工具选择要使用的 AI 模型",
     "model_hint_config": "选择要使用的模型",
+    "model_mode": {
+      "common": "通用",
+      "detailed": "详细"
+    },
     "model_placeholder": "选择要使用的模型",
     "model_required": "请选择模型",
     "model_selection": "模型选择",
