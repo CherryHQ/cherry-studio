@@ -159,6 +159,13 @@ export function useAgentMessageListProviderValue({
     [workspacePath]
   )
 
+  const openInExternalApp = useMemo<MessageListActions['openInExternalApp']>(() => {
+    const open = leafCapabilities.openInExternalApp
+    if (!open) return undefined
+
+    return (app, path) => open(app, resolveWorkspaceFilePath(workspacePath, path))
+  }, [leafCapabilities.openInExternalApp, workspacePath])
+
   const abortTool = useCallback((toolId: string) => {
     return window.api.mcp.abortTool(toolId)
   }, [])
@@ -251,6 +258,7 @@ export function useAgentMessageListProviderValue({
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
       openPath,
+      openInExternalApp,
       openArtifactFile,
       openCitationsPanel,
       openAgentToolFlow,
@@ -282,6 +290,7 @@ export function useAgentMessageListProviderValue({
       openCitationsPanel,
       openArtifactFile,
       openAgentToolFlow,
+      openInExternalApp,
       openPath,
       respondToolApproval,
       selectionController.actions,

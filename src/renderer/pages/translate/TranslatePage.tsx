@@ -189,7 +189,7 @@ const TranslatePage: FC = () => {
   const [ocrJob, setOcrJob] = useState<OcrJob | null>(null)
   const isOcrRunning = ocrJob !== null
 
-  const textAreaRef = useRef<HTMLTextAreaElement>(null)
+  const inputScrollRef = useRef<HTMLDivElement>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
 
@@ -285,7 +285,6 @@ const TranslatePage: FC = () => {
       smoothReset('')
       const translated = await runTranslate(rawText, actualTargetLanguage)
       if (!translated) {
-        smoothReset('')
         return
       }
       window.toast.success(t('translate.complete'))
@@ -405,12 +404,12 @@ const TranslatePage: FC = () => {
   )
 
   const inputScrollHandler = useMemo(
-    () => createInputScrollHandler(outputTextRef, isProgrammaticScroll, isScrollSyncEnabled),
+    () => createInputScrollHandler(inputScrollRef, outputTextRef, isProgrammaticScroll, isScrollSyncEnabled),
     [isScrollSyncEnabled]
   )
 
   const outputScrollHandler = useMemo(
-    () => createOutputScrollHandler(textAreaRef, isProgrammaticScroll, isScrollSyncEnabled),
+    () => createOutputScrollHandler(outputTextRef, inputScrollRef, isProgrammaticScroll, isScrollSyncEnabled),
     [isScrollSyncEnabled]
   )
 
@@ -775,7 +774,7 @@ const TranslatePage: FC = () => {
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 lg:grid-cols-2 lg:grid-rows-1">
           <section className="flex min-h-0 min-w-0 flex-col">
             <TranslateInputPane
-              ref={textAreaRef}
+              ref={inputScrollRef}
               text={translateInput}
               onTextChange={handleInputChange}
               onKeyDown={(event) => {

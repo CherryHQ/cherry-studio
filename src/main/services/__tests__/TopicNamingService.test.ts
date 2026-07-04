@@ -1,21 +1,11 @@
+import * as fs from 'node:fs'
+import * as path from 'node:path'
+
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-import enUS from '../../../renderer/i18n/locales/en-us.json'
-import zhCN from '../../../renderer/i18n/locales/zh-cn.json'
-import zhTW from '../../../renderer/i18n/locales/zh-tw.json'
-import deDE from '../../../renderer/i18n/translate/de-de.json'
-import elGR from '../../../renderer/i18n/translate/el-gr.json'
-import esES from '../../../renderer/i18n/translate/es-es.json'
-import frFR from '../../../renderer/i18n/translate/fr-fr.json'
-import jaJP from '../../../renderer/i18n/translate/ja-jp.json'
-import ptPT from '../../../renderer/i18n/translate/pt-pt.json'
-import roRO from '../../../renderer/i18n/translate/ro-ro.json'
-import ruRU from '../../../renderer/i18n/translate/ru-ru.json'
-import viVN from '../../../renderer/i18n/translate/vi-vn.json'
 
 const mocks = vi.hoisted(() => ({
   generateText: vi.fn(),
@@ -24,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   updateTopic: vi.fn(),
   getMessageById: vi.fn(),
   getModelByKey: vi.fn(),
+  getProviderByProviderId: vi.fn(),
   getAgent: vi.fn(),
   getSession: vi.fn(),
   updateSession: vi.fn()
@@ -56,6 +47,12 @@ vi.mock('@data/services/ModelService', () => ({
   }
 }))
 
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: {
+    getByProviderId: mocks.getProviderByProviderId
+  }
+}))
+
 vi.mock('@data/services/AgentService', () => ({
   agentService: {
     getAgent: mocks.getAgent
@@ -71,9 +68,24 @@ vi.mock('@data/services/AgentSessionService', () => ({
 
 const { TopicNamingService } = await import('../TopicNamingService')
 
-const unnamedTranslations = [deDE, elGR, enUS, esES, frFR, jaJP, ptPT, roRO, ruRU, viVN, zhCN, zhTW].map(
-  (locale) => locale.common.unnamed
-)
+// Read the renderer catalog from disk rather than importing it, so the main/preload
+// boundary lint (no renderer imports) stays satisfied while still guarding that every
+// localized `common.unnamed` default name is recognized by the auto-naming service.
+const rendererI18nDir = path.join(process.cwd(), 'src/renderer/i18n')
+const unnamedTranslations = [
+  'locales/en-us',
+  'locales/zh-cn',
+  'locales/zh-tw',
+  'translate/de-de',
+  'translate/el-gr',
+  'translate/es-es',
+  'translate/fr-fr',
+  'translate/ja-jp',
+  'translate/pt-pt',
+  'translate/ro-ro',
+  'translate/ru-ru',
+  'translate/vi-vn'
+].map((rel) => JSON.parse(fs.readFileSync(path.join(rendererI18nDir, `${rel}.json`), 'utf-8')).common.unnamed)
 
 function createService() {
   return new TopicNamingService()
@@ -102,6 +114,7 @@ describe('TopicNamingService', () => {
     mockMainLoggerService.debug.mockClear()
     MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', true)
     mocks.getModelByKey.mockReturnValue({ id: 'openai::gpt-4o-mini' })
+    mocks.getProviderByProviderId.mockReturnValue({ authMethods: ['api-key'] })
     mockRenameInputs()
   })
 
@@ -496,5 +509,49 @@ describe('TopicNamingService', () => {
     expect(mocks.getSession).toHaveBeenCalledTimes(2)
     expect(mocks.updateSession).not.toHaveBeenCalled()
     expect(mocks.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('falls back when topic naming model points to an external-CLI (agent-only) provider', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', 'claude-code::haiku')
+    mocks.getProviderByProviderId.mockReturnValue({ authMethods: ['external-cli'] })
+    mocks.getSession.mockReturnValue({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'common.unnamed',
+      isNameManuallyEdited: false
+    })
+
+    await createService().maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Agent response' }]
+    } as never)
+
+    expect(mocks.getModelByKey).not.toHaveBeenCalledWith('claude-code', 'haiku')
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueModelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+      })
+    )
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'topic.naming.model_id points to an external-CLI (agent-only) provider; falling back to managed CherryAI default model',
+      { configured: 'claude-code::haiku' }
+    )
+  })
+
+  it('uses an oauth login-based provider (e.g. Codex/Grok) as a topic naming model', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', 'openai-codex::gpt-5')
+    mocks.getProviderByProviderId.mockReturnValue({ authMethods: ['oauth'] })
+
+    await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.getModelByKey).toHaveBeenCalledWith('openai-codex', 'gpt-5')
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueModelId: 'openai-codex::gpt-5'
+      })
+    )
   })
 })

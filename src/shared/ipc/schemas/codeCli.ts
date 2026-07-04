@@ -30,7 +30,8 @@ export const codeCliRequestSchemas = {
       options: z
         .object({
           autoUpdateToLatest: z.boolean().optional(),
-          terminal: z.string().optional()
+          terminal: z.string().optional(),
+          loginFlow: z.boolean().optional()
         })
         .optional()
         .default({})

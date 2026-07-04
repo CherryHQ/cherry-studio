@@ -7,7 +7,7 @@ import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/c
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { usePins } from '@renderer/hooks/usePins'
-import type { AgentDetail } from '@renderer/pages/library/types'
+import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'

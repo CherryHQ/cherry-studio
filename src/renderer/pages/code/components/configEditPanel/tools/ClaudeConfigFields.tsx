@@ -171,7 +171,8 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({ config, onChan
       const nextPermissions = { ...permissions }
       if (patterns.length > 0) nextPermissions[field] = patterns
       else delete nextPermissions[field]
-      const { permissions: _, ...rest } = config
+      const { ...rest } = config
+      delete rest.permissions
       if (Object.keys(nextPermissions).length > 0) onChange({ ...rest, permissions: nextPermissions })
       else onChange(rest)
     },

@@ -103,7 +103,6 @@ const api = {
   copy: (oldPath: string, newPath: string, occupiedDirs: string[] = []) =>
     ipcRenderer.invoke(IpcChannel.App_Copy, oldPath, newPath, occupiedDirs),
   application: {
-    quit: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_Quit),
     preventQuit: (reason: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Application_PreventQuit, reason),
     allowQuit: (holdId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_AllowQuit, holdId),
     relaunch: (options?: Electron.RelaunchOptions): Promise<void> =>
@@ -119,7 +118,6 @@ const api = {
     ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, data),
   getSystemFonts: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.App_GetSystemFonts),
   getIpCountry: (): Promise<string> => ipcRenderer.invoke(IpcChannel.App_GetIpCountry),
-  mockCrashRenderProcess: () => ipcRenderer.invoke(IpcChannel.MainWindow_CrashRenderProcess),
   mac: {
     isProcessTrusted: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacIsProcessTrusted),
     requestProcessTrust: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacRequestProcessTrust)
@@ -129,15 +127,13 @@ const api = {
   },
   system: {
     getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
-    getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname),
-    getCpuName: () => ipcRenderer.invoke(IpcChannel.System_GetCpuName)
+    getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
     // Git Bash is resolved in the main process (settingsBuilder); no renderer API.
   },
   devTools: {
     toggle: () => ipcRenderer.invoke(IpcChannel.System_ToggleDevTools)
   },
   zip: {
-    compress: (text: string) => ipcRenderer.invoke(IpcChannel.Zip_Compress, text),
     decompress: (text: Buffer) => ipcRenderer.invoke(IpcChannel.Zip_Decompress, text)
   },
   backup: {
@@ -180,7 +176,6 @@ const api = {
   file: {
     select: (options?: OpenDialogOptions): Promise<FileMetadata[] | null> =>
       ipcRenderer.invoke(IpcChannel.File_Select, options),
-    upload: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_Upload, file),
     createInternalEntry: (params: CreateInternalEntryIpcParams): Promise<FileEntry> =>
       ipcRenderer.invoke(IpcChannel.File_CreateInternalEntry, params),
     ensureExternalEntry: (params: EnsureExternalEntryIpcParams): Promise<FileEntry> =>
@@ -189,24 +184,18 @@ const api = {
       ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
     permanentDelete: (handle: FileHandle): Promise<void> => ipcRenderer.invoke(IpcChannel.File_PermanentDelete, handle),
     runSweep: () => ipcRenderer.invoke(IpcChannel.File_RunSweep),
-    delete: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Delete, fileId),
-    deleteDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteDir, dirPath),
     deleteExternalFile: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteExternalFile, filePath),
     deleteExternalDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteExternalDir, dirPath),
     move: (path: string, newPath: string) => ipcRenderer.invoke(IpcChannel.File_Move, path, newPath),
     moveDir: (dirPath: string, newDirPath: string) => ipcRenderer.invoke(IpcChannel.File_MoveDir, dirPath, newDirPath),
     rename: (path: string, newName: string) => ipcRenderer.invoke(IpcChannel.File_Rename, path, newName),
     renameDir: (dirPath: string, newName: string) => ipcRenderer.invoke(IpcChannel.File_RenameDir, dirPath, newName),
-    read: (fileId: string, detectEncoding?: boolean) =>
-      ipcRenderer.invoke(IpcChannel.File_Read, fileId, detectEncoding),
     readExternal: (filePath: string, detectEncoding?: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_ReadExternal, filePath, detectEncoding),
-    clear: (spanContext?: SpanContext) => ipcRenderer.invoke(IpcChannel.File_Clear, spanContext),
     get: (filePath: string): Promise<FileMetadata | null> => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
     createTempFile: (fileName: string): Promise<string> => ipcRenderer.invoke(IpcChannel.File_CreateTempFile, fileName),
     mkdir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_Mkdir, dirPath),
     write: (filePath: string, data: Uint8Array | string) => ipcRenderer.invoke(IpcChannel.File_Write, filePath, data),
-    writeWithId: (id: string, content: string) => ipcRenderer.invoke(IpcChannel.File_WriteWithId, id, content),
     open: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Open, options),
     openPath: (path: string) => ipcRenderer.invoke(IpcChannel.File_OpenPath, path),
     save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any): Promise<string | null> =>
@@ -216,18 +205,9 @@ const api = {
     saveImage: (name: string, data: string): Promise<boolean> =>
       ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
-    base64Image: (fileId: string): Promise<{ mime: string; base64: string; data: string }> =>
-      ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
-    saveBase64Image: (data: string) => ipcRenderer.invoke(IpcChannel.File_SaveBase64Image, data),
     savePastedImage: (imageData: Uint8Array, extension?: string) =>
       ipcRenderer.invoke(IpcChannel.File_SavePastedImage, imageData, extension),
-    download: (url: string, isUseContentType?: boolean) =>
-      ipcRenderer.invoke(IpcChannel.File_Download, url, isUseContentType),
-    copy: (fileId: string, destPath: string) => ipcRenderer.invoke(IpcChannel.File_Copy, fileId, destPath),
-    base64File: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64File, fileId),
-    pdfInfo: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_GetPdfInfo, fileId),
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
-    openFileWithRelativePath: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_OpenWithRelativePath, file),
     isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath),
     isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
     getMetadata: (handle: FileHandle): Promise<PhysicalFileMetadata> =>
@@ -266,10 +246,6 @@ const api = {
       return () => ipcRenderer.off(IpcChannel.File_TreeMutation, listener)
     }
   },
-  pdf: {
-    extractText: (data: Uint8Array | ArrayBuffer | string): Promise<string> =>
-      ipcRenderer.invoke(IpcChannel.Pdf_ExtractText, data)
-  },
   export: {
     toWord: (markdown: string, fileName: string) => ipcRenderer.invoke(IpcChannel.Export_Word, markdown, fileName)
   },
@@ -294,18 +270,6 @@ const api = {
     ): Promise<NativePopupMenuResult<CommandId> | undefined> =>
       ipcRenderer.invoke(IpcChannel.NativeCommandPopupMenu_Show, model, anchor)
   },
-  selectionMenu: {
-    action: (action: string) => ipcRenderer.invoke('selection-menu:action', action)
-  },
-
-  vertexAI: {
-    getAuthHeaders: (params: { projectId: string; serviceAccount?: { privateKey: string; clientEmail: string } }) =>
-      ipcRenderer.invoke(IpcChannel.VertexAI_GetAuthHeaders, params),
-    getAccessToken: (params: { projectId: string; serviceAccount?: { privateKey: string; clientEmail: string } }) =>
-      ipcRenderer.invoke(IpcChannel.VertexAI_GetAccessToken, params),
-    clearAuthCache: (projectId: string, clientEmail?: string) =>
-      ipcRenderer.invoke(IpcChannel.VertexAI_ClearAuthCache, projectId, clientEmail)
-  },
   ovms: {
     isSupported: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Ovms_IsSupported),
     addModel: (modelName: string, modelId: string, modelSource: string, task: string) =>
@@ -317,21 +281,12 @@ const api = {
     runOvms: () => ipcRenderer.invoke(IpcChannel.Ovms_RunOVMS),
     stopOvms: () => ipcRenderer.invoke(IpcChannel.Ovms_StopOVMS)
   },
-  config: {
-    set: (key: string, value: any, isNotify: boolean = false) =>
-      ipcRenderer.invoke(IpcChannel.Config_Set, key, value, isNotify),
-    get: (key: string) => ipcRenderer.invoke(IpcChannel.Config_Get, key)
-  },
   quickAssistant: {
-    show: () => ipcRenderer.invoke(IpcChannel.QuickAssistant_Show),
     hide: () => ipcRenderer.invoke(IpcChannel.QuickAssistant_Hide),
     close: () => ipcRenderer.invoke(IpcChannel.QuickAssistant_Close),
-    toggle: () => ipcRenderer.invoke(IpcChannel.QuickAssistant_Toggle),
     setPin: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.QuickAssistant_SetPin, isPinned)
   },
   aes: {
-    encrypt: (text: string, secretKey: string, iv: string) =>
-      ipcRenderer.invoke(IpcChannel.Aes_Encrypt, text, secretKey, iv),
     decrypt: (encryptedData: string, iv: string, secretKey: string) =>
       ipcRenderer.invoke(IpcChannel.Aes_Decrypt, encryptedData, iv, secretKey)
   },
@@ -341,23 +296,8 @@ const api = {
     stopServer: (serverId: string) => ipcRenderer.invoke(IpcChannel.Mcp_StopServer, serverId),
     refreshTools: (serverId: string, context?: SpanContext) =>
       tracedInvoke(IpcChannel.Mcp_RefreshTools, context, serverId),
-    callTool: (
-      { serverId, name, args, callId }: { serverId: string; name: string; args: any; callId?: string },
-      context?: SpanContext
-    ) =>
-      tracedInvoke(IpcChannel.Mcp_CallTool, context, {
-        serverId,
-        name,
-        args,
-        callId
-      }),
     listPrompts: (serverId: string) => ipcRenderer.invoke(IpcChannel.Mcp_ListPrompts, serverId),
-    getPrompt: ({ serverId, name, args }: { serverId: string; name: string; args?: Record<string, any> }) =>
-      ipcRenderer.invoke(IpcChannel.Mcp_GetPrompt, { serverId, name, args }),
     listResources: (serverId: string) => ipcRenderer.invoke(IpcChannel.Mcp_ListResources, serverId),
-    getResource: ({ serverId, uri }: { serverId: string; uri: string }) =>
-      ipcRenderer.invoke(IpcChannel.Mcp_GetResource, { serverId, uri }),
-    getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo),
     checkMcpConnectivity: (serverId: string) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, serverId),
     uploadDxt: async (file: File) => {
       const buffer = await file.arrayBuffer()
@@ -379,10 +319,6 @@ const api = {
       ipcRenderer.on(IpcChannel.Mcp_ServerLog, listener)
       return () => ipcRenderer.off(IpcChannel.Mcp_ServerLog, listener)
     }
-  },
-  python: {
-    execute: (script: string, context?: Record<string, any>, timeout?: number) =>
-      ipcRenderer.invoke(IpcChannel.Python_Execute, script, context, timeout)
   },
   shell: {
     openExternal: (url: string, options?: Electron.OpenExternalOptions) => {
@@ -409,30 +345,10 @@ const api = {
     logout: () => ipcRenderer.invoke(IpcChannel.Copilot_Logout),
     getUser: (token: string) => ipcRenderer.invoke(IpcChannel.Copilot_GetUser, token)
   },
-  cherryin: {
-    saveToken: (accessToken: string, refreshToken?: string) =>
-      ipcRenderer.invoke(IpcChannel.CherryIN_SaveToken, accessToken, refreshToken),
-    hasToken: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.CherryIN_HasToken),
-    getBalance: (apiHost: string) => ipcRenderer.invoke(IpcChannel.CherryIN_GetBalance, apiHost),
-    logout: (apiHost: string) => ipcRenderer.invoke(IpcChannel.CherryIN_Logout, apiHost),
-    startOAuthFlow: (oauthServer: string, apiHost?: string) =>
-      ipcRenderer.invoke(IpcChannel.CherryIN_StartOAuthFlow, oauthServer, apiHost),
-    onOAuthResult: (
-      callback: (result: { state: string; apiKeys: string } | { state: string; error: string }) => void
-    ) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        result: { state: string; apiKeys: string } | { state: string; error: string }
-      ) => callback(result)
-      ipcRenderer.on(IpcChannel.CherryIN_OAuthResult, listener)
-      return () => {
-        ipcRenderer.off(IpcChannel.CherryIN_OAuthResult, listener)
-      }
-    }
-  },
+  // CherryIN OAuth + Codex / Grok CLI OAuth migrated to IpcApi — see
+  // `ipcApi.request('oauth.*' | 'cherryin.*')` and `ipcApi.on('oauth.deep_link_result')`.
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
-  getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
   installOvmsBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallOvmsBinary),
   // BinaryManager tool manager was migrated to IpcApi — see `window.api.ipcApi` / `ipcApi.request('binary.*')`.
   protocol: {
@@ -454,11 +370,6 @@ const api = {
     decryptToken: (token: string) => ipcRenderer.invoke(IpcChannel.Nutstore_DecryptToken, token),
     getDirectoryContents: (token: string, path: string) =>
       ipcRenderer.invoke(IpcChannel.Nutstore_GetDirectoryContents, token, path)
-  },
-  searchService: {
-    openSearchWindow: (uid: string, show?: boolean) => ipcRenderer.invoke(IpcChannel.SearchWindow_Open, uid, show),
-    closeSearchWindow: (uid: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_Close, uid),
-    openUrlInSearchWindow: (uid: string, url: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_OpenUrl, uid, url)
   },
   webview: {
     setOpenLinkExternal: (webviewId: number, isExternal: boolean) =>
@@ -694,8 +605,6 @@ const api = {
     stop: (): Promise<ApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Stop)
   },
   skill: {
-    list: (agentId?: string): Promise<SkillResult<InstalledSkill[]>> =>
-      ipcRenderer.invoke(IpcChannel.Skill_List, agentId),
     install: (options: SkillInstallOptions): Promise<SkillResult<InstalledSkill>> =>
       ipcRenderer.invoke(IpcChannel.Skill_Install, options),
     uninstall: (skillId: string): Promise<SkillResult<void>> => ipcRenderer.invoke(IpcChannel.Skill_Uninstall, skillId),

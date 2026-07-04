@@ -26,6 +26,7 @@ import { regionService } from '@main/services/RegionService'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { removeEnvProxy } from '@main/utils/processRunner'
+import { getShellEnv } from '@main/utils/shellEnv'
 import { CodeCli, TerminalApp, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
 import { spawn } from 'child_process'
@@ -66,6 +67,50 @@ export class CodeCliService extends BaseService {
   protected async onInit(): Promise<void> {
     if (isMac || isWin) {
       void this.preloadTerminals()
+    }
+  }
+
+  /**
+   * Read-only probe of whether the user already has a Claude Code CLI
+   * subscription login (Claude Pro/Max OAuth) usable by the Agent SDK. Never
+   * reads or stores the credential value itself — only its presence.
+   *
+   * macOS: the OAuth token lives in the global login Keychain under the generic
+   * password service `Claude Code-credentials` (independent of CLAUDE_CONFIG_DIR);
+   * we query existence without `-w` so no secret is read and no ACL prompt fires.
+   * Linux/Windows: it lives in `<CLAUDE_CONFIG_DIR>/.credentials.json` (default
+   * `~/.claude`). A present token may still be expired — the SDK refreshes on use;
+   * this is a best-effort "is the user signed in" hint for the settings UI.
+   */
+  public async checkClaudeLogin(): Promise<boolean> {
+    if (isMac) {
+      try {
+        await execAsync('security find-generic-password -s "Claude Code-credentials"', { timeout: 3000 })
+        return true
+      } catch {
+        // `security` exits non-zero when the keychain item is absent — the
+        // normal "not signed in" signal, so this path stays silent.
+        return false
+      }
+    }
+    try {
+      // Resolve from the same source the runtime uses (settingsBuilder reads the
+      // shell CLAUDE_CONFIG_DIR), not raw process.env: a GUI-launched Electron
+      // process does not inherit rc-exported vars, so probing process.env alone
+      // falsely reports "not signed in".
+      const shellEnv = await getShellEnv()
+      const configDir =
+        shellEnv.CLAUDE_CONFIG_DIR ||
+        process.env.CLAUDE_CONFIG_DIR ||
+        path.join(application.getPath('sys.home'), '.claude')
+      return fs.existsSync(path.join(configDir, '.credentials.json'))
+    } catch (error) {
+      // A probe failure here (e.g. login-shell env resolution throwing on a
+      // broken rc file) is NOT "not signed in" — log it so a genuinely
+      // signed-in user's stuck "not signed in" card is diagnosable instead of
+      // silently swallowed.
+      logger.warn('Failed to probe Claude login state; reporting not signed in', error as Error)
+      return false
     }
   }
 
@@ -518,7 +563,7 @@ export class CodeCliService extends BaseService {
     model: string,
     providerId: string,
     directory: string,
-    options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
+    options: { autoUpdateToLatest?: boolean; terminal?: string; loginFlow?: boolean } = {}
   ): Promise<CodeToolsRunResult> {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     const env: Record<string, string> = { ...getBinaryExecutionEnv() }
@@ -530,13 +575,14 @@ export class CodeCliService extends BaseService {
       return { success: false, message, command: '' }
     }
 
+    const isLoginFlow = cliTool === CodeCli.CLAUDE_CODE && options.loginFlow === true
     const isProviderlessCli = cliTool === CodeCli.QODER_CLI || cliTool === CodeCli.GITHUB_COPILOT_CLI
-    if (!isProviderlessCli && providerId.trim().length === 0) {
+    if (!isProviderlessCli && !isLoginFlow && providerId.trim().length === 0) {
       const message = `Provider ID is required for ${cliTool}`
       logger.error(message)
       return { success: false, message, command: '' }
     }
-    if (!isProviderlessCli && model.trim().length === 0) {
+    if (!isProviderlessCli && !isLoginFlow && model.trim().length === 0) {
       const message = `Model is required for ${cliTool}`
       logger.error(message)
       return { success: false, message, command: '' }
@@ -649,13 +695,22 @@ export class CodeCliService extends BaseService {
     if (cliTool === CodeCli.OPEN_CODE) {
       let providerName = 'Studio'
       try {
-        const provider = await providerService.getByProviderId(providerId)
+        const provider = providerService.getByProviderId(providerId)
         providerName = this.sanitizeProviderName(provider.name, provider.id)
       } catch {
         /* keep default */
       }
       baseCommand = `${baseCommand} --model cherry-${providerName}/${model}`
       env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
+    }
+
+    // The Claude Code settings panel lands its terminal on the login flow rather
+    // than a bare REPL. Modeled as a fixed boolean, NOT a free-form arg string:
+    // this command is assembled into a shell string (and a Windows .bat), and
+    // a renderer-supplied string would
+    // be a shell-injection surface. A plain launch from the CLI page is unaffected.
+    if (options.loginFlow) {
+      baseCommand = `${baseCommand} /login`
     }
 
     switch (platform) {

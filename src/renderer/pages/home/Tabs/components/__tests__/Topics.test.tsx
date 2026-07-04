@@ -1,6 +1,6 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 const virtualMocks = vi.hoisted(() => ({
@@ -439,7 +439,8 @@ function renderTopicList({
   onNewTopic = vi.fn(),
   onOpenHistoryRecords = vi.fn(),
   presentation,
-  revealRequest
+  revealRequest,
+  resourceMenuItems
 }: {
   activeTopic?: Topic
   assistantIdFilter?: string | null
@@ -447,6 +448,7 @@ function renderTopicList({
   onOpenHistoryRecords?: Mock<() => void>
   presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
+  resourceMenuItems?: ComponentProps<typeof Topics>['resourceMenuItems']
 } = {}) {
   const setActiveTopic = vi.fn()
   const renderNode = (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) => (
@@ -458,6 +460,7 @@ function renderTopicList({
       onOpenHistoryRecords={onOpenHistoryRecords}
       presentation={presentation}
       revealRequest={nextRevealRequest}
+      resourceMenuItems={resourceMenuItems}
     />
   )
   const view = render(renderNode())
@@ -2099,6 +2102,23 @@ describe('Topics', () => {
       createRendererTopic({ id: 'topic-c', assistantId: 'assistant-2', name: 'Gamma topic' })
     )
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('clears topic selection while a resource menu item is active', () => {
+    renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-a', name: 'Alpha topic' }),
+      resourceMenuItems: [
+        {
+          active: true,
+          id: 'assistant-library',
+          label: 'Assistant library',
+          onSelect: vi.fn()
+        }
+      ]
+    })
+
+    expect(screen.getByRole('button', { name: 'Assistant library' })).toHaveAttribute('aria-current', 'page')
+    expect(getTopicRow('Alpha topic')).not.toHaveAttribute('data-selected')
   })
 
   it('opens the assistant group more menu from the group header context menu', () => {

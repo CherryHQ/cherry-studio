@@ -1000,7 +1000,7 @@ export class OpenClawService extends BaseService {
         signal: AbortSignal.timeout(5000)
       })
       if (response.ok) {
-        const data = await response.json()
+        const data = (await response.json()) as { channels?: ChannelInfo[] }
         return data.channels || []
       }
     } catch (error) {

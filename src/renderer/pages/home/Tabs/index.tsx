@@ -1,4 +1,4 @@
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import type { ConversationResourceMenuItem, ResourceListRevealRequest } from '@renderer/components/chat/resources'
 import type { Topic } from '@renderer/types/topic'
 import { cn } from '@renderer/utils/style'
 import type { FC, HTMLAttributes } from 'react'
@@ -12,6 +12,7 @@ interface Props {
   onOpenHistoryRecords?: () => void
   setActiveTopic: (topic: Topic) => void
   revealRequest?: ResourceListRevealRequest
+  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   style?: React.CSSProperties
 }
 
@@ -21,6 +22,7 @@ const HomeTabs: FC<Props> = ({
   onOpenHistoryRecords,
   setActiveTopic,
   revealRequest,
+  resourceMenuItems,
   style
 }) => {
   return (
@@ -32,6 +34,7 @@ const HomeTabs: FC<Props> = ({
           onNewTopic={onNewTopic}
           onOpenHistoryRecords={onOpenHistoryRecords}
           revealRequest={revealRequest}
+          resourceMenuItems={resourceMenuItems}
         />
       </TabContent>
     </Container>

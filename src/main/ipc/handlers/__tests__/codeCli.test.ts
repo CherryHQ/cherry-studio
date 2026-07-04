@@ -50,6 +50,22 @@ describe('codeCliHandlers', () => {
 
       expect(codeCliService.run).toHaveBeenCalledWith('claude-code', 'gpt-4', 'openai', '/tmp', {})
     })
+
+    it('allows Claude login flow without provider or model', async () => {
+      codeCliService.run.mockResolvedValue({ success: true, message: 'ok', command: 'claude /login' })
+      const input = {
+        cliTool: 'claude-code',
+        model: '',
+        providerId: '',
+        directory: '/tmp',
+        options: { loginFlow: true }
+      }
+
+      const result = await codeCliHandlers['code_cli.run'](input, ctx)
+
+      expect(codeCliService.run).toHaveBeenCalledWith('claude-code', '', '', '/tmp', { loginFlow: true })
+      expect(result).toEqual({ success: true, message: 'ok', command: 'claude /login' })
+    })
   })
 
   describe('code_cli.get_available_terminals', () => {
