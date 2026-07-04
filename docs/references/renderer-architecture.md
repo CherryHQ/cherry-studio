@@ -68,7 +68,7 @@ src/renderer/
 ├── components/   # Shared    — cross-domain, app-aware, presentational UI
 ├── hooks/        # Shared    — cross-domain hooks
 ├── services/     # Shared    — non-component singletons / runtime logic
-├── utils/        # Shared    — cross-domain pure functions
+├── utils/        # Shared    — cross-domain stateless functions
 ├── data/ ipc/ workers/  # Shared infra — data access, IpcApi bridge, web workers
 └── i18n/ assets/ types/ # Shared — locale, static assets, cross-domain types
 
@@ -83,20 +83,42 @@ src/shared                       # Primitive — cross-process types / contracts
 | `pages/` (top-level) | **Only** cross-domain shell / composition pages; domain pages move into `features/<domain>/pages/` | features, components, shared, primitives | import another `pages/<page>` (cross-page coupling) |
 | `features/<domain>/` | One **business domain**'s vertical slice (its pages/components/hooks/services/utils); curated `index.ts` is the sole public entry. Its **only** legal importers are the app layer (`windows`/`routes`/`pages`), via the barrel | shared layer, primitives, its own internals | (1) import a sibling feature (2) be imported by the shared layer or a sibling feature (3) hold non-domain / cross-cutting / domain-agnostic infra |
 | `components/` | App-level **shared UI**: cross-page, no domain knowledge, app-aware, presentational | packages/ui, other components, hooks, services, utils, @shared | import features; import pages; own a domain's data flow |
-| `services/` | App-level **runtime services**: a module that owns state / resources / lifecycle, is a stateful client / singleton, **or** performs business/domain **orchestration** (coordinates a multi-step runtime flow, embeds provider-specific policy). Plain modules, **no components or JSX**. A stateless helper does **not** belong here merely for calling `data` / `ipc` — route it to `utils/` | utils, data, ipc, @shared | import features; import pages; import components; render UI; call React hooks |
-| `hooks/` | **Cross-domain** reusable hooks | services, utils, data, @shared | import features/pages/components; retain a domain's hooks once that domain has its own feature (§4.1) |
-| `utils/` | **Cross-domain**, **stateless**, domain-agnostic functions (queries, conversions, predicates, formatters) — may call downward infra | @shared, data, ipc, workers, third-party | import `components` / `hooks` / `services` or any higher app layer; own business state; orchestrate a business flow; render UI |
+| `services/` | App-level **runtime services**: a module owning retained state / resources / lifecycle (a singleton capability — class + suffix, [Naming §5.2](./naming-conventions.md)), **or** a stateless module promoted out of `utils/` by **outward side effects** or a forced dependency (routing procedure below). A multi-file topic forms `services/<topic>/` behind a barrel (§3.1). Plain modules, **no components or JSX**. A stateless helper does **not** belong here merely for calling `data` / `ipc` reads — route it to `utils/` | other services, utils, data, ipc, @shared | import features; import pages; import components; render UI; call React hooks |
+| `hooks/` | **Cross-domain** reusable hooks | other hooks, services, utils, data, @shared | import features/pages/components; retain a domain's hooks once that domain has its own feature (§4.1) |
+| `utils/` | **Cross-domain**, **stateless**, domain-agnostic functions (queries, conversions, predicates, formatters) — may call downward infra | other utils, @shared, data, ipc, workers, third-party | import `components` / `hooks` / `services` or any higher app layer; own retained state; perform outward side effects (routing procedure below); render UI |
 | `data/`, `ipc/`, `workers/` | Foundational subsystems (data layer, IPC bridge, web workers) | utils, @shared | import features/pages/components |
 | `i18n/`, `assets/`, `types/` | **App-global** locale / static assets / shared types only; domain-specific entries move into the owning feature | — | hold domain-specific content |
 | `packages/ui` | App-agnostic design system (Shadcn + Tailwind primitives + generic composites) | third-party only | import any `@renderer/*` |
 
-**Routing `services/` vs `hooks/` vs `utils/`.** The decisive test is the module's **role**, not its purity: a **stateless, domain-agnostic helper** (even one that calls `data` / `ipc`) → `utils/`; uses React lifecycle / state / context → `hooks/`; **owns state / resources / lifecycle, is a stateful client, or performs business/domain orchestration** → `services/` (the `Service` / `Manager` suffix is reserved for a stateful **class** — a stateless orchestration module keeps a plain name; see [Naming Conventions §5.2](./naming-conventions.md)); renders JSX → `components/` / `pages/`. **Calling `data` / `ipc` does not by itself promote a helper to `services/`.**
+**Routing `services/` vs `hooks/` vs `utils/`.** Ownership first, then shape — run the tests in order and stop at the first hit:
+
+0. **Ownership.** A module consumed by exactly **one** owner co-locates with that owner — inside its feature, or as a private satellite in `services/<topic>/` (§3.1) — and skips the shape tests below. Shape routing binds **shared** modules only.
+1. **Renders JSX** → `components/` / `pages/`.
+2. **Uses React lifecycle / state / context** → `hooks/`.
+3. **Owns retained module-level state / resources / lifecycle** → `services/`, normalized to a class + singleton export with the `Service` / `Manager` suffix ([Naming Conventions §5.2](./naming-conventions.md) — including what counts as state).
+4. **Stateless** → **`utils/` by default.** Promote to `services/` (plain camelCase name, **no** suffix) only for one of two reasons, stated in the PR:
+   - **outward side effects** — the module *changes* something outside its own scope (e.g. opens a window, writes the clipboard; canonical list in [Naming §5.2](./naming-conventions.md) — logging does not count);
+   - **dependency-forced** — it must import `services/`, which `utils/` may not. (Needing to import `hooks/` is never a routing reason — neither `utils/` nor `services/` may; it means a non-hook export is stranded in a `hooks/` file — fix that upstream.)
+
+**Reads never promote**: calling `data` / `ipc` to fetch or query keeps a module in `utils/`.
 The authoritative table is [Naming Conventions §5.2](./naming-conventions.md).
 These top-level buckets hold cross-domain pieces; a small **domain-specific** piece may stay here until its domain earns a `features/<domain>/`, then it moves in (the §4.1 promotion rule).
 
 **Providers.** A React context provider is a **component**, not a service — `services/` holds non-component logic only.
 App-wide providers (theme, command, context-key, notification) live in the shared tier (they are components) and are mounted by `windows/` (a downward `window → component` edge); domain-owned providers live in their feature.
 A provider's reusable, non-React logic belongs in `@shared` or `services/`, not in the provider component itself.
+
+### 3.1 `services/<topic>/` Topic Directories
+
+A **headless** capability (no UI) that outgrows one file grows **in place** into a `camelCase` topic subdirectory — `services/<topic>/` — holding its public face plus its **private, topic-specific satellites** (stateless helpers, per-instance classes, adapters, topic types). This is the middle step of the growth path `services/<topic>.ts` → `services/<topic>/` → `features/<domain>/` (§4.1), and the **terminal** form for capabilities that never grow UI. Existing residents: `services/aiTransport/`, `services/import/`, `services/notification/`. The main process applies the same rule ([Main Process Architecture](./main-process-architecture.md)).
+
+| Rule | Meaning |
+|---|---|
+| One barrel, sole entry | exactly one curated `index.ts` (§5 topic-barrel rule); everything else is private to the topic |
+| Satellites skip shape routing | a topic-**specific** helper lives here even though its shape says `utils/` — the §3 shape tests bind **shared** modules only; a **generic** helper (reads naturally with no topic context) still goes to `utils/` |
+| Single consumer, or out | a satellite stays only while this topic is its sole consumer; a second consumer moves it to `utils/` (generic) or promotes it into the barrel (topic public API) |
+| No UI, ever | no JSX and no React hooks inside; UI parts route into the shared buckets by shape (§3 / §6), and the domain promotes to `features/<domain>/` only once the §4.1 trigger holds |
+| Plain internal names | files drop the topic prefix (the directory carries it) — `aiTransport/streamDispatchCoordinator.ts`, not `aiTransportStreamDispatchCoordinator.ts`; the `Service` / `Manager` suffix still marks only stateful singleton classes ([Naming §5.2](./naming-conventions.md)) |
 
 ## 4. `features/` Definition
 
@@ -135,7 +157,7 @@ After promotion: the app layer (`windows`/`routes`/`pages`) imports `@renderer/f
 ## 5. Public API & Boundary Enforcement
 
 - **Single entry.** Each feature exposes exactly one curated `index.ts` (explicit named exports, **no `export *`**). External consumers import the barrel; reaching into a feature's internal files is forbidden. (VS Code applies the same rule: one contribution may import only another's single public `common/` API, never its internals.)
-- **Shared buckets carry no root barrel.** `types/` and `utils/` are *categories*, not modules: each has **no root `index.ts`** — consumers import the specific file or topic (`@renderer/types/<topic>`, `@renderer/utils/<topic>`), never the bucket root. A multi-file topic *subdirectory* exposes exactly one curated `index.ts` (named exports, **no `export *`**) and keeps its other files private; a single-file topic stays a flat `<topic>.ts` and is promoted to a subdirectory only when it actually owns multiple files. This mirrors [Shared Layer Architecture §3.1](./shared-layer-architecture.md) one-for-one — same rule, the bucket merely lives under `@renderer/*` instead of `@shared/*`.
+- **Shared buckets carry no root barrel.** `types/`, `utils/`, and `services/` are *categories*, not modules: each has **no root `index.ts`** — consumers import the specific file or topic (`@renderer/types/<topic>`, `@renderer/utils/<topic>`, `@renderer/services/<topic>`), never the bucket root. A multi-file topic *subdirectory* exposes exactly one curated `index.ts` (named exports, **no `export *`**) and keeps its other files private; a single-file topic stays a flat `<topic>.ts` and is promoted to a subdirectory only when it actually owns multiple files. This mirrors [Shared Layer Architecture §3.1](./shared-layer-architecture.md) one-for-one — same rule, the bucket merely lives under `@renderer/*` instead of `@shared/*`.
 - **Mechanical enforcement.** Boundaries are enforced by lint, not by convention alone. The `import/no-restricted-paths` zones are configured: `components`/`hooks`/`utils`/`services` may not import `features`/`pages`; `pages` may not import another `pages`; `packages/ui` may not import `@renderer/*`. The shared-layer edges are enforced at `error`; the sibling-page (`pages → pages`) edges remain at `warn` pending features-ization.
 
 ## 6. Top-Level Governance
@@ -144,7 +166,7 @@ After promotion: the app layer (`windows`/`routes`/`pages`) imports `@renderer/f
 
 This is the renderer-specific application of [Naming Conventions §4.8](./naming-conventions.md) (top-level directories are closed by default): a capability fails §4.8's *necessity* test because existing buckets can host it by decomposition.
 
-Corollary — **capabilities decompose, they do not relocate as a blob**: route each part by its shape (§3) — non-component logic → `services/` (or `@shared/` if cross-process), React providers and UI → `components/`, hooks → `hooks/`, types → `@shared/`. Nothing is added to the top level.
+Corollary — **capabilities decompose, they do not relocate as a blob**: route each part by its shape (§3) — non-component logic → `services/` or `utils/` per the §3 routing (or `@shared/` if cross-process), React providers and UI → `components/`, hooks → `hooks/`, types → `@shared/`. Nothing is added to the top level.
 
 This is why a command/keybinding/menu system is not a feature and not a top-level directory: it decomposes **by shape** across existing homes, one cell per type:
 
@@ -166,7 +188,8 @@ After decomposition every edge is downward (`component → component`/`hook`, `h
 - Domain-specific artifacts left in a top-level type bucket (backup managers, model/provider widgets, etc.).
 - Treating a cross-cutting capability as a peer feature.
 - Opening a new top-level directory for a single capability.
-- A feature using `export *`, or an external consumer deep-importing a feature's internals.
+- A feature using `export *`, or an external consumer deep-importing a feature's — or a `services/<topic>/`'s — internals.
+- Module-scope mutable state behind a plain camelCase name — retained state must take the class + singleton + suffix form ([Naming §5.2](./naming-conventions.md)); a plain name asserts statelessness.
 - Importing a shared bucket root (`@renderer/utils`, `@renderer/types`) instead of the specific file/topic, or giving `types/`/`utils/` a re-export root `index.ts` (§5).
 - A hand-rolled `components/layout/` bucket — "layout" is not a layer here: route layouts live in `routes/` (TanStack layout routes), layout primitives (`Box`/`Stack`/`Grid`) in `packages/ui`, app shell in `windows/`.
 
@@ -174,7 +197,7 @@ After decomposition every edge is downward (`component → component`/`hook`, `h
 
 This document describes the **target** architecture. The renderer has not yet been fully migrated to it; the remaining gaps below are known and tracked. Migration is deferred and intentionally out of scope here.
 
-Only **outstanding** deviations are tracked here: once a deviation is resolved it stops violating the target, so it is dropped from this list rather than recorded as done. The table lists definite mis-classifications and structural violations that remain. A small domain's pieces (components, pages, hooks, services, utils) may legitimately sit in the shared type-buckets until that domain earns a `features/<domain>/`; that promotion is a separate per-case judgment (§4.1) and is not prescribed here.
+Only **outstanding** deviations are tracked here: once a deviation is resolved it stops violating the target, so it is dropped from this list rather than recorded as done. The table lists definite mis-classifications and structural violations that remain. A small domain's pieces (components, pages, hooks, services, utils) may legitimately sit in the shared type-buckets until that domain earns a `features/<domain>/`; that promotion is a separate per-case judgment (§4.1) and is not prescribed here. A per-file naming-suffix audit of `services/` against [Naming §5.2](./naming-conventions.md) (v1-era pseudo-`Service` function collections, stateful plain-named modules) is likewise out of scope here.
 
 | Area | Current state | Target |
 |---|---|---|
