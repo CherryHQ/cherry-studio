@@ -1,3 +1,11 @@
+export {
+  CLAUDE_DETAILED_MODEL_ENV_KEYS,
+  CLAUDE_DETAILED_MODEL_ROLES,
+  getClaudeContextModelId,
+  hasClaudeDetailedModels,
+  stripClaudeDetailedModels,
+  stripClaudeOneMMarker
+} from './claudeModels'
 export { clearCliConfig } from './clear'
 export {
   readCliConfigDraft,

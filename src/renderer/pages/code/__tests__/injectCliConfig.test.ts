@@ -116,6 +116,40 @@ describe('injectCliConfig', () => {
       })
     })
 
+    it('omits ANTHROPIC_MODEL for detailed Claude model config', async () => {
+      existing['/resolved~/.claude/settings.json'] = JSON.stringify({
+        env: {
+          KEEP: '1',
+          ANTHROPIC_MODEL: 'old-common'
+        }
+      })
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'anthropic::claude-sonnet-4-5',
+        configBlob: {
+          env: {
+            ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-sonnet-4-5',
+            ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-sonnet-4-5'
+          }
+        },
+        writePrimaryModel: false
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.env.KEEP).toBe('1')
+      expect(parsed.env.ANTHROPIC_BASE_URL).toBe('https://api.anthropic.com')
+      expect(parsed.env.ANTHROPIC_AUTH_TOKEN).toBe('sk-secret')
+      expect(parsed.env).not.toHaveProperty('ANTHROPIC_MODEL')
+      expect(parsed.env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe('claude-sonnet-4-5')
+      expect(parsed.env.ANTHROPIC_DEFAULT_FABLE_MODEL_NAME).toBe('claude-sonnet-4-5')
+    })
+
     it('deep-merges, preserving unrelated keys (mcpServers/theme) and clearing stale managed env keys', async () => {
       existing['/resolved~/.claude/settings.json'] = JSON.stringify({
         mcpServers: { fs: { command: 'npx' } },

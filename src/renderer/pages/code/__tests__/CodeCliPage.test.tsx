@@ -125,6 +125,14 @@ vi.mock('../cliConfig', () => ({
   clearCliConfig: (...args: unknown[]) => clearCliConfigMock(...args),
   cliConfigConnectionMatchesProvider: () => true,
   extractConnectionFromCliConfigDraft: (...args: unknown[]) => extractConnectionFromCliConfigDraftMock(...args),
+  getClaudeContextModelId: (providerId: string, config: Record<string, unknown>) => {
+    const env = config.env as Record<string, string> | undefined
+    return env?.ANTHROPIC_DEFAULT_FABLE_MODEL ? `${providerId}::${env.ANTHROPIC_DEFAULT_FABLE_MODEL}` : undefined
+  },
+  hasClaudeDetailedModels: (config: Record<string, unknown>) => {
+    const env = config.env as Record<string, string> | undefined
+    return Boolean(env?.ANTHROPIC_DEFAULT_FABLE_MODEL)
+  },
   injectCliConfig: (...args: unknown[]) => injectCliConfigMock(...args),
   readCliConfigFiles: (...args: unknown[]) => readCliConfigFilesMock(...args),
   writeCliConfigDraft: (...args: unknown[]) => writeCliConfigDraftMock(...args)
@@ -169,8 +177,10 @@ vi.mock('../components/configEditPanel/ConfigEditPanel', () => ({
     providerConfig: CliProviderConfig | null
     onSubmit: (values: {
       modelId?: string
+      cliConfigModelId?: string
       config?: Record<string, unknown>
       cliConfigFiles?: CliConfigFileDraft[]
+      writePrimaryModel?: boolean
     }) => Promise<void>
   }) => (
     <div data-testid="config-panel" data-provider-id={provider.id} data-model-id={providerConfig?.modelId ?? ''}>
@@ -190,7 +200,10 @@ vi.mock('../components/configEditPanel/ConfigEditPanel', () => ({
         onClick={() =>
           void onSubmit({
             modelId: undefined,
-            config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
+            cliConfigModelId: 'anthropic::claude-new',
+            config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } },
+            cliConfigFiles,
+            writePrimaryModel: false
           })
         }>
         save detailed config
@@ -321,12 +334,13 @@ describe('CodeCliPage', () => {
       cliTool: CodeCli.CLAUDE_CODE,
       modelId: 'anthropic::claude-new',
       configBlob: { env: { TEST: 'true' } },
-      files: cliConfigFiles
+      files: cliConfigFiles,
+      writePrimaryModel: true
     })
     expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
   })
 
-  it('saves detailed config without enabling when the pending dialog has no common model', async () => {
+  it('enables the provider after saving detailed config from the pending dialog', async () => {
     render(<CodeCliPage />)
 
     fireEvent.click(screen.getByText('toggle anthropic'))
@@ -338,7 +352,37 @@ describe('CodeCliPage', () => {
         config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
       })
     )
-    expect(writeCliConfigDraftMock).not.toHaveBeenCalled()
-    expect(setCurrentProviderMock).not.toHaveBeenCalled()
+    expect(writeCliConfigDraftMock).toHaveBeenCalledWith({
+      cliTool: CodeCli.CLAUDE_CODE,
+      modelId: 'anthropic::claude-new',
+      configBlob: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } },
+      files: cliConfigFiles,
+      writePrimaryModel: false
+    })
+    expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
+  })
+
+  it('enables an existing detailed-only provider without writing a common model', async () => {
+    mockCodeCliState({
+      providerConfigs: {
+        anthropic: {
+          modelId: '',
+          config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
+        }
+      }
+    })
+    render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByText('toggle anthropic'))
+
+    await waitFor(() =>
+      expect(injectCliConfigMock).toHaveBeenCalledWith({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'anthropic::claude-new',
+        configBlob: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } },
+        writePrimaryModel: false
+      })
+    )
+    expect(setCurrentProviderMock).toHaveBeenCalledWith('anthropic')
   })
 })

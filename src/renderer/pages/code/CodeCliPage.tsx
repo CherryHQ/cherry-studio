@@ -22,6 +22,8 @@ import {
   cliConfigConnectionMatchesProvider,
   type CliConfigFileDraft,
   extractConnectionFromCliConfigDraft,
+  getClaudeContextModelId,
+  hasClaudeDetailedModels,
   injectCliConfig,
   readCliConfigFiles,
   writeCliConfigDraft
@@ -62,6 +64,35 @@ function parseConfiguredModelId(modelId: string | undefined): { providerId: stri
     return null
   }
   return parseUniqueModelId(result.data)
+}
+
+function resolveCliConfigApplyContext(
+  cliTool: CodeCli,
+  providerId: string,
+  providerConfig: { modelId?: string; config?: Record<string, unknown> } | undefined
+): { modelId: UniqueModelId; providerId: string; rawModelId: string; writePrimaryModel: boolean } | null {
+  const config = providerConfig?.config ?? {}
+  if (cliTool === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(config)) {
+    const detailedModelId = getClaudeContextModelId(providerId, config)
+    const parsedDetailedModelId = parseConfiguredModelId(detailedModelId)
+    if (detailedModelId && parsedDetailedModelId) {
+      return {
+        modelId: detailedModelId,
+        providerId: parsedDetailedModelId.providerId,
+        rawModelId: parsedDetailedModelId.modelId,
+        writePrimaryModel: false
+      }
+    }
+  }
+
+  const parsedModelId = parseConfiguredModelId(providerConfig?.modelId)
+  if (!providerConfig?.modelId || !parsedModelId) return null
+  return {
+    modelId: providerConfig.modelId as UniqueModelId,
+    providerId: parsedModelId.providerId,
+    rawModelId: parsedModelId.modelId,
+    writePrimaryModel: true
+  }
 }
 
 const CodeCliPage: FC = () => {
@@ -165,9 +196,11 @@ const CodeCliPage: FC = () => {
   const handlePanelSubmit = useCallback(
     async (values: {
       modelId?: UniqueModelId
+      cliConfigModelId?: UniqueModelId
       config?: Record<string, unknown>
       cliConfigFiles?: CliConfigFileDraft[]
       cliConfigOnly?: boolean
+      writePrimaryModel?: boolean
     }) => {
       if (!editingProvider) return
       const hasModelValue = 'modelId' in values
@@ -201,15 +234,22 @@ const CodeCliPage: FC = () => {
         })
       }
       logger.info('Updated CLI provider config', { toolId: selectedCliTool, providerId: editingProvider.id })
-      if (!values.modelId) return
+      const resolvedCliConfigContext = resolveCliConfigApplyContext(selectedCliTool, editingProvider.id, {
+        modelId,
+        config: values.config ?? providerConfigs[editingProvider.id]?.config
+      })
+      const cliConfigModelId = values.cliConfigModelId ?? resolvedCliConfigContext?.modelId
+      const writePrimaryModel = values.writePrimaryModel ?? resolvedCliConfigContext?.writePrimaryModel
+      if (!cliConfigModelId) return
       // Re-apply to the CLI config file when editing the currently active provider.
       if (currentProviderId === editingProvider.id || shouldEnableAfterSave) {
         try {
           await writeCliConfigDraft({
             cliTool: selectedCliTool,
-            modelId: values.modelId,
+            modelId: cliConfigModelId,
             configBlob: values.config,
-            files: values.cliConfigFiles
+            files: values.cliConfigFiles,
+            writePrimaryModel
           })
           if (shouldEnableAfterSave) {
             await setCurrentProvider(editingProvider.id)
@@ -226,6 +266,7 @@ const CodeCliPage: FC = () => {
       selectedCliTool,
       pendingEnableProviderId,
       currentProviderId,
+      providerConfigs,
       upsertProviderConfig,
       setCurrentProvider,
       t
@@ -250,16 +291,15 @@ const CodeCliPage: FC = () => {
         // Ensure the provider has a model before injecting. If none is saved,
         // open configuration so the user chooses explicitly.
         const cfg = providerConfigs[provider.id]
-        const modelId = cfg?.modelId
-        const configuredModelId = parseConfiguredModelId(modelId)
-        if (modelId && !configuredModelId) {
+        const cliConfigContext = resolveCliConfigApplyContext(selectedCliTool, provider.id, cfg)
+        if (cfg?.modelId && !parseConfiguredModelId(cfg.modelId) && !cliConfigContext) {
           await upsertProviderConfig(provider.id, { modelId: '' })
           setPendingEnableProviderId(provider.id)
           setEditingProvider(provider)
           window.toast.error(t('code.launch.validation_error'))
           return
         }
-        if (!modelId) {
+        if (!cliConfigContext) {
           setPendingEnableProviderId(provider.id)
           setEditingProvider(provider)
           return
@@ -269,8 +309,9 @@ const CodeCliPage: FC = () => {
         try {
           await injectCliConfig({
             cliTool: selectedCliTool,
-            modelId,
-            configBlob: cfg?.config
+            modelId: cliConfigContext.modelId,
+            configBlob: cfg?.config,
+            writePrimaryModel: cliConfigContext.writePrimaryModel
           })
           await setCurrentProvider(provider.id)
           setCurrentCliConfigConnection(null)
@@ -298,9 +339,12 @@ const CodeCliPage: FC = () => {
         return
       }
       const apiKeys = await readProviderApiKeys(enabledProvider.id)
-      const expectedModel = currentProviderConfig?.modelId
-        ? parseConfiguredModelId(currentProviderConfig.modelId)?.modelId
-        : undefined
+      const currentCliConfigContext = resolveCliConfigApplyContext(
+        selectedCliTool,
+        enabledProvider.id,
+        currentProviderConfig ?? undefined
+      )
+      const expectedModel = currentCliConfigContext?.writePrimaryModel ? currentCliConfigContext.rawModelId : undefined
       if (cancelled) return
       setCurrentCliConfigConnection(
         cliConfigConnectionMatchesProvider(selectedCliTool, connection, enabledProvider, apiKeys, expectedModel)
@@ -358,8 +402,10 @@ const CodeCliPage: FC = () => {
       return
     }
 
-    const parsedModelId = parseConfiguredModelId(currentProviderConfig?.modelId)
-    if (!parsedModelId) {
+    const cliConfigContext = enabledProvider
+      ? resolveCliConfigApplyContext(selectedCliTool, enabledProvider.id, currentProviderConfig ?? undefined)
+      : null
+    if (!cliConfigContext) {
       logger.error('Invalid CLI model id configured for launch', {
         modelId: currentProviderConfig?.modelId,
         toolId: selectedCliTool,
@@ -372,13 +418,12 @@ const CodeCliPage: FC = () => {
       window.toast.error(t('code.launch.validation_error'))
       return
     }
-    const { providerId, modelId: rawModelId } = parsedModelId
     try {
       setLaunching(true)
       const runResult = await ipcApi.request('code_cli.run', {
         cliTool: selectedCliTool,
-        model: rawModelId,
-        providerId,
+        model: cliConfigContext.rawModelId,
+        providerId: cliConfigContext.providerId,
         directory,
         options: { terminal: selectedTerminal ?? undefined }
       })

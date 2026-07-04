@@ -112,7 +112,14 @@ export async function readCliConfigDraft(
       return [
         await makeDraftFile(
           'claude-settings',
-          renderJsonFile(buildClaudeConfig(existing, configBlob, { apiKey, baseUrl, model }))
+          renderJsonFile(
+            buildClaudeConfig(existing, configBlob, {
+              apiKey,
+              baseUrl,
+              model,
+              writePrimaryModel: args.writePrimaryModel
+            })
+          )
         )
       ]
     }
@@ -218,10 +225,16 @@ export async function writeCliConfigDraft(args: {
   modelId?: string
   configBlob?: Record<string, unknown>
   files?: CliConfigFileDraft[]
+  writePrimaryModel?: boolean
 }): Promise<unknown> {
   if (!args.files?.length) {
     if (!args.modelId) throw new Error('Cannot write CLI config without a model id')
-    return injectCliConfig({ cliTool: args.cliTool, modelId: args.modelId, configBlob: args.configBlob })
+    return injectCliConfig({
+      cliTool: args.cliTool,
+      modelId: args.modelId,
+      configBlob: args.configBlob,
+      writePrimaryModel: args.writePrimaryModel
+    })
   }
   validateCliConfigDraftForWrite(args.files)
 

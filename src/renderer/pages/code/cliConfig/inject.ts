@@ -62,6 +62,8 @@ export interface InjectCliConfigArgs {
   modelId: string
   /** User-edited config blob (claude-code / codex / opencode consume it). */
   configBlob?: Record<string, unknown>
+  /** Claude Code only: whether to write env.ANTHROPIC_MODEL. */
+  writePrimaryModel?: boolean
 }
 
 /**
@@ -101,7 +103,9 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
       const blob = getConfigBlob(configBlob)
       await window.api.file.write(
         absPath,
-        renderJsonFile(buildClaudeConfig(existing, blob, { apiKey, baseUrl, model }))
+        renderJsonFile(
+          buildClaudeConfig(existing, blob, { apiKey, baseUrl, model, writePrimaryModel: args.writePrimaryModel })
+        )
       )
       logger.info(`Applied Claude Code config body to ${absPath}`)
       return

@@ -21,13 +21,14 @@ interface OpenCodeProviderIdentity {
 export function buildClaudeConfig(
   existing: Record<string, any>,
   userBlob: Record<string, any>,
-  resolved: { apiKey: string; baseUrl: string; model: string }
+  resolved: { apiKey: string; baseUrl: string; model: string; writePrimaryModel?: boolean }
 ): Record<string, any> {
   const configEnv = userBlob.env && typeof userBlob.env === 'object' ? { ...(userBlob.env as Record<string, any>) } : {}
   const envBlock: Record<string, any> = { ...configEnv }
   if (resolved.baseUrl) envBlock.ANTHROPIC_BASE_URL = resolved.baseUrl
   if (resolved.apiKey) envBlock.ANTHROPIC_AUTH_TOKEN = resolved.apiKey
-  if (resolved.model) envBlock.ANTHROPIC_MODEL = resolved.model
+  if (resolved.writePrimaryModel === false) delete envBlock.ANTHROPIC_MODEL
+  else if (resolved.model) envBlock.ANTHROPIC_MODEL = resolved.model
 
   const existingEnv =
     existing.env && typeof existing.env === 'object' ? { ...(existing.env as Record<string, any>) } : null

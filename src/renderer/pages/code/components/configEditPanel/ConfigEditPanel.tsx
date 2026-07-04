@@ -18,8 +18,11 @@ import {
   cliConfigConnectionMatchesProvider,
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
+  getClaudeContextModelId,
+  hasClaudeDetailedModels,
   readCliConfigDraft,
   readCliConfigFiles,
+  stripClaudeDetailedModels,
   updateCliConfigDraftConfig,
   validateCliConfigDraftForWrite
 } from '@renderer/pages/code/cliConfig'
@@ -103,9 +106,11 @@ export interface ConfigEditPanelProps {
   modelFilter: (model: Model) => boolean
   onSubmit: (values: {
     modelId?: UniqueModelId
+    cliConfigModelId?: UniqueModelId
     config?: Record<string, unknown>
     cliConfigFiles?: CliConfigFileDraft[]
     cliConfigOnly?: boolean
+    writePrimaryModel?: boolean
   }) => Promise<void>
 }
 
@@ -159,15 +164,37 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     [cliTool, provider]
   )
 
+  const resolveManagedDraftOptions = useCallback(
+    (
+      modelMode: ClaudeModelMode,
+      config: Record<string, unknown>,
+      modelId: UniqueModelId | undefined
+    ): { cliConfigModelId?: UniqueModelId; writePrimaryModel?: boolean } => {
+      if (cliTool === CodeCli.CLAUDE_CODE && modelMode === 'detailed') {
+        return {
+          cliConfigModelId: getClaudeContextModelId(provider.id, config),
+          writePrimaryModel: false
+        }
+      }
+      return {
+        cliConfigModelId: modelId,
+        writePrimaryModel: true
+      }
+    },
+    [cliTool, provider.id]
+  )
+
   const createManagedDraft = useCallback(
     async (
       nextModelId: UniqueModelId | undefined,
       nextConfig: Record<string, unknown>,
-      files?: CliConfigFileDraft[]
+      files?: CliConfigFileDraft[],
+      options: { cliConfigModelId?: UniqueModelId; writePrimaryModel?: boolean } = {}
     ): Promise<ConfigDraft> => {
-      if (!nextModelId) {
+      const cliConfigModelId = options.cliConfigModelId ?? nextModelId
+      if (!cliConfigModelId) {
         return {
-          modelId: undefined,
+          modelId: nextModelId,
           config: nextConfig,
           files: files ?? [],
           connection: null,
@@ -178,9 +205,10 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
       try {
         const nextFiles = await readCliConfigDraft({
           cliTool,
-          modelId: nextModelId,
+          modelId: cliConfigModelId,
           configBlob: nextConfig,
-          files
+          files,
+          writePrimaryModel: options.writePrimaryModel
         })
         return {
           modelId: nextModelId,
@@ -205,9 +233,14 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   )
 
   const loadManagedDraft = useCallback(
-    (nextModelId: UniqueModelId | undefined, nextConfig: Record<string, unknown>, files?: CliConfigFileDraft[]) => {
+    (
+      nextModelId: UniqueModelId | undefined,
+      nextConfig: Record<string, unknown>,
+      files?: CliConfigFileDraft[],
+      options?: { cliConfigModelId?: UniqueModelId; writePrimaryModel?: boolean }
+    ) => {
       const loadId = ++loadIdRef.current
-      void createManagedDraft(nextModelId, nextConfig, files).then((nextDraft) => {
+      void createManagedDraft(nextModelId, nextConfig, files, options).then((nextDraft) => {
         if (loadId !== loadIdRef.current) return
         commitDraft(nextDraft)
       })
@@ -218,10 +251,13 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   useEffect(() => {
     if (!open) return
     setAdvancedOpen(false)
-    setClaudeModelMode('common')
     const saved = providerConfig && isUniqueModelId(providerConfig.modelId) ? providerConfig.modelId : undefined
     const nextModelId = saved
     const nextConfig = providerConfig?.config ?? {}
+    const initialClaudeModelMode =
+      cliTool === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(nextConfig) ? 'detailed' : 'common'
+    const initialDraftOptions = resolveManagedDraftOptions(initialClaudeModelMode, nextConfig, nextModelId)
+    setClaudeModelMode(initialClaudeModelMode)
     const initialDraft: ConfigDraft = {
       modelId: nextModelId,
       config: nextConfig,
@@ -238,7 +274,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
       try {
         rawFiles = await readCliConfigFiles(cliTool, { includeEmpty: true })
 
-        if (!nextModelId) {
+        if (!nextModelId && !initialDraftOptions.cliConfigModelId) {
           if (loadId !== loadIdRef.current) return
           commitCleanDraft({
             ...initialDraft,
@@ -248,8 +284,9 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
         }
 
         const connection = extractConnectionFromCliConfigDraft(cliTool, rawFiles)
+        const expectedModelId = initialClaudeModelMode === 'detailed' ? undefined : nextModelId
 
-        if (isCurrentProvider && connection && !connectionMatchesProvider(connection, nextModelId)) {
+        if (isCurrentProvider && connection && !connectionMatchesProvider(connection, expectedModelId)) {
           const nextDraftConfig = extractConfigFromCliConfigDraft(cliTool, rawFiles) ?? nextConfig
           if (loadId !== loadIdRef.current) return
           commitCleanDraft({
@@ -269,7 +306,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
           return
         }
 
-        const nextDraft = await createManagedDraft(nextModelId, nextConfig, rawFiles)
+        const nextDraft = await createManagedDraft(nextModelId, nextConfig, rawFiles, initialDraftOptions)
         if (loadId !== loadIdRef.current) return
         commitCleanDraft(nextDraft)
       } catch (error) {
@@ -288,7 +325,8 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     cliTool,
     connectionMatchesProvider,
     commitCleanDraft,
-    createManagedDraft
+    createManagedDraft,
+    resolveManagedDraftOptions
   ])
 
   const canSubmit = isForeignDraft ? draft.files.length > 0 && !draft.error : !draft.error
@@ -297,17 +335,24 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   const handleModelSelect = useCallback(
     (nextModelId: UniqueModelId | undefined) => {
       const current = draftRef.current
+      const nextConfig = cliTool === CodeCli.CLAUDE_CODE ? stripClaudeDetailedModels(current.config) : current.config
       commitDraft({
         ...current,
         modelId: nextModelId,
+        config: nextConfig,
         files: current.files,
         connection: null,
         mode: 'managed',
         error: ''
       })
-      if (nextModelId) loadManagedDraft(nextModelId, current.config, current.files)
+      if (nextModelId) {
+        loadManagedDraft(nextModelId, nextConfig, current.files, {
+          cliConfigModelId: nextModelId,
+          writePrimaryModel: true
+        })
+      }
     },
-    [commitDraft, loadManagedDraft]
+    [cliTool, commitDraft, loadManagedDraft]
   )
 
   const unknownCliConfigModelHint: ReactNode =
@@ -348,10 +393,43 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
         }
       } else {
         commitDraft({ ...current, config: nextConfig, error: '' })
-        loadManagedDraft(current.modelId, nextConfig, current.files)
+        loadManagedDraft(
+          current.modelId,
+          nextConfig,
+          current.files,
+          resolveManagedDraftOptions(claudeModelMode, nextConfig, current.modelId)
+        )
       }
     },
-    [cliTool, commitDraft, loadManagedDraft]
+    [claudeModelMode, cliTool, commitDraft, loadManagedDraft, resolveManagedDraftOptions]
+  )
+
+  const handleClaudeModelModeChange = useCallback(
+    (nextMode: ClaudeModelMode) => {
+      if (nextMode === claudeModelMode) return
+      setClaudeModelMode(nextMode)
+
+      if (nextMode !== 'common') return
+
+      const current = draftRef.current
+      const nextConfig = stripClaudeDetailedModels(current.config)
+      if (current.mode === 'foreign') {
+        try {
+          const nextFiles = updateCliConfigDraftConfig(cliTool, current.files, nextConfig)
+          commitDraft({ ...current, config: nextConfig, files: nextFiles, error: '' })
+        } catch (error) {
+          commitDraft({ ...current, config: nextConfig, error: error instanceof Error ? error.message : String(error) })
+        }
+        return
+      }
+
+      commitDraft({ ...current, config: nextConfig, error: '' })
+      loadManagedDraft(current.modelId, nextConfig, current.files, {
+        cliConfigModelId: current.modelId,
+        writePrimaryModel: true
+      })
+    },
+    [claudeModelMode, cliTool, commitDraft, loadManagedDraft]
   )
 
   const handleCliConfigFilesChange = useCallback(
@@ -402,17 +480,27 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
           cliConfigOnly: true
         })
       } else {
+        const isClaudeDetailedSubmit = cliTool === CodeCli.CLAUDE_CODE && claudeModelMode === 'detailed'
+        const cliConfigModelId = isClaudeDetailedSubmit
+          ? getClaudeContextModelId(provider.id, current.config)
+          : current.modelId
+        const nextConfig =
+          cliTool === CodeCli.CLAUDE_CODE && !isClaudeDetailedSubmit
+            ? stripClaudeDetailedModels(current.config)
+            : current.config
         await onSubmit({
-          modelId: current.modelId,
-          config: current.config,
-          ...(current.modelId ? { cliConfigFiles: current.files } : {})
+          modelId: isClaudeDetailedSubmit ? undefined : current.modelId,
+          cliConfigModelId,
+          config: nextConfig,
+          ...(cliConfigModelId ? { cliConfigFiles: current.files } : {}),
+          writePrimaryModel: !isClaudeDetailedSubmit
         })
       }
       onClose()
     } finally {
       setSubmitting(false)
     }
-  }, [canSave, onSubmit, onClose])
+  }, [canSave, claudeModelMode, cliTool, onSubmit, onClose, provider.id])
 
   const renderToolFields = (section: 'basic' | 'advanced'): ReactNode => {
     switch (cliTool) {
@@ -489,7 +577,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
                 <SegmentedControl<ClaudeModelMode>
                   size="sm"
                   value={claudeModelMode}
-                  onValueChange={setClaudeModelMode}
+                  onValueChange={handleClaudeModelModeChange}
                   options={[
                     { value: 'common', label: t('code.model_mode.common') },
                     { value: 'detailed', label: t('code.model_mode.detailed') }

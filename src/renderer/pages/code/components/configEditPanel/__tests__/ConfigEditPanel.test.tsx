@@ -131,8 +131,25 @@ vi.mock('@renderer/pages/code/cliConfig', () => ({
   cliConfigConnectionMatchesProvider: () => false,
   extractConfigFromCliConfigDraft: (...args: unknown[]) => extractConfigFromCliConfigDraftMock(...args),
   extractConnectionFromCliConfigDraft: (...args: unknown[]) => extractConnectionFromCliConfigDraftMock(...args),
+  getClaudeContextModelId: (providerId: string, config: Record<string, unknown>) => {
+    const env = config.env as Record<string, string> | undefined
+    return env?.ANTHROPIC_DEFAULT_FABLE_MODEL ? `${providerId}::${env.ANTHROPIC_DEFAULT_FABLE_MODEL}` : undefined
+  },
+  hasClaudeDetailedModels: (config: Record<string, unknown>) => {
+    const env = config.env as Record<string, string> | undefined
+    return Boolean(env?.ANTHROPIC_DEFAULT_FABLE_MODEL)
+  },
   readCliConfigDraft: (...args: unknown[]) => readCliConfigDraftMock(...args),
   readCliConfigFiles: (...args: unknown[]) => readCliConfigFilesMock(...args),
+  stripClaudeDetailedModels: (config: Record<string, unknown>) => {
+    const env = { ...((config.env as Record<string, string> | undefined) ?? {}) }
+    delete env.ANTHROPIC_DEFAULT_FABLE_MODEL
+    delete env.ANTHROPIC_DEFAULT_FABLE_MODEL_NAME
+    const next = { ...config }
+    if (Object.keys(env).length) next.env = env
+    else delete next.env
+    return next
+  },
   updateCliConfigDraftConfig: (...args: unknown[]) => updateCliConfigDraftConfigMock(...args),
   validateCliConfigDraftForWrite: (...args: unknown[]) => validateCliConfigDraftForWriteMock(...args)
 }))
@@ -264,6 +281,61 @@ describe('ConfigEditPanel', () => {
     expect(screen.getByTestId('claude-config-fields-advanced')).toBeInTheDocument()
   })
 
+  it('opens Claude providers with saved detailed models in detailed mode', async () => {
+    renderPanel(vi.fn(), {
+      isCurrentProvider: false,
+      providerConfig: {
+        modelId: '',
+        config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-detailed' } }
+      }
+    })
+
+    await waitFor(() =>
+      expect(readCliConfigDraftMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelId: 'anthropic::claude-detailed',
+          writePrimaryModel: false
+        })
+      )
+    )
+
+    expect(screen.getByText('code.model_mode.common')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText('code.model_mode.detailed')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByTestId('model-selector')).not.toBeInTheDocument()
+    expect(screen.getByTestId('claude-config-fields-advanced')).toBeInTheDocument()
+  })
+
+  it('clears detailed Claude model config when switching back to common mode', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    renderPanel(onSubmit, {
+      isCurrentProvider: false,
+      providerConfig: {
+        modelId: 'anthropic::claude-old' as UniqueModelId,
+        config: {
+          env: {
+            ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-detailed',
+            ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-detailed'
+          }
+        }
+      }
+    })
+
+    await waitFor(() => expect(screen.getByText('code.model_mode.detailed')).toHaveAttribute('aria-pressed', 'true'))
+
+    fireEvent.click(screen.getByText('code.model_mode.common'))
+    await waitFor(() => expect(screen.getByText('common.save')).not.toBeDisabled())
+    fireEvent.click(screen.getByText('common.save'))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit).toHaveBeenCalledWith({
+      modelId: 'anthropic::claude-old',
+      cliConfigModelId: 'anthropic::claude-old',
+      config: {},
+      cliConfigFiles,
+      writePrimaryModel: true
+    })
+  })
+
   it('enables save after choosing a detailed Claude model without a saved common model', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     renderPanel(onSubmit, { isCurrentProvider: false, providerConfig: null })
@@ -279,14 +351,25 @@ describe('ConfigEditPanel', () => {
     fireEvent.click(screen.getByText('select detailed model'))
 
     await waitFor(() => expect(saveButton).not.toBeDisabled())
-    expect(readCliConfigDraftMock).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(readCliConfigDraftMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelId: 'anthropic::claude-new',
+          configBlob: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } },
+          writePrimaryModel: false
+        })
+      )
+    )
 
     fireEvent.click(saveButton)
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalled())
     expect(onSubmit).toHaveBeenCalledWith({
       modelId: undefined,
-      config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
+      cliConfigModelId: 'anthropic::claude-new',
+      config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } },
+      cliConfigFiles,
+      writePrimaryModel: false
     })
   })
 

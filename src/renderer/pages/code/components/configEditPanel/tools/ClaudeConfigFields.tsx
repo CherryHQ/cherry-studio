@@ -1,5 +1,6 @@
 import { Checkbox } from '@cherrystudio/ui'
 import { ModelSelector } from '@renderer/components/Selector/model'
+import { CLAUDE_DETAILED_MODEL_ROLES, stripClaudeOneMMarker } from '@renderer/pages/code/cliConfig'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
@@ -8,19 +9,17 @@ import { useTranslation } from 'react-i18next'
 import { ModelSelectorTrigger } from '../ModelSelectorTrigger'
 import { TogglePill } from '../TogglePill'
 
-const MODEL_ROLES = [
-  { roleKey: 'fable', labelKey: 'code.adv.claude.fable_model', supports1M: true },
-  { roleKey: 'opus', labelKey: 'code.adv.claude.opus_model', supports1M: true },
-  { roleKey: 'sonnet', labelKey: 'code.adv.claude.sonnet_model', supports1M: true },
-  { roleKey: 'haiku', labelKey: 'code.adv.claude.haiku_model', supports1M: false }
-] as const
+const MODEL_ROLE_META = {
+  fable: { labelKey: 'code.adv.claude.fable_model', supports1M: true },
+  opus: { labelKey: 'code.adv.claude.opus_model', supports1M: true },
+  sonnet: { labelKey: 'code.adv.claude.sonnet_model', supports1M: true },
+  haiku: { labelKey: 'code.adv.claude.haiku_model', supports1M: false }
+} as const
 
-const ROLE_ENV: Record<string, { model: string; name: string }> = {
-  sonnet: { model: 'ANTHROPIC_DEFAULT_SONNET_MODEL', name: 'ANTHROPIC_DEFAULT_SONNET_MODEL_NAME' },
-  opus: { model: 'ANTHROPIC_DEFAULT_OPUS_MODEL', name: 'ANTHROPIC_DEFAULT_OPUS_MODEL_NAME' },
-  fable: { model: 'ANTHROPIC_DEFAULT_FABLE_MODEL', name: 'ANTHROPIC_DEFAULT_FABLE_MODEL_NAME' },
-  haiku: { model: 'ANTHROPIC_DEFAULT_HAIKU_MODEL', name: 'ANTHROPIC_DEFAULT_HAIKU_MODEL_NAME' }
-}
+const MODEL_ROLES = CLAUDE_DETAILED_MODEL_ROLES.map((role) => ({
+  ...role,
+  ...MODEL_ROLE_META[role.roleKey]
+}))
 
 const ONE_M_MARKER = '[1M]'
 
@@ -88,16 +87,8 @@ function hasOneMMarker(value: string): boolean {
   return value.trimEnd().toLowerCase().endsWith(ONE_M_MARKER.toLowerCase())
 }
 
-function stripOneMMarker(value: string): string {
-  const trimmed = value.trimEnd()
-  if (trimmed.toLowerCase().endsWith(ONE_M_MARKER.toLowerCase())) {
-    return trimmed.slice(0, -ONE_M_MARKER.length).trimEnd()
-  }
-  return value
-}
-
 function setOneMMarker(value: string, enabled: boolean): string {
-  const base = stripOneMMarker(value).trim()
+  const base = stripClaudeOneMMarker(value).trim()
   return enabled ? `${base} ${ONE_M_MARKER}` : base
 }
 
@@ -132,12 +123,12 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
   )
 
   const updateModelRole = useCallback(
-    (roleKey: string, modelValue: string) => {
-      const { model, name } = ROLE_ENV[roleKey]
+    (role: (typeof CLAUDE_DETAILED_MODEL_ROLES)[number], modelValue: string) => {
+      const { model, name } = role
       const nextEnv = { ...env }
       if (modelValue) {
         nextEnv[model] = modelValue
-        nextEnv[name] = stripOneMMarker(modelValue)
+        nextEnv[name] = stripClaudeOneMMarker(modelValue)
       } else {
         delete nextEnv[model]
         delete nextEnv[name]
@@ -182,9 +173,9 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
       {section !== 'basic' && (
         <div className="space-y-2">
           {MODEL_ROLES.map((field) => {
-            const envKey = ROLE_ENV[field.roleKey].model
+            const envKey = field.model
             const rawValue = env[envKey] ?? ''
-            const roleModelId = stripOneMMarker(rawValue).trim()
+            const roleModelId = stripClaudeOneMMarker(rawValue).trim()
             const uses1M = hasOneMMarker(rawValue)
             return (
               <div key={field.roleKey} className="flex items-center gap-2">
@@ -195,7 +186,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
                   filter={modelFilter}
                   onSelect={(nextModelId) => {
                     const nextRawModelId = getRawModelId(nextModelId)
-                    updateModelRole(field.roleKey, nextRawModelId ? setOneMMarker(nextRawModelId, uses1M) : '')
+                    updateModelRole(field, nextRawModelId ? setOneMMarker(nextRawModelId, uses1M) : '')
                   }}
                 />
                 <div className="flex w-16 shrink-0 justify-end">
@@ -207,10 +198,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
                         aria-label="1M"
                         checked={uses1M}
                         onCheckedChange={(checked) =>
-                          updateModelRole(
-                            field.roleKey,
-                            roleModelId ? setOneMMarker(roleModelId, checked === true) : ''
-                          )
+                          updateModelRole(field, roleModelId ? setOneMMarker(roleModelId, checked === true) : '')
                         }
                       />
                     </div>

@@ -1,9 +1,10 @@
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
+import { hasClaudeDetailedModels } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type { CodeCli } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
 import { isCherryAIProvider } from '@shared/utils/provider'
 import { useCallback, useMemo } from 'react'
@@ -42,7 +43,9 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
     (provider: Provider, providerConfig?: CliProviderConfig) => {
       const modelId = providerConfig?.modelId
       let modelName: string | undefined
-      if (modelId && isUniqueModelId(modelId)) {
+      if (selectedCliTool === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(providerConfig?.config ?? {})) {
+        modelName = undefined
+      } else if (modelId && isUniqueModelId(modelId)) {
         const model = modelById.get(modelId)
         const { modelId: rawId } = parseUniqueModelId(modelId)
         modelName = model?.name || rawId
@@ -52,7 +55,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
         modelName
       }
     },
-    [modelById]
+    [modelById, selectedCliTool]
   )
 
   return { filterProviders, makeModelFilter, resolveProviderMeta }
