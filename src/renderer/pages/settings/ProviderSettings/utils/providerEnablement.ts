@@ -4,17 +4,32 @@ import type { Provider } from '@shared/data/types/provider'
 
 const logger = loggerService.withContext('ProviderSettings:EnableProviderWhenModelsAvailable')
 
-type MoveProviderToFirst = (providerId: Provider['id']) => Promise<unknown>
+export interface ProviderReorderActions {
+  assertCanMoveProviderToFirst: () => void
+  moveProviderToFirst: (providerId: Provider['id']) => Promise<unknown>
+}
 
 /** Enables a disabled provider once a flow has confirmed it has usable models, then moves it to the top. */
 export async function enableProviderWhenModelsAvailable(
   provider: Pick<Provider, 'id' | 'isEnabled'> | undefined,
   updateProvider: (updates: UpdateProviderDto) => Promise<unknown>,
-  moveProviderToFirst: MoveProviderToFirst,
+  providerReorder: ProviderReorderActions,
   modelCount: number,
   source: string
 ): Promise<boolean> {
   if (!provider || provider.isEnabled || modelCount <= 0) {
+    return false
+  }
+
+  try {
+    providerReorder.assertCanMoveProviderToFirst()
+  } catch (error) {
+    logger.error('Provider list is not ready for enabling with pin-to-top', {
+      providerId: provider.id,
+      modelCount,
+      source,
+      error
+    })
     return false
   }
 
@@ -31,10 +46,9 @@ export async function enableProviderWhenModelsAvailable(
   }
 
   try {
-    await moveProviderToFirst(provider.id)
+    await providerReorder.moveProviderToFirst(provider.id)
     return true
   } catch (error) {
-    await updateProvider({ isEnabled: false }).catch(() => undefined)
     logger.error('Failed to move enabled provider to the top', {
       providerId: provider.id,
       modelCount,
