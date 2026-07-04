@@ -1,6 +1,14 @@
 // Curated public surface for the renderer model helpers.
 // Named re-exports only (no `export *`) per naming-conventions §5.
 
+export {
+  isAudioModel,
+  isAudioModels,
+  isGenerateImageModels,
+  isVideoModel,
+  isVideoModels,
+  isVisionModels
+} from './capabilities'
 export { isEmbeddingModel, isRerankModel } from './embedding'
 export { getModelLogo } from './logo'
 export { isGPT5SeriesReasoningModel } from './openai'
@@ -25,13 +33,5 @@ export {
 } from './reconcile'
 export { getSearchMatchScore } from './search'
 export { isFunctionCallingModel } from './tooluse'
-export {
-  isAudioModel,
-  isAudioModels,
-  isGenerateImageModels,
-  isVideoModel,
-  isVideoModels,
-  isVisionModels
-} from './utils'
 export { isGenerateImageModel, isVisionModel } from './vision'
 export { isOpenAIWebSearchModel, isOpenRouterBuiltInWebSearchModel, isWebSearchModel } from './websearch'

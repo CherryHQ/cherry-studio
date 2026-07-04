@@ -1,11 +1,11 @@
 import { Button, RadioGroup, RadioGroupItem, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { getSelectionDescriptionLabelKey } from '@renderer/i18n/label'
 import { ipcApi } from '@renderer/ipc'
 import { isLinux, isMac, isWin } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 import { Link } from '@tanstack/react-router'
 import { CircleCheck, CircleHelp, CircleX, Edit2, TriangleAlert } from 'lucide-react'
@@ -121,7 +121,13 @@ const SelectionAssistantSettings: FC = () => {
 
         {!selectionEnabled && (
           <DemoContainer>
-            <SelectionToolbar demo />
+            <SelectionToolbarView
+              actionItems={actionItems?.filter((item) => item.enabled)}
+              isCompact={isCompact}
+              handleAction={() => {}}
+              copyIconStatus="normal"
+              copyIconAnimation="none"
+            />
           </DemoContainer>
         )}
 

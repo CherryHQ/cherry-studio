@@ -1,12 +1,10 @@
-import ProtocolInstallWarningContent from '@renderer/pages/settings/McpSettings/ProtocolInstallWarning'
-import {
-  ensureServerTrusted as ensureServerTrustedCore,
-  getCommandPreview
-} from '@renderer/pages/settings/McpSettings/utils'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import ProtocolInstallWarningContent from './ProtocolInstallWarning'
+import { ensureServerTrusted as ensureServerTrustedCore, getCommandPreview } from './utils'
 
 /**
  * Hook for handling MCP server trust verification
