@@ -447,6 +447,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
         providerId={provider.id}
         currentModelId={draft.modelId}
         modelFilter={modelFilter}
+        onDefaultModelSelect={handleModelSelect}
       />
     </>
   ) : null

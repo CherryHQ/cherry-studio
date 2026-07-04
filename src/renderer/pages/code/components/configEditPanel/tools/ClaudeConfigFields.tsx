@@ -68,6 +68,7 @@ export interface ClaudeConfigFieldsProps {
   providerId?: string
   currentModelId?: UniqueModelId
   modelFilter?: (model: Model) => boolean
+  onDefaultModelSelect?: (modelId: UniqueModelId) => void
 }
 
 function getEnv(config: Record<string, unknown>): Record<string, string> {
@@ -116,7 +117,8 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
   section = 'all',
   providerId,
   currentModelId,
-  modelFilter
+  modelFilter,
+  onDefaultModelSelect
 }) => {
   const { t } = useTranslation()
 
@@ -199,12 +201,15 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
                   filter={modelFilter}
                   onSelect={(nextModelId) => {
                     const nextRawModelId = getRawModelId(nextModelId)
+                    if (!currentModelId && nextModelId) {
+                      onDefaultModelSelect?.(nextModelId)
+                    }
                     const nextOverride = nextRawModelId && nextRawModelId !== defaultModelId ? nextRawModelId : ''
                     updateModelRole(field.roleKey, nextOverride ? setOneMMarker(nextOverride, uses1M) : '')
                   }}
                 />
                 <div className="flex w-16 shrink-0 justify-end">
-                  {field.supports1M && (
+                  {field.supports1M && displayedModelId && (
                     <div className="flex items-center gap-1.5">
                       <span className="text-[11px] text-muted-foreground/55">1M</span>
                       <Checkbox

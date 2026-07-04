@@ -53,6 +53,7 @@ function renderFields(
     config?: Record<string, unknown>
     currentModelId?: UniqueModelId | undefined
     onChange?: (next: Record<string, unknown>) => void
+    onDefaultModelSelect?: (modelId: UniqueModelId) => void
   } = {}
 ) {
   const onChange = options.onChange ?? vi.fn()
@@ -66,6 +67,7 @@ function renderFields(
       providerId="anthropic"
       currentModelId={currentModelId}
       modelFilter={() => true}
+      onDefaultModelSelect={options.onDefaultModelSelect}
     />
   )
 
@@ -140,6 +142,42 @@ describe('ClaudeConfigFields', () => {
       'settings.models.empty',
       'settings.models.empty'
     ])
+    expect(screen.queryByText('1M')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('one-million-context-checkbox')).not.toBeInTheDocument()
+  })
+
+  it('toggles 1M only after a role has a selected model', () => {
+    const { onChange } = renderFields({ currentModelId: 'anthropic::claude-sonnet-4-5' as UniqueModelId })
+
+    const fableRow = screen.getByText('code.adv.claude.fable_model').closest('div')
+    expect(fableRow).not.toBeNull()
+
+    fireEvent.click(within(fableRow as HTMLElement).getByTestId('one-million-context-checkbox'))
+
+    expect(onChange).toHaveBeenCalledWith({
+      env: {
+        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-sonnet-4-5 [1M]',
+        ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-sonnet-4-5'
+      }
+    })
+  })
+
+  it('uses the first detailed role selection as the default model when none exists', () => {
+    const onDefaultModelSelect = vi.fn()
+    const { onChange } = renderFields({ currentModelId: undefined, onDefaultModelSelect })
+
+    const fableRow = screen.getByText('code.adv.claude.fable_model').closest('div')
+    expect(fableRow).not.toBeNull()
+
+    fireEvent.click(within(fableRow as HTMLElement).getByText('select role model'))
+
+    expect(onDefaultModelSelect).toHaveBeenCalledWith('anthropic::claude-opus-4-1')
+    expect(onChange).toHaveBeenCalledWith({
+      env: {
+        ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-opus-4-1',
+        ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'claude-opus-4-1'
+      }
+    })
   })
 
   it('uses a role-specific override when one exists', () => {

@@ -144,15 +144,27 @@ vi.mock('../CliConfigEditor', () => ({
 vi.mock('../tools/ClaudeConfigFields', () => ({
   ClaudeConfigFields: ({
     onChange,
+    onDefaultModelSelect,
     section = 'all'
   }: {
     onChange: (next: Record<string, unknown>) => void
+    onDefaultModelSelect?: (modelId: UniqueModelId) => void
     section?: string
   }) => (
     <div data-testid={`claude-config-fields-${section}`}>
       {section === 'basic' && (
         <button type="button" onClick={() => onChange({ changed: true })}>
           change config
+        </button>
+      )}
+      {section === 'advanced' && (
+        <button
+          type="button"
+          onClick={() => {
+            onDefaultModelSelect?.('anthropic::claude-new' as UniqueModelId)
+            onChange({ env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } })
+          }}>
+          select detailed model
         </button>
       )}
     </div>
@@ -257,6 +269,28 @@ describe('ConfigEditPanel', () => {
 
     expect(screen.queryByTestId('model-selector')).not.toBeInTheDocument()
     expect(screen.getByTestId('claude-config-fields-advanced')).toBeInTheDocument()
+  })
+
+  it('enables save after choosing a detailed Claude model without a saved default model', async () => {
+    renderPanel(vi.fn(), { isCurrentProvider: false, providerConfig: null })
+
+    await waitFor(() =>
+      expect(readCliConfigFilesMock).toHaveBeenCalledWith(CodeCli.CLAUDE_CODE, { includeEmpty: true })
+    )
+
+    const saveButton = screen.getByText('common.save')
+    expect(saveButton).toBeDisabled()
+
+    fireEvent.click(screen.getByText('code.model_mode.detailed'))
+    fireEvent.click(screen.getByText('select detailed model'))
+
+    await waitFor(() => expect(saveButton).not.toBeDisabled())
+    expect(readCliConfigDraftMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: 'anthropic::claude-new',
+        configBlob: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } }
+      })
+    )
   })
 
   it('shows the empty model placeholder when the provider has no saved model', async () => {
