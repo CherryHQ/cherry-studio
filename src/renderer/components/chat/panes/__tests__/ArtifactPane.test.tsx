@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { SerializedTreeNode } from '@shared/utils/file/tree'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
 import { type PropsWithChildren, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -751,7 +752,8 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'false')
   })
 
-  it('only closes the preview overlay from Escape events inside the overlay', async () => {
+  it('focuses the preview overlay after file-tree selection and closes it with Escape', async () => {
+    const user = userEvent.setup()
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
     mocks.fsReadText.mockResolvedValue('# Overlay')
 
@@ -760,12 +762,11 @@ describe('ArtifactPane', () => {
     await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-README.md'))
-    await waitFor(() => expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument())
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
 
-    fireEvent.keyDown(screen.getByTestId('file-tree'), { key: 'Escape' })
-    expect(screen.getByTestId('artifact-file-preview-overlay')).toBeInTheDocument()
+    await waitFor(() => expect(overlay).toHaveFocus())
 
-    fireEvent.keyDown(screen.getByTestId('artifact-file-preview-overlay'), { key: 'Escape' })
+    await user.keyboard('{Escape}')
     expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
     expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'false')
   })

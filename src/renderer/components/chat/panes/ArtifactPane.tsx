@@ -561,6 +561,7 @@ export function ArtifactPaneView({
 
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
   const previousWorkspacePathRef = useRef(workspacePath)
+  const overlayRef = useRef<HTMLDivElement>(null)
   // Destructure the stable callbacks so effect/callback deps don't have to
   // list the whole `model` (a fresh object every render).
   const { refresh, reloadExpandedDirectories } = model
@@ -611,6 +612,11 @@ export function ArtifactPaneView({
   const sniffedIsText = useIsTextFile(previewWorkspacePath, previewFilePath, { enabled: shouldSniffSelectedFile })
   const isText = shouldSniffSelectedFile ? sniffedIsText : 'binary'
   const fileSize = useFileSize(previewWorkspacePath, previewFilePath)
+
+  useEffect(() => {
+    if (!overlaySelection) return
+    overlayRef.current?.focus()
+  }, [overlaySelection?.filePath, overlaySelection?.workspacePath])
 
   const handleRefresh = useCallback(() => {
     refresh()
@@ -777,6 +783,7 @@ export function ArtifactPaneView({
 
     return (
       <div
+        ref={overlayRef}
         data-testid="artifact-file-preview-overlay"
         tabIndex={-1}
         onKeyDown={handleOverlayKeyDown}
