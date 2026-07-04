@@ -26,7 +26,7 @@ const DEFAULT_BALANCE = {
   }
 }
 
-vi.mock('@renderer/utils/oauth', () => ({
+vi.mock('@renderer/services/oauth', () => ({
   oauthWithCherryIn: vi.fn()
 }))
 

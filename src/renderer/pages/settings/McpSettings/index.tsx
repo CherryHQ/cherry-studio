@@ -1,5 +1,5 @@
 import { Flex, MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
-import { McpLogo } from '@renderer/components/Icons'
+import { McpLogo } from '@renderer/components/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { FolderCog, Package, ShoppingBag } from 'lucide-react'

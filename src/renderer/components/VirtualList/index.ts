@@ -1,11 +1,8 @@
-export { default as DynamicVirtualList, type DynamicVirtualListProps, type DynamicVirtualListRef } from './dynamic'
 export {
-  buildGroupedVirtualRows,
-  default as GroupedVirtualList,
-  type GroupedVirtualListGroup,
-  type GroupedVirtualListProps,
-  type GroupedVirtualListRow
-} from './grouped'
+  default as DynamicVirtualList,
+  type DynamicVirtualListProps,
+  type DynamicVirtualListRef
+} from './DynamicVirtualList'
 export {
   default as GroupedSortableVirtualList,
   type GroupedSortableVirtualListDragCapabilities,
@@ -14,4 +11,11 @@ export {
   type GroupedSortableVirtualListGroupDragPayload,
   type GroupedSortableVirtualListItemDragPayload,
   type GroupedSortableVirtualListProps
-} from './grouped-sortable'
+} from './GroupedSortableVirtualList'
+export {
+  buildGroupedVirtualRows,
+  default as GroupedVirtualList,
+  type GroupedVirtualListGroup,
+  type GroupedVirtualListProps,
+  type GroupedVirtualListRow
+} from './GroupedVirtualList'

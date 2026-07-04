@@ -55,8 +55,11 @@ vi.mock('@renderer/utils/knowledge', () => ({
     translations: 0,
     errors: 0
   }),
+  processMessageContent: mocks.processMessageContent
+}))
+
+vi.mock('@renderer/services/knowledgeContent', () => ({
   analyzeTopicContent: vi.fn(),
-  processMessageContent: mocks.processMessageContent,
   processTopicContent: vi.fn()
 }))
 
@@ -74,7 +77,7 @@ vi.mock('lucide-react', () => ({
   Check: () => <span data-testid="check-icon" />
 }))
 
-vi.mock('@renderer/components/Tags/CustomTag', () => ({
+vi.mock('@renderer/components/tags/CustomTag', () => ({
   default: ({ children }: { children: React.ReactNode }) => <span>{children}</span>
 }))
 
