@@ -95,7 +95,23 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
-  ConfirmDialog: () => null
+  ConfirmDialog: () => null,
+  Select: ({
+    children,
+    value,
+    onValueChange
+  }: {
+    children: ReactNode
+    value?: string
+    onValueChange: (value: string) => void
+  }) => {
+    void onValueChange
+    return <div data-value={value}>{children}</div>
+  },
+  SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SelectItem: ({ children }: { children: ReactNode; value: string }) => <div>{children}</div>,
+  SelectTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>
 }))
 
 vi.mock('@data/DataApiService', () => ({

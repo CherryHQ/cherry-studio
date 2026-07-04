@@ -100,16 +100,22 @@ describe('extractConnectionFromCliConfigDraft', () => {
 
 describe('extractConfigFromCliConfigDraft', () => {
   it('round-trips only supported codex managed settings from the config blob', async () => {
-    const blob = { goalMode: true, disableResponseStorage: true, modelReasoningEffort: 'high' }
+    const blob = {
+      goalMode: true,
+      disableResponseStorage: true,
+      permissionMode: 'fullAccess',
+      modelReasoningEffort: 'high'
+    }
     const files = await buildDraft(CodeCli.OPENAI_CODEX, responsesProvider, 'gpt-5', blob)
     expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, files)).toEqual({
       goalMode: true,
-      disableResponseStorage: true
+      disableResponseStorage: true,
+      permissionMode: 'fullAccess'
     })
   })
 
   it('round-trips gemini managed settings from the config blob', async () => {
-    const blob = { general: { vimMode: true }, ui: { hideBanner: true } }
+    const blob = { general: { vimMode: true, defaultApprovalMode: 'plan' }, ui: { hideBanner: true } }
     const files = await buildDraft(CodeCli.GEMINI_CLI, geminiProvider, 'gemini-2.5-pro', blob)
     expect(extractConfigFromCliConfigDraft(CodeCli.GEMINI_CLI, files)).toEqual(blob)
   })

@@ -168,7 +168,8 @@ export async function readCliConfigDraft(
               {
                 reasoning: env.OPENCODE_REASONING === 'true',
                 supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord),
-                autoCompact: configBlob.autoCompact === true
+                autoCompact: configBlob.autoCompact === true,
+                permissionMode: configBlob.permissionMode
               }
             )
           )

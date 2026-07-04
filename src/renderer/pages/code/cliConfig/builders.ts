@@ -4,6 +4,7 @@ import {
   applyManagedTomlSettings,
   asRecord,
   CLAUDE_MANAGED_ENV_KEYS,
+  CLAUDE_MANAGED_PERMISSION_KEYS,
   CLAUDE_MANAGED_TOP_LEVEL_KEYS,
   CODEX_MANAGED_TOP_LEVEL_KEYS,
   GEMINI_MANAGED_ENV_KEYS,
@@ -11,6 +12,7 @@ import {
   OPEN_CODE_MANAGED_TOP_LEVEL_KEYS,
   QWEN_MANAGED_SETTINGS_KEYS
 } from './managedKeys'
+import { codexPermissionModeToConfig, isCodexPermissionMode, isOpenCodePermissionMode } from './permissionModes'
 import type { OpenCodeNpmInfo } from './resolvers'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import { normalizeUrl, sanitizeProviderName } from './values'
@@ -46,6 +48,14 @@ export function buildClaudeConfig(
   for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) {
     if (!(key in userBlob)) delete merged[key]
   }
+  const nextPermissions = { ...asRecord(existing.permissions) }
+  for (const key of CLAUDE_MANAGED_PERMISSION_KEYS) delete nextPermissions[key]
+  const userPermissions = asRecord(userBlob.permissions)
+  for (const key of CLAUDE_MANAGED_PERMISSION_KEYS) {
+    if (userPermissions[key] !== undefined) nextPermissions[key] = userPermissions[key]
+  }
+  if (Object.keys(nextPermissions).length > 0) merged.permissions = nextPermissions
+  else delete merged.permissions
   merged.env = existingEnv ? { ...existingEnv, ...envBlock } : { ...envBlock }
   return merged
 }
@@ -93,6 +103,9 @@ export function buildCodexConfig(
     const features = asRecord(merged.features)
     features.goals = true
     merged.features = features
+  }
+  if (isCodexPermissionMode(options.permissionMode)) {
+    Object.assign(merged, codexPermissionModeToConfig(options.permissionMode))
   }
   return merged
 }
@@ -164,6 +177,7 @@ export function buildOpenCodeConfig(
     }
   }
   if (options.autoCompact === true) merged.autoCompact = true
+  if (isOpenCodePermissionMode(options.permissionMode)) merged.permission = options.permissionMode
   return merged
 }
 

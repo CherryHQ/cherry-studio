@@ -1971,6 +1971,24 @@
         "auto_compact": "自動壓縮",
         "enable_reasoning": "啟用推理"
       },
+      "permission_mode": "權限審批",
+      "permission_modes": {
+        "accept_edits": "自動接受編輯",
+        "ask": "詢問",
+        "auto": "自動",
+        "auto_edit": "自動編輯",
+        "bypass_high_risk": "繞過權限（高風險）",
+        "default": "預設",
+        "default_allow_all": "預設（允許全部）",
+        "deny": "拒絕",
+        "deny_by_default": "預設拒絕",
+        "full_access_high_risk": "完全存取（高風險）",
+        "manual": "手動",
+        "plan": "計劃",
+        "read_only": "唯讀",
+        "workspace": "工作區",
+        "yolo_high_risk": "YOLO（高風險）"
+      },
       "qwen": {
         "classify_all_shell": "所有 Shell 命令都走分類器",
         "disable_auto_update": "停用自動更新",

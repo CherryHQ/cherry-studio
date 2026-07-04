@@ -163,7 +163,8 @@ export async function injectCliConfig(args: InjectCliConfigArgs): Promise<unknow
         {
           reasoning: env.OPENCODE_REASONING === 'true',
           supportsReasoningEffort: modelSupportsReasoningEffort(modelRecord),
-          autoCompact: blob.autoCompact === true
+          autoCompact: blob.autoCompact === true,
+          permissionMode: blob.permissionMode
         }
       )
       await writeExternalConfigFile(absPath, renderJsonFile(nextConfig))

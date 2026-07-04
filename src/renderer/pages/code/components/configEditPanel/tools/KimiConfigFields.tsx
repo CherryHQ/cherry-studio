@@ -1,14 +1,22 @@
+import { KIMI_PERMISSION_MODES } from '@renderer/pages/code/cliConfig/permissionModes'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TogglePill } from '../TogglePill'
+import { ConfigSelectField } from './ConfigFieldPrimitives'
 import { getRecord, makeUpdateField, makeUpdateSectionField } from './configFieldUtils'
 
 export interface KimiConfigFieldsProps {
   config: Record<string, unknown>
   onChange: (next: Record<string, unknown>) => void
   section?: 'all' | 'basic' | 'advanced'
+}
+
+const PERMISSION_MODE_LABEL_KEYS: Record<(typeof KIMI_PERMISSION_MODES)[number], string> = {
+  manual: 'code.adv.permission_modes.manual',
+  auto: 'code.adv.permission_modes.auto',
+  yolo: 'code.adv.permission_modes.yolo_high_risk'
 }
 
 export const KimiConfigFields: FC<KimiConfigFieldsProps> = ({ config, onChange, section = 'all' }) => {
@@ -26,6 +34,16 @@ export const KimiConfigFields: FC<KimiConfigFieldsProps> = ({ config, onChange, 
 
   return (
     <div className="space-y-3">
+      <ConfigSelectField
+        label={t('code.adv.permission_mode')}
+        value={typeof config.default_permission_mode === 'string' ? config.default_permission_mode : undefined}
+        placeholder={t('code.adv.select_placeholder')}
+        options={KIMI_PERMISSION_MODES.map((mode) => ({
+          value: mode,
+          label: t(PERMISSION_MODE_LABEL_KEYS[mode])
+        }))}
+        onChange={(value) => updateField('default_permission_mode', value)}
+      />
       <div className="flex flex-wrap gap-1.5">
         <TogglePill
           label={t('code.adv.kimi.plan_mode')}

@@ -1971,6 +1971,24 @@
         "auto_compact": "自动压缩",
         "enable_reasoning": "启用推理"
       },
+      "permission_mode": "权限审批",
+      "permission_modes": {
+        "accept_edits": "自动接受编辑",
+        "ask": "询问",
+        "auto": "自动",
+        "auto_edit": "自动编辑",
+        "bypass_high_risk": "绕过权限（高风险）",
+        "default": "默认",
+        "default_allow_all": "默认（允许全部）",
+        "deny": "拒绝",
+        "deny_by_default": "默认拒绝",
+        "full_access_high_risk": "完全访问（高风险）",
+        "manual": "手动",
+        "plan": "计划",
+        "read_only": "只读",
+        "workspace": "工作区",
+        "yolo_high_risk": "YOLO（高风险）"
+      },
       "qwen": {
         "classify_all_shell": "所有 Shell 命令都走分类器",
         "disable_auto_update": "禁用自动更新",

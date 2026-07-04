@@ -1,6 +1,7 @@
 import { Button, Checkbox } from '@cherrystudio/ui'
 import { ModelSelector } from '@renderer/components/Selector/model'
 import { CLAUDE_DETAILED_MODEL_ROLES, stripClaudeOneMMarker } from '@renderer/pages/code/cliConfig/claudeModels'
+import { CLAUDE_PERMISSION_MODES } from '@renderer/pages/code/cliConfig/permissionModes'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
@@ -8,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 
 import { ModelSelectorTrigger } from '../ModelSelectorTrigger'
 import { TogglePill } from '../TogglePill'
+import { ConfigSelectField } from './ConfigFieldPrimitives'
 
 const MODEL_ROLE_META = {
   fable: { labelKey: 'code.adv.claude.fable_model', supports1M: true },
@@ -62,6 +64,15 @@ const BOOLEAN_TOGGLES = [
 
 const DEFAULT_VISIBLE_TOGGLE_COUNT = 5
 
+const PERMISSION_MODE_LABEL_KEYS: Record<(typeof CLAUDE_PERMISSION_MODES)[number], string> = {
+  default: 'code.adv.permission_modes.default',
+  acceptEdits: 'code.adv.permission_modes.accept_edits',
+  plan: 'code.adv.permission_modes.plan',
+  auto: 'code.adv.permission_modes.auto',
+  dontAsk: 'code.adv.permission_modes.deny_by_default',
+  bypassPermissions: 'code.adv.permission_modes.bypass_high_risk'
+}
+
 export interface ClaudeConfigFieldsProps {
   config: Record<string, unknown>
   onChange: (next: Record<string, unknown>) => void
@@ -75,6 +86,13 @@ function getEnv(config: Record<string, unknown>): Record<string, string> {
     return {}
   }
   return config.env as Record<string, string>
+}
+
+function getPermissions(config: Record<string, unknown>): Record<string, string> {
+  if (!config || typeof config.permissions !== 'object' || config.permissions === null) {
+    return {}
+  }
+  return config.permissions as Record<string, string>
 }
 
 function isAttributionHidden(config: Record<string, unknown>): boolean {
@@ -113,6 +131,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
   const [showAllToggles, setShowAllToggles] = useState(false)
 
   const env = useMemo(() => getEnv(config), [config])
+  const permissions = useMemo(() => getPermissions(config), [config])
   const hideAttribution = useMemo(() => isAttributionHidden(config), [config])
   const visibleToggles = showAllToggles ? BOOLEAN_TOGGLES : BOOLEAN_TOGGLES.slice(0, DEFAULT_VISIBLE_TOGGLE_COUNT)
   const hiddenToggleCount = BOOLEAN_TOGGLES.length - DEFAULT_VISIBLE_TOGGLE_COUNT
@@ -152,39 +171,61 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
     [config, onChange]
   )
 
+  const updatePermissionMode = useCallback(
+    (defaultMode: string | undefined) => {
+      const next = { ...config }
+      if (defaultMode) next.permissions = { defaultMode }
+      else delete next.permissions
+      onChange(next)
+    },
+    [config, onChange]
+  )
+
   return (
     <div className="space-y-3">
       {section !== 'advanced' && (
-        <div className="flex flex-wrap gap-1.5">
-          {visibleToggles.map((field) => {
-            const active = env[field.envKey] === field.onValue
-            return (
+        <>
+          <ConfigSelectField
+            label={t('code.adv.permission_mode')}
+            value={permissions.defaultMode}
+            placeholder={t('code.adv.select_placeholder')}
+            options={CLAUDE_PERMISSION_MODES.map((mode) => ({
+              value: mode,
+              label: t(PERMISSION_MODE_LABEL_KEYS[mode])
+            }))}
+            onChange={updatePermissionMode}
+          />
+          <div className="flex flex-wrap gap-1.5">
+            {visibleToggles.map((field) => {
+              const active = env[field.envKey] === field.onValue
+              return (
+                <TogglePill
+                  key={field.envKey}
+                  label={t(field.labelKey)}
+                  active={active}
+                  onClick={() => updateEnvField(field.envKey, active ? '' : field.onValue)}
+                />
+              )
+            })}
+            {showAllToggles && (
               <TogglePill
-                key={field.envKey}
-                label={t(field.labelKey)}
-                active={active}
-                onClick={() => updateEnvField(field.envKey, active ? '' : field.onValue)}
+                label={t('code.adv.claude.hide_attribution')}
+                active={hideAttribution}
+                onClick={() => toggleHideAttribution(!hideAttribution)}
               />
-            )
-          })}
-          {showAllToggles && (
-            <TogglePill
-              label={t('code.adv.claude.hide_attribution')}
-              active={hideAttribution}
-              onClick={() => toggleHideAttribution(!hideAttribution)}
-            />
-          )}
-          {hiddenToggleCount > 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAllToggles((expanded) => !expanded)}
-              className="h-auto min-h-0 rounded-full border-border/50 px-2.5 py-1 text-[11px] text-muted-foreground/60 hover:border-border hover:text-foreground">
-              {showAllToggles ? t('code.collapse') : t('code.more')}
-            </Button>
-          )}
-        </div>
+            )}
+            {hiddenToggleCount > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAllToggles((expanded) => !expanded)}
+                className="h-auto min-h-0 rounded-full border-border/50 px-2.5 py-1 text-[11px] text-muted-foreground/60 hover:border-border hover:text-foreground">
+                {showAllToggles ? t('code.collapse') : t('code.more')}
+              </Button>
+            )}
+          </div>
+        </>
       )}
 
       {section !== 'basic' && (

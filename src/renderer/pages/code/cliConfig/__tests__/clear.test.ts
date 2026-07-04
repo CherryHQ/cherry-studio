@@ -32,7 +32,7 @@ describe('clearCliConfig', () => {
   it('claude: strips managed top-level + env keys, keeps user keys', async () => {
     existing['/resolved~/.claude/settings.json'] = JSON.stringify({
       userTop: 'keep',
-      permissions: { managed: true },
+      permissions: { defaultMode: 'bypassPermissions', allow: ['Bash(ls)'] },
       env: { ANTHROPIC_BASE_URL: 'x', ANTHROPIC_AUTH_TOKEN: 'y', USER_ENV: 'keep' }
     })
 
@@ -40,6 +40,7 @@ describe('clearCliConfig', () => {
 
     expect(JSON.parse(writes['/resolved~/.claude/settings.json'])).toEqual({
       userTop: 'keep',
+      permissions: { allow: ['Bash(ls)'] },
       env: { USER_ENV: 'keep' }
     })
   })
@@ -48,6 +49,9 @@ describe('clearCliConfig', () => {
     existing['/resolved~/.codex/config.toml'] = [
       'model = "gpt-5"',
       'model_provider = "cherry-deepseek"',
+      'approval_policy = "never"',
+      'sandbox_mode = "danger-full-access"',
+      'default_permissions = ":danger-full-access"',
       'model_reasoning_effort = "high"',
       'user_key = "keep"',
       '[model_providers.cherry-deepseek]',
@@ -76,6 +80,7 @@ describe('clearCliConfig', () => {
       provider: { 'cherry-deepseek': { npm: 'x' }, userprov: { npm: 'y' } },
       autoCompact: true,
       maxTurns: 30,
+      permission: 'ask',
       userTop: 'keep'
     })
 
@@ -100,6 +105,7 @@ describe('clearCliConfig', () => {
     existing['/resolved~/.qwen/settings.json'] = JSON.stringify({
       env: { CHERRY_QWEN_API_KEY: 'sk', USER_ENV: 'keep' },
       general: { vimMode: true, userSetting: 'keep' },
+      tools: { approvalMode: 'yolo', userTool: 'keep' },
       model: 'qwen3-max',
       modelProviders: {
         openai: [
@@ -114,6 +120,7 @@ describe('clearCliConfig', () => {
     expect(JSON.parse(writes['/resolved~/.qwen/settings.json'])).toEqual({
       env: { USER_ENV: 'keep' },
       general: { userSetting: 'keep' },
+      tools: { userTool: 'keep' },
       modelProviders: {
         openai: [{ id: 'user-model', envKey: 'USER_API_KEY' }]
       }

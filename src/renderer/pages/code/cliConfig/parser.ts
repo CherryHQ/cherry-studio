@@ -7,13 +7,15 @@ import { parseJsonOrThrow, parseTomlOrThrow } from './file'
 import {
   asRecord,
   CLAUDE_MANAGED_ENV_KEYS,
+  CLAUDE_MANAGED_PERMISSION_KEYS,
   CLAUDE_MANAGED_TOP_LEVEL_KEYS,
   GEMINI_WRITABLE_SETTINGS_KEYS,
   KIMI_WRITABLE_SECTION_KEYS,
   KIMI_WRITABLE_TOP_LEVEL_KEYS,
   QWEN_WRITABLE_SETTINGS_KEYS
 } from './managedKeys'
-import { sanitizeQwenConfigBlob } from './sanitize'
+import { codexConfigToPermissionMode, isClaudePermissionMode, isOpenCodePermissionMode } from './permissionModes'
+import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import type { CliConfigConnection, CliConfigFileDraft } from './types'
 import { stringValue } from './values'
 
@@ -112,6 +114,12 @@ export function extractConfigFromCliConfigDraft(
         for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) {
           if (settings[key] !== undefined) out[key] = settings[key]
         }
+        const permissions = asRecord(settings.permissions)
+        for (const key of CLAUDE_MANAGED_PERMISSION_KEYS) {
+          if (key === 'defaultMode' && isClaudePermissionMode(permissions[key])) {
+            out.permissions = { ...asRecord(out.permissions), [key]: permissions[key] }
+          }
+        }
         const env = { ...asRecord(settings.env) }
         for (const key of ['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_API_KEY', 'ANTHROPIC_MODEL']) {
           delete env[key]
@@ -126,6 +134,8 @@ export function extractConfigFromCliConfigDraft(
         const out: Record<string, any> = {}
         if (asRecord(config.features).goals === true) out.goalMode = true
         if (config.disable_response_storage === true) out.disableResponseStorage = true
+        const permissionMode = codexConfigToPermissionMode(config)
+        if (permissionMode) out.permissionMode = permissionMode
         const providerKey = stringValue(config.model_provider)
         const provider = providerKey ? asRecord(asRecord(config.model_providers)[providerKey]) : {}
         if (provider.name === 'OpenAI') out.remoteCompaction = true
@@ -135,6 +145,7 @@ export function extractConfigFromCliConfigDraft(
         const config = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
         const out: Record<string, any> = {}
         if (config.autoCompact === true) out.autoCompact = true
+        if (isOpenCodePermissionMode(config.permission)) out.permissionMode = config.permission
         const providers = asRecord(config.provider)
         const provider = asRecord(
           Object.entries(providers).find(([key]) => key.startsWith(CHERRY_PROVIDER_PREFIX))?.[1]
@@ -153,7 +164,7 @@ export function extractConfigFromCliConfigDraft(
               out[section] = { ...asRecord(out[section]), [key]: sourceSection[key] }
           }
         }
-        return out
+        return sanitizeGeminiConfigBlob(out)
       }
       case CodeCli.QWEN_CODE: {
         const settings = parseJsonOrThrow(getDraftFile(files, 'qwen-settings')?.content ?? '')
@@ -180,7 +191,7 @@ export function extractConfigFromCliConfigDraft(
               out[section] = { ...asRecord(out[section]), [key]: sourceSection[key] }
           }
         }
-        return out
+        return sanitizeKimiConfigBlob(out)
       }
       default:
         return null

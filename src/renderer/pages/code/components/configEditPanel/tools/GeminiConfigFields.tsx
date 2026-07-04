@@ -1,14 +1,22 @@
+import { GEMINI_APPROVAL_MODES } from '@renderer/pages/code/cliConfig/permissionModes'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TogglePill } from '../TogglePill'
+import { ConfigSelectField } from './ConfigFieldPrimitives'
 import { getRecord, makeUpdateSectionField } from './configFieldUtils'
 
 export interface GeminiConfigFieldsProps {
   config: Record<string, unknown>
   onChange: (next: Record<string, unknown>) => void
   section?: 'all' | 'basic' | 'advanced'
+}
+
+const APPROVAL_MODE_LABEL_KEYS: Record<(typeof GEMINI_APPROVAL_MODES)[number], string> = {
+  default: 'code.adv.permission_modes.default',
+  auto_edit: 'code.adv.permission_modes.auto_edit',
+  plan: 'code.adv.permission_modes.plan'
 }
 
 export const GeminiConfigFields: FC<GeminiConfigFieldsProps> = ({ config, onChange, section = 'all' }) => {
@@ -35,6 +43,16 @@ export const GeminiConfigFields: FC<GeminiConfigFieldsProps> = ({ config, onChan
 
   return (
     <div className="space-y-3">
+      <ConfigSelectField
+        label={t('code.adv.permission_mode')}
+        value={typeof general.defaultApprovalMode === 'string' ? general.defaultApprovalMode : undefined}
+        placeholder={t('code.adv.select_placeholder')}
+        options={GEMINI_APPROVAL_MODES.map((mode) => ({
+          value: mode,
+          label: t(APPROVAL_MODE_LABEL_KEYS[mode])
+        }))}
+        onChange={(value) => updateSectionField('general', 'defaultApprovalMode', value)}
+      />
       <div className="flex flex-wrap gap-1.5">
         <TogglePill
           label={t('code.adv.gemini.vim_mode')}

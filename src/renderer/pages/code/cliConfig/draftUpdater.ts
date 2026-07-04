@@ -132,7 +132,8 @@ export function updateCliConfigDraftConfig(
         {
           reasoning: env.OPENCODE_REASONING === 'true',
           supportsReasoningEffort: true,
-          autoCompact: blob.autoCompact === true
+          autoCompact: blob.autoCompact === true,
+          permissionMode: blob.permissionMode
         }
       )
       return replaceDraftContent(files, 'opencode-config', renderJsonFile(nextConfig))

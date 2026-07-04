@@ -10,38 +10,65 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({
-    variant,
-    size,
-    loading,
-    children,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & {
-    variant?: string
-    size?: string
-    loading?: boolean
-    children?: ReactNode
-  }) => {
-    void variant
-    void size
-    void loading
-    return (
-      <button type="button" {...props}>
+vi.mock('@cherrystudio/ui', () => {
+  let selectOnValueChange: ((value: string) => void) | undefined
+  return {
+    Button: ({
+      variant,
+      size,
+      loading,
+      children,
+      ...props
+    }: ButtonHTMLAttributes<HTMLButtonElement> & {
+      variant?: string
+      size?: string
+      loading?: boolean
+      children?: ReactNode
+    }) => {
+      void variant
+      void size
+      void loading
+      return (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      )
+    },
+    Checkbox: ({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (checked: boolean) => void }) => (
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={checked}
+        data-testid="one-million-context-checkbox"
+        onClick={() => onCheckedChange(!checked)}
+      />
+    ),
+    Select: ({
+      children,
+      value,
+      onValueChange
+    }: {
+      children: ReactNode
+      value?: string
+      onValueChange: (value: string) => void
+    }) => {
+      selectOnValueChange = onValueChange
+      return (
+        <div data-testid="select" data-value={value}>
+          {children}
+        </div>
+      )
+    },
+    SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    SelectItem: ({ children, value }: { children: ReactNode; value: string }) => (
+      <button type="button" onClick={() => selectOnValueChange?.(value)}>
         {children}
       </button>
-    )
-  },
-  Checkbox: ({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (checked: boolean) => void }) => (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      data-testid="one-million-context-checkbox"
-      onClick={() => onCheckedChange(!checked)}
-    />
-  )
-}))
+    ),
+    SelectTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+    SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>
+  }
+})
 
 vi.mock('@renderer/components/Selector/model', () => ({
   ModelSelector: ({
@@ -112,6 +139,8 @@ describe('ClaudeConfigFields', () => {
   it('shows the five most important Claude toggles before expanding the rest', () => {
     renderFields({ section: 'basic' })
 
+    expect(screen.getByText('code.adv.permission_mode')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.permission_modes.bypass_high_risk')).toBeInTheDocument()
     expect(screen.getByText('code.adv.claude.enable_tool_search')).toBeInTheDocument()
     expect(screen.getByText('code.adv.claude.enable_teammates')).toBeInTheDocument()
     expect(screen.getByText('code.adv.claude.disable_auto_upgrade')).toBeInTheDocument()
@@ -129,6 +158,16 @@ describe('ClaudeConfigFields', () => {
     expect(screen.getByText('code.adv.claude.disable_attribution_header')).toBeInTheDocument()
     expect(screen.getByText('code.adv.claude.hide_attribution')).toBeInTheDocument()
     expect(screen.getByText('code.collapse')).toBeInTheDocument()
+  })
+
+  it('writes Claude permission mode selections', () => {
+    const { onChange } = renderFields({ section: 'basic' })
+
+    fireEvent.click(screen.getByText('code.adv.permission_modes.bypass_high_risk'))
+
+    expect(onChange).toHaveBeenCalledWith({
+      permissions: { defaultMode: 'bypassPermissions' }
+    })
   })
 
   it('orders role model selectors as Fable, Opus, Sonnet, Haiku', () => {

@@ -183,6 +183,7 @@ describe('injectCliConfig', () => {
       existing['/resolved~/.claude/settings.json'] = JSON.stringify({
         theme: 'dark',
         attribution: { commit: '', pr: '' },
+        permissions: { defaultMode: 'bypassPermissions', allow: ['Bash(ls)'] },
         env: {
           KEEP: '1',
           ANTHROPIC_DEFAULT_SONNET_MODEL: 'old-sonnet',
@@ -222,6 +223,31 @@ describe('injectCliConfig', () => {
       expect(parsed.env).not.toHaveProperty('DISABLE_AUTOUPDATER')
       // stale attribution dropped
       expect(parsed).not.toHaveProperty('attribution')
+      // stale managed permission mode dropped, user-owned permission rules preserved
+      expect(parsed.permissions).toEqual({ allow: ['Bash(ls)'] })
+    })
+
+    it('writes only the managed Claude permission mode under permissions', async () => {
+      existing['/resolved~/.claude/settings.json'] = JSON.stringify({
+        permissions: { allow: ['Bash(ls)'] }
+      })
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'anthropic::claude-sonnet-4-5',
+        configBlob: { permissions: { defaultMode: 'acceptEdits', deny: ['Bash(rm -rf *)'] } }
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.permissions).toEqual({
+        allow: ['Bash(ls)'],
+        defaultMode: 'acceptEdits'
+      })
     })
   })
 
@@ -297,7 +323,7 @@ describe('injectCliConfig', () => {
       expect(authParsed.OPENAI_API_KEY).toBe('sk-secret')
     })
 
-    it('applies goal mode + remote compaction from the config blob', async () => {
+    it('applies goal mode + remote compaction + permission mode from the config blob', async () => {
       mockGet({
         '/providers/deepseek': () => codexProvider,
         '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
@@ -307,13 +333,16 @@ describe('injectCliConfig', () => {
       await injectCliConfig({
         cliTool: CodeCli.OPENAI_CODEX,
         modelId: 'deepseek::deepseek-chat',
-        configBlob: { goalMode: true, remoteCompaction: true }
+        configBlob: { goalMode: true, remoteCompaction: true, permissionMode: 'workspace' }
       })
 
       const { parse: parseToml } = await import('smol-toml')
       const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
       expect(parsed.features).toEqual({ goals: true })
       expect(parsed.model_providers['cherry-DeepSeek'].name).toBe('OpenAI')
+      expect(parsed.approval_policy).toBe('on-request')
+      expect(parsed.sandbox_mode).toBe('workspace-write')
+      expect(parsed).not.toHaveProperty('default_permissions')
     })
 
     it('clears stale goal-mode / OpenAI name from a previous config when toggles are off', async () => {
@@ -322,6 +351,9 @@ describe('injectCliConfig', () => {
       existing['/resolved~/.codex/config.toml'] = [
         'model = "deepseek-chat"',
         'model_provider = "cherry-DeepSeek"',
+        'approval_policy = "never"',
+        'sandbox_mode = "danger-full-access"',
+        'default_permissions = ":danger-full-access"',
         '',
         '[features]',
         'goals = true',
@@ -348,6 +380,9 @@ describe('injectCliConfig', () => {
       const { parse: parseToml } = await import('smol-toml')
       const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
       expect(parsed).not.toHaveProperty('features')
+      expect(parsed).not.toHaveProperty('approval_policy')
+      expect(parsed).not.toHaveProperty('sandbox_mode')
+      expect(parsed).not.toHaveProperty('default_permissions')
       expect(parsed.model_providers['cherry-DeepSeek'].name).toBe('DeepSeek')
     })
 
@@ -518,6 +553,23 @@ describe('injectCliConfig', () => {
       expect(provider.npm).toBe('@ai-sdk/openai-compatible')
       expect(provider.options.baseURL).toBe('https://chat.example.com/v1')
     })
+
+    it('writes the global OpenCode permission mode', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await injectCliConfig({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        configBlob: { permissionMode: 'ask' }
+      })
+
+      const parsed = JSON.parse(opencodeWrite().content)
+      expect(parsed.permission).toBe('ask')
+    })
   })
 
   describe('gemini-cli (~/.gemini/.env + settings.json)', () => {
@@ -546,7 +598,7 @@ describe('injectCliConfig', () => {
 
       expect(findWrite('.env').content).toContain('GEMINI_API_KEY=sk-secret')
       const settings = JSON.parse(findWrite('settings.json').content)
-      expect(settings.general).toEqual({ vimMode: true })
+      expect(settings.general).toEqual({ vimMode: true, defaultApprovalMode: 'auto_edit' })
       expect(settings.ui.hideBanner).toBe(true)
       expect(settings.privacy.usageStatisticsEnabled).toBe(false)
       expect(settings.model).toEqual({ name: 'gemini-2.5-pro' })
@@ -593,7 +645,7 @@ describe('injectCliConfig', () => {
       })
       expect(parsed.ui.hideBanner).toBe(true)
       expect(parsed.privacy.usageStatisticsEnabled).toBe(false)
-      expect(parsed.tools).toBeUndefined()
+      expect(parsed.tools).toEqual({ approvalMode: 'auto' })
       expect(parsed.context).toBeUndefined()
       expect(parsed.permissions.autoMode).toEqual({
         classifyAllShell: true
@@ -636,7 +688,7 @@ describe('injectCliConfig', () => {
       expect(mkdirMock).toHaveBeenCalledWith('/resolved~/.kimi-code')
       expect(mkdirMock.mock.invocationCallOrder[0]).toBeLessThan(writeMock.mock.invocationCallOrder[0])
       expect(parsed.default_model).toBe('cherry-DeepSeek')
-      expect(parsed.default_permission_mode).toBeUndefined()
+      expect(parsed.default_permission_mode).toBe('auto')
       expect(parsed.default_plan_mode).toBe(true)
       expect(parsed.telemetry).toBe(false)
       expect(parsed.thinking).toEqual({ enabled: true })

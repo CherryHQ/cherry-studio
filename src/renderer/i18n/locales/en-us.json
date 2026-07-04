@@ -1971,6 +1971,24 @@
         "auto_compact": "Auto Compact",
         "enable_reasoning": "Enable Reasoning"
       },
+      "permission_mode": "Permission Approval",
+      "permission_modes": {
+        "accept_edits": "Accept Edits",
+        "ask": "Ask",
+        "auto": "Auto",
+        "auto_edit": "Auto Edit",
+        "bypass_high_risk": "Bypass Permissions (High Risk)",
+        "default": "Default",
+        "default_allow_all": "Default (Allow All)",
+        "deny": "Deny",
+        "deny_by_default": "Deny By Default",
+        "full_access_high_risk": "Full Access (High Risk)",
+        "manual": "Manual",
+        "plan": "Plan",
+        "read_only": "Read Only",
+        "workspace": "Workspace",
+        "yolo_high_risk": "YOLO (High Risk)"
+      },
       "qwen": {
         "classify_all_shell": "Classify All Shell Commands",
         "disable_auto_update": "Disable Auto Update",

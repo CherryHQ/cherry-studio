@@ -1,8 +1,11 @@
+import { CODEX_PERMISSION_MODES } from '@renderer/pages/code/cliConfig/permissionModes'
 import type { FC } from 'react'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TogglePill } from '../TogglePill'
+import { ConfigSelectField } from './ConfigFieldPrimitives'
+import { makeUpdateField } from './configFieldUtils'
 
 export interface CodexConfigFieldsProps {
   config: Record<string, unknown>
@@ -12,8 +15,15 @@ export interface CodexConfigFieldsProps {
 
 type CodexFlag = 'goalMode' | 'remoteCompaction' | 'commonConfig' | 'disableResponseStorage'
 
+const PERMISSION_MODE_LABEL_KEYS: Record<(typeof CODEX_PERMISSION_MODES)[number], string> = {
+  readOnly: 'code.adv.permission_modes.read_only',
+  workspace: 'code.adv.permission_modes.workspace',
+  fullAccess: 'code.adv.permission_modes.full_access_high_risk'
+}
+
 export const CodexConfigFields: FC<CodexConfigFieldsProps> = ({ config, onChange, section = 'all' }) => {
   const { t } = useTranslation()
+  const updateField = useMemo(() => makeUpdateField(config, onChange), [config, onChange])
 
   const goalMode = config.goalMode === true
   const remoteCompaction = config.remoteCompaction === true
@@ -34,6 +44,16 @@ export const CodexConfigFields: FC<CodexConfigFieldsProps> = ({ config, onChange
 
   return (
     <div className="space-y-3">
+      <ConfigSelectField
+        label={t('code.adv.permission_mode')}
+        value={typeof config.permissionMode === 'string' ? config.permissionMode : undefined}
+        placeholder={t('code.adv.select_placeholder')}
+        options={CODEX_PERMISSION_MODES.map((mode) => ({
+          value: mode,
+          label: t(PERMISSION_MODE_LABEL_KEYS[mode])
+        }))}
+        onChange={(value) => updateField('permissionMode', value)}
+      />
       <div className="flex flex-wrap gap-1.5">
         <TogglePill
           label={t('code.adv.codex.goal_mode')}

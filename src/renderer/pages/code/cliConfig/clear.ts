@@ -8,6 +8,7 @@ import {
   applyManagedJsonSettings,
   applyManagedTomlSettings,
   CLAUDE_MANAGED_ENV_KEYS,
+  CLAUDE_MANAGED_PERMISSION_KEYS,
   CLAUDE_MANAGED_TOP_LEVEL_KEYS,
   CODEX_MANAGED_TOP_LEVEL_KEYS,
   GEMINI_MANAGED_ENV_KEYS,
@@ -80,6 +81,12 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
       if (!existing) return
       const next: Record<string, any> = { ...existing }
       for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
+      if (next.permissions && typeof next.permissions === 'object') {
+        const permissions = { ...(next.permissions as Record<string, any>) }
+        for (const key of CLAUDE_MANAGED_PERMISSION_KEYS) delete permissions[key]
+        if (Object.keys(permissions).length > 0) next.permissions = permissions
+        else delete next.permissions
+      }
       if (next.env && typeof next.env === 'object') {
         const env = { ...(next.env as Record<string, any>) }
         for (const key of CLAUDE_MANAGED_ENV_KEYS) delete env[key]
