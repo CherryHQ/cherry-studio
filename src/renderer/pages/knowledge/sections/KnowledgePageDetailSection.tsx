@@ -24,9 +24,7 @@ const KnowledgePageDetailSection = () => {
     openRecallTestDrawer,
     handleRagConfigDrawerOpenChange,
     handleRecallTestDrawerOpenChange,
-    openRenameBaseDialog,
-    openRestoreBaseDialog,
-    deleteBase
+    openRestoreBaseDialog
   } = useKnowledgePage()
   const {
     items: selectedBaseItems,
@@ -49,8 +47,6 @@ const KnowledgePageDetailSection = () => {
         base={selectedBase}
         onOpenRagConfig={openRagConfigDrawer}
         onOpenRecallTest={openRecallTestDrawer}
-        onRenameBase={openRenameBaseDialog}
-        onDeleteBase={deleteBase}
         onRebuild={() => openRestoreBaseDialog(selectedBase)}
       />
 

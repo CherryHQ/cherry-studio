@@ -1854,13 +1854,13 @@ describe('ComposerSurface', () => {
       </>
     )
 
-    expect(screen.getByRole('button', { name: 'appMenu.delete' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'appMenu.delete' })).toHaveClass('size-6', 'rounded-md')
-    expect(screen.getByRole('button', { name: 'appMenu.delete' })).not.toHaveClass('size-7')
-    expect(screen.getByRole('button', { name: 'appMenu.delete' })).not.toHaveClass('rounded-full')
+    expect(screen.getByRole('button', { name: 'common.delete' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.delete' })).toHaveClass('size-6', 'rounded-md')
+    expect(screen.getByRole('button', { name: 'common.delete' })).not.toHaveClass('size-7')
+    expect(screen.getByRole('button', { name: 'common.delete' })).not.toHaveClass('rounded-full')
     expect(screen.queryByRole('button', { name: 'chat.input.paste_text_file' })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'appMenu.delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
 
     expect(mocks.transaction.delete).toHaveBeenCalledWith(3, 4)
     expect(mocks.dispatch).toHaveBeenCalledWith(mocks.transaction)
@@ -1903,7 +1903,7 @@ describe('ComposerSurface', () => {
     const showInInputButton = screen.getByRole('button', { name: 'chat.input.paste_text_file' })
     expect(showInInputButton).toHaveClass('h-auto', 'min-h-0', 'w-fit', 'p-0', 'text-primary')
     expect(showInInputButton).not.toHaveClass('h-7', 'rounded-full', 'px-2.5')
-    const deleteButton = screen.getByRole('button', { name: 'appMenu.delete' })
+    const deleteButton = screen.getByRole('button', { name: 'common.delete' })
     expect(deleteButton).toBeInTheDocument()
     const actionContainer = document.querySelector('[data-file-token-actions]')!
     expect(actionContainer).toHaveClass('grid', 'grid-cols-[minmax(0,1fr)_auto]', 'gap-y-1')

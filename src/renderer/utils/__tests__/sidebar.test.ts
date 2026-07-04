@@ -1,6 +1,4 @@
-import { SIDEBAR_ICON_COMPONENTS } from '@renderer/components/app/sidebarIcons'
 import type { SidebarFavorite, SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
-import { Library } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -24,14 +22,7 @@ const miniAppFavorite = (id: string): SidebarFavoriteItem => ({ type: 'mini_app'
 
 describe('sidebar config helpers', () => {
   it('keeps the fixed sidebar app order available', () => {
-    expect(SIDEBAR_FAVORITE_ORDER.slice(0, 6)).toEqual([
-      'assistants',
-      'agents',
-      'paintings',
-      'translate',
-      'store',
-      'mini_app'
-    ])
+    expect(SIDEBAR_FAVORITE_ORDER.slice(0, 5)).toEqual(['assistants', 'agents', 'paintings', 'translate', 'mini_app'])
   })
 
   it('preserves the preference order when reading ordered visible sidebar favorites', () => {
@@ -132,10 +123,6 @@ describe('sidebar config helpers', () => {
   it('resolves menu paths and active items with the paintings provider route', () => {
     expect(getSidebarMenuPath('paintings', 'zhipu')).toBe('/app/paintings/zhipu')
     expect(resolveSidebarActiveItem('/app/paintings/zhipu')).toBe('paintings')
-  })
-
-  it('uses the library icon for the resource library sidebar item', () => {
-    expect(SIDEBAR_ICON_COMPONENTS.store).toBe(Library)
   })
 
   it('resolves the active item for query-keyed conversation routes', () => {

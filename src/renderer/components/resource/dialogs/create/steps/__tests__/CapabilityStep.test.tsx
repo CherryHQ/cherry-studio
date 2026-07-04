@@ -23,7 +23,7 @@ vi.mock('@renderer/hooks/useSkills', () => ({
   })
 }))
 
-vi.mock('@renderer/components/resource/dialogs/ImportSkillDialog', () => ({
+vi.mock('@renderer/components/resource/dialogs/import/ImportSkillDialog', () => ({
   ImportSkillDialog: () => null
 }))
 

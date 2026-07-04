@@ -474,8 +474,6 @@ export class Application {
    * All application lifecycle operations exposed to renderer live here.
    */
   private registerApplicationIpc(): void {
-    ipcMain.handle(IpcChannel.Application_Quit, () => this.quit())
-
     ipcMain.handle(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
       this.relaunch(options)
     })

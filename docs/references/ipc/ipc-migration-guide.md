@@ -90,11 +90,11 @@ useIpcOn('ai.stream_chunk', ({ topicId, chunk }) => { if (topicId === current) a
 const [theme] = usePreference('app.theme')
 const [pos] = useSharedCache('scroll.position.x')
 
-// D — special addressing (CherryIN_OAuthResult): reply only to the initiator window
-export type CherryinEventSchemas = { 'cherryin.oauth_result': { ok: boolean; apiKeys?: ApiKey[]; error?: string } }
-'cherryin.oauth_start': (req, { senderId }) => oauth.begin(req, senderId) // remember initiator WindowId
-application.get('IpcApiService').send(savedSenderId, 'cherryin.oauth_result', { ok: true, apiKeys }) // no-op if the window is gone
-useIpcOn('cherryin.oauth_result', (r) => (r.ok ? saveKeys(r.apiKeys) : showError(r.error)))
+// D — special addressing (deep-link OAuth result): reply only to the initiator window
+export type OAuthEventSchemas = { 'oauth.deep_link_result': { ok: boolean; apiKeys?: ApiKey[]; error?: string } }
+'oauth.start_deep_link_flow': (req, { senderId }) => oauth.begin(req, senderId) // remember initiator WindowId
+application.get('IpcApiService').send(savedSenderId, 'oauth.deep_link_result', { ok: true, apiKeys }) // no-op if the window is gone
+useIpcOn('oauth.deep_link_result', (r) => (r.ok ? saveKeys(r.apiKeys) : showError(r.error)))
 ```
 
 ### Known inconsistency to fix during collection

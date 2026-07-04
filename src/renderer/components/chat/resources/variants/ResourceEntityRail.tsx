@@ -2,19 +2,21 @@ import { Tooltip } from '@cherrystudio/ui'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
-import {
-  ResourceList,
-  type ResourceListGroup,
-  type ResourceListReorderPayload,
-  type ResourceListSection,
-  type ResourceListStatus
-} from '@renderer/components/chat/resources'
 import { CommandPopupMenu } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
 import { History, MoreHorizontal } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { ConversationResourceMenu, type ConversationResourceMenuItem } from '../ConversationResourceMenu'
+import {
+  ResourceList,
+  type ResourceListGroup,
+  type ResourceListReorderPayload,
+  type ResourceListSection,
+  type ResourceListStatus
+} from '../ResourceList'
 
 export type ResourceEntityRailItem = {
   id: string
@@ -78,6 +80,7 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   onAdd: () => void | Promise<void>
   /** When provided, a history-records button sits next to the add button. */
   onOpenHistoryRecords?: () => void
+  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   onContextMenuAction?: (item: T, action: ResolvedAction<TActionContext>) => void | Promise<void>
   onReorder?: (payload: ResourceListReorderPayload) => void | Promise<void>
   onSelect: (item: T) => void | Promise<void>
@@ -117,6 +120,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   listRef,
   onAdd,
   onOpenHistoryRecords,
+  resourceMenuItems,
   onContextMenuAction,
   onReorder,
   onSelect,
@@ -131,6 +135,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   const reorderEnabled = !!onReorder && !groupByTag
   const fallbackListRef = useRef<HTMLDivElement>(null)
   const effectiveListRef = listRef ?? fallbackListRef
+  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const runContextMenuAction = useCallback(
     (item: T, action: ResolvedAction<TActionContext>) => {
       if (!action.availability.enabled || !onContextMenuAction) return
@@ -250,7 +255,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     <Provider
       variant={variant}
       items={providerItems}
-      selectedId={selectedId}
+      selectedId={hasActiveResourceMenuItem ? null : selectedId}
       status={status}
       groupBy={groupBy}
       sectionBy={sectionBy}
@@ -287,6 +292,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
               ) : undefined
             }
           />
+          <ConversationResourceMenu items={resourceMenuItems} />
         </ResourceList.Header>
         <ResourceList.Body<T>
           listRef={effectiveListRef}
