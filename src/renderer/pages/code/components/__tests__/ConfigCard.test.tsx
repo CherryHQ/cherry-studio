@@ -1,5 +1,6 @@
 import type { Provider } from '@shared/data/types/provider'
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ProviderCard } from '../ConfigCard'
@@ -35,6 +36,7 @@ function renderCard(options: { isCurrent?: boolean; modelName?: string } = {}) {
 
   return {
     card: screen.getByRole('button', { name: /Anthropic/ }),
+    cardShell: screen.getByRole('button', { name: /Anthropic/ }).closest('.rounded-xl') as HTMLElement,
     configureButton: screen.getByRole('button', { name: 'code.configure' }),
     onConfigure,
     onToggleCurrent
@@ -80,10 +82,10 @@ describe('ProviderCard', () => {
   })
 
   it('uses the same muted selection background as provider settings', () => {
-    const { card } = renderCard({ isCurrent: true })
+    const { cardShell } = renderCard({ isCurrent: true })
 
-    expect(card).toHaveClass('bg-muted')
-    expect(card).not.toHaveClass('bg-success/[0.04]')
+    expect(cardShell).toHaveClass('bg-muted')
+    expect(cardShell).not.toHaveClass('bg-success/[0.04]')
   })
 
   it('renders the provider icon before the provider name', () => {
@@ -117,11 +119,13 @@ describe('ProviderCard', () => {
     expect(screen.queryByText('claude-sonnet-4-5')).not.toBeInTheDocument()
   })
 
-  it('toggles the provider with Enter and Space when the card has focus', () => {
+  it('toggles the provider with Enter and Space when the card has focus', async () => {
+    const user = userEvent.setup()
     const { card, onToggleCurrent } = renderCard()
 
-    fireEvent.keyDown(card, { key: 'Enter' })
-    fireEvent.keyDown(card, { key: ' ' })
+    card.focus()
+    await user.keyboard('{Enter}')
+    await user.keyboard(' ')
 
     expect(onToggleCurrent).toHaveBeenCalledTimes(2)
     expect(onToggleCurrent).toHaveBeenNthCalledWith(1, provider)

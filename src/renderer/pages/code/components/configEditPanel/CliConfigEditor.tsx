@@ -74,11 +74,11 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
               </TabsTrigger>
             ))}
           </TabsList>
-          {files.map((file) => (
-            <TabsContent key={file.target} value={file.target} className="mt-2">
-              <EditorBody file={file} fontSize={fontSize} theme={activeCmTheme} onChange={updateFile} />
+          {activeFile && (
+            <TabsContent key={activeFile.target} value={activeFile.target} className="mt-2">
+              <EditorBody file={activeFile} fontSize={fontSize} theme={activeCmTheme} onChange={updateFile} />
             </TabsContent>
-          ))}
+          )}
         </Tabs>
       ) : (
         activeFile && <EditorBody file={activeFile} fontSize={fontSize} theme={activeCmTheme} onChange={updateFile} />

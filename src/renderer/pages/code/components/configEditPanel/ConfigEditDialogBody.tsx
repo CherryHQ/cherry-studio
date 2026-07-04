@@ -16,10 +16,9 @@ import { useTranslation } from 'react-i18next'
 
 import { AdvancedConfigToggle } from './AdvancedConfigToggle'
 import { CliConfigEditor } from './CliConfigEditor'
+import type { ClaudeModelMode } from './types'
 
-type ClaudeModelMode = 'common' | 'detailed'
-
-interface ConfigEditDialogBodyProps {
+export interface ConfigEditDialogBodyProps {
   open: boolean
   onClose: () => void
   provider: Provider

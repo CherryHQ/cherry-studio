@@ -7,7 +7,7 @@ import { CodeCliSidebar } from './CodeCliSidebar'
 import { ConfigEditPanel } from './configEditPanel/ConfigEditPanel'
 import { LaunchDialog } from './LaunchDialog'
 
-interface CodeCliPageViewProps {
+export interface CodeCliPageViewProps {
   sidebarProps: ComponentProps<typeof CodeCliSidebar>
   contentProps?: ComponentProps<typeof CodeCliContentPanel>
   emptyMessage: string
