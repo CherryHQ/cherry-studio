@@ -22,6 +22,8 @@ type PopoverContentProps = ComponentPropsWithoutRef<typeof PopoverContent>
 export type SelectorShellMountStrategy = 'destroy' | 'lazy-keep'
 const DEFAULT_COLLISION_PADDING = 12
 export const DEFAULT_SELECTOR_CONTENT_HEIGHT = 344
+const SELECTOR_CONTENT_STABLE_POSITION_CLASS =
+  'data-[state=open]:animate-none data-[state=closed]:animate-none data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0'
 
 export type SelectorShellLayout = {
   availableListHeight?: number
@@ -402,6 +404,7 @@ export function SelectorShell({
             onKeyDown={onKeyDown}
             className={cn(
               'flex max-h-[var(--radix-popover-content-available-height)] w-90 flex-col overflow-hidden rounded-lg border-border bg-popover p-0 py-1 shadow-lg',
+              SELECTOR_CONTENT_STABLE_POSITION_CLASS,
               contentClassName
             )}
             data-selector-shell-content="true"

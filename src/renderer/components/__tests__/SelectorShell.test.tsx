@@ -98,6 +98,18 @@ describe('SelectorShell', () => {
     })
   })
 
+  it('keeps selector popover positioning stable during open and close', () => {
+    render(
+      <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()}>
+        <div />
+      </SelectorShell>
+    )
+
+    const content = document.querySelector<HTMLElement>('[data-selector-shell-content]')
+    expect(content).toHaveClass('data-[state=open]:animate-none')
+    expect(content).toHaveClass('data-[state=closed]:animate-none')
+  })
+
   it('applies contentHeight as a fixed popover target height', () => {
     render(
       <SelectorShell
