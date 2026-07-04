@@ -5,6 +5,7 @@ import type { DbOrTx } from '@data/db/types'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import {
+  ACTIVE_JOB_STATUSES,
   type JobError,
   JobErrorSchema,
   type JobSnapshot,
@@ -15,13 +16,13 @@ import { and, asc, count, desc, eq, inArray, lte, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('JobService')
 
-const ACTIVE_STATUSES = ['pending', 'delayed', 'running'] as const satisfies readonly JobStatus[]
-
 export interface JobListFilter {
   status?: JobStatus[]
   queue?: string
-  type?: string
+  /** Single type (`eq`) or a set (`inArray`). An empty array means "no filter" (matches the `status` convention). */
+  type?: string | string[]
   scheduleId?: string
+  parentId?: string
   limit?: number
   offset?: number
 }
@@ -41,13 +42,28 @@ export class JobService {
 
   // ---------------- Read ----------------
 
-  list(filter: JobListFilter = {}): JobSnapshot[] {
-    const db = this.getDb()
+  /**
+   * WHERE composition shared by `list()` and `count()` — keeps the
+   * `count(f) === list(f).length` contract structural instead of mirrored by hand.
+   * Empty arrays (`status: []`, `type: []`) mean "no filter".
+   */
+  private listConditions(filter: Omit<JobListFilter, 'limit' | 'offset'>): SQL[] {
     const conditions: SQL[] = []
     if (filter.status?.length) conditions.push(inArray(jobTable.status, filter.status))
     if (filter.queue) conditions.push(eq(jobTable.queue, filter.queue))
-    if (filter.type) conditions.push(eq(jobTable.type, filter.type))
+    if (Array.isArray(filter.type)) {
+      if (filter.type.length) conditions.push(inArray(jobTable.type, filter.type))
+    } else if (filter.type) {
+      conditions.push(eq(jobTable.type, filter.type))
+    }
     if (filter.scheduleId) conditions.push(eq(jobTable.scheduleId, filter.scheduleId))
+    if (filter.parentId) conditions.push(eq(jobTable.parentId, filter.parentId))
+    return conditions
+  }
+
+  list(filter: JobListFilter = {}): JobSnapshot[] {
+    const db = this.getDb()
+    const conditions = this.listConditions(filter)
 
     const baseQuery = conditions.length
       ? db
@@ -74,11 +90,7 @@ export class JobService {
    */
   count(filter: Omit<JobListFilter, 'limit' | 'offset'> = {}): number {
     const db = this.getDb()
-    const conditions: SQL[] = []
-    if (filter.status?.length) conditions.push(inArray(jobTable.status, filter.status))
-    if (filter.queue) conditions.push(eq(jobTable.queue, filter.queue))
-    if (filter.type) conditions.push(eq(jobTable.type, filter.type))
-    if (filter.scheduleId) conditions.push(eq(jobTable.scheduleId, filter.scheduleId))
+    const conditions = this.listConditions(filter)
 
     const query = conditions.length
       ? db
@@ -102,13 +114,7 @@ export class JobService {
    * the existing job's handle instead of creating a new row.
    */
   findActiveByIdempotencyKey(key: string): JobSnapshot | null {
-    const [row] = this.getDb()
-      .select()
-      .from(jobTable)
-      .where(and(eq(jobTable.idempotencyKey, key), inArray(jobTable.status, ACTIVE_STATUSES)))
-      .limit(1)
-      .all()
-    return row ? this.rowToSnapshot(row) : null
+    return this.findActiveByIdempotencyKeyTx(this.getDb(), key)
   }
 
   /**
@@ -131,17 +137,27 @@ export class JobService {
 
   /**
    * Non-tx write methods in this section are thin wrappers over their `*Tx`
-   * counterparts, routing through `DbService.withWriteTx` to serialize against
-   * other JobManager writes.
+   * counterparts, passing the bare connection — a single statement is atomic
+   * on better-sqlite3's one connection and needs no explicit transaction.
    *
    * Use the `*Tx` versions directly when composing multiple writes into one
-   * transaction (recovery, batch operations).
+   * transaction (recovery, batch operations, `JobManager.enqueueTx`).
    */
 
   create(dto: InsertJobRow): JobSnapshot {
-    const db = application.get('DbService').getDb()
+    return this.createTx(this.getDb(), dto)
+  }
+
+  // ---------------- Tx-scoped (inside JobManager.dispatch transaction) ----------------
+
+  /**
+   * Insert a job row inside the caller's transaction. `withSqliteErrors` lives
+   * here so both `create` and transactional callers surface typed errors
+   * (e.g. an idempotency-key unique violation).
+   */
+  createTx(tx: DbOrTx, dto: InsertJobRow): JobSnapshot {
     const result = withSqliteErrors(
-      () => db.insert(jobTable).values(dto).returning().all(),
+      () => tx.insert(jobTable).values(dto).returning().all(),
       defaultHandlersFor('Job', dto.id ?? '<auto>')
     )
     const row = result[0]
@@ -149,7 +165,19 @@ export class JobService {
     return this.rowToSnapshot(row)
   }
 
-  // ---------------- Tx-scoped (inside JobManager.dispatch transaction) ----------------
+  /**
+   * `findActiveByIdempotencyKey` reading through the caller's transaction, so
+   * `JobManager.enqueueTx` sees a consistent view of the key within its tx.
+   */
+  findActiveByIdempotencyKeyTx(tx: DbOrTx, key: string): JobSnapshot | null {
+    const [row] = tx
+      .select()
+      .from(jobTable)
+      .where(and(eq(jobTable.idempotencyKey, key), inArray(jobTable.status, ACTIVE_JOB_STATUSES)))
+      .limit(1)
+      .all()
+    return row ? this.rowToSnapshot(row) : null
+  }
 
   /**
    * Count currently-running jobs for a queue — checks queue concurrency.
@@ -286,7 +314,7 @@ export class JobService {
    * no timer to surface it).
    */
   getStaleActive(): JobRow[] {
-    return this.getDb().select().from(jobTable).where(inArray(jobTable.status, ACTIVE_STATUSES)).all()
+    return this.getDb().select().from(jobTable).where(inArray(jobTable.status, ACTIVE_JOB_STATUSES)).all()
   }
 
   /**
@@ -301,7 +329,7 @@ export class JobService {
     return this.getDb()
       .select()
       .from(jobTable)
-      .where(and(eq(jobTable.type, type), inArray(jobTable.status, ACTIVE_STATUSES)))
+      .where(and(eq(jobTable.type, type), inArray(jobTable.status, ACTIVE_JOB_STATUSES)))
       .orderBy(desc(jobTable.createdAt), desc(jobTable.id))
       .all()
   }
@@ -328,7 +356,7 @@ export class JobService {
     return this.getDb()
       .select({ queue: jobTable.queue, type: jobTable.type })
       .from(jobTable)
-      .where(inArray(jobTable.status, ACTIVE_STATUSES))
+      .where(inArray(jobTable.status, ACTIVE_JOB_STATUSES))
       .groupBy(jobTable.queue, jobTable.type)
       .all()
   }
@@ -383,7 +411,7 @@ export class JobService {
     filter: { queue?: string; type?: string },
     error: JobError | null
   ): { runningIds: string[]; transitioned: number } {
-    const conditions: SQL[] = [inArray(jobTable.status, ACTIVE_STATUSES)]
+    const conditions: SQL[] = [inArray(jobTable.status, ACTIVE_JOB_STATUSES)]
     if (filter.queue) conditions.push(eq(jobTable.queue, filter.queue))
     if (filter.type) conditions.push(eq(jobTable.type, filter.type))
 

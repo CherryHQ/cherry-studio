@@ -45,7 +45,7 @@ The 90% case. See later sections for full rules and edge cases.
 | `packages/ui/` directory | `kebab-case` | `primitives/`, `button-group/` |
 | TanStack route file under `src/renderer/routes/` | `kebab-case.tsx` | `api-server.tsx`, `quick-assistant.tsx` |
 
-> Stateful classes use only `Service` (default) or `Manager` (instance pool) — see §5.2. Files placed inside any `utils/` directory drop the `Utils` suffix — the directory already declares the role; see §3.2.
+> Stateful singleton capabilities use only `Service` (default) or `Manager` (instance pool); multi-instance helper classes take no suffix — see §5.2. Files placed inside any `utils/` directory drop the `Utils` suffix — the directory already declares the role; see §3.2.
 
 ---
 
@@ -180,7 +180,7 @@ Inside any bucket or domain directory, a **single file is the default**. Promote
 
 | Situation | Layout | Examples |
 |---|---|---|
-| One file can express the entire capability / topic | One `.ts` file | `services/CacheService.ts`, `utils/copy.ts`, `hooks/useChatContext.ts` |
+| One file can express the entire capability / topic | One `.ts` file | `services/CacheService.ts`, `utils/assistant.ts`, `hooks/useChatContext.ts` |
 | Implementation is too large for one file, **or** the topic owns several closely related artifacts (helpers, types, sub-files) that belong together | A subdirectory grouping the files | `services/messageStreaming/`, `services/ocr/`, `utils/markdown/`, `hooks/translate/` |
 
 Do not pre-create a subdirectory for anticipated growth — promote only when the second file actually arrives.
@@ -261,12 +261,13 @@ A **feature module** is a self-contained domain directory under a process root's
 | The domain is… | Home | Layout |
 |---|---|---|
 | Large / complex — spans more than one concern (e.g. a service plus its own adapters, routes, utils) | `features/<domain>/` | self-contained tree; the service class lives inside it (§5.2) |
-| One cohesive service, even if domain-specific | `services/<Domain>Service.ts` | a single file; its lone helper util → `utils/<topic>.ts` |
+| Headless multi-file capability — a service plus its **private, topic-specific** satellites (adapters, stateless helpers, per-instance classes); no UI | `services/<topic>/` | one curated `index.ts` barrel; internals private and exempt from shape routing ([Renderer Architecture §3.1](./renderer-architecture.md)) |
+| One cohesive service, even if domain-specific | `services/<Domain>Service.ts` | a single file — private helpers stay **inline**; a **generic** helper → `utils/<topic>.ts`; its first **topic-specific** satellite file → grow into `services/<topic>/` (row above) |
 | A small cross-domain / standalone helper | `services/` or `utils/` | a single file |
 
-This is the §4.4 promotion rule applied at the top level: a domain graduates from "a file (plus maybe one util) in a bucket" to "its own `features/` module" only once the additional files actually arrive and span more than one concern.
+This is the §4.4 promotion rule applied at the top level: a domain graduates in steps — a single file → a `services/<topic>/` topic directory → its own `features/` module — only as the additional files actually arrive and span more than one concern.
 Do not pre-create a `features/<domain>/` for an anticipated module.
-`features/` holds high-cohesion domain code; the sibling type-buckets (`services/` + `utils/` in main; `components/` + `hooks/` + `services/` + `utils/` in the renderer) stay reserved for small, independent, cross-domain pieces.
+`features/` holds high-cohesion domain code; the sibling type-buckets (`services/` + `utils/` in main; `components/` + `hooks/` + `services/` + `utils/` in the renderer) hold everything below that bar — single-file pieces and `services/<topic>/` capabilities.
 A large, multi-file domain left scattered across the `services/` and `utils/` buckets instead of gathered into one `features/<domain>/` is the §6.7 scattered/impure anti-pattern.
 
 **Canonical example** — `src/main/features/apiGateway/`:
@@ -310,27 +311,34 @@ Names inside source code — separate axis from filenames.
 | Function that mutates a collection | verb + plural object | `addUsers(...)`, `removeTags(...)` |
 | Event / handler name | follows the event subject | `onMessageReceived` (one), `onItemsLoaded` (many) |
 
-### 5.2 Suffix for Stateful Classes — `Service` (default) / `Manager` (instance pool)
+### 5.2 Suffix for Stateful Singleton Capabilities — `Service` (default) / `Manager` (instance pool)
 
-A class that owns state, resources, or a lifecycle MUST use one of exactly two suffixes:
+A module that owns **retained module-level state, resources, or a lifecycle** — a **singleton capability** — MUST be implemented as a class managed as a singleton (two valid forms — see below) and take exactly one of two suffixes:
 
 | Suffix | Use when the class… | Examples |
 |---|---|---|
-| `Service` | Provides a cohesive **domain capability / API surface**. The **default** for any stateful class. | `CacheService`, `DataApiService`, `FileService`, `ExportService` |
+| `Service` | Provides a cohesive **domain capability / API surface**. The **default** for any singleton capability. | `CacheService`, `DataApiService`, `FileService`, `ExportService` |
 | `Manager` | Owns and coordinates a **pool / registry of many homogeneous instances**, and that coordination is its defining job. | `WindowManager` (window pool), `TabLruManager` |
 
 **Decision rule:** ask "is this class's primary job to own and coordinate a *set of many like instances*?" — yes → `Manager`; otherwise → `Service` (default when unsure).
 
 A `Service` / `Manager` class lives where its domain ownership lies (e.g. `src/main/data/CacheService.ts`, `src/main/core/window/WindowManager.ts`); placement under `services/` is not required.
 
-**Stateless modules are NOT classes for this rule** — pure function collections, queries, conversions, and SDK wrappers without retained state do not receive a `Service` / `Manager` suffix.
+**The criterion is statefulness, not mechanism.** Module-scope mutable bindings, closure-held registries, and retained top-level third-party instances (`const listeners = new Map()`, `export const emitter = new Emittery()`) qualify exactly as class fields do — normalize them into the class + singleton + suffix form instead of keeping a plain name: a plain camelCase name asserts statelessness (routing table below).
 
-**If a module looks like it wants to be a `Service` but is not actually a stateful class, route it by role — a plain name, since the `Service` suffix stays reserved for stateful classes:**
+**What counts as state** — values retained **across calls** that change observable behavior. Not state: a transparent perf cache (memoization that changes only latency), and transient in-flight values confined to a single async flow (e.g. a listener registered and removed within one operation).
+
+**Multi-instance helper classes take no suffix.** A class with per-instance state, instantiated by its consumers (a tokenizer, a transport, a subscription — `ShikiStreamTokenizer`, `IpcChatTransport`, `TopicStreamSubscription`), is not a singleton capability: name it a plain `PascalCase` descriptive noun. The suffix marks the singleton-capability **role**, not the presence of fields.
+
+**Stateless modules are NOT classes for this rule** — pure function collections, queries, conversions, and SDK wrappers without retained state stay plain modules and do not receive a `Service` / `Manager` suffix.
+
+**If a module looks like it wants to be a `Service` but is not a stateful singleton capability, route it — ownership first, then shape.** A module consumed by exactly **one** owner co-locates with that owner (feature internals, or a private satellite behind a `services/<topic>/` barrel — [Renderer Architecture §3.1](./renderer-architecture.md), [Main Process Architecture](./main-process-architecture.md)) and skips this table. The table routes **shared** modules; stateless shared modules default to `utils/`:
 
 | Actual shape of the module | Right home | Naming |
 |---|---|---|
-| Stateless, domain-agnostic helper (queries, conversions, predicates, formatters) — **may call downward infra** (`data` / `ipc`) | `utils/` (or feature-local `utils/` subdirectory) | `<topic>.ts` (camelCase; no `Utils` suffix — see §3.2) |
-| Stateless module whose role is **business/domain orchestration** (coordinates a multi-step runtime flow, embeds provider/domain-specific policy, drives other subsystems) | `services/` (or feature-local `services/`) | `<topic>.ts` (camelCase; **no** `Service` suffix — it is not a stateful class) |
+| Stateless helper — computes values (queries, conversions, predicates, formatters); **reads** via downward infra (`data` / `ipc`) are fine | `utils/` (or feature-local `utils/` subdirectory) — the **default** for stateless shared modules | `<topic>.ts` (camelCase; no `Utils` suffix — see §3.2) |
+| Stateless module with **outward side effects** (opens windows / popups, writes the clipboard, fires app events, performs `data` / `ipc` **writes**, drives other subsystems; logging does not count) — or **dependency-forced** out of `utils/` (must import `services/`, which `utils/` may not) | `services/` (or feature-local `services/`) — state the reason in the PR | `<topic>.ts` (camelCase; **no** `Service` suffix — it is not a stateful class) |
+| Multi-instance stateful helper class | co-located with its consumer (topic dir / feature), or `services/` | `PascalCase` descriptive noun, **no suffix** (`IpcChatTransport`) |
 | Depends on React lifecycle / state / context | `hooks/` (or co-located with the consuming feature) | `useXxx.ts` (the `use` prefix is the role marker — see §3.2) |
 | Renders JSX / owns view markup | `components/` (shared) or `pages/` (route-bound) | `Xxx.tsx` (PascalCase — see §3.1) |
 | Single-call pass-through to `window.api.*` | inlined at the call site | (no file) |
