@@ -4,7 +4,6 @@ import {
   Folder,
   Globe,
   LayoutGrid,
-  Library,
   MessageCircle,
   MousePointerClick,
   NotepadText,
@@ -12,7 +11,7 @@ import {
 } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
-import { OpenClawSidebarIcon } from '../../Icons/SvgIcon'
+import { OpenClawSidebarIcon } from '../../icons/SvgIcon'
 import { getTabIcon } from '../tabIcons'
 
 function routeTab(url: string): Tab {
@@ -40,7 +39,6 @@ describe('getTabIcon', () => {
     ['/app/files', Folder],
     ['/app/notes', NotepadText],
     ['/app/openclaw', OpenClawSidebarIcon],
-    ['/app/library', Library],
     ['/app/mini-app', LayoutGrid],
     ['/app/launchpad', Rocket]
   ])('returns the shared app icon for %s', (url, Icon) => {

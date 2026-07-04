@@ -12,8 +12,8 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
 // Direct `Selector/model` path: the `Selector` barrel's nested `export *` isn't
 // resolved by tsgo on main's program (resolves on feat's); transitional, reverts
 // to the barrel once main converges with feat.

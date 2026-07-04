@@ -278,6 +278,7 @@ vi.mock('@cherrystudio/ui', () => {
       const context = React.use(PopoverContext)
 
       if (React.isValidElement<{ onClick?: React.MouseEventHandler }>(children)) {
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, {
           onClick: (event: React.MouseEvent) => {
             children.props.onClick?.(event)

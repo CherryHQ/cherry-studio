@@ -1,5 +1,5 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { CopyIcon, DeleteIcon } from '@renderer/components/Icons'
+import { CopyIcon, DeleteIcon } from '@renderer/components/icons'
 import { cn } from '@renderer/utils/style'
 import { Save, X } from 'lucide-react'
 import type { FC, HTMLAttributes } from 'react'

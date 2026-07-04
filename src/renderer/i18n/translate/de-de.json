@@ -604,9 +604,7 @@
         "select_failed": "Ordnerauswahl fehlgeschlagen."
       },
       "workspace_status": {
-        "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",
-        "missing": "Arbeitsbereichspfad existiert nicht: {{path}}",
-        "not_directory": "Der Workspace-Pfad ist kein Verzeichnis: {{path}}"
+        "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}"
       }
     },
     "settings": {
@@ -1083,41 +1081,6 @@
       "stopped": "Gestoppt"
     },
     "title": "API-Server"
-  },
-  "appMenu": {
-    "about": "Über",
-    "close": "Fenster schließen",
-    "copy": "Kopieren",
-    "cut": "Schneiden",
-    "delete": "Löschen",
-    "documentation": "Dokumentation",
-    "edit": "Bearbeiten",
-    "feedback": "Rückmeldung",
-    "file": "Datei",
-    "forceReload": "Neu laden erzwingen",
-    "front": "Alle in den Vordergrund bringen",
-    "help": "Hilfe",
-    "hide": "Verstecken",
-    "hideOthers": "Andere ausblenden",
-    "minimize": "Minimieren",
-    "paste": "Einfügen",
-    "quit": "Aufhören",
-    "redo": "Wiederholen",
-    "releases": "Veröffentlichungen",
-    "reload": "Neu laden",
-    "resetZoom": "Tatsächliche Größe",
-    "selectAll": "Alle auswählen",
-    "services": "Dienstleistungen",
-    "toggleDevTools": "Entwicklertools ein-/ausblenden",
-    "toggleFullscreen": "Vollbild umschalten",
-    "undo": "Rückgängig machen",
-    "unhide": "Alle anzeigen",
-    "view": "Ansicht",
-    "website": "Website",
-    "window": "Fenster",
-    "zoom": "Zoom",
-    "zoomIn": "Heranzoomen",
-    "zoomOut": "Herauszoomen"
   },
   "assistants": {
     "abbr": "Assistent",
@@ -2065,7 +2028,6 @@
     "copy_failed": "Kopieren fehlgeschlagen",
     "create_success": "Erfolgreich erstellt",
     "current": "Aktuell",
-    "cut": "Ausschneiden",
     "default": "Standard",
     "delete": "Löschen",
     "delete_confirm": "Möchten Sie wirklich löschen?",
@@ -2103,7 +2065,6 @@
     "image_preview": "Bildvorschau",
     "image_url": "Bild-URL",
     "image_url_or_upload": "Gib Bild-URL ein oder lade Datei hoch",
-    "inspect": "Prüfen",
     "invalid_value": "Ungültiger Wert",
     "knowledge_base": "Wissensdatenbank",
     "language": "Sprache",
@@ -2124,7 +2085,6 @@
     "open_in": "In {{name}} öffnen",
     "open_in_new_tab": "In neuem Tab öffnen",
     "open_sidebar": "Seitenleiste öffnen",
-    "paste": "Einfügen",
     "placeholders": {
       "select": {
         "model": "Modell auswählen"
@@ -2179,18 +2139,6 @@
     "warning": "Warnung",
     "yesterday": "Gestern",
     "you": "Sie"
-  },
-  "dialog": {
-    "all_files": "Alle Dateien",
-    "html_files": "HTML-Dateien",
-    "open_file": "Datei öffnen",
-    "pdf_files": "PDF-Dateien",
-    "png_image": "PNG-Bild",
-    "save_as_html": "Als HTML speichern",
-    "save_as_pdf": "Als PDF speichern",
-    "save_file": "Datei speichern",
-    "select_folder": "Ordner auswählen",
-    "word_document": "Word-Dokument"
   },
   "docs": {
     "title": "Hilfedokumentation"
@@ -4733,6 +4681,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud Bailian",
     "deepseek": "DeepSeek",
@@ -6302,12 +6251,6 @@
         "usage": "Verwendung",
         "version": "Version"
       },
-      "oauth": {
-        "callback": {
-          "message": "Sie können diese Seite schließen und zu Cherry Studio zurückkehren",
-          "title": "Authentifizierung erfolgreich"
-        }
-      },
       "prompts": {
         "arguments": "Parameter",
         "availablePrompts": "Verfügbare Prompts",
@@ -6997,6 +6940,17 @@
           "acceleration": "Beschleunigungsdomäne",
           "international": "Internationale Domäne"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7787,11 +7741,6 @@
     "tooltip": {
       "newline": "Zeilenumbruch"
     }
-  },
-  "tray": {
-    "quit": "Beenden",
-    "show_quick_assistant": "Schnellassistent",
-    "show_window": "Fenster anzeigen"
   },
   "update": {
     "install": "Jetzt installieren",

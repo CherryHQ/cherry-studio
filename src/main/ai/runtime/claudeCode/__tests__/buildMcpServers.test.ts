@@ -47,7 +47,7 @@ vi.mock('@main/utils/file/pathStatus', () => ({
   getPathStatus: mockGetPathStatus
 }))
 
-vi.mock('@main/utils/language', () => ({
+vi.mock('@main/i18n', () => ({
   getAppLanguage: vi.fn(() => 'en-US'),
   t: vi.fn((key: string, vars?: { path?: string }) => `${key}:${vars?.path ?? ''}`)
 }))

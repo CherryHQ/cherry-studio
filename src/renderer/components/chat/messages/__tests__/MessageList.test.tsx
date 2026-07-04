@@ -1,5 +1,5 @@
 import { TopicType } from '@renderer/types/topic'
-import { captureScrollable, captureScrollableAsDataURL } from '@renderer/utils/image'
+import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { act, render, screen } from '@testing-library/react'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,7 +31,7 @@ vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
   useChatLayoutMode: () => ({ setForceWideLayout: vi.fn() })
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
+vi.mock('@renderer/components/icons', () => ({
   LoadingIcon: () => <div data-testid="loading-icon" />
 }))
 
@@ -53,7 +53,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 
 vi.mock('@renderer/utils/image', () => ({
   captureScrollable: vi.fn(),
-  captureScrollableAsDataURL: vi.fn()
+  captureScrollableAsDataUrl: vi.fn()
 }))
 
 vi.mock('@renderer/utils/style', () => ({
@@ -264,7 +264,7 @@ describe('MessageList', () => {
     scrollToTop.mockClear()
     scrollToKey.mockClear()
     vi.mocked(captureScrollable).mockReset()
-    vi.mocked(captureScrollableAsDataURL).mockReset()
+    vi.mocked(captureScrollableAsDataUrl).mockReset()
     messageVirtualListMocks.deferScrollContainerReady = false
     messageVirtualListMocks.renderItemLimit = undefined
     messageVirtualListMocks.readyCallbacks = []
@@ -531,7 +531,7 @@ describe('MessageList', () => {
 
   it('exports topic image from a complete non-virtualized capture surface', async () => {
     messageVirtualListMocks.renderItemLimit = 1
-    const captureScrollableAsDataURLMock = vi.mocked(captureScrollableAsDataURL)
+    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {
@@ -544,7 +544,7 @@ describe('MessageList', () => {
       saveImage
     }
 
-    captureScrollableAsDataURLMock.mockImplementation(async (ref) => {
+    captureScrollableAsDataUrlMock.mockImplementation(async (ref) => {
       const capturedText = ref.current?.textContent ?? ''
       expect(capturedText).toContain('user-1')
       expect(capturedText).toContain('assistant-1')
@@ -629,7 +629,7 @@ describe('MessageList', () => {
 
   it('exports a pending topic image after the loading list scroll container is ready', async () => {
     messageVirtualListMocks.renderItemLimit = 0
-    const captureScrollableAsDataURLMock = vi.mocked(captureScrollableAsDataURL)
+    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     let exportResolved = false
@@ -644,7 +644,7 @@ describe('MessageList', () => {
       saveImage
     }
 
-    captureScrollableAsDataURLMock.mockImplementation(async (ref) => {
+    captureScrollableAsDataUrlMock.mockImplementation(async (ref) => {
       const capturedText = ref.current?.textContent ?? ''
       expect(capturedText).toContain('user-1')
       expect(capturedText).toContain('assistant-1')
@@ -667,7 +667,7 @@ describe('MessageList', () => {
     })
 
     expect(exportResolved).toBe(false)
-    expect(captureScrollableAsDataURLMock).not.toHaveBeenCalled()
+    expect(captureScrollableAsDataUrlMock).not.toHaveBeenCalled()
     expect(saveImage).not.toHaveBeenCalled()
 
     act(() => {
@@ -692,8 +692,8 @@ describe('MessageList', () => {
   })
 
   it('rejects a pending topic image export when the loading list unmounts before it is ready', async () => {
-    const captureScrollableAsDataURLMock = vi.mocked(captureScrollableAsDataURL)
-    captureScrollableAsDataURLMock.mockClear()
+    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    captureScrollableAsDataUrlMock.mockClear()
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {
@@ -706,7 +706,7 @@ describe('MessageList', () => {
       saveImage
     }
 
-    captureScrollableAsDataURLMock.mockImplementation(async (ref) =>
+    captureScrollableAsDataUrlMock.mockImplementation(async (ref) =>
       ref.current ? 'data:image/png;base64,topic' : undefined
     )
 
@@ -731,7 +731,7 @@ describe('MessageList', () => {
     )
 
     await vi.waitFor(() => {
-      expect(captureScrollableAsDataURLMock).not.toHaveBeenCalled()
+      expect(captureScrollableAsDataUrlMock).not.toHaveBeenCalled()
     })
     expect(saveImage).not.toHaveBeenCalled()
   })
@@ -739,7 +739,7 @@ describe('MessageList', () => {
   it('exports a pending topic image when the scroll container becomes ready after runtime binding', async () => {
     messageVirtualListMocks.deferScrollContainerReady = true
     messageVirtualListMocks.scrollElement = null
-    const captureScrollableAsDataURLMock = vi.mocked(captureScrollableAsDataURL)
+    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     let exportResolved = false
@@ -753,7 +753,7 @@ describe('MessageList', () => {
       saveImage
     }
 
-    captureScrollableAsDataURLMock.mockImplementation(async (ref) =>
+    captureScrollableAsDataUrlMock.mockImplementation(async (ref) =>
       ref.current ? 'data:image/png;base64,topic' : undefined
     )
 
@@ -787,7 +787,7 @@ describe('MessageList', () => {
   })
 
   it('rejects topic image export when capture does not produce image data', async () => {
-    vi.mocked(captureScrollableAsDataURL).mockResolvedValue(undefined)
+    vi.mocked(captureScrollableAsDataUrl).mockResolvedValue(undefined)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {

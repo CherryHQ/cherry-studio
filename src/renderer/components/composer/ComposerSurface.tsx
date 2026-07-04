@@ -1188,7 +1188,7 @@ export default function ComposerSurface({
           token={fileToken}
           selected={selected}
           onRemove={() => removeToken(fileToken.id)}
-          removeLabel={t('appMenu.delete')}
+          removeLabel={t('common.delete')}
           tooltipActions={
             pastedTextToken ? (
               <Button

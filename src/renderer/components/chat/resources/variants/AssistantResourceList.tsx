@@ -1,14 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import {
-  ResourceEntityRail,
-  type ResourceEntityRailItem
-} from '@renderer/components/chat/resources/variants/ResourceEntityRail'
-import {
-  type ResourceEntityRailReorderAnchor,
-  useResourceEntityRail
-} from '@renderer/components/chat/resources/variants/useResourceEntityRail'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
@@ -22,7 +14,10 @@ import { Bot, Edit3, PinIcon, PinOffIcon, Plus, Tags, Trash2 } from 'lucide-reac
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ConversationResourceMenuItem } from '../ConversationResourceMenu'
+import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
 import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
+import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'
 
 const logger = loggerService.withContext('AssistantResourceList')
 
@@ -37,6 +32,7 @@ type AssistantResourceListProps = {
   onOpenHistoryRecords?: () => void
   onSelectTopic: (topic: Topic) => void | boolean
   onStartDraftAssistant: (assistantId: string | null) => void | Promise<void>
+  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   /**
    * Called after the currently-active assistant is deleted so the classic-layout page
    * can settle (select the latest remaining topic / fall back). This is the old
@@ -51,6 +47,7 @@ export function AssistantResourceList({
   onOpenHistoryRecords,
   onSelectTopic,
   onStartDraftAssistant,
+  resourceMenuItems,
   onActiveAssistantDeleted
 }: AssistantResourceListProps) {
   const { t } = useTranslation()
@@ -291,6 +288,7 @@ export function AssistantResourceList({
         addLabel={t('chat.add.assistant.title')}
         onAdd={onAddAssistant ?? (() => onStartDraftAssistant(null))}
         onOpenHistoryRecords={onOpenHistoryRecords}
+        resourceMenuItems={resourceMenuItems}
         onSelect={handleSelect}
         onReorder={handleReorder}
         getContextMenuActions={getContextMenuActions}

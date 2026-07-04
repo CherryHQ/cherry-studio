@@ -11,6 +11,8 @@ import {
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import {
+  ConversationResourceMenu,
+  type ConversationResourceMenuItem,
   remapResourceListCollapsedGroupIds,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
@@ -101,6 +103,7 @@ type SessionsBaseProps = {
   onStartMissingAgentDraft?: () => void | Promise<void>
   presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
+  resourceMenuItems?: readonly ConversationResourceMenuItem[]
 }
 
 type ControlledSessionsProps = SessionsBaseProps & {
@@ -352,6 +355,7 @@ const Sessions = ({
   onStartMissingAgentDraft,
   presentation = 'sidebar',
   revealRequest,
+  resourceMenuItems,
   setActiveSessionId: setControlledActiveSessionId
 }: SessionsProps) => {
   const { t } = useTranslation()
@@ -1460,6 +1464,7 @@ const Sessions = ({
       : filteredGroupedSessions.length === 0
         ? 'empty'
         : 'idle'
+  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
 
   return (
     <SessionResourceList<SessionListItem>
@@ -1467,7 +1472,7 @@ const Sessions = ({
       className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
       items={visibleGroupedSessions}
       status={listStatus}
-      selectedId={activeSessionId}
+      selectedId={hasActiveResourceMenuItem ? null : activeSessionId}
       groupBy={sessionGroupBy}
       sectionBy={sessionSectionBy}
       collapsedState={collapsedSessionState}
@@ -1506,29 +1511,32 @@ const Sessions = ({
             wrapperClassName="pt-1"
           />
         ) : (
-          <ResourceList.HeaderItem
-            type="button"
-            command="topic.create"
-            aria-label={t('agent.session.new')}
-            disabled={creatingSession || (!headerCreateSessionSeed && !onStartMissingAgentDraft)}
-            icon={<SquarePen />}
-            label={t('agent.session.new')}
-            onClick={handleHeaderCreateSession}
-            actions={
-              <SessionListOptionsMenu
-                mode={displayMode}
-                onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
-                onOpenHistoryRecords={onOpenHistoryRecords}
-                sectionId={
-                  displayMode === 'agent'
-                    ? SESSION_AGENT_SECTION_ID
-                    : displayMode === 'workdir'
-                      ? SESSION_WORKDIR_SECTION_ID
-                      : undefined
-                }
-              />
-            }
-          />
+          <>
+            <ResourceList.HeaderItem
+              type="button"
+              command="topic.create"
+              aria-label={t('agent.session.new')}
+              disabled={creatingSession || (!headerCreateSessionSeed && !onStartMissingAgentDraft)}
+              icon={<SquarePen />}
+              label={t('agent.session.new')}
+              onClick={handleHeaderCreateSession}
+              actions={
+                <SessionListOptionsMenu
+                  mode={displayMode}
+                  onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
+                  onOpenHistoryRecords={onOpenHistoryRecords}
+                  sectionId={
+                    displayMode === 'agent'
+                      ? SESSION_AGENT_SECTION_ID
+                      : displayMode === 'workdir'
+                        ? SESSION_WORKDIR_SECTION_ID
+                        : undefined
+                  }
+                />
+              }
+            />
+            <ConversationResourceMenu items={resourceMenuItems} />
+          </>
         )}
       </ResourceList.Header>
       <SessionListBody
