@@ -104,7 +104,7 @@ Pure FS primitives (src/main/utils/file/) — shared raw FS primitives, open to 
 │                   atomic write: atomicWriteFile / atomicWriteIfUnchanged / createAtomicWriteStream
 │                   version: statVersion / contentHash (xxhash-h64)
 ├── shell.ts      — system ops: open / showInFolder
-├── path.ts       — path utils: resolvePath / isPathInside / canWrite / isNotEmptyDir / canonicalizeExternalPath
+├── path.ts       — path utils: resolvePath / isPathInside / canWrite / isNotEmptyDir
 ├── metadata.ts   — type detection: getFileType / isTextFile / mimeToExt
 ├── search.ts     — directory search: listDirectory (ripgrep + fuzzy matching)
 ├── legacyFile.ts — shared legacy helpers (`getFileType(ext)` / `sanitizeFilename` / `getAllFiles` / `pathExists` / …); planned to be split into the modules above over time
@@ -299,7 +299,7 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 | Method | Description |
 |---|---|
 | `createInternalEntry` / `batchCreateInternalEntries` | Create a new Cherry-owned FileEntry (writes to `{userData}/Data/Files/{id}.{ext}`; each call produces an independent new entry, no conflict possible) |
-| `ensureExternalEntry` / `batchEnsureExternalEntries` | Pure upsert by `externalPath`—the entry point first `canonicalizeExternalPath(raw)` normalizes it (see `pathResolver.ts`); reuses the existing entry with the same path or inserts a new one. Idempotent by design—callers may safely repeat calls. No "restore" branch: external entries cannot be trashed. External rows carry no stored `size` (always `null`); live values come from `getMetadata`. |
+| `ensureExternalEntry` / `batchEnsureExternalEntries` | Pure upsert by `externalPath`—the entry point first parses it through `FilePathSchema`, whose transform normalizes it via `canonicalizeAbsolutePath` (see `canonicalize.ts`); reuses the existing entry with the same path or inserts a new one. Idempotent by design—callers may safely repeat calls. No "restore" branch: external entries cannot be trashed. External rows carry no stored `size` (always `null`); live values come from `getMetadata`. |
 | `trash` / `restore` | Soft delete based on deletedAt (DB only). **Internal-origin only** — external-origin entries cannot be trashed (`fe_external_no_delete` CHECK); passing an external id throws. |
 | `batchTrash` / `batchRestore` | Batch versions of `trash` / `restore` — same internal-origin-only rule. |
 | `batchPermanentDelete` | Batch version of `permanentDelete`. |
@@ -663,7 +663,7 @@ The File IPC adapter is a transport/dispatch layer. It may depend on FileManager
 | services/file/utils/*  (file-module path/API helpers)                   |
 |                                                                         |
 | Role: higher-level path-arm helpers with file-module semantics          |
-| Examples: resolvePhysicalPath, canonicalizeExternalPath, getMetadataByPath |
+| Examples: resolvePhysicalPath, getMetadataByPath                        |
 | FS:   may delegate to @main/utils/file/*; no DB lifecycle ownership     |
 +-------------------------------------------------------------------------+
 | DanglingCache  (file_module singleton, not lifecycle)                   |
