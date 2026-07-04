@@ -199,6 +199,7 @@ function AgentRightPaneStateProvider({
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const workspaceKey = `${workspaceId ?? ''}\0${workspacePath ?? ''}`
   const previousWorkspaceKeyRef = useRef(workspaceKey)
+  const lastSelectableFileRef = useRef<string | null>(null)
   const fileTreeModelOpen = filesEnabled !== false && fileTreeOpen && shellState.open
 
   // Built once here (the provider survives the Host↔Overlay maximize swap), so
@@ -272,6 +273,7 @@ function AgentRightPaneStateProvider({
     setPreviewFileSelection(null)
     setFileTreeExpandedIds(new Set())
     setFileTreeSearchKeyword('')
+    lastSelectableFileRef.current = null
     // The lazy-children map now lives in the surviving provider, so its reset on
     // workspace change must be explicit (previously it rode the pane remount).
     resetFileTreeLazyChildren()
@@ -280,9 +282,19 @@ function AgentRightPaneStateProvider({
   // Drop a selection that no longer resolves to a file in the loaded tree
   // (e.g. the watcher reported it removed).
   useEffect(() => {
-    if (!selectedFile || !fileTreeModel.hasLoaded) return
-    if (isSelectableFileNode(fileTreeModel.nodeById, selectedFile)) return
-    if (previewFileSelection?.workspacePath === workspacePath && previewFileSelection?.filePath === selectedFile) return
+    if (!selectedFile || !fileTreeModel.hasLoaded) {
+      if (!selectedFile) lastSelectableFileRef.current = null
+      return
+    }
+    if (isSelectableFileNode(fileTreeModel.nodeById, selectedFile)) {
+      lastSelectableFileRef.current = selectedFile
+      return
+    }
+    if (lastSelectableFileRef.current !== selectedFile) return
+    if (previewFileSelection?.workspacePath === workspacePath && previewFileSelection.filePath === selectedFile) {
+      setPreviewFileSelection(null)
+    }
+    lastSelectableFileRef.current = null
     setSelectedFile(null)
   }, [fileTreeModel.hasLoaded, fileTreeModel.nodeById, previewFileSelection, selectedFile, workspacePath])
   const closeFilePreview = useCallback(() => {
