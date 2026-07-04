@@ -3,6 +3,7 @@ import { useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { providerNeedsApiKeyForModelSync } from '@renderer/pages/settings/ProviderSettings/ModelList/providerModelSyncRequirements'
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
+import { isExternalCliProvider, isLoginBasedProvider } from '@shared/utils/provider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { useEffect, useMemo, useRef } from 'react'
 
@@ -52,6 +53,21 @@ export function useProviderAutoModelSync(providerId: string) {
         shouldSync: false,
         reason: 'existing_models',
         details: { modelCount: models.length }
+      } as const
+    }
+
+    // Chat-visible login providers (codex / grok-cli, OAuth) ship disabled and
+    // serve a registry catalog, so without this gate visiting their settings
+    // page would sync + enable them — surfacing model pickers before the user
+    // signs in. Their LoginOauthPanel flips `isEnabled` on confirmed login, so
+    // treat `isEnabled` as the "signed in" signal and defer sync until then.
+    // External-CLI providers (claude-code) are exempt: agent-only/undeletable
+    // and never chat-visible, they must stay enabled with their catalog
+    // materialized so agents can pick a model regardless of CLI login state.
+    if (isLoginBasedProvider(provider) && !isExternalCliProvider(provider) && !provider.isEnabled) {
+      return {
+        shouldSync: false,
+        reason: 'login_required'
       } as const
     }
 
@@ -138,6 +154,17 @@ export function useProviderAutoModelSync(providerId: string) {
     }
 
     if (!autoSyncDecision.shouldSync) {
+      return
+    }
+
+    // Re-entrancy guard against a double launch within the same render. React
+    // StrictMode invokes effects twice in dev, and `autoSyncDecision` is
+    // memoized — it does not observe the ref we set below — so both invocations
+    // would see `shouldSync: true` and fire two concurrent `/models` mutations
+    // on the same SWR hook instance. One then loses the race, SWR discards its
+    // (failed) result as `undefined`, and the caller spreads it ("created is not
+    // iterable"). The ref is the synchronous source of truth between invocations.
+    if (initialModelSyncSignatureRef.current === initialModelSyncSignature) {
       return
     }
 

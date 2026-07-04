@@ -5,9 +5,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { includeKeywords, matchKeywordsInProvider, matchKeywordsInString } from '../match'
 
 // 测试环境的 mock 偏好默认语言是 zh-CN，显式切到 en-US 以匹配英文断言
-const previousLanguage = i18n.language
+let previousLanguage: string
 
 beforeAll(async () => {
+  // Capture here, not at import time: i18n is initialized by the global setup hook.
+  previousLanguage = i18n.language
   await i18n.changeLanguage('en-US')
 })
 

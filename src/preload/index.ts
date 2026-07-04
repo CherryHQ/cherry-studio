@@ -349,24 +349,8 @@ const api = {
     logout: () => ipcRenderer.invoke(IpcChannel.Copilot_Logout),
     getUser: (token: string) => ipcRenderer.invoke(IpcChannel.Copilot_GetUser, token)
   },
-  cherryin: {
-    getBalance: (apiHost: string) => ipcRenderer.invoke(IpcChannel.CherryIN_GetBalance, apiHost),
-    logout: (apiHost: string) => ipcRenderer.invoke(IpcChannel.CherryIN_Logout, apiHost),
-    startOAuthFlow: (oauthServer: string, apiHost?: string) =>
-      ipcRenderer.invoke(IpcChannel.CherryIN_StartOAuthFlow, oauthServer, apiHost),
-    onOAuthResult: (
-      callback: (result: { state: string; apiKeys: string } | { state: string; error: string }) => void
-    ) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        result: { state: string; apiKeys: string } | { state: string; error: string }
-      ) => callback(result)
-      ipcRenderer.on(IpcChannel.CherryIN_OAuthResult, listener)
-      return () => {
-        ipcRenderer.off(IpcChannel.CherryIN_OAuthResult, listener)
-      }
-    }
-  },
+  // CherryIN OAuth + Codex / Grok CLI OAuth migrated to IpcApi — see
+  // `ipcApi.request('oauth.*' | 'cherryin.*')` and `ipcApi.on('oauth.deep_link_result')`.
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   installOvmsBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallOvmsBinary),
@@ -525,13 +509,17 @@ const api = {
       model: string,
       directory: string,
       env: Record<string, string>,
-      options?: { autoUpdateToLatest?: boolean; terminal?: string }
+      options?: { autoUpdateToLatest?: boolean; terminal?: string; loginFlow?: boolean }
     ): Promise<CodeToolsRunResult> =>
       ipcRenderer.invoke(IpcChannel.CodeCli_Run, cliTool, model, directory, env, options),
     getAvailableTerminals: (): Promise<TerminalConfig[]> =>
       ipcRenderer.invoke(IpcChannel.CodeCli_GetAvailableTerminals),
     setCustomTerminalPath: (terminalId: string, path: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.CodeCli_SetCustomTerminalPath, terminalId, path)
+      ipcRenderer.invoke(IpcChannel.CodeCli_SetCustomTerminalPath, terminalId, path),
+    getCustomTerminalPath: (terminalId: string): Promise<string | undefined> =>
+      ipcRenderer.invoke(IpcChannel.CodeCli_GetCustomTerminalPath, terminalId),
+    removeCustomTerminalPath: (terminalId: string): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.CodeCli_RemoveCustomTerminalPath, terminalId)
   },
   shortcut: {
     onRegistrationConflict: (callback: (payload: ShortcutRegistrationConflictPayload) => void): (() => void) => {
