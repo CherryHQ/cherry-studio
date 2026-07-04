@@ -148,7 +148,7 @@ export class CodeCliService extends BaseService {
       case CodeCli.QWEN_CODE:
         return '@qwen-code/qwen-code'
       case CodeCli.KIMI_CODE:
-        return 'kimi-code'
+        return '@moonshot-ai/kimi-code'
       case CodeCli.QODER_CLI:
         return '@qodercn-ai/qoderclicn'
       case CodeCli.GITHUB_COPILOT_CLI:

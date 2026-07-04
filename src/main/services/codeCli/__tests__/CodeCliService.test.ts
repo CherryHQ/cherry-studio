@@ -1,3 +1,4 @@
+import { CodeCli } from '@shared/types/codeCli'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', () => ({
@@ -176,5 +177,24 @@ describe('CodeCliService', () => {
 
     await expect(codeCliService.checkClaudeLogin()).resolves.toBe(false)
     expect(loggerMock.warn).toHaveBeenCalled()
+  })
+
+  // Regression: getPackageName (version-registry lookup) and getToolInstallSpec
+  // (what actually gets installed) are two independent switches with no compiler
+  // link. A scope rename that touches only one silently makes version checks query
+  // the wrong npm package — which was the case for Kimi ('kimi-code' vs the
+  // installed '@moonshot-ai/kimi-code'). For every tool installed via an explicit
+  // `npm:` spec, the two must name the same package.
+  it('resolves the version-lookup package name to the installed npm package for every tool', async () => {
+    const { codeCliService } = await loadModules()
+    const svc = codeCliService as unknown as {
+      getPackageName: (cliTool: string) => Promise<string>
+      getToolInstallSpec: (cliTool: string) => { name: string; tool: string }
+    }
+    for (const cliTool of Object.values(CodeCli)) {
+      const installTool = svc.getToolInstallSpec(cliTool).tool
+      if (!installTool.startsWith('npm:')) continue
+      await expect(svc.getPackageName(cliTool)).resolves.toBe(installTool.slice('npm:'.length))
+    }
   })
 })
