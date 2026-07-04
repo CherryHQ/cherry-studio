@@ -1,7 +1,7 @@
 import { CodeCli } from '@shared/types/codeCli'
 import { stringify as stringifyToml } from 'smol-toml'
 
-import { CHERRY_PROVIDER_PREFIX, FILE_CONFIGURED_CLI_TOOLS } from './constants'
+import { CHERRY_PROVIDER_PREFIX } from './constants'
 import { parseDotenv } from './dotenv'
 import {
   readExternal,
@@ -25,6 +25,7 @@ import {
   CLAUDE_SETTINGS_PATH,
   CODEX_AUTH_PATH,
   CODEX_CONFIG_PATH,
+  FILE_CONFIGURED_CLI_TOOLS,
   GEMINI_ENV_PATH,
   GEMINI_SETTINGS_PATH,
   KIMI_CONFIG_PATH,

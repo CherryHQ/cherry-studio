@@ -1,17 +1,7 @@
 import type { EndpointType } from '@shared/data/types/model'
-import { CodeCli } from '@shared/types/codeCli'
 
 export const CODEX_RESPONSES_ENDPOINT = 'openai-responses'
 export const CODEX_CHAT_ENDPOINT = 'openai-chat-completions'
-
-export const FILE_CONFIGURED_CLI_TOOLS: ReadonlySet<string> = new Set([
-  CodeCli.CLAUDE_CODE,
-  CodeCli.OPENAI_CODEX,
-  CodeCli.OPEN_CODE,
-  CodeCli.GEMINI_CLI,
-  CodeCli.QWEN_CODE,
-  CodeCli.KIMI_CODE
-])
 
 export const GEMINI_AGGREGATOR_BASE_URLS: Record<string, string> = {
   aihubmix: 'https://aihubmix.com/gemini'

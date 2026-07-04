@@ -25,21 +25,24 @@ export const CLI_CONFIG_FILE_SPECS: Record<
   'kimi-config': { label: 'Kimi config.toml', path: KIMI_CONFIG_PATH, language: 'toml' }
 }
 
-export function getCliConfigTargets(cliTool: string): CliConfigTarget[] {
-  switch (cliTool) {
-    case CodeCli.CLAUDE_CODE:
-      return ['claude-settings']
-    case CodeCli.OPENAI_CODEX:
-      return ['codex-config', 'codex-auth']
-    case CodeCli.OPEN_CODE:
-      return ['opencode-config']
-    case CodeCli.GEMINI_CLI:
-      return ['gemini-env', 'gemini-settings']
-    case CodeCli.QWEN_CODE:
-      return ['qwen-settings']
-    case CodeCli.KIMI_CODE:
-      return ['kimi-config']
-    default:
-      return []
-  }
+/**
+ * The config files each file-based CLI tool owns. Single source of truth for
+ * both "which tools write config files" (`FILE_CONFIGURED_CLI_TOOLS`) and "which
+ * files" (`getCliConfigTargets`) — the two used to be separate lists that had to
+ * be kept in sync by hand.
+ */
+const CLI_CONFIG_TARGETS = {
+  [CodeCli.CLAUDE_CODE]: ['claude-settings'],
+  [CodeCli.OPENAI_CODEX]: ['codex-config', 'codex-auth'],
+  [CodeCli.OPEN_CODE]: ['opencode-config'],
+  [CodeCli.GEMINI_CLI]: ['gemini-env', 'gemini-settings'],
+  [CodeCli.QWEN_CODE]: ['qwen-settings'],
+  [CodeCli.KIMI_CODE]: ['kimi-config']
+} as const satisfies Partial<Record<CodeCli, readonly CliConfigTarget[]>>
+
+/** CLI tools that write on-disk config files (the ones with targets above). */
+export const FILE_CONFIGURED_CLI_TOOLS: ReadonlySet<string> = new Set(Object.keys(CLI_CONFIG_TARGETS))
+
+export function getCliConfigTargets(cliTool: string): readonly CliConfigTarget[] {
+  return CLI_CONFIG_TARGETS[cliTool as keyof typeof CLI_CONFIG_TARGETS] ?? []
 }

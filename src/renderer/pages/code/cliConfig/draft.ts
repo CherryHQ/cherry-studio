@@ -16,7 +16,7 @@ import {
   buildOpenCodeConfig,
   buildQwenConfig
 } from './builders'
-import { CHERRY_PROVIDER_PREFIX, CODEX_RESPONSES_ENDPOINT, FILE_CONFIGURED_CLI_TOOLS } from './constants'
+import { CHERRY_PROVIDER_PREFIX, CODEX_RESPONSES_ENDPOINT } from './constants'
 import { parseDotenv } from './dotenv'
 import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
 import { parseJsonOrThrow, parseTomlOrThrow, renderDotenvFile, renderJsonFile, resolveAbs } from './file'
@@ -29,7 +29,7 @@ import {
   resolveOpenAIBaseUrl,
   resolveOpenCodeNpmInfo
 } from './resolvers'
-import { CLI_CONFIG_FILE_SPECS, getCliConfigTargets } from './targets'
+import { CLI_CONFIG_FILE_SPECS, FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets } from './targets'
 import type { CliConfigFileDraft } from './types'
 import { firstApiKey, getConfigBlob, numberValue, sanitizeProviderName, stringValue } from './values'
 

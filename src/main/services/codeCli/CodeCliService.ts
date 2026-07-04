@@ -33,6 +33,7 @@ import { spawn } from 'child_process'
 import { promisify } from 'util'
 
 import { sanitizeEnvForLogging } from './envRedaction'
+import { getCodeCliInstallSpec, getCodeCliPackageSpec } from './packages'
 import {
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
@@ -134,78 +135,15 @@ export class CodeCliService extends BaseService {
 
   // npm package name used only for version registry lookups (not installation)
   private async getPackageName(cliTool: string) {
-    switch (cliTool) {
-      case CodeCli.CLAUDE_CODE:
-        return '@anthropic-ai/claude-code'
-      case CodeCli.OPENAI_CODEX:
-        return '@openai/codex'
-      case CodeCli.OPEN_CODE:
-        return 'opencode-ai'
-      case CodeCli.OPENCLAW:
-        return 'openclaw'
-      case CodeCli.GEMINI_CLI:
-        return '@google/gemini-cli'
-      case CodeCli.QWEN_CODE:
-        return '@qwen-code/qwen-code'
-      case CodeCli.KIMI_CODE:
-        return '@moonshot-ai/kimi-code'
-      case CodeCli.QODER_CLI:
-        return '@qodercn-ai/qoderclicn'
-      case CodeCli.GITHUB_COPILOT_CLI:
-        return '@github/copilot'
-      default:
-        throw new Error(`Unsupported CLI tool: ${cliTool}`)
-    }
+    return getCodeCliPackageSpec(cliTool).packageName
   }
 
   private getToolInstallSpec(cliTool: string): { name: string; tool: string } {
-    switch (cliTool) {
-      case CodeCli.CLAUDE_CODE:
-        return { name: 'claude', tool: 'claude' }
-      case CodeCli.OPENAI_CODEX:
-        return { name: 'codex', tool: 'codex' }
-      case CodeCli.OPEN_CODE:
-        return { name: 'opencode', tool: 'opencode' }
-      case CodeCli.OPENCLAW:
-        return { name: 'openclaw', tool: 'npm:openclaw' }
-      case CodeCli.GEMINI_CLI:
-        return { name: 'gemini', tool: 'npm:@google/gemini-cli' }
-      case CodeCli.QWEN_CODE:
-        return { name: 'qwen', tool: 'npm:@qwen-code/qwen-code' }
-      case CodeCli.KIMI_CODE:
-        return { name: 'kimi', tool: 'npm:@moonshot-ai/kimi-code' }
-      case CodeCli.QODER_CLI:
-        return { name: 'qoderclicn', tool: 'npm:@qodercn-ai/qoderclicn' }
-      case CodeCli.GITHUB_COPILOT_CLI:
-        return { name: 'copilot', tool: 'npm:@github/copilot' }
-      default:
-        throw new Error(`Unsupported CLI tool: ${cliTool}`)
-    }
+    return getCodeCliInstallSpec(cliTool)
   }
 
   public async getCliExecutableName(cliTool: string) {
-    switch (cliTool) {
-      case CodeCli.CLAUDE_CODE:
-        return 'claude'
-      case CodeCli.OPENAI_CODEX:
-        return 'codex'
-      case CodeCli.OPEN_CODE:
-        return 'opencode'
-      case CodeCli.OPENCLAW:
-        return 'openclaw'
-      case CodeCli.GEMINI_CLI:
-        return 'gemini'
-      case CodeCli.QWEN_CODE:
-        return 'qwen'
-      case CodeCli.KIMI_CODE:
-        return 'kimi'
-      case CodeCli.QODER_CLI:
-        return 'qoderclicn'
-      case CodeCli.GITHUB_COPILOT_CLI:
-        return 'copilot'
-      default:
-        throw new Error(`Unsupported CLI tool: ${cliTool}`)
-    }
+    return getCodeCliPackageSpec(cliTool).executable
   }
 
   /**
