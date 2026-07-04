@@ -10,11 +10,12 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Switch: ({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (checked: boolean) => void }) => (
+  Checkbox: ({ checked, onCheckedChange }: { checked: boolean; onCheckedChange: (checked: boolean) => void }) => (
     <button
       type="button"
-      aria-pressed={checked}
-      data-testid="one-million-context-switch"
+      role="checkbox"
+      aria-checked={checked}
+      data-testid="one-million-context-checkbox"
       onClick={() => onCheckedChange(!checked)}
     />
   )
@@ -100,6 +101,17 @@ describe('ClaudeConfigFields', () => {
     expectBefore(fable, opus)
     expectBefore(opus, sonnet)
     expectBefore(sonnet, haiku)
+  })
+
+  it('renders role model selectors directly without hint text or table headers', () => {
+    renderFields()
+
+    expect(screen.queryByText('code.adv.claude.model_roles_hint')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.adv.claude.role_column')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.adv.claude.model_column')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.adv.claude.context_column')).not.toBeInTheDocument()
+    expect(screen.getAllByText('1M')).toHaveLength(3)
+    expect(screen.getAllByTestId('one-million-context-checkbox')).toHaveLength(3)
   })
 
   it('defaults every role selector to the main selected model when no role override exists', () => {

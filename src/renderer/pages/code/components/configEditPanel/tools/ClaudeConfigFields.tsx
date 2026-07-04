@@ -1,4 +1,4 @@
-import { Switch } from '@cherrystudio/ui'
+import { Checkbox } from '@cherrystudio/ui'
 import { ModelSelector } from '@renderer/components/Selector/model'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
@@ -182,56 +182,49 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
       )}
 
       {section !== 'basic' && (
-        <>
-          <span className="mb-2 block text-[10px] text-muted-foreground/60">
-            {t('code.adv.claude.model_roles_hint')}
-          </span>
-          <div className="overflow-hidden rounded-lg border border-border/40">
-            <div className="flex items-center gap-2 bg-accent/20 px-3 py-1.5 text-[10px] text-muted-foreground/55">
-              <span className="w-14 shrink-0">{t('code.adv.claude.role_column')}</span>
-              <span className="min-w-0 flex-1">{t('code.adv.claude.model_column')}</span>
-              <span className="w-9 shrink-0 text-center">{t('code.adv.claude.context_column')}</span>
-            </div>
-            {MODEL_ROLES.map((field, i) => {
-              const envKey = ROLE_ENV[field.roleKey].model
-              const rawValue = env[envKey] ?? ''
-              const roleModelId = stripOneMMarker(rawValue).trim()
-              const defaultModelId = getRawModelId(currentModelId)
-              const displayedModelId = roleModelId || defaultModelId
-              const uses1M = hasOneMMarker(rawValue)
-              return (
-                <div
-                  key={field.roleKey}
-                  className={`flex items-center gap-2 px-3 py-2 ${i > 0 ? 'border-border/20 border-t' : ''}`}>
-                  <span className="w-14 shrink-0 text-foreground text-xs">{t(field.labelKey)}</span>
-                  <ClaudeRoleModelSelector
-                    value={toProviderModelId(providerId, displayedModelId)}
-                    placeholder={t('settings.models.empty')}
-                    filter={modelFilter}
-                    onSelect={(nextModelId) => {
-                      const nextRawModelId = getRawModelId(nextModelId)
-                      const nextOverride = nextRawModelId && nextRawModelId !== defaultModelId ? nextRawModelId : ''
-                      updateModelRole(field.roleKey, nextOverride ? setOneMMarker(nextOverride, uses1M) : '')
-                    }}
-                  />
-                  <div className="flex w-9 shrink-0 justify-center">
-                    {field.supports1M && (
-                      <Switch
+        <div className="space-y-2">
+          {MODEL_ROLES.map((field) => {
+            const envKey = ROLE_ENV[field.roleKey].model
+            const rawValue = env[envKey] ?? ''
+            const roleModelId = stripOneMMarker(rawValue).trim()
+            const defaultModelId = getRawModelId(currentModelId)
+            const displayedModelId = roleModelId || defaultModelId
+            const uses1M = hasOneMMarker(rawValue)
+            return (
+              <div key={field.roleKey} className="flex items-center gap-2">
+                <span className="w-14 shrink-0 text-foreground text-xs">{t(field.labelKey)}</span>
+                <ClaudeRoleModelSelector
+                  value={toProviderModelId(providerId, displayedModelId)}
+                  placeholder={t('settings.models.empty')}
+                  filter={modelFilter}
+                  onSelect={(nextModelId) => {
+                    const nextRawModelId = getRawModelId(nextModelId)
+                    const nextOverride = nextRawModelId && nextRawModelId !== defaultModelId ? nextRawModelId : ''
+                    updateModelRole(field.roleKey, nextOverride ? setOneMMarker(nextOverride, uses1M) : '')
+                  }}
+                />
+                <div className="flex w-16 shrink-0 justify-end">
+                  {field.supports1M && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-muted-foreground/55">1M</span>
+                      <Checkbox
+                        size="sm"
+                        aria-label="1M"
                         checked={uses1M}
                         onCheckedChange={(checked) =>
                           updateModelRole(
                             field.roleKey,
-                            displayedModelId ? setOneMMarker(displayedModelId, checked) : ''
+                            displayedModelId ? setOneMMarker(displayedModelId, checked === true) : ''
                           )
                         }
                       />
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
-              )
-            })}
-          </div>
-        </>
+              </div>
+            )
+          })}
+        </div>
       )}
     </div>
   )
