@@ -17,7 +17,8 @@ import {
   CHAT_CENTER_MIN_USABLE_WIDTH,
   CHAT_SHELL_TRANSITION,
   type ChatPanePosition,
-  RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH
+  RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH,
+  RESOURCE_LIST_PANE_MIN_WIDTH
 } from './paneLayout'
 import { RightPaneHost } from './RightPaneHost'
 
@@ -56,6 +57,17 @@ type ChatAppShellCenterContentProps = ChatAppShellBaseProps & {
 export type ChatAppShellProps = ChatAppShellMainProps | ChatAppShellCenterContentProps
 
 type AutoCollapseSource = 'center' | 'shell'
+
+function getResourceListPaneAutoCollapseWidth() {
+  if (typeof document === 'undefined') {
+    return RESOURCE_LIST_PANE_MIN_WIDTH + CHAT_CENTER_MIN_USABLE_WIDTH
+  }
+
+  const paneWidth = Number.parseFloat(document.documentElement.style.getPropertyValue('--assistants-width'))
+  const resolvedPaneWidth = Number.isFinite(paneWidth) && paneWidth > 0 ? paneWidth : RESOURCE_LIST_PANE_MIN_WIDTH
+
+  return Math.max(RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH, resolvedPaneWidth + CHAT_CENTER_MIN_USABLE_WIDTH)
+}
 
 export function ChatAppShell({
   topBar,
@@ -166,23 +178,17 @@ export function ChatAppShell({
     const observer = new ResizeObserver(([entry]) => {
       const previousShellWidth = previousShellWidthRef.current
       const nextShellWidth = entry.contentRect.width
+      const autoCollapseWidth = getResourceListPaneAutoCollapseWidth()
       previousShellWidthRef.current = nextShellWidth
 
       if (previousShellWidth === null) return
 
-      if (
-        leftPaneOpenRef.current &&
-        previousShellWidth >= RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH &&
-        nextShellWidth < RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH
-      ) {
+      if (leftPaneOpenRef.current && previousShellWidth >= autoCollapseWidth && nextShellWidth < autoCollapseWidth) {
         updatePaneAutoCollapse('shell', true)
         return
       }
 
-      if (
-        previousShellWidth < RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH &&
-        nextShellWidth >= RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH
-      ) {
+      if (previousShellWidth < autoCollapseWidth && nextShellWidth >= autoCollapseWidth) {
         updatePaneAutoCollapse('shell', false)
       }
     })
