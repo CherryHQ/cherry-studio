@@ -47,6 +47,7 @@ describe('ModelSelectorTrigger', () => {
     expect(triggerRef).toBe(trigger)
     expect(trigger).toHaveAttribute('data-state', 'open')
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(trigger).toHaveClass('h-7.5')
     expect(screen.getByText('settings.models.empty')).toBeInTheDocument()
 
     fireEvent.click(trigger)

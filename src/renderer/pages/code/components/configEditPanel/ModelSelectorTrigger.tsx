@@ -24,7 +24,7 @@ export const ModelSelectorTrigger = ({
       ref={ref}
       type="button"
       {...props}
-      className="group flex h-9 w-full min-w-0 items-center justify-between rounded-lg border border-border bg-muted/30 px-3 text-sm transition-colors hover:bg-muted/50">
+      className="group flex h-7.5 w-full min-w-0 items-center justify-between rounded-lg border border-border bg-muted/30 px-2.5 text-[13px] transition-colors hover:bg-muted/50">
       <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
         {model ? (
           <>
@@ -38,7 +38,7 @@ export const ModelSelectorTrigger = ({
         )}
       </div>
       <ChevronDown
-        size={12}
+        size={14}
         className="ml-2 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
       />
     </button>
