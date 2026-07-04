@@ -162,7 +162,7 @@ vi.mock('@renderer/components/Popups/SaveToKnowledgePopup', () => ({
   default: { showForTopic: hookMocks.saveToKnowledge }
 }))
 
-vi.mock('@renderer/services/CopyService', () => ({
+vi.mock('@renderer/services/copy', () => ({
   copyTopicAsMarkdown: vi.fn(),
   copyTopicAsPlainText: vi.fn()
 }))

@@ -6,6 +6,25 @@ import * as React from 'react'
 
 import { usePortalContainer } from './portal-container'
 
+type SelectContextValue = {
+  contentElement: HTMLElement | null
+  open: boolean
+  setContentElement: (element: HTMLElement | null) => void
+  setOpen: (open: boolean) => void
+  setTriggerElement: (element: HTMLElement | null) => void
+  triggerElement: HTMLElement | null
+}
+
+const SelectContext = React.createContext<SelectContextValue | null>(null)
+
+function assignRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
+  if (typeof ref === 'function') {
+    ref(value)
+  } else if (ref) {
+    ref.current = value
+  }
+}
+
 const selectTriggerVariants = cva(
   cn(
     'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
@@ -31,8 +50,36 @@ const selectTriggerVariants = cva(
   }
 )
 
-function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
-  return <SelectPrimitive.Root data-slot="select" {...props} />
+function Select({
+  defaultOpen,
+  onOpenChange,
+  open: openProp,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Root>) {
+  const [contentElement, setContentElement] = React.useState<HTMLElement | null>(null)
+  const [internalOpen, setInternalOpen] = React.useState(defaultOpen ?? false)
+  const [triggerElement, setTriggerElement] = React.useState<HTMLElement | null>(null)
+  const isControlled = openProp !== undefined
+  const open = isControlled ? openProp : internalOpen
+
+  const setOpen = React.useCallback(
+    (nextOpen: boolean) => {
+      if (!isControlled) setInternalOpen(nextOpen)
+      onOpenChange?.(nextOpen)
+    },
+    [isControlled, onOpenChange]
+  )
+
+  const contextValue = React.useMemo(
+    () => ({ contentElement, open, setContentElement, setOpen, setTriggerElement, triggerElement }),
+    [contentElement, open, setOpen, triggerElement]
+  )
+
+  return (
+    <SelectContext value={contextValue}>
+      <SelectPrimitive.Root data-slot="select" open={open} onOpenChange={setOpen} {...props} />
+    </SelectContext>
+  )
 }
 
 function SelectGroup({ ...props }: React.ComponentProps<typeof SelectPrimitive.Group>) {
@@ -47,15 +94,25 @@ function SelectTrigger({
   className,
   size = 'default',
   children,
+  ref,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> &
   Omit<VariantProps<typeof selectTriggerVariants>, 'state'> & {
     size?: 'sm' | 'default'
   }) {
+  const selectContext = React.use(SelectContext)
   const state = props.disabled ? 'disabled' : props['aria-invalid'] ? 'error' : 'default'
+  const handleRef = React.useCallback(
+    (node: HTMLButtonElement | null) => {
+      selectContext?.setTriggerElement(node)
+      assignRef(ref, node)
+    },
+    [ref, selectContext]
+  )
 
   return (
     <SelectPrimitive.Trigger
+      ref={handleRef}
       data-slot="select-trigger"
       data-size={size}
       className={cn(
@@ -78,15 +135,69 @@ function SelectContent({
   position = 'popper',
   align = 'center',
   portalContainer,
+  ref,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content> & {
   portalContainer?: React.ComponentProps<typeof SelectPrimitive.Portal>['container']
 }) {
   const defaultPortalContainer = usePortalContainer()
+  const selectContext = React.use(SelectContext)
+  const resolvedPortalContainer = portalContainer ?? defaultPortalContainer ?? undefined
+  const handleRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      selectContext?.setContentElement(node)
+      assignRef(ref, node)
+    },
+    [ref, selectContext]
+  )
+
+  React.useEffect(() => {
+    const portalElement = resolvedPortalContainer instanceof HTMLElement ? resolvedPortalContainer : null
+    if (!selectContext?.open || !portalElement) return
+
+    const ownerDocument = portalElement.ownerDocument
+    const ownerWindow = ownerDocument.defaultView ?? window
+    const previousPointerEvents = portalElement.style.getPropertyValue('pointer-events')
+    const previousPointerEventsPriority = portalElement.style.getPropertyPriority('pointer-events')
+
+    const keepPortalContainerInteractive = () => {
+      if (portalElement.style.pointerEvents !== 'auto') {
+        portalElement.style.setProperty('pointer-events', 'auto', 'important')
+      }
+    }
+
+    keepPortalContainerInteractive()
+
+    const pointerEventsObserver = new ownerWindow.MutationObserver(keepPortalContainerInteractive)
+    pointerEventsObserver.observe(portalElement, { attributes: true, attributeFilter: ['style'] })
+
+    const closeForInsidePortalPointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) return
+      if (selectContext.contentElement?.contains(event.target)) return
+      if (selectContext.triggerElement?.contains(event.target)) return
+      if (!portalElement.contains(event.target)) return
+
+      selectContext.setOpen(false)
+    }
+
+    ownerDocument.addEventListener('pointerdown', closeForInsidePortalPointerDown, true)
+
+    return () => {
+      pointerEventsObserver.disconnect()
+      ownerDocument.removeEventListener('pointerdown', closeForInsidePortalPointerDown, true)
+      if (portalElement.style.pointerEvents === 'auto') {
+        portalElement.style.removeProperty('pointer-events')
+      }
+      if (previousPointerEvents && previousPointerEvents !== 'none') {
+        portalElement.style.setProperty('pointer-events', previousPointerEvents, previousPointerEventsPriority)
+      }
+    }
+  }, [resolvedPortalContainer, selectContext])
 
   return (
-    <SelectPrimitive.Portal container={portalContainer ?? defaultPortalContainer ?? undefined}>
+    <SelectPrimitive.Portal container={resolvedPortalContainer}>
       <SelectPrimitive.Content
+        ref={handleRef}
         data-slot="select-content"
         className={cn(
           'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-[80] max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border shadow-md',

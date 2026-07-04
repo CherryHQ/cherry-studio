@@ -1,40 +1,13 @@
-import { dataApiService } from '@data/DataApiService'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { getTopicById } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { getTitleFromString } from '@renderer/utils/export'
 import { getNamingTextContent } from '@renderer/utils/message/find'
-import type { UseNavigateResult } from '@tanstack/react-router'
 import dayjs from 'dayjs'
 import { t } from 'i18next'
 
-import { EVENT_NAMES, EventEmitter } from './EventService'
-
 const logger = loggerService.withContext('MessagesService')
-
-type MessageLocator = {
-  id: string
-  topicId: string
-  assistantId?: string
-}
-
-export async function locateToMessage(navigate: UseNavigateResult<string>, message: MessageLocator) {
-  SearchPopup.hide()
-  const assistantId = message.assistantId
-    ? await dataApiService
-        .get(`/assistants/${message.assistantId}`)
-        .then((a) => a?.id)
-        .catch(() => undefined)
-    : undefined
-  const topic = await getTopicById(message.topicId)
-
-  void navigate({ to: '/app/chat', search: { assistantId, topicId: topic?.id } })
-
-  setTimeout(() => EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id), 300)
-}
 
 export function getMessageModelId(message: ExportableMessage) {
   return message?.model?.id || message.modelId

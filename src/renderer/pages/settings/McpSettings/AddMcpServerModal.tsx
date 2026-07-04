@@ -357,7 +357,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
 
   return (
     <Dialog open={visible} onOpenChange={(next) => !next && handleClose()}>
-      <DialogContent className="sm:max-w-150">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-150">
         <DialogHeader>
           <DialogTitle>
             {importMethod === 'mcpb'

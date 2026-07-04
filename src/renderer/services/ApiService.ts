@@ -10,13 +10,12 @@ import type { ExportableMessage } from '@renderer/types/messageExport'
 import { getErrorMessage } from '@renderer/utils/error'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { getNamingTextContent } from '@renderer/utils/message/find'
+import { readDefaultModel, readQuickModel } from '@renderer/utils/model'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils/naming'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isFileUIPart } from 'ai'
 import { takeRight } from 'es-toolkit/compat'
-
-import { readDefaultModel, readQuickModel } from './ModelService'
 
 const logger = loggerService.withContext('ApiService')
 

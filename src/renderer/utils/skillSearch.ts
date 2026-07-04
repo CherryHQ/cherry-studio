@@ -7,7 +7,7 @@ import {
   SkillsShSearchResponseSchema
 } from '@shared/types/skill'
 
-const logger = loggerService.withContext('SkillSearchService')
+const logger = loggerService.withContext('skillSearch')
 
 const CLAUDE_PLUGINS_API = 'https://claude-plugins.dev/api/skills'
 const SKILLS_SH_API = 'https://skills.sh/api/search'

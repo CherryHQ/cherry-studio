@@ -546,7 +546,7 @@ const CodeCliPage: FC = () => {
 
         {activeMeta && (
           <Dialog open={dialogOpen} onOpenChange={(next) => !next && setDialogOpen(false)}>
-            <DialogContent aria-describedby={undefined}>
+            <DialogContent closeOnOverlayClick={false} aria-describedby={undefined}>
               <div ref={setModelSelectorPortalContainer} className="contents">
                 <DialogHeader>
                   <DialogTitle>{activeMeta.label}</DialogTitle>
