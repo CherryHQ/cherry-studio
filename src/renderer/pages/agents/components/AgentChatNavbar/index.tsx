@@ -1,4 +1,4 @@
-import { NavbarHeader } from '@renderer/components/app/Navbar'
+import { NavbarHeader } from '@renderer/components/Navbar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { cn } from '@renderer/utils/style'

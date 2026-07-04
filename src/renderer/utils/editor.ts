@@ -1,16 +1,4 @@
-import { CursorIcon, VSCodeIcon, ZedIcon } from '@renderer/components/Icons/SvgIcon'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
-
-export const getEditorIcon = (app: ExternalAppInfo, className = 'size-4') => {
-  switch (app.id) {
-    case 'vscode':
-      return <VSCodeIcon className={className} />
-    case 'cursor':
-      return <CursorIcon className={className} />
-    case 'zed':
-      return <ZedIcon className={className} />
-  }
-}
 
 /**
  * Build the protocol URL to open a file/folder in an external editor.

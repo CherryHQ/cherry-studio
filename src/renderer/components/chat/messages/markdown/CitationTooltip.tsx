@@ -1,5 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
-import Favicon from '@renderer/components/Icons/FallbackFavicon'
+import Favicon from '@renderer/components/icons/FallbackFavicon'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { fetchXOEmbed, isXPostUrl, xOembedKey } from '@renderer/utils/fetch'
 import React, { memo, useCallback, useMemo, useState } from 'react'
