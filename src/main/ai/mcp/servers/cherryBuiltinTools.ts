@@ -13,10 +13,9 @@
  * destructive `kb_manage` tool relies on Claude Code's own per-call permission
  * prompt for approval (the AI-SDK path uses the tool's `needsApproval` instead).
  *
- * When constructed with a {@link CherryAgentContext}, the server additionally
- * registers the agent autonomy tools (`…__cron`, `…__notify`, `…__config` —
- * see `cherryAutonomyTools.ts`); without one, only the stateless tools above
- * are exposed.
+ * The server also hosts the agent autonomy tools (`…__cron`, `…__notify`,
+ * `…__config` — see `cherryAutonomyTools.ts`), which act on behalf of the
+ * session's agent via the {@link CherryAgentContext} passed at construction.
  */
 
 import { loggerService } from '@logger'
@@ -191,16 +190,15 @@ export async function callCherryBuiltinTool(name: string, args: unknown, signal:
 export class CherryBuiltinToolsServer {
   public mcpServer: McpServer
 
-  constructor(agentContext?: CherryAgentContext) {
-    // Autonomy tools act on behalf of a specific agent, so they exist only when a context is given.
-    const autonomy = agentContext ? new CherryAutonomyTools(agentContext) : undefined
+  constructor(agentContext: CherryAgentContext) {
+    const autonomy = new CherryAutonomyTools(agentContext)
     this.mcpServer = new McpServer({ name: 'cherry-tools', version: '1.0.0' }, { capabilities: { tools: {} } })
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [...listCherryBuiltinTools(), ...(autonomy?.tools() ?? [])]
+      tools: [...listCherryBuiltinTools(), ...autonomy.tools()]
     }))
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const { name } = request.params
-      if (autonomy?.handles(name)) {
+      if (autonomy.handles(name)) {
         return autonomy.call(name, (request.params.arguments ?? {}) as Record<string, string | undefined>)
       }
       return callCherryBuiltinTool(name, request.params.arguments, extra.signal)

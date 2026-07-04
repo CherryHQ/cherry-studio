@@ -4,8 +4,8 @@
  *
  * Unlike the stateless builtin lookup tools, these act on behalf of a specific
  * agent (schedule its tasks, notify through its channels, manage its own
- * configuration), so they need per-session agent context and are registered
- * only when `CherryBuiltinToolsServer` is constructed with one.
+ * configuration), so they take the per-session agent context
+ * `CherryBuiltinToolsServer` is constructed with.
  */
 
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'

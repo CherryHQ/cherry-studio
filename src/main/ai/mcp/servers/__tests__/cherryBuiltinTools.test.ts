@@ -442,8 +442,7 @@ describe('cherryBuiltinTools', () => {
   })
 })
 
-// The autonomy tools (cron / notify / config) act on behalf of a specific agent, so the server
-// must register them only when constructed with an agent context.
+// The server hosts the stateless builtin tools plus the autonomy tools acting on the session's agent.
 describe('CherryBuiltinToolsServer autonomy tool registration', () => {
   const agentContext = {
     agentId: 'agent_1',
@@ -451,32 +450,10 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     workspacePath: '/tmp/workspace'
   }
 
-  function handlersOf(server: InstanceType<typeof CherryBuiltinToolsServer>) {
-    return (server.mcpServer.server as any)._requestHandlers
-  }
-
-  async function listVia(server: InstanceType<typeof CherryBuiltinToolsServer>) {
-    return handlersOf(server).get('tools/list')({ method: 'tools/list', params: {} }, {})
-  }
-
-  it('exposes only the stateless tools without an agent context, and cron stays unknown', async () => {
-    const server = new CherryBuiltinToolsServer()
-    const result = await listVia(server)
-    const names = result.tools.map((t: any) => t.name)
-    expect(names).toEqual(listCherryBuiltinTools().map((t) => t.name))
-    expect(names).not.toContain('cron')
-
-    const call = await handlersOf(server).get('tools/call')(
-      { method: 'tools/call', params: { name: 'cron', arguments: { action: 'list' } } },
-      { signal }
-    )
-    expect(call.isError).toBe(true)
-    expect(textOf(call)).toContain('Unknown tool')
-  })
-
-  it('additionally exposes cron/notify/config with an agent context', async () => {
+  it('exposes the stateless tools plus cron/notify/config', async () => {
     const server = new CherryBuiltinToolsServer(agentContext)
-    const result = await listVia(server)
+    const handlers = (server.mcpServer.server as any)._requestHandlers
+    const result = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
     const names = result.tools.map((t: any) => t.name)
     expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config']))
     expect(names).toEqual(expect.arrayContaining(listCherryBuiltinTools().map((t) => t.name)))
