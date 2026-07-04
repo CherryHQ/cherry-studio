@@ -165,7 +165,10 @@ describe('createDirectoryWatcher', () => {
     const rootFile = path.join(dir, 'root.txt') as FilePath
     const nestedFile = path.join(nestedDir, 'nested.txt') as FilePath
     await writeFile(rootFile, 'root')
-    await waitForEvent(w, (e) => e.kind === 'add' && e.path === rootFile, 8000)
+    // Root-file `add` uses the helper's default (15s) timeout, not a short 8s: inotify
+    // delivery on a loaded CI runner has been observed to exceed 8s here (flaky job
+    // 85121070194). A single wait + the 400ms settle stay well under the 20s testTimeout.
+    await waitForEvent(w, (e) => e.kind === 'add' && e.path === rootFile)
 
     await writeFile(nestedFile, 'nested')
     await new Promise((r) => setTimeout(r, 400))
