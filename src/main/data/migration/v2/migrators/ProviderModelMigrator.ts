@@ -36,6 +36,7 @@ import { BaseMigrator } from './BaseMigrator'
 import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
 import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
 import {
+  type EntityImageRef,
   insertPreparedImageFileTx,
   prepareBase64ImageFileEntry,
   type PreparedEntityImageFile
@@ -409,7 +410,7 @@ export class ProviderModelMigrator extends BaseMigrator {
     let processedModels = 0
 
     try {
-      const providerLogoFiles: PreparedEntityImageFile[] = []
+      const providerLogoFiles: PreparedEntityImageFile<EntityImageRef>[] = []
       const providerRowsWithoutOrderKey: NewUserProviderInput[] = []
       for (const provider of this.providers) {
         const row = this.enrichProviderRow(transformProvider(provider, this.settings), provider)

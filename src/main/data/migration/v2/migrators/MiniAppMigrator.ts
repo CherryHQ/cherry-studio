@@ -17,6 +17,7 @@ import { assignOrderKeysByScope } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { transformMiniApp } from './mappings/MiniAppMappings'
 import {
+  type EntityImageRef,
   insertPreparedImageFileTx,
   prepareBase64ImageFileEntry,
   type PreparedEntityImageFile
@@ -193,7 +194,7 @@ export class MiniAppMigrator extends BaseMigrator {
       let processed = 0
 
       const BATCH_SIZE = 100
-      const logoFiles: PreparedEntityImageFile[] = []
+      const logoFiles: PreparedEntityImageFile<EntityImageRef>[] = []
 
       // Promote any base64 data-URL logo to an on-disk WebP file_entry +
       // file_ref (logoFileId); base64 never stays on logoKey. A non-data-URL

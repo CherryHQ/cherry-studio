@@ -6,8 +6,7 @@ import {
   miniAppLogoRef,
   paintingRoles,
   paintingSourceType,
-  providerLogoRef,
-  userAvatarRef
+  providerLogoRef
 } from '@shared/data/types/file/ref'
 import { sql, type SQLWrapper } from 'drizzle-orm'
 import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
@@ -83,17 +82,18 @@ export const paintingFileRefTable = sqliteTable(
 )
 
 /**
- * Single-file entity-image refs (provider logo, mini-app logo, user avatar).
+ * Single-file entity-image refs (provider logo, mini-app logo).
  *
  * Unlike the collection refs (`chat_message`, `painting`) these model a
  * single-file slot whose file id also lives directly on the owning row's
- * `logo_file_id` / avatar preference. The slot is always kept in sync through
- * the `logoRef` helpers (`reconcileLogoSlotTx` / `clearSingleFileRefTx`), and
- * the owner's delete flow clears it explicitly — so `sourceId` carries **no FK**
- * (this also avoids ordering coupling: the owner row and its logo are created
- * together, and the avatar has no owning table at all). Only `fileEntryId`
- * cascades, so deleting the file drops the row and orphan-counting stays exact.
- * The unique `(sourceId, role)` index enforces at most one file per slot.
+ * `logo_file_id` column. The slot is always kept in sync through the `logoRef`
+ * helpers (`reconcileLogoSlotTx` / `clearSingleFileRefTx`), and the owner's
+ * delete flow clears it explicitly — so `sourceId` carries **no FK** (this also
+ * avoids ordering coupling: the owner row and its logo are created together).
+ * Only `fileEntryId` cascades, so deleting the file drops the row and
+ * orphan-counting stays exact. The unique `(sourceId, role)` index enforces at
+ * most one file per slot. (The user avatar deliberately has no slot table — it
+ * is persisted only in the `app.user.avatar` preference.)
  */
 export const providerLogoFileRefTable = sqliteTable(
   'provider_logo_file_ref',
@@ -130,37 +130,17 @@ export const miniAppLogoFileRefTable = sqliteTable(
     check('malfr_role_check', roleCheck(t.role, miniAppLogoRef.roles))
   ]
 )
-export const userAvatarFileRefTable = sqliteTable(
-  'user_avatar_file_ref',
-  {
-    id: uuidPrimaryKey(),
-    fileEntryId: text()
-      .notNull()
-      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
-    sourceId: text().notNull(),
-    role: text().notNull().$type<(typeof userAvatarRef.roles)[number]>(),
-    ...createUpdateTimestamps
-  },
-  (t) => [
-    index('uafr_entry_id_idx').on(t.fileEntryId),
-    uniqueIndex('uafr_source_id_role_idx').on(t.sourceId, t.role),
-    check('uafr_role_check', roleCheck(t.role, userAvatarRef.roles))
-  ]
-)
-
 export const persistentFileRefTablesBySourceType = {
   [chatMessageSourceType]: chatMessageFileRefTable,
   [paintingSourceType]: paintingFileRefTable,
   [providerLogoRef.sourceType]: providerLogoFileRefTable,
-  [miniAppLogoRef.sourceType]: miniAppLogoFileRefTable,
-  [userAvatarRef.sourceType]: userAvatarFileRefTable
+  [miniAppLogoRef.sourceType]: miniAppLogoFileRefTable
 } as const satisfies Record<
   PersistentFileRefSourceType,
   | typeof chatMessageFileRefTable
   | typeof paintingFileRefTable
   | typeof providerLogoFileRefTable
   | typeof miniAppLogoFileRefTable
-  | typeof userAvatarFileRefTable
 >
 
 export type ChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferSelect
@@ -171,5 +151,3 @@ export type ProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferSelec
 export type InsertProviderLogoFileRefRow = typeof providerLogoFileRefTable.$inferInsert
 export type MiniAppLogoFileRefRow = typeof miniAppLogoFileRefTable.$inferSelect
 export type InsertMiniAppLogoFileRefRow = typeof miniAppLogoFileRefTable.$inferInsert
-export type UserAvatarFileRefRow = typeof userAvatarFileRefTable.$inferSelect
-export type InsertUserAvatarFileRefRow = typeof userAvatarFileRefTable.$inferInsert

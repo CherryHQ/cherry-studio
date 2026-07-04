@@ -1,53 +1,34 @@
 import { application } from '@application'
-import { clearSingleFileRefTx, setSingleFileRefTx } from '@data/services/utils/logoRef'
 import { withCreatedImageEntry } from '@main/ipc/handlers/utils/entityImageBinding'
-import { tagStoredFileRef, USER_AVATAR_SOURCE_ID, userAvatarRef } from '@shared/data/types/file'
+import { tagStoredFileRef } from '@shared/data/types/file'
 import type { profileRequestSchemas } from '@shared/ipc/schemas/profile'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
-/** The singleton avatar's single-file slot. */
-const AVATAR_SLOT = { sourceType: userAvatarRef.sourceType, sourceId: USER_AVATAR_SOURCE_ID }
-
 /**
- * Profile request handler. `set_avatar` is the avatar owner. The owner invariant
- * — the `user_avatar` `file_ref` slot and the `app.user.avatar` preference must
- * agree on which file (if any) the avatar is — is kept atomic by doing the slot
- * cleanup, the slot ref insert, and the preference row write in a single
- * `DbService.withWriteTx`, then syncing the preference cache / broadcasting only
- * after the tx commits (the `afterCommit` callback). A rolled-back tx therefore
- * never leaves the slot and the preference pointing at different files.
+ * Profile request handler. `set_avatar` is the avatar owner. The avatar is
+ * persisted **only** in the `app.user.avatar` preference — an uploaded image
+ * as a `file:<id>` ref, an emoji verbatim, `''` for the bundled default. There
+ * is deliberately no `file_ref` row for it: the preference is the single copy
+ * of the fact, so no cross-store invariant (and no tx composition) exists. The
+ * trade — no FK, so the ref is not DB-validated and pruning a `file_entry`
+ * cannot null it — is acceptable because the renderer falls back to the
+ * default avatar for an unresolvable ref.
  *
  * For an uploaded image the `file_entry` is created first (a bad upload leaves
- * the old avatar intact) and `permanentDelete`-compensated if the tx fails — the
- * compensation wraps only the tx, not `afterCommit`, so a committed avatar is
- * never deleted by a later cache/broadcast hiccup. Emoji / clear are file-free.
+ * the old avatar intact) and `permanentDelete`-compensated if the preference
+ * write fails, so a failed set never leaks an orphan file.
  */
 export const profileHandlers: IpcHandlersFor<typeof profileRequestSchemas> = {
   'profile.set_avatar': async (input) => {
     const preferences = application.get('PreferenceService')
-    const db = application.get('DbService')
 
     if (input.kind === 'image') {
-      // withCreatedImageEntry compensates (permanentDelete) iff the tx throws;
-      // its bind returns the post-commit callback, run outside that scope.
-      const afterCommit = await withCreatedImageEntry(input.data, (fileId) =>
-        db.withWriteTx((tx) => {
-          const value = tagStoredFileRef(fileId)
-          setSingleFileRefTx(tx, AVATAR_SLOT, fileId)
-          return preferences.writeUserAvatarPreferenceTx(tx, value)
-        })
-      )
-      await afterCommit()
+      await withCreatedImageEntry(input.data, async (fileId) => {
+        await preferences.set('app.user.avatar', tagStoredFileRef(fileId))
+      })
       return
     }
 
-    // Emoji / clear — no file. Clear the slot, then store the value verbatim
-    // (emoji glyph, or `''` to reset to the bundled default).
-    const value = input.kind === 'emoji' ? input.emoji : ''
-    const afterCommit = db.withWriteTx((tx) => {
-      clearSingleFileRefTx(tx, AVATAR_SLOT)
-      return preferences.writeUserAvatarPreferenceTx(tx, value)
-    })
-    await afterCommit()
+    await preferences.set('app.user.avatar', input.kind === 'emoji' ? input.emoji : '')
   }
 }

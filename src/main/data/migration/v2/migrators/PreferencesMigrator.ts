@@ -6,7 +6,7 @@ import { preferenceTable } from '@data/db/schemas/preference'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
-import { tagStoredFileRef, USER_AVATAR_SOURCE_ID, userAvatarRef } from '@shared/data/types/file'
+import { tagStoredFileRef } from '@shared/data/types/file'
 import { and, eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -19,15 +19,19 @@ import {
   REDUX_STORE_MAPPINGS
 } from './mappings/PreferencesMappings'
 import {
-  insertPreparedImageFileTx,
+  insertPreparedImageEntryTx,
   prepareBase64ImageFileEntry,
   type PreparedEntityImageFile
 } from './utils/logoMigration'
 
 const logger = loggerService.withContext('PreferencesMigrator')
 
-/** The user avatar's single-file `file_ref` slot (mirrors `profile.set_avatar`). */
-const AVATAR_REF = { sourceType: userAvatarRef.sourceType, sourceId: USER_AVATAR_SOURCE_ID, role: 'avatar' }
+/**
+ * Log/name descriptor for the migrated avatar image. The avatar keeps NO ref
+ * row — the `app.user.avatar` preference is its only persisted copy (mirrors
+ * `profile.set_avatar`); only the `file_entry` is inserted.
+ */
+const AVATAR_REF = { sourceType: 'user_avatar', sourceId: 'default', role: 'avatar' }
 
 /** The preference key holding the user avatar (`image://avatar` in v1). */
 const AVATAR_PREFERENCE_KEY = 'app.user.avatar'
@@ -230,9 +234,9 @@ export class PreferencesMigrator extends BaseMigrator {
       const avatarFiles: PreparedEntityImageFile[] = []
 
       // Promote a v1 base64 avatar (`image://avatar`) to an on-disk WebP
-      // file_entry + file_ref, then store a `file:<id>` ref instead of the raw
-      // base64 — mirroring provider / mini-app logos. Emoji / preset / '' (and
-      // a failed transcode → '') pass through unchanged.
+      // file_entry, then store a `file:<id>` ref instead of the raw base64. No
+      // ref row — the preference is the avatar's only persisted copy. Emoji /
+      // preset / '' (and a failed transcode → '') pass through unchanged.
       for (const item of this.preparedItems) {
         if (
           item.targetKey === AVATAR_PREFERENCE_KEY &&
@@ -247,7 +251,7 @@ export class PreferencesMigrator extends BaseMigrator {
 
       db.transaction((tx) => {
         for (const avatarFile of avatarFiles) {
-          insertPreparedImageFileTx(tx, avatarFile)
+          insertPreparedImageEntryTx(tx, avatarFile)
         }
 
         // Batch insert all preferences

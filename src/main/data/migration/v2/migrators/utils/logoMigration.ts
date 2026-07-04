@@ -1,6 +1,9 @@
 /**
  * Promote a v1 inline base64 entity image (provider / mini-app logo, or user
- * avatar) into a v2 `file_entry` + `file_ref`, returning the new file-entry id.
+ * avatar) into a v2 `file_entry`, returning the new file-entry id. Provider /
+ * mini-app logos additionally get a single-file `file_ref` slot row; the avatar
+ * deliberately does NOT — the `app.user.avatar` preference is its only
+ * persisted copy.
  *
  * v1 stored these as base64 data URLs (provider logos in Dexie under
  * `image://provider-<id>`, custom mini-app logos in `custom-minapps.json`, the
@@ -11,8 +14,8 @@
  *
  * The physical file write is non-transactional — same risk model as
  * `ChatMappings.promoteBase64ToFileEntry`. Callers that need a DB transaction
- * prepare the file first, then insert the file_entry + file_ref synchronously
- * inside their transaction.
+ * prepare the file first, then insert the file_entry (+ file_ref, if any)
+ * synchronously inside their transaction.
  */
 
 import fs from 'node:fs/promises'
@@ -31,27 +34,35 @@ const logger = loggerService.withContext('ImageMigration')
 
 const BASE64_DATA_URL_RE = /^data:([^;,]+);base64,(.+)$/
 
-/** The single-file ref slot an image belongs to (provider/mini-app logo, or avatar). */
-export interface EntityImageRef {
-  sourceType: SingleFileRefSourceType
+/**
+ * Where a prepared image came from — used for log context and the entry name.
+ * Whether a ref row exists (and in which table) is the caller's concern.
+ */
+export interface EntityImageDescriptor {
+  sourceType: string
   sourceId: string
   role: string
 }
 
+/** The single-file ref slot an image belongs to (provider/mini-app logo). */
+export interface EntityImageRef extends EntityImageDescriptor {
+  sourceType: SingleFileRefSourceType
+}
+
 type InsertFileEntryRow = typeof fileEntryTable.$inferInsert
 
-export interface PreparedEntityImageFile {
+export interface PreparedEntityImageFile<R extends EntityImageDescriptor = EntityImageDescriptor> {
   id: FileEntryId
   physicalPath: FilePath
   fileEntry: InsertFileEntryRow
-  ref: EntityImageRef
+  ref: R
 }
 
-export async function prepareBase64ImageFileEntry(
+export async function prepareBase64ImageFileEntry<R extends EntityImageDescriptor>(
   filesDataDir: string,
-  ref: EntityImageRef,
+  ref: R,
   value: string
-): Promise<PreparedEntityImageFile | null> {
+): Promise<PreparedEntityImageFile<R> | null> {
   const match = BASE64_DATA_URL_RE.exec(value)
   // Not a data URL (plain url / icon ref / emoji) — caller keeps it as-is.
   if (!match) return null
@@ -101,8 +112,19 @@ export async function prepareBase64ImageFileEntry(
   }
 }
 
-export function insertPreparedImageFileTx(tx: Pick<DbType, 'insert'>, image: PreparedEntityImageFile): void {
+/**
+ * Insert only the prepared `file_entry` row — for images whose owner keeps no
+ * ref row (the avatar: the `app.user.avatar` preference is its only copy).
+ */
+export function insertPreparedImageEntryTx(tx: Pick<DbType, 'insert'>, image: PreparedEntityImageFile): void {
   tx.insert(fileEntryTable).values(image.fileEntry).run()
+}
+
+export function insertPreparedImageFileTx(
+  tx: Pick<DbType, 'insert'>,
+  image: PreparedEntityImageFile<EntityImageRef>
+): void {
+  insertPreparedImageEntryTx(tx, image)
   insertSingleFileRefTx(tx, { sourceType: image.ref.sourceType, sourceId: image.ref.sourceId }, image.id)
 }
 

@@ -3,7 +3,6 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
-import { userAvatarFileRefTable } from '@data/db/schemas/fileRelations'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, sql } from 'drizzle-orm'
@@ -322,7 +321,7 @@ describe('PreferencesMigrator', () => {
   })
 
   describe('avatar promotion', () => {
-    it('promotes a v1 base64 avatar to a file:<id> ref + file_entry + file_ref', async () => {
+    it('promotes a v1 base64 avatar to a file:<id> ref + file_entry (no ref row — preference-only)', async () => {
       const filesDataDir = mkdtempSync(path.join(os.tmpdir(), 'pref-avatar-mig-'))
       const ctx = createTestContext({ dexieSettings: [{ id: 'image://avatar', value: PNG_1X1 }] }, dbh.db, filesDataDir)
       await migrator.prepare(ctx)
@@ -338,11 +337,6 @@ describe('PreferencesMigrator', () => {
       const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, fileId))
       expect(entry?.origin).toBe('internal')
       expect(entry?.ext).toBe('webp')
-
-      const refs = await dbh.db.select().from(userAvatarFileRefTable)
-      expect(refs).toHaveLength(1)
-      expect(refs[0].fileEntryId).toBe(fileId)
-      expect(refs[0].role).toBe('avatar')
     })
 
     it('passes a non-image avatar (emoji) through unchanged', async () => {

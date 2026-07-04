@@ -25,10 +25,8 @@ import { BrowserWindow } from 'electron'
 import { isEqual } from 'es-toolkit/compat'
 
 import { preferenceTable } from './db/schemas/preference'
-import type { DbType } from './db/types'
 
 const logger = loggerService.withContext('PreferenceService')
-const USER_AVATAR_PREFERENCE_KEY = 'app.user.avatar' satisfies PreferenceKeyType
 
 /**
  * Preference statistics summary
@@ -347,37 +345,6 @@ export class PreferenceService extends BaseService {
     } catch (error) {
       logger.error(`Failed to set preference ${key}:`, error as Error)
       throw error
-    }
-  }
-
-  /**
-   * Avatar-only transaction composition hook. Writes `app.user.avatar` inside
-   * the caller's tx and returns a post-commit cache/broadcast callback.
-   *
-   * This intentionally stays narrower than a generic preference transaction
-   * writer: the only current owner that needs this composition is the profile
-   * avatar flow, because `user_avatar_file_ref` and the preference row must
-   * commit together.
-   */
-  public writeUserAvatarPreferenceTx(tx: Pick<DbType, 'update'>, value: string): () => Promise<void> {
-    if (!(USER_AVATAR_PREFERENCE_KEY in this.cache)) {
-      throw new Error(`Preference ${USER_AVATAR_PREFERENCE_KEY} not found in cache`)
-    }
-
-    const oldValue = this.cache[USER_AVATAR_PREFERENCE_KEY]
-
-    tx.update(preferenceTable)
-      .set({ value })
-      .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, USER_AVATAR_PREFERENCE_KEY)))
-      .run()
-
-    return async () => {
-      if (isEqual(oldValue, value)) {
-        return
-      }
-
-      ;(this.cache as Record<string, unknown>)[USER_AVATAR_PREFERENCE_KEY] = value
-      await this.notifyChange(USER_AVATAR_PREFERENCE_KEY, value, oldValue)
     }
   }
 

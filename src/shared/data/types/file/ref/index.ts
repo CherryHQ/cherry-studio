@@ -43,14 +43,7 @@ import {
   paintingRoleSchema,
   paintingSourceType
 } from './painting'
-import {
-  miniAppLogoRef,
-  providerLogoRef,
-  STORED_FILE_REF_PREFIX,
-  tagStoredFileRef,
-  USER_AVATAR_SOURCE_ID,
-  userAvatarRef
-} from './singleFile'
+import { miniAppLogoRef, providerLogoRef, STORED_FILE_REF_PREFIX, tagStoredFileRef } from './singleFile'
 import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempSessionSourceType } from './tempSession'
 
 // ─── SourceType type (load-bearing — keys DataApi/query validation) ───
@@ -81,8 +74,7 @@ export const allSourceTypes = [
   chatMessageSourceType,
   paintingSourceType,
   providerLogoRef.sourceType,
-  miniAppLogoRef.sourceType,
-  userAvatarRef.sourceType
+  miniAppLogoRef.sourceType
 ] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
@@ -107,8 +99,7 @@ export const FileRefSchema = z.discriminatedUnion('sourceType', [
   chatMessageFileRefSchema,
   paintingFileRefSchema,
   providerLogoRef.schema,
-  miniAppLogoRef.schema,
-  userAvatarRef.schema
+  miniAppLogoRef.schema
 ])
 export type FileRef = z.infer<typeof FileRefSchema>
 
@@ -132,7 +123,5 @@ export {
   tempSessionFileRefSchema,
   tempSessionRefFields,
   tempSessionRoles,
-  tempSessionSourceType,
-  USER_AVATAR_SOURCE_ID,
-  userAvatarRef
+  tempSessionSourceType
 }

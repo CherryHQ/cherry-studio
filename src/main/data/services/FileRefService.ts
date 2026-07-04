@@ -21,9 +21,7 @@ import {
   paintingFileRefTable,
   type PersistentFileRefSourceType,
   type ProviderLogoFileRefRow,
-  providerLogoFileRefTable,
-  type UserAvatarFileRefRow,
-  userAvatarFileRefTable
+  providerLogoFileRefTable
 } from '@data/db/schemas/fileRelations'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
 import { FileRefSchema } from '@shared/data/types/file'
@@ -33,8 +31,7 @@ import {
   miniAppLogoRef,
   paintingSourceType,
   providerLogoRef,
-  tempSessionSourceType,
-  userAvatarRef
+  tempSessionSourceType
 } from '@shared/data/types/file/ref'
 import { asc, count, eq, inArray } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
@@ -99,13 +96,13 @@ function paintingRowToFileRef(row: PaintingFileRefRow): FileRef {
 }
 
 /**
- * The three single-file logo/avatar association tables share one row shape (no
+ * The two single-file logo association tables share one row shape (no
  * `sourceType` column — the table is the discriminator), so one mapper stamps
  * the caller-supplied `sourceType` and validates against its variant schema.
  */
 function singleFileRowToFileRef(
-  row: ProviderLogoFileRefRow | MiniAppLogoFileRefRow | UserAvatarFileRefRow,
-  sourceType: typeof providerLogoRef.sourceType | typeof miniAppLogoRef.sourceType | typeof userAvatarRef.sourceType
+  row: ProviderLogoFileRefRow | MiniAppLogoFileRefRow,
+  sourceType: typeof providerLogoRef.sourceType | typeof miniAppLogoRef.sourceType
 ): FileRef {
   return FileRefSchema.parse({ ...row, sourceType })
 }
@@ -183,15 +180,6 @@ class FileRefServiceImpl implements FileRefService {
           .orderBy(asc(miniAppLogoFileRefTable.createdAt), asc(miniAppLogoFileRefTable.id))
           .all()
         return rows.map((row) => singleFileRowToFileRef(row, miniAppLogoRef.sourceType))
-      },
-      [userAvatarRef.sourceType]: () => {
-        const rows = this.getDb()
-          .select()
-          .from(userAvatarFileRefTable)
-          .where(eq(userAvatarFileRefTable.fileEntryId, fileEntryId))
-          .orderBy(asc(userAvatarFileRefTable.createdAt), asc(userAvatarFileRefTable.id))
-          .all()
-        return rows.map((row) => singleFileRowToFileRef(row, userAvatarRef.sourceType))
       }
     } satisfies Record<PersistentFileRefSourceType, () => FileRef[]>
 
@@ -243,15 +231,6 @@ class FileRefServiceImpl implements FileRefService {
           .orderBy(asc(miniAppLogoFileRefTable.createdAt), asc(miniAppLogoFileRefTable.id))
           .all()
         return rows.map((row) => singleFileRowToFileRef(row, miniAppLogoRef.sourceType))
-      }
-      case userAvatarRef.sourceType: {
-        const rows = this.getDb()
-          .select()
-          .from(userAvatarFileRefTable)
-          .where(eq(userAvatarFileRefTable.sourceId, source.sourceId))
-          .orderBy(asc(userAvatarFileRefTable.createdAt), asc(userAvatarFileRefTable.id))
-          .all()
-        return rows.map((row) => singleFileRowToFileRef(row, userAvatarRef.sourceType))
       }
     }
   }
@@ -320,13 +299,6 @@ class FileRefServiceImpl implements FileRefService {
             .from(miniAppLogoFileRefTable)
             .where(inArray(miniAppLogoFileRefTable.fileEntryId, chunk))
             .groupBy(miniAppLogoFileRefTable.fileEntryId)
-            .all(),
-        [userAvatarRef.sourceType]: () =>
-          this.getDb()
-            .select({ entryId: userAvatarFileRefTable.fileEntryId, refCount: count() })
-            .from(userAvatarFileRefTable)
-            .where(inArray(userAvatarFileRefTable.fileEntryId, chunk))
-            .groupBy(userAvatarFileRefTable.fileEntryId)
             .all()
       } satisfies Record<PersistentFileRefSourceType, () => Array<{ entryId: FileEntryId; refCount: number }>>
 

@@ -8,8 +8,9 @@ import { ImageBytesSchema } from './entityImage'
  *
  * `set_avatar` is the avatar owner. Like provider / mini-app logos, an uploaded
  * avatar is sent as **raw bytes**; the handler normalizes to a 128×128 WebP,
- * creates the `file_entry`, points the `user_avatar` `file_ref` slot at it, and
- * stores a `file:<id>` ref in `app.user.avatar` (compensating on failure). The
+ * creates the `file_entry`, and stores a `file:<id>` ref in the
+ * `app.user.avatar` preference (compensating on failure) — the preference is
+ * the avatar's only persisted copy; there is no `file_ref` row for it. The
  * non-image cases are a typed union — no arbitrary `value: string`.
  *
  * - `{ kind: 'image', data }` — raw upload bytes; main creates + binds the file.
