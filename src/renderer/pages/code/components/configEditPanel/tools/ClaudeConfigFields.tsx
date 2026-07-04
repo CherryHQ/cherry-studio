@@ -179,7 +179,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
             const uses1M = hasOneMMarker(rawValue)
             return (
               <div key={field.roleKey} className="flex items-center gap-2">
-                <span className="w-14 shrink-0 text-foreground text-xs">{t(field.labelKey)}</span>
+                <span className="w-14 shrink-0 text-foreground text-sm">{t(field.labelKey)}</span>
                 <ClaudeRoleModelSelector
                   value={toProviderModelId(providerId, roleModelId)}
                   placeholder={t('settings.models.empty')}
