@@ -2,6 +2,7 @@
  * General file module types — used across ops, FileManager, and IPC.
  */
 
+import { canonicalizeAbsolutePath } from '@shared/utils/file/canonicalize'
 import * as z from 'zod'
 
 // ─── File Type Classification ───
@@ -27,6 +28,27 @@ export const FileTypeSchema = z.enum([
 export type FileType = z.infer<typeof FileTypeSchema>
 
 // ─── Content Source Types ───
+
+/**
+ * Absolute filesystem path that has passed through `FilePathSchema`:
+ * NFC-normalized, segment-resolved, trailing-separator-stripped, no null bytes.
+ *
+ * The `z.brand` is a phantom brand — zero runtime cost, dropped on IPC
+ * serialization; receivers re-assert via `FilePathSchema.parse()` at the
+ * trusted boundary. Construction:
+ * - Production: `FilePathSchema.parse(raw)` / `.safeParse(raw)`
+ * - Tests / fixtures: `'…' as FilePath` for readability
+ *
+ * Accepts POSIX (`/…`) and Windows (`X:\…` or `X:/…`) absolute forms; the
+ * canonical output is always backslash on Windows. Rejects `file://` URLs.
+ */
+export const FilePathSchema = z
+  .string()
+  .min(1)
+  .refine((s) => !s.includes('\0'), 'must not contain null bytes')
+  .refine((s) => s.startsWith('/') || /^[A-Za-z]:[/\\]/.test(s), 'must be an absolute filesystem path')
+  .transform((v) => canonicalizeAbsolutePath(v))
+  .brand<'FilePath'>()
 
 /**
  * Local filesystem path (absolute Unix or Windows).

@@ -5,6 +5,7 @@ export {
   FILE_TYPE,
   type FileContent,
   type FilePath,
+  FilePathSchema,
   type FileType,
   FileTypeSchema,
   type FileUrlString,
