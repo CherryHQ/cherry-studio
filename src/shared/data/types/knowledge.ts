@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import { AbsolutePathSchema } from './file'
+import { FilePathSchema } from './file'
 import { GroupIdSchema } from './group'
 
 /**
@@ -675,11 +675,11 @@ export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
 export type CreateKnowledgeItemDto = z.infer<typeof CreateKnowledgeItemSchema>
 
 const RuntimeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
-  path: AbsolutePathSchema.describe('Absolute source path selected by the user before Knowledge copies it.'),
+  path: FilePathSchema.describe('Absolute source path selected by the user before Knowledge copies it.'),
   // Restore-only: absolute path to an already-produced processor artifact (e.g. MinerU
   // Markdown) in the source base. When present, Knowledge copies it in alongside the
   // source file and indexes from it directly, skipping the file processor.
-  indexedPath: AbsolutePathSchema.optional().describe(
+  indexedPath: FilePathSchema.optional().describe(
     'Absolute path to an already-processed artifact to copy in and index from, skipping the file processor.'
   )
 })
@@ -690,7 +690,7 @@ const RuntimeUrlItemDataSchema = KnowledgeItemSharedSchema.extend({
   // When present, Knowledge copies it in and pins the item to it so the first index
   // reads the snapshot offline instead of re-fetching the (possibly changed or dead)
   // live page. Omitted by a normal add, which captures lazily on first index.
-  snapshotPath: AbsolutePathSchema.optional().describe(
+  snapshotPath: FilePathSchema.optional().describe(
     'Absolute path to a captured URL snapshot markdown to copy in, skipping the live re-fetch.'
   )
 })

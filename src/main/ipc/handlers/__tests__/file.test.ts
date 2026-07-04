@@ -1,3 +1,4 @@
+import type { FilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock, getMetadataByPathMock, safeOpenMock, showPathInFolderMock } = vi.hoisted(() => ({
@@ -56,7 +57,7 @@ describe('fileHandlers', () => {
   it('batch_get_metadata dispatches FileHandle items inside the IPC adapter', async () => {
     const items = [
       { key: ids[0], handle: { kind: 'entry' as const, entryId: ids[0] } },
-      { key: '/tmp/a.txt', handle: { kind: 'path' as const, path: '/tmp/a.txt' } },
+      { key: '/tmp/a.txt', handle: { kind: 'path' as const, path: '/tmp/a.txt' as FilePath } },
       { key: ids[1], handle: { kind: 'entry' as const, entryId: ids[1] } }
     ]
     fileManager.getMetadata.mockResolvedValueOnce(metadata).mockRejectedValueOnce(new Error('ENOENT'))
@@ -121,8 +122,8 @@ describe('fileHandlers', () => {
   })
 
   it('dispatches path system commands without FileManager entry lookup', async () => {
-    await fileHandlers['file.open']({ kind: 'path', path: '/tmp/report.md' }, ctx)
-    await fileHandlers['file.show_in_folder']({ kind: 'path', path: '/tmp/report.md' }, ctx)
+    await fileHandlers['file.open']({ kind: 'path', path: '/tmp/report.md' as FilePath }, ctx)
+    await fileHandlers['file.show_in_folder']({ kind: 'path', path: '/tmp/report.md' as FilePath }, ctx)
 
     expect(safeOpenMock).toHaveBeenCalledWith('/tmp/report.md')
     expect(showPathInFolderMock).toHaveBeenCalledWith('/tmp/report.md')
@@ -133,8 +134,8 @@ describe('fileHandlers', () => {
   it('delegates internal-entry batch create items to FileManager', async () => {
     const result = { succeeded: [{ id: ids[0], sourceRef: '/tmp/a.txt' }], failed: [] }
     const items = [
-      { source: 'path' as const, path: '/tmp/a.txt' },
-      { source: 'path' as const, path: '/tmp/b.txt' }
+      { source: 'path' as const, path: '/tmp/a.txt' as FilePath },
+      { source: 'path' as const, path: '/tmp/b.txt' as FilePath }
     ]
     fileManager.batchCreateInternalEntries.mockResolvedValue(result)
 

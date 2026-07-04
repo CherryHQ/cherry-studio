@@ -7,6 +7,7 @@
  * post-success output).
  */
 import type { JobContext } from '@main/core/job/types'
+import type { FilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileProcessingJobPayload } from '../shared'
@@ -174,7 +175,7 @@ describe('backgroundJobHandler.execute', () => {
         input: {
           feature: 'image_to_text',
           file: { kind: 'entry', entryId: FILE_ENTRY_ID },
-          output: { kind: 'path', path: '/tmp/out.md' },
+          output: { kind: 'path', path: '/tmp/out.md' as FilePath },
           processorId: 'tesseract'
         }
       })
@@ -211,7 +212,7 @@ describe('backgroundJobHandler.execute', () => {
           input: {
             feature: 'image_to_text',
             file: { kind: 'entry', entryId: FILE_ENTRY_ID },
-            output: { kind: 'path', path: '/tmp/out.md' },
+            output: { kind: 'path', path: '/tmp/out.md' as FilePath },
             processorId: 'tesseract'
           }
         })

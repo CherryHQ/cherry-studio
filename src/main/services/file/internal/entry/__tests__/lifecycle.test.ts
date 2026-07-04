@@ -135,10 +135,10 @@ describe('internal/entry/lifecycle', () => {
       const entry = fileEntryService.getById(id)
       if (entry.origin !== 'external') throw new Error('expected external entry')
       const userFile = entry.externalPath
-      expect(await exists(userFile as FilePath)).toBe(true)
+      expect(await exists(userFile)).toBe(true)
       await permanentDelete(deps, id)
       expect(fileEntryService.findById(id)).toBeNull()
-      expect(await exists(userFile as FilePath)).toBe(true)
+      expect(await exists(userFile)).toBe(true)
     })
 
     it('still deletes the row when the internal physical file is missing', async () => {

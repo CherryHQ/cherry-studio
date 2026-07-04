@@ -50,5 +50,5 @@ export async function toFileInfo(entry: FileEntry): Promise<FileInfo> {
     type: getFileTypeByExt(ext ?? ''),
     createdAt: s.createdAt || s.modifiedAt,
     modifiedAt: s.modifiedAt
-  }) as FileInfo
+  })
 }

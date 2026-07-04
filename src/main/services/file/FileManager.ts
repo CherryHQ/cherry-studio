@@ -134,7 +134,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
-import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
+import { FileEntryIdSchema, FilePathSchema } from '@shared/data/types/file'
 import { SafeNameSchema } from '@shared/data/types/file/essential'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
@@ -189,7 +189,7 @@ import { showInFolder as internalShellShowInFolder } from './internal/system/she
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { safeOpen } from './system'
 import { getMetadataByPath } from './utils/metadata'
-import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
+import { resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
 
 const fileManagerLogger = loggerService.withContext('FileManager')
@@ -232,7 +232,7 @@ export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 const SafeExtNullableSchema = SafeExtSchema.nullable()
 
 export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
-  z.strictObject({ source: z.literal('path'), path: AbsolutePathSchema }),
+  z.strictObject({ source: z.literal('path'), path: FilePathSchema }),
   z.strictObject({ source: z.literal('url'), url: z.url() }),
   z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: SafeNameSchema.optional() }),
   z.strictObject({
@@ -243,7 +243,7 @@ export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
   })
 ])
 
-export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: AbsolutePathSchema })
+export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: FilePathSchema })
 
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
@@ -824,7 +824,7 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async findByExternalPath(rawPath: string): Promise<FileEntry | null> {
-    return this.deps.fileEntryService.findByExternalPath(canonicalizeExternalPath(rawPath))
+    return this.deps.fileEntryService.findByExternalPath(FilePathSchema.parse(rawPath))
   }
 
   async ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry> {
@@ -923,7 +923,7 @@ export class FileManager extends BaseService implements IFileManager {
     for (const params of items) {
       const sourceRef = params.externalPath
       try {
-        const canonical = canonicalizeExternalPath(params.externalPath)
+        const canonical = FilePathSchema.parse(params.externalPath)
         const cached = seen.get(canonical)
         const entry = cached ?? (await this.ensureExternalEntry(params))
         if (!cached) seen.set(canonical, entry)

@@ -50,14 +50,7 @@ export const FilePathSchema = z
   .transform((v) => canonicalizeAbsolutePath(v))
   .brand<'FilePath'>()
 
-/**
- * Local filesystem path (absolute Unix or Windows).
- *
- * Runtime validation required — the template-literal pattern only provides
- * type-level hints. Rejects `file://` URLs; use a dedicated URL type (or plain
- * `string`) when a consumer needs to accept URLs.
- */
-export type FilePath = `/${string}` | `${string}:\\${string}`
+export type FilePath = z.infer<typeof FilePathSchema>
 export type Base64String = `data:${string};base64,${string}`
 export type UrlString = `http://${string}` | `https://${string}`
 

@@ -12,7 +12,7 @@ describe('createFileEntryHandle', () => {
 
 describe('createFilePathHandle — runtime validation', () => {
   it('accepts POSIX absolute paths', () => {
-    const h = createFilePathHandle('/Users/me/doc.pdf')
+    const h = createFilePathHandle('/Users/me/doc.pdf' as FilePath)
     expect(h).toEqual({ kind: 'path', path: '/Users/me/doc.pdf' })
   })
 
@@ -53,7 +53,7 @@ describe('handle type guards', () => {
   })
 
   it('isFilePathHandle narrows to the path variant', () => {
-    const h = createFilePathHandle('/tmp/x')
+    const h = createFilePathHandle('/tmp/x' as FilePath)
     expect(isFilePathHandle(h)).toBe(true)
     expect(isFileEntryHandle(h)).toBe(false)
   })

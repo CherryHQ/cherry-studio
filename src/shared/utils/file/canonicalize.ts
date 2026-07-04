@@ -1,17 +1,13 @@
 /**
  * Pure-JS canonicalization for absolute filesystem paths.
  *
- * Lives in shared (no `node:*` imports) so the FileEntry schema can `refine`
- * its `externalPath` field against the same canonicalization rule the main
- * process uses on write. That refine is what gives the `CanonicalFilePath`
- * brand on the BO real runtime backing — any value that survives parsing IS
- * canonical, not just typed as if it were.
+ * Lives in shared (no `node:*` imports) so `FilePathSchema` (`@shared/types/file/common`)
+ * can `.transform` its input through the same canonicalization rule on every
+ * parse. That transform is what gives the `FilePath` brand real runtime
+ * backing — any value that survives parsing IS canonical, not just typed as
+ * if it were.
  *
  * ## Scope (this function's contract)
- *
- * Same rules as the main-side `canonicalizeExternalPath` (see
- * `src/main/services/file/utils/pathResolver.ts`) — only the implementation
- * differs (this version does not depend on `node:path`):
  *
  *   0. Reject null bytes (`\0`).
  *   1. Resolve segments (`.`, `..`, repeated separators).

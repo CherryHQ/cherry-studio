@@ -4,7 +4,8 @@ import { messageTable } from '@data/db/schemas/message'
 import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { DataApiError, ErrorCode } from '@shared/data/api'
-import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
+import type { FileEntryId } from '@shared/data/types/file'
+import type { FilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
@@ -117,13 +118,13 @@ describe('FileEntryService', () => {
         updatedAt: now
       })
 
-      const entry = fileEntryService.findByExternalPath('/Users/me/doc.pdf' as CanonicalExternalPath)
+      const entry = fileEntryService.findByExternalPath('/Users/me/doc.pdf' as FilePath)
       expect(entry?.id).toBe(id)
       expect(entry?.origin).toBe('external')
     })
 
     it('returns null when no row matches', async () => {
-      const result = fileEntryService.findByExternalPath('/Users/me/nonexistent.pdf' as CanonicalExternalPath)
+      const result = fileEntryService.findByExternalPath('/Users/me/nonexistent.pdf' as FilePath)
       expect(result).toBeNull()
     })
 
@@ -142,7 +143,7 @@ describe('FileEntryService', () => {
         updatedAt: now
       })
 
-      const result = fileEntryService.findByExternalPath('/Users/me/A.TXT' as CanonicalExternalPath)
+      const result = fileEntryService.findByExternalPath('/Users/me/A.TXT' as FilePath)
       expect(result).toBeNull()
     })
   })
@@ -167,13 +168,13 @@ describe('FileEntryService', () => {
         updatedAt: now
       })
 
-      const peers = fileEntryService.findCaseInsensitivePeers('/Users/me/a.txt' as CanonicalExternalPath)
+      const peers = fileEntryService.findCaseInsensitivePeers('/Users/me/a.txt' as FilePath)
       expect(peers).toHaveLength(1)
       expect(peers[0]?.id).toBe('019606a0-0000-7000-8000-000000000020')
     })
 
     it('returns empty array when no rows match', async () => {
-      const peers = fileEntryService.findCaseInsensitivePeers('/zzz/none.txt' as CanonicalExternalPath)
+      const peers = fileEntryService.findCaseInsensitivePeers('/zzz/none.txt' as FilePath)
       expect(peers).toEqual([])
     })
 
@@ -1176,11 +1177,7 @@ describe('FileEntryService', () => {
       const original = fileEntryService.getById(id)
       await new Promise((r) => setTimeout(r, 5))
 
-      const updated = fileEntryService.setExternalPathAndName(
-        id,
-        '/Users/me/new-doc.pdf' as CanonicalExternalPath,
-        'new-doc'
-      )
+      const updated = fileEntryService.setExternalPathAndName(id, '/Users/me/new-doc.pdf' as FilePath, 'new-doc')
 
       expect(updated.id).toBe(id)
       if (updated.origin !== 'external') throw new Error('expected external entry')
@@ -1199,7 +1196,7 @@ describe('FileEntryService', () => {
       const missing = '019606a0-0000-7000-8000-000000000dff' as FileEntryId
       let err: unknown
       try {
-        fileEntryService.setExternalPathAndName(missing, '/Users/me/ghost.pdf' as CanonicalExternalPath, 'ghost')
+        fileEntryService.setExternalPathAndName(missing, '/Users/me/ghost.pdf' as FilePath, 'ghost')
       } catch (e) {
         err = e
       }
@@ -1222,28 +1219,7 @@ describe('FileEntryService', () => {
       })
 
       expect(() =>
-        fileEntryService.setExternalPathAndName(entry.id, '/Users/me/legit.txt' as CanonicalExternalPath, '../evil')
-      ).toThrow()
-
-      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, entry.id))
-      expect(raw?.name).toBe('safe')
-      expect(raw?.externalPath).toBe('/Users/me/safe.txt')
-    })
-
-    it('rejects unsafe externalPath BEFORE the SQL UPDATE commits', async () => {
-      // The `CanonicalExternalPath` brand is TS-only and offers no runtime
-      // guarantee. The service-side `AbsolutePathSchema.parse(externalPath)`
-      // catches null bytes / non-absolute paths regardless of whether the
-      // caller went through `canonicalizeExternalPath` or `as`-cast.
-      const entry = fileEntryService.create({
-        origin: 'external',
-        name: 'safe',
-        ext: 'txt',
-        externalPath: '/Users/me/safe.txt'
-      })
-
-      expect(() =>
-        fileEntryService.setExternalPathAndName(entry.id, '/Users/me/null\0byte.txt' as CanonicalExternalPath, 'fine')
+        fileEntryService.setExternalPathAndName(entry.id, '/Users/me/legit.txt' as FilePath, '../evil')
       ).toThrow()
 
       const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, entry.id))
@@ -1276,7 +1252,7 @@ describe('FileEntryService', () => {
       // unexpected and bubble it up.
       let err: Error | null = null
       try {
-        fileEntryService.setExternalPathAndName(b.id, '/Users/me/a.txt' as CanonicalExternalPath, 'a')
+        fileEntryService.setExternalPathAndName(b.id, '/Users/me/a.txt' as FilePath, 'a')
       } catch (e) {
         err = e as Error
       }
@@ -1305,11 +1281,7 @@ describe('FileEntryService', () => {
         ext: 'txt',
         externalPath: '/Users/me/ext-tx.txt'
       })
-      fileEntryService.setExternalPathAndName(
-        external.id,
-        '/Users/me/ext-tx-renamed.txt' as CanonicalExternalPath,
-        'ext-tx-renamed'
-      )
+      fileEntryService.setExternalPathAndName(external.id, '/Users/me/ext-tx-renamed.txt' as FilePath, 'ext-tx-renamed')
 
       // create/update/delete/setExternalPathAndName are each a single autocommit statement under
       // better-sqlite3, so they write via getDb() directly and never wrap withWriteTx. If any grows
@@ -1477,7 +1449,7 @@ describe('FileEntryService', () => {
         origin: 'external',
         name: 'e',
         ext: 'txt',
-        externalPath: '/abs/orphan.txt' as CanonicalExternalPath
+        externalPath: '/abs/orphan.txt' as FilePath
       })
 
       const externalsOnly = fileEntryService.findUnreferenced({ origin: 'external' })
@@ -1606,7 +1578,7 @@ describe('FileEntryService', () => {
       mockMainLoggerService.warn.mockClear()
 
       // Corrupt match → excluded with one warning, not a throw.
-      const badPeers = fileEntryService.findCaseInsensitivePeers('/users/me/bad-peer.txt' as CanonicalExternalPath)
+      const badPeers = fileEntryService.findCaseInsensitivePeers('/users/me/bad-peer.txt' as FilePath)
       expect(badPeers).toEqual([])
       expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
       expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
@@ -1615,7 +1587,7 @@ describe('FileEntryService', () => {
       )
 
       // Good rows still surface through the same method.
-      const goodPeers = fileEntryService.findCaseInsensitivePeers('/users/me/good-peer.txt' as CanonicalExternalPath)
+      const goodPeers = fileEntryService.findCaseInsensitivePeers('/users/me/good-peer.txt' as FilePath)
       expect(goodPeers.map((e) => e.id)).toEqual([goodExternalId])
     })
   })

@@ -26,7 +26,7 @@ export function getFileProcessingMarkdownArtifactPath(snapshot: JobSnapshot): Fi
   if (!isMarkdownFileArtifact(output.artifact)) {
     throw new Error(`File processing job ${snapshot.id} completed without a markdown path artifact`)
   }
-  return output.artifact.path as FilePath
+  return output.artifact.path
 }
 
 export function isMarkdownFileArtifact(
@@ -73,7 +73,7 @@ async function createFileProcessingArtifact(
         path: await markdownResultStore.persistResultToPath({
           jobId,
           result: output,
-          path: input.output.path as FilePath,
+          path: input.output.path,
           signal
         })
       }

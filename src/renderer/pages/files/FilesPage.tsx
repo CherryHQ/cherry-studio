@@ -20,7 +20,8 @@ import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { isMac } from '@renderer/utils/platform'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
-import type { FilePath, FileType } from '@shared/types/file'
+import type { FileType } from '@shared/types/file'
+import { FilePathSchema } from '@shared/types/file'
 import { createFileEntryHandle, getFileTypeByExt } from '@shared/utils/file'
 import { toSafeFileUrl } from '@shared/utils/file/url'
 import { MoreHorizontal, Upload } from 'lucide-react'
@@ -123,7 +124,7 @@ async function requestBatchedInternalEntryCreates(paths: readonly string[]): Pro
   const results = await Promise.all(
     chunks.map((chunk) =>
       ipcApi.request('file.batch_create_internal_entries', {
-        items: chunk.map((path) => ({ source: 'path' as const, path }))
+        items: chunk.map((path) => ({ source: 'path' as const, path: FilePathSchema.parse(path) }))
       })
     )
   )
@@ -195,7 +196,7 @@ function toFileItem(
       ...base,
       ...originFields,
       type,
-      previewUrl: physicalPath ? toSafeFileUrl(physicalPath as FilePath, entry.ext) : undefined
+      previewUrl: physicalPath ? toSafeFileUrl(physicalPath, entry.ext) : undefined
     }
   }
 

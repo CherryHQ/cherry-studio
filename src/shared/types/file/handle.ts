@@ -22,10 +22,10 @@
  * the handle shapes and their IPC-boundary schemas.
  */
 
-import { AbsolutePathSchema, type FileEntryId, FileEntryIdSchema } from '@shared/data/types/file'
+import { type FileEntryId, FileEntryIdSchema } from '@shared/data/types/file'
 import * as z from 'zod'
 
-import type { FilePath } from './common'
+import { type FilePath, FilePathSchema } from './common'
 
 export type FileEntryHandle = {
   readonly kind: 'entry'
@@ -52,9 +52,8 @@ export const FileEntryHandleSchema = z.strictObject({
 
 export const FilePathHandleSchema = z.strictObject({
   kind: z.literal('path'),
-  path: AbsolutePathSchema
+  path: FilePathSchema
 })
 
 export const FileHandleSchema = z.discriminatedUnion('kind', [FileEntryHandleSchema, FilePathHandleSchema])
-// TODO: 1. Wire schema and types, so no as cast needed
 // TODO: 2. Add brand for FileHandle since factory function has been used

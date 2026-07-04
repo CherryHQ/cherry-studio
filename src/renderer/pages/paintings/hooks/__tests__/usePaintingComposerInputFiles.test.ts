@@ -1,5 +1,6 @@
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FilePath } from '@shared/types/file'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,8 +22,8 @@ const makeAttachment = (sourceId: string, path: string): ComposerAttachment => (
 
 describe('usePaintingComposerInputFiles', () => {
   beforeEach(() => {
-    const getPhysicalPath = vi.fn(async (params: { id: string }) => `/p/${params.id}.png`)
-    const createInternalEntry = vi.fn(async (params: { path: string }) =>
+    const getPhysicalPath = vi.fn(async (params: { id: string }) => `/p/${params.id}.png` as FilePath)
+    const createInternalEntry = vi.fn(async (params: { path: FilePath }) =>
       makeEntry(params.path.includes('new') ? 'fe-new' : 'fe-x')
     )
     window.api = {

@@ -177,5 +177,5 @@ async function resolveFileProcessingPathInfo(filePath: FilePath): Promise<FileIn
     type: getFileTypeByExt(ext ?? ''),
     createdAt: stats.createdAt || stats.modifiedAt,
     modifiedAt: stats.modifiedAt
-  }) as FileInfo
+  })
 }
