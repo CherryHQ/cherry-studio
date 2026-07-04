@@ -49,7 +49,7 @@ vi.mock('../useProviderEndpoints', () => ({
   useProviderEndpoints: (...args: any[]) => useProviderEndpointsMock(...args)
 }))
 
-vi.mock('@renderer/services/ApiService', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettings/utils/healthCheck', () => ({
   checkApi: (...args: any[]) => checkApiMock(...args)
 }))
 

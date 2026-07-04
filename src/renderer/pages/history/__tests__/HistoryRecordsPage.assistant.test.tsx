@@ -135,7 +135,7 @@ vi.mock('@renderer/hooks/useNotesSettings', () => ({
   useNotesSettings: () => ({ notesPath: '/notes' })
 }))
 
-vi.mock('@renderer/services/ApiService', () => ({
+vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchMessagesSummary: vi.fn().mockResolvedValue({ text: 'Auto title' })
 }))
 
@@ -162,7 +162,7 @@ vi.mock('@renderer/components/Popups/SaveToKnowledgePopup', () => ({
   default: { showForTopic: hookMocks.saveToKnowledge }
 }))
 
-vi.mock('@renderer/services/CopyService', () => ({
+vi.mock('@renderer/services/copy', () => ({
   copyTopicAsMarkdown: vi.fn(),
   copyTopicAsPlainText: vi.fn()
 }))
