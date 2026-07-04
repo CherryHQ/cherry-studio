@@ -77,7 +77,7 @@ describe('slashCommandsTool', () => {
 
     // Live catalog wins — the builtin fallback is never consulted.
     expect(mockGetBuiltinSlashCommands).not.toHaveBeenCalled()
-    expect(launchers?.[0].submenu).toEqual([
+    expect(launchers).toEqual([
       expect.objectContaining({ id: 'slash-command:/deploy', label: '/deploy', description: 'Deploy the app' }),
       expect.objectContaining({ id: 'slash-command:/review', label: '/review', description: 'Review the diff' })
     ])
@@ -93,7 +93,7 @@ describe('slashCommandsTool', () => {
     } as any)
 
     expect(mockGetBuiltinSlashCommands).toHaveBeenCalledWith('claude-code')
-    expect(launchers?.[0].submenu).toEqual([expect.objectContaining({ id: 'slash-command:/clear', label: '/clear' })])
+    expect(launchers).toEqual([expect.objectContaining({ id: 'slash-command:/clear', label: '/clear' })])
   })
 
   it('falls back to command descriptions when a mapped translation is missing', () => {
