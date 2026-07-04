@@ -1094,7 +1094,7 @@
     "abbr": "Assistants",
     "clear": {
       "content": "Clearing conversations will delete all conversations and files in the assistant. Are you sure you want to continue?",
-      "menu_title": "Delete all assistant conversations",
+      "menu_title": "Clear Topics",
       "title": "Clear conversations"
     },
     "copy": {

@@ -1,6 +1,6 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ResourceEntityRailItem } from '@renderer/components/chat/resources/variants/ResourceEntityRail'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,9 +8,14 @@ import { AgentResourceList } from '../AgentResourceList'
 import { AssistantResourceList } from '../AssistantResourceList'
 
 const assistantDataMocks = vi.hoisted(() => ({
+  deleteTopicsByAssistantId: vi.fn(),
   deleteAssistant: vi.fn(),
   refreshTopics: vi.fn(),
-  refetchAssistants: vi.fn()
+  refetchAssistants: vi.fn(),
+  topics: [
+    { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' },
+    { id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }
+  ]
 }))
 
 const agentDataMocks = vi.hoisted(() => ({
@@ -178,7 +183,7 @@ vi.mock('@renderer/hooks/resourceViewSources', () => ({
     error: null,
     isFullyLoaded: true,
     isLoadingAll: false,
-    topics: [{ id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }]
+    topics: assistantDataMocks.topics
   })
 }))
 
@@ -193,6 +198,14 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
         name: 'Assistant 1',
         orderKey: 'a',
         emoji: 'A',
+        modelId: 'openai::gpt-4o',
+        modelName: 'GPT-4o'
+      },
+      {
+        id: 'assistant-2',
+        name: 'Assistant 2',
+        orderKey: 'b',
+        emoji: 'B',
         modelId: 'openai::gpt-4o',
         modelName: 'GPT-4o'
       }
@@ -235,6 +248,7 @@ vi.mock('@renderer/hooks/usePins', () => ({
 vi.mock('@renderer/hooks/useTopic', () => ({
   mapApiTopicToRendererTopic: (topic: unknown) => topic,
   useTopicMutations: () => ({
+    deleteTopicsByAssistantId: assistantDataMocks.deleteTopicsByAssistantId,
     refreshTopics: assistantDataMocks.refreshTopics
   })
 }))
@@ -267,11 +281,22 @@ describe('classic layout entity resource list actions', () => {
     preferenceMocks.values.clear()
     preferenceMocks.setPreference.mockClear()
     preferenceMocks.setSortType.mockClear()
+    assistantDataMocks.topics = [
+      { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' },
+      { id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }
+    ]
+    assistantDataMocks.deleteTopicsByAssistantId.mockResolvedValue({ deletedIds: ['topic-1'], deletedCount: 1 })
+    assistantDataMocks.deleteTopicsByAssistantId.mockClear()
     assistantDataMocks.deleteAssistant.mockResolvedValue(undefined)
+    assistantDataMocks.deleteAssistant.mockClear()
     assistantDataMocks.refreshTopics.mockResolvedValue(undefined)
+    assistantDataMocks.refreshTopics.mockClear()
     assistantDataMocks.refetchAssistants.mockResolvedValue(undefined)
+    assistantDataMocks.refetchAssistants.mockClear()
     agentDataMocks.deleteAgent.mockResolvedValue(undefined)
+    agentDataMocks.deleteAgent.mockClear()
     agentDataMocks.refetchAgents.mockResolvedValue(undefined)
+    agentDataMocks.refetchAgents.mockClear()
 
     window.modal = {
       confirm: vi.fn().mockResolvedValue(true)
@@ -297,8 +322,8 @@ describe('classic layout entity resource list actions', () => {
 
     expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.delete.title')
     expect(screen.getByTestId('assistant-1-more-menu')).toHaveTextContent('assistants.delete.title')
-    expect(screen.getByTestId('assistant-1-context-menu')).not.toHaveTextContent('assistants.clear.menu_title')
-    expect(screen.getByTestId('assistant-1-more-menu')).not.toHaveTextContent('assistants.clear.menu_title')
+    expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.clear.menu_title')
+    expect(screen.getByTestId('assistant-1-more-menu')).toHaveTextContent('assistants.clear.menu_title')
 
     fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
 
@@ -312,6 +337,56 @@ describe('classic layout entity resource list actions', () => {
     // remaining topic) and must NOT open the modern layout draft compose.
     await waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
     expect(onStartDraftAssistant).not.toHaveBeenCalled()
+  })
+
+  it('clears assistant topics from the classic layout assistant context menu', async () => {
+    const onSelectTopic = vi.fn()
+
+    render(
+      <AssistantResourceList
+        activeAssistantId="assistant-1"
+        onSelectTopic={onSelectTopic}
+        onStartDraftAssistant={vi.fn()}
+      />
+    )
+
+    fireEvent.click(
+      within(screen.getByTestId('assistant-1-context-menu')).getByRole('button', {
+        name: 'assistants.clear.menu_title'
+      })
+    )
+
+    await waitFor(() =>
+      expect(window.modal.confirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'assistants.clear.content',
+          title: 'assistants.clear.title'
+        })
+      )
+    )
+    await waitFor(() => expect(assistantDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
+    await waitFor(() => expect(assistantDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
+    expect(onSelectTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-2' }))
+    expect(window.toast.success).toHaveBeenCalledWith('chat.topics.manage.delete.success')
+  })
+
+  it('keeps at least one topic when clearing classic assistant topics would delete all topics', async () => {
+    assistantDataMocks.topics = [{ id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }]
+
+    render(
+      <AssistantResourceList activeAssistantId="assistant-2" onSelectTopic={vi.fn()} onStartDraftAssistant={vi.fn()} />
+    )
+
+    fireEvent.click(
+      within(screen.getByTestId('assistant-2-context-menu')).getByRole('button', {
+        name: 'assistants.clear.menu_title'
+      })
+    )
+
+    await waitFor(() => expect(window.toast.error).toHaveBeenCalledWith('chat.topics.manage.error.at_least_one'))
+    expect(window.modal.confirm).not.toHaveBeenCalled()
+    expect(assistantDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
+    expect(assistantDataMocks.refreshTopics).not.toHaveBeenCalled()
   })
 
   it('toggles assistant tag grouping from the context menu (list → tags)', () => {

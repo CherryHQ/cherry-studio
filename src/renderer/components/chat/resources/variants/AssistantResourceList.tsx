@@ -13,7 +13,7 @@ import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import { Bot, Check, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
+import { Bot, BrushCleaning, Check, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,6 +27,7 @@ const logger = loggerService.withContext('AssistantResourceList')
 
 const ASSISTANT_ENTITY_EDIT_ACTION_ID = 'assistant-entity.edit'
 const ASSISTANT_ENTITY_TOGGLE_PIN_ACTION_ID = 'assistant-entity.toggle-pin'
+const ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID = 'assistant-entity.clear-topics'
 const ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID = 'assistant-entity.toggle-tag-grouping'
 const ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID = 'assistant-entity.icon-type'
 const ASSISTANT_ENTITY_DELETE_ACTION_ID = 'assistant-entity.delete'
@@ -102,9 +103,10 @@ export function AssistantResourceList({
     togglePin: toggleAssistantPin
   } = usePins('assistant')
   const { deleteAssistant } = useAssistantMutations()
-  const { refreshTopics } = useTopicMutations()
+  const { deleteTopicsByAssistantId, refreshTopics } = useTopicMutations()
   const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
   const [deletingAssistantId, setDeletingAssistantId] = useState<string | null>(null)
+  const [clearingTopicsAssistantId, setClearingTopicsAssistantId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
@@ -201,6 +203,62 @@ export function AssistantResourceList({
     [isAssistantPinActionDisabled, refreshAssistants, t, toggleAssistantPin]
   )
 
+  const handleClearAssistantTopics = useCallback(
+    async (assistantId: string) => {
+      if (clearingTopicsAssistantId || deletingAssistantId) return
+
+      const targetTopics = topics.filter((topic) => topic.assistantId === assistantId)
+      if (targetTopics.length === 0) return
+
+      const targetTopicIds = new Set(targetTopics.map((topic) => topic.id))
+      const remainingTopics = topics.filter((topic) => !targetTopicIds.has(topic.id))
+      if (remainingTopics.length === 0) {
+        window.toast.error(t('chat.topics.manage.error.at_least_one'))
+        return
+      }
+
+      setClearingTopicsAssistantId(assistantId)
+      try {
+        const confirmed = await window.modal.confirm({
+          title: t('assistants.clear.title'),
+          content: t('assistants.clear.content'),
+          okText: t('common.delete'),
+          cancelText: t('common.cancel'),
+          centered: true,
+          okButtonProps: {
+            danger: true
+          }
+        })
+        if (!confirmed) return
+
+        const result = await deleteTopicsByAssistantId(assistantId)
+        const deletedIds = new Set(result.deletedIds)
+        const actualRemainingTopics = topics.filter((topic) => !deletedIds.has(topic.id))
+        if (activeAssistantId === assistantId && actualRemainingTopics.length > 0) {
+          onSelectTopic(actualRemainingTopics[0])
+        }
+
+        window.toast.success(t('chat.topics.manage.delete.success', { count: result.deletedCount }))
+        await refreshTopics()
+      } catch (err) {
+        logger.error('Failed to clear assistant topics from classic-layout rail', { assistantId, err })
+        window.toast.error(t('chat.topics.manage.delete.error'))
+      } finally {
+        setClearingTopicsAssistantId(null)
+      }
+    },
+    [
+      activeAssistantId,
+      clearingTopicsAssistantId,
+      deleteTopicsByAssistantId,
+      deletingAssistantId,
+      onSelectTopic,
+      refreshTopics,
+      t,
+      topics
+    ]
+  )
+
   const handleDeleteAssistant = useCallback(
     async (assistantId: string) => {
       if (deletingAssistantId) return
@@ -269,10 +327,19 @@ export function AssistantResourceList({
           children: []
         },
         {
+          id: ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID,
+          label: t('assistants.clear.menu_title'),
+          icon: <BrushCleaning size={14} />,
+          order: 25,
+          danger: false,
+          availability: { visible: true, enabled: !clearingTopicsAssistantId && !deletingAssistantId },
+          children: []
+        },
+        {
           id: ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID,
           label: t('assistants.icon.type'),
           icon: <Smile size={14} />,
-          order: 25,
+          order: 30,
           danger: false,
           availability: { visible: true, enabled: true },
           children: ASSISTANT_ICON_TYPE_OPTIONS.map((type) => ({
@@ -289,7 +356,7 @@ export function AssistantResourceList({
           id: ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID,
           label: isTagGrouping ? t('assistants.tags.ungroup') : t('assistants.tags.group_by'),
           icon: <Tags size={14} />,
-          order: 30,
+          order: 35,
           danger: false,
           availability: { visible: true, enabled: true },
           children: []
@@ -306,7 +373,15 @@ export function AssistantResourceList({
         }
       ]
     },
-    [assistantIconType, assistantPinnedIdSet, deletingAssistantId, isAssistantPinActionDisabled, isTagGrouping, t]
+    [
+      assistantIconType,
+      assistantPinnedIdSet,
+      clearingTopicsAssistantId,
+      deletingAssistantId,
+      isAssistantPinActionDisabled,
+      isTagGrouping,
+      t
+    ]
   )
 
   const handleContextMenuAction = useCallback(
@@ -317,6 +392,10 @@ export function AssistantResourceList({
       }
       if (action.id === ASSISTANT_ENTITY_TOGGLE_PIN_ACTION_ID) {
         void handleToggleAssistantPin(item.id)
+        return
+      }
+      if (action.id === ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID) {
+        void handleClearAssistantTopics(item.id)
         return
       }
       if (action.id === ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID) {
@@ -333,6 +412,7 @@ export function AssistantResourceList({
     },
     [
       handleDeleteAssistant,
+      handleClearAssistantTopics,
       handleToggleAssistantPin,
       isTagGrouping,
       openAssistantEditor,
