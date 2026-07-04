@@ -51,17 +51,20 @@ function makeTerminal(status: 'completed' | 'failed' | 'cancelled', id = `job-${
   }
 }
 
-function makeSettled(overrides: Partial<JobSettledEvent>): JobSettledEvent {
+function makeSettled(overrides: Partial<JobSettledEvent<AgentTaskInput>>): JobSettledEvent<AgentTaskInput> {
   return {
     jobId: 'job-1',
     type: 'agent.task',
     scheduleId: 's1',
+    parentId: null,
     status: 'failed',
+    input: { agentId: 'a1', prompt: '__heartbeat__', timeoutMinutes: 30, workspace: WORKSPACE_SOURCE },
     output: null,
     error: { code: 'TEST', message: 'boom', retryable: false },
     attempt: 0,
+    metadata: {},
     ...overrides
-  } as JobSettledEvent
+  } as JobSettledEvent<AgentTaskInput>
 }
 
 describe('AgentTaskJobHandler', () => {
