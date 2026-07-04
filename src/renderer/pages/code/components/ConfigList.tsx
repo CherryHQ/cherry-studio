@@ -51,7 +51,9 @@ export const ConfigList: FC<ConfigListProps> = ({
         const cfg = providerConfigs[provider.id]
         const meta = resolveMeta(provider, cfg)
         const modelName =
-          currentProviderId === provider.id && currentProviderModelName ? currentProviderModelName : meta.modelName
+          currentProviderId === provider.id && currentProviderModelName
+            ? currentProviderModelName
+            : (meta.modelName ?? t('settings.models.empty'))
         return (
           <ProviderCard
             provider={provider}

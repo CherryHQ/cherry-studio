@@ -1,5 +1,6 @@
 import type { Provider } from '@shared/data/types/provider'
 import { render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ConfigList } from '../ConfigList'
@@ -10,7 +11,27 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('@cherrystudio/ui', () => ({
   EmptyState: ({ title }: { title: string }) => <div>{title}</div>,
-  ReorderableList: (props: { gap: string }) => <div data-testid="code-config-reorderable-list" data-gap={props.gap} />
+  ReorderableList: <T,>(props: {
+    items: T[]
+    gap: string
+    getId: (item: T) => string
+    renderItem: (item: T, index: number, state: { dragging: boolean }) => ReactNode
+  }) => (
+    <div data-testid="code-config-reorderable-list" data-gap={props.gap}>
+      {props.items.map((item, index) => (
+        <div key={props.getId(item)}>{props.renderItem(item, index, { dragging: false })}</div>
+      ))}
+    </div>
+  )
+}))
+
+vi.mock('../ConfigCard', () => ({
+  ProviderCard: ({ providerName, modelName }: { providerName: string; modelName?: string }) => (
+    <div data-testid="provider-card">
+      <span>{providerName}</span>
+      {modelName && <span>{modelName}</span>}
+    </div>
+  )
 }))
 
 const provider = {
@@ -33,5 +54,21 @@ describe('ConfigList', () => {
     )
 
     expect(screen.getByTestId('code-config-reorderable-list')).toHaveAttribute('data-gap', '0.5rem')
+  })
+
+  it('shows the empty model placeholder when a provider has no configured model', () => {
+    render(
+      <ConfigList
+        providers={[provider]}
+        providerConfigs={{}}
+        currentProviderId={null}
+        resolveMeta={() => ({ providerName: 'Anthropic' })}
+        onConfigure={vi.fn()}
+        onToggleCurrent={vi.fn()}
+        onReorder={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('settings.models.empty')).toBeInTheDocument()
   })
 })

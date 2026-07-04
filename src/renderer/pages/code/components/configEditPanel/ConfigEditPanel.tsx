@@ -91,8 +91,6 @@ export interface ConfigEditPanelProps {
   provider: Provider
   providerConfig: CliProviderConfig | null
   isCurrentProvider: boolean
-  /** First model for the provider — used as the selector default when no model is saved. */
-  defaultModelId: UniqueModelId | undefined
   modelFilter: (model: Model) => boolean
   onSubmit: (values: {
     modelId?: UniqueModelId
@@ -103,8 +101,7 @@ export interface ConfigEditPanelProps {
 }
 
 export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
-  const { open, onClose, cliTool, provider, providerConfig, isCurrentProvider, defaultModelId, modelFilter, onSubmit } =
-    props
+  const { open, onClose, cliTool, provider, providerConfig, isCurrentProvider, modelFilter, onSubmit } = props
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { data: apiKeysData } = useProviderApiKeys(provider.id)
@@ -205,7 +202,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     if (!open) return
     setAdvancedOpen(false)
     const saved = providerConfig && isUniqueModelId(providerConfig.modelId) ? providerConfig.modelId : undefined
-    const nextModelId = saved ?? defaultModelId
+    const nextModelId = saved
     const nextConfig = providerConfig?.config ?? {}
     const initialDraft: ConfigDraft = {
       modelId: nextModelId,
@@ -261,7 +258,6 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   }, [
     open,
     providerConfig,
-    defaultModelId,
     isCurrentProvider,
     cliTool,
     connectionMatchesProvider,
@@ -309,7 +305,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
         onSelect={handleModelSelect}
         filter={modelFilter}
         showTagFilter
-        trigger={<ModelSelectorTrigger value={draft.modelId} />}
+        trigger={<ModelSelectorTrigger value={draft.modelId} placeholder={t('settings.models.empty')} />}
       />
     </>
   )

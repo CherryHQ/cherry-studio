@@ -631,7 +631,6 @@ const CodeCliPage: FC = () => {
           provider={editingProvider}
           providerConfig={providerConfigs[editingProvider.id] ?? null}
           isCurrentProvider={currentProviderId === editingProvider.id}
-          defaultModelId={firstModelByProvider.get(editingProvider.id)}
           modelFilter={makeModelFilter(editingProvider.id)}
           onSubmit={handlePanelSubmit}
         />

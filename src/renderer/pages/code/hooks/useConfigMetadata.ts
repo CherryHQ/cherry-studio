@@ -49,7 +49,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
 
   const resolveProviderMeta = useCallback(
     (provider: Provider, providerConfig?: CliProviderConfig) => {
-      const modelId = providerConfig?.modelId ?? firstModelByProvider.get(provider.id)
+      const modelId = providerConfig?.modelId
       let modelName: string | undefined
       if (modelId && isUniqueModelId(modelId)) {
         const model = modelById.get(modelId)
@@ -61,7 +61,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
         modelName
       }
     },
-    [modelById, firstModelByProvider]
+    [modelById]
   )
 
   return { filterProviders, makeModelFilter, resolveProviderMeta, firstModelByProvider }

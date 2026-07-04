@@ -1,4 +1,5 @@
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
+import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
@@ -91,7 +92,9 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useModelById: () => ({ model: { id: 'anthropic::claude-old', name: 'Claude Old' } })
+  useModelById: (id: UniqueModelId | null | undefined) => ({
+    model: id ? { id, name: id === 'anthropic::claude-old' ? 'Claude Old' : 'Claude New' } : undefined
+  })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -159,6 +162,7 @@ function renderPanel(
   onSubmit = vi.fn(),
   options: {
     isCurrentProvider?: boolean
+    providerConfig?: CliProviderConfig | null
   } = {}
 ) {
   readCliConfigFilesMock.mockResolvedValue(cliConfigFiles)
@@ -175,9 +179,12 @@ function renderPanel(
       onClose={vi.fn()}
       cliTool={CodeCli.CLAUDE_CODE}
       provider={provider}
-      providerConfig={{ modelId: 'anthropic::claude-old' as UniqueModelId, config: {} }}
+      providerConfig={
+        options.providerConfig === undefined
+          ? { modelId: 'anthropic::claude-old' as UniqueModelId, config: {} }
+          : options.providerConfig
+      }
       isCurrentProvider={options.isCurrentProvider ?? true}
-      defaultModelId={'anthropic::claude-new' as UniqueModelId}
       modelFilter={() => true}
       onSubmit={onSubmit}
     />
@@ -205,6 +212,17 @@ describe('ConfigEditPanel', () => {
     expect(screen.queryByText('code.endpoint_hint')).not.toBeInTheDocument()
     expect(screen.queryByText('code.model_hint_config')).not.toBeInTheDocument()
     expect(screen.getByTestId('model-selector')).toBeInTheDocument()
+  })
+
+  it('shows the empty model placeholder when the provider has no saved model', () => {
+    renderPanel(vi.fn(), { isCurrentProvider: false, providerConfig: null })
+
+    expect(screen.getByText('settings.models.empty')).toBeInTheDocument()
+    expect(screen.queryByText('Claude Old')).not.toBeInTheDocument()
+    expect(screen.queryByText('Claude New')).not.toBeInTheDocument()
+    expect(screen.getByText('common.save')).toBeDisabled()
+    expect(readCliConfigFilesMock).not.toHaveBeenCalled()
+    expect(readCliConfigDraftMock).not.toHaveBeenCalled()
   })
 
   it('renders the dialog title as provider icon and provider name', async () => {
