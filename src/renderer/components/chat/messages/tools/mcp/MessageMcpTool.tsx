@@ -1,7 +1,7 @@
 import { CircularProgress, Flex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
-import { CopyIcon } from '@renderer/components/Icons'
+import { CopyIcon } from '@renderer/components/icons'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { McpToolResponse } from '@renderer/types/mcpTool'

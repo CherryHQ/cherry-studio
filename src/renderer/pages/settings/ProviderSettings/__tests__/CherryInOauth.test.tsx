@@ -1,5 +1,3 @@
-import '@renderer/i18n'
-
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,7 +26,7 @@ const DEFAULT_BALANCE = {
   }
 }
 
-vi.mock('@renderer/utils/oauth', () => ({
+vi.mock('@renderer/services/oauth', () => ({
   oauthWithCherryIn: vi.fn()
 }))
 

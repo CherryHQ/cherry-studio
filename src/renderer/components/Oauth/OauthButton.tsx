@@ -6,7 +6,7 @@ import {
   oauthWithAiOnly,
   oauthWithPPIO,
   oauthWithSiliconFlow
-} from '@renderer/utils/oauth'
+} from '@renderer/services/oauth'
 import type { API_KEY_OAUTH_PROVIDER_IDS } from '@shared/utils/provider'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'

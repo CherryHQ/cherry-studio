@@ -1,21 +1,11 @@
+import * as fs from 'node:fs'
+import * as path from 'node:path'
+
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-import enUS from '../../../renderer/i18n/locales/en-us.json'
-import zhCN from '../../../renderer/i18n/locales/zh-cn.json'
-import zhTW from '../../../renderer/i18n/locales/zh-tw.json'
-import deDE from '../../../renderer/i18n/translate/de-de.json'
-import elGR from '../../../renderer/i18n/translate/el-gr.json'
-import esES from '../../../renderer/i18n/translate/es-es.json'
-import frFR from '../../../renderer/i18n/translate/fr-fr.json'
-import jaJP from '../../../renderer/i18n/translate/ja-jp.json'
-import ptPT from '../../../renderer/i18n/translate/pt-pt.json'
-import roRO from '../../../renderer/i18n/translate/ro-ro.json'
-import ruRU from '../../../renderer/i18n/translate/ru-ru.json'
-import viVN from '../../../renderer/i18n/translate/vi-vn.json'
 
 const mocks = vi.hoisted(() => ({
   generateText: vi.fn(),
@@ -78,9 +68,24 @@ vi.mock('@data/services/AgentSessionService', () => ({
 
 const { TopicNamingService } = await import('../TopicNamingService')
 
-const unnamedTranslations = [deDE, elGR, enUS, esES, frFR, jaJP, ptPT, roRO, ruRU, viVN, zhCN, zhTW].map(
-  (locale) => locale.common.unnamed
-)
+// Read the renderer catalog from disk rather than importing it, so the main/preload
+// boundary lint (no renderer imports) stays satisfied while still guarding that every
+// localized `common.unnamed` default name is recognized by the auto-naming service.
+const rendererI18nDir = path.join(process.cwd(), 'src/renderer/i18n')
+const unnamedTranslations = [
+  'locales/en-us',
+  'locales/zh-cn',
+  'locales/zh-tw',
+  'translate/de-de',
+  'translate/el-gr',
+  'translate/es-es',
+  'translate/fr-fr',
+  'translate/ja-jp',
+  'translate/pt-pt',
+  'translate/ro-ro',
+  'translate/ru-ru',
+  'translate/vi-vn'
+].map((rel) => JSON.parse(fs.readFileSync(path.join(rendererI18nDir, `${rel}.json`), 'utf-8')).common.unnamed)
 
 function createService() {
   return new TopicNamingService()

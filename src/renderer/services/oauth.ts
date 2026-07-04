@@ -3,7 +3,7 @@ import i18n, { getLanguageCode } from '@renderer/i18n'
 import { ipcApi } from '@renderer/ipc'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
-const logger = loggerService.withContext('Utils:oauth')
+const logger = loggerService.withContext('oauth')
 
 const SILICON_CLIENT_ID = 'SFaJLLq0y6CAMoyDm81aMu'
 const PPIO_CLIENT_ID = '37d0828c96b34936a600b62c'
@@ -31,7 +31,7 @@ export const oauthWithSiliconFlow = async (setKey) => {
 }
 
 export const oauthWithAihubmix = async (setKey) => {
-  const authUrl = ` https://console.inferera.com/token?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`
+  const authUrl = ` https://console.inferera.com/token?client_id=cherry_studio_oauth&lang=${await getLanguageCode()}&aff=SJyh`
 
   const popup = window.open(
     authUrl,
@@ -268,6 +268,7 @@ export const oauthWithCherryIn = async (
 }
 
 export const providerCharge = async (provider: string) => {
+  const lang = await getLanguageCode()
   const chargeUrlMap = {
     silicon: {
       url: 'https://cloud.siliconflow.cn/expensebill',
@@ -275,7 +276,7 @@ export const providerCharge = async (provider: string) => {
       height: 700
     },
     aihubmix: {
-      url: `https://console.inferera.com/topup?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
+      url: `https://console.inferera.com/topup?client_id=cherry_studio_oauth&lang=${lang}&aff=SJyh`,
       width: 720,
       height: 900
     },
@@ -306,6 +307,7 @@ export const providerCharge = async (provider: string) => {
 }
 
 export const providerBills = async (provider: string) => {
+  const lang = await getLanguageCode()
   const billsUrlMap = {
     silicon: {
       url: 'https://cloud.siliconflow.cn/bills',
@@ -313,7 +315,7 @@ export const providerBills = async (provider: string) => {
       height: 700
     },
     aihubmix: {
-      url: `https://console.inferera.com/statistics?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
+      url: `https://console.inferera.com/statistics?client_id=cherry_studio_oauth&lang=${lang}&aff=SJyh`,
       width: 900,
       height: 700
     },

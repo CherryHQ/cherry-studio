@@ -1,0 +1,87 @@
+{
+  "agent": {
+    "session": {
+      "workspace_status": {
+        "inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}",
+        "missing": "Le chemin de l'espace de travail n'existe pas : {{path}}",
+        "not_directory": "Le chemin de l’espace de travail n’est pas un répertoire : {{path}}"
+      }
+    }
+  },
+  "appMenu": {
+    "about": "À propos",
+    "close": "Fermer la fenêtre",
+    "copy": "Copier",
+    "cut": "Couper",
+    "delete": "Supprimer",
+    "documentation": "Documentation",
+    "edit": "Modifier",
+    "feedback": "Retour d'information",
+    "file": "Fichier",
+    "forceReload": "Rechargement forcé",
+    "front": "Tout ramener au premier plan",
+    "help": "Aide",
+    "hide": "Cacher",
+    "hideOthers": "Masquer les autres",
+    "minimize": "Minimiser",
+    "paste": "Coller",
+    "quit": "Quitter",
+    "redo": "Refaire",
+    "releases": "Sorties",
+    "reload": "Recharger",
+    "resetZoom": "Taille réelle",
+    "selectAll": "Tout sélectionner",
+    "services": "Services",
+    "toggleDevTools": "Basculer les outils de développement",
+    "toggleFullscreen": "Basculer en plein écran",
+    "undo": "Annuler",
+    "unhide": "Tout afficher",
+    "view": "Vue",
+    "website": "Site web",
+    "window": "Fenêtre",
+    "zoom": "Zoom",
+    "zoomIn": "Zoom Avant",
+    "zoomOut": "Dézoomer"
+  },
+  "common": {
+    "copy": "Copier",
+    "cut": "Couper",
+    "inspect": "Vérifier",
+    "paste": "Coller"
+  },
+  "dialog": {
+    "all_files": "Tous les fichiers",
+    "html_files": "Fichiers HTML",
+    "open_file": "Ouvrir le fichier",
+    "pdf_files": "Fichiers PDF",
+    "png_image": "Image PNG",
+    "save_as_html": "Enregistrer au format HTML",
+    "save_as_pdf": "Enregistrer au format PDF",
+    "save_file": "Enregistrer le fichier",
+    "select_folder": "Sélectionner un dossier",
+    "word_document": "Document Word"
+  },
+  "paintings": {
+    "generate_failed": "Échec de la génération de l'image",
+    "image_mix_failed": "Échec du mélange des images"
+  },
+  "selection": {
+    "name": "Assistant de sélection de texte"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "Vous pouvez fermer cette page et retourner à Cherry Studio",
+          "title": "Authentification Réussie"
+        }
+      }
+    },
+    "title": "Paramètres"
+  },
+  "tray": {
+    "quit": "Quitter",
+    "show_quick_assistant": "Assistant Rapide",
+    "show_window": "Afficher la fenêtre"
+  }
+}

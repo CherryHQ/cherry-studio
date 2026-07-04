@@ -1,3 +1,3 @@
-export { default as CodeToolButton } from './button'
+export { default as CodeToolbar } from './CodeToolbar'
+export { default as CodeToolButton } from './CodeToolButton'
 export * from './hooks'
-export { default as CodeToolbar } from './toolbar'
