@@ -75,6 +75,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   applyHttpTrace(sdkConfig, request.chatId, model)
   const fileAttachments = collectFileAttachments(request.messages)
   const hasFileAttachments = fileAttachments.length > 0
+  const knowledgeBaseIds = resolveKnowledgeBaseIds(assistant, request.knowledgeBaseIds)
   const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
     ? await resolveTools(request, assistant, model, hasFileAttachments)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
@@ -89,7 +90,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     topicId: request.chatId,
     assistant,
     abortSignal: signal,
-    fileAttachments
+    fileAttachments,
+    knowledgeBaseIds
   }
 
   const scope: RequestScope = {
@@ -105,7 +107,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     aiSdkProviderId,
     requestContext,
     mcpToolIds,
-    hasFileAttachments
+    hasFileAttachments,
+    knowledgeBaseIds
   }
 
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
@@ -216,6 +219,16 @@ function resolveHasAnyKnowledgeBase(): boolean {
     logger.warn('Failed to check for knowledge bases during tool resolution; treating as present', { error })
     return true
   }
+}
+
+/**
+ * Effective knowledge base scope for this request: the assistant's own bound bases, unioned with
+ * whatever the composer's `/` picker selected for this turn. Union (not caller-wins, unlike
+ * `mcpToolIds`) because a per-turn selection is additive on top of the assistant's default scope,
+ * not a replacement for it.
+ */
+export function resolveKnowledgeBaseIds(assistant: Assistant | undefined, requestIds: string[] | undefined): string[] {
+  return Array.from(new Set([...(assistant?.knowledgeBaseIds ?? []), ...(requestIds ?? [])]))
 }
 
 /**

@@ -157,14 +157,14 @@ function makeProcessingFileItem(id: string): KnowledgeItem {
 
 type ListArgs = { query?: string | null; groupId?: string | null; baseId?: string | null; maxDepth?: number | null }
 
-function callExecute(args: ListArgs, ctx: { assistant?: Assistant } = {}): Promise<unknown> {
+function callExecute(args: ListArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
   const execute = entry.tool.execute as (args: ListArgs, options: ToolExecutionOptions) => Promise<unknown>
   return execute(args, {
     toolCallId: 'tc-1',
     messages: [],
     experimental_context: {
       requestId: 'req-1',
-      assistant: ctx.assistant,
+      knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
       abortSignal: new AbortController().signal
     }
   } as ToolExecutionOptions)
@@ -192,7 +192,7 @@ describe('kb_list', () => {
     ])
     knowledgeServiceListRootItems.mockReturnValue([])
 
-    const result = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
+    const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as Array<{
       id: string
     }>
     expect(result.map((b) => b.id)).toEqual(['kb-1'])
@@ -204,7 +204,7 @@ describe('kb_list', () => {
     knowledgeServiceListBases.mockReturnValue([makeBase({ id: 'kb-1' }), makeBase({ id: 'kb-2' })])
     knowledgeServiceListRootItems.mockReturnValue([])
 
-    const result = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: [] }) })) as Array<{
+    const result = (await callExecute({}, { knowledgeBaseIds: [] })) as Array<{
       id: string
     }>
     expect(result.map((b) => b.id).sort()).toEqual(['kb-1', 'kb-2'])
@@ -217,10 +217,9 @@ describe('kb_list', () => {
     ])
     knowledgeServiceListRootItems.mockReturnValue([])
 
-    const result = (await callExecute(
-      { groupId: 'g1' },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1', 'kb-2'] }) }
-    )) as Array<{ id: string }>
+    const result = (await callExecute({ groupId: 'g1' }, { knowledgeBaseIds: ['kb-1', 'kb-2'] })) as Array<{
+      id: string
+    }>
     expect(result.map((b) => b.id)).toEqual(['kb-1'])
   })
 
@@ -233,7 +232,7 @@ describe('kb_list', () => {
 
     const result = (await callExecute(
       { query: null, groupId: null },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1', 'kb-2'] }) }
+      { knowledgeBaseIds: ['kb-1', 'kb-2'] }
     )) as Array<{ id: string }>
     // null groupId must NOT collapse to `base.groupId === null`; both bases come back.
     expect(result.map((b) => b.id).sort()).toEqual(['kb-1', 'kb-2'])
@@ -250,10 +249,9 @@ describe('kb_list', () => {
       return []
     })
 
-    const result = (await callExecute(
-      { query: 'RUST' },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1', 'kb-2', 'kb-3'] }) }
-    )) as Array<{ id: string }>
+    const result = (await callExecute({ query: 'RUST' }, { knowledgeBaseIds: ['kb-1', 'kb-2', 'kb-3'] })) as Array<{
+      id: string
+    }>
     expect(result.map((b) => b.id).sort()).toEqual(['kb-1', 'kb-3'])
   })
 
@@ -267,7 +265,7 @@ describe('kb_list', () => {
       makeProcessingFileItem('i5')
     ])
 
-    const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
+    const [base] = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as Array<{
       sampleSources: string[]
       itemCount: number
     }>
@@ -284,7 +282,7 @@ describe('kb_list', () => {
     knowledgeServiceListBases.mockReturnValue([makeBase({ id: 'kb-1' })])
     knowledgeServiceListRootItems.mockReturnValue([makeNoteItem('n1', 'a'.repeat(200))])
 
-    const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
+    const [base] = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as Array<{
       sampleSources: string[]
     }>
     expect(base.sampleSources).toHaveLength(1)
@@ -298,7 +296,7 @@ describe('kb_list', () => {
     const items = Array.from({ length: 12 }, (_, idx) => makeFileItem(`i${idx}`, `file-${idx}.md`))
     knowledgeServiceListRootItems.mockReturnValue(items)
 
-    const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
+    const [base] = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as Array<{
       sampleSources: string[]
     }>
     expect(base.sampleSources).toHaveLength(8)
@@ -309,7 +307,7 @@ describe('kb_list', () => {
       makeBase({ id: 'kb-1', status: 'failed', error: 'missing_embedding_model' })
     ])
 
-    const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
+    const [base] = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as Array<{
       id: string
       status: string
       sampleSources: string[]
@@ -328,7 +326,7 @@ describe('kb_list', () => {
       throw new Error('boom')
     })
 
-    const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
+    const [base] = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as Array<{
       id: string
       sampleSources: string[]
       itemCount?: number
@@ -345,7 +343,7 @@ describe('kb_list', () => {
     knowledgeServiceListBases.mockReturnValue([makeBase({ id: 'kb-1' })])
     knowledgeServiceListRootItems.mockReturnValue([])
 
-    const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
+    const [base] = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as Array<{
       itemCount?: number
       itemsUnavailable?: boolean
     }>
@@ -370,10 +368,7 @@ describe('kb_list', () => {
     it('outlines an in-scope base, forwarding maxDepth and mapping itemType → type', async () => {
       knowledgeServiceGetOrganizationTree.mockReturnValue(orgTree())
 
-      const result = await callExecute(
-        { baseId: 'kb-1', maxDepth: 2 },
-        { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
-      )
+      const result = await callExecute({ baseId: 'kb-1', maxDepth: 2 }, { knowledgeBaseIds: ['kb-1'] })
 
       expect(knowledgeServiceGetOrganizationTree).toHaveBeenCalledWith('kb-1', { maxDepth: 2 })
       expect(result).toEqual({
@@ -390,10 +385,7 @@ describe('kb_list', () => {
     })
 
     it('returns an error and does not traverse when the base is outside the assistant scope', async () => {
-      const result = (await callExecute(
-        { baseId: 'kb-other' },
-        { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
-      )) as { error: string }
+      const result = (await callExecute({ baseId: 'kb-other' }, { knowledgeBaseIds: ['kb-1'] })) as { error: string }
 
       expect(result.error).toContain('kb-other')
       expect(knowledgeServiceGetOrganizationTree).not.toHaveBeenCalled()
@@ -404,10 +396,7 @@ describe('kb_list', () => {
         throw DataApiErrorFactory.notFound('Knowledge base', 'kb-gone')
       })
 
-      const result = (await callExecute(
-        { baseId: 'kb-gone' },
-        { assistant: makeAssistant({ knowledgeBaseIds: ['kb-gone'] }) }
-      )) as { error: string }
+      const result = (await callExecute({ baseId: 'kb-gone' }, { knowledgeBaseIds: ['kb-gone'] })) as { error: string }
 
       expect(result.error).toContain('kb-gone')
       expect(result.error).toContain('kb_list')
@@ -476,32 +465,46 @@ describe('kb_list', () => {
   })
 
   describe('applies', () => {
-    it('applies only when a base exists AND one is bound to the assistant (matches kb_search/kb_read)', () => {
+    it('applies only when a base exists AND one is in the effective scope (matches kb_search/kb_read)', () => {
       const applies = entry.applies!
       // No base in the system → never applies, even with bound ids.
       expect(
         applies({
           assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
           mcpToolIds: new Set(),
-          hasAnyKnowledgeBase: false
+          hasAnyKnowledgeBase: false,
+          knowledgeBaseIds: ['kb-1']
         })
       ).toBe(false)
-      // A base exists but none bound (or no assistant) → does NOT apply: listing every base would be a
-      // discovery dead-end (no kb_read / kb_search to act on them) and widen the per-assistant scope.
-      expect(applies({ assistant: undefined, mcpToolIds: new Set(), hasAnyKnowledgeBase: true })).toBe(false)
+      // A base exists but the effective scope is empty → does NOT apply: listing every base would be a
+      // discovery dead-end (no kb_read / kb_search to act on them) and widen the scope.
+      expect(
+        applies({ assistant: undefined, mcpToolIds: new Set(), hasAnyKnowledgeBase: true, knowledgeBaseIds: [] })
+      ).toBe(false)
       expect(
         applies({
           assistant: makeAssistant({ knowledgeBaseIds: [] }),
           mcpToolIds: new Set(),
-          hasAnyKnowledgeBase: true
+          hasAnyKnowledgeBase: true,
+          knowledgeBaseIds: []
         })
       ).toBe(false)
-      // A base exists AND is bound → applies.
+      // A base exists AND is bound to the assistant → applies.
       expect(
         applies({
           assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
           mcpToolIds: new Set(),
-          hasAnyKnowledgeBase: true
+          hasAnyKnowledgeBase: true,
+          knowledgeBaseIds: ['kb-1']
+        })
+      ).toBe(true)
+      // Assistant has no static binding, but the composer selected one for this turn → applies.
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: [] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: true,
+          knowledgeBaseIds: ['kb-selected-this-turn']
         })
       ).toBe(true)
     })

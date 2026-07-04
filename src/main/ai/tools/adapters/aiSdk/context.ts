@@ -22,6 +22,13 @@ export interface RequestContext {
 
   /** Attachments the `read_file` tool may read this request (filename → entry allow-list). */
   readonly fileAttachments?: ReadonlyArray<FileAttachmentRef>
+
+  /**
+   * Effective knowledge base scope for this request — `assistant.knowledgeBaseIds` unioned with
+   * the composer's per-turn `/` picker selection. The `kb_*` tools read this instead of
+   * `assistant.knowledgeBaseIds` directly. Defaults to empty.
+   */
+  readonly knowledgeBaseIds?: readonly string[]
 }
 
 /** Per-call context: {@link RequestContext} + AI SDK's per-`execute` fields. */

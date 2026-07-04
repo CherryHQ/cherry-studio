@@ -114,7 +114,8 @@ export const aiRequestSchemas = {
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
-        mentionedModelIds: z.array(z.custom<UniqueModelId>()).optional()
+        mentionedModelIds: z.array(z.custom<UniqueModelId>()).optional(),
+        knowledgeBaseIds: z.array(z.string()).optional()
       }),
       z.discriminatedUnion('trigger', [
         z.object({

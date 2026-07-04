@@ -2,8 +2,9 @@
  * Knowledge base write tool — the destructive companion to the read tools.
  *
  * One tool with an `action`: add a new source (file / url / note), or delete /
- * re-index existing documents addressed by their Concept ID. Per-request
- * `assistant.knowledgeBaseIds` flows in via RequestContext and scopes which bases
+ * re-index existing documents addressed by their Concept ID. The effective knowledge
+ * base scope (`assistant.knowledgeBaseIds` unioned with the composer's per-turn
+ * selection) flows in via `RequestContext.knowledgeBaseIds` and scopes which bases
  * are reachable. Every action mutates the base, so the tool is approval-gated
  * (`needsApproval: true`) — Cherry surfaces the approval card before it runs. The
  * mutation itself lives in the shared `knowledgeLookup` core so the Claude Code
@@ -43,7 +44,7 @@ const kbManageTool = tool({
   needsApproval: true,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
-    return manageKnowledge(input, request.assistant?.knowledgeBaseIds ?? [])
+    return manageKnowledge(input, request.knowledgeBaseIds ?? [])
   },
   toModelOutput: ({ output }) => knowledgeManageModelOutput(output)
 })
@@ -55,7 +56,7 @@ export function createKbManageToolEntry(): ToolEntry {
     description: 'Add, delete, or re-index documents in a knowledge base (requires approval)',
     defer: 'never',
     tool: kbManageTool,
-    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
+    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.knowledgeBaseIds?.length ?? 0) > 0
   }
 }
 

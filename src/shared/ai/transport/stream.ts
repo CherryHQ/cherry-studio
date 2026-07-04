@@ -121,6 +121,8 @@ export type AiStreamOpenRequest = {
   topicId: string
   /** UniqueModelIds selected by the composer model selector — Main dispatches one execution per model. */
   mentionedModelIds?: UniqueModelId[]
+  /** Knowledge bases selected via the composer `/` picker for this turn — unioned with the assistant's own bound bases. */
+  knowledgeBaseIds?: string[]
 } & (
   | {
       /** Brand-new user turn: create the user msg + N assistant placeholders. */

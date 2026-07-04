@@ -1,10 +1,15 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import type { Assistant } from '@shared/data/types/assistant'
 import type { StopCondition, ToolSet } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../../../__tests__/fixtures'
 import type { CallOverrides } from '../../../../types/requests'
-import { applyCallOverrides, composeStopWhen } from '../buildAgentParams'
+import { applyCallOverrides, composeStopWhen, resolveKnowledgeBaseIds } from '../buildAgentParams'
+
+function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
+  return { id: 'assistant-1', knowledgeBaseIds: [], ...overrides } as Assistant
+}
 
 /**
  * Covers the first-class per-request override merge that replaced the old
@@ -97,5 +102,28 @@ describe('composeStopWhen', () => {
     // The injected fallback caps the tool loop at the SDK default of 20 steps.
     expect(await conditions[0]({ steps: new Array(20) } as never)).toBe(true)
     expect(await conditions[0]({ steps: new Array(19) } as never)).toBe(false)
+  })
+})
+
+describe('resolveKnowledgeBaseIds', () => {
+  it('falls back to the assistant-bound bases when the request selects none', () => {
+    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-1'] }), undefined)).toEqual(['kb-1'])
+  })
+
+  it('trusts the request-selected bases when the assistant has no static binding', () => {
+    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: [] }), ['kb-2'])).toEqual(['kb-2'])
+    expect(resolveKnowledgeBaseIds(undefined, ['kb-2'])).toEqual(['kb-2'])
+  })
+
+  it('unions assistant-bound and request-selected bases, deduping overlaps', () => {
+    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-1'] }), ['kb-1', 'kb-2'])).toEqual([
+      'kb-1',
+      'kb-2'
+    ])
+  })
+
+  it('returns an empty array when neither source selects a base', () => {
+    expect(resolveKnowledgeBaseIds(undefined, undefined)).toEqual([])
+    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: [] }), undefined)).toEqual([])
   })
 })

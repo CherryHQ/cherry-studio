@@ -2,10 +2,10 @@
  * Knowledge base search tool — agentic.
  *
  * The model picks the query and target `baseIds` (typically after `kb_list`).
- * Per-request `assistant.knowledgeBaseIds` flows in via RequestContext and
- * scopes which base IDs are accepted. The search itself lives in the shared
- * `knowledgeLookup` core so the Claude Code MCP bridge runs identical logic;
- * this file is just the AI-SDK `tool()` wrapper.
+ * The effective knowledge base scope (`assistant.knowledgeBaseIds` unioned with the composer's
+ * per-turn selection) flows in via `RequestContext.knowledgeBaseIds` and scopes which base IDs are
+ * accepted. The search itself lives in the shared `knowledgeLookup` core so the Claude Code MCP
+ * bridge runs identical logic; this file is just the AI-SDK `tool()` wrapper.
  */
 
 import { KB_SEARCH_TOOL_NAME, kbSearchInputSchema, kbSearchOutputSchema } from '@shared/ai/builtinTools'
@@ -33,7 +33,7 @@ const kbSearchTool = tool({
   strict: true,
   execute: async ({ query, baseIds }, options) => {
     const { request } = getToolCallContext(options)
-    return searchKnowledge(query, baseIds, request.assistant?.knowledgeBaseIds ?? [])
+    return searchKnowledge(query, baseIds, request.knowledgeBaseIds ?? [])
   },
   toModelOutput: ({ output }) => knowledgeSearchModelOutput(output)
 })
@@ -45,7 +45,7 @@ export function createKbSearchToolEntry(): ToolEntry {
     description: "Search the user's private knowledge base",
     defer: 'always',
     tool: kbSearchTool,
-    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
+    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.knowledgeBaseIds?.length ?? 0) > 0
   }
 }
 

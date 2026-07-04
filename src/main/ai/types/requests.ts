@@ -42,6 +42,8 @@ export interface AiBaseRequest {
   /** "providerId::modelId" */
   uniqueModelId?: UniqueModelId
   mcpToolIds?: string[]
+  /** Knowledge bases selected for this turn — unioned with the assistant's own bound bases. */
+  knowledgeBaseIds?: string[]
   requestOptions?: AiTransportOptions
   /** Per-request overrides (in-process only; assistant-less callers like the API gateway). */
   callOverrides?: CallOverrides
