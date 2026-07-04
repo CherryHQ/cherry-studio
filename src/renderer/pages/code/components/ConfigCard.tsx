@@ -54,8 +54,8 @@ export const ProviderCard: FC<ProviderCardProps> = ({
         dragging
           ? 'border-primary/40 opacity-50'
           : isCurrent
-            ? 'border-success/50 bg-success/[0.04]'
-            : 'border-border/40 hover:border-border hover:bg-accent/20'
+            ? 'border-border/40 bg-muted'
+            : 'border-border/40 hover:border-border hover:bg-muted'
       }`}>
       <div className="flex items-center gap-3">
         <GripVertical

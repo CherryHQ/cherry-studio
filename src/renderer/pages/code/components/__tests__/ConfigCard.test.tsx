@@ -73,6 +73,13 @@ describe('ProviderCard', () => {
     expect(screen.queryByText('code.disable')).not.toBeInTheDocument()
   })
 
+  it('uses the same muted selection background as provider settings', () => {
+    const { card } = renderCard({ isCurrent: true })
+
+    expect(card).toHaveClass('bg-muted')
+    expect(card).not.toHaveClass('bg-success/[0.04]')
+  })
+
   it('toggles the provider with Enter and Space when the card has focus', () => {
     const { card, onToggleCurrent } = renderCard()
 
