@@ -1296,12 +1296,14 @@
       "add": "Adaugă etichetă",
       "delete": "Șterge eticheta",
       "deleteConfirm": "Ești sigur că vrei să ștergi această etichetă?",
+      "group_by": "Grupați după etichetă",
       "manage": "Gestionare etichete",
       "modify": "Modifică eticheta",
       "none": "Fără etichete",
       "settings": {
         "title": "Setări etichete"
       },
+      "ungroup": "Dezactivați gruparea etichetelor",
       "untagged": "Neetichetat"
     },
     "title": "Asistenți",
@@ -1563,8 +1565,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Cache {{hit_rate}}%",
+        "tooltip": "Citire cache {{cache_read}} / scriere {{cache_write}} / fără cache {{no_cache}} · {{saved}} tokeni de intrare economisiți"
       },
       "editing_current": "Acest mesaj este editat în compozitor",
       "flow": {
@@ -1613,6 +1615,13 @@
       "top": "Înapoi sus"
     },
     "resend": "Retrimite",
+    "resource_view": {
+      "menu": {
+        "agent": "Agenți",
+        "assistant": "Asistenți",
+        "skill": "Abilități"
+      }
+    },
     "save": {
       "file": {
         "title": "Salvează în fișier local"
@@ -2328,6 +2337,7 @@
       "no_match_description": "Niciun fișier nu corespunde filtrelor curente",
       "no_match_title": "Nu au fost găsite fișiere potrivite"
     },
+    "empty_trash": "Golește coșul de gunoi",
     "error": {
       "delete_failed": "Nu s-au putut șterge fișierele",
       "delete_partial_failed": "Anumite fișiere nu au putut fi șterse",
@@ -2345,6 +2355,7 @@
     "missing": "Lipsă",
     "modified_at": "Modificat la",
     "name": "Nume",
+    "no_actions": "Nu există acțiuni disponibile",
     "open": "Deschide",
     "other": "Altele",
     "permanent_delete": "Șterge definitiv",
@@ -2358,13 +2369,18 @@
     "remove_from_library": "Elimină din bibliotecă",
     "rename": "Redenumește",
     "restore": "Restaurează",
+    "select_all": "Selectați fișierele vizibile",
+    "select_all_short": "Selectează tot",
+    "select_file": "Selectează {{name}}",
     "selected_count": "{{count}} fișiere selectate",
+    "selected_missing_hint": "Unele fișiere selectate lipsesc. Localizați-le sau eliminați înregistrările acestora.",
     "show_in_folder": "Afișează în folder",
     "size": "Dimensiune",
     "text": "Text",
     "title": "Fișiere",
     "trash": "Gunoi",
     "type": "Tip",
+    "upload": "Încărcați fișierele",
     "video": "Video"
   },
   "globalSearch": {
@@ -2748,7 +2764,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} surse",
-      "documents_count": "{{count}} documente",
       "updated_at": "Actualizat {{time}}"
     },
     "name_required": "Numele bazei de cunoștințe este obligatoriu",
@@ -2908,7 +2923,8 @@
       "preview_description": "Prezentare generală",
       "preview_prompt": "Prompt",
       "scroll_left": "Derulați categoriile spre stânga",
-      "scroll_right": "Derulați categoriile spre dreapta"
+      "scroll_right": "Derulați categoriile spre dreapta",
+      "title": "Bibliotecă de asistenți"
     },
     "badge": {
       "update": "Actualizare"
@@ -4681,7 +4697,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -4694,6 +4710,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
@@ -4717,6 +4734,8 @@
     "ollama": "Ollama",
     "open-mineru": "MinerU Deschis",
     "openai": "OpenAI",
+    "openai-codex": "Codex OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -6794,6 +6813,7 @@
         "reorderFailed": "Nu s-a reușit reordonarea solicitărilor",
         "updateFailed": "Nu s-a reușit actualizarea promptului"
       },
+      "manage": "Gestionează Prompturi",
       "title": "Gestionarea prompturilor",
       "titleLabel": "Titlu",
       "titlePlaceholder": "Introduceți titlul solicitării",
@@ -6942,15 +6962,25 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "Furnizorul Claude Code este disponibil doar pentru Agenți — nu poate fi utilizat în chat sau asistenți.",
+        "description": "Conectează-te cu abonamentul tău Claude",
+        "description_detail": "Acest furnizor refolosește autentificarea CLI Claude Code (Claude Pro/Max) și este disponibil doar pentru Agenți. Deschide un terminal și rulează `claude /login` pentru a te autentifica.",
+        "launch_failed": "Nu s-a putut deschide terminalul. Rulează manual `claude /login` pentru a te autentifica.",
+        "legal_link": "Juridic și Conformitate",
+        "logged_in": "Conectat la Claude Code",
+        "logged_in_detail": "Agenții vor folosi acreditările tale de abonament Claude Code CLI.",
+        "open_terminal": "Deschide terminalul pentru a te conecta",
+        "recheck": "Verificare din nou"
+      },
+      "codex": {
+        "account": "Cont: {{accountId}}",
+        "description": "Conectează-te cu abonamentul tău ChatGPT",
+        "description_detail": "Acest furnizor utilizează autentificarea ta ChatGPT Plus/Pro (OAuth) pentru a accesa modelele OpenAI Codex. Browserul tău se va deschide pentru a finaliza conectarea.",
+        "logged_in": "Conectat la OpenAI Codex",
+        "sign_in_button": "Conectează-te cu ChatGPT",
+        "sign_in_failed": "Conectarea a eșuat. Vă rugăm să încercați din nou.",
+        "sign_in_success": "Conectat la OpenAI Codex",
+        "signing_in": "Așteptarea browserului…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7026,6 +7056,15 @@
       },
       "filter_agent": "Furnizori acceptați de agentul de filtrare",
       "get_api_key": "Obține cheie API",
+      "grok_cli": {
+        "description": "Conectează-te cu abonamentul tău SuperGrok",
+        "description_detail": "Acest furnizor utilizează autentificarea dvs. xAI SuperGrok (OAuth) pentru a accesa modelele Grok CLI (Grok Build, Composer). Browserul dvs. se va deschide pentru a finaliza conectarea.",
+        "logged_in": "Conectat în Grok CLI",
+        "sign_in_button": "Conectează-te cu xAI",
+        "sign_in_failed": "Conectarea a eșuat. Vă rugăm să încercați din nou.",
+        "sign_in_success": "Conectat la Grok CLI",
+        "signing_in": "Așteptare browser…"
+      },
       "logo_upload_failed": "Nu s-a putut procesa imaginea selectată",
       "misc": "Altele",
       "more_endpoints": {
@@ -7546,7 +7585,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Imagini",
     "settings": "Setări",
-    "store": "Bibliotecă asistenți",
     "translate": "Traducere",
     "work": "Muncă"
   },
