@@ -5,7 +5,7 @@ import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import WebSearchButton from '../WebSearchButton'
 
@@ -21,7 +21,8 @@ const mocks = vi.hoisted(() => ({
 const launcherApi: ToolLauncherApi = {
   registerLaunchers: vi.fn(() => vi.fn())
 }
-
+import { installSyncRafMock } from '../../../../../../../tests/__mocks__/requestAnimationFrame'
+let restoreRequestAnimationFrame: (() => void) | undefined
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18next>()
 
@@ -154,12 +155,19 @@ describe('WebSearchButton', () => {
         warning: mocks.toastWarning
       }
     })
+    restoreRequestAnimationFrame = installSyncRafMock()
   })
 
-  it('opens web search settings and does not update the assistant when external providers are missing', () => {
+  afterEach(() => {
+    restoreRequestAnimationFrame?.()
+    restoreRequestAnimationFrame = undefined
+  })
+
+  it('opens web search settings and restores trigger focus when external providers are missing', () => {
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
+    const button = screen.getByRole('button', { name: 'chat.input.web_search.label' })
+    fireEvent.click(button)
 
     expect(mocks.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -167,6 +175,10 @@ describe('WebSearchButton', () => {
         content: 'settings.tool.websearch.search_provider_placeholder'
       })
     )
+    const confirmOptions = mocks.confirm.mock.calls[0][0]
+    confirmOptions.afterClose()
+
+    expect(button).toHaveFocus()
     expect(mocks.updateAssistant).not.toHaveBeenCalled()
   })
 
@@ -215,5 +227,30 @@ describe('WebSearchButton', () => {
       id: 'web-search',
       sources: ['popover']
     })
+  })
+
+  it('restores composer focus after the missing-provider confirmation closes from the tool menu', async () => {
+    const inputAdapter = {
+      getText: vi.fn(() => ''),
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    await waitFor(() => expect(launcherApi.registerLaunchers).toHaveBeenCalled())
+    const [webSearchLauncher] = vi.mocked(launcherApi.registerLaunchers).mock.calls[0][0]
+
+    webSearchLauncher.action?.({
+      inputAdapter,
+      quickPanel: {} as never,
+      source: 'popover'
+    })
+
+    const confirmOptions = mocks.confirm.mock.calls[0][0]
+    confirmOptions.afterClose()
+
+    expect(inputAdapter.focus).toHaveBeenCalledTimes(1)
   })
 })
