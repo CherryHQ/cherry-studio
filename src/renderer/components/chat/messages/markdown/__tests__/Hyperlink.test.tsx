@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   }))
 }))
 
-vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
+vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
   __esModule: true,
   default: mocks.Favicon
 }))

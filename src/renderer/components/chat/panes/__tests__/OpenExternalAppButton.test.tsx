@@ -87,7 +87,7 @@ vi.mock('@data/hooks/useCache', () => ({
   usePersistCache: () => [mocks.lastUsedTarget, mocks.setLastUsedTarget]
 }))
 
-vi.mock('@renderer/components/Icons/SvgIcon', () => ({
+vi.mock('@renderer/components/icons/SvgIcon', () => ({
   FinderIcon: (props: React.SVGProps<SVGSVGElement>) => <svg aria-hidden="true" {...props} />
 }))
 
@@ -104,7 +104,7 @@ vi.mock('@renderer/utils/editor', () => ({
   buildEditorUrl: (app: { id: string }, workdir: string) => `editor://${app.id}${workdir}`
 }))
 
-vi.mock('@renderer/components/Icons/EditorIcon', () => ({
+vi.mock('@renderer/components/icons/EditorIcon', () => ({
   getEditorIcon: (app: { id: string }) => <span aria-hidden="true">{app.id}</span>
 }))
 

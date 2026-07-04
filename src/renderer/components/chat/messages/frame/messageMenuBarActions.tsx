@@ -4,7 +4,7 @@ import {
   type MessageMenuBarButtonId,
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
-import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
+import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/icons'
 import { messageToMarkdown } from '@renderer/services/ExportService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import type { MessageExportView } from '@renderer/types/messageExport'

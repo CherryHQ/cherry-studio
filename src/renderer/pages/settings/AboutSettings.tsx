@@ -1,7 +1,7 @@
 import { Badge, Button, CircularProgress, Divider, SegmentedControl, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
-import LogoAvatar from '@renderer/components/Icons/LogoAvatar'
+import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'

@@ -47,7 +47,7 @@ vi.mock('@renderer/utils/platform', () => ({
   isWin: false
 }))
 
-vi.mock('@renderer/components/Icons/EditorIcon', () => ({
+vi.mock('@renderer/components/icons/EditorIcon', () => ({
   getEditorIcon: ({ id }: { id: string }) => <span data-testid={`${id}-icon`} />
 }))
 

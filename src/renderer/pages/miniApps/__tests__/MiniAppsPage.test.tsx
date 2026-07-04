@@ -135,7 +135,7 @@ vi.mock('@renderer/components/Navbar', () => ({
   NavbarCenter: ({ children }: React.PropsWithChildren) => <div>{children}</div>
 }))
 
-vi.mock('@renderer/components/Icons/MiniAppIcon', () => ({
+vi.mock('@renderer/components/icons/MiniAppIcon', () => ({
   default: ({ app, size }: { app: MiniApp; size: number }) => (
     <img alt={app.name} data-testid={`mini-app-icon-${app.appId}`} height={size} src={app.logo} width={size} />
   )

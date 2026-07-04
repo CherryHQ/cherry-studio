@@ -1,7 +1,7 @@
 import { Alert, Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { DeleteIcon } from '@renderer/components/Icons'
+import { DeleteIcon } from '@renderer/components/icons'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServerMutations } from '@renderer/hooks/useMcpServer'

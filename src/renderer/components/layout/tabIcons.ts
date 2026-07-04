@@ -14,7 +14,7 @@ import {
   Settings
 } from 'lucide-react'
 
-import { OpenClawSidebarIcon } from '../Icons/SvgIcon'
+import { OpenClawSidebarIcon } from '../icons/SvgIcon'
 
 export type IconComponent = React.FC<{ size?: number; strokeWidth?: number; className?: string }>
 
