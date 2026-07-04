@@ -92,9 +92,11 @@ vi.mock('@cherrystudio/ui', () => ({
   },
   DialogContent: ({
     children,
+    closeOnOverlayClick = true,
     onPointerDownOutside
   }: {
     children: ReactNode
+    closeOnOverlayClick?: boolean
     onPointerDownOutside?: (event: { defaultPrevented: boolean; preventDefault: () => void }) => void
   }) => (
     <div role="dialog">
@@ -110,7 +112,7 @@ vi.mock('@cherrystudio/ui', () => ({
             }
           }
           onPointerDownOutside?.(event)
-          if (!event.defaultPrevented) {
+          if (closeOnOverlayClick) {
             dialogHarness.onOpenChange?.(false)
           }
         }}
@@ -190,7 +192,7 @@ describe('PromptEditDialog', () => {
     await waitFor(() => expect(editor).toHaveValue('Old ${variable}'))
   })
 
-  it('allows outside clicks to cancel the dialog', async () => {
+  it('keeps prompt edits open when clicking the overlay', async () => {
     const user = userEvent.setup()
     const onCancel = vi.fn()
 
@@ -212,6 +214,7 @@ describe('PromptEditDialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'dialog outside' }))
 
-    expect(onCancel).toHaveBeenCalledTimes(1)
+    expect(onCancel).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 })

@@ -1,5 +1,5 @@
 import IndicatorLight from '@renderer/components/IndicatorLight'
-import CustomTag from '@renderer/components/Tags/CustomTag'
+import CustomTag from '@renderer/components/tags/CustomTag'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import NavigationService from '@renderer/services/NavigationService'
 import { ArrowUpRight } from 'lucide-react'

@@ -25,7 +25,7 @@ import PlusButton from './components/PlusButton'
 import { findElementByLine } from './helpers/jumpToLine'
 import { EditorContent as StyledEditorContent, RichEditorWrapper } from './styles'
 import { ToC } from './TableOfContent'
-import { Toolbar } from './toolbar'
+import { Toolbar } from './Toolbar'
 import type { FormattingCommand, RichEditorProps, RichEditorRef } from './types'
 import { useRichEditor } from './useRichEditor'
 const logger = loggerService.withContext('RichEditor')

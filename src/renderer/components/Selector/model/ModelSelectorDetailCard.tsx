@@ -1,5 +1,5 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
-import { getModelDisplayTags, ModelTag } from '@renderer/components/Tags/Model'
+import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import { getModelSupportedReasoningEffortOptions } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'

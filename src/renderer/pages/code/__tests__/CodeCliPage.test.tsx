@@ -164,10 +164,7 @@ vi.mock('@shared/data/presets/codeCliTools', () => ({
   }
 }))
 
-vi.mock('../cliConfig', () => ({
-  clearCliConfig: (...args: unknown[]) => clearCliConfigMock(...args),
-  cliConfigConnectionMatchesProvider: () => true,
-  extractConnectionFromCliConfigDraft: (...args: unknown[]) => extractConnectionFromCliConfigDraftMock(...args),
+vi.mock('../cliConfig/claudeModels', () => ({
   getClaudeContextModelId: (providerId: string, config: Record<string, unknown>) => {
     const env = config.env as Record<string, string> | undefined
     return env?.ANTHROPIC_DEFAULT_FABLE_MODEL ? `${providerId}::${env.ANTHROPIC_DEFAULT_FABLE_MODEL}` : undefined
@@ -175,11 +172,32 @@ vi.mock('../cliConfig', () => ({
   hasClaudeDetailedModels: (config: Record<string, unknown>) => {
     const env = config.env as Record<string, string> | undefined
     return Boolean(env?.ANTHROPIC_DEFAULT_FABLE_MODEL)
-  },
-  injectCliConfig: (...args: unknown[]) => injectCliConfigMock(...args),
+  }
+}))
+
+vi.mock('../cliConfig/clear', () => ({
+  clearCliConfig: (...args: unknown[]) => clearCliConfigMock(...args)
+}))
+
+vi.mock('../cliConfig/draft', () => ({
   readCliConfigFiles: (...args: unknown[]) => readCliConfigFilesMock(...args),
-  sanitizeCliConfigBlob: (_cliTool: string, config: Record<string, unknown> | undefined) => config ?? {},
   writeCliConfigDraft: (...args: unknown[]) => writeCliConfigDraftMock(...args)
+}))
+
+vi.mock('../cliConfig/inject', () => ({
+  injectCliConfig: (...args: unknown[]) => injectCliConfigMock(...args)
+}))
+
+vi.mock('../cliConfig/parser', () => ({
+  extractConnectionFromCliConfigDraft: (...args: unknown[]) => extractConnectionFromCliConfigDraftMock(...args)
+}))
+
+vi.mock('../cliConfig/providerMatching', () => ({
+  cliConfigConnectionMatchesProvider: () => true
+}))
+
+vi.mock('../cliConfig/sanitize', () => ({
+  sanitizeCliConfigBlob: (_cliTool: string, config: Record<string, unknown> | undefined) => config ?? {}
 }))
 
 vi.mock('../components/CodeCliSidebar', () => ({

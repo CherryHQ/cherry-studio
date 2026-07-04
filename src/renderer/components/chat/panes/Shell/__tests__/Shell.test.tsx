@@ -87,7 +87,7 @@ vi.mock('../../../shell/RightPaneHost', () => ({
   }
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
+vi.mock('@renderer/components/icons', () => ({
   RightSidebarCollapseIcon: () => <span data-testid="collapse-icon" />,
   RightSidebarExpandIcon: () => <span data-testid="expand-icon" />
 }))

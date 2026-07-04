@@ -16,7 +16,7 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { ResetIcon } from '@renderer/components/Icons'
+import { ResetIcon } from '@renderer/components/icons'
 import { TopView } from '@renderer/components/TopView'
 import { CircleHelp } from 'lucide-react'
 import { useCallback, useState } from 'react'

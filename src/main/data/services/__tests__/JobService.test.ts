@@ -5,18 +5,18 @@ import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
+const baseRow = (overrides: Partial<InsertJobRow> = {}): InsertJobRow => ({
+  type: 'test.echo',
+  status: 'pending',
+  queue: 'default',
+  scheduledAt: Date.now(),
+  input: {},
+  maxAttempts: 3,
+  ...overrides
+})
+
 describe('JobService.count', () => {
   setupTestDatabase()
-
-  const baseRow = (overrides: Partial<InsertJobRow> = {}): InsertJobRow => ({
-    type: 'test.echo',
-    status: 'pending',
-    queue: 'default',
-    scheduledAt: Date.now(),
-    input: {},
-    maxAttempts: 3,
-    ...overrides
-  })
 
   const baseTrigger: Trigger = { kind: 'interval', ms: 60_000 }
 
@@ -75,5 +75,44 @@ describe('JobService.count', () => {
   it('returns 0 when no row matches', async () => {
     jobService.create(baseRow({ type: 'test.echo' }))
     expect(jobService.count({ type: 'nonexistent.type' })).toBe(0)
+  })
+})
+
+describe('JobService.list/count filters', () => {
+  setupTestDatabase()
+
+  it('filters by parentId and stays consistent with count()', () => {
+    // parentId has a self-referencing FK — the parent must be a real row.
+    const parent = jobService.create(baseRow({ status: 'completed' }))
+    jobService.create(baseRow({ parentId: parent.id }))
+    jobService.create(baseRow({ parentId: parent.id }))
+    jobService.create(baseRow())
+
+    const children = jobService.list({ parentId: parent.id })
+    expect(children).toHaveLength(2)
+    expect(children.every((j) => j.parentId === parent.id)).toBe(true)
+    expect(jobService.count({ parentId: parent.id })).toBe(children.length)
+    expect(jobService.list({ parentId: parent.id + '-missing' })).toHaveLength(0)
+  })
+
+  it('accepts a type array with IN semantics, equivalent to the union of single-type filters', () => {
+    jobService.create(baseRow({ type: 'type.a' }))
+    jobService.create(baseRow({ type: 'type.a' }))
+    jobService.create(baseRow({ type: 'type.b' }))
+    jobService.create(baseRow({ type: 'type.c' }))
+
+    const combined = jobService.list({ type: ['type.a', 'type.b'] })
+    expect(combined).toHaveLength(3)
+    expect(jobService.count({ type: ['type.a', 'type.b'] })).toBe(combined.length)
+    const unionOfSingles = jobService.list({ type: 'type.a' }).length + jobService.list({ type: 'type.b' }).length
+    expect(combined.length).toBe(unionOfSingles)
+  })
+
+  it('treats an empty type array as "no filter" — matches all rows', () => {
+    jobService.create(baseRow({ type: 'type.a' }))
+    jobService.create(baseRow({ type: 'type.b' }))
+
+    expect(jobService.list({ type: [] })).toHaveLength(2)
+    expect(jobService.count({ type: [] })).toBe(2)
   })
 })

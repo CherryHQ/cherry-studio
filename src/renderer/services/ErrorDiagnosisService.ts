@@ -1,10 +1,10 @@
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { SerializedError } from '@renderer/types/error'
+import { readDefaultModel } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 
 import { fetchGenerate } from './ApiService'
-import { readDefaultModel } from './ModelService'
 
 const logger = loggerService.withContext('ErrorDiagnosisService')
 

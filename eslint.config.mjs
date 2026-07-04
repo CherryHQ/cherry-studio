@@ -1,7 +1,13 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import tseslint from '@electron-toolkit/eslint-config-ts'
 import eslint from '@eslint/js'
 import eslintReact from '@eslint-react/eslint-plugin'
 import { defineConfig } from 'eslint/config'
+import { createTypeScriptImportResolver } from 'eslint-import-resolver-typescript'
+import importX from 'eslint-plugin-import-x'
 import importZod from 'eslint-plugin-import-zod'
 import oxlint from 'eslint-plugin-oxlint'
 import reactHooks from 'eslint-plugin-react-hooks'
@@ -66,6 +72,63 @@ const LEGACY_RENDERER_CSS_VAR_REGEX = new RegExp(
   `(${LEGACY_RENDERER_CSS_VARS.map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?![\\w-])`,
   'g'
 )
+
+// --- renderer dependency-direction boundary gate (import-x/no-restricted-paths) ---
+const RENDERER_DIRNAME = path.dirname(fileURLToPath(import.meta.url))
+const PAGE_DOMAINS = fs
+  .readdirSync(path.join(RENDERER_DIRNAME, 'src/renderer/pages'), { withFileTypes: true })
+  .filter((d) => d.isDirectory())
+  .map((d) => d.name)
+
+// A page must not import a sibling page domain; its own subtree is allowed via `except` (resolved relative to `from`).
+const pageSiblingZones = PAGE_DOMAINS.map((p) => ({
+  target: `src/renderer/pages/${p}`,
+  from: 'src/renderer/pages',
+  except: [`./${p}`],
+  message: 'A page must not import another page (cross-page coupling). renderer-architecture.md §7.'
+}))
+
+// Topic barrels under services/: a services/<topic>/ exposes exactly one curated index.ts as its sole
+// external entry (renderer-architecture.md §3.1/§5). Auto-discovered from the filesystem so a new topic dir
+// needs zero rule edits — mirrors pageSiblingZones above. A topic's own subtree is excluded from `target`
+// (extglob negation), so internal `./sibling` imports stay legal while every outside importer is limited to
+// the barrel. Applied in every renderer importer region via blocks L/P/B below.
+const SERVICES_DIR = path.join(RENDERER_DIRNAME, 'src/renderer/services')
+const serviceTopics = fs
+  .readdirSync(SERVICES_DIR, { withFileTypes: true })
+  .filter((d) => d.isDirectory() && d.name !== '__tests__' && d.name !== '__mocks__')
+  .filter((d) => fs.existsSync(path.join(SERVICES_DIR, d.name, 'index.ts')))
+  .map((d) => d.name)
+
+const serviceBarrelZones = serviceTopics.map((topic) => ({
+  target: [
+    `src/renderer/!(services)/**/*`, // importers outside services/ entirely
+    `src/renderer/services/!(${topic})/**/*`, // sibling topic dirs
+    `src/renderer/services/*` // flat files at the services/ root
+  ],
+  from: `src/renderer/services/${topic}/**/*`,
+  except: ['**/index.ts'], // the barrel itself stays importable
+  message: `services/${topic}/ is a topic barrel — import @renderer/services/${topic} (its index.ts), not its internals. renderer-architecture.md §3.1/§5.`
+}))
+
+// Each block's `files` is scoped so the three no-restricted-paths instances (L/P/B) never both apply to one
+// file — flat config merges rules by key (last-wins), which would otherwise drop one block silently.
+const SHARED_BUCKET_FILES = [
+  'src/renderer/components/**/*.{ts,tsx,js,jsx}',
+  'src/renderer/hooks/**/*.{ts,tsx,js,jsx}',
+  'src/renderer/services/**/*.{ts,tsx,js,jsx}',
+  'src/renderer/utils/**/*.{ts,tsx,js,jsx}'
+]
+const PAGE_FILES = ['src/renderer/pages/**/*.{ts,tsx,js,jsx}']
+const RENDERER_IGNORES = ['src/renderer/**/*.test.*', 'src/renderer/**/__tests__/**', 'src/renderer/**/__mocks__/**']
+const boundarySettings = {
+  'import-x/resolver-next': [
+    createTypeScriptImportResolver({ project: path.join(RENDERER_DIRNAME, 'tsconfig.web.json'), alwaysTryTypes: true })
+  ]
+}
+// Two independent gates: block1 (layer edges) is enforced as error — Stage 1 cleared it; block2 (sibling pages) stays warn until features-ization.
+const RENDERER_BOUNDARY = 'error'
+const PAGE_SIBLING = process.env.RENDERER_PAGE_SIBLING_ERROR ? 'error' : 'warn'
 
 export default defineConfig([
   eslint.configs.recommended,
@@ -318,6 +381,91 @@ export default defineConfig([
                 'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/shared-layer-architecture.md.'
             }
           ]
+        }
+      ]
+    }
+  },
+  // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).
+  // Scoped to shared-bucket files so it never collides with block P on a pages file. Flips to error once A+C clear.
+  {
+    files: SHARED_BUCKET_FILES,
+    ignores: RENDERER_IGNORES,
+    plugins: { 'import-x': importX },
+    settings: boundarySettings,
+    rules: {
+      'import-x/no-restricted-paths': [
+        RENDERER_BOUNDARY,
+        {
+          basePath: RENDERER_DIRNAME,
+          zones: [
+            {
+              target: [
+                'src/renderer/components',
+                'src/renderer/hooks',
+                'src/renderer/services',
+                'src/renderer/utils'
+              ],
+              from: ['src/renderer/pages', 'src/renderer/windows'],
+              message: 'Shared buckets must not import pages/windows (reverse layer edge). renderer-architecture.md §7.'
+            },
+            {
+              target: 'src/renderer/utils',
+              from: ['src/renderer/components', 'src/renderer/hooks'],
+              message: 'utils/ is stateless and may call downward infra (data/ipc) but must not import components/hooks or any higher app layer. renderer-architecture.md §3.'
+            },
+            // @logger is a §2 primitive that physically lives under services/. `from` uses a glob, so `except` must also glob.
+            {
+              target: 'src/renderer/utils',
+              from: ['src/renderer/services/**/*'],
+              except: ['**/LoggerService.ts'],
+              message: 'utils/ must not import renderer services (except @logger). renderer-architecture.md §3.'
+            },
+            ...serviceBarrelZones
+          ]
+        }
+      ]
+    }
+  },
+  // Renderer boundary block P: page-targeted edges — B-pw (page→window) + B-pp (page→sibling-page).
+  // Scoped to pages files; both share one severity (one no-restricted-paths instance = one severity), held at warn
+  // until features-ization clears the sibling-page edges.
+  {
+    files: PAGE_FILES,
+    ignores: RENDERER_IGNORES,
+    plugins: { 'import-x': importX },
+    settings: boundarySettings,
+    rules: {
+      'import-x/no-restricted-paths': [
+        PAGE_SIBLING,
+        {
+          basePath: RENDERER_DIRNAME,
+          zones: [
+            {
+              target: 'src/renderer/pages',
+              from: 'src/renderer/windows',
+              message: 'A page must not import a window (reverse edge). renderer-architecture.md §2/§7.'
+            },
+            ...pageSiblingZones,
+            ...serviceBarrelZones
+          ]
+        }
+      ]
+    }
+  },
+  // Renderer boundary block B: topic-barrel guard for the importer regions blocks L/P do not cover
+  // (windows, routes, data, ipc, workers, …). Its `files` ignore the L and P scopes so it never shares a
+  // file with them — avoiding the flat-config last-wins collision noted above. Held at error like block L.
+  {
+    files: ['src/renderer/**/*.{ts,tsx,js,jsx}'],
+    ignores: [...RENDERER_IGNORES, ...SHARED_BUCKET_FILES, ...PAGE_FILES],
+    plugins: { 'import-x': importX },
+    settings: boundarySettings,
+    rules: {
+      'import-x/no-restricted-paths': [
+        RENDERER_BOUNDARY,
+        {
+          basePath: RENDERER_DIRNAME,
+          zones: [...serviceBarrelZones]
         }
       ]
     }

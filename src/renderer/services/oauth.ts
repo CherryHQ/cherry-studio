@@ -3,7 +3,7 @@ import i18n, { getLanguageCode } from '@renderer/i18n'
 import { ipcApi } from '@renderer/ipc'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
-const logger = loggerService.withContext('Utils:oauth')
+const logger = loggerService.withContext('oauth')
 
 const SILICON_CLIENT_ID = 'SFaJLLq0y6CAMoyDm81aMu'
 const PPIO_CLIENT_ID = '37d0828c96b34936a600b62c'

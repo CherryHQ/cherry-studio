@@ -585,7 +585,7 @@ const TaskDetail: FC<{
       </SettingGroup>
 
       <Dialog open={promptModalOpen} onOpenChange={handlePromptModalOpenChange}>
-        <DialogContent className="sm:max-w-160">
+        <DialogContent closeOnOverlayClick={false} className="sm:max-w-160">
           <DialogHeader>
             <DialogTitle>{t('agent.cherryClaw.tasks.prompt.label')}</DialogTitle>
           </DialogHeader>
@@ -918,7 +918,7 @@ const CreateForm: FC<{
           </SettingRow>
 
           <Dialog open={promptModalOpen} onOpenChange={setPromptModalOpen}>
-            <DialogContent className="sm:max-w-160">
+            <DialogContent closeOnOverlayClick={false} className="sm:max-w-160">
               <DialogHeader>
                 <DialogTitle>{t('agent.cherryClaw.tasks.prompt.label')}</DialogTitle>
               </DialogHeader>

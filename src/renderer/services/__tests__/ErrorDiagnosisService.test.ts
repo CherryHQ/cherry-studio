@@ -7,7 +7,7 @@ vi.mock('../ApiService', () => ({
 
 // `readDefaultModel` now reads from preferenceService + dataApiService, not Redux.
 // Mock the boundary directly so tests can stage the value without rewiring v2 data.
-vi.mock('../ModelService', () => ({
+vi.mock('@renderer/utils/model', () => ({
   readDefaultModel: vi.fn().mockResolvedValue(undefined)
 }))
 
@@ -23,9 +23,10 @@ vi.mock('@renderer/services/LoggerService', () => ({
   }
 }))
 
+import { readDefaultModel } from '@renderer/utils/model'
+
 import { fetchGenerate } from '../ApiService'
 import { diagnoseError } from '../ErrorDiagnosisService'
-import { readDefaultModel } from '../ModelService'
 
 const mockFetchGenerate = vi.mocked(fetchGenerate)
 const mockReadDefaultModel = vi.mocked(readDefaultModel)

@@ -6,12 +6,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ClaudeConfigFields } from '../ClaudeConfigFields'
 
+type ReactTestRuntime = {
+  Children: {
+    map: <T>(children: ReactNode, fn: (child: ReactNode, index: number) => T) => T[] | null
+  }
+  cloneElement: (element: ReactElement<any>, props: Record<string, unknown>) => ReactElement
+  isValidElement: (value: unknown) => value is ReactElement
+}
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
-  const React = await vi.importActual<typeof import('react')>('react')
+  const React = (await vi.importActual('react')) as ReactTestRuntime
   return {
     Button: ({
       variant,

@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   }))
 }))
 
-vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
+vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
   __esModule: true,
   default: mocks.Favicon
 }))
@@ -37,6 +37,7 @@ vi.mock('@cherrystudio/ui', () => {
       ),
     PopoverTrigger: ({ children, asChild, ...props }) => {
       if (asChild && React.isValidElement(children)) {
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, { ...props, 'data-testid': 'popover-trigger' })
       }
       return React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children)
@@ -62,6 +63,7 @@ vi.mock('@cherrystudio/ui', () => {
       ),
     PopoverTrigger: ({ children, asChild, ...props }) => {
       if (asChild && React.isValidElement(children)) {
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, { ...props, 'data-testid': 'popover-trigger' })
       }
       return React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children)

@@ -158,7 +158,7 @@ const CreateKnowledgeBaseDialogRoot = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="sm">
+      <DialogContent closeOnOverlayClick={false} size="sm">
         <CreateKnowledgeBaseDialog.Header title={t('knowledge.add.title')} />
 
         <CreateKnowledgeBaseDialog.Form onSubmit={handleSubmit}>

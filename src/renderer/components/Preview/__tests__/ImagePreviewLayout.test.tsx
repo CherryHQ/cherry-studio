@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   }))
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
+vi.mock('@renderer/components/icons', () => ({
   LoadingIcon: () => <div data-testid="spinner">Spinner</div>
 }))
 
