@@ -9,7 +9,7 @@ import {
   SelectValue,
   Tooltip
 } from '@cherrystudio/ui'
-import { ResetIcon } from '@renderer/components/Icons'
+import { ResetIcon } from '@renderer/components/icons'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'

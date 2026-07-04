@@ -48,7 +48,9 @@ vi.mock('@cherrystudio/ui', async () => {
 
   return {
     Button: ({ children, loading, ...props }: { children: ReactNode; loading?: boolean; [key: string]: unknown }) => (
-      <button {...props}>{loading ? 'loading' : children}</button>
+      <button type="button" {...props}>
+        {loading ? 'loading' : children}
+      </button>
     ),
     Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
     DialogContent: ({ children, size, ...props }: { children: ReactNode; size?: string; [key: string]: unknown }) => (

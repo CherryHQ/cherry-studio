@@ -1,10 +1,11 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { Icon } from '@iconify/react'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { FinderIcon } from '@renderer/components/Icons/SvgIcon'
+import { getEditorIcon } from '@renderer/components/icons/EditorIcon'
+import { FinderIcon } from '@renderer/components/icons/SvgIcon'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
-import { getEditorIcon } from '@renderer/utils/editorUtils'
 import { getFileIconName } from '@renderer/utils/fileIconName'
+import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
@@ -14,7 +15,6 @@ import { type MouseEvent, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions, useOptionalMessageListUi } from '../../MessageListProvider'
-import { normalizeInlineFilePath, resolveInlineFilePath } from '../../utils/filePath'
 
 export type ReportArtifactsToolResponse = McpToolResponse | NormalToolResponse
 
