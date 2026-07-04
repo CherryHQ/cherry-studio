@@ -1,3 +1,12 @@
+/**
+ * @deprecated LEGACY v1 CODE — being migrated to `FileManager`
+ * (`src/main/services/file/FileManager.ts`). This file will be DELETED once
+ * the migration is complete.
+ *
+ * Do NOT add new features or new call sites here — route new file
+ * functionality through `FileManager` instead. Existing consumers should be
+ * migrated off this module as part of the ongoing migration.
+ */
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
