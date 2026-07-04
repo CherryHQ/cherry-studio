@@ -3,7 +3,7 @@ import { ModelSelector } from '@renderer/components/Selector/model'
 import { CLAUDE_DETAILED_MODEL_ROLES, stripClaudeOneMMarker } from '@renderer/pages/code/cliConfig'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ModelSelectorTrigger } from '../ModelSelectorTrigger'
@@ -60,6 +60,8 @@ const BOOLEAN_TOGGLES = [
   }
 ] as const
 
+const DEFAULT_VISIBLE_TOGGLE_COUNT = 5
+
 export interface ClaudeConfigFieldsProps {
   config: Record<string, unknown>
   onChange: (next: Record<string, unknown>) => void
@@ -108,9 +110,12 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
   modelFilter
 }) => {
   const { t } = useTranslation()
+  const [showAllToggles, setShowAllToggles] = useState(false)
 
   const env = useMemo(() => getEnv(config), [config])
   const hideAttribution = useMemo(() => isAttributionHidden(config), [config])
+  const visibleToggles = showAllToggles ? BOOLEAN_TOGGLES : BOOLEAN_TOGGLES.slice(0, DEFAULT_VISIBLE_TOGGLE_COUNT)
+  const hiddenToggleCount = BOOLEAN_TOGGLES.length - DEFAULT_VISIBLE_TOGGLE_COUNT
 
   const updateEnvField = useCallback(
     (envKey: string, value: string) => {
@@ -151,7 +156,7 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
     <div className="space-y-3">
       {section !== 'advanced' && (
         <div className="flex flex-wrap gap-1.5">
-          {BOOLEAN_TOGGLES.map((field) => {
+          {visibleToggles.map((field) => {
             const active = env[field.envKey] === field.onValue
             return (
               <TogglePill
@@ -162,11 +167,21 @@ export const ClaudeConfigFields: FC<ClaudeConfigFieldsProps> = ({
               />
             )
           })}
-          <TogglePill
-            label={t('code.adv.claude.hide_attribution')}
-            active={hideAttribution}
-            onClick={() => toggleHideAttribution(!hideAttribution)}
-          />
+          {showAllToggles && (
+            <TogglePill
+              label={t('code.adv.claude.hide_attribution')}
+              active={hideAttribution}
+              onClick={() => toggleHideAttribution(!hideAttribution)}
+            />
+          )}
+          {hiddenToggleCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAllToggles((expanded) => !expanded)}
+              className="inline-flex items-center rounded-full border border-border/50 px-2.5 py-1 text-[11px] text-muted-foreground/60 transition-colors hover:border-border hover:text-foreground">
+              {showAllToggles ? t('code.collapse') : t('code.more')}
+            </button>
+          )}
         </div>
       )}
 

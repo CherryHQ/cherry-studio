@@ -49,14 +49,18 @@ vi.mock('../../ModelSelectorTrigger', () => ({
 }))
 
 function renderFields(
-  options: { config?: Record<string, unknown>; onChange?: (next: Record<string, unknown>) => void } = {}
+  options: {
+    config?: Record<string, unknown>
+    onChange?: (next: Record<string, unknown>) => void
+    section?: 'all' | 'basic' | 'advanced'
+  } = {}
 ) {
   const onChange = options.onChange ?? vi.fn()
   render(
     <ClaudeConfigFields
       config={options.config ?? {}}
       onChange={onChange}
-      section="advanced"
+      section={options.section ?? 'advanced'}
       providerId="anthropic"
       modelFilter={() => true}
     />
@@ -81,6 +85,28 @@ describe('ClaudeConfigFields', () => {
     expect(screen.queryByText('code.adv.claude.effort_level_hint')).not.toBeInTheDocument()
     expect(screen.queryByText('code.adv.claude.max_context_tokens_hint')).not.toBeInTheDocument()
     expect(screen.queryByText('code.adv.claude.permissions_hint')).not.toBeInTheDocument()
+  })
+
+  it('shows the five most important Claude toggles before expanding the rest', () => {
+    renderFields({ section: 'basic' })
+
+    expect(screen.getByText('code.adv.claude.enable_tool_search')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.claude.enable_teammates')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.claude.disable_auto_upgrade')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.claude.disable_nonessential_traffic')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.claude.disable_bundled_skills')).toBeInTheDocument()
+    expect(screen.queryByText('code.adv.claude.disable_compact')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.adv.claude.hide_attribution')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('code.more'))
+
+    expect(screen.getByText('code.adv.claude.disable_compact')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.claude.disable_1m_context')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.claude.disable_terminal_title')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.claude.disable_extra_usage_command')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.claude.disable_attribution_header')).toBeInTheDocument()
+    expect(screen.getByText('code.adv.claude.hide_attribution')).toBeInTheDocument()
+    expect(screen.getByText('code.collapse')).toBeInTheDocument()
   })
 
   it('orders role model selectors as Fable, Opus, Sonnet, Haiku', () => {
