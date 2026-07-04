@@ -14,7 +14,7 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import { loggerService } from '@logger'
 import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
 import EditableNumber from '@renderer/components/EditableNumber'
-import { ResetIcon } from '@renderer/components/Icons'
+import { ResetIcon } from '@renderer/components/icons'
 import Selector from '@renderer/components/Selector'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'

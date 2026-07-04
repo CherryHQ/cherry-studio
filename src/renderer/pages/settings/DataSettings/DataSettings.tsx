@@ -1,6 +1,5 @@
 import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
-import { JoplinIcon, SiyuanIcon } from '@renderer/components/Icons'
-import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
+import { JoplinIcon, NutstoreIcon, SiyuanIcon } from '@renderer/components/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/hooks/useTheme'
 import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'

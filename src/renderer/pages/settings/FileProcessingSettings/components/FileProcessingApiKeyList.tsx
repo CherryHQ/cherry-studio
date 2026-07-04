@@ -1,6 +1,6 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { EditIcon } from '@renderer/components/Icons'
+import { EditIcon } from '@renderer/components/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { TopView } from '@renderer/components/TopView'
 import { cn } from '@renderer/utils/style'

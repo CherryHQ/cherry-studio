@@ -7,7 +7,7 @@ import i18n from '@renderer/i18n'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
-  isSerializedAiSdkAPICallError,
+  isSerializedAiSdkApiCallError,
   isSerializedAiSdkDownloadError,
   isSerializedAiSdkError,
   isSerializedAiSdkErrorUnion,
@@ -234,25 +234,25 @@ const AiSdkError = memo(({ error }: { error: SerializedAiSdkErrorUnion }) => {
 
   return (
     <ErrorDetailList>
-      {(isSerializedAiSdkAPICallError(error) || isSerializedAiSdkDownloadError(error)) && error.url && (
+      {(isSerializedAiSdkApiCallError(error) || isSerializedAiSdkDownloadError(error)) && error.url && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.requestUrl')}:</ErrorDetailLabel>
           <ErrorDetailValue className="selectable">{error.url}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
 
-      {isSerializedAiSdkAPICallError(error) && error.responseBody && (
+      {isSerializedAiSdkApiCallError(error) && error.responseBody && (
         <TruncatedCodeViewer value={error.responseBody} label={t('error.responseBody')} />
       )}
 
-      {(isSerializedAiSdkAPICallError(error) || isSerializedAiSdkDownloadError(error)) && error.statusCode && (
+      {(isSerializedAiSdkApiCallError(error) || isSerializedAiSdkDownloadError(error)) && error.statusCode && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.statusCode')}:</ErrorDetailLabel>
           <ErrorDetailValue className="selectable">{error.statusCode}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
 
-      {isSerializedAiSdkAPICallError(error) && (
+      {isSerializedAiSdkApiCallError(error) && (
         <>
           {error.responseHeaders && (
             <ErrorDetailItem>

@@ -62,6 +62,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       if (asChild && React.isValidElement(children)) {
         const childProps = children.props || {}
 
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, {
           ...triggerProps,
           ...childProps,
@@ -1113,6 +1114,29 @@ describe('Sessions', () => {
 
     view.rerender(<SessionsForTest key="collapsed-session-b" />)
     expect(screen.getByRole('button', { name: 'Beta agent' })).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('clears session selection while a resource menu item is active', () => {
+    cacheMocks.state.activeSessionId = 'session-a'
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' })]
+    })
+
+    render(
+      <SessionsForTest
+        resourceMenuItems={[
+          {
+            active: true,
+            id: 'agent-skills',
+            label: 'Agent skills',
+            onSelect: vi.fn()
+          }
+        ]}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'Agent skills' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByText('Alpha session').closest('[role="option"]')).not.toHaveAttribute('data-selected')
   })
 
   it('creates sessions from agent group actions', async () => {

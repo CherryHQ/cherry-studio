@@ -2,6 +2,7 @@ import '@renderer/assets/styles/index.css'
 import '@renderer/assets/styles/tailwind.css'
 
 import { preferenceService } from '@data/PreferenceService'
+import { initI18n } from '@renderer/i18n'
 import { createRoot } from 'react-dom/client'
 
 import SelectionActionApp from './SelectionActionApp'
@@ -15,6 +16,8 @@ await preferenceService.preload([
   'feature.selection.auto_pin',
   'feature.selection.action_window_opacity'
 ])
+
+await initI18n()
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
 root.render(<SelectionActionApp />)

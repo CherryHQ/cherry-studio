@@ -1,5 +1,5 @@
 import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
-import { McpLogo } from '@renderer/components/Icons'
+import { McpLogo } from '@renderer/components/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn } from '@renderer/utils/style'

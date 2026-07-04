@@ -78,5 +78,3 @@ against the v2 agent shape, so it pulls the whole agent-session stack with it.
 - `ModelSelector` subpath `@renderer/components/Selector/model` (used in
   translate/openclaw/code/knowledge/settings) → back to the barrel once main's
   program converges with feat.
-- launchpad's re-added `getSidebarFavoriteLabelKey` (feat renamed to
-  `getSidebarIconLabelKey`).

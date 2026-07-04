@@ -10,7 +10,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
-import { isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
+import { isExternalCliProvider, isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
@@ -107,6 +107,26 @@ async function resolveClaudeCodeRuntimeRoute(
   const geminiRef = modelRefs.find((ref) => ref.provider && isGeminiProvider(ref.provider))
   if (geminiRef) {
     throw new Error(`Gemini provider models are not supported by Claude Code agents: ${geminiRef.providerId}`)
+  }
+
+  // External-cli (e.g. claude-code) authenticates only through the SDK's
+  // subscription login, which can serve *only* this provider's own models. A
+  // plan/small model pointing at another provider can't run on that login — and
+  // must not fall through to the gateway branch below, which would inject an API
+  // key (abandoning the login) and ship an unresolvable `claude-code:*` id to
+  // the gateway, bricking the agent. Pin every sub-model back onto the primary
+  // so the agent still runs on the subscription login.
+  if (isExternalCliProvider(primaryProvider)) {
+    const pinToPrimary = (ref: RuntimeModelRef) =>
+      ref.providerId === primaryProvider.id ? ref.apiModelId : primaryRef.apiModelId
+    return {
+      modelIds: {
+        primary: primaryRef.apiModelId,
+        opus: pinToPrimary(opusRef),
+        sonnet: pinToPrimary(sonnetRef),
+        haiku: pinToPrimary(haikuRef)
+      }
+    }
   }
 
   const shouldUseGateway = modelRefs.some(
