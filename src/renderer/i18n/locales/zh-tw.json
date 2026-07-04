@@ -1930,8 +1930,8 @@
         "effort_level_hint": "努力程度",
         "enable_teammates": "啟用 Teammates",
         "enable_tool_search": "啟用工具搜尋",
-        "fable_model": "Fable 模型",
-        "haiku_model": "Haiku 模型",
+        "fable_model": "Fable",
+        "haiku_model": "Haiku",
         "hide_attribution": "隱藏 AI 署名",
         "max_context_tokens_hint": "最大上下文 Token",
         "max_output_tokens_hint": "最大輸出 Token",
@@ -1939,12 +1939,12 @@
         "model_roles": "模型角色對應",
         "model_roles_hint": "覆寫背景子任務（如壓縮、標題）使用的模型。留空則跟隨主模型。",
         "options": "快捷選項",
-        "opus_model": "Opus 模型",
+        "opus_model": "Opus",
         "permissions_allow": "允許（逗號分隔）",
         "permissions_deny": "拒絕（逗號分隔）",
         "permissions_hint": "預授權或拒絕工具模式。支援萬用字元，如 Read(secrets-*/config.json)。",
         "role_column": "角色",
-        "sonnet_model": "Sonnet 模型"
+        "sonnet_model": "Sonnet"
       },
       "codex": {
         "auto_compact_limit_hint": "自動壓縮 Token 限制",
@@ -2086,6 +2086,7 @@
     "model_hint_config": "選擇要使用的模型",
     "model_placeholder": "選擇要使用的模型",
     "model_required": "請選擇模型",
+    "model_selection": "模型選擇",
     "no_matching_tools": "沒有符合的工具",
     "no_model_for_provider": "該服務商沒有可用的模型",
     "no_providers_description": "在 設定 → 模型服務 中啟用支援的服務商",
@@ -2115,7 +2116,7 @@
       "qoder_cli": "Qoder CLI 程式助理",
       "qwen_code": "阿里巴巴 Qwen Code CLI 程式助理"
     },
-    "tool_parameters": "工具參數",
+    "tool_parameters": "參數設定",
     "up_to_date": "已是最新",
     "update_options": "更新選項",
     "upgrade": "升級",

@@ -1,8 +1,8 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { ModelSelector } from '@renderer/components/Selector/model'
-import { SettingContainer, SettingGroup, SettingHelpText, SettingTitle } from '@renderer/components/SettingsPrimitives'
-import { useModelById } from '@renderer/hooks/useModel'
+import { SettingContainer, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { getProviderDisplayName, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { CliConfigConnection, CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
@@ -19,14 +19,14 @@ import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { getProviderHostTopology } from '@shared/utils/providerTopology'
-import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { AdvancedConfigToggle } from './AdvancedConfigToggle'
 import { CliConfigEditor } from './CliConfigEditor'
+import { ModelSelectorTrigger } from './ModelSelectorTrigger'
 import { ClaudeConfigFields } from './tools/ClaudeConfigFields'
 import { CodexConfigFields } from './tools/CodexConfigFields'
 import { GeminiConfigFields } from './tools/GeminiConfigFields'
@@ -52,6 +52,36 @@ const EMPTY_DRAFT: ConfigDraft = {
   connection: null,
   mode: 'managed',
   error: ''
+}
+
+function normalizeDraftForDirtyCheck(draft: ConfigDraft) {
+  return {
+    modelId: draft.modelId,
+    config: draft.config,
+    files: draft.files.map((file) => ({
+      target: file.target,
+      label: file.label,
+      path: file.path,
+      language: file.language,
+      content: file.content
+    })),
+    mode: draft.mode
+  }
+}
+
+function sortJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortJsonValue)
+  if (!value || typeof value !== 'object') return value
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, entry]) => [key, sortJsonValue(entry)])
+  )
+}
+
+function createDraftSnapshot(draft: ConfigDraft): string {
+  return JSON.stringify(sortJsonValue(normalizeDraftForDirtyCheck(draft)))
 }
 
 export interface ConfigEditPanelProps {
@@ -80,13 +110,17 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   const { data: apiKeysData } = useProviderApiKeys(provider.id)
 
   const [draft, setDraft] = useState<ConfigDraft>(EMPTY_DRAFT)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
 
   const draftRef = useRef<ConfigDraft>(EMPTY_DRAFT)
+  const initialDraftSnapshotRef = useRef(createDraftSnapshot(EMPTY_DRAFT))
   const loadIdRef = useRef(0)
   const apiKeysRef = useRef<Parameters<typeof cliConfigConnectionMatchesProvider>[3]>(undefined)
 
-  const { model: selectedModelRecord } = useModelById(draft.modelId ?? null)
+  const providerName = getProviderDisplayName(provider)
+  const providerIcon = resolveProviderIcon(provider.id)
 
   useEffect(() => {
     apiKeysRef.current = apiKeysData?.keys
@@ -96,14 +130,18 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     const resolved = typeof next === 'function' ? next(draftRef.current) : next
     draftRef.current = resolved
     setDraft(resolved)
+    setIsDirty(createDraftSnapshot(resolved) !== initialDraftSnapshotRef.current)
   }, [])
 
-  const endpointUrl = getProviderHostTopology(provider).primaryBaseUrl
+  const commitCleanDraft = useCallback((next: ConfigDraft | ((prev: ConfigDraft) => ConfigDraft)) => {
+    const resolved = typeof next === 'function' ? next(draftRef.current) : next
+    draftRef.current = resolved
+    initialDraftSnapshotRef.current = createDraftSnapshot(resolved)
+    setDraft(resolved)
+    setIsDirty(false)
+  }, [])
+
   const isForeignDraft = draft.mode === 'foreign'
-  const displayedProviderName = isForeignDraft
-    ? t('code.cli_config.unknown_provider')
-    : getProviderDisplayName(provider)
-  const displayedEndpointUrl = draft.connection?.baseUrl ?? endpointUrl
 
   const connectionMatchesProvider = useCallback(
     (connection: CliConfigConnection | null, expectedModelId = draftRef.current.modelId): boolean => {
@@ -165,6 +203,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
 
   useEffect(() => {
     if (!open) return
+    setAdvancedOpen(false)
     const saved = providerConfig && isUniqueModelId(providerConfig.modelId) ? providerConfig.modelId : undefined
     const nextModelId = saved ?? defaultModelId
     const nextConfig = providerConfig?.config ?? {}
@@ -176,7 +215,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
       mode: 'managed',
       error: ''
     }
-    commitDraft(initialDraft)
+    commitCleanDraft(initialDraft)
 
     if (!nextModelId) return
 
@@ -190,7 +229,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
         if (isCurrentProvider && connection && !connectionMatchesProvider(connection, nextModelId)) {
           const nextDraftConfig = extractConfigFromCliConfigDraft(cliTool, rawFiles) ?? nextConfig
           if (loadId !== loadIdRef.current) return
-          commitDraft({
+          commitCleanDraft({
             modelId: nextModelId,
             config: nextDraftConfig,
             files: rawFiles,
@@ -203,16 +242,16 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
 
         if (isCurrentProvider && !rawFiles.length) {
           if (loadId !== loadIdRef.current) return
-          commitDraft(initialDraft)
+          commitCleanDraft(initialDraft)
           return
         }
 
         const nextDraft = await createManagedDraft(nextModelId, nextConfig, rawFiles)
         if (loadId !== loadIdRef.current) return
-        commitDraft(nextDraft)
+        commitCleanDraft(nextDraft)
       } catch (error) {
         if (loadId !== loadIdRef.current) return
-        commitDraft({
+        commitCleanDraft({
           ...initialDraft,
           files: rawFiles,
           error: error instanceof Error ? error.message : String(error)
@@ -226,49 +265,12 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     isCurrentProvider,
     cliTool,
     connectionMatchesProvider,
-    commitDraft,
+    commitCleanDraft,
     createManagedDraft
   ])
 
   const canSubmit = isForeignDraft ? draft.files.length > 0 && !draft.error : !!draft.modelId && !draft.error
-
-  const renderModelTrigger = () => (
-    <button
-      type="button"
-      className="group flex h-9 w-full items-center justify-between rounded-lg border border-border bg-muted/30 px-3 text-sm transition-colors hover:bg-muted/50">
-      <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-        {selectedModelRecord ? (
-          <>
-            <ModelAvatar model={selectedModelRecord} size={18} />
-            <span className="truncate text-foreground">{selectedModelRecord.name || selectedModelRecord.id}</span>
-          </>
-        ) : draft.modelId && isUniqueModelId(draft.modelId) ? (
-          <span className="truncate text-foreground">{parseUniqueModelId(draft.modelId).modelId}</span>
-        ) : (
-          <span className="truncate text-muted-foreground/50">{t('code.model_placeholder')}</span>
-        )}
-      </div>
-      <ChevronDown
-        size={12}
-        className="ml-2 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
-      />
-    </button>
-  )
-
-  const endpointRow: ReactNode = (
-    <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-accent/15 px-3 py-2">
-      <span
-        className={
-          isForeignDraft ? 'h-2 w-2 shrink-0 rounded-full bg-warning' : 'h-2 w-2 shrink-0 rounded-full bg-success'
-        }
-      />
-      <span className="shrink-0 font-medium text-foreground text-xs">{displayedProviderName}</span>
-      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground/45">
-        {displayedEndpointUrl || t('code.endpoint_default')}
-      </span>
-      <span className="shrink-0 text-[10px] text-muted-foreground/45">{t('code.endpoint_hint')}</span>
-    </div>
-  )
+  const canSave = canSubmit && isDirty
 
   const handleModelSelect = useCallback(
     (nextModelId: UniqueModelId | undefined) => {
@@ -307,9 +309,8 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
         onSelect={handleModelSelect}
         filter={modelFilter}
         showTagFilter
-        trigger={renderModelTrigger()}
+        trigger={<ModelSelectorTrigger value={draft.modelId} />}
       />
-      {!unknownCliConfigModelHint && <SettingHelpText className="mt-2">{t('code.model_hint_config')}</SettingHelpText>}
     </>
   )
 
@@ -368,7 +369,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   )
 
   const handleSubmit = useCallback(async () => {
-    if (!canSubmit) return
+    if (!canSave) return
     const current = draftRef.current
     try {
       setSubmitting(true)
@@ -381,26 +382,39 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     } finally {
       setSubmitting(false)
     }
-  }, [canSubmit, onSubmit, onClose])
+  }, [canSave, onSubmit, onClose])
 
-  const toolFields: ReactNode = (() => {
+  const renderToolFields = (section: 'basic' | 'advanced'): ReactNode => {
     switch (cliTool) {
       case CodeCli.CLAUDE_CODE:
-        return <ClaudeConfigFields config={draft.config} onChange={handleConfigChange} />
+        return (
+          <ClaudeConfigFields
+            config={draft.config}
+            onChange={handleConfigChange}
+            section={section}
+            providerId={provider.id}
+            currentModelId={draft.modelId}
+            modelFilter={modelFilter}
+          />
+        )
       case CodeCli.OPENAI_CODEX:
-        return <CodexConfigFields config={draft.config} onChange={handleConfigChange} />
+        return <CodexConfigFields config={draft.config} onChange={handleConfigChange} section={section} />
       case CodeCli.OPEN_CODE:
-        return <OpenCodeConfigFields config={draft.config} onChange={handleConfigChange} />
+        return <OpenCodeConfigFields config={draft.config} onChange={handleConfigChange} section={section} />
       case CodeCli.GEMINI_CLI:
-        return <GeminiConfigFields config={draft.config} onChange={handleConfigChange} />
+        return <GeminiConfigFields config={draft.config} onChange={handleConfigChange} section={section} />
       case CodeCli.QWEN_CODE:
-        return <QwenConfigFields config={draft.config} onChange={handleConfigChange} />
+        return <QwenConfigFields config={draft.config} onChange={handleConfigChange} section={section} />
       case CodeCli.KIMI_CODE:
-        return <KimiConfigFields config={draft.config} onChange={handleConfigChange} />
+        return <KimiConfigFields config={draft.config} onChange={handleConfigChange} section={section} />
       default:
         return null
     }
-  })()
+  }
+
+  const advancedFields = renderToolFields('advanced')
+  const toolFields = renderToolFields('basic')
+  const hasAdvancedSection = !!advancedFields || draft.files.length > 0
 
   return (
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : undefined)}>
@@ -410,13 +424,21 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
         onOpenAutoFocus={(e) => e.preventDefault()}
         className="flex max-h-[85vh] flex-col">
         <DialogHeader>
-          <DialogTitle>{t('code.configuring_provider', { provider: getProviderDisplayName(provider) })}</DialogTitle>
+          <DialogTitle className="flex min-w-0 items-center gap-2">
+            <ProviderAvatarPrimitive
+              providerId={provider.id}
+              providerName={providerName}
+              logo={providerIcon}
+              size={22}
+              className="shrink-0 rounded-md border border-border/30 [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]"
+            />
+            <span className="min-w-0 truncate">{providerName}</span>
+          </DialogTitle>
         </DialogHeader>
 
-        <SettingContainer theme={theme} style={{ background: 'transparent' }} className="gap-5">
-          {endpointRow}
+        <SettingContainer theme={theme} style={{ background: 'transparent' }} className="gap-5 p-0">
           <SettingGroup theme={theme} className="border-t-0 pt-0">
-            <SettingTitle className="mb-2.5">{t('code.model')}</SettingTitle>
+            <SettingTitle className="mb-2.5">{t('code.model_selection')}</SettingTitle>
             {modelSlot}
           </SettingGroup>
           {toolFields && (
@@ -425,9 +447,16 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
               {toolFields}
             </SettingGroup>
           )}
-          {draft.files.length > 0 && (
+          {hasAdvancedSection && (
             <SettingGroup theme={theme} className="border-t-0 pt-0">
-              <CliConfigEditor files={draft.files} error={draft.error} onChange={handleCliConfigFilesChange} />
+              <AdvancedConfigToggle open={advancedOpen} onToggle={() => setAdvancedOpen((o) => !o)}>
+                <div className="space-y-5">
+                  {advancedFields}
+                  {draft.files.length > 0 && (
+                    <CliConfigEditor files={draft.files} error={draft.error} onChange={handleCliConfigFilesChange} />
+                  )}
+                </div>
+              </AdvancedConfigToggle>
             </SettingGroup>
           )}
         </SettingContainer>
@@ -436,7 +465,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
           <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
             {t('common.cancel')}
           </Button>
-          <Button variant="default" size="sm" onClick={handleSubmit} disabled={!canSubmit} loading={submitting}>
+          <Button variant="default" size="sm" onClick={handleSubmit} disabled={!canSave} loading={submitting}>
             {t('common.save')}
           </Button>
         </DialogFooter>

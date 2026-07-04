@@ -1930,8 +1930,8 @@
         "effort_level_hint": "Effort Level",
         "enable_teammates": "Enable Teammates",
         "enable_tool_search": "Enable Tool Search",
-        "fable_model": "Fable Model",
-        "haiku_model": "Haiku Model",
+        "fable_model": "Fable",
+        "haiku_model": "Haiku",
         "hide_attribution": "Hide AI Attribution",
         "max_context_tokens_hint": "Max Context Tokens",
         "max_output_tokens_hint": "Max Output Tokens",
@@ -1939,12 +1939,12 @@
         "model_roles": "Model Role Mapping",
         "model_roles_hint": "Override models used for background subtasks (e.g. compaction, titles). Leave empty to follow the main model.",
         "options": "Quick Options",
-        "opus_model": "Opus Model",
+        "opus_model": "Opus",
         "permissions_allow": "Allow (comma-separated)",
         "permissions_deny": "Deny (comma-separated)",
         "permissions_hint": "Pre-approve or deny tool patterns. Supports wildcards like Read(secrets-*/config.json).",
         "role_column": "Role",
-        "sonnet_model": "Sonnet Model"
+        "sonnet_model": "Sonnet"
       },
       "codex": {
         "auto_compact_limit_hint": "Auto-Compact Token Limit",
@@ -2086,6 +2086,7 @@
     "model_hint_config": "Select the model to use",
     "model_placeholder": "Select the model to use",
     "model_required": "Please select a model",
+    "model_selection": "Model Selection",
     "no_matching_tools": "No matching tools",
     "no_model_for_provider": "No model available for this provider",
     "no_providers_description": "Enable a supported provider in Settings → Model Service",
@@ -2115,7 +2116,7 @@
       "qoder_cli": "Qoder command-line AI coding assistant",
       "qwen_code": "Alibaba Qwen Code command-line AI coding agent"
     },
-    "tool_parameters": "Tool Parameters",
+    "tool_parameters": "Parameter Settings",
     "up_to_date": "Up to date",
     "update_options": "Update Options",
     "upgrade": "Upgrade",

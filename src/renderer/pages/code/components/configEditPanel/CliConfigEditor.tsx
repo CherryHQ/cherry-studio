@@ -1,4 +1,4 @@
-import { Button, CodeEditor, Tabs, TabsContent, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import { Button, CodeEditor, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
@@ -50,20 +50,22 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <div className="font-medium text-foreground text-xs">{t('code.cli_config.title')}</div>
-          <div className="truncate text-[10px] text-muted-foreground/55">{activeFile?.path}</div>
+        <div className="flex min-w-0 items-baseline gap-2">
+          <span className="shrink-0 font-normal text-foreground text-xs">{t('code.cli_config.title')}</span>
+          <span className="min-w-0 truncate text-[10px] text-muted-foreground/55">{activeFile?.path}</span>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7 shrink-0 gap-1.5 px-2 text-xs"
-          onClick={handleFormat}
-          disabled={activeFile?.language !== 'json'}>
-          <Wand2 size={12} />
-          {t('code.format_json')}
-        </Button>
+        <Tooltip content={t('code.format_json')}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label={t('code.format_json')}
+            className="h-7 w-7 shrink-0 p-0"
+            onClick={handleFormat}
+            disabled={activeFile?.language !== 'json'}>
+            <Wand2 size={12} />
+          </Button>
+        </Tooltip>
       </div>
 
       {files.length > 1 ? (
@@ -85,12 +87,10 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
         activeFile && <EditorBody file={activeFile} fontSize={fontSize} theme={activeCmTheme} onChange={updateFile} />
       )}
 
-      {error ? (
+      {error && (
         <div className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-destructive text-xs">
           {error}
         </div>
-      ) : (
-        <div className="text-[10px] text-muted-foreground/55">{t('code.cli_config.hint')}</div>
       )}
     </div>
   )

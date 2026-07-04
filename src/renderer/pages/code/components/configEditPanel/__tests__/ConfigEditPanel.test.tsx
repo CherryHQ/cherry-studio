@@ -57,8 +57,19 @@ vi.mock('@cherrystudio/ui', () => ({
   DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>
 }))
 
+vi.mock('@cherrystudio/ui/icons', () => ({
+  resolveProviderIcon: (id: string) =>
+    id === 'anthropic' ? () => <span data-testid="provider-icon-anthropic" /> : undefined
+}))
+
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => <span data-testid="model-avatar" />
+}))
+
+vi.mock('@renderer/components/ProviderAvatar', () => ({
+  ProviderAvatarPrimitive: ({ providerName }: { providerName: string }) => (
+    <span aria-hidden data-testid={`provider-avatar-${providerName}`} />
+  )
 }))
 
 vi.mock('@renderer/components/Selector/model', () => ({
@@ -107,7 +118,21 @@ vi.mock('../CliConfigEditor', () => ({
 }))
 
 vi.mock('../tools/ClaudeConfigFields', () => ({
-  ClaudeConfigFields: () => <div data-testid="claude-config-fields" />
+  ClaudeConfigFields: ({
+    onChange,
+    section = 'all'
+  }: {
+    onChange: (next: Record<string, unknown>) => void
+    section?: string
+  }) => (
+    <div data-testid={`claude-config-fields-${section}`}>
+      {section === 'basic' && (
+        <button type="button" onClick={() => onChange({ changed: true })}>
+          change config
+        </button>
+      )}
+    </div>
+  )
 }))
 
 const provider = {
@@ -161,6 +186,10 @@ function renderPanel(
   return { onSubmit }
 }
 
+function expectBefore(first: HTMLElement, second: HTMLElement) {
+  expect(Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+}
+
 describe('ConfigEditPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -171,23 +200,80 @@ describe('ConfigEditPanel', () => {
 
     await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
 
-    expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(2)
+    expect(screen.getByText('code.model_selection')).toBeInTheDocument()
+    expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(1)
+    expect(screen.queryByText('code.endpoint_hint')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.model_hint_config')).not.toBeInTheDocument()
     expect(screen.getByTestId('model-selector')).toBeInTheDocument()
+  })
+
+  it('renders the dialog title as provider icon and provider name', async () => {
+    renderPanel()
+
+    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
+
+    const avatar = screen.getByTestId('provider-avatar-Anthropic')
+    const title = screen.getByRole('heading', { name: 'Anthropic' })
+
+    expect(title).toContainElement(avatar)
+    expect(title).toHaveTextContent('Anthropic')
+    expect(screen.queryByText('code.configuring_provider')).not.toBeInTheDocument()
+  })
+
+  it('renders parameter settings above advanced settings', async () => {
+    renderPanel()
+
+    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
+
+    const modelTitle = screen.getByText('code.model_selection')
+    const toolTitle = screen.getByText('code.tool_parameters')
+    const basicFields = screen.getByTestId('claude-config-fields-basic')
+    const advancedToggle = screen.getByText('common.advanced_settings')
+
+    expect(screen.queryByTestId('claude-config-fields-advanced')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('cli-config-editor')).not.toBeInTheDocument()
+
+    fireEvent.click(advancedToggle)
+
+    const advancedFields = screen.getByTestId('claude-config-fields-advanced')
+    const cliConfigEditor = screen.getByTestId('cli-config-editor')
+
+    expectBefore(modelTitle, toolTitle)
+    expectBefore(toolTitle, basicFields)
+    expectBefore(basicFields, advancedToggle)
+    expectBefore(advancedToggle, advancedFields)
+    expectBefore(advancedFields, cliConfigEditor)
+  })
+
+  it('keeps save disabled until the draft changes', async () => {
+    renderPanel()
+
+    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
+
+    const saveButton = screen.getByText('common.save')
+    expect(saveButton).toBeDisabled()
+
+    fireEvent.click(screen.getByText('select new model'))
+    await waitFor(() => expect(saveButton).not.toBeDisabled())
   })
 
   it('saves current unknown CLI config as a config-file-only draft', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
+    const updatedCliConfigFiles = [{ ...cliConfigFiles[0], content: '{"env":{"CHANGED":"true"}}' }]
+    updateCliConfigDraftConfigMock.mockReturnValue(updatedCliConfigFiles)
     renderPanel(onSubmit)
 
     await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
-    await waitFor(() => expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(2))
+    await waitFor(() => expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(1))
 
+    fireEvent.click(screen.getByText('change config'))
+    await waitFor(() => expect(screen.getByText('common.save')).not.toBeDisabled())
     fireEvent.click(screen.getByText('common.save'))
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalled())
     expect(onSubmit).toHaveBeenCalledWith({
       modelId: 'anthropic::claude-old',
-      cliConfigFiles,
+      cliConfigFiles: updatedCliConfigFiles,
       cliConfigOnly: true
     })
   })
@@ -197,7 +283,7 @@ describe('ConfigEditPanel', () => {
     renderPanel(onSubmit)
 
     await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
-    await waitFor(() => expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(2))
+    await waitFor(() => expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(1))
 
     fireEvent.click(screen.getByText('select new model'))
     await waitFor(() => expect(screen.queryAllByText('code.cli_config.unknown_provider')).toHaveLength(0))
