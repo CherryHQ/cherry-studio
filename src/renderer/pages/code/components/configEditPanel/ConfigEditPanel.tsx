@@ -34,6 +34,26 @@ import { KimiConfigFields } from './tools/KimiConfigFields'
 import { OpenCodeConfigFields } from './tools/OpenCodeConfigFields'
 import { QwenConfigFields } from './tools/QwenConfigFields'
 
+type ConfigDraftMode = 'managed' | 'foreign'
+
+interface ConfigDraft {
+  modelId: UniqueModelId | undefined
+  config: Record<string, unknown>
+  files: CliConfigFileDraft[]
+  connection: CliConfigConnection | null
+  mode: ConfigDraftMode
+  error: string
+}
+
+const EMPTY_DRAFT: ConfigDraft = {
+  modelId: undefined,
+  config: {},
+  files: [],
+  connection: null,
+  mode: 'managed',
+  error: ''
+}
+
 export interface ConfigEditPanelProps {
   open: boolean
   onClose: () => void
@@ -59,37 +79,34 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
   const { theme } = useTheme()
   const { data: apiKeysData } = useProviderApiKeys(provider.id)
 
-  const [modelId, setModelId] = useState<UniqueModelId | undefined>(undefined)
-  const [config, setConfig] = useState<Record<string, unknown>>({})
-  const [cliConfigFiles, setCliConfigFiles] = useState<CliConfigFileDraft[]>([])
-  const [cliConfigError, setCliConfigError] = useState('')
-  const [cliConfigSelection, setCliConfigSelection] = useState<CliConfigConnection | null>(null)
+  const [draft, setDraft] = useState<ConfigDraft>(EMPTY_DRAFT)
   const [submitting, setSubmitting] = useState(false)
 
-  const configRef = useRef<Record<string, unknown>>({})
-  const cliConfigFilesRef = useRef<CliConfigFileDraft[]>([])
+  const draftRef = useRef<ConfigDraft>(EMPTY_DRAFT)
   const loadIdRef = useRef(0)
-  const modelIdRef = useRef<UniqueModelId | undefined>(undefined)
   const apiKeysRef = useRef<Parameters<typeof cliConfigConnectionMatchesProvider>[3]>(undefined)
 
-  const { model: selectedModelRecord } = useModelById(modelId ?? null)
-
-  useEffect(() => {
-    modelIdRef.current = modelId
-  }, [modelId])
+  const { model: selectedModelRecord } = useModelById(draft.modelId ?? null)
 
   useEffect(() => {
     apiKeysRef.current = apiKeysData?.keys
   }, [apiKeysData?.keys])
 
+  const commitDraft = useCallback((next: ConfigDraft | ((prev: ConfigDraft) => ConfigDraft)) => {
+    const resolved = typeof next === 'function' ? next(draftRef.current) : next
+    draftRef.current = resolved
+    setDraft(resolved)
+  }, [])
+
   const endpointUrl = getProviderHostTopology(provider).primaryBaseUrl
-  const displayedProviderName = cliConfigSelection
+  const isForeignDraft = draft.mode === 'foreign'
+  const displayedProviderName = isForeignDraft
     ? t('code.cli_config.unknown_provider')
     : getProviderDisplayName(provider)
-  const displayedEndpointUrl = cliConfigSelection?.baseUrl ?? endpointUrl
+  const displayedEndpointUrl = draft.connection?.baseUrl ?? endpointUrl
 
   const connectionMatchesProvider = useCallback(
-    (connection: CliConfigConnection | null, expectedModelId = modelIdRef.current): boolean => {
+    (connection: CliConfigConnection | null, expectedModelId = draftRef.current.modelId): boolean => {
       const expectedModel =
         expectedModelId && isUniqueModelId(expectedModelId) ? parseUniqueModelId(expectedModelId).modelId : undefined
       return cliConfigConnectionMatchesProvider(cliTool, connection, provider, apiKeysRef.current, expectedModel)
@@ -97,60 +114,53 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     [cliTool, provider]
   )
 
-  const loadCliConfig = useCallback(
+  const createManagedDraft = useCallback(
     async (
       nextModelId: UniqueModelId | undefined,
       nextConfig: Record<string, unknown>,
-      files?: CliConfigFileDraft[],
-      options?: { preserveUnknown?: boolean }
-    ) => {
+      files?: CliConfigFileDraft[]
+    ): Promise<ConfigDraft> => {
       if (!nextModelId) {
-        setCliConfigFiles([])
-        cliConfigFilesRef.current = []
-        return
+        return { modelId: undefined, config: nextConfig, files: [], connection: null, mode: 'managed', error: '' }
       }
-      const loadId = ++loadIdRef.current
       try {
-        if (options?.preserveUnknown && !files?.length) {
-          const rawFiles = await readCliConfigFiles(cliTool)
-          const connection = extractConnectionFromCliConfigDraft(cliTool, rawFiles)
-          if (connection && !connectionMatchesProvider(connection, nextModelId)) {
-            if (loadId !== loadIdRef.current) return
-            setCliConfigSelection(connection)
-            setCliConfigError('')
-            setCliConfigFiles(rawFiles)
-            cliConfigFilesRef.current = rawFiles
-            const nextDraftConfig = extractConfigFromCliConfigDraft(cliTool, rawFiles)
-            if (nextDraftConfig) {
-              setConfig(nextDraftConfig)
-              configRef.current = nextDraftConfig
-            }
-            return
-          }
-          if (!rawFiles.length) {
-            if (loadId !== loadIdRef.current) return
-            setCliConfigFiles([])
-            cliConfigFilesRef.current = []
-            setCliConfigError('')
-            return
-          }
-        }
         const nextFiles = await readCliConfigDraft({
           cliTool,
           modelId: nextModelId,
           configBlob: nextConfig,
           files
         })
-        if (loadId !== loadIdRef.current) return
-        setCliConfigError('')
-        setCliConfigFiles(nextFiles)
-        cliConfigFilesRef.current = nextFiles
+        return {
+          modelId: nextModelId,
+          config: nextConfig,
+          files: nextFiles,
+          connection: null,
+          mode: 'managed',
+          error: ''
+        }
       } catch (error) {
-        if (loadId !== loadIdRef.current) return
-        setCliConfigError(error instanceof Error ? error.message : String(error))
+        return {
+          modelId: nextModelId,
+          config: nextConfig,
+          files: files ?? [],
+          connection: null,
+          mode: 'managed',
+          error: error instanceof Error ? error.message : String(error)
+        }
       }
     },
-    [cliTool, connectionMatchesProvider]
+    [cliTool]
+  )
+
+  const loadManagedDraft = useCallback(
+    (nextModelId: UniqueModelId | undefined, nextConfig: Record<string, unknown>, files?: CliConfigFileDraft[]) => {
+      const loadId = ++loadIdRef.current
+      void createManagedDraft(nextModelId, nextConfig, files).then((nextDraft) => {
+        if (loadId !== loadIdRef.current) return
+        commitDraft(nextDraft)
+      })
+    },
+    [commitDraft, createManagedDraft]
   )
 
   useEffect(() => {
@@ -158,15 +168,69 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     const saved = providerConfig && isUniqueModelId(providerConfig.modelId) ? providerConfig.modelId : undefined
     const nextModelId = saved ?? defaultModelId
     const nextConfig = providerConfig?.config ?? {}
-    setModelId(nextModelId)
-    setConfig(nextConfig)
-    setCliConfigSelection(null)
-    setCliConfigError('')
-    configRef.current = nextConfig
-    void loadCliConfig(nextModelId, nextConfig, undefined, { preserveUnknown: isCurrentProvider })
-  }, [open, providerConfig, defaultModelId, isCurrentProvider, loadCliConfig])
+    const initialDraft: ConfigDraft = {
+      modelId: nextModelId,
+      config: nextConfig,
+      files: [],
+      connection: null,
+      mode: 'managed',
+      error: ''
+    }
+    commitDraft(initialDraft)
 
-  const canSubmit = cliConfigSelection ? cliConfigFiles.length > 0 && !cliConfigError : !!modelId && !cliConfigError
+    if (!nextModelId) return
+
+    const loadId = ++loadIdRef.current
+    void (async () => {
+      let rawFiles: CliConfigFileDraft[] = []
+      try {
+        rawFiles = await readCliConfigFiles(cliTool)
+        const connection = extractConnectionFromCliConfigDraft(cliTool, rawFiles)
+
+        if (isCurrentProvider && connection && !connectionMatchesProvider(connection, nextModelId)) {
+          const nextDraftConfig = extractConfigFromCliConfigDraft(cliTool, rawFiles) ?? nextConfig
+          if (loadId !== loadIdRef.current) return
+          commitDraft({
+            modelId: nextModelId,
+            config: nextDraftConfig,
+            files: rawFiles,
+            connection,
+            mode: 'foreign',
+            error: ''
+          })
+          return
+        }
+
+        if (isCurrentProvider && !rawFiles.length) {
+          if (loadId !== loadIdRef.current) return
+          commitDraft(initialDraft)
+          return
+        }
+
+        const nextDraft = await createManagedDraft(nextModelId, nextConfig, rawFiles)
+        if (loadId !== loadIdRef.current) return
+        commitDraft(nextDraft)
+      } catch (error) {
+        if (loadId !== loadIdRef.current) return
+        commitDraft({
+          ...initialDraft,
+          files: rawFiles,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    })()
+  }, [
+    open,
+    providerConfig,
+    defaultModelId,
+    isCurrentProvider,
+    cliTool,
+    connectionMatchesProvider,
+    commitDraft,
+    createManagedDraft
+  ])
+
+  const canSubmit = isForeignDraft ? draft.files.length > 0 && !draft.error : !!draft.modelId && !draft.error
 
   const renderModelTrigger = () => (
     <button
@@ -178,8 +242,8 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
             <ModelAvatar model={selectedModelRecord} size={18} />
             <span className="truncate text-foreground">{selectedModelRecord.name || selectedModelRecord.id}</span>
           </>
-        ) : modelId && isUniqueModelId(modelId) ? (
-          <span className="truncate text-foreground">{parseUniqueModelId(modelId).modelId}</span>
+        ) : draft.modelId && isUniqueModelId(draft.modelId) ? (
+          <span className="truncate text-foreground">{parseUniqueModelId(draft.modelId).modelId}</span>
         ) : (
           <span className="truncate text-muted-foreground/50">{t('code.model_placeholder')}</span>
         )}
@@ -195,7 +259,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
     <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-accent/15 px-3 py-2">
       <span
         className={
-          cliConfigSelection ? 'h-2 w-2 shrink-0 rounded-full bg-warning' : 'h-2 w-2 shrink-0 rounded-full bg-success'
+          isForeignDraft ? 'h-2 w-2 shrink-0 rounded-full bg-warning' : 'h-2 w-2 shrink-0 rounded-full bg-success'
         }
       />
       <span className="shrink-0 font-medium text-foreground text-xs">{displayedProviderName}</span>
@@ -208,21 +272,29 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
 
   const handleModelSelect = useCallback(
     (nextModelId: UniqueModelId | undefined) => {
-      setModelId(nextModelId)
-      setCliConfigSelection(null)
-      if (nextModelId) void loadCliConfig(nextModelId, configRef.current, cliConfigFilesRef.current)
+      const current = draftRef.current
+      commitDraft({
+        ...current,
+        modelId: nextModelId,
+        files: nextModelId ? current.files : [],
+        connection: null,
+        mode: 'managed',
+        error: ''
+      })
+      if (nextModelId) loadManagedDraft(nextModelId, current.config, current.files)
     },
-    [loadCliConfig]
+    [commitDraft, loadManagedDraft]
   )
 
-  const unknownCliConfigModelHint: ReactNode = cliConfigSelection ? (
-    <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2">
-      <div className="font-medium text-warning text-xs">{t('code.cli_config.unknown_provider')}</div>
-      <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
-        {cliConfigSelection.model || t('code.cli_config.unknown_model')}
+  const unknownCliConfigModelHint: ReactNode =
+    isForeignDraft && draft.connection ? (
+      <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2">
+        <div className="font-medium text-warning text-xs">{t('code.cli_config.unknown_provider')}</div>
+        <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+          {draft.connection.model || t('code.cli_config.unknown_model')}
+        </div>
       </div>
-    </div>
-  ) : null
+    ) : null
 
   const modelSlot: ReactNode = (
     <>
@@ -231,7 +303,7 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
       <ModelSelector
         multiple={false}
         selectionType="id"
-        value={modelId}
+        value={draft.modelId}
         onSelect={handleModelSelect}
         filter={modelFilter}
         showTagFilter
@@ -243,84 +315,88 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
 
   const handleConfigChange = useCallback(
     (nextConfig: Record<string, unknown>) => {
-      setConfig(nextConfig)
-      configRef.current = nextConfig
-      if (cliConfigSelection) {
+      const current = draftRef.current
+      if (current.mode === 'foreign') {
         try {
-          const nextFiles = updateCliConfigDraftConfig(cliTool, cliConfigFilesRef.current, nextConfig)
-          setCliConfigError('')
-          setCliConfigFiles(nextFiles)
-          cliConfigFilesRef.current = nextFiles
+          const nextFiles = updateCliConfigDraftConfig(cliTool, current.files, nextConfig)
+          commitDraft({ ...current, config: nextConfig, files: nextFiles, error: '' })
         } catch (error) {
-          setCliConfigError(error instanceof Error ? error.message : String(error))
+          commitDraft({ ...current, config: nextConfig, error: error instanceof Error ? error.message : String(error) })
         }
       } else {
-        void loadCliConfig(modelId, nextConfig, cliConfigFilesRef.current)
+        commitDraft({ ...current, config: nextConfig, error: '' })
+        loadManagedDraft(current.modelId, nextConfig, current.files)
       }
     },
-    [cliConfigSelection, cliTool, loadCliConfig, modelId]
+    [cliTool, commitDraft, loadManagedDraft]
   )
 
   const handleCliConfigFilesChange = useCallback(
     (files: CliConfigFileDraft[]) => {
-      setCliConfigFiles(files)
-      cliConfigFilesRef.current = files
+      const current = draftRef.current
       try {
         validateCliConfigDraftForWrite(files)
-        setCliConfigError('')
       } catch (error) {
-        setCliConfigError(error instanceof Error ? error.message : String(error))
+        commitDraft({ ...current, files, error: error instanceof Error ? error.message : String(error) })
         return
       }
 
       const connection = extractConnectionFromCliConfigDraft(cliTool, files)
-      if (connection && !connectionMatchesProvider(connection)) {
-        setCliConfigSelection(connection)
+      const nextConfig = extractConfigFromCliConfigDraft(cliTool, files) ?? current.config
+      if (connection && !connectionMatchesProvider(connection, current.modelId)) {
+        commitDraft({
+          ...current,
+          config: nextConfig,
+          files,
+          connection,
+          mode: 'foreign',
+          error: ''
+        })
       } else {
-        setCliConfigSelection(null)
-        if (connection?.model) {
-          setModelId(`${provider.id}::${connection.model}`)
-        }
-      }
-
-      const nextConfig = extractConfigFromCliConfigDraft(cliTool, files)
-      if (nextConfig) {
-        setConfig(nextConfig)
-        configRef.current = nextConfig
+        commitDraft({
+          ...current,
+          modelId: connection?.model ? `${provider.id}::${connection.model}` : current.modelId,
+          config: nextConfig,
+          files,
+          connection: null,
+          mode: 'managed',
+          error: ''
+        })
       }
     },
-    [cliTool, connectionMatchesProvider, provider.id]
+    [cliTool, connectionMatchesProvider, commitDraft, provider.id]
   )
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit) return
+    const current = draftRef.current
     try {
       setSubmitting(true)
-      if (cliConfigSelection) {
-        await onSubmit({ modelId, cliConfigFiles, cliConfigOnly: true })
-      } else if (modelId) {
-        await onSubmit({ modelId, config, cliConfigFiles })
+      if (current.mode === 'foreign') {
+        await onSubmit({ modelId: current.modelId, cliConfigFiles: current.files, cliConfigOnly: true })
+      } else if (current.modelId) {
+        await onSubmit({ modelId: current.modelId, config: current.config, cliConfigFiles: current.files })
       }
       onClose()
     } finally {
       setSubmitting(false)
     }
-  }, [canSubmit, cliConfigSelection, modelId, onSubmit, cliConfigFiles, config, onClose])
+  }, [canSubmit, onSubmit, onClose])
 
   const toolFields: ReactNode = (() => {
     switch (cliTool) {
       case CodeCli.CLAUDE_CODE:
-        return <ClaudeConfigFields config={config} onChange={handleConfigChange} />
+        return <ClaudeConfigFields config={draft.config} onChange={handleConfigChange} />
       case CodeCli.OPENAI_CODEX:
-        return <CodexConfigFields config={config} onChange={handleConfigChange} />
+        return <CodexConfigFields config={draft.config} onChange={handleConfigChange} />
       case CodeCli.OPEN_CODE:
-        return <OpenCodeConfigFields config={config} onChange={handleConfigChange} />
+        return <OpenCodeConfigFields config={draft.config} onChange={handleConfigChange} />
       case CodeCli.GEMINI_CLI:
-        return <GeminiConfigFields config={config} onChange={handleConfigChange} />
+        return <GeminiConfigFields config={draft.config} onChange={handleConfigChange} />
       case CodeCli.QWEN_CODE:
-        return <QwenConfigFields config={config} onChange={handleConfigChange} />
+        return <QwenConfigFields config={draft.config} onChange={handleConfigChange} />
       case CodeCli.KIMI_CODE:
-        return <KimiConfigFields config={config} onChange={handleConfigChange} />
+        return <KimiConfigFields config={draft.config} onChange={handleConfigChange} />
       default:
         return null
     }
@@ -349,9 +425,9 @@ export const ConfigEditPanel: FC<ConfigEditPanelProps> = (props) => {
               {toolFields}
             </SettingGroup>
           )}
-          {cliConfigFiles.length > 0 && (
+          {draft.files.length > 0 && (
             <SettingGroup theme={theme} className="border-t-0 pt-0">
-              <CliConfigEditor files={cliConfigFiles} error={cliConfigError} onChange={handleCliConfigFilesChange} />
+              <CliConfigEditor files={draft.files} error={draft.error} onChange={handleCliConfigFilesChange} />
             </SettingGroup>
           )}
         </SettingContainer>

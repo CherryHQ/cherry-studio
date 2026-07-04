@@ -130,7 +130,12 @@ const cliConfigFiles: CliConfigFileDraft[] = [
   }
 ]
 
-function renderPanel(onSubmit = vi.fn()) {
+function renderPanel(
+  onSubmit = vi.fn(),
+  options: {
+    isCurrentProvider?: boolean
+  } = {}
+) {
   readCliConfigFilesMock.mockResolvedValue(cliConfigFiles)
   readCliConfigDraftMock.mockResolvedValue(cliConfigFiles)
   extractConnectionFromCliConfigDraftMock.mockReturnValue({
@@ -146,7 +151,7 @@ function renderPanel(onSubmit = vi.fn()) {
       cliTool={CodeCli.CLAUDE_CODE}
       provider={provider}
       providerConfig={{ modelId: 'anthropic::claude-old' as UniqueModelId, config: {} }}
-      isCurrentProvider
+      isCurrentProvider={options.isCurrentProvider ?? true}
       defaultModelId={'anthropic::claude-new' as UniqueModelId}
       modelFilter={() => true}
       onSubmit={onSubmit}
@@ -170,6 +175,23 @@ describe('ConfigEditPanel', () => {
     expect(screen.getByTestId('model-selector')).toBeInTheDocument()
   })
 
+  it('saves current unknown CLI config as a config-file-only draft', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    renderPanel(onSubmit)
+
+    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(2))
+
+    fireEvent.click(screen.getByText('common.save'))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit).toHaveBeenCalledWith({
+      modelId: 'anthropic::claude-old',
+      cliConfigFiles,
+      cliConfigOnly: true
+    })
+  })
+
   it('clears unknown CLI selection when a model is selected', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     renderPanel(onSubmit)
@@ -179,7 +201,14 @@ describe('ConfigEditPanel', () => {
 
     fireEvent.click(screen.getByText('select new model'))
     await waitFor(() => expect(screen.queryAllByText('code.cli_config.unknown_provider')).toHaveLength(0))
-    await waitFor(() => expect(readCliConfigDraftMock).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(readCliConfigDraftMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelId: 'anthropic::claude-new',
+          files: cliConfigFiles
+        })
+      )
+    )
     fireEvent.click(screen.getByText('common.save'))
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalled())
@@ -189,5 +218,21 @@ describe('ConfigEditPanel', () => {
       })
     )
     expect(onSubmit.mock.calls[0]?.[0]).not.toHaveProperty('cliConfigOnly')
+  })
+
+  it('renders a managed preview draft for a provider that is not current', async () => {
+    renderPanel(vi.fn(), { isCurrentProvider: false })
+
+    await waitFor(() =>
+      expect(readCliConfigDraftMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelId: 'anthropic::claude-old',
+          configBlob: {},
+          files: cliConfigFiles
+        })
+      )
+    )
+
+    expect(screen.queryByText('code.cli_config.unknown_provider')).not.toBeInTheDocument()
   })
 })
