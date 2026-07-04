@@ -110,9 +110,24 @@ describe('buildVendorProviderOptions — Google native image family (contribute 
     expect(engine('google', { aspectRatio: 'weird', numImages: 1 })).toEqual({})
   })
 
-  it('google-vertex shares the same profile', () => {
+  it('google-vertex reuses the google profile but delivers under the `vertex` key (@ai-sdk/google-vertex reads providerOptions.vertex, not the id)', () => {
     expect(engine('google-vertex', { aspectRatio: 'ASPECT_1_1', size: '1024x1024', numImages: 1 })).toEqual({
-      'google-vertex': { imageConfig: { aspectRatio: '1:1', imageSize: '1024x1024' } }
+      vertex: { imageConfig: { aspectRatio: '1:1', imageSize: '1024x1024' } }
+    })
+  })
+
+  it('delivers personGeneration under the `vertex` key for google-vertex', () => {
+    expect(engine('google-vertex', { personGeneration: 'ALLOW_ALL', numImages: 1 })).toEqual({
+      vertex: { personGeneration: 'allow_all' }
+    })
+  })
+
+  it('maps the vendor-bag imageResolution (1K/2K/4K, what Gemini image models expose) to imageConfig.imageSize', () => {
+    expect(engine('google', { imageResolution: '2K', numImages: 1 })).toEqual({
+      google: { imageConfig: { imageSize: '2K' } }
+    })
+    expect(engine('google-vertex', { imageResolution: '2K', numImages: 1 })).toEqual({
+      vertex: { imageConfig: { imageSize: '2K' } }
     })
   })
 })

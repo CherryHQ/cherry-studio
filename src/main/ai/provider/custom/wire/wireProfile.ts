@@ -99,6 +99,14 @@ const aspectRatioImageConfigRule: WireRule = {
   }
 }
 
+/** `imageResolution` (1K/2K/4K — a vendor-bag field, NOT the native `size`) →
+ *  google `imageConfig.imageSize`. Gemini image models expose `imageResolution`;
+ *  `@ai-sdk/google` reads it as `providerOptions.<key>.imageConfig.imageSize`.
+ *  Shared by the google / google-vertex family and the dmxapi google-routed block. */
+const imageResolutionImageConfigRule: WireRule = {
+  contribute: (v): Record<string, JSONValue> => (typeof v === 'string' ? { imageConfig: { imageSize: v } } : {})
+}
+
 /**
  * Google native image family (`@ai-sdk/google` gemini-image / Imagen).
  * Reproduces the `google` emitter: a flat lowercased `personGeneration` (the
@@ -114,6 +122,9 @@ export const GOOGLE_WIRE_PROFILE: WireProfile = {
   fields: {
     personGeneration: { to: 'personGeneration', map: (v) => String(v).toLowerCase() },
     aspectRatio: aspectRatioImageConfigRule,
+    // Gemini image models expose `imageResolution` (1K/2K/4K); Imagen/legacy expose
+    // `size`. Both land in `imageConfig.imageSize`. (A model exposes one or the other.)
+    imageResolution: imageResolutionImageConfigRule,
     size: { contribute: (v) => ({ imageConfig: { imageSize: v as JSONValue } }) }
   }
 }
@@ -136,15 +147,17 @@ export const DMXAPI_WIRE_PROFILE: WireProfile = {
 export const DMXAPI_GOOGLE_PROFILE: WireProfile = {
   fields: {
     aspectRatio: aspectRatioImageConfigRule,
-    imageResolution: {
-      contribute: (v): Record<string, JSONValue> => (typeof v === 'string' ? { imageConfig: { imageSize: v } } : {})
-    }
+    imageResolution: imageResolutionImageConfigRule
   }
 }
 
 /** A provider's engine registration: its body profile + delivery flags. */
 export interface WireRegistration {
   readonly profile: WireProfile
+  /** Delivery-key override for the primary body (default: the provider id). The
+   *  Vertex image adapter registers as `google-vertex`, but `@ai-sdk/google-vertex`
+   *  reads `providerOptions.vertex` — so its body must ride under `vertex`, not the id. */
+  readonly key?: string
   /** Dual-key the body under `openai` AND the provider id (OpenAI image family). */
   readonly dualOpenAI?: boolean
   /** Forward vendor-bag fields the profile doesn't map (diffusion family) — the
@@ -171,7 +184,9 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   cherryin: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   newapi: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   google: { profile: GOOGLE_WIRE_PROFILE },
-  'google-vertex': { profile: GOOGLE_WIRE_PROFILE },
+  // Vertex reuses the google body but delivers under `vertex` (the key the
+  // @ai-sdk/google-vertex image model reads), NOT the `google-vertex` provider id.
+  'google-vertex': { profile: GOOGLE_WIRE_PROFILE, key: 'vertex' },
   dashscope: { profile: DASHSCOPE_WIRE_PROFILE, passthrough: true },
   // passthrough: forward the vendor bag (imageResolution / addWatermark /
   // sequentialImageGeneration / responseFormat …) under the `aihubmix` key, where
