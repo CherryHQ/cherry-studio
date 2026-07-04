@@ -1,7 +1,7 @@
 import { EmptyState, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import ActionIconButton from '@renderer/components/Buttons/ActionIconButton'
+import ActionIconButton from '@renderer/components/ActionIconButton'
 import CodeEditor, { type CodeEditorHandles } from '@renderer/components/CodeEditor'
 import RichEditor from '@renderer/components/RichEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'

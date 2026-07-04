@@ -26,7 +26,7 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ highlightCode: vi.fn(async () => '') })
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
+vi.mock('@renderer/components/icons', () => ({
   CopyIcon: () => <span data-testid="copy-icon" />
 }))
 

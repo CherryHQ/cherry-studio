@@ -42,7 +42,7 @@ vi.mock('../hooks', () => ({
   useDeleteKnowledgeGroup: () => mockUseDeleteKnowledgeGroup()
 }))
 
-vi.mock('@renderer/components/app/Navbar', () => ({
+vi.mock('@renderer/components/Navbar', () => ({
   Navbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   NavbarCenter: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))

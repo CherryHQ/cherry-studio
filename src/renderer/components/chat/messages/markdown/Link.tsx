@@ -1,4 +1,4 @@
-import Favicon from '@renderer/components/Icons/FallbackFavicon'
+import Favicon from '@renderer/components/icons/FallbackFavicon'
 import { parseJSON } from '@renderer/utils/json'
 import { findCitationInChildren } from '@renderer/utils/markdown'
 import { cn } from '@renderer/utils/style'

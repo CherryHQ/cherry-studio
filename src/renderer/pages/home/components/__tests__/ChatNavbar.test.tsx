@@ -20,11 +20,11 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [preferenceMock.showSidebar, preferenceMock.setShowSidebar]
 }))
 
-vi.mock('@renderer/components/app/Navbar', () => ({
+vi.mock('@renderer/components/Navbar', () => ({
   NavbarHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
+vi.mock('@renderer/components/icons', () => ({
   SidebarCollapseIcon: () => <span data-testid="collapse-icon" />,
   SidebarExpandIcon: () => <span data-testid="expand-icon" />
 }))

@@ -325,11 +325,12 @@ A `Service` / `Manager` class lives where its domain ownership lies (e.g. `src/m
 
 **Stateless modules are NOT classes for this rule** — pure function collections, queries, conversions, and SDK wrappers without retained state do not receive a `Service` / `Manager` suffix.
 
-**If a module looks like it wants to be a `Service` but is not actually a stateful class, it belongs elsewhere. Route by shape:**
+**If a module looks like it wants to be a `Service` but is not actually a stateful class, route it by role — a plain name, since the `Service` suffix stays reserved for stateful classes:**
 
 | Actual shape of the module | Right home | Naming |
 |---|---|---|
-| Pure-function collection (queries, conversions, predicates, formatters) | `utils/` (or feature-local `utils/` subdirectory) | `<topic>.ts` (camelCase; no `Utils` suffix — see §3.2) |
+| Stateless, domain-agnostic helper (queries, conversions, predicates, formatters) — **may call downward infra** (`data` / `ipc`) | `utils/` (or feature-local `utils/` subdirectory) | `<topic>.ts` (camelCase; no `Utils` suffix — see §3.2) |
+| Stateless module whose role is **business/domain orchestration** (coordinates a multi-step runtime flow, embeds provider/domain-specific policy, drives other subsystems) | `services/` (or feature-local `services/`) | `<topic>.ts` (camelCase; **no** `Service` suffix — it is not a stateful class) |
 | Depends on React lifecycle / state / context | `hooks/` (or co-located with the consuming feature) | `useXxx.ts` (the `use` prefix is the role marker — see §3.2) |
 | Renders JSX / owns view markup | `components/` (shared) or `pages/` (route-bound) | `Xxx.tsx` (PascalCase — see §3.1) |
 | Single-call pass-through to `window.api.*` | inlined at the call site | (no file) |
