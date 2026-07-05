@@ -5,17 +5,20 @@ import { useProviderEnable } from '../useProviderEnable'
 
 const useProviderMock = vi.fn()
 const useProviderMutationsMock = vi.fn()
-const useReorderMock = vi.fn()
 const updateProviderMock = vi.fn().mockResolvedValue(undefined)
 const moveMock = vi.fn().mockResolvedValue(undefined)
+const assertCanMoveProviderToFirstMock = vi.fn()
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args),
   useProviderMutations: (...args: any[]) => useProviderMutationsMock(...args)
 }))
 
-vi.mock('@data/hooks/useReorder', () => ({
-  useReorder: (...args: any[]) => useReorderMock(...args)
+vi.mock('@renderer/pages/settings/ProviderSettings/hooks/useMoveProviderToFirst', () => ({
+  useMoveProviderToFirst: () => ({
+    assertCanMoveProviderToFirst: assertCanMoveProviderToFirstMock,
+    moveProviderToFirst: moveMock
+  })
 }))
 
 describe('useProviderEnable', () => {
@@ -27,9 +30,7 @@ describe('useProviderEnable', () => {
     useProviderMutationsMock.mockReturnValue({
       updateProvider: updateProviderMock
     })
-    useReorderMock.mockReturnValue({
-      move: moveMock
-    })
+    assertCanMoveProviderToFirstMock.mockImplementation(() => undefined)
   })
 
   it('updates only isEnabled when disabling a provider', async () => {
@@ -51,7 +52,7 @@ describe('useProviderEnable', () => {
     })
 
     expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
-    expect(moveMock).toHaveBeenCalledWith('openai', { position: 'first' })
+    expect(moveMock).toHaveBeenCalledWith('openai')
   })
 
   it('does nothing when the provider is missing', async () => {
@@ -90,7 +91,32 @@ describe('useProviderEnable', () => {
     expect(thrown).toBe(moveError)
     expect(updateProviderMock).toHaveBeenCalledTimes(2)
     expect(updateProviderMock).toHaveBeenNthCalledWith(1, { isEnabled: true })
-    expect(moveMock).toHaveBeenCalledWith('openai', { position: 'first' })
+    expect(moveMock).toHaveBeenCalledWith('openai')
     expect(updateProviderMock).toHaveBeenNthCalledWith(2, { isEnabled: false })
+  })
+
+  it('does not enable when pin-to-top preconditions are not ready', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', isEnabled: false }
+    })
+    const reorderError = new Error('provider list cache is not ready')
+    assertCanMoveProviderToFirstMock.mockImplementationOnce(() => {
+      throw reorderError
+    })
+
+    const { result } = renderHook(() => useProviderEnable('openai'))
+
+    let thrown: unknown = null
+    await act(async () => {
+      try {
+        await result.current.toggleProviderEnabled(true)
+      } catch (error) {
+        thrown = error
+      }
+    })
+
+    expect(thrown).toBe(reorderError)
+    expect(updateProviderMock).not.toHaveBeenCalled()
+    expect(moveMock).not.toHaveBeenCalled()
   })
 })

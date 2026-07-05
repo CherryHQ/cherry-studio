@@ -1,12 +1,12 @@
-import { useReorder } from '@data/hooks/useReorder'
 import { useProvider, useProviderMutations } from '@renderer/hooks/useProvider'
+import { useMoveProviderToFirst } from '@renderer/pages/settings/ProviderSettings/hooks/useMoveProviderToFirst'
 import { useCallback } from 'react'
 
 /** Persists provider enable changes and moves newly enabled providers to the top. */
 export function useProviderEnable(providerId: string) {
   const { provider } = useProvider(providerId)
   const { updateProvider } = useProviderMutations(providerId)
-  const { move } = useReorder('/providers')
+  const providerReorder = useMoveProviderToFirst()
 
   const toggleProviderEnabled = useCallback(
     async (enabled: boolean) => {
@@ -15,6 +15,10 @@ export function useProviderEnable(providerId: string) {
       }
 
       const previousEnabled = provider.isEnabled
+      if (enabled) {
+        providerReorder.assertCanMoveProviderToFirst()
+      }
+
       await updateProvider({ isEnabled: enabled })
 
       if (!enabled) {
@@ -22,7 +26,7 @@ export function useProviderEnable(providerId: string) {
       }
 
       try {
-        await move(providerId, { position: 'first' })
+        await providerReorder.moveProviderToFirst(providerId)
       } catch (error) {
         // Enable + pin-to-top is one user-facing action. If pinning fails after the
         // enable already committed, roll the enable state back so we don't leave a
@@ -32,7 +36,7 @@ export function useProviderEnable(providerId: string) {
         throw error
       }
     },
-    [move, provider, providerId, updateProvider]
+    [provider, providerId, providerReorder, updateProvider]
   )
 
   return {
