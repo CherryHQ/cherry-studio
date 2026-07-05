@@ -53,25 +53,33 @@ export async function cancelActiveKnowledgeJobs(
   }
 
   const jobManager = application.get('JobManager')
-  const activeJobs = await jobManager.list({
-    queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
-    status: [...ACTIVE_JOB_STATUSES],
-    type: [...KNOWLEDGE_JOB_TYPES],
-    limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
-  })
-
-  const jobIds = activeJobs
-    .filter((job) => job.id !== excludeJobId)
-    .filter((job) => !subtreeItemIds || jobTouchesSubtree(job, subtreeItemIds))
-    .map((job) => job.id)
-  const fileProcessingJobIds = activeJobs.flatMap((job) => getLinkedFileProcessingJobIds(job, subtreeItemIds))
-
+  const queue = knowledgeQueueName(toKnowledgeBaseId(baseId))
   const cancelOne: (jobId: string) => Promise<unknown> =
     onCancelTimeout === 'throw'
       ? (jobId) => cancelJobOrThrow(jobId, reason)
       : (jobId) => jobManager.cancel(jobId, reason)
 
-  await Promise.all([...jobIds, ...fileProcessingJobIds].map(cancelOne))
+  // Re-query from the top each round (no offset): cancelling shrinks the active-job
+  // set between rounds, so offset-based paging could skip rows as the window shifts,
+  // and `list()`'s createdAt-only ordering has no tie-breaker to make offsets stable.
+  while (true) {
+    const activeJobs = await jobManager.list({
+      queue,
+      status: [...ACTIVE_JOB_STATUSES],
+      type: [...KNOWLEDGE_JOB_TYPES],
+      limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
+    })
+
+    const jobIds = activeJobs
+      .filter((job) => job.id !== excludeJobId)
+      .filter((job) => !subtreeItemIds || jobTouchesSubtree(job, subtreeItemIds))
+      .map((job) => job.id)
+    const fileProcessingJobIds = activeJobs.flatMap((job) => getLinkedFileProcessingJobIds(job, subtreeItemIds))
+
+    await Promise.all([...jobIds, ...fileProcessingJobIds].map(cancelOne))
+
+    if (activeJobs.length < KNOWLEDGE_ACTIVE_JOB_LIMIT) break
+  }
 }
 
 function jobTouchesSubtree(job: { type: string; input: unknown }, subtreeIds: Set<string>): boolean {

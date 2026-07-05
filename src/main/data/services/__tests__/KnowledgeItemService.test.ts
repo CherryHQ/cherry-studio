@@ -894,6 +894,20 @@ describe('KnowledgeItemService', () => {
         error: 'One or more child items failed'
       })
     })
+
+    it('marks a subtree deleting', async () => {
+      await seedItem({ id: NOTE_1_ID, data: { source: 'note', content: 'note' }, status: 'processing' })
+
+      expect(service.setSubtreeStatus(KNOWLEDGE_BASE_ID, [NOTE_1_ID], 'deleting')).toEqual([NOTE_1_ID])
+      await expect(getItemRow(NOTE_1_ID)).resolves.toMatchObject({ status: 'deleting', error: null })
+    })
+
+    it('is a no-op to mark an already-deleting subtree deleting again', async () => {
+      await seedItem({ id: NOTE_1_ID, data: { source: 'note', content: 'note' }, status: 'deleting' })
+
+      expect(service.setSubtreeStatus(KNOWLEDGE_BASE_ID, [NOTE_1_ID], 'deleting')).toEqual([NOTE_1_ID])
+      await expect(getItemRow(NOTE_1_ID)).resolves.toMatchObject({ status: 'deleting', error: null })
+    })
   })
 
   describe('updateStatus', () => {

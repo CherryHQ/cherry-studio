@@ -14,13 +14,16 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getIndexStoreMock, deleteStoreMock, enqueueMock, listMock, registerHandlerMock } = vi.hoisted(() => ({
-  getIndexStoreMock: vi.fn(),
-  deleteStoreMock: vi.fn(),
-  enqueueMock: vi.fn(),
-  listMock: vi.fn(),
-  registerHandlerMock: vi.fn()
-}))
+const { getIndexStoreMock, deleteStoreMock, enqueueMock, enqueueTxMock, listMock, registerHandlerMock } = vi.hoisted(
+  () => ({
+    getIndexStoreMock: vi.fn(),
+    deleteStoreMock: vi.fn(),
+    enqueueMock: vi.fn(),
+    enqueueTxMock: vi.fn(),
+    listMock: vi.fn(),
+    registerHandlerMock: vi.fn()
+  })
+)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -29,6 +32,7 @@ vi.mock('@application', async () => {
       cancel: vi.fn(),
       cancelMany: vi.fn(),
       enqueue: enqueueMock,
+      enqueueTx: enqueueTxMock,
       list: listMock,
       registerHandler: registerHandlerMock
     },
@@ -69,6 +73,7 @@ describe('KnowledgeService integration', () => {
     getIndexStoreMock.mockResolvedValue({})
     deleteStoreMock.mockResolvedValue(undefined)
     enqueueMock.mockResolvedValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
+    enqueueTxMock.mockReturnValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
     listMock.mockResolvedValue([])
 
     const [providerOrderKey, embeddingModelOrderKey] = generateOrderKeySequence(2)
@@ -202,6 +207,21 @@ describe('KnowledgeService integration', () => {
       .from(knowledgeItemTable)
       .where(isNull(knowledgeItemTable.groupId))
     expect(ungroupedRestoredItems.some((item) => item.baseId === restoredBase.id)).toBe(true)
+  })
+
+  it('rolls back the deleting status when enqueueTx fails inside deleteItems', async () => {
+    const service = new KnowledgeService()
+    enqueueTxMock.mockImplementationOnce(() => {
+      throw new Error('enqueue failed')
+    })
+
+    await expect(service.deleteItems(SOURCE_BASE_ID, [SOURCE_ROOT_ITEM_ID])).rejects.toThrow('enqueue failed')
+
+    const [rootRow] = await dbh.db
+      .select()
+      .from(knowledgeItemTable)
+      .where(eq(knowledgeItemTable.id, SOURCE_ROOT_ITEM_ID))
+    expect(rootRow.status).toBe('processing')
   })
 
   describe('addItems conflict resolution', () => {

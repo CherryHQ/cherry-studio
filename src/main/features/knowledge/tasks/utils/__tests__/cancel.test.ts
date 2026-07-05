@@ -2,6 +2,8 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { KNOWLEDGE_ACTIVE_JOB_LIMIT } from '../../../types'
+
 const { cancelMock, listMock, knowledgeItemGetSubtreeItemsMock } = vi.hoisted(() => ({
   cancelMock: vi.fn(),
   listMock: vi.fn(),
@@ -175,5 +177,30 @@ describe('cancelActiveKnowledgeJobs', () => {
     await expect(
       cancelActiveKnowledgeJobs('kb-1', 'delete-base', { onCancelTimeout: 'proceed' })
     ).resolves.toBeUndefined()
+  })
+
+  it('drains a full page and re-queries until a page comes back short', async () => {
+    const fullPage = Array.from({ length: KNOWLEDGE_ACTIVE_JOB_LIMIT }, (_, index) =>
+      createJobSnapshot({
+        id: `index-job-${index}`,
+        type: 'knowledge.index-documents',
+        input: { baseId: 'kb-1', itemId: `note-${index}` }
+      })
+    )
+    listMock.mockResolvedValueOnce(fullPage).mockResolvedValueOnce([])
+
+    await cancelActiveKnowledgeJobs('kb-1', 'delete-base', { onCancelTimeout: 'proceed' })
+
+    expect(listMock).toHaveBeenCalledTimes(2)
+    expect(cancelMock).toHaveBeenCalledTimes(KNOWLEDGE_ACTIVE_JOB_LIMIT)
+  })
+
+  it('stops after a single empty page without cancelling anything', async () => {
+    listMock.mockResolvedValueOnce([])
+
+    await cancelActiveKnowledgeJobs('kb-1', 'delete-base', { onCancelTimeout: 'proceed' })
+
+    expect(listMock).toHaveBeenCalledTimes(1)
+    expect(cancelMock).not.toHaveBeenCalled()
   })
 })

@@ -204,27 +204,20 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     knowledgeBaseService.getById(baseId)
     const knowledgeBaseId = toKnowledgeBaseId(baseId)
     const knowledgeRootItemIds = toKnowledgeItemIds(rootItemIds)
-    const markedIds = await this.knowledgeLockManager.runExclusive(baseId, () =>
-      knowledgeItemService.setSubtreeStatus(baseId, rootItemIds, 'deleting')
-    )
-    try {
-      const jobManager = application.get('JobManager')
-      jobManager.enqueue(
-        'knowledge.delete-subtree',
-        { baseId, rootItemIds },
-        {
-          idempotencyKey: knowledgeDeleteSubtreeIdempotencyKey(knowledgeBaseId, knowledgeRootItemIds),
-          queue: knowledgeQueueName(knowledgeBaseId)
-        }
-      )
-    } catch (error) {
-      logger.error('Failed to enqueue knowledge delete cleanup after marking items deleting', error as Error, {
-        baseId,
-        rootItemIds,
-        markedIds
+    await this.knowledgeLockManager.runExclusive(baseId, () =>
+      application.get('DbService').withWriteTx((tx) => {
+        knowledgeItemService.setSubtreeStatusTx(tx, baseId, rootItemIds, 'deleting')
+        application.get('JobManager').enqueueTx(
+          tx,
+          'knowledge.delete-subtree',
+          { baseId, rootItemIds },
+          {
+            idempotencyKey: knowledgeDeleteSubtreeIdempotencyKey(knowledgeBaseId, knowledgeRootItemIds),
+            queue: knowledgeQueueName(knowledgeBaseId)
+          }
+        )
       })
-      throw error
-    }
+    )
   }
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {

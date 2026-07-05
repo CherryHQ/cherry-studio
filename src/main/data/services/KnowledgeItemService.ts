@@ -7,7 +7,7 @@
 import { application } from '@application'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbType } from '@data/db/types'
+import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { KnowledgeItemListResponse, ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
@@ -359,6 +359,27 @@ export class KnowledgeItemService {
     status: 'deleting' | 'failed',
     update: FailedKnowledgeItemStatusUpdate | undefined = undefined
   ): string[] {
+    if (status === 'failed') {
+      return this.setSubtreeStatusTx(this.db, baseId, rootIds, status, update as FailedKnowledgeItemStatusUpdate)
+    }
+    return this.setSubtreeStatusTx(this.db, baseId, rootIds, status)
+  }
+
+  setSubtreeStatusTx(tx: DbOrTx, baseId: string, rootIds: string[], status: 'deleting', update?: never): string[]
+  setSubtreeStatusTx(
+    tx: DbOrTx,
+    baseId: string,
+    rootIds: string[],
+    status: 'failed',
+    update: FailedKnowledgeItemStatusUpdate
+  ): string[]
+  setSubtreeStatusTx(
+    tx: DbOrTx,
+    baseId: string,
+    rootIds: string[],
+    status: 'deleting' | 'failed',
+    update: FailedKnowledgeItemStatusUpdate | undefined = undefined
+  ): string[] {
     const error = status === 'failed' ? update?.error.trim() : null
 
     if (status === 'failed' && !error) {
@@ -372,8 +393,7 @@ export class KnowledgeItemService {
       return []
     }
 
-    const db = application.get('DbService').getDb()
-    const updatedRows = db.all<{ id: string; groupId: string | null }>(sql`
+    const updatedRows = tx.all<{ id: string; groupId: string | null }>(sql`
         WITH RECURSIVE subtree AS (
           SELECT id
           FROM knowledge_item
