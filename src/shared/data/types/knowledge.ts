@@ -145,7 +145,14 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
   updatedAt: z.iso.datetime()
 })
 
-export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value, ctx) => {
+/**
+ * Cross-field invariants for a knowledge base row, shared by the read-side entity
+ * schema and the pre-write candidate schema so a rule is defined exactly once.
+ */
+function refineKnowledgeBaseInvariants(
+  value: Omit<z.infer<typeof KnowledgeBaseEntitySchema>, 'id' | 'createdAt' | 'updatedAt'>,
+  ctx: z.RefinementCtx
+): void {
   if (value.status === 'completed') {
     if (value.error !== null) {
       ctx.addIssue({
@@ -181,8 +188,29 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
       message: 'Chunk overlap must be smaller than chunk size'
     })
   }
-})
+
+  if (value.chunkStrategy === 'delimiter' && !value.chunkSeparator) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['chunkSeparator'],
+      message: 'Separator is required when chunk strategy is delimiter'
+    })
+  }
+}
+
+export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine(refineKnowledgeBaseInvariants)
 export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
+
+/**
+ * The full row about to be inserted/updated, validated against the same
+ * invariants as the read-side schema before it ever reaches the DB CHECK
+ * constraints — `id`/`createdAt`/`updatedAt` don't exist yet at write time.
+ */
+export const KnowledgeBaseWriteSchema = KnowledgeBaseEntitySchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+}).superRefine(refineKnowledgeBaseInvariants)
 
 /**
  * A knowledge base that has finished setup and is ready for runtime operations
