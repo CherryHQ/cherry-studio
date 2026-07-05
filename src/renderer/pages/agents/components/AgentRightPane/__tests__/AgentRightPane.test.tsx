@@ -266,6 +266,25 @@ describe('AgentRightPane', () => {
     )
   })
 
+  it('keeps the file-tree model closed when opening a non-files tab', () => {
+    render(
+      <AgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Host />
+      </AgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(useArtifactFileTreeModelMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        treeOpen: false,
+        workspacePath: '/workspace'
+      })
+    )
+  })
+
   it('keeps the file-tree model closed when files are disabled', () => {
     render(
       <AgentRightPane

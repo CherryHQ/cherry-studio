@@ -200,7 +200,7 @@ function AgentRightPaneStateProvider({
   const workspaceKey = `${workspaceId ?? ''}\0${workspacePath ?? ''}`
   const previousWorkspaceKeyRef = useRef(workspaceKey)
   const lastSelectableFileRef = useRef<string | null>(null)
-  const fileTreeModelOpen = filesEnabled !== false && fileTreeOpen && shellState.open
+  const fileTreeModelOpen = filesEnabled !== false && shellState.open && activeTab === 'files' && fileTreeOpen
 
   // Built once here (the provider survives the Host↔Overlay maximize swap), so
   // maximize/minimize no longer remounts + rematerializes the workspace tree.
