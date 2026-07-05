@@ -21,6 +21,7 @@ import { rename, stat, unlink } from 'node:fs/promises'
 import { finished } from 'node:stream/promises'
 import { basename, dirname, join } from 'node:path'
 
+import { BackupCancelledError } from './errors'
 import type { BackupManifest } from './manifest'
 
 export interface ArchiveInputs {
@@ -41,11 +42,17 @@ export interface ArchiveInputs {
  * backup that already lives there. Throws on any archiver error OR warning (every
  * entry in a backup archive is required).
  */
-export async function assembleArchive(outPath: string, inputs: ArchiveInputs): Promise<void> {
+export async function assembleArchive(
+  outPath: string,
+  inputs: ArchiveInputs,
+  signal?: AbortSignal
+): Promise<void> {
   // Pre-stat the required DB copy so a missing/unreadable payload fails BEFORE
   // archiving. Without this, archiver would emit a 'warning' (not 'error') for the
   // missing file and finalize successfully — producing a .cbu without backup.sqlite.
   await stat(inputs.dbCopyPath)
+  // Honor a pre-aborted signal before opening any stream (no temp file to clean up).
+  if (signal?.aborted) throw new BackupCancelledError()
 
   const archive = new ZipArchive({ zlib: { level: 1 }, zip64: true })
   // Sibling temp file guarantees the final rename is atomic (same filesystem; a
@@ -69,6 +76,17 @@ export async function assembleArchive(outPath: string, inputs: ArchiveInputs): P
       archive.on('warning', (err: Error & { code?: string }) => {
         reject(new Error(`archiver warning: ${err.code ?? ''} ${err.message}`))
       })
+      // Cancel mid-archive: abort the archiver (stops entry reads) + reject so the
+      // outer catch destroys the stream + unlinks the temp file. `once` auto-removes
+      // on fire; the success path detaches via the listeners below.
+      const onAbort = (): void => {
+        archive.abort()
+        reject(new BackupCancelledError())
+      }
+      signal?.addEventListener('abort', onAbort, { once: true })
+      const detach = (): void => signal?.removeEventListener('abort', onAbort)
+      output.once('close', detach)
+      output.once('error', detach)
       archive.pipe(output)
 
       // manifest.json — Buffer-wrapped so archiver sizes the entry deterministically

@@ -37,10 +37,12 @@ import { BackupReadonlyDb, type FileResourceContext } from '@main/data/db/backup
 import type { ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import type { ConflictStrategy } from '@main/data/db/backup/domains'
 import { ALWAYS_STRIP_PHYSICAL_TABLES } from '@main/data/db/backup/exclusions'
+import type { BackupProgressUpdate } from '@shared/types/backup'
 
 import { assembleArchive } from './archive'
 import type { BackupDbCopier } from './BackupDbCopier'
 import type { BackupStripper } from './ExcludedDomainStripper'
+import { BackupCancelledError } from './errors'
 import { SqliteFileStager } from './FileStager'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from './manifest'
 import { LITE_EXCLUDED, resolvePreset } from './presets'
@@ -61,6 +63,16 @@ export interface ExportBackupOptions {
   readonly producerAppVersion: string
   /** Producer's last applied migration `when` (folderMillis) — the schema-version fingerprint. */
   readonly schemaMigrationId: string
+  /**
+   * Progress callback (UI-only, never correctness). BackupService wraps this to inject
+   * `backupId` + emit/broadcast. Undefined in unit tests (no UI).
+   */
+  readonly onProgress?: (update: Omit<BackupProgressUpdate, 'backupId'>) => void
+  /**
+   * Cancel signal — aborts the export at the next step boundary (throws
+   * BackupCancelledError). The finally block still cleans up temp + staging.
+   */
+  readonly signal?: AbortSignal
 }
 
 /**
@@ -121,6 +133,30 @@ export class ExportOrchestrator {
 
   constructor(private readonly deps: ExportOrchestratorDeps) {}
 
+  /**
+   * Fire a progress tick if a callback is wired. BackupService injects `backupId`
+   * before emitting to the renderer, so the orchestrator reports phase/current/total
+   * only. No-op when onProgress is undefined (unit tests).
+   */
+  private emitProgress(
+    options: ExportBackupOptions,
+    phase: BackupProgressUpdate['phase'],
+    current: number,
+    total: number,
+    message?: string
+  ): void {
+    options.onProgress?.({ phase, current, total, message })
+  }
+
+  /**
+   * Throw BackupCancelledError if the caller's AbortSignal is already aborted.
+   * Called at each step boundary so cancel latency is bounded — no long synchronous
+   * step (copy / archive) blocks cancel past its own boundary.
+   */
+  private assertNotCancelled(options: ExportBackupOptions): void {
+    if (options.signal?.aborted) throw new BackupCancelledError()
+  }
+
   async exportBackup(options: ExportBackupOptions): Promise<ExportBackupResult> {
     // Gate: restoreId is joined into temp + staging paths, so it MUST be a safe basename.
     if (!isSafeBasename(options.restoreId)) {
@@ -132,9 +168,12 @@ export class ExportOrchestrator {
     const { copier, registry, tempDir, filesRoot, knowledgeRoot, stripper } = this.deps
 
     // 1. preset → topo-sorted domains (consumers rely on dependency order)
+    this.emitProgress(options, 'collect', 0, 0, 'Resolving domains')
     const domains = registry.topoSort(resolvePreset(options.preset))
 
     // 2. online-copy live DB → temp backup.sqlite
+    this.assertNotCancelled(options)
+    this.emitProgress(options, 'snapshot', 0, 1, 'Copying live DB')
     const backupDbPath = join(tempDir, `${options.restoreId}.sqlite`)
     // Per-export staging root (isolated from other exports + prior crashed runs).
     const stagingRoot = join(tempDir, `${options.restoreId}-stage`)
@@ -156,6 +195,8 @@ export class ExportOrchestrator {
       //   lite archive never carries rows the manifest claims are absent (spec
       //   "Excluded-domain row strip").
       // The stripper enables `PRAGMA foreign_keys = ON` + DELETEs in one tx + VACUUM.
+      this.assertNotCancelled(options)
+      this.emitProgress(options, 'collect', 0, 1, 'Stripping runtime tables')
       const stripTables = this.resolveStripTables(options.preset, registry)
       if (stripTables.length > 0) {
         await stripper.strip(backupDbPath, stripTables)
@@ -183,14 +224,20 @@ export class ExportOrchestrator {
         strategy: EXPORT_STRATEGY,
         logger: this.logger
       }
+      let collected = 0
       for (const d of domains) {
+        this.assertNotCancelled(options)
         const ids = (await registry.getOperations(d)?.collectFileResources?.(ctx)) ?? new Set<string>()
         const target = d === 'KNOWLEDGE' ? baseIds : fileIds
         for (const id of ids) target.add(id)
+        collected += 1
+        this.emitProgress(options, 'collect', collected, domains.length, 'Collecting file resources')
       }
 
       // Stage blobs into the per-export staging root (missing sources skipped, not fatal;
       // destination write errors abort — see SqliteFileStager).
+      this.assertNotCancelled(options)
+      this.emitProgress(options, 'collect', 0, 1, 'Staging blobs')
       let filesTotal = 0
       let filesBytes = 0
       let knowledgeBases: readonly string[] = []
@@ -221,7 +268,13 @@ export class ExportOrchestrator {
         knowledge: { bases: [...knowledgeBases] }
       }
 
-      await assembleArchive(options.outputPath, { manifest, dbCopyPath: backupDbPath, filesDir, knowledgeDir })
+      this.assertNotCancelled(options)
+      this.emitProgress(options, 'archive', 0, 1, 'Archiving')
+      await assembleArchive(
+        options.outputPath,
+        { manifest, dbCopyPath: backupDbPath, filesDir, knowledgeDir },
+        options.signal
+      )
     } finally {
       // Always close the snapshot + remove the temp copy + the whole staging root.
       // On success the archive holds its own byte copy; on failure nothing leaks.

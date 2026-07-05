@@ -30,14 +30,14 @@ import { join } from 'node:path'
 import { and, eq, isNull, sum } from 'drizzle-orm'
 
 import { application } from '@application'
-import { BaseService, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, Emitter, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { fileEntryTable } from '@main/data/db/schemas/file'
+import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/backup'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app } from 'electron'
 
 import { SqliteBackupCopier } from './BackupDbCopier'
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
-import type { ExportBackupResult } from './ExportOrchestrator'
 import { ExportOrchestrator } from './ExportOrchestrator'
 import { contributorManager } from './contributors/ContributorManager'
 import { InsufficientDiskSpaceError } from './errors'
@@ -49,6 +49,16 @@ export interface BackupV2StartOptions {
   readonly outputPath: string
 }
 
+/**
+ * In-flight export state. One active export at a time (a second startBackup while
+ * one is running throws 'busy'); cancel aborts the AbortController, which the
+ * orchestrator checks at each step boundary (BackupCancelledError).
+ */
+interface ActiveExport {
+  readonly backupId: string
+  readonly abortController: AbortController
+}
+
 @Injectable('BackupService')
 @ServicePhase(Phase.WhenReady)
 @ErrorHandling('fail-fast')
@@ -56,8 +66,22 @@ export class BackupService extends BaseService {
   private orchestrator?: ExportOrchestrator
   /** Cached last migration `when` (folderMillis) — the schema-version fingerprint. */
   private schemaMigrationId?: string
+  /** Progress event bus — bridged to the renderer (BackupV2_Progress) in onInit. */
+  private readonly _onProgress = new Emitter<BackupProgressUpdate>()
+  /** The single active export (null when idle). */
+  private activeExport: ActiveExport | null = null
 
   protected onInit(): void {
+    // Bridge progress emitter → renderer broadcast (WindowManager.broadcastToType).
+    // Other main-side services may also subscribe to this._onProgress.event.
+    this.registerDisposable(this._onProgress)
+    this.registerDisposable(
+      this._onProgress.event((update) => {
+        // broadcast (not broadcastToType(Main)) — the export can be triggered from any
+        // window hosting the backup UI (dev Settings route today; main / dedicated later).
+        application.get('WindowManager').broadcast(IpcChannel.BackupV2_Progress, update)
+      })
+    )
     // Lazily run the 26-invariant contributor finalize at startup. A violation
     // throws ContributorFinalizeError → onInit fails → fail-fast aborts bootstrap
     // (the startup-validation contract; see ContributorManager docstring).
@@ -93,32 +117,61 @@ export class BackupService extends BaseService {
     // restoreId / producerAppVersion / schemaMigrationId + runs preflightDisk.
     this.ipcHandle(IpcChannel.BackupV2_StartBackup, async (_e, opts: BackupV2StartOptions) => {
       const result = await this.startBackup(opts)
-      return { archivePath: result.archivePath, manifest: result.manifest }
+      return { backupId: result.backupId, archivePath: result.archivePath }
+    })
+    // Cancel: aborts the active export's AbortController (no-op if backupId mismatches
+    // or idle). The orchestrator checks the signal at the next step boundary.
+    this.ipcHandle(IpcChannel.BackupV2_CancelBackup, (_e, { backupId }: { backupId: string }) => {
+      if (this.activeExport?.backupId === backupId) {
+        this.activeExport.abortController.abort()
+        return { cancelled: true }
+      }
+      return { cancelled: false }
     })
   }
 
   /**
-   * Export a .cbu archive (renderer-facing). Step 2.5 (SqliteBackupStripper) runs
-   * on every preset: full strips ALWAYS_STRIP tables (app_state / job), lite adds
-   * the excluded-domain tables (cascade-pruning junction referrers) so the lite
-   * archive carries no excluded rows.
+   * Export a .cbu archive (renderer-facing). Returns { backupId, archivePath } —
+   * backupId is the cancel/progress routing key. Throws BackupCancelledError if the
+   * user cancels via BackupV2_CancelBackup; the orchestrator's finally block still
+   * cleans up temp + staging. A second startBackup while one is running throws 'busy'.
    */
-  async startBackup({ preset, outputPath }: BackupV2StartOptions): Promise<ExportBackupResult> {
+  async startBackup({ preset, outputPath }: BackupV2StartOptions): Promise<BackupV2StartResult> {
     if (!this.orchestrator || !this.schemaMigrationId) {
       // Unreachable in normal boot (onInit sets both); reached only if onInit threw
       // + error handling were changed away from fail-fast. Guard anyway.
       throw new Error('BackupService: not initialized (onInit did not complete)')
     }
-    // Preflight BEFORE any copy/archive work — disk-full surfaces as a clear error
-    // here rather than a mid-export SQLITE_FULL (spec export-orchestrator.md §磁盘预算).
-    await this.preflightDisk(preset)
-    return this.orchestrator.exportBackup({
-      preset,
-      outputPath,
-      restoreId: randomUUID(),
-      producerAppVersion: app.getVersion(),
-      schemaMigrationId: this.schemaMigrationId
-    })
+    if (this.activeExport) {
+      throw new Error('BackupService: an export is already running (cancel it first)')
+    }
+    // Reserve the active slot BEFORE the preflight await so a concurrent startBackup
+    // sees it as busy — two invokes that both pass the null check would otherwise
+    // both suspend in preflight, then both start (the second overwriting activeExport
+    // and leaving the first uncancellable). Cleared in finally on any outcome.
+    const backupId = randomUUID()
+    const abortController = new AbortController()
+    const active: ActiveExport = { backupId, abortController }
+    this.activeExport = active
+    try {
+      // Preflight BEFORE any copy/archive work — disk-full surfaces as a clear error
+      // here rather than a mid-export SQLITE_FULL (spec export-orchestrator.md §磁盘预算).
+      await this.preflightDisk(preset)
+      const result = await this.orchestrator.exportBackup({
+        preset,
+        outputPath,
+        restoreId: backupId,
+        producerAppVersion: app.getVersion(),
+        schemaMigrationId: this.schemaMigrationId,
+        signal: abortController.signal,
+        onProgress: (u) => {
+          this._onProgress.fire({ ...u, backupId })
+        }
+      })
+      return { backupId, archivePath: result.archivePath }
+    } finally {
+      if (this.activeExport === active) this.activeExport = null
+    }
   }
 
   /**

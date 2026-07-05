@@ -8,7 +8,10 @@ import type {
 import type { FileEntry, FileHandle } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { S3Config, WebDavConfig } from '@shared/types/backup'
+import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
+import type { BackupProgressUpdate, BackupV2StartResult, S3Config, WebDavConfig } from '@shared/types/backup'
+import type { TerminalConfig } from '@shared/types/codeCli'
+import type { CodeToolsRunResult, OperationResult } from '@shared/types/codeTools'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type {
@@ -31,7 +34,7 @@ import type { StorageHealth } from '@shared/types/storageMonitor'
 import type { CommandId } from '@shared/utils/command'
 import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/utils/file'
 import type { OpenDialogOptions } from 'electron'
-import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import { contextBridge, ipcRenderer, shell, webUtils, type IpcRendererEvent } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
 
 import { ipcApi } from './ipc'
@@ -128,8 +131,16 @@ const api = {
   // settings page (a new V2 surface, not mixed into legacy v1 LocalBackupSettings)
   // binds via renderer/src/hooks/useBackupV2.ts.
   backupV2: {
-    startBackup: (opts: { preset: 'full' | 'lite'; outputPath: string }) =>
-      ipcRenderer.invoke(IpcChannel.BackupV2_StartBackup, opts)
+    startBackup: (opts: { preset: 'full' | 'lite'; outputPath: string }): Promise<BackupV2StartResult> =>
+      ipcRenderer.invoke(IpcChannel.BackupV2_StartBackup, opts),
+    cancelBackup: (backupId: string): Promise<{ cancelled: boolean }> =>
+      ipcRenderer.invoke(IpcChannel.BackupV2_CancelBackup, { backupId }),
+    /** Subscribe to BackupV2_Progress broadcasts; returns an unsubscribe function. */
+    onProgress: (listener: (update: BackupProgressUpdate) => void): (() => void) => {
+      const handler = (_e: IpcRendererEvent, update: BackupProgressUpdate): void => listener(update)
+      ipcRenderer.on(IpcChannel.BackupV2_Progress, handler)
+      return () => ipcRenderer.removeListener(IpcChannel.BackupV2_Progress, handler)
+    }
   },
   file: {
     select: (options?: OpenDialogOptions): Promise<FileMetadata[] | null> =>
