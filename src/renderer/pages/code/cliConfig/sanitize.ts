@@ -53,7 +53,7 @@ export function sanitizeClaudeConfigBlob(configBlob: Record<string, unknown> | u
 
 export function sanitizeCodexConfigBlob(configBlob: Record<string, unknown> | undefined): Record<string, any> {
   const blob = asRecord(configBlob)
-  const next = pickTopLevel(blob, ['goalMode', 'remoteCompaction', 'commonConfig', 'disableResponseStorage'])
+  const next = pickTopLevel(blob, ['goalMode', 'remoteCompaction', 'disableResponseStorage'])
   if (isCodexPermissionMode(blob.permissionMode)) next.permissionMode = blob.permissionMode
   if (isCodexReasoningEffort(blob.reasoningEffort)) next.reasoningEffort = blob.reasoningEffort
   return next

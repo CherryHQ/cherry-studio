@@ -13,8 +13,7 @@ import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/v2/legacyTypes'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
-import { crossPlatformSpawn } from '@main/utils/processRunner'
-import { getShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
+import { refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
@@ -25,40 +24,6 @@ import { isNonChatModel } from '@shared/utils/model'
 import { vertexAiService } from './VertexAiService'
 
 const logger = loggerService.withContext('OpenClawService')
-
-/**
- * Parse the current version from `openclaw --version` output.
- * Example input: "OpenClaw 2026.3.9 (fe96034)"
- */
-export function parseCurrentVersion(versionOutput: string): string | null {
-  const match = versionOutput.match(/OpenClaw\s+([\d.]+)/i)
-  return match?.[1] ?? null
-}
-
-/**
- * Parse the update status from `openclaw update status` output.
- * Returns the latest version string if a **binary** update is available, otherwise null.
- *
- * Cherry Studio installs OpenClaw as a standalone binary, so we only care about
- * binary-channel updates. npm/pkg-channel updates are ignored because they
- * require a different upgrade path (`npm update -g`).
- *
- * The table output contains a row like:
- *   │ Update   │ available · binary · 2026.3.12 │
- * And a summary line like:
- *   Update available (binary 2026.3.12). Run: openclaw update
- */
-export function parseUpdateStatus(statusOutput: string): string | null {
-  // Match binary-channel update from table row: "available · binary · <version>"
-  const tableMatch = statusOutput.match(/available\s*·\s*binary\s*·?\s*([\d.]+)/i)
-  if (tableMatch) return tableMatch[1]
-
-  // Match binary-channel update from summary line: "Update available (binary <version>)"
-  const summaryMatch = statusOutput.match(/Update available\s*\(binary\s+([\d.]+)\)/i)
-  if (summaryMatch) return summaryMatch[1]
-
-  return null
-}
 
 const openclawConfigDir = () => application.getPath('external.openclaw.config')
 const openclawConfigPath = () => path.join(openclawConfigDir(), 'openclaw.json')
@@ -71,13 +36,6 @@ export type GatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 export interface HealthInfo {
   status: 'healthy' | 'unhealthy'
   gatewayPort: number
-}
-
-export interface ChannelInfo {
-  id: string
-  name: string
-  type: string
-  status: 'connected' | 'disconnected' | 'error'
 }
 
 export interface OpenClawConfig {
@@ -300,7 +258,7 @@ export class OpenClawService extends BaseService {
       }
     }
 
-    // Refresh shell env first so crossPlatformSpawn uses a fresh env
+    // Refresh shell env first so the gateway process spawns with a fresh env
     const shellEnv = await refreshShellEnv()
     const openclawPath = await this.findOpenClawBinary()
     if (!openclawPath) {
@@ -488,45 +446,6 @@ export class OpenClawService extends BaseService {
     return true
   }
 
-  private async execOpenClawCommandWithResult(
-    openclawPath: string,
-    args: string[],
-    env: Record<string, string>,
-    timeoutMs = 20000
-  ): Promise<{ code: number | null; stdout: string; stderr: string }> {
-    return new Promise((resolve) => {
-      const proc = crossPlatformSpawn(openclawPath, args, { env })
-
-      let stdout = ''
-      let stderr = ''
-
-      proc.stdout?.on('data', (data) => {
-        stdout += data.toString()
-      })
-      proc.stderr?.on('data', (data) => {
-        stderr += data.toString()
-      })
-
-      const timeout = setTimeout(() => {
-        logger.warn(`Gateway command timed out: ${args.join(' ')}`)
-        proc.kill('SIGKILL')
-        resolve({ code: null, stdout, stderr })
-      }, timeoutMs)
-
-      proc.on('exit', (code) => {
-        clearTimeout(timeout)
-        logger.info(`Gateway command [${args.join(' ')}]:`, { code, stdout: stdout.trim(), stderr: stderr.trim() })
-        resolve({ code, stdout, stderr })
-      })
-
-      proc.on('error', (err) => {
-        clearTimeout(timeout)
-        logger.error(`Gateway command error [${args.join(' ')}]:`, err)
-        resolve({ code: null, stdout, stderr: err.message })
-      })
-    })
-  }
-
   /**
    * Get Gateway status. Probes the port when idle to detect externally-started gateways.
    */
@@ -548,22 +467,6 @@ export class OpenClawService extends BaseService {
       status: this.gatewayStatus,
       port: this.gatewayPort
     }
-  }
-
-  /**
-   * Check Gateway health (public API).
-   * Returns unhealthy immediately if we know the gateway is not running.
-   */
-  public async checkHealth(): Promise<HealthInfo> {
-    if (this.gatewayStatus !== 'running') {
-      return { status: 'unhealthy', gatewayPort: this.gatewayPort }
-    }
-    const healthInfo = await this.checkGatewayHealth()
-    if (healthInfo.status === 'unhealthy') {
-      logger.warn(`Gateway health check failed, marking as stopped`)
-      this.gatewayStatus = 'stopped'
-    }
-    return healthInfo
   }
 
   /**
@@ -914,100 +817,6 @@ export class OpenClawService extends BaseService {
       logger.error('Failed to sync provider config:', error as Error)
       return { success: false, message: errorMessage }
     }
-  }
-
-  /**
-   * Check for OpenClaw updates by comparing the installed version with the latest GitHub release.
-   */
-  public async checkUpdate(): Promise<{
-    hasUpdate: boolean
-    currentVersion: string | null
-    latestVersion: string | null
-    message?: string
-  }> {
-    try {
-      const openclawPath = await this.findOpenClawBinary()
-      if (!openclawPath) {
-        return { hasUpdate: false, currentVersion: null, latestVersion: null, message: 'OpenClaw binary not found' }
-      }
-
-      const shellEnv = await getShellEnv()
-
-      // Get current version via `openclaw --version`
-      const versionResult = await this.execOpenClawCommandWithResult(openclawPath, ['--version'], shellEnv, 10000)
-      const currentVersion = parseCurrentVersion(versionResult.stdout)
-
-      // Check for updates via `openclaw update status`
-      const { code, stdout, stderr } = await this.execOpenClawCommandWithResult(
-        openclawPath,
-        ['update', 'status'],
-        shellEnv,
-        15000
-      )
-
-      if (code !== 0) {
-        const errMsg = stderr.trim() || `Command exited with code ${code}`
-        return { hasUpdate: false, currentVersion, latestVersion: null, message: errMsg }
-      }
-
-      const latestVersion = parseUpdateStatus(stdout)
-      if (latestVersion) {
-        return { hasUpdate: true, currentVersion, latestVersion }
-      }
-
-      // No update available
-      return { hasUpdate: false, currentVersion, latestVersion: currentVersion }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to check for updates:', error as Error)
-      return { hasUpdate: false, currentVersion: null, latestVersion: null, message: errorMessage }
-    }
-  }
-
-  /**
-   * Perform OpenClaw update through BinaryManager so mise remains the owner.
-   */
-  public async performUpdate(): Promise<OperationResult> {
-    try {
-      const openclawPath = await this.findOpenClawBinary()
-      if (!openclawPath) {
-        return { success: false, message: 'OpenClaw binary not found' }
-      }
-
-      // Stop gateway before updating
-      if (this.gatewayStatus === 'running') {
-        await this.stopGateway()
-      }
-
-      await application.get('BinaryManager').installTool({ name: 'openclaw', tool: 'npm:openclaw' })
-      void refreshShellEnv()
-
-      logger.info('OpenClaw updated successfully')
-      return { success: true }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to update OpenClaw:', error as Error)
-      return { success: false, message: errorMessage }
-    }
-  }
-
-  /**
-   * Get connected channel status
-   */
-  public async getChannelStatus(): Promise<ChannelInfo[]> {
-    try {
-      const response = await fetch(`http://127.0.0.1:${this.gatewayPort}/api/channels`, {
-        signal: AbortSignal.timeout(5000)
-      })
-      if (response.ok) {
-        const data = (await response.json()) as { channels?: ChannelInfo[] }
-        return data.channels || []
-      }
-    } catch (error) {
-      logger.debug('Failed to get channel status:', error as Error)
-    }
-
-    return []
   }
 
   /**

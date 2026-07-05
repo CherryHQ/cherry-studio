@@ -19,18 +19,8 @@ export const openclawHandlers: IpcHandlersFor<typeof openclawRequestSchemas> = {
   'openclaw.get_status': async () => {
     return application.get('OpenClawService').getStatus()
   },
-  'openclaw.check_health': async () => {
-    return application.get('OpenClawService').checkHealth()
-  },
   'openclaw.get_dashboard_url': async () => {
     return application.get('OpenClawService').getDashboardUrl()
   },
-  'openclaw.sync_config': (input) => asOperationResult(() => application.get('OpenClawService').syncConfig(input)),
-  'openclaw.get_channels': async () => {
-    return application.get('OpenClawService').getChannelStatus()
-  },
-  'openclaw.check_update': async () => {
-    return application.get('OpenClawService').checkUpdate()
-  },
-  'openclaw.perform_update': () => asOperationResult(() => application.get('OpenClawService').performUpdate())
+  'openclaw.sync_config': (input) => asOperationResult(() => application.get('OpenClawService').syncConfig(input))
 }

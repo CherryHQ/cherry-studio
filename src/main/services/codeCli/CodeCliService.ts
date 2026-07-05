@@ -626,12 +626,14 @@ export class CodeCliService extends BaseService {
     // OpenCode reads its provider from the opencode.json written above; here we only select the model
     // at launch (matching the written provider key) and disable its own auto-update.
     if (cliTool === CodeCli.OPEN_CODE) {
-      let providerName = 'Studio'
+      let providerName: string
       try {
         const provider = providerService.getByProviderId(providerId)
         providerName = sanitizeProviderName(provider.name, provider.id)
-      } catch {
-        /* keep default */
+      } catch (error) {
+        const message = `OpenCode provider not found: ${providerId}`
+        logger.error(message, error as Error)
+        return { success: false, message, command: '' }
       }
       baseCommand = `${baseCommand} --model cherry-${providerName}/${model}`
       env.OPENCODE_DISABLE_AUTOUPDATE = 'true'

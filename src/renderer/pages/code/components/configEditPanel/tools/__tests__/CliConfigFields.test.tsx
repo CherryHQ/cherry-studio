@@ -90,7 +90,6 @@ describe('CLI config provider fields', () => {
     expect(screen.getByText('code.adv.codex.goal_mode')).toBeInTheDocument()
     expect(screen.getByText('code.adv.codex.remote_compaction')).toBeInTheDocument()
     expect(screen.getByText('code.adv.codex.disable_response_storage')).toBeInTheDocument()
-    expect(screen.getByText('code.adv.codex.common_config')).toBeInTheDocument()
     expect(screen.getByText('code.adv.permission_mode')).toBeInTheDocument()
     expect(screen.getByText('code.adv.permission_modes.full_access_high_risk')).toBeInTheDocument()
     expect(screen.getByText('code.adv.reasoning_effort')).toBeInTheDocument()

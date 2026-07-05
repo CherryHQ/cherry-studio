@@ -1,15 +1,15 @@
 import { CHERRY_PROVIDER_PREFIX, OPENCODE_SCHEMA } from './constants'
 import {
   applyManagedJsonSettings,
-  applyManagedTomlSettings,
+  applyWritableTomlSettings,
   CLAUDE_MANAGED_ENV_KEYS,
   CLAUDE_MANAGED_PERMISSION_KEYS,
   CLAUDE_MANAGED_TOP_LEVEL_KEYS,
   CODEX_MANAGED_TOP_LEVEL_KEYS,
   GEMINI_MANAGED_ENV_KEYS,
-  GEMINI_MANAGED_SETTINGS_KEYS,
+  GEMINI_WRITABLE_SETTINGS_KEYS,
   OPEN_CODE_MANAGED_TOP_LEVEL_KEYS,
-  QWEN_MANAGED_SETTINGS_KEYS
+  QWEN_WRITABLE_SETTINGS_KEYS
 } from './managedKeys'
 import {
   codexPermissionModeToConfig,
@@ -71,6 +71,18 @@ export function buildClaudeConfig(
   return merged
 }
 
+/**
+ * Codex's own CLI has special-cased behavior when a model_providers[...].name is
+ * exactly "OpenAI" (reserved for the remote-compaction mode). When the user's
+ * actual provider display name is literally "OpenAI" but remote compaction is
+ * off, we must not emit the same literal or the config readback (parser.ts)
+ * would misinterpret it as remoteCompaction being on.
+ */
+function resolveCodexProviderDisplayName(providerName: string, remoteCompaction: boolean): string {
+  if (remoteCompaction) return 'OpenAI'
+  return providerName === 'OpenAI' ? 'OpenAI (Cherry)' : providerName
+}
+
 export function buildCodexConfig(
   existingToml: Record<string, any>,
   resolved: { baseUrl: string; providerName: string; model: string },
@@ -93,7 +105,7 @@ export function buildCodexConfig(
     model_providers: {
       ...preservedProviders,
       [providerKey]: {
-        name: options.remoteCompaction === true ? 'OpenAI' : resolved.providerName,
+        name: resolveCodexProviderDisplayName(resolved.providerName, options.remoteCompaction === true),
         base_url: normalizeUrl(resolved.baseUrl),
         wire_api: 'responses',
         requires_openai_auth: true
@@ -198,7 +210,7 @@ export function buildGeminiSettingsConfig(
   configBlob: Record<string, any>
 ): Record<string, any> {
   const next = { ...settings }
-  applyManagedJsonSettings(next, sanitizeGeminiConfigBlob(configBlob), GEMINI_MANAGED_SETTINGS_KEYS)
+  applyManagedJsonSettings(next, sanitizeGeminiConfigBlob(configBlob), GEMINI_WRITABLE_SETTINGS_KEYS)
   next.model = { ...asRecord(next.model), name: resolved.model }
   const security = asRecord(next.security)
   next.security = { ...security, auth: { ...asRecord(security.auth), selectedType: 'gemini-api-key' } }
@@ -229,7 +241,7 @@ export function buildQwenConfig(
     },
     model: { name: resolved.model }
   }
-  applyManagedJsonSettings(merged, sanitizedConfigBlob, QWEN_MANAGED_SETTINGS_KEYS)
+  applyManagedJsonSettings(merged, sanitizedConfigBlob, QWEN_WRITABLE_SETTINGS_KEYS)
   return merged
 }
 
@@ -251,6 +263,6 @@ export function buildKimiConfig(
   modelsTable[resolved.modelKey] = modelConfig
 
   const merged = { ...existing, default_model: resolved.modelKey, providers: providerTable, models: modelsTable }
-  applyManagedTomlSettings(merged, sanitizedConfigBlob)
+  applyWritableTomlSettings(merged, sanitizedConfigBlob)
   return merged
 }

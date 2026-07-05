@@ -6,10 +6,12 @@ import { clearCliConfig } from '../index'
 
 let existing: Record<string, string>
 let writes: Record<string, string>
+let modes: Record<string, number | undefined>
 
 beforeEach(() => {
   existing = {}
   writes = {}
+  modes = {}
   Object.defineProperty(window, 'api', {
     configurable: true,
     value: {
@@ -20,8 +22,9 @@ beforeEach(() => {
           throw new Error(`File does not exist: ${p}`)
         }),
         mkdir: vi.fn(async () => undefined),
-        write: vi.fn(async (p: string, content: string) => {
+        write: vi.fn(async (p: string, content: string, mode?: number) => {
           writes[p] = content
+          modes[p] = mode
         })
       }
     }
@@ -183,5 +186,64 @@ describe('clearCliConfig', () => {
   it('is a no-op for tools without a managed config file (openclaw)', async () => {
     await clearCliConfig({ cliTool: CodeCli.OPENCLAW })
     expect(writes).toEqual({})
+  })
+
+  // Cleared configs still hold non-Cherry secrets on disk — every rewrite must stay 0600, not fall
+  // back to the platform default (0644, world-readable) once it goes through the generic file IPC.
+  it('writes every cleared config file with 0600 permissions', async () => {
+    existing['/resolved~/.codex/config.toml'] = 'model_provider = "cherry-deepseek"\nuser_key = "keep"'
+    existing['/resolved~/.codex/auth.json'] = JSON.stringify({ OPENAI_API_KEY: 'sk', user: 'keep' })
+    await clearCliConfig({ cliTool: CodeCli.OPENAI_CODEX })
+
+    existing['/resolved~/.gemini/.env'] = 'CHERRY_KEY=sk\nUSER_KEY=keep'
+    existing['/resolved~/.gemini/settings.json'] = JSON.stringify({ general: { userSetting: 'keep' } })
+    await clearCliConfig({ cliTool: CodeCli.GEMINI_CLI })
+
+    expect(modes['/resolved~/.codex/config.toml']).toBe(0o600)
+    expect(modes['/resolved~/.codex/auth.json']).toBe(0o600)
+    expect(modes['/resolved~/.gemini/.env']).toBe(0o600)
+    expect(modes['/resolved~/.gemini/settings.json']).toBe(0o600)
+  })
+
+  // S6: clear must never overwrite a config it can't fully understand — a malformed on-disk file
+  // should abort the whole operation rather than silently rewriting it as if it were empty.
+  describe('aborts instead of overwriting a malformed existing config file', () => {
+    it('claude: rejects and writes nothing', async () => {
+      existing['/resolved~/.claude/settings.json'] = '{ not valid json'
+      await expect(clearCliConfig({ cliTool: CodeCli.CLAUDE_CODE })).rejects.toThrow(/Failed to parse/)
+      expect(writes).toEqual({})
+    })
+
+    it('codex: rejects and writes nothing (config.toml malformed, secret redacted)', async () => {
+      existing['/resolved~/.codex/config.toml'] = 'api_key = "sk-ant-real-secret"\nbroken====='
+      existing['/resolved~/.codex/auth.json'] = JSON.stringify({ OPENAI_API_KEY: 'sk', user: 'keep' })
+      await expect(clearCliConfig({ cliTool: CodeCli.OPENAI_CODEX })).rejects.toThrow(/Failed to parse/)
+      await expect(clearCliConfig({ cliTool: CodeCli.OPENAI_CODEX })).rejects.not.toThrow(/sk-ant-real-secret/)
+      expect(writes).toEqual({})
+    })
+
+    it('opencode: rejects and writes nothing', async () => {
+      existing['/resolved~/.config/opencode/opencode.json'] = '{ not valid json'
+      await expect(clearCliConfig({ cliTool: CodeCli.OPEN_CODE })).rejects.toThrow(/Failed to parse/)
+      expect(writes).toEqual({})
+    })
+
+    it('gemini: rejects and writes nothing (settings.json malformed)', async () => {
+      existing['/resolved~/.gemini/settings.json'] = '{ not valid json'
+      await expect(clearCliConfig({ cliTool: CodeCli.GEMINI_CLI })).rejects.toThrow(/Failed to parse/)
+      expect(writes).toEqual({})
+    })
+
+    it('qwen: rejects and writes nothing', async () => {
+      existing['/resolved~/.qwen/settings.json'] = '{ not valid json'
+      await expect(clearCliConfig({ cliTool: CodeCli.QWEN_CODE })).rejects.toThrow(/Failed to parse/)
+      expect(writes).toEqual({})
+    })
+
+    it('kimi: rejects and writes nothing', async () => {
+      existing['/resolved~/.kimi-code/config.toml'] = 'broken====='
+      await expect(clearCliConfig({ cliTool: CodeCli.KIMI_CODE })).rejects.toThrow(/Failed to parse/)
+      expect(writes).toEqual({})
+    })
   })
 })

@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { ipcApi } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
@@ -43,6 +44,7 @@ export function useOpenClawGatewayController({
 }: UseOpenClawGatewayControllerOptions): OpenClawGatewayController {
   const { t } = useTranslation()
   const { openSmartMiniApp } = useMiniAppPopup()
+  const [gatewayPort] = usePreference('feature.openclaw.gateway_port')
   const [status, setStatus] = useState<OpenClawGatewayStatus>('stopped')
   const [launching, setLaunching] = useState(false)
   const [stopping, setStopping] = useState(false)
@@ -88,7 +90,7 @@ export function useOpenClawGatewayController({
         return
       }
 
-      const startResult = await ipcApi.request('openclaw.start_gateway', undefined)
+      const startResult = await ipcApi.request('openclaw.start_gateway', gatewayPort)
       if (!startResult.success) {
         setStatus('error')
         window.toast.error(startResult.message || t('code.launch.error'))
@@ -107,6 +109,7 @@ export function useOpenClawGatewayController({
   }, [
     currentProviderConfig,
     enabledProvider,
+    gatewayPort,
     openDashboard,
     selectedCliTool,
     setCurrentProvider,

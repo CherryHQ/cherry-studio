@@ -2,12 +2,11 @@ import { CodeCli } from '@shared/types/codeCli'
 import { stringify as stringifyToml } from 'smol-toml'
 
 import { CHERRY_PROVIDER_PREFIX } from './constants'
-import { parseDotenv } from './dotenv'
+import { parseDotenv, renderDotenvFile } from './dotenv'
 import {
   readExternalOrNull,
   readValidatedJsonOrNull,
   readValidatedTomlOrNull,
-  renderDotenvFile,
   renderJsonFile,
   resolveAbs
 } from './file'
@@ -71,7 +70,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
         for (const key of CLAUDE_MANAGED_ENV_KEYS) delete env[key]
         next.env = env
       }
-      await window.api.file.write(absPath, renderJsonFile(next))
+      await window.api.file.write(absPath, renderJsonFile(next), 0o600)
       return
     }
     case CodeCli.OPENAI_CODEX: {
@@ -90,12 +89,12 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
           next.model_providers = omitKeysByPrefix(next.model_providers as Record<string, any>, CHERRY_PROVIDER_PREFIX)
         }
         dropFeatureGoalsIfEmpty(next)
-        await window.api.file.write(absPath, stringifyToml(next))
+        await window.api.file.write(absPath, stringifyToml(next), 0o600)
       }
       if (existingAuth?.OPENAI_API_KEY !== undefined) {
         const nextAuth = { ...existingAuth }
         delete nextAuth.OPENAI_API_KEY
-        await window.api.file.write(authAbsPath, renderJsonFile(nextAuth))
+        await window.api.file.write(authAbsPath, renderJsonFile(nextAuth), 0o600)
       }
       return
     }
@@ -108,7 +107,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
       if (next.provider && typeof next.provider === 'object') {
         next.provider = omitKeysByPrefix(next.provider as Record<string, any>, CHERRY_PROVIDER_PREFIX)
       }
-      await window.api.file.write(absPath, renderJsonFile(next))
+      await window.api.file.write(absPath, renderJsonFile(next), 0o600)
       return
     }
     case CodeCli.GEMINI_CLI: {
@@ -117,7 +116,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
       if (envText !== null) {
         const envMap = parseDotenv(envText)
         for (const key of GEMINI_MANAGED_ENV_KEYS) envMap.delete(key)
-        await window.api.file.write(envAbsPath, renderDotenvFile(envMap))
+        await window.api.file.write(envAbsPath, renderDotenvFile(envMap), 0o600)
       }
 
       const settingsAbsPath = await resolveAbs(GEMINI_SETTINGS_PATH)
@@ -129,7 +128,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
         delete settings.model.name
         if (Object.keys(settings.model as Record<string, any>).length === 0) delete settings.model
       }
-      await window.api.file.write(settingsAbsPath, renderJsonFile(settings))
+      await window.api.file.write(settingsAbsPath, renderJsonFile(settings), 0o600)
       return
     }
     case CodeCli.QWEN_CODE: {
@@ -147,7 +146,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
       applyManagedJsonSettings(next, {}, QWEN_MANAGED_SETTINGS_KEYS)
       dropSecurityAuthSelectedTypeIfEmpty(next)
       delete next.model
-      await window.api.file.write(absPath, renderJsonFile(next))
+      await window.api.file.write(absPath, renderJsonFile(next), 0o600)
       return
     }
     case CodeCli.KIMI_CODE: {
@@ -162,7 +161,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
       }
       applyManagedTomlSettings(next, {})
       delete next.default_model
-      await window.api.file.write(absPath, stringifyToml(next))
+      await window.api.file.write(absPath, stringifyToml(next), 0o600)
       return
     }
     default:

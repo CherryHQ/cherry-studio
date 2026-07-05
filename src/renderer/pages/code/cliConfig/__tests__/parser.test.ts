@@ -39,6 +39,12 @@ const geminiProvider = {
   name: 'Gemini',
   endpointConfigs: { 'google-generate-content': { baseUrl: 'https://generativelanguage.googleapis.com' } }
 } as unknown as Provider
+/** Display name is literally "OpenAI" — the exact literal Codex reserves for remote-compaction mode. */
+const openaiNamedProvider = {
+  id: 'openai-official',
+  name: 'OpenAI',
+  endpointConfigs: { 'openai-responses': { baseUrl: 'https://api.openai.com/v1' } }
+} as unknown as Provider
 
 beforeEach(() => {
   Object.defineProperty(window, 'api', {
@@ -96,6 +102,43 @@ describe('extractConnectionFromCliConfigDraft', () => {
     }
     expect(extractConnectionFromCliConfigDraft(CodeCli.CLAUDE_CODE, [badClaude])).toBeNull()
   })
+
+  // S4: an existing-but-empty config file parses to an all-`undefined` connection object, which
+  // is truthy — callers doing `if (!connection)` must not misread that as a real foreign connection.
+  const emptyFileCases: Array<[string, CodeCli, CliConfigFileDraft[]]> = [
+    [
+      'claude',
+      CodeCli.CLAUDE_CODE,
+      [{ target: 'claude-settings', label: '', path: '', language: 'json', content: '{}' }]
+    ],
+    [
+      'codex',
+      CodeCli.OPENAI_CODEX,
+      [
+        { target: 'codex-config', label: '', path: '', language: 'toml', content: '' },
+        { target: 'codex-auth', label: '', path: '', language: 'json', content: '{}' }
+      ]
+    ],
+    [
+      'opencode',
+      CodeCli.OPEN_CODE,
+      [{ target: 'opencode-config', label: '', path: '', language: 'json', content: '{}' }]
+    ],
+    [
+      'gemini',
+      CodeCli.GEMINI_CLI,
+      [
+        { target: 'gemini-env', label: '', path: '', language: 'dotenv', content: '' },
+        { target: 'gemini-settings', label: '', path: '', language: 'json', content: '{}' }
+      ]
+    ],
+    ['qwen', CodeCli.QWEN_CODE, [{ target: 'qwen-settings', label: '', path: '', language: 'json', content: '{}' }]],
+    ['kimi', CodeCli.KIMI_CODE, [{ target: 'kimi-config', label: '', path: '', language: 'toml', content: '' }]]
+  ]
+
+  it.each(emptyFileCases)('returns null for an existing-but-empty %s config', (_name, cliTool, files) => {
+    expect(extractConnectionFromCliConfigDraft(cliTool, files)).toBeNull()
+  })
 })
 
 describe('extractConfigFromCliConfigDraft', () => {
@@ -113,6 +156,16 @@ describe('extractConfigFromCliConfigDraft', () => {
       permissionMode: 'fullAccess',
       reasoningEffort: 'high'
     })
+  })
+
+  // Regression: a provider literally named "OpenAI" must not collide with the
+  // "OpenAI" literal Codex reserves for remote-compaction mode.
+  it('round-trips remoteCompaction for a provider literally named "OpenAI"', async () => {
+    const filesOff = await buildDraft(CodeCli.OPENAI_CODEX, openaiNamedProvider, 'gpt-5', {})
+    expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, filesOff)).toEqual({})
+
+    const filesOn = await buildDraft(CodeCli.OPENAI_CODEX, openaiNamedProvider, 'gpt-5', { remoteCompaction: true })
+    expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, filesOn)).toEqual({ remoteCompaction: true })
   })
 
   it('round-trips supported Claude managed settings from the config blob', async () => {

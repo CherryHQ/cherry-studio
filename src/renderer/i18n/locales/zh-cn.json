@@ -1949,7 +1949,6 @@
         "sonnet_model": "Sonnet"
       },
       "codex": {
-        "common_config": "写入通用配置",
         "disable_response_storage": "禁用响应存储",
         "goal_mode": "启用 Goal 模式",
         "remote_compaction": "启用远程压缩"

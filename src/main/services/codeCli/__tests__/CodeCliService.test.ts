@@ -1,5 +1,5 @@
 import { CodeCli } from '@shared/types/codeCli'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', () => ({
   application: {
@@ -11,8 +11,17 @@ vi.mock('@application', () => ({
         }
       }
       return {}
-    })
+    }),
+    getPath: vi.fn().mockReturnValue('/mock/binary-data')
   }
+}))
+
+const providerServiceMock = vi.hoisted(() => ({
+  getByProviderId: vi.fn()
+}))
+
+vi.mock('@main/data/services/ProviderService', () => ({
+  providerService: providerServiceMock
 }))
 
 const loggerMock = vi.hoisted(() => ({
@@ -196,5 +205,38 @@ describe('CodeCliService', () => {
       if (!installTool.startsWith('npm:')) continue
       await expect(svc.getPackageName(cliTool)).resolves.toBe(installTool.slice('npm:'.length))
     }
+  })
+
+  // A stale/deleted provider must fail the launch outright — previously the
+  // lookup failure was swallowed, launching OpenCode with a default provider
+  // name ("Studio") that doesn't match the provider key written into
+  // opencode.json, while still reporting success.
+  describe('run (OpenCode provider resolution)', () => {
+    beforeEach(async () => {
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+      const resolver = await import('@main/utils/binaryResolver')
+      vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network disabled in test')))
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('fails the launch instead of defaulting to a wrong provider name', async () => {
+      providerServiceMock.getByProviderId.mockImplementation(() => {
+        throw new Error('Provider not found: ghost')
+      })
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run(CodeCli.OPEN_CODE, 'gpt-4o', 'ghost', '/tmp/project')
+
+      expect(result).toEqual({
+        success: false,
+        message: expect.stringContaining('OpenCode provider not found: ghost'),
+        command: ''
+      })
+    })
   })
 })

@@ -18,12 +18,12 @@ import {
   buildQwenConfig
 } from './builders'
 import { CHERRY_PROVIDER_PREFIX } from './constants'
-import { parseDotenv } from './dotenv'
+import { parseDotenv, renderDotenvFile } from './dotenv'
 import { makeDraftFile, readAndParseDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
 import {
   parseJsonOrThrow,
   parseTomlOrThrow,
-  renderDotenvFile,
+  readExternalOrNull,
   renderJsonFile,
   resolveAbs,
   writeExternalConfigFile
@@ -70,19 +70,8 @@ interface FileSnapshot {
 }
 
 async function snapshotFile(path: string): Promise<FileSnapshot> {
-  try {
-    return {
-      path,
-      existed: true,
-      previousContent: await window.api.file.readExternal(path)
-    }
-  } catch {
-    return {
-      path,
-      existed: false,
-      previousContent: ''
-    }
-  }
+  const previousContent = await readExternalOrNull(path)
+  return { path, existed: previousContent !== null, previousContent: previousContent ?? '' }
 }
 
 interface ResolvedCliConfigContext {
@@ -264,6 +253,9 @@ async function buildCliConfigDraftFiles(
 function assertCliConfigCredentials(cliTool: string, context: ResolvedCliConfigContext): void {
   const { provider, apiKey, modelRecord } = context
   switch (cliTool) {
+    case CodeCli.CLAUDE_CODE:
+      if (!apiKey) throw new Error('Claude Code config is missing the API key')
+      return
     case CodeCli.OPENAI_CODEX:
       if (!apiKey) throw new Error('Codex config is missing the API key')
       return
@@ -335,9 +327,13 @@ export async function writeCliConfigDraft(args: {
     for (const snapshot of snapshots.slice().reverse()) {
       rollbackQueue = rollbackQueue.then(async () => {
         if (snapshot.existed) {
-          await writeExternalConfigFile(snapshot.path, snapshot.previousContent)
+          await writeExternalConfigFile(snapshot.path, snapshot.previousContent).catch((rollbackError) => {
+            logger.error(`Failed to roll back ${snapshot.path} after write failure`, rollbackError as Error)
+          })
         } else {
-          await window.api.file.deleteExternalFile(snapshot.path).catch(() => undefined)
+          await window.api.file.deleteExternalFile(snapshot.path).catch((rollbackError) => {
+            logger.error(`Failed to delete ${snapshot.path} during rollback`, rollbackError as Error)
+          })
         }
       })
     }

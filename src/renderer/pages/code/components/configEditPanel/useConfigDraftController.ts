@@ -69,6 +69,7 @@ export function useConfigDraftController({
   const initialClaudeModelModeRef = useRef<ClaudeModelMode>(initialClaudeModelMode)
   const loadIdRef = useRef(0)
   const apiKeysRef = useRef<Parameters<typeof cliConfigConnectionMatchesProvider>[3]>(undefined)
+  const initialLoadHasRunRef = useRef(false)
 
   if (initialDraftSnapshotRef.current === undefined) {
     initialDraftSnapshotRef.current = createDraftSnapshot(initialDraftSeed)
@@ -164,6 +165,10 @@ export function useConfigDraftController({
   })
 
   useEffect(() => {
+    if (initialLoadHasRunRef.current) return
+    if (apiKeys === undefined) return // wait for the apiKeys query to resolve (even to an empty array) before judging managed/foreign
+    initialLoadHasRunRef.current = true
+
     const {
       isCurrentProvider,
       cliTool,
@@ -194,7 +199,7 @@ export function useConfigDraftController({
       if (loadId !== loadIdRef.current) return
       commitLoadedDraft(nextDraft)
     })
-  }, [])
+  }, [apiKeys])
   /* oxlint-enable react-doctor/no-pass-data-to-parent */
 
   const canSubmit = isForeignDraft ? draft.files.length > 0 && !draft.error : !draft.error

@@ -141,3 +141,8 @@ export function applyManagedJsonSettings(
 export function applyManagedTomlSettings(target: Record<string, any>, source: Record<string, any>): void {
   applyManagedJsonSettings(target, source, KIMI_MANAGED_SECTION_KEYS, KIMI_MANAGED_TOP_LEVEL_KEYS)
 }
+
+/** Kimi's TOML config build path: only clears/restores the WRITABLE subset (unlike clear.ts's full wipe). */
+export function applyWritableTomlSettings(target: Record<string, any>, source: Record<string, any>): void {
+  applyManagedJsonSettings(target, source, KIMI_WRITABLE_SECTION_KEYS, KIMI_WRITABLE_TOP_LEVEL_KEYS)
+}

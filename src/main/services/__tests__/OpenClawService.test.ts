@@ -3,8 +3,6 @@ import type { Provider as DataProvider } from '@shared/data/types/provider'
 import type { OperationResult } from '@shared/types/codeTools'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { parseCurrentVersion, parseUpdateStatus } from '../OpenClawService'
-
 // --- Mocks for OpenClawService dependencies ---
 
 vi.mock('@main/core/lifecycle', () => {
@@ -50,11 +48,6 @@ vi.mock('@main/utils/commandResolver', () => ({
   findExecutableInEnv: vi.fn()
 }))
 
-vi.mock('@main/utils/processRunner', () => ({
-  crossPlatformSpawn: vi.fn(),
-  runInstallScript: vi.fn()
-}))
-
 vi.mock('@data/services/ModelService', () => ({
   modelService: {
     getByKey: vi.fn(),
@@ -70,7 +63,6 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
-  getShellEnv: vi.fn(() => Promise.resolve({ PATH: '/usr/bin' })),
   refreshShellEnv: vi.fn(() => Promise.resolve({ PATH: '/usr/bin' }))
 }))
 
@@ -243,57 +235,6 @@ describe('OpenClawService gateway status state machine', () => {
       const result = await service.getStatus()
 
       expect(result).toEqual({ status: 'error', port: 18790 })
-    })
-  })
-
-  // ─── checkHealth ─────────────────────────────────────────────
-
-  describe('checkHealth', () => {
-    it('returns unhealthy immediately when status is stopped', async () => {
-      ;(service as any).gatewayStatus = 'stopped'
-
-      const result = await service.checkHealth()
-
-      expect(result).toEqual({ status: 'unhealthy', gatewayPort: 18790 })
-      expect(checkHealthSpy).not.toHaveBeenCalled()
-    })
-
-    it('returns unhealthy immediately when status is error', async () => {
-      ;(service as any).gatewayStatus = 'error'
-
-      const result = await service.checkHealth()
-
-      expect(result).toEqual({ status: 'unhealthy', gatewayPort: 18790 })
-      expect(checkHealthSpy).not.toHaveBeenCalled()
-    })
-
-    it('returns unhealthy immediately when status is starting', async () => {
-      ;(service as any).gatewayStatus = 'starting'
-
-      const result = await service.checkHealth()
-
-      expect(result).toEqual({ status: 'unhealthy', gatewayPort: 18790 })
-      expect(checkHealthSpy).not.toHaveBeenCalled()
-    })
-
-    it('probes and returns healthy when gateway is running and reachable', async () => {
-      ;(service as any).gatewayStatus = 'running'
-      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
-
-      const result = await service.checkHealth()
-
-      expect(result).toEqual({ status: 'healthy', gatewayPort: 18790 })
-      expect((service as any).gatewayStatus).toBe('running')
-    })
-
-    it('transitions running → stopped when probe returns unhealthy', async () => {
-      ;(service as any).gatewayStatus = 'running'
-      checkHealthSpy.mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 })
-
-      const result = await service.checkHealth()
-
-      expect(result).toEqual({ status: 'unhealthy', gatewayPort: 18790 })
-      expect((service as any).gatewayStatus).toBe('stopped')
     })
   })
 
@@ -845,134 +786,18 @@ describe('OpenClawService gateway status state machine', () => {
       expect(status.status).toBe('running')
     })
 
-    it('running → checkHealth unhealthy → stopped → getStatus healthy → running', async () => {
+    it('running → getStatus unhealthy → stopped → getStatus healthy → running', async () => {
       ;(service as any).gatewayStatus = 'running'
 
-      // checkHealth detects crash
+      // getStatus detects crash
       checkHealthSpy.mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 })
-      await service.checkHealth()
-      expect((service as any).gatewayStatus).toBe('stopped')
+      const crashed = await service.getStatus()
+      expect(crashed.status).toBe('stopped')
 
       // getStatus detects recovery
       checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
-      const status = await service.getStatus()
-      expect(status.status).toBe('running')
+      const recovered = await service.getStatus()
+      expect(recovered.status).toBe('running')
     })
-  })
-})
-
-// ─── Parser tests (preserved from original) ─────────────────────
-
-describe('parseCurrentVersion', () => {
-  const cases = [
-    { name: 'standard version output', input: 'OpenClaw 2026.3.9 (fe96034)', expected: '2026.3.9' },
-    { name: 'version without commit hash', input: 'OpenClaw 2026.3.11', expected: '2026.3.11' },
-    { name: 'lowercase prefix', input: 'openclaw 1.0.0 (abc1234)', expected: '1.0.0' },
-    { name: 'semver format', input: 'OpenClaw 0.12.3 (deadbeef)', expected: '0.12.3' },
-    { name: 'empty string', input: '', expected: null },
-    { name: 'unrelated output', input: 'some random text', expected: null },
-    { name: 'version with extra whitespace', input: '  OpenClaw  2026.3.9  ', expected: '2026.3.9' }
-  ]
-
-  it.each(cases)('$name: "$input"', ({ input, expected }) => {
-    expect(parseCurrentVersion(input)).toBe(expected)
-  })
-
-  it('snapshot: all cases', () => {
-    const results = Object.fromEntries(cases.map((c) => [c.name, parseCurrentVersion(c.input)]))
-    expect(results).toMatchInlineSnapshot(`
-      {
-        "empty string": null,
-        "lowercase prefix": "1.0.0",
-        "semver format": "0.12.3",
-        "standard version output": "2026.3.9",
-        "unrelated output": null,
-        "version with extra whitespace": "2026.3.9",
-        "version without commit hash": "2026.3.11",
-      }
-    `)
-  })
-})
-
-describe('parseUpdateStatus', () => {
-  const cases = [
-    {
-      name: 'binary update via summary line',
-      input: 'Update available (binary 2026.3.12). Run: openclaw update',
-      expected: '2026.3.12'
-    },
-    {
-      name: 'binary update via table row',
-      input: 'available · binary · 2026.3.12',
-      expected: '2026.3.12'
-    },
-    {
-      name: 'binary update with semver',
-      input: 'Update available (binary 1.2.3). Run: openclaw update',
-      expected: '1.2.3'
-    },
-    {
-      name: 'full table output with binary update',
-      input: [
-        'OpenClaw update status',
-        '┌──────────┬─────────────────────────────────┐',
-        '│ Install  │ binary (~/.cherrystudio/bin)     │',
-        '│ Channel  │ stable (default)                 │',
-        '│ Update   │ available · binary · 2026.3.12   │',
-        '└──────────┴─────────────────────────────────┘',
-        '',
-        'Update available (binary 2026.3.12). Run: openclaw update'
-      ].join('\n'),
-      expected: '2026.3.12'
-    },
-    {
-      name: 'ignores npm update (summary)',
-      input: 'Update available (npm 2026.3.11). Run: openclaw update',
-      expected: null
-    },
-    {
-      name: 'ignores pkg update (table row)',
-      input: 'Update available · pkg · npm update 2026.3.11',
-      expected: null
-    },
-    {
-      name: 'ignores pkg update in full table output',
-      input: [
-        'OpenClaw update status',
-        '┌──────────┬─────────────────────────────────┐',
-        '│ Install  │ binary (~/.cherrystudio/bin)     │',
-        '│ Channel  │ stable (default)                 │',
-        '│ Update   │ available · pkg · npm update 2026.3.11 │',
-        '└──────────┴─────────────────────────────────┘',
-        '',
-        'Update available (npm 2026.3.11). Run: openclaw update'
-      ].join('\n'),
-      expected: null
-    },
-    { name: 'no update available', input: 'Already up to date', expected: null },
-    { name: 'empty string', input: '', expected: null },
-    { name: 'unrelated output', input: 'some random text', expected: null }
-  ]
-
-  it.each(cases)('$name', ({ input, expected }) => {
-    expect(parseUpdateStatus(input)).toBe(expected)
-  })
-
-  it('snapshot: all cases', () => {
-    const results = Object.fromEntries(cases.map((c) => [c.name, parseUpdateStatus(c.input)]))
-    expect(results).toMatchInlineSnapshot(`
-      {
-        "binary update via summary line": "2026.3.12",
-        "binary update via table row": "2026.3.12",
-        "binary update with semver": "1.2.3",
-        "empty string": null,
-        "full table output with binary update": "2026.3.12",
-        "ignores npm update (summary)": null,
-        "ignores pkg update (table row)": null,
-        "ignores pkg update in full table output": null,
-        "no update available": null,
-        "unrelated output": null,
-      }
-    `)
   })
 })

@@ -501,9 +501,12 @@ class FileStorage {
   public writeFile = async (
     _: Electron.IpcMainInvokeEvent,
     filePath: string,
-    data: Uint8Array | string
+    data: Uint8Array | string,
+    mode?: number
   ): Promise<void> => {
-    await fs.promises.writeFile(filePath, data)
+    await fs.promises.writeFile(filePath, data, mode !== undefined ? { mode } : undefined)
+    // `writeFile`'s `mode` option only applies when creating a new file; an existing file keeps its old mode.
+    if (mode !== undefined) await fs.promises.chmod(filePath, mode)
   }
 
   public fileNameGuard = async (

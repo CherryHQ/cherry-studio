@@ -1,6 +1,8 @@
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser'
 import { parse as parseToml } from 'smol-toml'
 
+import { redactSecretsInMessage } from './redact'
+
 /** Resolve `~`/relative paths to absolute (renderer cannot call application.getPath). */
 export async function resolveAbs(p: string): Promise<string> {
   return window.api.resolvePath(p)
@@ -21,16 +23,7 @@ export async function writeExternalConfigFile(absPath: string, content: Uint8Arr
   if (parentDir) {
     await window.api.file.mkdir(parentDir)
   }
-  await window.api.file.write(absPath, content)
-}
-
-/** Read an external file as text; returns '' when missing or unreadable. */
-export async function readExternal(absPath: string): Promise<string> {
-  try {
-    return await window.api.file.readExternal(absPath)
-  } catch {
-    return ''
-  }
+  await window.api.file.write(absPath, content, 0o600)
 }
 
 function isMissingFileError(error: unknown): boolean {
@@ -48,11 +41,17 @@ export async function readExternalOrNull(absPath: string): Promise<string | null
   }
 }
 
+/** Read an external file as text; returns '' when missing, throws on other read errors. */
+export async function readExternal(absPath: string): Promise<string> {
+  return (await readExternalOrNull(absPath)) ?? ''
+}
+
 function parseOrThrow<T>(content: string, label: string, absPath: string, parseFn: (content: string) => T): T {
   try {
     return parseFn(content)
   } catch (err) {
-    throw new Error(`Failed to parse ${label} at ${absPath}: ${err instanceof Error ? err.message : String(err)}`)
+    const rawMessage = err instanceof Error ? err.message : String(err)
+    throw new Error(`Failed to parse ${label} at ${absPath}: ${redactSecretsInMessage(rawMessage)}`)
   }
 }
 
@@ -98,8 +97,4 @@ export function parseJsonOrThrow(content: string): Record<string, any> {
 
 export function renderJsonFile(value: Record<string, any>): string {
   return `${JSON.stringify(value, null, 2)}\n`
-}
-
-export function renderDotenvFile(envMap: Map<string, string>): string {
-  return `${[...envMap.entries()].map(([key, value]) => `${key}=${value}`).join('\n')}\n`
 }

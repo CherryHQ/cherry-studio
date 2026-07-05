@@ -13,7 +13,7 @@ export interface CodexConfigFieldsProps {
   section?: 'all' | 'basic' | 'advanced'
 }
 
-type CodexFlag = 'goalMode' | 'remoteCompaction' | 'commonConfig' | 'disableResponseStorage'
+type CodexFlag = 'goalMode' | 'remoteCompaction' | 'disableResponseStorage'
 
 const PERMISSION_MODE_LABEL_KEYS: Record<(typeof CODEX_PERMISSION_MODES)[number], string> = {
   readOnly: 'code.adv.permission_modes.read_only',
@@ -35,7 +35,6 @@ export const CodexConfigFields: FC<CodexConfigFieldsProps> = ({ config, onChange
 
   const goalMode = config.goalMode === true
   const remoteCompaction = config.remoteCompaction === true
-  const commonConfig = config.commonConfig === true
   const disableResponseStorage = config.disableResponseStorage === true
 
   const toggle = useCallback(
@@ -92,11 +91,6 @@ export const CodexConfigFields: FC<CodexConfigFieldsProps> = ({ config, onChange
           label={t('code.adv.codex.disable_response_storage')}
           active={disableResponseStorage}
           onClick={() => toggle('disableResponseStorage', !disableResponseStorage)}
-        />
-        <TogglePill
-          label={t('code.adv.codex.common_config')}
-          active={commonConfig}
-          onClick={() => toggle('commonConfig', !commonConfig)}
         />
       </div>
     </div>

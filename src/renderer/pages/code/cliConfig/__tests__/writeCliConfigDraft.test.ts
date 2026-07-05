@@ -415,6 +415,43 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.model_providers['cherry-DeepSeek'].name).toBe('DeepSeek')
     })
 
+    // Regression: Codex treats a model_providers[...].name of exactly "OpenAI" as a signal
+    // that remote compaction is on, regardless of the actual toggle — so a provider whose
+    // display name really is "OpenAI" must never be written verbatim unless that mode is on.
+    it('avoids the "OpenAI" name collision when the provider is actually named OpenAI (remote compaction off)', async () => {
+      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' } as unknown as Provider
+      mockGet({
+        '/providers/deepseek': () => openaiNamedProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
+
+      const { parse: parseToml } = await import('smol-toml')
+      const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
+      expect(parsed.model_providers['cherry-OpenAI'].name).toBe('OpenAI (Cherry)')
+    })
+
+    it('writes the literal "OpenAI" name when remote compaction is actually on', async () => {
+      const openaiNamedProvider = { ...codexProvider, name: 'OpenAI' } as unknown as Provider
+      mockGet({
+        '/providers/deepseek': () => openaiNamedProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPENAI_CODEX,
+        modelId: 'deepseek::deepseek-chat',
+        configBlob: { remoteCompaction: true }
+      })
+
+      const { parse: parseToml } = await import('smol-toml')
+      const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
+      expect(parsed.model_providers['cherry-OpenAI'].name).toBe('OpenAI')
+    })
+
     it('uses the responses endpoint even when a chat-completions endpoint is also present', async () => {
       const responsesProvider = {
         ...openaiCompatProvider,
@@ -636,6 +673,26 @@ describe('writeCliConfigDraft', () => {
       expect(settings.tools).toBeUndefined()
       expect(settings.advanced).toBeUndefined()
     })
+
+    it('preserves a field Cherry has no UI for instead of silently deleting it', async () => {
+      // `general.preferredEditor` is MANAGED (clear.ts wipes it) but not WRITABLE
+      // (no UI control writes it), so a save must leave it untouched.
+      existing['/resolved~/.gemini/settings.json'] = JSON.stringify({ general: { preferredEditor: 'vim' } })
+      mockGet({
+        '/providers/gemini': () => geminiProvider,
+        '/providers/gemini/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.GEMINI_CLI,
+        modelId: 'gemini::gemini-2.5-pro',
+        configBlob: { general: { vimMode: true } }
+      })
+
+      const settings = JSON.parse(findWrite('settings.json').content)
+      expect(settings.general).toEqual({ vimMode: true, preferredEditor: 'vim' })
+    })
   })
 
   describe('qwen-code (~/.qwen/settings.json)', () => {
@@ -687,6 +744,26 @@ describe('writeCliConfigDraft', () => {
         envKey: 'CHERRY_QWEN_API_KEY'
       })
     })
+
+    it('preserves a field Cherry has no UI for instead of silently deleting it', async () => {
+      // `context.fileName` is MANAGED (clear.ts wipes it) but not WRITABLE
+      // (no UI control writes it), so a save must leave it untouched.
+      existing['/resolved~/.qwen/settings.json'] = JSON.stringify({ context: { fileName: ['QWEN.md'] } })
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ id: 'deepseek-chat', name: 'DeepSeek Chat' })
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.QWEN_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        configBlob: { general: { vimMode: true } }
+      })
+
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.context).toEqual({ fileName: ['QWEN.md'] })
+    })
   })
 
   describe('kimi-code (~/.kimi-code/config.toml)', () => {
@@ -726,6 +803,27 @@ describe('writeCliConfigDraft', () => {
       expect(parsed.background).toEqual({ keep_alive_on_exit: true })
       expect(parsed.experimental).toEqual({ micro_compaction: true })
       expect(parsed.models['cherry-DeepSeek'].max_context_size).toBe(65536)
+    })
+
+    it('preserves a field Cherry has no UI for instead of silently deleting it', async () => {
+      // `loop_control.*` is MANAGED (clear.ts wipes it) but not WRITABLE
+      // (no UI control writes it), so a save must leave it untouched.
+      existing['/resolved~/.kimi-code/config.toml'] = 'loop_control = { max_steps_per_turn = 12 }'
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ id: 'deepseek-chat', contextWindow: 65536 })
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.KIMI_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        configBlob: { thinking: { enabled: true } }
+      })
+
+      const { parse: parseToml } = await import('smol-toml')
+      const parsed = parseToml(written!.content) as Record<string, any>
+      expect(parsed.loop_control).toEqual({ max_steps_per_turn: 12 })
     })
 
     it('does not write when parent directory creation fails', async () => {
@@ -789,6 +887,134 @@ describe('writeCliConfigDraft', () => {
         writeCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, modelId: 'deepseek::deepseek-chat' })
       ).rejects.toThrow(/Failed to parse/)
       expect(writes).toEqual([])
+    })
+  })
+
+  describe('assertCliConfigCredentials via writeCliConfigDraft (never write an unauthenticated config)', () => {
+    it('rejects claude-code with no API key and writes nothing', async () => {
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [] }),
+        '/models/': () => null
+      })
+      await expect(
+        writeCliConfigDraft({ cliTool: CodeCli.CLAUDE_CODE, modelId: 'anthropic::claude-sonnet-4-5' })
+      ).rejects.toThrow(/missing the API key/)
+      expect(writes).toEqual([])
+    })
+
+    it('rejects codex with no API key and writes nothing', async () => {
+      mockGet({
+        '/providers/deepseek': () => codexProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [] }),
+        '/models/': () => null
+      })
+      await expect(
+        writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
+      ).rejects.toThrow(/missing the API key/)
+      expect(writes).toEqual([])
+    })
+
+    it('rejects opencode with no API key and writes nothing', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [] }),
+        '/models/': () => ({ id: 'deepseek-chat', contextWindow: 65536 })
+      })
+      await expect(
+        writeCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, modelId: 'deepseek::deepseek-chat' })
+      ).rejects.toThrow(/missing required fields/)
+      expect(writes).toEqual([])
+    })
+
+    it('rejects gemini-cli with no API key and writes nothing', async () => {
+      mockGet({
+        '/providers/gemini': () => geminiProvider,
+        '/providers/gemini/api-keys': () => ({ keys: [] }),
+        '/models/': () => null
+      })
+      await expect(
+        writeCliConfigDraft({ cliTool: CodeCli.GEMINI_CLI, modelId: 'gemini::gemini-2.5-pro' })
+      ).rejects.toThrow(/missing the API key/)
+      expect(writes).toEqual([])
+    })
+
+    it('rejects qwen-code with no API key and writes nothing', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [] }),
+        '/models/': () => ({ id: 'deepseek-chat', name: 'DeepSeek Chat' })
+      })
+      await expect(
+        writeCliConfigDraft({ cliTool: CodeCli.QWEN_CODE, modelId: 'deepseek::deepseek-chat' })
+      ).rejects.toThrow(/missing the API key/)
+      expect(writes).toEqual([])
+    })
+
+    it('rejects kimi-code with no API key and writes nothing', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [] }),
+        '/models/': () => ({ id: 'deepseek-chat', contextWindow: 65536 })
+      })
+      await expect(
+        writeCliConfigDraft({ cliTool: CodeCli.KIMI_CODE, modelId: 'deepseek::deepseek-chat' })
+      ).rejects.toThrow(/missing the API key/)
+      expect(writes).toEqual([])
+    })
+  })
+
+  describe('read-error safety (a real read failure must not be treated as "file missing")', () => {
+    it('aborts instead of treating a permission-denied read as an empty/new file', async () => {
+      // The file exists, but reading it fails transiently (e.g. EACCES/EBUSY).
+      // Before the fix this was swallowed and treated as "file doesn't exist
+      // yet", which would silently wipe every unmanaged key from the real file.
+      existing['/resolved~/.claude/settings.json'] = JSON.stringify({ hooks: { foo: 'bar' } })
+      vi.mocked(window.api.file.readExternal).mockImplementationOnce(async () => {
+        throw new Error('EACCES: permission denied')
+      })
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await expect(
+        writeCliConfigDraft({ cliTool: CodeCli.CLAUDE_CODE, modelId: 'anthropic::claude-sonnet-4-5' })
+      ).rejects.toThrow(/EACCES/)
+      // Nothing was written — the real file (and its unmanaged keys) is untouched.
+      expect(writes).toEqual([])
+    })
+
+    it('does not delete a real config file during rollback when its snapshot read fails', async () => {
+      // Drive the write with explicit `files` so the snapshot/rollback path is
+      // exercised directly, independent of the build-time read (covered above).
+      // codex writes config.toml then auth.json; a real read error while
+      // snapshotting config.toml must abort before either file is touched, not
+      // be recorded as "didn't exist" and later trash-deleted during rollback.
+      const files = [
+        {
+          target: 'codex-config' as const,
+          label: 'Codex config',
+          path: '/resolved~/.codex/config.toml',
+          language: 'toml' as const,
+          content: 'model = "new-model"'
+        },
+        {
+          target: 'codex-auth' as const,
+          label: 'Codex auth',
+          path: '/resolved~/.codex/auth.json',
+          language: 'json' as const,
+          content: '{"OPENAI_API_KEY":"sk-secret"}'
+        }
+      ]
+      vi.mocked(window.api.file.readExternal).mockImplementationOnce(async () => {
+        throw new Error('EBUSY: resource busy or locked')
+      })
+
+      await expect(writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, files })).rejects.toThrow(/EBUSY/)
+      expect(writes).toEqual([])
+      expect(window.api.file.deleteExternalFile).not.toHaveBeenCalled()
     })
   })
 })
