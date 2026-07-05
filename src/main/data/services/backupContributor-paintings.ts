@@ -20,6 +20,21 @@
 import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
 import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
+import { paintingFileRefTable } from '@main/data/db/schemas/fileRelations'
+
+/**
+ * Collect fileEntryIds referenced by painting_file_ref (deduped). These ids
+ * point at file_entry rows (owned by FILE_STORAGE); the junction itself has no
+ * deletedAt (deletion cascades from painting/file_entry), so we don't filter
+ * here — staging resolves each id against file_entry and skips soft-deleted /
+ * missing sources (a super-set of FILE_STORAGE's own collection, but cheap to
+ * union and required for partial presets where PAINTINGS backs up its files
+ * without FILE_STORAGE).
+ */
+export async function collectPaintingFileIds(liveDb: BackupReadonlyDb): Promise<Set<string>> {
+  const rows = await liveDb.select().from(paintingFileRefTable)
+  return new Set(rows.map((r) => r.fileEntryId))
+}
 
 /**
  * PAINTINGS domain. painting (uuid-v4) is the aggregate root; painting_file_ref
@@ -68,9 +83,10 @@ export const PAINTINGS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     jsonSoftReferences: []
   },
   backupPolicy: {},
-  // TODO(C/D track) — collectFileResources (export painting file blobs via
-  // painting_file_ref.fileEntryId, filter deletedAt IS NULL) + restoreResources
-  // (blob restore runs before DB import, returns skippedFileEntryIds). Not a
-  // finalize concern; wired with the C/D restore track (like FILE_STORAGE / KNOWLEDGE).
-  operations: undefined
+  // collectFileResources exports painting file blobs via painting_file_ref.fileEntryId
+  // (deduped). restoreResources (blob restore runs before DB import, returns
+  // skippedFileEntryIds) lands with the C/D restore track (like FILE_STORAGE / KNOWLEDGE).
+  operations: {
+    collectFileResources: (ctx) => collectPaintingFileIds(ctx.liveDb)
+  }
 })

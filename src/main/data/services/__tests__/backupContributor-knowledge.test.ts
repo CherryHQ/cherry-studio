@@ -1,8 +1,11 @@
 // Unit tests for the KNOWLEDGE contributor — pure declaration assertions (no DB).
+import { BackupReadonlyDb } from '@main/data/db/backup/contexts'
 import { table } from '@main/data/db/backup/dbSchemaRefs'
+import { knowledgeBaseTable } from '@main/data/db/schemas/knowledge'
+import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
-import { KNOWLEDGE_CONTRIBUTOR } from '../backupContributor-knowledge'
+import { collectKnowledgeBaseIds, KNOWLEDGE_CONTRIBUTOR } from '../backupContributor-knowledge'
 
 describe('KNOWLEDGE contributor', () => {
   it('owns knowledge_base + knowledge_item', () => {
@@ -73,5 +76,27 @@ describe('KNOWLEDGE contributor', () => {
     expect(() => {
       ;(KNOWLEDGE_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
     }).toThrow()
+  })
+})
+
+// DB-backed tests for collectFileResources — returns knowledge_base ids (each maps to a
+// {baseId}/ directory under feature.knowledgebase.data, routed to knowledge/<baseId>/).
+describe('KNOWLEDGE collectFileResources (collectKnowledgeBaseIds)', () => {
+  const dbh = setupTestDatabase()
+
+  it('returns all knowledge_base ids', async () => {
+    // searchMode='bm25' satisfies status_error_check without an embeddingModelId FK
+    // (the embeddingModelId NULL + dimensions NULL + bm25 branch).
+    await dbh.db.insert(knowledgeBaseTable).values([
+      { id: 'kb1', name: 'a', status: 'completed', chunkSize: 100, chunkOverlap: 20, searchMode: 'bm25' },
+      { id: 'kb2', name: 'b', status: 'completed', chunkSize: 100, chunkOverlap: 20, searchMode: 'bm25' }
+    ])
+    const ids = await collectKnowledgeBaseIds(new BackupReadonlyDb(dbh.db))
+    expect(ids).toEqual(new Set(['kb1', 'kb2']))
+  })
+
+  it('returns empty set when no knowledge_base rows exist', async () => {
+    const ids = await collectKnowledgeBaseIds(new BackupReadonlyDb(dbh.db))
+    expect(ids).toEqual(new Set())
   })
 })

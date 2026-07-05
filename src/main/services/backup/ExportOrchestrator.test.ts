@@ -1,17 +1,21 @@
-// Unit tests for ExportOrchestrator — e2e .cbu production (full-preset, DB-only slice).
+// Unit tests for ExportOrchestrator — .cbu production (full-preset, DB + blob slice).
 import Database from 'better-sqlite3'
 import StreamZip from 'node-stream-zip'
 import { existsSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import type { ReadonlyBackupRegistry } from '@main/data/db/backup/contributor-types'
+import type { ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import { BACKUP_DOMAINS } from '@main/data/db/backup/domains'
+import { fileEntryTable } from '@main/data/db/schemas/file'
+import { knowledgeBaseTable } from '@main/data/db/schemas/knowledge'
+import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
-import { StubBackupCopier } from './BackupDbCopier'
+import { SqliteBackupCopier, StubBackupCopier } from './BackupDbCopier'
 import { ExportOrchestrator } from './ExportOrchestrator'
+import { contributorManager } from './contributors/ContributorManager'
 
 /**
  * Minimal registry stub — the orchestrator's first slice only calls `topoSort`.
@@ -19,8 +23,11 @@ import { ExportOrchestrator } from './ExportOrchestrator'
  * finalize/registry tests; this stub isolates the export pipeline.
  */
 const STUB_REGISTRY = {
-  // topoSort is the only method the orchestrator touches in this slice
-  topoSort: (domains: readonly string[]) => [...domains]
+  // topoSort + getOperations(→ undefined) only; isolates the export pipeline from
+  // the real registry. getOperations returns undefined so collectFileResources is
+  // skipped (no blobs) — the e2e describe below uses the real registry.
+  topoSort: (domains: readonly string[]) => [...domains],
+  getOperations: () => undefined
 } as unknown as ReadonlyBackupRegistry
 
 /** Create a fixture sqlite file with rows so the archive's backup.sqlite is verifiable. */
@@ -38,7 +45,13 @@ const openZip = async (p: string) => {
 }
 
 const newOrch = (dir: string, fixture: string) =>
-  new ExportOrchestrator({ copier: new StubBackupCopier(fixture), registry: STUB_REGISTRY, tempDir: dir })
+  new ExportOrchestrator({
+    copier: new StubBackupCopier(fixture),
+    registry: STUB_REGISTRY,
+    tempDir: dir,
+    filesRoot: join(dir, 'files-root'),
+    knowledgeRoot: join(dir, 'kb-root')
+  })
 
 describe('ExportOrchestrator (full-preset DB-only slice)', () => {
   it('rejects the lite preset (gated off — needs contributor strip step)', async () => {
@@ -196,6 +209,69 @@ describe('ExportOrchestrator (full-preset DB-only slice)', () => {
         })
       ).rejects.toThrow()
       expect(existsSync(tempCopyPath)).toBe(false)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+// E2e: real contributor registry (collectFileResources runs the actual hooks) +
+// real SqliteFileStager + fixture blobs on disk → archive holds files/ + knowledge/.
+describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () => {
+  const dbh = setupTestDatabase()
+
+  it('collects + stages file_entry blobs and knowledge base dirs into the archive', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-export-e2e-'))
+    try {
+      // Seed the live DB: 1 internal file + 1 knowledge base.
+      await dbh.db.insert(fileEntryTable).values([{ id: 'f1', origin: 'internal', name: 'a', ext: 'txt', size: 5 }])
+      await dbh.db
+        .insert(knowledgeBaseTable)
+        .values([{ id: 'kb1', name: 'kb', status: 'completed', chunkSize: 100, chunkOverlap: 20, searchMode: 'bm25' }])
+      // Fixture blobs at the live filesystem roots.
+      const filesRoot = await mkdtemp(join(tmpdir(), 'cs-files-root-'))
+      const kbRoot = await mkdtemp(join(tmpdir(), 'cs-kb-root-'))
+      await writeFile(join(filesRoot, 'f1.txt'), 'hello')
+      await mkdir(join(kbRoot, 'kb1'), { recursive: true })
+      await writeFile(join(kbRoot, 'kb1', 'source.md'), 'doc')
+
+      // Snapshot the live test DB (holds the seeded file_entry + knowledge_base) via
+      // SqliteBackupCopier; the orchestrator then opens its own read-only handle on
+      // the snapshot so collect + stage agree with backup.sqlite.
+      const liveRow = dbh.sqlite.prepare('PRAGMA database_list').get() as { file: string }
+      const orch = new ExportOrchestrator({
+        copier: new SqliteBackupCopier(liveRow.file),
+        // Real registry: collectFileResources runs the actual contributor hooks
+        // (FILE_STORAGE → f1, KNOWLEDGE → kb1, PAINTINGS → none) against the snapshot.
+        registry: contributorManager.getRegistry(),
+        tempDir: dir,
+        filesRoot,
+        knowledgeRoot: kbRoot
+      })
+      const out = join(dir, 'full.cbu')
+      const { manifest } = await orch.exportBackup({
+        preset: 'full',
+        outputPath: out,
+        restoreId: 'r1',
+        producerAppVersion: '1.0.0',
+        schemaMigrationId: '0001_x.sql'
+      })
+
+      // manifest reflects the staged blobs.
+      expect(manifest.includeFiles).toBe(true)
+      expect(manifest.includeKnowledgeFiles).toBe(true)
+      expect(manifest.files.total).toBe(1)
+      expect(manifest.files.totalBytes).toBe(5)
+      expect(manifest.knowledge.bases).toEqual(['kb1'])
+
+      // archive holds the staged blobs.
+      const { zip, entries } = await openZip(out)
+      try {
+        expect(entries).toContain('files/f1')
+        expect(entries).toContain('knowledge/kb1/source.md')
+      } finally {
+        await zip.close()
+      }
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

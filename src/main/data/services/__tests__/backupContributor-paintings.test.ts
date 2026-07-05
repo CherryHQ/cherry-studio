@@ -1,8 +1,13 @@
 // Unit tests for the PAINTINGS contributor — pure declaration assertions (no DB).
+import { BackupReadonlyDb } from '@main/data/db/backup/contexts'
 import { table } from '@main/data/db/backup/dbSchemaRefs'
+import { fileEntryTable } from '@main/data/db/schemas/file'
+import { paintingFileRefTable } from '@main/data/db/schemas/fileRelations'
+import { paintingTable } from '@main/data/db/schemas/painting'
+import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
-import { PAINTINGS_CONTRIBUTOR } from '../backupContributor-paintings'
+import { collectPaintingFileIds, PAINTINGS_CONTRIBUTOR } from '../backupContributor-paintings'
 
 describe('PAINTINGS contributor', () => {
   it('owns painting + painting_file_ref', () => {
@@ -76,5 +81,31 @@ describe('PAINTINGS contributor', () => {
     expect(() => {
       ;(PAINTINGS_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
     }).toThrow()
+  })
+})
+
+// DB-backed tests for collectFileResources — returns painting_file_ref.fileEntryId (deduped).
+describe('PAINTINGS collectFileResources (collectPaintingFileIds)', () => {
+  const dbh = setupTestDatabase()
+
+  it('returns deduped fileEntryIds (a file shared by input+output refs counts once)', async () => {
+    // FK prerequisites: painting + file_entry must exist before painting_file_ref.
+    await dbh.db.insert(paintingTable).values([{ id: 'p1', providerId: 'prov', prompt: 'x', orderKey: 'a' }])
+    await dbh.db.insert(fileEntryTable).values([
+      { id: 'pf1', origin: 'internal', name: 'a', size: 10 },
+      { id: 'pf2', origin: 'internal', name: 'b', size: 20 }
+    ])
+    await dbh.db.insert(paintingFileRefTable).values([
+      { fileEntryId: 'pf1', sourceId: 'p1', role: 'output' },
+      { fileEntryId: 'pf2', sourceId: 'p1', role: 'output' },
+      { fileEntryId: 'pf1', sourceId: 'p1', role: 'input' } // pf1 reappears → deduped
+    ])
+    const ids = await collectPaintingFileIds(new BackupReadonlyDb(dbh.db))
+    expect(ids).toEqual(new Set(['pf1', 'pf2']))
+  })
+
+  it('returns empty set when no painting_file_ref rows exist', async () => {
+    const ids = await collectPaintingFileIds(new BackupReadonlyDb(dbh.db))
+    expect(ids).toEqual(new Set())
   })
 })

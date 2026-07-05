@@ -22,6 +22,19 @@
 import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
 import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
+import { knowledgeBaseTable } from '@main/data/db/schemas/knowledge'
+
+/**
+ * Collect knowledge_base ids — each base owns a `{baseId}/` directory under
+ * feature.knowledgebase.data (raw source files + .cherry/index.sqlite). These
+ * are directory-shaped resources (not file_entry blobs), so the orchestrator
+ * routes them to `knowledge/<baseId>/` at stage time (distinct from
+ * `files/<fileId>`); a base whose directory is missing is skipped, not fatal.
+ */
+export async function collectKnowledgeBaseIds(liveDb: BackupReadonlyDb): Promise<Set<string>> {
+  const rows = await liveDb.select().from(knowledgeBaseTable)
+  return new Set(rows.map((r) => r.id))
+}
 
 /**
  * KNOWLEDGE domain. knowledge_base (uuid-v4) is the aggregate root; knowledge_item
@@ -75,9 +88,10 @@ export const KNOWLEDGE_CONTRIBUTOR = deepFreeze<BackupContributor>({
     ]
   },
   backupPolicy: {},
-  // TODO(C/D track): collectFileResources (export the {baseId}/ directory — raw source
-  // files + .cherry/index.sqlite) + restoreResources (copy verbatim, no reindex on
-  // restore since the embedded index is part of the base). Not a finalize concern;
-  // wired with the C/D restore track.
-  operations: undefined
+  // collectFileResources exports the {baseId}/ directory (raw source files +
+  // .cherry/index.sqlite). restoreResources (copy verbatim, no reindex on restore
+  // since the embedded index is part of the base) lands with the C/D restore track.
+  operations: {
+    collectFileResources: (ctx) => collectKnowledgeBaseIds(ctx.liveDb)
+  }
 })

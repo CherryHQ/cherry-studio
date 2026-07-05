@@ -1,7 +1,7 @@
 // ReadonlyBackupRegistryImpl — the immutable registry view produced by finalize.
 //
 // Holds the finalized contributor map + derived indexes and exposes the read-only
-// query surface declared by ReadonlyBackupRegistry (contributor-types.ts). PK / FK
+// query surface declared by ReadonlyBackupRegistry (contributorTypes.ts). PK / FK
 // facts come straight from the codegen product (DB_PRIMARY_KEYS / DB_FOREIGN_KEYS)
 // — the single source of truth — while domain-scoped lookups (schema / policy /
 // operations / references / aggregates) come from each domain's contributor.
@@ -20,7 +20,7 @@ import type {
   FileRefSourcePolicy,
   JsonSoftReferencePolicy,
   ReadonlyBackupRegistry
-} from '@main/data/db/backup/contributor-types'
+} from '@main/data/db/backup/contributorTypes'
 import {
   DB_FOREIGN_KEYS,
   DB_PRIMARY_KEYS,
