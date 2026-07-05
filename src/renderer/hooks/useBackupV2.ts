@@ -1,6 +1,6 @@
 // useBackupV2 — renderer hook for the v2 modular backup export pipeline.
 //
-// Wraps window.api.backupV2 (BackupV2_StartBackup / CancelBackup / GetBackupProgress /
+// Wraps window.api.backupV2 (BackupV2_StartBackup / CancelBackup /
 // BackupV2_Progress event) with loading / error / progress / cancel state so a UI
 // surface can bind a single onClick without re-deriving it.
 //

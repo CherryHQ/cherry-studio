@@ -21,7 +21,7 @@ import { rename, stat, unlink } from 'node:fs/promises'
 import { finished } from 'node:stream/promises'
 import { basename, dirname, join } from 'node:path'
 
-import { BackupCancelledError } from './errors'
+import { BackupCancelledError, DiskFullError } from './errors'
 import type { BackupManifest } from './manifest'
 
 export interface ArchiveInputs {
@@ -119,6 +119,8 @@ export async function assembleArchive(
     output.destroy()
     await finished(output).catch(() => {})
     await unlink(tmpPath).catch(() => {})
-    throw e
+    // Wrap ENOSPC (disk filled mid-archive — typically external blobs uncounted by
+    // preflight) as DiskFullError for a clear renderer message (spec §磁盘预算 L254).
+    throw (e as NodeJS.ErrnoException).code === 'ENOSPC' ? new DiskFullError() : e
   }
 }
