@@ -26,14 +26,16 @@ type CliToolOption = (typeof CLI_TOOLS)[number]
 
 const CLI_TOOL_IDS = CLI_TOOLS.map((tool) => tool.value)
 
-const toMeta = (tool: CliToolOption): CodeToolMeta => ({
-  id: tool.value,
-  label: tool.label,
-  icon: tool.icon
-})
-
 export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   const { t } = useTranslation()
+  const toMeta = useCallback(
+    (tool: CliToolOption): CodeToolMeta => ({
+      id: tool.value,
+      label: t(tool.label),
+      icon: tool.icon
+    }),
+    [t]
+  )
   useBunInstallationCache()
   const {
     selectedCliTool,

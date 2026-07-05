@@ -15,16 +15,17 @@ import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { isGeminiProvider } from '@shared/utils/provider'
 
+/** `label` is an i18n key (under `code.cli_tools`), not display text — resolve it with `t()` before rendering. */
 export const CLI_TOOLS = [
-  { value: CodeCli.CLAUDE_CODE, label: 'Claude Code', icon: ClaudeCode },
-  { value: CodeCli.OPENAI_CODEX, label: 'OpenAI Codex', icon: OpenaiCodex },
-  { value: CodeCli.OPEN_CODE, label: 'OpenCode', icon: OpenCode },
-  { value: CodeCli.OPENCLAW, label: 'OpenClaw', icon: Openclaw },
-  { value: CodeCli.GEMINI_CLI, label: 'Gemini CLI', icon: GeminiCli },
-  { value: CodeCli.QWEN_CODE, label: 'Qwen Code', icon: QwenCode },
-  { value: CodeCli.KIMI_CODE, label: 'Kimi Code', icon: KimiCode },
-  { value: CodeCli.GITHUB_COPILOT_CLI, label: 'GitHub Copilot CLI', icon: GithubCopilotCli },
-  { value: CodeCli.QODER_CLI, label: 'Qoder CLI', icon: QoderCli }
+  { value: CodeCli.CLAUDE_CODE, label: 'code.cli_tools.claude_code', icon: ClaudeCode },
+  { value: CodeCli.OPENAI_CODEX, label: 'code.cli_tools.openai_codex', icon: OpenaiCodex },
+  { value: CodeCli.OPEN_CODE, label: 'code.cli_tools.opencode', icon: OpenCode },
+  { value: CodeCli.OPENCLAW, label: 'code.cli_tools.openclaw', icon: Openclaw },
+  { value: CodeCli.GEMINI_CLI, label: 'code.cli_tools.gemini_cli', icon: GeminiCli },
+  { value: CodeCli.QWEN_CODE, label: 'code.cli_tools.qwen_code', icon: QwenCode },
+  { value: CodeCli.KIMI_CODE, label: 'code.cli_tools.kimi_code', icon: KimiCode },
+  { value: CodeCli.GITHUB_COPILOT_CLI, label: 'code.cli_tools.github_copilot_cli', icon: GithubCopilotCli },
+  { value: CodeCli.QODER_CLI, label: 'code.cli_tools.qoder_cli', icon: QoderCli }
 ] as const satisfies ReadonlyArray<{ value: CodeCli; label: string; icon: IconComponent }>
 
 /** CLI tool id → installed binary name (the shim mise exposes). */
@@ -61,7 +62,7 @@ const hasGemini = (p: Provider): boolean => hasEndpoint(p, ENDPOINT_TYPE.GOOGLE_
 
 /**
  * CLI tool → supported-provider filter. Filters mirror the file injection in
- * `injectCliConfig` so a provider only shows up when its CLI-compatible endpoint can
+ * `writeCliConfigDraft` so a provider only shows up when its CLI-compatible endpoint can
  * actually back the CLI. All judgments are based on `endpointConfigs` (the
  * only source injection reads), never on `defaultChatEndpoint`/
  * `presetProviderId` indirect signals that may be unset on user or migrated

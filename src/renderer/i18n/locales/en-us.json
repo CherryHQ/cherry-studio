@@ -2019,6 +2019,17 @@
     },
     "cli_tool": "CLI Tool",
     "cli_tool_placeholder": "Select the CLI tool to use",
+    "cli_tools": {
+      "claude_code": "Claude Code",
+      "gemini_cli": "Gemini CLI",
+      "github_copilot_cli": "GitHub Copilot CLI",
+      "kimi_code": "Kimi Code",
+      "openai_codex": "OpenAI Codex",
+      "openclaw": "OpenClaw",
+      "opencode": "OpenCode",
+      "qoder_cli": "Qoder CLI",
+      "qwen_code": "Qwen Code"
+    },
     "collapse": "Collapse",
     "config_json_hint": "Paste or edit raw JSON; it stays in sync with the fields above",
     "configure": "Configure",

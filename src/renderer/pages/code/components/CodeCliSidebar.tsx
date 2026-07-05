@@ -62,10 +62,10 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
     () =>
       tools.filter(
         (tool) =>
-          tool.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          t(tool.label).toLowerCase().includes(searchTerm.toLowerCase()) ||
           tool.value.toLowerCase().includes(searchTerm.toLowerCase())
       ),
-    [tools, searchTerm]
+    [tools, searchTerm, t]
   )
 
   return (
