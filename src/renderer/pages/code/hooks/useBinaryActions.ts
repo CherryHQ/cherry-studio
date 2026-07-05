@@ -72,13 +72,15 @@ export function useBinaryActions() {
   )
 
   const remove = useCallback(
-    async (toolId: CodeCli) => {
+    async (toolId: CodeCli): Promise<boolean> => {
       try {
         await ipcApi.request('binary.remove_tool', CLI_BINARY_NAMES[toolId])
         window.toast.success(t('common.delete_success'))
+        return true
       } catch (error) {
         logger.error('Failed to remove:', error as Error)
         window.toast.error(t('common.delete_failed'))
+        return false
       }
     },
     [t]

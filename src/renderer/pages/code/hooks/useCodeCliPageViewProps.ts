@@ -6,6 +6,7 @@ import { CodeCli } from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { clearCliConfig } from '../cliConfig/clear'
 import type { CodeCliPageViewProps } from '../components/CodeCliPageView'
 import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 import type { CodeToolMeta, VersionStatus } from '../types/codeCli'
@@ -123,7 +124,22 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     upsertProviderConfig,
     setCurrentProvider
   })
-  const removeDialog = useRemoveCliToolDialog({ toolName, remove })
+  const handleRemove = useCallback(
+    async (toolId: CodeCli) => {
+      const success = await remove(toolId)
+      if (success && currentProviderId) {
+        try {
+          await clearCliConfig({ cliTool: toolId })
+        } catch (err) {
+          logger.error('Failed to clear CLI config on tool removal:', err as Error)
+        }
+        await setCurrentProvider(null)
+        setCurrentCliConfigConnection(null)
+      }
+    },
+    [remove, currentProviderId, setCurrentProvider, setCurrentCliConfigConnection]
+  )
+  const removeDialog = useRemoveCliToolDialog({ toolName, remove: handleRemove })
 
   return {
     sidebarProps: {
