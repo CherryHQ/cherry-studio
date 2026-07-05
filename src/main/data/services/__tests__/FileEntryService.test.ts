@@ -1329,6 +1329,69 @@ describe('FileEntryService', () => {
     })
   })
 
+  describe('purgeExpiredTx', () => {
+    async function seedRow(id: FileEntryId, deletedAt: number | null, origin: 'internal' | 'external' = 'internal') {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values({
+        id,
+        origin,
+        name: 'purge',
+        ext: 'txt',
+        size: origin === 'internal' ? 1 : null,
+        externalPath: origin === 'external' ? `/Users/me/${id}.txt` : null,
+        deletedAt,
+        createdAt: now,
+        updatedAt: now
+      })
+    }
+
+    it('hard-deletes rows trashed strictly before the cutoff and keeps the rest', async () => {
+      const expired = '019606a0-0000-7000-8000-000000000e01' as FileEntryId
+      const atCutoff = '019606a0-0000-7000-8000-000000000e02' as FileEntryId
+      const fresh = '019606a0-0000-7000-8000-000000000e03' as FileEntryId
+      const active = '019606a0-0000-7000-8000-000000000e04' as FileEntryId
+      const cutoff = 1000
+      await seedRow(expired, 999)
+      await seedRow(atCutoff, 1000) // strict `<`: exactly-at-cutoff survives
+      await seedRow(fresh, 1001)
+      await seedRow(active, null)
+
+      const purgedIds = fileEntryService.purgeExpiredTx(dbh.db, cutoff, 500)
+
+      expect(purgedIds).toEqual([expired])
+      expect(fileEntryService.findById(expired)).toBeNull()
+      expect(fileEntryService.findById(atCutoff)).not.toBeNull()
+      expect(fileEntryService.findById(fresh)).not.toBeNull()
+      expect(fileEntryService.findById(active)).not.toBeNull()
+    })
+
+    it('respects the batch limit and drains across repeated calls', async () => {
+      const ids = [
+        '019606a0-0000-7000-8000-000000000e11',
+        '019606a0-0000-7000-8000-000000000e12',
+        '019606a0-0000-7000-8000-000000000e13'
+      ] as FileEntryId[]
+      for (const id of ids) await seedRow(id, 500)
+
+      const first = fileEntryService.purgeExpiredTx(dbh.db, 1000, 2)
+      const second = fileEntryService.purgeExpiredTx(dbh.db, 1000, 2)
+      const third = fileEntryService.purgeExpiredTx(dbh.db, 1000, 2)
+
+      expect(first).toHaveLength(2)
+      expect(second).toHaveLength(1)
+      expect(third).toEqual([])
+      expect([...first, ...second].sort()).toEqual([...ids].sort())
+    })
+
+    it('never selects external rows (fe_external_no_delete keeps them untrashed)', async () => {
+      const external = '019606a0-0000-7000-8000-000000000e21' as FileEntryId
+      await seedRow(external, null, 'external')
+
+      expect(fileEntryService.purgeExpiredTx(dbh.db, Number.MAX_SAFE_INTEGER, 500)).toEqual([])
+      expect(fileEntryService.findById(external)).not.toBeNull()
+    })
+  })
+
   describe('findUnreferenced', () => {
     async function seedRef(fileEntryId: FileEntryId): Promise<void> {
       const now = Date.now()

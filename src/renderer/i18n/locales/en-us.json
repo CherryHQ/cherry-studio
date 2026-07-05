@@ -5849,6 +5849,52 @@
         "token_placeholder": "Please enter Siyuan Note Token"
       },
       "title": "Data",
+      "trash": {
+        "days_remaining_lt_one": "Less than 1 day left",
+        "days_remaining_one": "{{count}} day left",
+        "days_remaining_other": "{{count}} days left",
+        "deleted_at": "Deleted at {{time}}",
+        "domain": {
+          "agents": "Agents",
+          "assistants": "Assistants",
+          "files": "Files",
+          "paintings": "Paintings",
+          "sessions": "Sessions",
+          "topics": "Topics"
+        },
+        "empty": {
+          "section": "No deleted items"
+        },
+        "empty_trash": {
+          "button": "Empty Trash",
+          "confirm_content": "All items in every category will be permanently deleted immediately. This cannot be undone.",
+          "confirm_title": "Empty trash?",
+          "error": "Failed to empty trash",
+          "success": "Trash emptied"
+        },
+        "error": {
+          "load": "Failed to load"
+        },
+        "load_more": "Load more",
+        "page_next": "Next",
+        "page_prev": "Previous",
+        "permanent_delete": {
+          "confirm_content": "\"{{name}}\" will be permanently deleted. This cannot be undone.",
+          "confirm_title": "Delete permanently?",
+          "error": "Failed to delete",
+          "label": "Delete Permanently",
+          "success": "Permanently deleted"
+        },
+        "restore": {
+          "error": "Failed to restore",
+          "label": "Restore",
+          "success": "Restored"
+        },
+        "retention_hint": "Items are permanently deleted after {{days}} days",
+        "retention_hint_never": "Deleted items are kept until you delete them permanently",
+        "title": "Recently Deleted",
+        "unnamed": "Untitled"
+      },
       "webdav": {
         "autoSync": {
           "label": "Auto Backup",

@@ -1,6 +1,6 @@
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
+import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
 import { agentWorkspaceTable } from './agentWorkspace'
 
@@ -18,7 +18,7 @@ export const agentSessionTable = sqliteTable(
       .references(() => agentWorkspaceTable.id, { onDelete: 'cascade' }),
     traceId: text(),
     ...orderKeyColumns,
-    ...createUpdateTimestamps
+    ...createUpdateDeleteTimestamps
   },
   (t) => [orderKeyIndex('agent_session')(t)]
 )

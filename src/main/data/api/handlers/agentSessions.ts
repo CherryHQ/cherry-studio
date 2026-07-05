@@ -16,8 +16,10 @@ import {
   AgentSessionMessagesListQuerySchema,
   type AgentSessionSchemas,
   CreateAgentSessionSchema,
+  DeleteAgentSessionQuerySchema,
   DeleteAgentSessionsQuerySchema,
   ListAgentSessionsQuerySchema,
+  RestoreAgentSessionsQuerySchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
@@ -44,7 +46,15 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     DELETE: async ({ query }) => {
       const parsed = DeleteAgentSessionsQuerySchema.safeParse(query)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return agentSessionService.deleteByIds(parsed.data.ids)
+      return agentSessionService.deleteByIds(parsed.data.ids, { permanent: parsed.data.permanent === true })
+    }
+  },
+
+  '/agent-sessions/restore': {
+    POST: async ({ query }) => {
+      const parsed = RestoreAgentSessionsQuerySchema.safeParse(query)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return agentSessionService.restoreByIds(parsed.data.ids)
     }
   },
 
@@ -59,9 +69,17 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       return agentSessionService.update(params.sessionId, parsed.data)
     },
 
-    DELETE: async ({ params }) => {
-      agentSessionService.delete(params.sessionId)
+    DELETE: async ({ params, query }) => {
+      const parsed = DeleteAgentSessionQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      agentSessionService.delete(params.sessionId, { permanent: parsed.data.permanent === true })
       return undefined
+    }
+  },
+
+  '/agent-sessions/:sessionId/restore': {
+    POST: async ({ params }) => {
+      return agentSessionService.restore(params.sessionId)
     }
   },
 

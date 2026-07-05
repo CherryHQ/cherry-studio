@@ -8,6 +8,7 @@ import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
+import { trashRequestSchemas } from './trash'
 import { webSearchRequestSchemas } from './webSearch'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
 
@@ -28,6 +29,7 @@ export const ipcRequestSchemas = {
   ...knowledgeRequestSchemas,
   ...oauthRequestSchemas,
   ...selectionRequestSchemas,
+  ...trashRequestSchemas,
   ...webSearchRequestSchemas,
   ...windowRequestSchemas
 } satisfies Record<string, RouteDef>

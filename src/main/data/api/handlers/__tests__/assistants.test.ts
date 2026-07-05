@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { listMock, createMock, getByIdMock, updateMock, deleteMock, reorderMock, reorderBatchMock } = vi.hoisted(() => ({
-  listMock: vi.fn(),
-  createMock: vi.fn(),
-  getByIdMock: vi.fn(),
-  updateMock: vi.fn(),
-  deleteMock: vi.fn(),
-  reorderMock: vi.fn(),
-  reorderBatchMock: vi.fn()
-}))
+const { listMock, createMock, getByIdMock, updateMock, deleteMock, restoreMock, reorderMock, reorderBatchMock } =
+  vi.hoisted(() => ({
+    listMock: vi.fn(),
+    createMock: vi.fn(),
+    getByIdMock: vi.fn(),
+    updateMock: vi.fn(),
+    deleteMock: vi.fn(),
+    restoreMock: vi.fn(),
+    reorderMock: vi.fn(),
+    reorderBatchMock: vi.fn()
+  }))
 
 vi.mock('@data/services/AssistantService', () => ({
   assistantDataService: {
@@ -17,6 +19,7 @@ vi.mock('@data/services/AssistantService', () => ({
     getById: getByIdMock,
     update: updateMock,
     delete: deleteMock,
+    restore: restoreMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
   }
@@ -52,6 +55,30 @@ describe('assistantHandlers', () => {
         page: 1,
         limit: 100
       })
+    })
+
+    it('should forward inTrash list queries', async () => {
+      listMock.mockResolvedValueOnce({ items: [], total: 0, page: 1 })
+
+      await assistantHandlers['/assistants'].GET({
+        query: { inTrash: true }
+      } as never)
+
+      expect(listMock).toHaveBeenCalledWith({
+        inTrash: true,
+        page: 1,
+        limit: 100
+      })
+    })
+
+    it('should reject non-boolean inTrash before calling the service', async () => {
+      await expect(
+        assistantHandlers['/assistants'].GET({
+          query: { inTrash: 'yes' }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(listMock).not.toHaveBeenCalled()
     })
 
     it('should reject legacy numeric updatedAtFrom and orderBy list params', async () => {
@@ -103,6 +130,16 @@ describe('assistantHandlers', () => {
       await expect(
         assistantHandlers['/assistants'].POST({
           body: { name: 'New Assistant', orderKey: 'a0' }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(createMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject deletedAt writes on create (restore goes through the restore endpoint)', async () => {
+      await expect(
+        assistantHandlers['/assistants'].POST({
+          body: { name: 'New Assistant', deletedAt: '2026-06-01T00:00:00.000Z' }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
@@ -188,6 +225,17 @@ describe('assistantHandlers', () => {
       expect(updateMock).not.toHaveBeenCalled()
     })
 
+    it('should reject deletedAt writes on update (restore goes through the restore endpoint)', async () => {
+      await expect(
+        assistantHandlers['/assistants/:id'].PATCH({
+          params: { id: ASSISTANT_ID },
+          body: { deletedAt: null }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+
     it('should forward DELETE with historical topic preservation by default', async () => {
       deleteMock.mockResolvedValueOnce(undefined)
 
@@ -195,7 +243,7 @@ describe('assistantHandlers', () => {
         assistantHandlers['/assistants/:id'].DELETE({ params: { id: ASSISTANT_ID } } as never)
       ).resolves.toBeUndefined()
 
-      expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { deleteTopics: false })
+      expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { deleteTopics: false, permanent: false })
     })
 
     it('should forward DELETE with topic cleanup when requested', async () => {
@@ -208,7 +256,43 @@ describe('assistantHandlers', () => {
         } as never)
       ).resolves.toBeUndefined()
 
-      expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { deleteTopics: true })
+      expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { deleteTopics: true, permanent: false })
+    })
+
+    it('should forward DELETE with permanent=true when requested', async () => {
+      deleteMock.mockResolvedValueOnce(undefined)
+
+      await expect(
+        assistantHandlers['/assistants/:id'].DELETE({
+          params: { id: ASSISTANT_ID },
+          query: { permanent: true }
+        } as never)
+      ).resolves.toBeUndefined()
+
+      expect(deleteMock).toHaveBeenCalledWith(ASSISTANT_ID, { deleteTopics: false, permanent: true })
+    })
+
+    it('should reject non-boolean permanent before calling the service', async () => {
+      await expect(
+        assistantHandlers['/assistants/:id'].DELETE({
+          params: { id: ASSISTANT_ID },
+          query: { permanent: 'true' }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(deleteMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/assistants/:id/restore', () => {
+    it('should forward restore to the service and return the restored entity', async () => {
+      restoreMock.mockReturnValueOnce({ id: ASSISTANT_ID, name: 'Restored Assistant' })
+
+      await expect(
+        assistantHandlers['/assistants/:id/restore'].POST({ params: { id: ASSISTANT_ID } } as never)
+      ).resolves.toMatchObject({ id: ASSISTANT_ID, name: 'Restored Assistant' })
+
+      expect(restoreMock).toHaveBeenCalledWith(ASSISTANT_ID)
     })
   })
 

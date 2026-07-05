@@ -124,6 +124,13 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
   type: z.enum(['claude-code']),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /**
+   * Soft-delete timestamp (ISO string). Present only on trashed rows
+   * (`inTrash: true` listings). Read-only — never in AGENT_MUTABLE_FIELDS;
+   * restoring goes through `POST /agents/:agentId/restore`, not a writable
+   * `deletedAt`.
+   */
+  deletedAt: z.string().optional(),
   /** Persistent ordering key. Read-only; modified only through order endpoints. */
   orderKey: z.string(),
   model: UniqueModelIdSchema.nullable(),
@@ -232,6 +239,8 @@ export const AGENTS_MAX_LIMIT = 500
 export const ListAgentsQuerySchema = z.strictObject({
   /** Free-text match against name OR description (case-insensitive LIKE). */
   search: z.string().trim().min(1).optional(),
+  /** `true` lists only trashed (soft-deleted) agents; omitted/false lists active only. */
+  inTrash: z.boolean().optional(),
   /** Positive integer, defaults to {@link AGENTS_DEFAULT_PAGE}. */
   page: z.int().positive().default(AGENTS_DEFAULT_PAGE),
   /** Positive integer, max {@link AGENTS_MAX_LIMIT}, defaults to {@link AGENTS_DEFAULT_LIMIT}. */
@@ -245,7 +254,14 @@ export const DeleteAgentQuerySchema = z.strictObject({
    * Delete the agent's sessions in the same main-process transaction.
    * Omitted/false preserves the historical "delete agent only" behavior.
    */
-  deleteSessions: z.boolean().optional()
+  deleteSessions: z.boolean().optional(),
+  /**
+   * `true` skips the trash: the agent row is hard-deleted (DB only — surviving
+   * sessions detach via `agent_session.agentId` FK SET NULL; with
+   * `deleteSessions: true` the sessions are hard-deleted too). Omitted/false
+   * archives (soft-deletes) so the agent is restorable from the trash.
+   */
+  permanent: z.boolean().optional()
 })
 export type DeleteAgentQueryParams = z.input<typeof DeleteAgentQuerySchema>
 
@@ -281,6 +297,20 @@ export type AgentSchemas = {
       params: { agentId: string }
       query?: DeleteAgentQueryParams
       response: void
+    }
+  }
+
+  /**
+   * Restore a trashed agent (resource-action pattern).
+   * Clears `deletedAt` so the agent reappears in active listings.
+   * Pins purged at archive time are NOT restored; sessions archived alongside
+   * the agent restore independently from the trash.
+   * @example POST /agents/abc123/restore
+   */
+  '/agents/:agentId/restore': {
+    POST: {
+      params: { agentId: string }
+      response: AgentEntity
     }
   }
 

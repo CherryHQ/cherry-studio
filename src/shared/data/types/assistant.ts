@@ -127,6 +127,13 @@ export const AssistantSchema = z.strictObject({
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string). Same nullable-at-DB / non-null-at-API pattern. */
   updatedAt: z.iso.datetime(),
+  /**
+   * Soft-delete timestamp (ISO string). Present only on trashed rows
+   * (`inTrash: true` listings / `includeDeleted` reads). Read-only — never in
+   * the mutable-field whitelist; restoring goes through
+   * `POST /assistants/:id/restore`, not a writable `deletedAt`.
+   */
+  deletedAt: z.iso.datetime().optional(),
   /** Tags associated with this assistant (embedded via inline join in list/get endpoints) */
   tags: z.array(TagSchema),
   /**

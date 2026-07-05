@@ -27,7 +27,7 @@ import {
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { and, asc, count, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
@@ -75,6 +75,9 @@ function rowToAgent(row: AgentRow, modelName: string | null = null, mcps: string
     configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
+    // Read-only trash marker: present only on soft-deleted rows (trash
+    // listings). Never writable through DTOs.
+    deletedAt: row.deletedAt != null ? timestampToISO(row.deletedAt) : undefined,
     modelName
   }
 }
@@ -228,12 +231,16 @@ export class AgentService {
     return rowToAgent(row.agent, row.modelName || null, mcpsMap.get(id) ?? [])
   }
 
-  listAgents(options: ListOptions = {}): { agents: AgentEntity[]; total: number } {
+  listAgents(options: ListOptions & { inTrash?: boolean } = {}): { agents: AgentEntity[]; total: number } {
     const database = application.get('DbService').getDb()
 
-    // AND-compose deletedAt-null + optional search. Search runs LIKE against
-    // name OR description with user-typed wildcards escaped.
-    const conditions: SQL[] = [isNull(agentsTable.deletedAt)]
+    // AND-compose the liveness filter + optional search. `inTrash: true` flips
+    // the filter to show only trashed rows (the count query shares the clause,
+    // so trash totals stay correct). Search runs LIKE against name OR
+    // description with user-typed wildcards escaped.
+    const conditions: SQL[] = [
+      options.inTrash === true ? isNotNull(agentsTable.deletedAt) : isNull(agentsTable.deletedAt)
+    ]
     if (options.search) {
       const pattern = `%${options.search.replace(/[\\%_]/g, '\\$&')}%`
       const nameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
@@ -389,27 +396,59 @@ export class AgentService {
     tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id)).run()
   }
 
-  deleteAgent(id: string, options: { deleteSessions?: boolean } = {}): boolean {
-    // By default sessions detach (agentId → NULL) via FK ON DELETE SET NULL; callers
-    // can opt into deleting them in this same transaction. `pin` has no FK back
-    // to agent, so purge it alongside the agent row. Junction table rows are
-    // cascade-deleted by FK.
+  /**
+   * Delete an agent.
+   *
+   * Default (archive) path: soft-delete — sets `deletedAt` so the row lands in
+   * the trash and is restorable via {@link restoreAgent}. Pins are purged at
+   * archive time (the pin table is LEFT JOINed by `listAgents`; a surviving
+   * pin row is never restored). With `deleteSessions: true` the agent's
+   * sessions are archived alongside in the same transaction.
+   *
+   * `permanent: true`: hard-delete — the row is removed (DB only; junction
+   * rows cascade, surviving sessions detach via `agent_session.agentId` FK
+   * SET NULL). Works on both active and already-trashed rows. Agent disk
+   * directories are never touched here (DataApi hard rule) — the purge job's
+   * orphan-dir sweep reclaims them.
+   */
+  deleteAgent(id: string, options: { deleteSessions?: boolean; permanent?: boolean } = {}): boolean {
+    const permanent = options.permanent === true
     const result = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
-          const [agent] = tx
-            .select({ id: agentsTable.id })
-            .from(agentsTable)
-            .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
-            .limit(1)
-            .all()
-          if (!agent) return { rowsAffected: 0 }
+          if (permanent) {
+            // Existence check up front (no isNull gate — trashed rows must be
+            // permanently deletable) so a missing agent writes nothing.
+            const [agent] = tx
+              .select({ id: agentsTable.id })
+              .from(agentsTable)
+              .where(eq(agentsTable.id, id))
+              .limit(1)
+              .all()
+            if (!agent) return { rowsAffected: 0 }
 
-          if (options.deleteSessions === true) {
-            agentSessionService.deleteByAgentIdTx(tx, id, { validateAgent: false })
+            if (options.deleteSessions === true) {
+              agentSessionService.deleteByAgentIdTx(tx, id, { validateAgent: false })
+            }
+
+            return this.deleteAgentTx(tx, id)
           }
 
-          return this.deleteAgentTx(tx, id)
+          // Archive: the isNull gate doubles as the existence check — an
+          // already-trashed or missing agent reports NOT_FOUND upstream.
+          const archived = tx
+            .update(agentsTable)
+            .set({ deletedAt: Date.now() })
+            .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+            .run()
+          if (archived.changes === 0) return { rowsAffected: 0 }
+
+          pinService.purgeForEntityTx(tx, 'agent', id)
+          if (options.deleteSessions === true) {
+            agentSessionService.archiveByAgentIdTx(tx, id, { validateAgent: false })
+          }
+
+          return { rowsAffected: archived.changes }
         }),
       defaultHandlersFor('Agent', id)
     )
@@ -425,6 +464,51 @@ export class AgentService {
     pinService.purgeForEntityTx(tx, 'agent', id)
     const result = tx.delete(agentsTable).where(eq(agentsTable.id, id)).run()
     return { rowsAffected: result.changes }
+  }
+
+  /**
+   * Restore a trashed agent: clears `deletedAt` so it re-enters active
+   * listings. Throws NOT_FOUND when the row does not exist or is not trashed.
+   * Pins purged at archive time are NOT restored.
+   */
+  restoreAgent(id: string): AgentEntity {
+    const result = application
+      .get('DbService')
+      .getDb()
+      .update(agentsTable)
+      .set({ deletedAt: null })
+      .where(and(eq(agentsTable.id, id), isNotNull(agentsTable.deletedAt)))
+      .run()
+    if (result.changes === 0) throw DataApiErrorFactory.notFound('Agent', id)
+
+    logger.info('Restored agent', { id })
+
+    const agent = this.getAgent(id)
+    if (!agent) throw DataApiErrorFactory.notFound('Agent', id)
+    return agent
+  }
+
+  /**
+   * Purge agents whose trash retention has expired (trash.purge job path).
+   * Hard-deletes up to `limit` rows with `deletedAt < cutoffMs` inside the
+   * caller's transaction and returns the purged ids. Surviving sessions
+   * detach via `agent_session.agentId` FK SET NULL; disk directories are
+   * reclaimed by the caller's orphan-dir sweep after commit.
+   */
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
+    const rows = tx
+      .select({ id: agentsTable.id })
+      .from(agentsTable)
+      .where(and(isNotNull(agentsTable.deletedAt), lt(agentsTable.deletedAt, cutoffMs)))
+      .limit(limit)
+      .all()
+    const ids = rows.map((row) => row.id)
+    if (ids.length === 0) return ids
+
+    pinService.purgeForEntitiesTx(tx, 'agent', ids)
+    tx.delete(agentsTable).where(inArray(agentsTable.id, ids)).run()
+
+    return ids
   }
 
   agentExists(id: string): boolean {

@@ -3,7 +3,7 @@ import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/hooks/useTheme'
 import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
-import { CloudUpload, FileText, FolderCog, FolderInput, FolderOpen, Server } from 'lucide-react'
+import { CloudUpload, FileText, FolderCog, FolderInput, FolderOpen, Server, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,6 +23,7 @@ import LocalBackupSettings from './LocalBackupSettings'
 import MarkdownExportSettings from './MarkdownExportSettings'
 import NutstoreSettings from './NutstoreSettings'
 import S3Settings from './S3Settings'
+import TrashSettings from './TrashSettings'
 import WebDavSettings from './WebDavSettings'
 
 const DataSettings: FC = () => {
@@ -32,6 +33,7 @@ const DataSettings: FC = () => {
 
   const menuItems = [
     { key: 'data', title: t('settings.data.data.title'), icon: <FolderCog size={16} /> },
+    { key: 'trash', title: t('settings.data.trash.title'), icon: <Trash2 size={16} /> },
     { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
     { key: 'local_backup', title: t('settings.data.local.title'), icon: <FolderCog size={16} /> },
     { key: 'webdav', title: t('settings.data.webdav.title'), icon: <CloudUpload size={16} /> },
@@ -86,6 +88,7 @@ const DataSettings: FC = () => {
       </div>
       <SettingsContentColumn theme={theme}>
         {menu === 'data' && <BasicDataSettings />}
+        {menu === 'trash' && <TrashSettings />}
         {menu === 'webdav' && <WebDavSettings />}
         {menu === 'nutstore' && <NutstoreSettings />}
         {menu === 's3' && <S3Settings />}

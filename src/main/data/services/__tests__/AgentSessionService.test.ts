@@ -419,13 +419,217 @@ describe('AgentSessionService', () => {
     expect(systemWorkspaceRows).toHaveLength(0)
   })
 
-  it('deletes a session', async () => {
+  it('archives a session by default: hidden from reads, row kept', async () => {
     const session = await createSession('Delete me')
 
     agentSessionService.delete(session.id)
 
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({
       code: ErrorCode.NOT_FOUND
+    })
+    const [row] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
+    expect(row).toBeDefined()
+    expect(row.deletedAt).not.toBeNull()
+  })
+
+  it('lists archived sessions via inTrash with a read-only deletedAt marker', async () => {
+    const archivedSession = await createSession('Archived')
+    const activeSession = await createSession('Active')
+
+    agentSessionService.delete(archivedSession.id)
+
+    const trash = agentSessionService.listByCursor({ inTrash: true })
+    expect(trash.items.map((item) => item.id)).toEqual([archivedSession.id])
+    expect(trash.items[0].deletedAt).toEqual(expect.any(String))
+
+    const active = agentSessionService.listByCursor()
+    expect(active.items.map((item) => item.id)).toEqual([activeSession.id])
+    expect(active.items[0].deletedAt).toBeUndefined()
+  })
+
+  it('hides archived sessions from search and exists', async () => {
+    const session = await createSession('Needle archived session')
+
+    expect(agentSessionService.exists(session.id)).toBe(true)
+    expect(agentSessionService.search({ q: 'Needle', limit: 5 }).map((item) => item.id)).toEqual([session.id])
+
+    agentSessionService.delete(session.id)
+
+    expect(agentSessionService.exists(session.id)).toBe(false)
+    expect(agentSessionService.search({ q: 'Needle', limit: 5 })).toEqual([])
+  })
+
+  it('purges session pin rows on archive while unrelated pins survive', async () => {
+    const archivedSession = await createSession('Pinned archived')
+    const keptSession = await createSession('Pinned kept')
+    await dbh.db.insert(pinTable).values([
+      { id: 'pin-archived', entityType: 'session', entityId: archivedSession.id, orderKey: 'a0' },
+      { id: 'pin-kept', entityType: 'session', entityId: keptSession.id, orderKey: 'a1' }
+    ])
+
+    dbh.db.transaction((tx) => agentSessionService.archiveByIdsTx(tx, [archivedSession.id]))
+
+    const pinRows = await dbh.db.select().from(pinTable)
+    expect(pinRows.map((row) => row.id)).toEqual(['pin-kept'])
+  })
+
+  it('keeps session messages and the system workspace row on archive', async () => {
+    const session = agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'Archive keeps children',
+      workspace: { type: 'system' }
+    })
+    await insertSessionMessage(session.id, 'message-survives-archive')
+
+    agentSessionService.delete(session.id)
+
+    const messageRows = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, session.id))
+    expect(messageRows).toHaveLength(1)
+    expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(1)
+  })
+
+  it('restores an archived session with children intact', async () => {
+    const session = agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'Restore me',
+      workspace: { type: 'system' }
+    })
+    await insertSessionMessage(session.id, 'message-survives-restore')
+    agentSessionService.delete(session.id)
+
+    const restored = agentSessionService.restore(session.id)
+
+    expect(restored.id).toBe(session.id)
+    expect(restored.deletedAt).toBeUndefined()
+    expect(agentSessionService.getById(session.id)).toMatchObject({ id: session.id })
+    expect(agentSessionService.listByCursor().items.map((item) => item.id)).toContain(session.id)
+    const messageRows = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, session.id))
+    expect(messageRows).toHaveLength(1)
+  })
+
+  it('throws not found when restoring an active or missing session', async () => {
+    const session = await createSession('Still active')
+
+    expect(captureError(() => agentSessionService.restore(session.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect(captureError(() => agentSessionService.restore('missing-session'))).toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+  })
+
+  it('bulk-restores only archived sessions, ignoring active and missing ids', async () => {
+    const first = await createSession('Bulk restore first')
+    const second = await createSession('Bulk restore second')
+    const active = await createSession('Bulk restore active')
+    agentSessionService.deleteByIds([first.id, second.id])
+
+    const result = agentSessionService.restoreByIds([first.id, second.id, active.id, 'missing-session'])
+
+    expect(result.restoredIds.sort()).toEqual([first.id, second.id].sort())
+    expect(agentSessionService.getById(first.id)).toMatchObject({ id: first.id })
+    expect(agentSessionService.getById(second.id)).toMatchObject({ id: second.id })
+  })
+
+  it('permanently deletes a session with its messages and system workspace row', async () => {
+    const session = agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'Permanent delete',
+      workspace: { type: 'system' }
+    })
+    await insertSessionMessage(session.id, 'message-purged-with-session')
+
+    agentSessionService.delete(session.id, { permanent: true })
+
+    expect(await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))).toHaveLength(0)
+    expect(
+      await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, session.id))
+    ).toHaveLength(0)
+    expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(0)
+  })
+
+  it('permanently deletes an already-archived session', async () => {
+    const session = await createSession('Archived then purged')
+    agentSessionService.delete(session.id)
+
+    agentSessionService.delete(session.id, { permanent: true })
+
+    expect(await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))).toHaveLength(0)
+  })
+
+  it('rejects creating a session under an archived agent', async () => {
+    await dbh.db.insert(agentTable).values({
+      id: 'archived-agent-no-create',
+      type: 'claude-code',
+      name: 'Archived Agent',
+      instructions: 'Test instructions',
+      model: null,
+      orderKey: 'z1',
+      deletedAt: 1
+    })
+    const workspace = await createWorkspace('archived-agent-create')
+
+    expect(
+      captureError(() =>
+        agentSessionService.create({
+          agentId: 'archived-agent-no-create',
+          name: 'Should fail',
+          workspace: { type: 'user', workspaceId: workspace.id }
+        })
+      )
+    ).toMatchObject({ code: ErrorCode.NOT_FOUND })
+  })
+
+  describe('purgeExpiredTx', () => {
+    it('hard-deletes only expired archived sessions, cascading messages and system workspace rows', async () => {
+      const expiredSystem = agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'Expired system',
+        workspace: { type: 'system' }
+      })
+      await insertSessionMessage(expiredSystem.id, 'message-purged-by-job')
+      const expiredUser = await createSession('Expired user')
+      const recent = await createSession('Recent trash')
+      const active = await createSession('Active')
+      await dbh.db.update(agentSessionTable).set({ deletedAt: 1000 }).where(eq(agentSessionTable.id, expiredSystem.id))
+      await dbh.db.update(agentSessionTable).set({ deletedAt: 2000 }).where(eq(agentSessionTable.id, expiredUser.id))
+      await dbh.db.update(agentSessionTable).set({ deletedAt: 9000 }).where(eq(agentSessionTable.id, recent.id))
+
+      const purged = dbh.db.transaction((tx) => agentSessionService.purgeExpiredTx(tx, 5000, 10))
+
+      expect(purged.sort()).toEqual([expiredSystem.id, expiredUser.id].sort())
+      const remainingIds = (await dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable)).map(
+        (row) => row.id
+      )
+      expect(remainingIds.sort()).toEqual([active.id, recent.id].sort())
+      expect(
+        await dbh.db
+          .select()
+          .from(agentSessionMessageTable)
+          .where(eq(agentSessionMessageTable.sessionId, expiredSystem.id))
+      ).toHaveLength(0)
+      // The expired system session's backing workspace row is gone; the user
+      // workspaces backing the surviving sessions remain.
+      const workspaceRows = await dbh.db.select().from(agentWorkspaceTable)
+      expect(workspaceRows.every((row) => row.type === 'user')).toBe(true)
+    })
+
+    it('respects the batch limit', async () => {
+      const first = await createSession('Limit first')
+      const second = await createSession('Limit second')
+      const third = await createSession('Limit third')
+      for (const session of [first, second, third]) {
+        await dbh.db.update(agentSessionTable).set({ deletedAt: 1000 }).where(eq(agentSessionTable.id, session.id))
+      }
+
+      const purged = dbh.db.transaction((tx) => agentSessionService.purgeExpiredTx(tx, 5000, 2))
+
+      expect(purged).toHaveLength(2)
+      expect(await dbh.db.select().from(agentSessionTable)).toHaveLength(1)
     })
   })
 
@@ -447,14 +651,14 @@ describe('AgentSessionService', () => {
     })
   })
 
-  it('deletes the system workspace row when deleting a no-project session', async () => {
+  it('deletes the system workspace row when permanently deleting a no-project session', async () => {
     const session = agentSessionService.create({
       agentId: 'agent-session-test',
       name: 'Delete system workspace',
       workspace: { type: 'system' }
     })
 
-    agentSessionService.delete(session.id)
+    agentSessionService.delete(session.id, { permanent: true })
 
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
     expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(0)
@@ -571,7 +775,7 @@ describe('AgentSessionService', () => {
     expect(captureError(() => agentSessionService.getById(second.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
   })
 
-  it('deletes selected system workspace sessions and their workspace rows by ids', async () => {
+  it('permanently deletes selected system workspace sessions and their workspace rows by ids', async () => {
     const systemSession = agentSessionService.create({
       agentId: 'agent-session-test',
       name: 'Bulk system workspace',
@@ -579,7 +783,7 @@ describe('AgentSessionService', () => {
     })
     const normalSession = await createSession('Normal session')
 
-    const result = agentSessionService.deleteByIds([systemSession.id])
+    const result = agentSessionService.deleteByIds([systemSession.id], { permanent: true })
 
     expect(result).toEqual({ deletedIds: [systemSession.id] })
     expect(captureError(() => agentSessionService.getById(systemSession.id))).toMatchObject({
@@ -589,7 +793,7 @@ describe('AgentSessionService', () => {
     expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(1)
   })
 
-  it('deletes system workspace rows when deleting agent sessions', async () => {
+  it('keeps system workspace rows when archiving agent sessions', async () => {
     const session = agentSessionService.create({
       agentId: 'agent-session-test',
       name: 'Agent system workspace',
@@ -600,7 +804,10 @@ describe('AgentSessionService', () => {
 
     expect(result).toEqual({ deletedIds: [session.id] })
     expect(captureError(() => agentSessionService.getById(session.id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
-    expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(0)
+    // Archive keeps the backing system workspace row so restore is lossless.
+    expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(1)
+    const [row] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
+    expect(row.deletedAt).not.toBeNull()
   })
 
   it('reorders sessions with single and batch moves', async () => {
@@ -664,14 +871,14 @@ describe('AgentSessionService', () => {
     })
   })
 
-  it('deletes a backing system workspace row when deleting its session', async () => {
+  it('deletes a backing system workspace row when permanently deleting its session', async () => {
     const session = agentSessionService.create({
       agentId: 'agent-session-test',
       name: 'System delete',
       workspace: { type: 'system' }
     })
 
-    agentSessionService.delete(session.id)
+    agentSessionService.delete(session.id, { permanent: true })
 
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(0)

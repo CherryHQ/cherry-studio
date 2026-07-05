@@ -6,6 +6,7 @@ import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 // Importing the singleton loads AgentGlobalSkillService so it self-registers in the
@@ -379,14 +380,33 @@ describe('AgentService', () => {
   })
 
   describe('deleteAgent', () => {
-    it('hard-deletes an agent and removes the row', async () => {
+    it('archives an agent by default: hidden from reads, row kept with deletedAt', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
 
       const deleted = agentService.deleteAgent(id)
 
       expect(deleted).toBe(true)
-      const rows = await dbh.db.select().from(agentTable)
-      expect(rows.find((r) => r.id === id)).toBeUndefined()
+      expect(agentService.getAgent(id)).toBeNull()
+      expect(agentService.listAgents().agents.map((a) => a.id)).not.toContain(id)
+      const [row] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(row).toBeDefined()
+      expect(row.deletedAt).not.toBeNull()
+    })
+
+    it('lists archived agents via inTrash with a read-only deletedAt marker', async () => {
+      const { id } = await insertAgent({ id: 'agent_trash_list_001' })
+      const activeAgent = await insertAgent({ id: 'agent_trash_list_002' })
+
+      agentService.deleteAgent(id)
+
+      const trash = agentService.listAgents({ inTrash: true })
+      expect(trash.agents.map((a) => a.id)).toEqual([id])
+      expect(trash.total).toBe(1)
+      expect(trash.agents[0].deletedAt).toEqual(expect.any(String))
+
+      const active = agentService.listAgents()
+      expect(active.agents.map((a) => a.id)).toEqual([activeAgent.id])
+      expect(active.agents[0].deletedAt).toBeUndefined()
     })
 
     it('purges agent pins on delete (pin table has no FK)', async () => {
@@ -401,9 +421,47 @@ describe('AgentService', () => {
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
     })
 
-    it('deletes agent sessions atomically when requested', async () => {
+    it('archives agent sessions alongside when deleteSessions is requested', async () => {
       const { id } = await insertAgent({ id: 'agent_with_sessions_001' })
       const otherAgent = await insertAgent({ id: 'agent_with_sessions_002' })
+      await dbh.db.insert(agentWorkspaceTable).values([
+        { id: 'workspace-agent-archive-1', name: 'Workspace 1', path: '/tmp/agent-archive-1', orderKey: 'a0' },
+        { id: 'workspace-agent-archive-2', name: 'Workspace 2', path: '/tmp/agent-archive-2', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'session-archive-with-agent',
+          agentId: id,
+          name: '',
+          workspaceId: 'workspace-agent-archive-1',
+          orderKey: 'a0'
+        },
+        {
+          id: 'session-keep-with-other-agent',
+          agentId: otherAgent.id,
+          name: '',
+          workspaceId: 'workspace-agent-archive-2',
+          orderKey: 'a1'
+        }
+      ])
+
+      const deleted = agentService.deleteAgent(id, { deleteSessions: true })
+
+      expect(deleted).toBe(true)
+      const sessionRows = await dbh.db.select().from(agentSessionTable)
+      const archived = sessionRows.find((row) => row.id === 'session-archive-with-agent')
+      const kept = sessionRows.find((row) => row.id === 'session-keep-with-other-agent')
+      expect(archived?.deletedAt).not.toBeNull()
+      // Archive is UPDATE-only: the FK is untouched, so no SET NULL fires.
+      expect(archived?.agentId).toBe(id)
+      expect(kept?.deletedAt).toBeNull()
+      // Workspace rows are never removed on archive — restore stays lossless.
+      expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(2)
+    })
+
+    it('permanently deletes agent and sessions when permanent + deleteSessions requested', async () => {
+      const { id } = await insertAgent({ id: 'agent_perm_sessions_001' })
+      const otherAgent = await insertAgent({ id: 'agent_perm_sessions_002' })
       await dbh.db.insert(agentWorkspaceTable).values([
         { id: 'workspace-agent-delete-1', name: 'Workspace 1', path: '/tmp/agent-delete-1', orderKey: 'a0' },
         { id: 'workspace-agent-delete-2', name: 'Workspace 2', path: '/tmp/agent-delete-2', orderKey: 'a1' }
@@ -425,13 +483,55 @@ describe('AgentService', () => {
         }
       ])
 
-      const deleted = agentService.deleteAgent(id, { deleteSessions: true })
+      const deleted = agentService.deleteAgent(id, { deleteSessions: true, permanent: true })
 
       expect(deleted).toBe(true)
       const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
       expect(agentRows).toHaveLength(0)
       const sessionRows = await dbh.db.select().from(agentSessionTable)
       expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
+    })
+
+    it('permanent delete detaches surviving sessions via FK SET NULL', async () => {
+      const { id } = await insertAgent({ id: 'agent_perm_setnull_001' })
+      await dbh.db
+        .insert(agentWorkspaceTable)
+        .values({ id: 'workspace-setnull-1', name: 'Workspace', path: '/tmp/agent-setnull-1', orderKey: 'a0' })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-detach-on-purge',
+        agentId: id,
+        name: '',
+        workspaceId: 'workspace-setnull-1',
+        orderKey: 'a0'
+      })
+
+      const deleted = agentService.deleteAgent(id, { permanent: true })
+
+      expect(deleted).toBe(true)
+      expect(await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))).toHaveLength(0)
+      const [session] = await dbh.db
+        .select()
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'session-detach-on-purge'))
+      expect(session.agentId).toBeNull()
+      expect(session.deletedAt).toBeNull()
+    })
+
+    it('permanently deletes an already-archived agent', async () => {
+      const { id } = await insertAgent({ id: 'agent_perm_archived_001' })
+      agentService.deleteAgent(id)
+
+      const deleted = agentService.deleteAgent(id, { permanent: true })
+
+      expect(deleted).toBe(true)
+      expect(await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))).toHaveLength(0)
+    })
+
+    it('reports false when archiving an already-archived agent again', async () => {
+      const { id } = await insertAgent({ id: 'agent_double_archive_001' })
+      agentService.deleteAgent(id)
+
+      expect(agentService.deleteAgent(id)).toBe(false)
     })
 
     it('rolls back the already-deleted sessions when a later delete step fails', async () => {
@@ -459,7 +559,9 @@ describe('AgentService', () => {
       })
 
       try {
-        expect(() => agentService.deleteAgent(id, { deleteSessions: true })).toThrow('agent delete failed')
+        expect(() => agentService.deleteAgent(id, { deleteSessions: true, permanent: true })).toThrow(
+          'agent delete failed'
+        )
       } finally {
         deleteAgentSpy.mockRestore()
       }
@@ -471,6 +573,62 @@ describe('AgentService', () => {
         .from(agentSessionTable)
         .where(eq(agentSessionTable.id, 'session-rollback-1'))
       expect(sessionRows).toHaveLength(1)
+    })
+  })
+
+  describe('restoreAgent', () => {
+    it('restores an archived agent into active listings', async () => {
+      const { id } = await insertAgent({ id: 'agent_restore_001' })
+      agentService.deleteAgent(id)
+
+      const restored = agentService.restoreAgent(id)
+
+      expect(restored.id).toBe(id)
+      expect(restored.deletedAt).toBeUndefined()
+      expect(agentService.getAgent(id)).toMatchObject({ id })
+      expect(agentService.listAgents().agents.map((a) => a.id)).toContain(id)
+      expect(agentService.listAgents({ inTrash: true }).agents).toHaveLength(0)
+    })
+
+    it('throws NOT_FOUND for active or missing agents', async () => {
+      const { id } = await insertAgent({ id: 'agent_restore_active_001' })
+
+      expect(captureError(() => agentService.restoreAgent(id))).toMatchObject({ code: ErrorCode.NOT_FOUND })
+      expect(captureError(() => agentService.restoreAgent('missing-agent'))).toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+  })
+
+  describe('purgeExpiredTx', () => {
+    it('hard-deletes only expired archived agents and purges their pins', async () => {
+      await insertAgent({ id: 'agent_purge_old_a', deletedAt: 1000 })
+      await insertAgent({ id: 'agent_purge_old_b', deletedAt: 2000 })
+      await insertAgent({ id: 'agent_purge_recent', deletedAt: 9000 })
+      await insertAgent({ id: 'agent_purge_active' })
+      await dbh.db.insert(pinTable).values([
+        { id: 'pin-purge-old', entityType: 'agent', entityId: 'agent_purge_old_a', orderKey: 'a0' },
+        { id: 'pin-purge-active', entityType: 'agent', entityId: 'agent_purge_active', orderKey: 'a1' }
+      ])
+
+      const purged = dbh.db.transaction((tx) => agentService.purgeExpiredTx(tx, 5000, 10))
+
+      expect(purged.sort()).toEqual(['agent_purge_old_a', 'agent_purge_old_b'])
+      const remainingIds = (await dbh.db.select({ id: agentTable.id }).from(agentTable)).map((row) => row.id)
+      expect(remainingIds.sort()).toEqual(['agent_purge_active', 'agent_purge_recent'])
+      const pinRows = await dbh.db.select().from(pinTable)
+      expect(pinRows.map((row) => row.id)).toEqual(['pin-purge-active'])
+    })
+
+    it('respects the batch limit', async () => {
+      await insertAgent({ id: 'agent_purge_limit_a', deletedAt: 1000 })
+      await insertAgent({ id: 'agent_purge_limit_b', deletedAt: 1001 })
+      await insertAgent({ id: 'agent_purge_limit_c', deletedAt: 1002 })
+
+      const purged = dbh.db.transaction((tx) => agentService.purgeExpiredTx(tx, 5000, 2))
+
+      expect(purged).toHaveLength(2)
+      expect(await dbh.db.select().from(agentTable)).toHaveLength(1)
     })
   })
 

@@ -52,7 +52,9 @@ export const ListTopicsQuerySchema = z.strictObject({
   /** Page size; defaults to 50 in the service. */
   limit: z.coerce.number().int().positive().max(200).optional(),
   /** Substring filter on topic name (case-insensitive LIKE). */
-  q: z.string().optional()
+  q: z.string().optional(),
+  /** When true, list trashed (archived) topics only; omitted/false lists active topics. */
+  inTrash: z.boolean().optional()
 })
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
 
@@ -107,7 +109,8 @@ export interface DeleteTopicsResult {
   deletedCount: number
 }
 
-const DeleteTopicsIdsQueryValueSchema = z
+/** CSV `ids` query value — `"a,b"` → `['a', 'b']` (trimmed, empties dropped, non-empty). */
+const TopicIdsQueryValueSchema = z
   .string()
   .transform((value) =>
     value
@@ -118,9 +121,30 @@ const DeleteTopicsIdsQueryValueSchema = z
   .pipe(z.array(z.string().min(1)).min(1))
 
 export const DeleteTopicsQuerySchema = z.strictObject({
-  ids: DeleteTopicsIdsQueryValueSchema
+  ids: TopicIdsQueryValueSchema,
+  /** When true, hard-delete (DB purge) instead of archiving to the trash. */
+  permanent: z.boolean().optional()
 })
 export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
+
+export const DeleteTopicQuerySchema = z.strictObject({
+  /** When true, hard-delete (DB purge) instead of archiving to the trash. */
+  permanent: z.boolean().optional()
+})
+export type DeleteTopicQuery = z.input<typeof DeleteTopicQuerySchema>
+
+export const RestoreTopicsQuerySchema = z.strictObject({
+  ids: TopicIdsQueryValueSchema
+})
+export type RestoreTopicsQuery = z.input<typeof RestoreTopicsQuerySchema>
+
+/**
+ * Bulk-restore response — the uniform shape across all trash-capable domains.
+ * Missing/active ids are simply omitted (idempotent); callers derive counts.
+ */
+export interface RestoreTopicsResult {
+  restoredIds: string[]
+}
 
 // ============================================================================
 // API Schema Definitions
@@ -161,15 +185,28 @@ export type TopicSchemas = {
       response: Topic
     }
     /**
-     * Delete an explicit set of topics.
+     * Delete an explicit set of topics — archives to the trash by default,
+     * hard-deletes with `permanent=true`.
      *
      * Used by multi-select table flows where the selection can span assistants.
      * This operation is all-or-nothing: if any supplied ID does not resolve to
-     * a non-deleted topic, the request fails and no selected topics are deleted.
+     * a deletable topic, the request fails and no selected topics are deleted.
      */
     DELETE: {
       query: DeleteTopicsQuery
       response: DeleteTopicsResult
+    }
+  }
+
+  /**
+   * Bulk restore archived topics from the trash.
+   * @example POST /topics/restore?ids=topic_1,topic_2
+   */
+  '/topics/restore': {
+    /** Restore archived topics; missing/active ids are omitted from `restoredIds`. */
+    POST: {
+      query: RestoreTopicsQuery
+      response: RestoreTopicsResult
     }
   }
 
@@ -191,10 +228,27 @@ export type TopicSchemas = {
       body: UpdateTopicDto
       response: Topic
     }
-    /** Delete a topic and all its messages */
+    /**
+     * Delete a topic — archives it to the trash by default (messages stay in
+     * place, hidden via the archived container); `permanent=true` hard-deletes
+     * the topic and all its messages.
+     */
     DELETE: {
       params: { id: string }
+      query?: DeleteTopicQuery
       response: void
+    }
+  }
+
+  /**
+   * Restore an archived topic from the trash.
+   * Pins and tags purged at archive time are NOT restored.
+   * @example POST /topics/abc123/restore
+   */
+  '/topics/:id/restore': {
+    POST: {
+      params: { id: string }
+      response: Topic
     }
   }
 
@@ -229,7 +283,7 @@ export type TopicSchemas = {
   }
 
   /**
-   * Delete all topics currently linked to an assistant.
+   * Delete (archive to the trash) all topics currently linked to an assistant.
    *
    * This is an explicit scoped collection delete. It does not change
    * the default `DELETE /assistants/:id` behavior, which only deletes the

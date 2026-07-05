@@ -41,7 +41,7 @@ import {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from 'drizzle-orm'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -286,6 +286,33 @@ export class MessageService {
     if (uniqueTopicIds.length === 0) return
 
     tx.delete(messageTable).where(inArray(messageTable.topicId, uniqueTopicIds)).run()
+  }
+
+  /**
+   * Hard-delete soft-deleted messages whose `deletedAt` is older than `cutoffMs`,
+   * up to `limit` rows. Consumed by the trash purge job — the retention-window
+   * backstop for message-level soft deletes (topic purges go through
+   * `purgeByTopicIdsTx`). The parentId self-FK ON DELETE CASCADE removes any
+   * soft-deleted descendants and `chat_message_file_ref` rows cascade with their
+   * message; soft-deleted rows intentionally stay in the FTS index until this
+   * real DELETE fires the `message_ad` trigger. Returns the purged ids.
+   */
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
+    const rows = tx
+      .select({ id: messageTable.id })
+      .from(messageTable)
+      .where(and(isNotNull(messageTable.deletedAt), lt(messageTable.deletedAt, cutoffMs)))
+      .limit(limit)
+      .all()
+    const ids = rows.map((row) => row.id)
+    if (ids.length === 0) return []
+
+    for (let i = 0; i < ids.length; i += SQLITE_INARRAY_CHUNK) {
+      tx.delete(messageTable)
+        .where(inArray(messageTable.id, ids.slice(i, i + SQLITE_INARRAY_CHUNK)))
+        .run()
+    }
+    return ids
   }
 
   /**
@@ -868,7 +895,12 @@ export class MessageService {
    */
   createSibling(sourceId: string, data: MessageData): Message {
     return application.get('DbService').withWriteTx((tx) => {
-      const [source] = tx.select().from(messageTable).where(eq(messageTable.id, sourceId)).limit(1).all()
+      const [source] = tx
+        .select()
+        .from(messageTable)
+        .where(and(eq(messageTable.id, sourceId), isNull(messageTable.deletedAt)))
+        .limit(1)
+        .all()
       if (!source) {
         throw DataApiErrorFactory.notFound('Message', sourceId)
       }
@@ -992,7 +1024,12 @@ export class MessageService {
         // Explicit parent ID: verify existence and topic membership. Each
         // topic's message tree is self-contained — cross-topic parent refs
         // aren't a supported shape.
-        const [parent] = tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1).all()
+        const [parent] = tx
+          .select()
+          .from(messageTable)
+          .where(and(eq(messageTable.id, dto.parentId), isNull(messageTable.deletedAt)))
+          .limit(1)
+          .all()
 
         if (!parent) {
           throw DataApiErrorFactory.notFound('Message', dto.parentId)
@@ -1075,7 +1112,12 @@ export class MessageService {
           // First-turn message: hang it off the topic's virtual root (created if absent).
           resolvedParentId = this.getRootMessageIdTx(tx, input.topicId)
         } else {
-          const [parent] = tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1).all()
+          const [parent] = tx
+            .select()
+            .from(messageTable)
+            .where(and(eq(messageTable.id, dto.parentId), isNull(messageTable.deletedAt)))
+            .limit(1)
+            .all()
           if (!parent) {
             throw DataApiErrorFactory.notFound('Message', dto.parentId)
           }
@@ -1210,7 +1252,12 @@ export class MessageService {
 
       // Verify new parent exists if changing parent
       if (dto.parentId !== undefined && dto.parentId !== existing.parentId && dto.parentId !== null) {
-        const [parent] = tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1).all()
+        const [parent] = tx
+          .select()
+          .from(messageTable)
+          .where(and(eq(messageTable.id, dto.parentId), isNull(messageTable.deletedAt)))
+          .limit(1)
+          .all()
 
         if (!parent) {
           throw DataApiErrorFactory.notFound('Message', dto.parentId)
@@ -1294,7 +1341,12 @@ export class MessageService {
   }
 
   /**
-   * Delete a message (hard delete)
+   * Delete a message (soft delete: `deletedAt = now`)
+   *
+   * Rows stay in place for the retention window and are hard-deleted later by
+   * the trash purge job (`purgeExpiredTx`). There is no message-level restore —
+   * cascade=false reparents children, so the tree has already changed; the
+   * soft delete is a data backstop only, and the trash granularity is the topic.
    *
    * Supports two modes:
    * - cascade=true: Delete the message and all its descendants
@@ -1378,11 +1430,17 @@ export class MessageService {
           newActiveNodeId = activeNodeStrategy === 'clear' ? null : parentFallback
         }
 
-        // The self-FK is ON DELETE CASCADE, so deleting the target removes its whole
-        // subtree in one statement — no leaf-first ordering needed, and no SET NULL to
-        // manufacture a colliding parentId-NULL row. (deletedIds above is still derived
-        // from getDescendantIds for the response and the activeNodeId check.)
-        tx.delete(messageTable).where(eq(messageTable.id, id)).run()
+        // Soft-delete the whole subtree explicitly — the self-FK ON DELETE CASCADE
+        // only fires on a real DELETE, not on this UPDATE, so every descendant
+        // (already collected via the deleted_at-filtered getDescendantIds) must be
+        // written alongside the target.
+        const now = Date.now()
+        for (let i = 0; i < deletedIds.length; i += SQLITE_INARRAY_CHUNK) {
+          tx.update(messageTable)
+            .set({ deletedAt: now })
+            .where(inArray(messageTable.id, deletedIds.slice(i, i + SQLITE_INARRAY_CHUNK)))
+            .run()
+        }
 
         logger.info('Cascade deleted messages', { rootId: id, count: deletedIds.length })
       } else {
@@ -1434,8 +1492,8 @@ export class MessageService {
           newActiveNodeId = activeNodeStrategy === 'clear' ? null : parentFallback
         }
 
-        // Hard delete this message
-        tx.delete(messageTable).where(eq(messageTable.id, id)).run()
+        // Soft-delete this message (its children were reparented above)
+        tx.update(messageTable).set({ deletedAt: Date.now() }).where(eq(messageTable.id, id)).run()
 
         logger.info('Deleted message with reparenting', { id, reparentedCount: reparentedIds.length })
       }
@@ -1470,9 +1528,10 @@ export class MessageService {
    * The structural replacement for the old "delete the root row to clear the topic":
    * with the virtual root, first turns (and their resends) are independent children of
    * the root and `delete(root)` is rejected, so there is no single message whose cascade
-   * clears the topic. This deletes every non-root row of the topic in one transaction —
-   * the self-FK `ON DELETE CASCADE` removes whole subtrees, the root (excluded) survives,
-   * so the single-root invariant holds — and clears `activeNodeId`.
+   * clears the topic. This soft-deletes every live non-root row of the topic in one
+   * transaction — the root (excluded) survives, so the single-root invariant holds
+   * (`message_topic_root_uniq` is scoped to `deleted_at IS NULL` anyway) — and clears
+   * `activeNodeId`. Rows are hard-deleted later by the trash purge job.
    */
   clearTopicMessages(topicId: string): { deletedIds: string[] } {
     return application.get('DbService').withWriteTx((tx) => {
@@ -1487,8 +1546,9 @@ export class MessageService {
 
       if (deletedIds.length === 0) return { deletedIds }
 
-      tx.delete(messageTable)
-        .where(and(eq(messageTable.topicId, topicId), ne(messageTable.id, rootId)))
+      tx.update(messageTable)
+        .set({ deletedAt: Date.now() })
+        .where(and(eq(messageTable.topicId, topicId), ne(messageTable.id, rootId), isNull(messageTable.deletedAt)))
         .run()
       getDataService('TopicService').clearActiveNodeTx(tx, topicId)
 

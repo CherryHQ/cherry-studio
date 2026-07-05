@@ -22,6 +22,7 @@ import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
 import { KnowledgeService } from '@main/features/knowledge'
 import { KnowledgeVectorStoreService } from '@main/features/knowledge/vectorstore/KnowledgeVectorStoreService'
+import { TrashService } from '@main/features/trash'
 import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
@@ -124,6 +125,7 @@ export const services = {
   AiStreamManager,
   KnowledgeService,
   KnowledgeVectorStoreService,
+  TrashService,
   ApiGatewayService,
   AppUpdaterService,
   SchedulerService,

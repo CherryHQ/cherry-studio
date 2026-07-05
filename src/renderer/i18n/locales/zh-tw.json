@@ -5849,6 +5849,52 @@
         "token_placeholder": "請輸入思源筆記權杖"
       },
       "title": "資料",
+      "trash": {
+        "days_remaining_lt_one": "[to be translated]:Less than 1 day left",
+        "days_remaining_one": "[to be translated]:{{count}} day left",
+        "days_remaining_other": "[to be translated]:{{count}} days left",
+        "deleted_at": "[to be translated]:Deleted at {{time}}",
+        "domain": {
+          "agents": "[to be translated]:Agents",
+          "assistants": "[to be translated]:Assistants",
+          "files": "[to be translated]:Files",
+          "paintings": "[to be translated]:Paintings",
+          "sessions": "[to be translated]:Sessions",
+          "topics": "[to be translated]:Topics"
+        },
+        "empty": {
+          "section": "[to be translated]:No deleted items"
+        },
+        "empty_trash": {
+          "button": "[to be translated]:Empty Trash",
+          "confirm_content": "[to be translated]:All items in every category will be permanently deleted immediately. This cannot be undone.",
+          "confirm_title": "[to be translated]:Empty trash?",
+          "error": "[to be translated]:Failed to empty trash",
+          "success": "[to be translated]:Trash emptied"
+        },
+        "error": {
+          "load": "[to be translated]:Failed to load"
+        },
+        "load_more": "[to be translated]:Load more",
+        "page_next": "[to be translated]:Next",
+        "page_prev": "[to be translated]:Previous",
+        "permanent_delete": {
+          "confirm_content": "[to be translated]:\"{{name}}\" will be permanently deleted. This cannot be undone.",
+          "confirm_title": "[to be translated]:Delete permanently?",
+          "error": "[to be translated]:Failed to delete",
+          "label": "[to be translated]:Delete Permanently",
+          "success": "[to be translated]:Permanently deleted"
+        },
+        "restore": {
+          "error": "[to be translated]:Failed to restore",
+          "label": "[to be translated]:Restore",
+          "success": "[to be translated]:Restored"
+        },
+        "retention_hint": "[to be translated]:Items are permanently deleted after {{days}} days",
+        "retention_hint_never": "[to be translated]:Deleted items are kept until you delete them permanently",
+        "title": "[to be translated]:Recently Deleted",
+        "unnamed": "[to be translated]:Untitled"
+      },
       "webdav": {
         "autoSync": {
           "label": "自動備份",

@@ -4,6 +4,7 @@ import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/sc
 import type { PaintingsSchemas } from '@shared/data/api/schemas/paintings'
 import {
   CreatePaintingSchema,
+  DeletePaintingQuerySchema,
   ListPaintingsQuerySchema,
   UpdatePaintingSchema
 } from '@shared/data/api/schemas/paintings'
@@ -28,9 +29,16 @@ export const paintingHandlers: HandlersFor<PaintingsSchemas> = {
       const parsed = UpdatePaintingSchema.parse(body)
       return paintingService.update(params.id, parsed)
     },
-    DELETE: async ({ params }) => {
-      paintingService.delete(params.id)
+    DELETE: async ({ params, query }) => {
+      const parsed = DeletePaintingQuerySchema.parse(query ?? {})
+      paintingService.delete(params.id, parsed)
       return undefined
+    }
+  },
+
+  '/paintings/:id/restore': {
+    POST: async ({ params }) => {
+      return paintingService.restore(params.id)
     }
   },
 

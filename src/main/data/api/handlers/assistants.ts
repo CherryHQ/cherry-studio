@@ -50,8 +50,17 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
 
     DELETE: async ({ params, query }) => {
       const parsed = DeleteAssistantQuerySchema.parse(query ?? {})
-      assistantDataService.delete(params.id, { deleteTopics: parsed.deleteTopics === true })
+      assistantDataService.delete(params.id, {
+        deleteTopics: parsed.deleteTopics === true,
+        permanent: parsed.permanent === true
+      })
       return undefined
+    }
+  },
+
+  '/assistants/:id/restore': {
+    POST: async ({ params }) => {
+      return assistantDataService.restore(params.id)
     }
   },
 

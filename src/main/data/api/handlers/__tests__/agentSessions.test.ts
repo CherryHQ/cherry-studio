@@ -9,6 +9,8 @@ const {
   deleteMock,
   deleteByAgentIdMock,
   deleteByIdsMock,
+  restoreMock,
+  restoreByIdsMock,
   listSessionMessagesMock,
   deleteSessionMessageMock,
   reorderMock,
@@ -22,6 +24,8 @@ const {
   deleteMock: vi.fn(),
   deleteByAgentIdMock: vi.fn(),
   deleteByIdsMock: vi.fn(),
+  restoreMock: vi.fn(),
+  restoreByIdsMock: vi.fn(),
   listSessionMessagesMock: vi.fn(),
   deleteSessionMessageMock: vi.fn(),
   reorderMock: vi.fn(),
@@ -38,6 +42,8 @@ vi.mock('@data/services/AgentSessionService', () => ({
     delete: deleteMock,
     deleteByAgentId: deleteByAgentIdMock,
     deleteByIds: deleteByIdsMock,
+    restore: restoreMock,
+    restoreByIds: restoreByIdsMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
   }
@@ -77,6 +83,20 @@ describe('agentSessionHandlers', () => {
       })
       expect(result).toBe(response)
     })
+
+    it('forwards inTrash to agentSessionService.listByCursor', async () => {
+      const response = { items: [], nextCursor: undefined }
+      listByCursorMock.mockResolvedValueOnce(response)
+
+      const result = await agentSessionHandlers['/agent-sessions'].GET({
+        query: {
+          inTrash: true
+        }
+      } as never)
+
+      expect(listByCursorMock).toHaveBeenCalledWith({ inTrash: true })
+      expect(result).toBe(response)
+    })
   })
 
   describe('/agent-sessions/:sessionId', () => {
@@ -97,6 +117,65 @@ describe('agentSessionHandlers', () => {
         isNameManuallyEdited: true
       })
       expect(result).toBe(response)
+    })
+
+    it('archives by default on DELETE', async () => {
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId'].DELETE({
+          params: { sessionId: 'session-1' }
+        } as never)
+      ).resolves.toBeUndefined()
+
+      expect(deleteMock).toHaveBeenCalledWith('session-1', { permanent: false })
+    })
+
+    it('forwards permanent on DELETE', async () => {
+      await expect(
+        agentSessionHandlers['/agent-sessions/:sessionId'].DELETE({
+          params: { sessionId: 'session-1' },
+          query: { permanent: true }
+        } as never)
+      ).resolves.toBeUndefined()
+
+      expect(deleteMock).toHaveBeenCalledWith('session-1', { permanent: true })
+    })
+  })
+
+  describe('/agent-sessions/:sessionId/restore', () => {
+    it('delegates POST to agentSessionService.restore', async () => {
+      const response = { id: 'session-1', name: 'Restored session' }
+      restoreMock.mockResolvedValueOnce(response)
+
+      const result = await agentSessionHandlers['/agent-sessions/:sessionId/restore'].POST({
+        params: { sessionId: 'session-1' }
+      } as never)
+
+      expect(restoreMock).toHaveBeenCalledWith('session-1')
+      expect(result).toBe(response)
+    })
+  })
+
+  describe('/agent-sessions/restore', () => {
+    it('delegates bulk restore with parsed CSV ids', async () => {
+      const response = { restoredIds: ['session-a', 'session-b'] }
+      restoreByIdsMock.mockResolvedValueOnce(response)
+
+      const result = await agentSessionHandlers['/agent-sessions/restore'].POST({
+        query: { ids: ' session-a, , session-b ' }
+      } as never)
+
+      expect(restoreByIdsMock).toHaveBeenCalledWith(['session-a', 'session-b'])
+      expect(result).toEqual(response)
+    })
+
+    it('rejects empty restore ids before calling the service', async () => {
+      await expect(
+        agentSessionHandlers['/agent-sessions/restore'].POST({
+          query: { ids: ' , , ' }
+        } as never)
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+
+      expect(restoreByIdsMock).not.toHaveBeenCalled()
     })
   })
 
@@ -168,8 +247,20 @@ describe('agentSessionHandlers', () => {
         query: { ids: 'session-a,session-b' }
       } as never)
 
-      expect(deleteByIdsMock).toHaveBeenCalledWith(['session-a', 'session-b'])
+      expect(deleteByIdsMock).toHaveBeenCalledWith(['session-a', 'session-b'], { permanent: false })
       expect(deleteMock).not.toHaveBeenCalled()
+      expect(result).toEqual(response)
+    })
+
+    it('forwards permanent on selected session delete', async () => {
+      const response = { deletedIds: ['session-a'] }
+      deleteByIdsMock.mockResolvedValueOnce(response)
+
+      const result = await agentSessionHandlers['/agent-sessions'].DELETE({
+        query: { ids: 'session-a', permanent: true }
+      } as never)
+
+      expect(deleteByIdsMock).toHaveBeenCalledWith(['session-a'], { permanent: true })
       expect(result).toEqual(response)
     })
 
@@ -181,7 +272,7 @@ describe('agentSessionHandlers', () => {
         query: { ids: ' session-a, , session-b ' }
       } as never)
 
-      expect(deleteByIdsMock).toHaveBeenCalledWith(['session-a', 'session-b'])
+      expect(deleteByIdsMock).toHaveBeenCalledWith(['session-a', 'session-b'], { permanent: false })
       expect(result).toEqual(response)
     })
 

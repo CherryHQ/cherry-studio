@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateTopicSchema, DuplicateTopicSchema, SetActiveNodeSchema, UpdateTopicSchema } from '../topics'
+import {
+  CreateTopicSchema,
+  DeleteTopicQuerySchema,
+  DeleteTopicsQuerySchema,
+  DuplicateTopicSchema,
+  ListTopicsQuerySchema,
+  RestoreTopicsQuerySchema,
+  SetActiveNodeSchema,
+  UpdateTopicSchema
+} from '../topics'
 
 describe('CreateTopicSchema', () => {
   it('rejects sourceNodeId reference-fork input', () => {
@@ -67,5 +76,54 @@ describe('DuplicateTopicSchema', () => {
 
   it('rejects unknown keys', () => {
     expect(() => DuplicateTopicSchema.parse({ nodeId: 'n1', includeDescendants: true })).toThrow()
+  })
+})
+
+describe('deletedAt is read-only', () => {
+  // deletedAt is set via DELETE (archive) and cleared via the restore endpoints;
+  // it must never be writable through the Create/Update DTOs.
+  it('CreateTopicSchema rejects deletedAt', () => {
+    expect(() => CreateTopicSchema.parse({ name: 'n', deletedAt: '2026-07-04T00:00:00.000Z' })).toThrow(/unrecognized/i)
+  })
+
+  it('UpdateTopicSchema rejects deletedAt', () => {
+    expect(() => UpdateTopicSchema.parse({ deletedAt: null })).toThrow(/unrecognized/i)
+  })
+})
+
+describe('ListTopicsQuerySchema', () => {
+  it('accepts a boolean inTrash and defaults to absent', () => {
+    expect(ListTopicsQuerySchema.parse({ inTrash: true })).toEqual({ inTrash: true })
+    expect(ListTopicsQuerySchema.parse({})).toEqual({})
+  })
+
+  it('rejects a non-boolean inTrash (plain z.boolean, no coercion)', () => {
+    expect(() => ListTopicsQuerySchema.parse({ inTrash: 'true' })).toThrow()
+  })
+})
+
+describe('DeleteTopicsQuerySchema / DeleteTopicQuerySchema', () => {
+  it('accepts an optional boolean permanent flag', () => {
+    expect(DeleteTopicsQuerySchema.parse({ ids: 'a,b', permanent: true })).toEqual({
+      ids: ['a', 'b'],
+      permanent: true
+    })
+    expect(DeleteTopicQuerySchema.parse({})).toEqual({})
+    expect(DeleteTopicQuerySchema.parse({ permanent: true })).toEqual({ permanent: true })
+  })
+
+  it('rejects a non-boolean permanent (plain z.boolean, no coercion)', () => {
+    expect(() => DeleteTopicsQuerySchema.parse({ ids: 'a', permanent: 'true' })).toThrow()
+    expect(() => DeleteTopicQuerySchema.parse({ permanent: 1 })).toThrow()
+  })
+})
+
+describe('RestoreTopicsQuerySchema', () => {
+  it('parses trimmed CSV ids', () => {
+    expect(RestoreTopicsQuerySchema.parse({ ids: ' a, , b ' })).toEqual({ ids: ['a', 'b'] })
+  })
+
+  it('rejects an empty ids list', () => {
+    expect(() => RestoreTopicsQuerySchema.parse({ ids: ' , ' })).toThrow()
   })
 })

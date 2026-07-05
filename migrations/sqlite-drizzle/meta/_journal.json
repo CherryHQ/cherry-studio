@@ -126,6 +126,13 @@
       "when": 1782817365873,
       "tag": "0017_minor_echo",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1783156797707,
+      "tag": "0018_superb_baron_strucker",
+      "breakpoints": true
     }
   ],
   "version": "7"

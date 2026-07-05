@@ -276,6 +276,35 @@ describe('AssistantDataService', () => {
       expect(result.items).toHaveLength(1)
       expect(result.items[0].id).toBe('ast-1')
       expect(result.total).toBe(1)
+      expect(result.items[0].deletedAt).toBeUndefined()
+    })
+
+    it('should list only trashed assistants when inTrash is true', async () => {
+      const trashedAt = Date.parse('2026-06-01T00:00:00.000Z')
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'active' },
+        { id: 'ast-2', name: 'trashed', deletedAt: trashedAt }
+      ])
+
+      const result = assistantDataService.list(listQuery({ inTrash: true }))
+
+      expect(result.items.map((a) => a.id)).toEqual(['ast-2'])
+      expect(result.total).toBe(1)
+      // Trash listings expose the read-only deletedAt marker as ISO.
+      expect(result.items[0].deletedAt).toBe('2026-06-01T00:00:00.000Z')
+    })
+
+    it('should compose inTrash with search and keep totals scoped to the trash', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'Research active' },
+        { id: 'ast-2', name: 'Research trashed', deletedAt: Date.now() },
+        { id: 'ast-3', name: 'Other trashed', deletedAt: Date.now() }
+      ])
+
+      const result = assistantDataService.list(listQuery({ inTrash: true, search: 'Research' }))
+
+      expect(result.items.map((a) => a.id)).toEqual(['ast-2'])
+      expect(result.total).toBe(1)
     })
 
     it('should filter by id', async () => {
@@ -1307,8 +1336,25 @@ describe('AssistantDataService', () => {
 
       const assistantRows = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
       expect(assistantRows[0].deletedAt).toBeTruthy()
+      // Semantics-agnostic on purpose: today deleteByAssistantIdTx hard-deletes,
+      // with topic soft delete it archives — either way topic-1 must leave the
+      // active set while topic-2 stays untouched.
       const topicRows = await dbh.db.select().from(topicTable)
-      expect(topicRows.map((row) => row.id)).toEqual(['topic-2'])
+      expect(topicRows.filter((row) => row.deletedAt === null).map((row) => row.id)).toEqual(['topic-2'])
+    })
+
+    it('should delegate topic deletion to topicService.deleteByAssistantIdTx without re-validating the assistant', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
+      const deleteTopicsSpy = vi.spyOn(topicService, 'deleteByAssistantIdTx')
+
+      try {
+        assistantDataService.delete('ast-1', { deleteTopics: true })
+
+        expect(deleteTopicsSpy).toHaveBeenCalledTimes(1)
+        expect(deleteTopicsSpy).toHaveBeenCalledWith(expect.anything(), 'ast-1', { validateAssistant: false })
+      } finally {
+        deleteTopicsSpy.mockRestore()
+      }
     })
 
     it('should roll back assistant delete when topic deletion fails', async () => {
@@ -1351,6 +1397,261 @@ describe('AssistantDataService', () => {
       expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
+    })
+
+    describe('permanent', () => {
+      it('should hard-delete the row, cascade junction rows, and SET NULL topic.assistantId', async () => {
+        await seedAssistantRow({ id: 'ast-1', name: 'test' })
+        await seedMcpServer()
+        await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+        await dbh.db.insert(topicTable).values({ id: 'topic-1', name: 'kept', assistantId: 'ast-1', orderKey: 'a0' })
+
+        assistantDataService.delete('ast-1', { permanent: true })
+
+        const assistantRows = await dbh.db.select().from(assistantTable)
+        expect(assistantRows).toHaveLength(0)
+        const mcpRows = await dbh.db.select().from(assistantMcpServerTable)
+        expect(mcpRows).toHaveLength(0)
+        // Topic survives the permanent delete with its FK nulled (ON DELETE SET NULL).
+        const [topicRow] = await dbh.db.select().from(topicTable)
+        expect(topicRow.id).toBe('topic-1')
+        expect(topicRow.assistantId).toBeNull()
+      })
+
+      it('should permanently delete an already-trashed assistant (no isNull gate)', async () => {
+        await seedAssistantRow({ id: 'ast-1', name: 'trashed', deletedAt: Date.now() })
+
+        assistantDataService.delete('ast-1', { permanent: true })
+
+        const rows = await dbh.db.select().from(assistantTable)
+        expect(rows).toHaveLength(0)
+      })
+
+      it('should purge tag and pin rows on permanent delete', async () => {
+        await seedAssistantRow({ id: 'ast-1', name: 'test' })
+        await dbh.db.insert(tagTable).values({ id: 'tag-1', name: 'work' })
+        await dbh.db.insert(entityTagTable).values({ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1' })
+        await dbh.db.insert(pinTable).values({
+          id: '11111111-1111-4111-8111-111111111111',
+          entityType: 'assistant',
+          entityId: 'ast-1',
+          orderKey: 'a0',
+          createdAt: 1_000,
+          updatedAt: 1_000
+        })
+
+        assistantDataService.delete('ast-1', { permanent: true })
+
+        expect(await dbh.db.select().from(entityTagTable)).toHaveLength(0)
+        expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
+      })
+
+      it('should still route topics through deleteByAssistantIdTx when combined with deleteTopics', async () => {
+        await seedAssistantRow({ id: 'ast-1', name: 'test' })
+        await dbh.db.insert(topicTable).values({ id: 'topic-1', name: '', assistantId: 'ast-1', orderKey: 'a0' })
+        const deleteTopicsSpy = vi.spyOn(topicService, 'deleteByAssistantIdTx')
+
+        try {
+          assistantDataService.delete('ast-1', { deleteTopics: true, permanent: true })
+
+          expect(deleteTopicsSpy).toHaveBeenCalledTimes(1)
+          expect(deleteTopicsSpy).toHaveBeenCalledWith(expect.anything(), 'ast-1', { validateAssistant: false })
+        } finally {
+          deleteTopicsSpy.mockRestore()
+        }
+
+        // Assistant row is gone; topic-1 left the active set (hard-deleted today,
+        // archived once topic soft delete lands — permanent affects only the
+        // assistant row itself).
+        expect(await dbh.db.select().from(assistantTable)).toHaveLength(0)
+        const topicRows = await dbh.db.select().from(topicTable)
+        expect(topicRows.filter((row) => row.deletedAt === null)).toHaveLength(0)
+      })
+
+      it('should throw NOT_FOUND when permanent-deleting a non-existent assistant', async () => {
+        let err: unknown
+        try {
+          assistantDataService.delete('non-existent', { permanent: true, deleteTopics: true })
+        } catch (e) {
+          err = e
+        }
+        expect(err).toMatchObject({
+          code: ErrorCode.NOT_FOUND
+        })
+      })
+    })
+  })
+
+  describe('restore', () => {
+    it('should round-trip archive → hidden → restore → visible with junction rows and settings intact', async () => {
+      const settings = { ...DEFAULT_ASSISTANT_SETTINGS, temperature: 0.3, enableTemperature: true }
+      await seedAssistantRow({ id: 'ast-1', name: 'test', settings, modelId: 'openai::gpt-4' })
+      await seedMcpServer()
+      await seedKnowledgeBase()
+      await dbh.db.insert(assistantMcpServerTable).values({ assistantId: 'ast-1', mcpServerId: 'srv-1' })
+      await dbh.db.insert(assistantKnowledgeBaseTable).values({ assistantId: 'ast-1', knowledgeBaseId: 'kb-1' })
+
+      assistantDataService.delete('ast-1')
+
+      // Hidden from the active list, but the row (and its junctions) survive.
+      expect(assistantDataService.list(listQuery()).items).toHaveLength(0)
+      expect(await dbh.db.select().from(assistantTable)).toHaveLength(1)
+      expect(await dbh.db.select().from(assistantMcpServerTable)).toHaveLength(1)
+
+      const restored = assistantDataService.restore('ast-1')
+
+      expect(restored.id).toBe('ast-1')
+      expect(restored.deletedAt).toBeUndefined()
+      expect(restored.settings).toEqual(settings)
+      expect(restored.mcpServerIds).toEqual(['srv-1'])
+      expect(restored.knowledgeBaseIds).toEqual(['kb-1'])
+      expect(restored.modelName).toBe('GPT-4')
+
+      const active = assistantDataService.list(listQuery())
+      expect(active.items.map((a) => a.id)).toEqual(['ast-1'])
+      expect(assistantDataService.list(listQuery({ inTrash: true })).items).toHaveLength(0)
+    })
+
+    it('should not resurrect tags/pins purged at archive time', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'test' })
+      await dbh.db.insert(tagTable).values({ id: 'tag-1', name: 'work' })
+      await dbh.db.insert(entityTagTable).values({ entityType: 'assistant', entityId: 'ast-1', tagId: 'tag-1' })
+      await dbh.db.insert(pinTable).values({
+        id: '11111111-1111-4111-8111-111111111111',
+        entityType: 'assistant',
+        entityId: 'ast-1',
+        orderKey: 'a0',
+        createdAt: 1_000,
+        updatedAt: 1_000
+      })
+
+      assistantDataService.delete('ast-1')
+      const restored = assistantDataService.restore('ast-1')
+
+      expect(restored.tags).toEqual([])
+      expect(await dbh.db.select().from(entityTagTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
+    })
+
+    it('should throw NOT_FOUND when restoring an active assistant', async () => {
+      await seedAssistantRow({ id: 'ast-1', name: 'active' })
+
+      let err: unknown
+      try {
+        assistantDataService.restore('ast-1')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('should throw NOT_FOUND when restoring a non-existent assistant', async () => {
+      let err: unknown
+      try {
+        assistantDataService.restore('non-existent')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('should re-enter the active order scope with the old orderKey and stay reorderable', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'A', orderKey: 'a0' },
+        { id: 'ast-2', name: 'B', orderKey: 'a1' },
+        { id: 'ast-3', name: 'C', orderKey: 'a2' }
+      ])
+
+      assistantDataService.delete('ast-2')
+      assistantDataService.restore('ast-2')
+
+      // Restored row keeps its pre-archive orderKey → original position.
+      expect(assistantDataService.list(listQuery()).items.map((a) => a.id)).toEqual(['ast-1', 'ast-2', 'ast-3'])
+
+      // And it is a full member of the active order scope again.
+      assistantDataService.reorder('ast-2', { position: 'first' })
+      expect(assistantDataService.list(listQuery()).items.map((a) => a.id)).toEqual(['ast-2', 'ast-1', 'ast-3'])
+    })
+  })
+
+  describe('purgeExpiredTx', () => {
+    it('should hard-delete only rows trashed strictly before the cutoff', async () => {
+      await seedAssistantRow([
+        { id: 'ast-expired', name: 'expired', deletedAt: 100 },
+        { id: 'ast-at-cutoff', name: 'at cutoff', deletedAt: 300 },
+        { id: 'ast-fresh', name: 'fresh trash', deletedAt: 400 },
+        { id: 'ast-active', name: 'active' }
+      ])
+
+      const purgedIds = assistantDataService.purgeExpiredTx(dbh.db, 300, 10)
+
+      expect(purgedIds).toEqual(['ast-expired'])
+      const remaining = (await dbh.db.select().from(assistantTable)).map((row) => row.id).sort()
+      expect(remaining).toEqual(['ast-active', 'ast-at-cutoff', 'ast-fresh'])
+    })
+
+    it('should respect the batch limit', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'one', deletedAt: 100 },
+        { id: 'ast-2', name: 'two', deletedAt: 110 },
+        { id: 'ast-3', name: 'three', deletedAt: 120 }
+      ])
+
+      const purgedIds = assistantDataService.purgeExpiredTx(dbh.db, 1_000, 2)
+
+      expect(purgedIds).toHaveLength(2)
+      expect(await dbh.db.select().from(assistantTable)).toHaveLength(1)
+    })
+
+    it('should purge tag/pin rows for purged assistants only', async () => {
+      await seedAssistantRow([
+        { id: 'ast-expired', name: 'expired', deletedAt: 100 },
+        { id: 'ast-active', name: 'active' }
+      ])
+      await dbh.db.insert(tagTable).values({ id: 'tag-1', name: 'work' })
+      await dbh.db.insert(entityTagTable).values([
+        { entityType: 'assistant', entityId: 'ast-expired', tagId: 'tag-1' },
+        { entityType: 'assistant', entityId: 'ast-active', tagId: 'tag-1' }
+      ])
+      await dbh.db.insert(pinTable).values([
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          entityType: 'assistant',
+          entityId: 'ast-expired',
+          orderKey: 'a0',
+          createdAt: 1_000,
+          updatedAt: 1_000
+        },
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          entityType: 'assistant',
+          entityId: 'ast-active',
+          orderKey: 'a1',
+          createdAt: 1_000,
+          updatedAt: 1_000
+        }
+      ])
+
+      const purgedIds = assistantDataService.purgeExpiredTx(dbh.db, Date.now(), 500)
+
+      expect(purgedIds).toEqual(['ast-expired'])
+      const tagRows = await dbh.db.select().from(entityTagTable)
+      expect(tagRows.map((row) => row.entityId)).toEqual(['ast-active'])
+      const pinRows = await dbh.db.select().from(pinTable)
+      expect(pinRows.map((row) => row.entityId)).toEqual(['ast-active'])
+    })
+
+    it('should be a no-op when nothing is expired', async () => {
+      await seedAssistantRow({ id: 'ast-active', name: 'active' })
+
+      const purgedIds = assistantDataService.purgeExpiredTx(dbh.db, Date.now(), 500)
+
+      expect(purgedIds).toEqual([])
+      expect(await dbh.db.select().from(assistantTable)).toHaveLength(1)
     })
   })
 

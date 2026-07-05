@@ -19,11 +19,12 @@ import type {
   DeleteTopicsResult,
   DuplicateTopicDto,
   ListTopicsQuery,
+  RestoreTopicsResult,
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -46,11 +47,13 @@ function rowToTopic(row: TopicRow): Topic {
   // DB NULL ↔ domain `undefined` boundary — all of Topic's nullable columns are
   // `.optional()` (no `T | null`), so the `{...nullsToUndefined(row)}` skeleton
   // from data-api-in-main.md applies cleanly.
-  const clean = nullsToUndefined(row)
+  const { deletedAt, ...clean } = nullsToUndefined(row)
   return {
     ...clean,
     createdAt: timestampToISO(row.createdAt),
-    updatedAt: timestampToISO(row.updatedAt)
+    updatedAt: timestampToISO(row.updatedAt),
+    // Read-only trash marker: present iff the row is archived (mirrors FileEntry).
+    ...(deletedAt != null ? { deletedAt: timestampToISO(deletedAt) } : {})
   }
 }
 
@@ -322,29 +325,45 @@ export class TopicService {
   }
 
   /**
-   * Hard delete + tag/pin purge. Any future soft-delete path MUST also
-   * call `pinService.purgeForEntitiesTx(tx, 'topic', [id])` — a surviving pin row
+   * Archive by default (soft delete: `deletedAt = now`, messages untouched);
+   * `permanent: true` hard-deletes via the purge path (messages + tag/pin purge).
+   * Any soft-delete path MUST also call
+   * `pinService.purgeForEntitiesTx(tx, 'topic', [id])` — a surviving pin row
    * makes `listByCursor`'s JOIN silently hide the topic from both sections.
-   *
-   * TODO: Clean up associated files (images, attachments) from disk.
+   * Disk attachments of purged messages are reclaimed by the file orphan sweep.
    */
-  delete(id: string): void {
+  delete(id: string, options: { permanent?: boolean } = {}): void {
     const dbService = application.get('DbService')
-    dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
-
-    logger.info('Deleted topic', { id })
+    if (options.permanent === true) {
+      dbService.withWriteTx((tx) => this.purgeManyByIdsTx(tx, [id], { requireAll: true }))
+      logger.info('Permanently deleted topic', { id })
+      return
+    }
+    dbService.withWriteTx((tx) => this.archiveManyByIdsTx(tx, [id], { requireAll: true }))
+    logger.info('Archived topic', { id })
   }
 
-  deleteByIds(ids: string[]): DeleteTopicsResult {
+  deleteByIds(ids: string[], options: { permanent?: boolean } = {}): DeleteTopicsResult {
+    const permanent = options.permanent === true
     const dbService = application.get('DbService')
-    const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
+    const deletedIds = dbService.withWriteTx((tx) =>
+      permanent
+        ? this.purgeManyByIdsTx(tx, ids, { requireAll: true })
+        : this.archiveManyByIdsTx(tx, ids, { requireAll: true })
+    )
 
-    logger.info('Deleted topics', { count: deletedIds.length })
+    logger.info(permanent ? 'Permanently deleted topics' : 'Archived topics', { count: deletedIds.length })
 
     return { deletedIds, deletedCount: deletedIds.length }
   }
 
-  private deleteManyByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean } = {}): string[] {
+  /**
+   * Soft delete: sets `deletedAt` on the topic rows only. Messages stay in
+   * place (hidden via the archived container) so restore is lossless; pins and
+   * tags are purged immediately and NOT restored (RFC §3.4 — a surviving pin
+   * row would hide the topic from `listByCursor`'s JOIN).
+   */
+  private archiveManyByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean } = {}): string[] {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
 
@@ -353,6 +372,38 @@ export class TopicService {
       .from(topicTable)
       .where(and(inArray(topicTable.id, uniqueIds), isNull(topicTable.deletedAt)))
       .all()
+    const archivedIds = rows.map((row) => row.id)
+
+    if (options.requireAll && archivedIds.length !== uniqueIds.length) {
+      const foundIds = new Set(archivedIds)
+      const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
+      throw DataApiErrorFactory.notFound('Topic', missingId)
+    }
+    if (archivedIds.length === 0) return []
+
+    const now = Date.now()
+    for (let i = 0; i < archivedIds.length; i += SQLITE_INARRAY_CHUNK) {
+      tx.update(topicTable)
+        .set({ deletedAt: now })
+        .where(inArray(topicTable.id, archivedIds.slice(i, i + SQLITE_INARRAY_CHUNK)))
+        .run()
+    }
+    tagService.purgeForEntitiesTx(tx, 'topic', archivedIds)
+    pinService.purgeForEntitiesTx(tx, 'topic', archivedIds)
+
+    return archivedIds
+  }
+
+  /**
+   * Hard delete: purges messages, tags, and pins, then deletes the topic rows.
+   * The row select intentionally does NOT filter `deletedAt` so already-archived
+   * topics can be permanently deleted from the trash.
+   */
+  private purgeManyByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean } = {}): string[] {
+    const uniqueIds = Array.from(new Set(ids))
+    if (uniqueIds.length === 0) return []
+
+    const rows = tx.select({ id: topicTable.id }).from(topicTable).where(inArray(topicTable.id, uniqueIds)).all()
     const deletedIds = rows.map((row) => row.id)
 
     if (options.requireAll && deletedIds.length !== uniqueIds.length) {
@@ -369,6 +420,68 @@ export class TopicService {
     tx.delete(topicTable).where(inArray(topicTable.id, deletedIds)).run()
 
     return deletedIds
+  }
+
+  /** Restore an archived topic. Pins/tags purged at archive time are NOT restored. */
+  restore(id: string): Topic {
+    const topic = application.get('DbService').withWriteTx((tx) => {
+      const [row] = tx
+        .update(topicTable)
+        .set({ deletedAt: null })
+        .where(and(eq(topicTable.id, id), isNotNull(topicTable.deletedAt)))
+        .returning()
+        .all()
+      if (!row) throw DataApiErrorFactory.notFound('Topic', id)
+      return rowToTopic(row)
+    })
+
+    logger.info('Restored topic', { id })
+
+    return topic
+  }
+
+  /**
+   * Bulk restore. Idempotent: missing or already-active ids are simply omitted
+   * from `restoredIds` (no requireAll semantics, mirroring bulk session deletes).
+   */
+  restoreByIds(ids: string[]): RestoreTopicsResult {
+    const uniqueIds = Array.from(new Set(ids))
+    const restoredIds = application.get('DbService').withWriteTx((tx) => {
+      const restored: string[] = []
+      for (let i = 0; i < uniqueIds.length; i += SQLITE_INARRAY_CHUNK) {
+        const chunk = uniqueIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+        const rows = tx
+          .update(topicTable)
+          .set({ deletedAt: null })
+          .where(and(inArray(topicTable.id, chunk), isNotNull(topicTable.deletedAt)))
+          .returning({ id: topicTable.id })
+          .all()
+        restored.push(...rows.map((row) => row.id))
+      }
+      return restored
+    })
+
+    logger.info('Restored topics', { count: restoredIds.length })
+
+    return { restoredIds }
+  }
+
+  /**
+   * Hard-delete archived topics whose `deletedAt` is older than `cutoffMs`,
+   * up to `limit` rows. Consumed by the trash purge job. Returns purged ids.
+   */
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
+    const rows = tx
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .where(and(isNotNull(topicTable.deletedAt), lt(topicTable.deletedAt, cutoffMs)))
+      .limit(limit)
+      .all()
+    if (rows.length === 0) return []
+    return this.purgeManyByIdsTx(
+      tx,
+      rows.map((row) => row.id)
+    )
   }
 
   setActiveNode(topicId: string, nodeId: string): { activeNodeId: string } {
@@ -437,16 +550,21 @@ export class TopicService {
    * spills into the unpinned section to fill `limit`. `topic.orderKey` is
    * maintained but unused at read time — it's there for a future drag-mode
    * toggle.
+   *
+   * `inTrash: true` lists archived topics instead: the pin section is skipped
+   * entirely (archiving purges pins) and the topic-section query flips to
+   * `isNotNull(deletedAt)` with the same `(updatedAt DESC, id ASC)` cursor.
    */
   listByCursor(query: ListTopicsQuery = {}): CursorPaginationResponse<Topic> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor: Cursor = query.cursor ? decodeCursor(query.cursor) : { section: 'pin', orderKey: '' }
     const search = buildSearchPredicate(query.q)
+    const inTrash = query.inTrash === true
 
     const items: Array<{ topic: Topic; pinOrderKey?: string }> = []
 
-    if (cursor.section === 'pin') {
+    if (!inTrash && cursor.section === 'pin') {
       const pinAfter = cursor.orderKey ? gt(pinTable.orderKey, cursor.orderKey) : undefined
       const pinRows = db
         .select({ topic: topicTable, pinOrderKey: pinTable.orderKey })
@@ -499,10 +617,19 @@ export class TopicService {
       )
     }
 
+    // In trash mode the notInArray(pinned) filter is harmless — archived topics
+    // have no pin rows — so the query shape stays identical to the active list.
     const topicRows = db
       .select()
       .from(topicTable)
-      .where(and(isNull(topicTable.deletedAt), notInArray(topicTable.id, pinnedSubquery), topicAfter, search))
+      .where(
+        and(
+          inTrash ? isNotNull(topicTable.deletedAt) : isNull(topicTable.deletedAt),
+          notInArray(topicTable.id, pinnedSubquery),
+          topicAfter,
+          search
+        )
+      )
       .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
       .limit(remaining + 1)
       .all()
@@ -612,11 +739,12 @@ export class TopicService {
     const dbService = application.get('DbService')
     const deletedIds = dbService.withWriteTx((tx) => this.deleteByAssistantIdTx(tx, assistantId))
 
-    logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
+    logger.info('Archived assistant topics', { assistantId, count: deletedIds.length })
 
     return { deletedIds, deletedCount: deletedIds.length }
   }
 
+  /** Archives (soft-deletes) the assistant's live topics — RFC §4.3: assistant-scoped topic deletes archive. */
   deleteByAssistantIdTx(tx: DbOrTx, assistantId: string, options: { validateAssistant?: boolean } = {}): string[] {
     if (options.validateAssistant ?? true) {
       const [assistant] = tx
@@ -634,7 +762,7 @@ export class TopicService {
       .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
       .all()
 
-    return this.deleteManyByIdsTx(
+    return this.archiveManyByIdsTx(
       tx,
       rows.map((row) => row.id)
     )

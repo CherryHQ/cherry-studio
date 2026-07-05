@@ -16,7 +16,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 function mainText(content: string): MessageData {
@@ -1536,20 +1536,39 @@ describe('MessageService', () => {
       const result = messageService.delete('m-root', true)
       expect(result.deletedIds).toEqual(expect.arrayContaining(['m-root', 'm-a1', 'm-a2', 'm-follow']))
 
-      const remaining = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
+      // Soft delete: the subtree rows survive with deletedAt set; only the root stays live.
+      const remaining = await dbh.db
+        .select()
+        .from(messageTable)
+        .where(and(eq(messageTable.topicId, 'topic-1'), isNull(messageTable.deletedAt)))
       expect(remaining.map((r) => r.id)).toEqual([virtualRootId])
       expect(remaining[0].role).toBe('root')
       expect(remaining[0].parentId).toBeNull()
+
+      const trashed = await dbh.db
+        .select()
+        .from(messageTable)
+        .where(and(eq(messageTable.topicId, 'topic-1'), isNotNull(messageTable.deletedAt)))
+      expect(trashed.map((r) => r.id).sort()).toEqual(['m-a1', 'm-a2', 'm-follow', 'm-root'])
     })
 
-    it('clearTopicMessages removes every content message, keeps the virtual root, and clears activeNodeId', async () => {
+    it('clearTopicMessages soft-deletes every content message, keeps the virtual root, and clears activeNodeId', async () => {
       await seedMultiModelTree() // root + m-root/m-a1/m-a2/m-follow, activeNodeId='m-follow'
 
       const result = messageService.clearTopicMessages('topic-1')
       expect(result.deletedIds.slice().sort()).toEqual(['m-a1', 'm-a2', 'm-follow', 'm-root'])
 
-      const remaining = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
+      const remaining = await dbh.db
+        .select()
+        .from(messageTable)
+        .where(and(eq(messageTable.topicId, 'topic-1'), isNull(messageTable.deletedAt)))
       expect(remaining.map((r) => r.id)).toEqual([virtualRootId])
+      // Non-root rows survive as soft-deleted (hard delete happens in the purge job).
+      const trashed = await dbh.db
+        .select()
+        .from(messageTable)
+        .where(and(eq(messageTable.topicId, 'topic-1'), isNotNull(messageTable.deletedAt)))
+      expect(trashed).toHaveLength(4)
       const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
       expect(topicRow.activeNodeId).toBeNull()
     })
@@ -1588,9 +1607,12 @@ describe('MessageService', () => {
 
       const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
       const byId = new Map(rows.map((r) => [r.id, r]))
-      expect(byId.has('m-root')).toBe(false)
+      // Soft delete: the spliced-out row survives, marked deleted; children were reparented off it.
+      expect(byId.get('m-root')?.deletedAt).not.toBeNull()
       expect(byId.get('m-a1')?.parentId).toBe('vroot-topic-1')
+      expect(byId.get('m-a1')?.deletedAt).toBeNull()
       expect(byId.get('m-a2')?.parentId).toBe('vroot-topic-1')
+      expect(byId.get('m-a2')?.deletedAt).toBeNull()
       // Exactly one null-parent row (the virtual root) remains.
       expect(rows.filter((r) => r.parentId === null).map((r) => r.id)).toEqual(['vroot-topic-1'])
     })
@@ -1605,6 +1627,9 @@ describe('MessageService', () => {
 
       const [follow] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, 'm-follow'))
       expect(follow.parentId).toBe('m-root')
+      // The spliced row is soft-deleted, not removed.
+      const [gone] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, 'm-a2'))
+      expect(gone.deletedAt).not.toBeNull()
     })
 
     it('reparent rebases a moved group id so it cannot merge with an unrelated group at the destination', async () => {
@@ -1680,6 +1705,167 @@ describe('MessageService', () => {
       expect(byId.get('c1')?.siblingsGroupId).toBe(byId.get('c2')?.siblingsGroupId)
       expect(byId.get('c1')?.siblingsGroupId).not.toBe(5)
       expect(byId.get('y')?.siblingsGroupId).toBe(5)
+    })
+  })
+
+  describe('delete — soft delete semantics', () => {
+    it('cascade=true soft-deletes the whole subtree and hides it from tree/read queries', async () => {
+      await seedMultiModelTree()
+
+      const result = messageService.delete('m-a2', true)
+      expect(result.deletedIds.slice().sort()).toEqual(['m-a2', 'm-follow'])
+
+      // Rows survive with deletedAt set (hard delete happens in the purge job).
+      const trashed = await dbh.db.select().from(messageTable).where(isNotNull(messageTable.deletedAt))
+      expect(trashed.map((r) => r.id).sort()).toEqual(['m-a2', 'm-follow'])
+
+      // Tree query hides the soft-deleted subtree.
+      const tree = messageService.getTree('topic-1', { depth: -1 })
+      expect(tree.nodes.map((n) => n.id).sort()).toEqual(['m-a1', 'm-root'])
+
+      // getById treats soft-deleted rows as absent.
+      let err: unknown
+      try {
+        messageService.getById('m-follow')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    })
+
+    it('branch queries hide soft-deleted rows after a non-cascade delete', async () => {
+      await seedMultiModelTree()
+
+      messageService.delete('m-a2', false) // m-follow reparents onto m-root
+
+      const res = messageService.getBranchMessages('topic-1', { nodeId: 'm-follow' })
+      const ids = res.items.map((i) => i.message.id)
+      expect(ids).not.toContain('m-a2')
+      expect(ids).toEqual(expect.arrayContaining(['m-root', 'm-follow']))
+    })
+  })
+
+  describe('purgeExpiredTx', () => {
+    it('hard-deletes only expired rows; FK cascade cleans descendants and file refs', async () => {
+      const fileEntryId = '019606a0-0000-7000-8000-00000000fb03'
+      await seedFileEntry(fileEntryId)
+      await dbh.db.insert(topicTable).values({ id: 'topic-purge', activeNodeId: null, orderKey: 'a0' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-purge', [
+          {
+            id: 'pm-expired',
+            parentId: null,
+            topicId: 'topic-purge',
+            role: 'user',
+            data: mainText('expired'),
+            status: 'success',
+            siblingsGroupId: 0,
+            deletedAt: 100,
+            createdAt: 1,
+            updatedAt: 1
+          },
+          {
+            id: 'pm-child',
+            parentId: 'pm-expired',
+            topicId: 'topic-purge',
+            role: 'assistant',
+            data: mainText('child, trashed later'),
+            status: 'success',
+            siblingsGroupId: 0,
+            deletedAt: 900,
+            createdAt: 2,
+            updatedAt: 2
+          },
+          {
+            id: 'pm-live',
+            parentId: null,
+            topicId: 'topic-purge',
+            role: 'user',
+            data: mainText('live'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 3,
+            updatedAt: 3
+          }
+        ])
+      )
+      await dbh.db.insert(chatMessageFileRefTable).values({
+        id: '33333333-3333-4333-8333-123456789abc',
+        fileEntryId,
+        sourceId: 'pm-expired',
+        role: 'attachment',
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      const purged = messageService.purgeExpiredTx(dbh.db, 500, 10)
+      expect(purged).toEqual(['pm-expired'])
+
+      const remaining = await dbh.db
+        .select({ id: messageTable.id })
+        .from(messageTable)
+        .where(eq(messageTable.topicId, 'topic-purge'))
+      // pm-child was NOT expired but hangs off the purged row — the parentId
+      // self-FK ON DELETE CASCADE removes it with its parent.
+      expect(remaining.map((r) => r.id).sort()).toEqual(['pm-live', 'vroot-topic-purge'])
+      expect(await dbh.db.select().from(chatMessageFileRefTable)).toHaveLength(0)
+    })
+
+    it('respects the limit and leaves unexpired rows alone', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-limit', activeNodeId: null, orderKey: 'a0' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-limit', [
+          {
+            id: 'lm-1',
+            parentId: null,
+            topicId: 'topic-limit',
+            role: 'user',
+            data: mainText('one'),
+            status: 'success',
+            siblingsGroupId: 0,
+            deletedAt: 100,
+            createdAt: 1,
+            updatedAt: 1
+          },
+          {
+            id: 'lm-2',
+            parentId: null,
+            topicId: 'topic-limit',
+            role: 'user',
+            data: mainText('two'),
+            status: 'success',
+            siblingsGroupId: 0,
+            deletedAt: 200,
+            createdAt: 2,
+            updatedAt: 2
+          },
+          {
+            id: 'lm-fresh',
+            parentId: null,
+            topicId: 'topic-limit',
+            role: 'user',
+            data: mainText('fresh'),
+            status: 'success',
+            siblingsGroupId: 0,
+            deletedAt: 900,
+            createdAt: 3,
+            updatedAt: 3
+          }
+        ])
+      )
+
+      const firstBatch = messageService.purgeExpiredTx(dbh.db, 500, 1)
+      expect(firstBatch).toHaveLength(1)
+
+      const secondBatch = messageService.purgeExpiredTx(dbh.db, 500, 10)
+      expect(secondBatch).toHaveLength(1)
+      expect([...firstBatch, ...secondBatch].sort()).toEqual(['lm-1', 'lm-2'])
+
+      const remaining = await dbh.db
+        .select({ id: messageTable.id })
+        .from(messageTable)
+        .where(eq(messageTable.topicId, 'topic-limit'))
+      expect(remaining.map((r) => r.id).sort()).toEqual(['lm-fresh', 'vroot-topic-limit'])
     })
   })
 

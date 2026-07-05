@@ -7,8 +7,10 @@
  *
  * Output / input files are stored in `painting_file_ref` (not on the painting
  * row). `create` writes the refs; `get` / `list` hydrate them via a single
- * `IN (...)` query, then group by sourceId + role. `delete` relies on DB-level
- * cascade from `painting_file_ref.sourceId`.
+ * `IN (...)` query, then group by sourceId + role. `delete` archives by
+ * default (soft delete — refs untouched, so the orphan sweep keeps the disk
+ * images); `permanent: true` and `purgeExpiredTx` hard-delete the row and rely
+ * on the DB-level cascade from `painting_file_ref.sourceId`.
  */
 
 import { application } from '@application'
@@ -16,7 +18,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { type InsertPaintingRow, type PaintingRow, paintingTable } from '@data/db/schemas/painting'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbType } from '@data/db/types'
+import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -30,7 +32,7 @@ import { PAINTINGS_DEFAULT_LIMIT, PAINTINGS_MAX_LIMIT } from '@shared/data/api/s
 import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
 import type { Painting, PaintingFiles } from '@shared/data/types/painting'
 import type { SQL } from 'drizzle-orm'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm'
 
 import { asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -58,7 +60,8 @@ function rowToPainting(row: PaintingRow, files: PaintingFiles): Painting {
     files,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
-    updatedAt: timestampToISO(row.updatedAt)
+    updatedAt: timestampToISO(row.updatedAt),
+    deletedAt: row.deletedAt != null ? timestampToISO(row.deletedAt) : undefined
   }
 }
 
@@ -111,6 +114,10 @@ class PaintingService {
       filterConditions.push(eq(paintingTable.providerId, query.providerId))
     }
 
+    // Trash filter lives in filterConditions so the page query AND the
+    // count(*) query below honor it — total must match the visible set.
+    filterConditions.push(query.inTrash === true ? isNotNull(paintingTable.deletedAt) : isNull(paintingTable.deletedAt))
+
     conditions.push(...filterConditions)
 
     if (cursor) {
@@ -146,7 +153,12 @@ class PaintingService {
 
   getById(id: string): Painting {
     const db = application.get('DbService').getDb()
-    const [row] = db.select().from(paintingTable).where(eq(paintingTable.id, id)).limit(1).all()
+    const [row] = db
+      .select()
+      .from(paintingTable)
+      .where(and(eq(paintingTable.id, id), isNull(paintingTable.deletedAt)))
+      .limit(1)
+      .all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Painting', id)
@@ -206,7 +218,13 @@ class PaintingService {
   update(id: string, dto: UpdatePaintingDto): Painting {
     const dbService = application.get('DbService')
     const db = dbService.getDb()
-    const [existing] = db.select().from(paintingTable).where(eq(paintingTable.id, id)).limit(1).all()
+    // Archived paintings are not updatable — restore first.
+    const [existing] = db
+      .select()
+      .from(paintingTable)
+      .where(and(eq(paintingTable.id, id), isNull(paintingTable.deletedAt)))
+      .limit(1)
+      .all()
     if (!existing) {
       throw DataApiErrorFactory.notFound('Painting', id)
     }
@@ -268,21 +286,103 @@ class PaintingService {
     return rowToPainting(row, files)
   }
 
-  delete(id: string): void {
-    this.getById(id)
-    // painting_file_ref rows are removed by the FK cascade.
-    withSqliteErrors(
-      () => application.get('DbService').getDb().delete(paintingTable).where(eq(paintingTable.id, id)).run(),
-      defaultHandlersFor('Painting', id)
-    )
-    logger.info('Deleted painting', { id })
+  /**
+   * Delete a painting.
+   *
+   * Default (archive): soft-delete — set `deletedAt` on the painting row only.
+   * `painting_file_ref` rows are untouched (no row delete → no FK cascade), so
+   * the file orphan sweep still sees the generated images as owned and the
+   * disk files stay safe while the painting sits in the trash.
+   *
+   * `permanent: true`: hard-delete the DB row (existence intentionally NOT
+   * scoped to active rows — trashed paintings must be hard-deletable). The FK
+   * cascade clears `painting_file_ref`; disk images are reclaimed later by the
+   * file orphan sweep. DB-only — no filesystem work in DataApi.
+   */
+  delete(id: string, options: { permanent?: boolean } = {}): void {
+    const db = application.get('DbService').getDb()
+
+    if (options.permanent === true) {
+      const result = withSqliteErrors(
+        () => db.delete(paintingTable).where(eq(paintingTable.id, id)).run(),
+        defaultHandlersFor('Painting', id)
+      )
+      if (result.changes === 0) {
+        throw DataApiErrorFactory.notFound('Painting', id)
+      }
+      logger.info('Permanently deleted painting', { id })
+      return
+    }
+
+    const result = db
+      .update(paintingTable)
+      .set({ deletedAt: Date.now() })
+      .where(and(eq(paintingTable.id, id), isNull(paintingTable.deletedAt)))
+      .run()
+    if (result.changes === 0) {
+      throw DataApiErrorFactory.notFound('Painting', id)
+    }
+    logger.info('Archived painting', { id })
+  }
+
+  /**
+   * Restore an archived painting (clear `deletedAt`). Archive never touched
+   * the `painting_file_ref` rows, so the returned entity's files are intact.
+   * NOT_FOUND when the painting doesn't exist or is not in the trash.
+   */
+  restore(id: string): Painting {
+    const db = application.get('DbService').getDb()
+    const [row] = db
+      .update(paintingTable)
+      .set({ deletedAt: null })
+      .where(and(eq(paintingTable.id, id), isNotNull(paintingTable.deletedAt)))
+      .returning()
+      .all()
+
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Painting', id)
+    }
+
+    logger.info('Restored painting', { id })
+    const filesByPainting = loadFilesForPaintings([row.id])
+    return rowToPainting(row, filesByPainting.get(row.id) ?? EMPTY_FILES)
+  }
+
+  /**
+   * Hard-delete archived paintings whose `deletedAt` is older than `cutoffMs`,
+   * up to `limit` rows. Called by the trash purge job inside its own
+   * `withWriteTx` — the callback stays synchronous per better-sqlite3.
+   *
+   * Returns the purged painting ids. The FK cascade clears `painting_file_ref`;
+   * disk images are reclaimed later by the file orphan sweep (no filesystem
+   * work here).
+   */
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
+    const rows = tx
+      .select({ id: paintingTable.id })
+      .from(paintingTable)
+      .where(and(isNotNull(paintingTable.deletedAt), lt(paintingTable.deletedAt, cutoffMs)))
+      .limit(limit)
+      .all()
+
+    const ids = rows.map((row) => row.id)
+    if (ids.length === 0) return ids
+
+    tx.delete(paintingTable).where(inArray(paintingTable.id, ids)).run()
+    logger.info('Purged expired paintings', { count: ids.length })
+    return ids
   }
 
   reorder(id: string, anchor: OrderRequest): void {
     const dbService = application.get('DbService')
 
     dbService.withWriteTx((tx) => {
-      const [target] = tx.select().from(paintingTable).where(eq(paintingTable.id, id)).limit(1).all()
+      const [target] = tx
+        .select()
+        .from(paintingTable)
+        .where(and(eq(paintingTable.id, id), isNull(paintingTable.deletedAt)))
+        .limit(1)
+        .all()
       if (!target) {
         throw DataApiErrorFactory.notFound('Painting', id)
       }
@@ -304,7 +404,12 @@ class PaintingService {
 
     dbService.withWriteTx((tx) => {
       for (const move of moves) {
-        const [target] = tx.select().from(paintingTable).where(eq(paintingTable.id, move.id)).limit(1).all()
+        const [target] = tx
+          .select()
+          .from(paintingTable)
+          .where(and(eq(paintingTable.id, move.id), isNull(paintingTable.deletedAt)))
+          .limit(1)
+          .all()
         if (!target) {
           throw DataApiErrorFactory.notFound('Painting', move.id)
         }
