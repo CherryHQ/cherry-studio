@@ -31,6 +31,7 @@ interface OpenClawGatewayController {
   stopping: boolean
   onLaunch: () => Promise<void>
   onStop: () => Promise<void>
+  onOpenDashboard: () => Promise<void>
 }
 
 export function useOpenClawGatewayController({
@@ -46,6 +47,16 @@ export function useOpenClawGatewayController({
   const [launching, setLaunching] = useState(false)
   const [stopping, setStopping] = useState(false)
   const isOpenClawTool = selectedCliTool === CodeCli.OPENCLAW
+
+  const openDashboard = useCallback(async () => {
+    const dashboardUrl = await ipcApi.request('openclaw.get_dashboard_url')
+    openSmartMiniApp({
+      appId: 'openclaw-dashboard',
+      name: 'OpenClaw',
+      url: dashboardUrl,
+      logo: 'openclaw'
+    })
+  }, [openSmartMiniApp])
 
   const handleLaunch = useCallback(async () => {
     if (!enabledProvider || !currentProviderConfig?.modelId) {
@@ -84,13 +95,7 @@ export function useOpenClawGatewayController({
         return
       }
 
-      const dashboardUrl = await ipcApi.request('openclaw.get_dashboard_url')
-      openSmartMiniApp({
-        appId: 'openclaw-dashboard',
-        name: 'OpenClaw',
-        url: dashboardUrl,
-        logo: 'openclaw'
-      })
+      await openDashboard()
       setStatus('running')
     } catch (err) {
       setStatus('error')
@@ -102,7 +107,7 @@ export function useOpenClawGatewayController({
   }, [
     currentProviderConfig,
     enabledProvider,
-    openSmartMiniApp,
+    openDashboard,
     selectedCliTool,
     setCurrentProvider,
     upsertProviderConfig,
@@ -125,6 +130,15 @@ export function useOpenClawGatewayController({
       setStopping(false)
     }
   }, [t])
+
+  const handleOpenDashboard = useCallback(async () => {
+    try {
+      await openDashboard()
+    } catch (err) {
+      logger.error('Failed to open OpenClaw dashboard:', err as Error)
+      window.toast.error(t('code.launch.error'))
+    }
+  }, [openDashboard, t])
 
   useEffect(() => {
     if (!isOpenClawTool) return
@@ -155,6 +169,7 @@ export function useOpenClawGatewayController({
     starting: isOpenClawTool && status === 'starting',
     stopping,
     onLaunch: handleLaunch,
-    onStop: handleStop
+    onStop: handleStop,
+    onOpenDashboard: handleOpenDashboard
   }
 }

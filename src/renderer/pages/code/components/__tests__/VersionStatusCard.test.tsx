@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { VersionStatusCard } from '../VersionStatusCard'
@@ -54,5 +54,52 @@ describe('VersionStatusCard', () => {
     )
 
     expect(screen.getByRole('button', { name: 'code.launching' })).toBeDisabled()
+  })
+
+  it('renders an open-dashboard action when running and triggers it on click', () => {
+    const onOpenDashboard = vi.fn()
+    render(
+      <VersionStatusCard
+        toolId="openclaw"
+        toolName="OpenClaw"
+        status={{ installed: true, canUpgrade: false }}
+        onStop={vi.fn()}
+        running
+        onOpenDashboard={onOpenDashboard}
+      />
+    )
+
+    const button = screen.getByRole('button', { name: 'openclaw.gateway.open_dashboard' })
+    fireEvent.click(button)
+    expect(onOpenDashboard).toHaveBeenCalledTimes(1)
+  })
+
+  it('omits the open-dashboard action when not running', () => {
+    render(
+      <VersionStatusCard
+        toolId="openclaw"
+        toolName="OpenClaw"
+        status={{ installed: true, canUpgrade: false }}
+        onLaunch={vi.fn()}
+        canLaunch
+        onOpenDashboard={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: 'openclaw.gateway.open_dashboard' })).not.toBeInTheDocument()
+  })
+
+  it('omits the open-dashboard action when no handler is provided', () => {
+    render(
+      <VersionStatusCard
+        toolId="openclaw"
+        toolName="OpenClaw"
+        status={{ installed: true, canUpgrade: false }}
+        onStop={vi.fn()}
+        running
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: 'openclaw.gateway.open_dashboard' })).not.toBeInTheDocument()
   })
 })

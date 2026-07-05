@@ -179,6 +179,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           onRemove: () => removeDialog.requestRemove(selectedCliTool),
           onLaunch: () => (isOpenClawTool ? void openClawGateway.onLaunch() : launchDialog.openLaunchDialog()),
           onStop: () => void openClawGateway.onStop(),
+          onOpenDashboard: () => void openClawGateway.onOpenDashboard(),
           onConfigure: configPanel.openConfigurePanel,
           onToggleCurrent: configPanel.onToggleCurrent,
           onReorder: handleReorder

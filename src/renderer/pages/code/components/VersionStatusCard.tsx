@@ -1,5 +1,5 @@
 import { Button } from '@cherrystudio/ui'
-import { ArrowUpCircle, Download, Play, Square, Trash2 } from 'lucide-react'
+import { ArrowUpCircle, Download, ExternalLink, Play, Square, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -15,6 +15,7 @@ interface VersionStatusCardProps {
   onRemove?: () => void
   onLaunch?: () => void
   onStop?: () => void
+  onOpenDashboard?: () => void
   isInstalling?: boolean
   isUpgrading?: boolean
   canLaunch?: boolean
@@ -32,6 +33,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   onRemove,
   onLaunch,
   onStop,
+  onOpenDashboard,
   isInstalling,
   isUpgrading,
   canLaunch,
@@ -151,6 +153,19 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
                   {t('code.install')}
                 </>
               )}
+            </Button>
+          )}
+
+          {isInstalled && running && onOpenDashboard && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground/30 hover:text-foreground"
+              onClick={onOpenDashboard}
+              aria-label={t('openclaw.gateway.open_dashboard')}
+              title={t('openclaw.gateway.open_dashboard')}>
+              <ExternalLink className="size-3.5" />
             </Button>
           )}
         </div>

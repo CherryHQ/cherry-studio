@@ -38,6 +38,7 @@ interface CodeCliContentPanelProps {
   onRemove: () => void
   onLaunch: () => void
   onStop: () => void
+  onOpenDashboard: () => void
   onConfigure: (provider: Provider) => void
   onToggleCurrent: (provider: Provider) => void
   onReorder: (nextProviders: Provider[]) => void | Promise<void>
@@ -72,6 +73,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
   onRemove,
   onLaunch,
   onStop,
+  onOpenDashboard,
   onConfigure,
   onToggleCurrent,
   onReorder
@@ -92,6 +94,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
             onRemove={onRemove}
             onLaunch={onLaunch}
             onStop={onStop}
+            onOpenDashboard={onOpenDashboard}
             canLaunch={versionCard.canLaunch}
             launching={versionCard.launching}
             running={versionCard.running}
