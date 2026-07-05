@@ -4354,7 +4354,7 @@
       "select_provider_model": "Please select a provider and model first"
     },
     "gateway": {
-      "open_dashboard": "Open Dashboard",
+      "open_dashboard": "Open OpenClaw",
       "port": "Port",
       "restart": "Restart",
       "start": "Start",

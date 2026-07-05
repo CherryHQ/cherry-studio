@@ -159,13 +159,12 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
           {isInstalled && running && onOpenDashboard && (
             <Button
               type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground/30 hover:text-foreground"
+              variant="outline"
+              size="sm"
               onClick={onOpenDashboard}
-              aria-label={t('openclaw.gateway.open_dashboard')}
-              title={t('openclaw.gateway.open_dashboard')}>
-              <ExternalLink className="size-3.5" />
+              className="shrink-0 text-foreground">
+              <ExternalLink size={12} />
+              {t('openclaw.gateway.open_dashboard')}
             </Button>
           )}
         </div>

@@ -4354,7 +4354,7 @@
       "select_provider_model": "请先选择服务商和模型"
     },
     "gateway": {
-      "open_dashboard": "打开控制台",
+      "open_dashboard": "打开 OpenClaw",
       "port": "端口",
       "restart": "重启",
       "start": "启动",
