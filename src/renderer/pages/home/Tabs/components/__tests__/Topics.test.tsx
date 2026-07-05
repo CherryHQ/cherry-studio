@@ -111,6 +111,12 @@ vi.mock('@renderer/components/resource/dialogs', () => ({
     target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
 }))
 
+vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
+  default: ({ model, size }: { model: { id: string; providerId: string }; size: number }) => (
+    <span data-model-id={model.id} data-provider-id={model.providerId} data-size={size} data-testid="model-avatar" />
+  )
+}))
+
 const topicDataMocks = vi.hoisted(() => ({
   deleteTopicsByAssistantId: vi.fn().mockResolvedValue({ deletedIds: [] as string[], deletedCount: 0 }),
   deleteTopic: vi.fn().mockResolvedValue(undefined),
@@ -250,6 +256,9 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.unpin') return 'Unpin Conversation'
       if (key === 'chat.topics.auto_rename') return 'Generate conversation name'
       if (key === 'chat.topics.edit.title') return 'Edit conversation name'
+      if (key === 'settings.topic.position.label') return 'Conversation position'
+      if (key === 'settings.topic.position.left') return 'Left'
+      if (key === 'settings.topic.position.right') return 'Right'
       if (key === 'chat.topics.empty.description')
         return 'Create a chat and it will stay here so you can continue with its context later.'
       if (key === 'chat.topics.empty.title') return 'No chats yet'
@@ -257,6 +266,15 @@ vi.mock('react-i18next', () => ({
       if (key === 'assistants.pin.title') return 'Pin Assistant'
       if (key === 'assistants.unpin.title') return 'Unpin Assistant'
       if (key === 'assistants.clear.menu_title') return 'Delete all assistant conversations'
+      if (key === 'assistants.delete.title') return 'Delete Assistant'
+      if (key === 'assistants.delete.content') return 'Delete this assistant and its conversations?'
+      if (key === 'assistants.icon.type') return 'Assistant icon'
+      if (key === 'chat.add.assistant.title') return 'Add Assistant'
+      if (key === 'assistants.tags.group_by') return 'Group by tag'
+      if (key === 'assistants.tags.ungroup') return 'Ungroup tags'
+      if (key === 'settings.assistant.icon.type.emoji') return 'Emoji'
+      if (key === 'settings.assistant.icon.type.model') return 'Model'
+      if (key === 'settings.assistant.icon.type.none') return 'None'
       if (key === 'assistants.presets.manage.title') return 'Manage Assistants'
       if (key === 'assistants.clear.title') return 'Clear conversations'
       if (key === 'assistants.clear.content') return 'Delete all assistant conversations?'
@@ -282,6 +300,8 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.export.joplin') return 'Export to Joplin'
       if (key === 'chat.topics.export.siyuan') return 'Export to Siyuan'
       if (key === 'common.delete') return 'Delete'
+      if (key === 'common.delete_success') return 'Deleted'
+      if (key === 'common.delete_failed') return 'Delete failed'
       if (key === 'common.more') return 'More'
       if (key === 'common.open_in_new_tab') return 'Open in new tab'
       if (key === 'tab.open_in_new_window') return 'Open in New Window'
@@ -436,18 +456,26 @@ type OnNewTopicMock = Mock<(payload?: { assistantId?: string | null }) => void>
 function renderTopicList({
   activeTopic = createRendererTopic(),
   assistantIdFilter,
+  onActiveAssistantDeleted,
+  onAddAssistant = vi.fn(),
   onCreateTopicAfterClear = vi.fn(),
   onNewTopic = vi.fn(),
   onOpenHistoryRecords = vi.fn(),
+  onSetPanePosition,
+  panePosition,
   presentation,
   revealRequest,
   resourceMenuItems
 }: {
   activeTopic?: Topic
   assistantIdFilter?: string | null
+  onActiveAssistantDeleted?: ComponentProps<typeof Topics>['onActiveAssistantDeleted']
+  onAddAssistant?: ComponentProps<typeof Topics>['onAddAssistant']
   onCreateTopicAfterClear?: OnNewTopicMock
   onNewTopic?: OnNewTopicMock
   onOpenHistoryRecords?: Mock<() => void>
+  onSetPanePosition?: ComponentProps<typeof Topics>['onSetPanePosition']
+  panePosition?: ComponentProps<typeof Topics>['panePosition']
   presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
   resourceMenuItems?: ComponentProps<typeof Topics>['resourceMenuItems']
@@ -457,10 +485,14 @@ function renderTopicList({
     <Topics
       activeTopic={nextActiveTopic}
       assistantIdFilter={assistantIdFilter}
+      onActiveAssistantDeleted={onActiveAssistantDeleted}
+      onAddAssistant={onAddAssistant}
       setActiveTopic={setActiveTopic}
       onCreateTopicAfterClear={onCreateTopicAfterClear}
       onNewTopic={onNewTopic}
       onOpenHistoryRecords={onOpenHistoryRecords}
+      onSetPanePosition={onSetPanePosition}
+      panePosition={panePosition}
       presentation={presentation}
       revealRequest={nextRevealRequest}
       resourceMenuItems={resourceMenuItems}
@@ -469,6 +501,7 @@ function renderTopicList({
   const view = render(renderNode())
   return {
     ...view,
+    onAddAssistant,
     onCreateTopicAfterClear,
     onNewTopic,
     onOpenHistoryRecords,
@@ -540,7 +573,10 @@ describe('Topics', () => {
     cacheHookMocks.values.clear()
     setTopicGroupExpansionCache(createExpandedTopicGroupExpansionFixture())
     MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'assistant.icon_type': 'emoji',
+      'assistant.tab.sort_type': 'list',
       'topic.tab.display_mode': 'assistant',
+      'topic.tab.position': 'left',
       'data.export.menus.docx': true,
       'data.export.menus.image': true,
       'data.export.menus.joplin': true,
@@ -811,7 +847,18 @@ describe('Topics', () => {
     expect(
       screen.getByText('Create a chat and it will stay here so you can continue with its context later.')
     ).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'chat.conversation.new' })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Add Assistant' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+    expect(onNewTopic).not.toHaveBeenCalled()
+  })
+
+  it('uses the top header action to add an assistant in assistant display mode', () => {
+    const onAddAssistant = vi.fn()
+    const { onNewTopic } = renderTopicList({ onAddAssistant })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Assistant' }))
+
+    expect(onAddAssistant).toHaveBeenCalledTimes(1)
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
@@ -919,7 +966,7 @@ describe('Topics', () => {
     expect(screen.getByText('Alpha topic')).toBeInTheDocument()
   })
 
-  it('keeps pin actions in the topic context menu and removes topic position actions', () => {
+  it('keeps pin actions in the topic context menu and changes topic position from the menu', async () => {
     const { getByText } = renderTopicList()
 
     fireEvent.contextMenu(getByText('Alpha topic'))
@@ -929,7 +976,48 @@ describe('Topics', () => {
     expect(menuContent ?? null).toBeInTheDocument()
     expect(menuContent).toHaveTextContent('Pin Conversation')
     expect(menuContent).not.toHaveTextContent('Unpin Conversation')
-    expect(menuContent).not.toHaveTextContent('Topic position')
+    expect(menuContent).toHaveTextContent('Conversation position')
+
+    fireEvent.click(within(menuContent as HTMLElement).getByText('Right'))
+
+    await vi.waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.position' as never)).toBe('right')
+    })
+  })
+
+  it('hides topic position actions from the time-mode topic context menu', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
+    const { getByText } = renderTopicList()
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent ?? null).toBeInTheDocument()
+    expect(menuContent).not.toHaveTextContent('Conversation position')
+  })
+
+  it('changes the right-panel topic list to the left side from the context menu', async () => {
+    const onSetPanePosition = vi.fn()
+    const { getByText } = renderTopicList({
+      assistantIdFilter: 'assistant-1',
+      onSetPanePosition,
+      panePosition: 'right',
+      presentation: 'right-panel'
+    })
+
+    fireEvent.contextMenu(getByText('Alpha topic'))
+    const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent ?? null).toBeInTheDocument()
+    const leftAction = within(menuContent as HTMLElement).getByRole('button', { name: 'Left' })
+    expect(leftAction).not.toBeDisabled()
+    fireEvent.click(leftAction)
+
+    await vi.waitFor(() => {
+      expect(onSetPanePosition).toHaveBeenCalledWith('left')
+    })
   })
 
   it('groups topic context menu actions and marks delete as destructive', () => {
@@ -947,6 +1035,7 @@ describe('Topics', () => {
       'Edit conversation name',
       'Pin Conversation',
       'Open in New Window',
+      'Conversation positionLeftRight',
       'Clear messages',
       '',
       'Save to notes',
@@ -1450,7 +1539,7 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Collapse conversations' })).toBeInTheDocument()
   })
 
-  it('hides assistant group bulk actions from the topic options menu', () => {
+  it('shows assistant group bulk actions in the topic options menu', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -1497,10 +1586,17 @@ describe('Topics', () => {
     expect(screen.getByText('Beta topic 1')).toBeInTheDocument()
     expect(getTopicGroupExpansionCache().assistant).not.toContain(TOPIC_ASSISTANT_SECTION_ID)
 
-    // The assistant header exposes a direct history button and no bulk-action menu.
+    // The assistant header exposes history and bulk expand/collapse actions from the filter menu.
     expect(screen.getByRole('button', { name: 'History' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Collapse all' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Expand all' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText('Display mode'))
+    const displayModeMenu = screen.getByText('Display mode').closest('[data-testid="menu-list"]')
+    expect(displayModeMenu).not.toBeNull()
+    fireEvent.click(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Collapse all' }))
+
+    expect(getTopicGroupExpansionCache().assistant).toEqual([
+      'topic:assistant:assistant-1',
+      'topic:assistant:assistant-2'
+    ])
   })
 
   it('does not show the assistant section toggle action in time display mode', () => {
@@ -1787,51 +1883,6 @@ describe('Topics', () => {
     expect(onNewTopic).toHaveBeenCalledWith(undefined)
   })
 
-  it('creates a topic from the header using the latest unpinned row', () => {
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [
-        {
-          items: [
-            createApiTopic({
-              id: 'topic-a',
-              name: 'Older alpha',
-              assistantId: 'assistant-1',
-              orderKey: 'a',
-              updatedAt: '2026-01-02T01:00:00.000Z'
-            }),
-            createApiTopic({
-              id: 'topic-b',
-              name: 'Pinned newest alpha',
-              assistantId: 'assistant-1',
-              orderKey: 'b',
-              updatedAt: '2026-01-04T01:00:00.000Z'
-            }),
-            createApiTopic({
-              id: 'topic-c',
-              name: 'Latest beta',
-              assistantId: 'assistant-2',
-              orderKey: 'c',
-              updatedAt: '2026-01-03T01:00:00.000Z'
-            })
-          ]
-        }
-      ],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn(),
-      reset: vi.fn(),
-      mutate: vi.fn()
-    })
-    const { onNewTopic } = renderTopicList()
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'chat.conversation.new' })[0])
-
-    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
-  })
-
   it('does not enable drag reorder in time mode', () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
@@ -2002,6 +2053,53 @@ describe('Topics', () => {
     }
   })
 
+  it('uses the configured model icon for assistant topic groups', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'assistant.icon_type': 'model',
+      'chat.default_model_id': 'provider-default::default-model',
+      'topic.tab.display_mode': 'assistant'
+    })
+    mockUseQuery.mockImplementation((path) => {
+      if (path === '/assistants') {
+        return {
+          data: {
+            items: [
+              createAssistant({
+                id: 'assistant-1',
+                modelId: 'provider-a::model-a',
+                modelName: 'Model A'
+              })
+            ],
+            total: 1
+          },
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          refetch: vi.fn().mockResolvedValue(undefined),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }
+      }
+
+      return {
+        data: undefined,
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        refetch: vi.fn().mockResolvedValue(undefined),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      }
+    })
+
+    renderTopicList()
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    expect(assistantHeader).toBeInTheDocument()
+    expect(within(assistantHeader as HTMLElement).getByTestId('model-avatar')).toHaveAttribute(
+      'data-model-id',
+      'model-a'
+    )
+  })
+
   it('moves assistant group actions into the more menu', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     const { onCreateTopicAfterClear, onNewTopic, setActiveTopic } = renderTopicList()
@@ -2048,7 +2146,7 @@ describe('Topics', () => {
     const deleteAssistantChatsButton = within(assistantHeader as HTMLElement).getByRole('button', {
       name: 'Delete all assistant conversations'
     })
-    expect(deleteAssistantChatsButton.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
+    expect(deleteAssistantChatsButton.querySelector('svg')).not.toHaveClass('text-destructive')
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({
       deletedIds: ['topic-a', 'topic-b'],
       deletedCount: 2
@@ -2072,6 +2170,53 @@ describe('Topics', () => {
 
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
     expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+
+    fireEvent.click(moreButton)
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Model' }))
+    await vi.waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('assistant.icon_type' as never)).toBe('model')
+    )
+
+    fireEvent.click(moreButton)
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Group by tag' }))
+    await vi.waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('assistant.tab.sort_type' as never)).toBe('tags')
+    )
+  })
+
+  it('deletes an assistant from the left assistant group menu', async () => {
+    const deleteSpy = vi.spyOn(dataApiService, 'delete').mockResolvedValue(undefined as never)
+    const onActiveAssistantDeleted = vi.fn()
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    renderTopicList({ onActiveAssistantDeleted })
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    expect(assistantHeader).toBeInTheDocument()
+
+    const moreButton = within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' })
+    fireEvent.click(moreButton)
+    const deleteAssistantButton = within(assistantHeader as HTMLElement).getByRole('button', {
+      name: 'Delete Assistant'
+    })
+    expect(deleteAssistantButton.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
+
+    fireEvent.click(deleteAssistantButton)
+
+    await vi.waitFor(() =>
+      expect(window.modal.confirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: 'Delete this assistant and its conversations?',
+          title: 'Delete Assistant'
+        })
+      )
+    )
+    await vi.waitFor(() =>
+      expect(deleteSpy).toHaveBeenCalledWith('/assistants/assistant-1', { query: { deleteTopics: true } })
+    )
+    expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1')
+    await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
+    expect(window.toast.success).toHaveBeenCalledWith('Deleted')
   })
 
   it('blocks concurrent assistant group delete confirmations', async () => {

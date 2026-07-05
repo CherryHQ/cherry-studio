@@ -8,6 +8,7 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { PinIcon, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -25,7 +26,9 @@ interface SessionItemProps {
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onPress: (id: string) => void
+  onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onTogglePin?: (id: string) => void | Promise<unknown>
+  panePosition?: TopicTabPosition
   pinned?: boolean
   reserveLeadingIconSlot?: boolean
   session: AgentSessionEntity
@@ -38,6 +41,8 @@ const SessionItem = ({
   onOpenInNewTab,
   onOpenInNewWindow,
   onPress,
+  onSetPanePosition,
+  panePosition,
   onTogglePin,
   pinned = false,
   reserveLeadingIconSlot = true,
@@ -101,7 +106,9 @@ const SessionItem = ({
       onDelete: handleDelete,
       onOpenInNewTab: onOpenInNewTab ? handleOpenInNewTab : undefined,
       onOpenInNewWindow: onOpenInNewWindow ? handleOpenInNewWindow : undefined,
+      onSetPanePosition,
       onTogglePin: onTogglePin ? handleTogglePin : undefined,
+      panePosition,
       pinned,
       sessionName: session.name ?? '',
       startEdit: startMenuEdit,
@@ -115,7 +122,9 @@ const SessionItem = ({
       active,
       onOpenInNewTab,
       onOpenInNewWindow,
+      onSetPanePosition,
       onTogglePin,
+      panePosition,
       pinned,
       session.name,
       startMenuEdit,

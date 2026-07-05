@@ -1,15 +1,18 @@
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { DeleteIcon, EditIcon, OpenInNewWindowIcon } from '@renderer/components/Icons'
+import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
-import { ExternalLink, PinIcon, PinOffIcon } from 'lucide-react'
+import { ExternalLink, PanelLeft, PinIcon, PinOffIcon } from 'lucide-react'
 
 export interface SessionActionContext {
   isActiveInCurrentTab: boolean
   onDelete: () => void
   onOpenInNewTab?: () => void
   onOpenInNewWindow?: () => void
+  onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onTogglePin?: () => void
+  panePosition?: TopicTabPosition
   pinned?: boolean
   sessionName: string
   startEdit: (value: string) => void
@@ -45,6 +48,24 @@ sessionActionRegistry.registerCommand({
     enabled: !!onOpenInNewWindow
   }),
   run: ({ onOpenInNewWindow }) => onOpenInNewWindow?.()
+})
+
+sessionActionRegistry.registerCommand({
+  id: 'session.position-left',
+  availability: ({ onSetPanePosition, panePosition }) => ({
+    visible: !!onSetPanePosition && !!panePosition,
+    enabled: !!onSetPanePosition && panePosition !== 'left'
+  }),
+  run: ({ onSetPanePosition }) => onSetPanePosition?.('left')
+})
+
+sessionActionRegistry.registerCommand({
+  id: 'session.position-right',
+  availability: ({ onSetPanePosition, panePosition }) => ({
+    visible: !!onSetPanePosition && !!panePosition,
+    enabled: !!onSetPanePosition && panePosition !== 'right'
+  }),
+  run: ({ onSetPanePosition }) => onSetPanePosition?.('right')
 })
 
 sessionActionRegistry.registerCommand({
@@ -86,6 +107,31 @@ sessionActionRegistry.registerAction({
   icon: () => <OpenInNewWindowIcon size={14} />,
   order: 35,
   surface: 'menu'
+})
+
+sessionActionRegistry.registerAction({
+  id: 'session.position',
+  label: ({ t }) => t('settings.topic.position.label'),
+  icon: () => <PanelLeft size={14} />,
+  order: 36,
+  surface: 'menu',
+  availability: ({ onSetPanePosition, panePosition }) => ({ visible: !!onSetPanePosition && !!panePosition }),
+  children: [
+    {
+      id: 'session.position-left',
+      commandId: 'session.position-left',
+      label: ({ t }) => t('settings.topic.position.left'),
+      order: 10,
+      surface: 'menu'
+    },
+    {
+      id: 'session.position-right',
+      commandId: 'session.position-right',
+      label: ({ t }) => t('settings.topic.position.right'),
+      order: 20,
+      surface: 'menu'
+    }
+  ]
 })
 
 sessionActionRegistry.registerAction({

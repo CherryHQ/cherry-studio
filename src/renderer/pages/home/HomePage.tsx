@@ -68,6 +68,7 @@ import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
 import HomeTabs from './Tabs'
 import { Topics } from './Tabs/components/Topics'
+import { getTopicAssistantGroupId } from './Tabs/components/topicsHelpers'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
@@ -122,10 +123,12 @@ const HomePage: FC = () => {
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const [, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
-  const [topicDisplayMode] = usePreference('topic.tab.display_mode')
+  const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
+  const [panePosition, setPanePosition] = usePreference('topic.tab.position')
   const isClassicTopicLayout = topicDisplayMode === 'assistant'
   // Classic-layout right-pane open state, cached on the assistant surface's own key.
   const [topicPaneOpen, setTopicPaneOpen] = useClassicLayoutRightPaneOpen('chat', isClassicTopicLayout)
@@ -346,13 +349,13 @@ const HomePage: FC = () => {
   const visibleAssistantId = visibleTopic?.assistantId ?? draftAssistantSelectionSnapshot?.assistantId
   const { assistant: visibleAssistant } = useAssistantApiById(visibleAssistantId ?? undefined)
   const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
-    if (!isClassicTopicLayout || !visibleAssistantId) return undefined
+    if (!isClassicTopicLayout || panePosition !== 'right' || !visibleAssistantId) return undefined
 
     return {
       label: t('chat.topics.title'),
       count: classicLayoutTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
     }
-  }, [isClassicTopicLayout, classicLayoutTopics, t, visibleAssistantId])
+  }, [isClassicTopicLayout, panePosition, classicLayoutTopics, t, visibleAssistantId])
   const isDraftView = !isMessageOnlyView && !!draftAssistantSelectionSnapshot
   const tabInstanceTopicId =
     !isMessageOnlyView && !isDraftView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
@@ -753,6 +756,37 @@ const HomePage: FC = () => {
       toggleResourceListOpen
     ]
   )
+  const setTopicListPosition = useCallback(
+    async (position: ChatPanePosition) => {
+      await setTopicDisplayMode('assistant')
+      if (position === 'left') {
+        const activeAssistantId = visibleTopic?.assistantId
+        const collapsedAssistantGroupIds = Array.from(
+          new Set(
+            classicLayoutTopics
+              .map((topic) => topic.assistantId)
+              .filter((assistantId): assistantId is string => !!assistantId && assistantId !== activeAssistantId)
+              .map(getTopicAssistantGroupId)
+          )
+        )
+        setTopicExpansionAssistant(collapsedAssistantGroupIds)
+      }
+      await setPanePosition(position)
+      setTopicPaneOpen(position === 'right')
+      setResourceListOpen(true)
+    },
+    [
+      classicLayoutTopics,
+      setPanePosition,
+      setResourceListOpen,
+      setTopicDisplayMode,
+      setTopicExpansionAssistant,
+      setTopicPaneOpen,
+      visibleTopic?.assistantId
+    ]
+  )
+  const topicListPosition: ChatPanePosition = isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
+  const shellPanePosition: ChatPanePosition = 'left'
 
   if (!visibleTopic && !draftAssistantSelectionSnapshot && !resourceCenter) {
     if (isMessageOnlyView) {
@@ -773,51 +807,60 @@ const HomePage: FC = () => {
   }
 
   // Classic layout = entity rail + right topic panel; modern layout = the single sidebar (HomeTabs).
-  const panePosition: ChatPanePosition = 'left'
-  const pane = isClassicTopicLayout ? (
-    <AssistantResourceList
-      activeAssistantId={visibleAssistantId ?? null}
-      onAddAssistant={() => {
-        setAssistantPickerOpen(true)
-      }}
-      onOpenHistoryRecords={openHistoryRecords}
-      onSelectTopic={setActiveTopicAndDiscardDraft}
-      onCreateTopicAfterClear={(assistantId) => createAndActivateFreshTopic({ assistantId })}
-      onSelectedAssistantClick={() => setTopicPaneOpen(!topicPaneOpen)}
-      onStartDraftAssistant={(assistantId) => startDraftAssistantSelection({ assistantId })}
-      resourceMenuItems={resourceMenuItems}
-      onActiveAssistantDeleted={handleActiveAssistantDeleted}
-    />
-  ) : (
-    <HomeTabs
-      activeTopic={visibleTopic}
-      setActiveTopic={setActiveTopicAndDiscardDraft}
-      onCreateTopicAfterClear={isMessageOnlyView ? undefined : createAndActivateFreshTopic}
-      onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
-      onOpenHistoryRecords={openHistoryRecords}
-      revealRequest={topicRevealRequest}
-      resourceMenuItems={resourceMenuItems}
-    />
-  )
+  const pane =
+    isClassicTopicLayout && topicListPosition === 'right' ? (
+      <AssistantResourceList
+        activeAssistantId={visibleAssistantId ?? null}
+        onAddAssistant={() => {
+          setAssistantPickerOpen(true)
+        }}
+        onOpenHistoryRecords={openHistoryRecords}
+        onSelectTopic={setActiveTopicAndDiscardDraft}
+        onCreateTopicAfterClear={(assistantId) => createAndActivateFreshTopic({ assistantId })}
+        onSelectedAssistantClick={() => setTopicPaneOpen(!topicPaneOpen)}
+        onStartDraftAssistant={(assistantId) => startDraftAssistantSelection({ assistantId })}
+        resourceMenuItems={resourceMenuItems}
+        onActiveAssistantDeleted={handleActiveAssistantDeleted}
+      />
+    ) : (
+      <HomeTabs
+        activeTopic={visibleTopic}
+        onActiveAssistantDeleted={handleActiveAssistantDeleted}
+        onAddAssistant={() => {
+          setAssistantPickerOpen(true)
+        }}
+        setActiveTopic={setActiveTopicAndDiscardDraft}
+        onCreateTopicAfterClear={isMessageOnlyView ? undefined : createAndActivateFreshTopic}
+        onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
+        onOpenHistoryRecords={openHistoryRecords}
+        revealRequest={topicRevealRequest}
+        resourceMenuItems={resourceMenuItems}
+        onSetPanePosition={setTopicListPosition}
+        panePosition="left"
+      />
+    )
   // In classic layout the topic list moves into the chat's right pane as a tab; the single page-level
   // provider owns the Shell for both views so the rail and the right panel share its open/maximize
   // state. New (sidebar) view passes a null config, leaving the pane as branch/trace only.
-  const resourcePane: ResourcePaneConfig | null = isClassicTopicLayout
-    ? {
-        label: t('chat.topics.title'),
-        node: (
-          <Topics
-            presentation="right-panel"
-            activeTopic={visibleTopic}
-            assistantIdFilter={visibleAssistantId ?? null}
-            setActiveTopic={setActiveTopicAndDiscardDraft}
-            onCreateTopicAfterClear={isMessageOnlyView ? undefined : createAndActivateFreshTopic}
-            onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
-            revealRequest={topicRevealRequest}
-          />
-        )
-      }
-    : null
+  const resourcePane: ResourcePaneConfig | null =
+    isClassicTopicLayout && topicListPosition === 'right'
+      ? {
+          label: t('chat.topics.title'),
+          node: (
+            <Topics
+              presentation="right-panel"
+              activeTopic={visibleTopic}
+              assistantIdFilter={visibleAssistantId ?? null}
+              setActiveTopic={setActiveTopicAndDiscardDraft}
+              onCreateTopicAfterClear={isMessageOnlyView ? undefined : createAndActivateFreshTopic}
+              onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
+              onSetPanePosition={setTopicListPosition}
+              panePosition="right"
+              revealRequest={topicRevealRequest}
+            />
+          )
+        }
+      : null
   const renderWithRightPane = (content: ReactNode) => (
     <TopicRightPane
       resourcePane={resourcePane}
@@ -855,7 +898,7 @@ const HomePage: FC = () => {
             center={resourceCenter}
             pane={pane}
             paneOpen={effectiveShowSidebar}
-            panePosition={panePosition}
+            panePosition={shellPanePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
           />
         </ContentContainer>
@@ -874,7 +917,7 @@ const HomePage: FC = () => {
             scopeKey={draftScopeKey}
             pane={pane}
             paneOpen={effectiveShowSidebar}
-            panePosition={panePosition}
+            panePosition={shellPanePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
             onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
             onCreateEmptyTopic={isClassicTopicLayout && !isMessageOnlyView ? createAndActivateEmptyTopic : undefined}
@@ -903,7 +946,7 @@ const HomePage: FC = () => {
           activeTopic={chatTopic}
           pane={pane}
           paneOpen={effectiveShowSidebar}
-          panePosition={panePosition}
+          panePosition={shellPanePosition}
           onPaneCollapse={() => setResourceListOpen(false)}
           onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
           onCreateEmptyTopic={isClassicTopicLayout && !isMessageOnlyView ? createAndActivateEmptyTopic : undefined}

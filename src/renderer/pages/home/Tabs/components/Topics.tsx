@@ -4,6 +4,7 @@ import { dataApiService } from '@data/DataApiService'
 import { useCache, usePersistCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
@@ -44,10 +45,12 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
+import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import dayjs from 'dayjs'
 import { findIndex } from 'es-toolkit/compat'
-import { Bot, MoreHorizontal, PinIcon, SquarePen, Trash2, XIcon } from 'lucide-react'
+import { Bot, MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -83,6 +86,35 @@ import {
 import { useTopicMenuActions } from './useTopicMenuActions'
 
 const logger = loggerService.withContext('Topics')
+
+function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null | undefined) {
+  if (!isUniqueModelId(uniqueModelId)) return undefined
+
+  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+  return {
+    id: modelId,
+    name: modelName || modelId,
+    providerId
+  }
+}
+
+function renderAssistantIcon(
+  iconType: AssistantIconType,
+  assistant: { emoji?: string | null; modelId?: string | null; modelName?: string | null }
+) {
+  const modelAvatarModel = buildModelAvatarModel(assistant.modelId, assistant.modelName)
+
+  if (iconType === 'none') return undefined
+  if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
+
+  return assistant.emoji ? (
+    <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
+  ) : (
+    <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
+      <Bot size={14} />
+    </span>
+  )
+}
 const EMPTY_COLLAPSED_TOPIC_STATE: readonly string[] = []
 const DEFAULT_TOPIC_GROUP_VISIBLE_COUNT = 5
 const LEFT_PANEL_TIME_TOPIC_GROUP_VISIBLE_COUNT = 50
@@ -90,9 +122,13 @@ const LEFT_PANEL_TIME_TOPIC_GROUP_VISIBLE_COUNT = 50
 interface Props {
   activeTopic?: Topic
   assistantIdFilter?: string | null
+  onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
+  onAddAssistant?: () => void | Promise<void>
   onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
+  panePosition?: TopicTabPosition
   presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
@@ -145,28 +181,46 @@ function resolveAssistantIdForTopicGroup(
 
 function AssistantGroupMoreMenu({
   assistantId,
+  assistantIconType,
+  deleteAssistantDisabled,
   deleteTopicsDisabled,
   disabled,
+  isTagGrouping,
   pinned,
+  onDeleteAssistant,
   onDeleteAllTopics,
   onEdit,
+  onSetAssistantIconType,
+  onToggleTagGrouping,
   onTogglePin
 }: {
   assistantId: string
+  assistantIconType: AssistantIconType
+  deleteAssistantDisabled?: boolean
   deleteTopicsDisabled?: boolean
   disabled?: boolean
+  isTagGrouping: boolean
   pinned: boolean
+  onDeleteAssistant: (assistantId: string) => void | Promise<void>
   onDeleteAllTopics: (assistantId: string) => void | Promise<void>
   onEdit: (assistantId: string) => void
+  onSetAssistantIconType: (iconType: AssistantIconType) => void | Promise<void>
+  onToggleTagGrouping: () => void | Promise<void>
   onTogglePin: (assistantId: string) => void | Promise<void>
 }) {
   const { t } = useTranslation()
   const actionContext: AssistantGroupActionContext = {
     assistantId,
+    assistantIconType,
+    deleteAssistantDisabled,
     deleteTopicsDisabled,
     disabled,
+    isTagGrouping,
+    onDeleteAssistant,
     onDeleteAllTopics,
     onEdit,
+    onSetAssistantIconType,
+    onToggleTagGrouping,
     onTogglePin,
     pinned,
     t
@@ -191,9 +245,13 @@ function AssistantGroupMoreMenu({
 export function Topics({
   activeTopic,
   assistantIdFilter,
+  onActiveAssistantDeleted,
+  onAddAssistant,
   onCreateTopicAfterClear,
   onNewTopic,
   onOpenHistoryRecords,
+  onSetPanePosition,
+  panePosition,
   presentation = 'sidebar',
   revealRequest,
   resourceMenuItems,
@@ -212,6 +270,13 @@ export function Topics({
     refreshTopics
   } = useTopicMutations()
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
+  const [storedPanePosition, setStoredPanePosition] = usePreference('topic.tab.position')
+  const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
+  const [assistantSortType, setAssistantSortType] = usePreference('assistant.tab.sort_type')
+  const [defaultModelId] = usePreference('chat.default_model_id')
+  const resolvedPanePosition = panePosition ?? storedPanePosition
+  const setResolvedPanePosition = onSetPanePosition ?? setStoredPanePosition
+  const isTagGrouping = assistantSortType === 'tags'
   const [topicExpansionTime, setTopicExpansionTime] = usePersistCache('ui.topic.expansion.time')
   const [topicExpansionAssistant, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const [renamingTopics] = useCache('topic.renaming')
@@ -272,6 +337,7 @@ export function Topics({
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const [deletingAssistantGroupId, setDeletingAssistantGroupId] = useState<string | null>(null)
+  const [deletingAssistantId, setDeletingAssistantId] = useState<string | null>(null)
   const deletingAssistantGroupIdRef = useRef<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
 
@@ -617,6 +683,10 @@ export function Topics({
           : undefined,
     [assistantById, assistantIdFilter, filteredTopics, isAssistantDisplayMode, isRightPanel]
   )
+  const headerCreateLabel = isAssistantDisplayMode ? t('chat.add.assistant.title') : t('chat.conversation.new')
+  const handleHeaderCreate = isAssistantDisplayMode
+    ? () => void onAddAssistant?.()
+    : () => void onNewTopic?.(headerCreateTopicPayload)
   const getCreateTopicPayloadForGroup = useCallback(
     (groupId: string) =>
       findLatestCreateTopicPayload(filteredTopics, (topic) => topicGroupBy(topic)?.id === groupId, assistantById),
@@ -723,6 +793,42 @@ export function Topics({
     [deleteTopicsByAssistantId, onCreateTopicAfterClear, refreshTopics, t]
   )
 
+  const handleDeleteAssistant = useCallback(
+    async (assistantId: string) => {
+      if (deletingAssistantId) return
+
+      setDeletingAssistantId(assistantId)
+      try {
+        const confirmed = await window.modal.confirm({
+          title: t('assistants.delete.title'),
+          content: t('assistants.delete.content'),
+          okText: t('common.delete'),
+          cancelText: t('common.cancel'),
+          centered: true,
+          okButtonProps: {
+            danger: true
+          }
+        })
+        if (!confirmed) return
+
+        await dataApiService.delete(`/assistants/${assistantId}`, { query: { deleteTopics: true } })
+        if (activeTopic?.assistantId === assistantId) {
+          await onActiveAssistantDeleted?.(assistantId)
+        }
+
+        await refreshAssistants()
+        await refreshTopics()
+        window.toast.success(t('common.delete_success'))
+      } catch (err) {
+        logger.error('Failed to delete assistant from topic group', { assistantId, err })
+        window.toast.error(formatErrorMessageWithPrefix(err, t('common.delete_failed')))
+      } finally {
+        setDeletingAssistantId(null)
+      }
+    },
+    [activeTopic?.assistantId, deletingAssistantId, onActiveAssistantDeleted, refreshAssistants, refreshTopics, t]
+  )
+
   const getGroupHeaderAction = useCallback(
     (group: { id: string }) => {
       let assistantGroupId: string | undefined
@@ -746,13 +852,21 @@ export function Topics({
             <Tooltip title={t('common.more')} delay={500}>
               <AssistantGroupMoreMenu
                 assistantId={assistantGroupId}
+                assistantIconType={assistantIconType}
+                deleteAssistantDisabled={deletingAssistantId !== null}
                 deleteTopicsDisabled={
-                  deletingAssistantGroupId !== null || !topics.some((topic) => topic.assistantId === assistantGroupId)
+                  deletingAssistantGroupId !== null ||
+                  deletingAssistantId !== null ||
+                  !topics.some((topic) => topic.assistantId === assistantGroupId)
                 }
                 disabled={isAssistantPinActionDisabled}
+                isTagGrouping={isTagGrouping}
+                onDeleteAssistant={handleDeleteAssistant}
                 pinned={assistantPinnedIdSet.has(assistantGroupId)}
                 onDeleteAllTopics={handleDeleteAssistantTopics}
                 onEdit={openAssistantEditor}
+                onSetAssistantIconType={setAssistantIconType}
+                onToggleTagGrouping={() => setAssistantSortType(isTagGrouping ? 'list' : 'tags')}
                 onTogglePin={handleToggleAssistantPin}
               />
             </Tooltip>
@@ -776,14 +890,20 @@ export function Topics({
     [
       assistantById,
       assistantPinnedIdSet,
+      assistantIconType,
+      deletingAssistantId,
       deletingAssistantGroupId,
       displayMode,
       getCreateTopicPayloadForGroup,
+      handleDeleteAssistant,
       handleDeleteAssistantTopics,
       handleToggleAssistantPin,
       isAssistantPinActionDisabled,
+      isTagGrouping,
       onNewTopic,
       openAssistantEditor,
+      setAssistantIconType,
+      setAssistantSortType,
       t,
       topics
     ]
@@ -798,11 +918,19 @@ export function Topics({
 
       const actionContext: AssistantGroupActionContext = {
         assistantId,
+        assistantIconType,
+        deleteAssistantDisabled: deletingAssistantId !== null,
         deleteTopicsDisabled:
-          deletingAssistantGroupId !== null || !topics.some((topic) => topic.assistantId === assistantId),
+          deletingAssistantGroupId !== null ||
+          deletingAssistantId !== null ||
+          !topics.some((topic) => topic.assistantId === assistantId),
         disabled: isAssistantPinActionDisabled,
+        isTagGrouping,
+        onDeleteAssistant: handleDeleteAssistant,
         onDeleteAllTopics: handleDeleteAssistantTopics,
         onEdit: openAssistantEditor,
+        onSetAssistantIconType: setAssistantIconType,
+        onToggleTagGrouping: () => setAssistantSortType(isTagGrouping ? 'list' : 'tags'),
         onTogglePin: handleToggleAssistantPin,
         pinned: assistantPinnedIdSet.has(assistantId),
         t
@@ -815,13 +943,19 @@ export function Topics({
     },
     [
       assistantById,
+      assistantIconType,
       assistantPinnedIdSet,
+      deletingAssistantId,
       deletingAssistantGroupId,
       displayMode,
+      handleDeleteAssistant,
       handleDeleteAssistantTopics,
       handleToggleAssistantPin,
       isAssistantPinActionDisabled,
+      isTagGrouping,
       openAssistantEditor,
+      setAssistantIconType,
+      setAssistantSortType,
       t,
       topics
     ]
@@ -833,28 +967,30 @@ export function Topics({
       if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) {
         if (group.label !== defaultAssistant.name) return null
 
-        return defaultAssistant.emoji ? (
-          <EmojiIcon emoji={defaultAssistant.emoji} size={24} fontSize={14} className="mr-0" />
-        ) : (
-          <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
-            <Bot size={14} />
-          </span>
-        )
+        return renderAssistantIcon(assistantIconType, {
+          emoji: defaultAssistant.emoji,
+          modelId: defaultModelId
+        })
       }
 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       const assistant = assistantId ? assistantById.get(assistantId) : undefined
       if (!assistant) return undefined
 
-      return assistant.emoji ? (
-        <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
-      ) : (
-        <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
-          <Bot size={14} />
-        </span>
-      )
+      return renderAssistantIcon(assistantIconType, {
+        emoji: assistant.emoji,
+        modelId: assistant.modelId ?? defaultModelId,
+        modelName: assistant.modelName
+      })
     },
-    [assistantById, defaultAssistant.emoji, defaultAssistant.name, isAssistantDisplayMode]
+    [
+      assistantById,
+      assistantIconType,
+      defaultAssistant.emoji,
+      defaultAssistant.name,
+      defaultModelId,
+      isAssistantDisplayMode
+    ]
   )
 
   const collapsedTopicState = isRightPanel ? EMPTY_COLLAPSED_TOPIC_STATE : topicExpansion
@@ -1014,6 +1150,7 @@ export function Topics({
     },
     [assistantById, isAssistantDisplayMode, orderedAssistants, refreshAssistants, refreshTopics, t, topics]
   )
+  const canSetPanePosition = isAssistantDisplayMode || isRightPanel
 
   return (
     <>
@@ -1062,10 +1199,11 @@ export function Topics({
               <ResourceList.HeaderItem
                 type="button"
                 command="topic.create"
-                aria-label={t('chat.conversation.new')}
-                icon={<SquarePen />}
-                label={t('chat.conversation.new')}
-                onClick={() => void onNewTopic?.(headerCreateTopicPayload)}
+                aria-label={headerCreateLabel}
+                disabled={isAssistantDisplayMode && !onAddAssistant}
+                icon={isAssistantDisplayMode ? <Plus /> : <SquarePen />}
+                label={headerCreateLabel}
+                onClick={handleHeaderCreate}
                 actions={
                   <>
                     <TopicListOptionsMenu
@@ -1074,6 +1212,7 @@ export function Topics({
                       onChange={handleTopicDisplayModeChange}
                       onManageAssistants={manageAssistantsMenuItem?.onSelect}
                       onOpenHistoryRecords={onOpenHistoryRecords}
+                      sectionId={isAssistantDisplayMode ? TOPIC_ASSISTANT_SECTION_ID : undefined}
                     />
                   </>
                 }
@@ -1101,7 +1240,9 @@ export function Topics({
           onOpenInNewWindow={tabs ? openTopicInNewWindow : undefined}
           onPinTopic={handlePinTopic}
           onRequestTopicImageAction={handleTopicImageAction}
+          onSetPanePosition={canSetPanePosition ? setResolvedPanePosition : undefined}
           onSwitchTopic={setActiveTopic}
+          panePosition={canSetPanePosition ? resolvedPanePosition : undefined}
           topicsLength={topics.length}
           variant={isAssistantDisplayMode && !isRightPanel ? 'draggable' : 'plain'}
         />
@@ -1212,7 +1353,9 @@ interface TopicListBodyProps {
   onOpenInNewWindow?: (topic: Topic) => void
   onPinTopic: (topic: Topic) => Promise<void>
   onRequestTopicImageAction: (type: TopicImageActionType, topic: Topic) => void
+  onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onSwitchTopic: (topic: Topic) => void
+  panePosition?: TopicTabPosition
   topicsLength: number
   variant: TopicListBodyVariant
 }
@@ -1240,7 +1383,9 @@ function TopicListBody(props: TopicListBodyProps) {
     onOpenInNewWindow,
     onPinTopic,
     onRequestTopicImageAction,
+    onSetPanePosition,
     onSwitchTopic,
+    panePosition,
     topicsLength,
     variant
   } = props
@@ -1264,7 +1409,9 @@ function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewWindow,
       onPinTopic,
       onRequestTopicImageAction,
+      onSetPanePosition,
       onSwitchTopic,
+      panePosition,
       topicsLength
     }),
     [
@@ -1285,7 +1432,9 @@ function TopicListBody(props: TopicListBodyProps) {
       onOpenInNewWindow,
       onPinTopic,
       onRequestTopicImageAction,
+      onSetPanePosition,
       onSwitchTopic,
+      panePosition,
       topicsLength
     ]
   )
@@ -1336,7 +1485,9 @@ function TopicRow({
   onOpenInNewWindow,
   onPinTopic,
   onRequestTopicImageAction,
+  onSetPanePosition,
   onSwitchTopic,
+  panePosition,
   topic,
   topicsLength
 }: TopicRowProps) {
@@ -1392,7 +1543,9 @@ function TopicRow({
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    onSetPanePosition,
     onStartRename: startMenuRename,
+    panePosition,
     t,
     topic,
     topicsLength

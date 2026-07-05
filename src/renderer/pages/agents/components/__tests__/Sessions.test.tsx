@@ -98,9 +98,28 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       </button>
     ),
     DropdownMenuSeparator: (props: any) => <hr data-testid="dropdown-menu-separator" {...props} />,
+    DropdownMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    DropdownMenuSubContent: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+    DropdownMenuSubTrigger: ({ children, disabled, ...props }: any) => (
+      <button
+        data-disabled={disabled ? '' : undefined}
+        data-slot="dropdown-menu-sub-trigger"
+        disabled={disabled || undefined}
+        role="menuitem"
+        type="button"
+        {...props}>
+        {children}
+      </button>
+    ),
     DropdownMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>
   }
 })
+
+vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
+  default: ({ model, size }: { model: { id: string; providerId: string }; size: number }) => (
+    <span data-model-id={model.id} data-provider-id={model.providerId} data-size={size} data-testid="model-avatar" />
+  )
+}))
 
 beforeAll(() => {
   HTMLElement.prototype.scrollIntoView = () => {}
@@ -243,8 +262,8 @@ const tabsContextMocks = vi.hoisted(() => ({
 }))
 
 const dataApiMocks = vi.hoisted(() => ({
+  deleteAgent: vi.fn().mockResolvedValue(undefined),
   deleteWorkspace: vi.fn().mockResolvedValue(undefined),
-  deleteAgentSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[], deletedCount: 0 }),
   findOrCreateWorkspace: vi.fn(async ({ body }: { body: { path: string } }) => {
     const workspace = dataApiMocks.workspaces.find((candidate) => candidate.path === body.path)
     return workspace ?? { id: 'ws-test', name: 'Test Workspace', path: body.path }
@@ -392,8 +411,8 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
               ? dataApiMocks.updateWorkspace
               : method === 'DELETE' && path === '/agent-workspaces/:workspaceId'
                 ? dataApiMocks.deleteWorkspace
-                : method === 'DELETE' && path === '/agents/:agentId/sessions'
-                  ? dataApiMocks.deleteAgentSessions
+                : method === 'DELETE' && path === '/agents/:agentId'
+                  ? dataApiMocks.deleteAgent
                   : dataApiMocks.findOrCreateWorkspace,
       isLoading: false,
       error: undefined
@@ -419,6 +438,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, unknown>) => {
       const labels: Record<string, string> = {
         'agent.session.add.title': 'Add task',
+        'agent.add.title': 'Add Agent',
         'agent.session.display.agent': 'Agent',
         'agent.session.display.time': 'Time',
         'agent.session.display.title': 'Display mode',
@@ -426,17 +446,16 @@ vi.mock('react-i18next', () => ({
         'agent.session.empty.description': 'Tasks will appear here after you start one.',
         'agent.session.empty.title': 'No tasks yet',
         'agent.manage.title': 'Manage Agents',
+        'agent.delete.content': 'Delete this agent and its tasks?',
+        'agent.delete.error.failed': 'Failed to delete agent',
+        'agent.delete.title': 'Delete Agent',
         'agent.edit.title': 'Edit Agent',
+        'agent.icon.type': 'Agent icon',
         'agent.session.edit.title': 'Edit task',
         'agent.session.file_manager.file_explorer': 'File Explorer',
         'agent.session.file_manager.files': 'Files',
         'agent.session.file_manager.finder': 'Finder',
         'agent.session.get.error.failed': 'Failed to get tasks',
-        'agent.session.agent.delete.content':
-          "Deleting this agent's tasks will delete all tasks associated with this agent. The agent itself will not be deleted.",
-        'agent.session.agent.delete.error.failed': 'Failed to delete agent tasks',
-        'agent.session.agent.delete.title': 'Delete agent tasks',
-        'agent.session.agent.delete.trigger': 'Delete agent tasks',
         'agent.session.group.collapse': 'Collapse display',
         'agent.session.group.collapse_all': 'Collapse all',
         'agent.session.group.conversation': 'Conversations',
@@ -485,6 +504,12 @@ vi.mock('react-i18next', () => ({
         'common.saved': 'Saved',
         'common.unnamed': 'Untitled',
         'error.model.not_exists': 'Model does not exist',
+        'settings.topic.position.label': 'Conversation position',
+        'settings.topic.position.left': 'Left',
+        'settings.topic.position.right': 'Right',
+        'settings.assistant.icon.type.emoji': 'Emoji',
+        'settings.assistant.icon.type.model': 'Model',
+        'settings.assistant.icon.type.none': 'None',
         'selector.agent.create_new': 'Create agent',
         'selector.agent.empty_text': 'No agents',
         'selector.agent.search_placeholder': 'Search agents',
@@ -664,6 +689,8 @@ describe('Sessions', () => {
     preferenceMocks.values.clear()
     cacheMocks.values.clear()
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
+    preferenceMocks.values.set('assistant.icon_type', 'emoji')
+    preferenceMocks.values.set('topic.tab.position', 'left')
     setSessionGroupExpansionCache(createExpandedSessionGroupExpansionFixture())
     preferenceMocks.values.set('topic.tab.show', true)
     dataApiMocks.workspaces = [
@@ -673,8 +700,8 @@ describe('Sessions', () => {
     dataApiMocks.workspacesError = undefined
     dataApiMocks.workspacesLoading = false
     dataApiMocks.workspacesRefreshing = false
+    dataApiMocks.deleteAgent.mockResolvedValue(undefined)
     dataApiMocks.deleteWorkspace.mockResolvedValue(undefined)
-    dataApiMocks.deleteAgentSessions.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
     dataApiMocks.refetchAgents.mockResolvedValue(undefined)
     dataApiMocks.reorderAgent.mockResolvedValue(undefined)
     dataApiMocks.updateWorkspace.mockResolvedValue(undefined)
@@ -868,6 +895,20 @@ describe('Sessions', () => {
     expect(onStartDraftSession).not.toHaveBeenCalled()
   })
 
+  it('uses the top header action to add an agent in agent display mode', () => {
+    const onAddAgent = vi.fn()
+    const onStartDraftSession = vi.fn()
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setupSessions()
+
+    render(<SessionsForTest onAddAgent={onAddAgent} onStartDraftSession={onStartDraftSession} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Agent' }))
+
+    expect(onAddAgent).toHaveBeenCalledTimes(1)
+    expect(onStartDraftSession).not.toHaveBeenCalled()
+  })
+
   it('renders no-project sessions in a bottom no-project section', () => {
     const onStartDraftSession = vi.fn()
     const systemWorkspace = makeWorkspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session', {
@@ -1009,6 +1050,38 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().agent).not.toContain(SESSION_PINNED_SECTION_ID)
     expect(getSessionGroupExpansionCache().agent).not.toContain(SESSION_AGENT_SECTION_ID)
     expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
+  })
+
+  it('uses the configured model icon for agent session groups', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    preferenceMocks.values.set('assistant.icon_type', 'model')
+    preferenceMocks.values.set('chat.default_model_id', 'provider-default::default-model')
+    setSessionGroupExpansionCache({
+      ...createExpandedSessionGroupExpansionFixture(),
+      agent: ['session:agent:agent-a']
+    })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        {
+          id: 'agent-a',
+          model: 'provider-a::model-a',
+          modelName: 'Model A',
+          name: 'Alpha agent',
+          configuration: { avatar: 'A' }
+        }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' })]
+    })
+
+    render(<SessionsForTest />)
+
+    const agentHeader = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
+    expect(agentHeader).toBeInTheDocument()
+    expect(within(agentHeader as HTMLElement).getByTestId('model-avatar')).toHaveAttribute('data-model-id', 'model-a')
   })
 
   it('uses the provided active session setter', () => {
@@ -1518,6 +1591,60 @@ describe('Sessions', () => {
       metadata: { instanceAppId: 'agents', instanceKey: 'session-b' }
     })
     requestAnimationFrameSpy.mockRestore()
+  })
+
+  it('changes topic position from the session context menu', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    render(<SessionsForTest />)
+
+    fireEvent.contextMenu(screen.getByText('Alpha session'))
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent).toHaveTextContent('Conversation position')
+
+    fireEvent.click(within(menuContent as HTMLElement).getByText('Right'))
+
+    await vi.waitFor(() => {
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.position', 'right')
+    })
+  })
+
+  it('hides topic position actions from the workdir-mode session context menu', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'workdir')
+    render(<SessionsForTest />)
+
+    fireEvent.contextMenu(screen.getByText('Alpha session'))
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent ?? null).toBeInTheDocument()
+    expect(menuContent).not.toHaveTextContent('Conversation position')
+  })
+
+  it('changes the right-panel session list to the left side from the context menu', async () => {
+    const onSetPanePosition = vi.fn()
+    render(
+      <SessionsForTest
+        agentIdFilter="agent-a"
+        onSetPanePosition={onSetPanePosition}
+        panePosition="right"
+        presentation="right-panel"
+      />
+    )
+
+    fireEvent.contextMenu(screen.getByText('Alpha session'))
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent ?? null).toBeInTheDocument()
+    const leftAction = within(menuContent as HTMLElement).getByRole('menuitem', { name: 'Left' })
+    expect(leftAction).not.toBeDisabled()
+    fireEvent.click(leftAction)
+
+    await vi.waitFor(() => {
+      expect(onSetPanePosition).toHaveBeenCalledWith('left')
+    })
   })
 
   it('hides open-in-new-tab for the active session context menu', () => {
@@ -2245,9 +2372,23 @@ describe('Sessions', () => {
 
     await vi.waitFor(() => expect(toggleAgentPin).toHaveBeenCalledWith('agent-a'))
     await vi.waitFor(() => expect(dataApiMocks.refetchAgents).toHaveBeenCalled())
+
+    fireEvent.pointerDown(moreButton)
+    const iconMenuItem = screen
+      .getAllByRole('menuitem', { name: 'Agent icon' })
+      .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-sub-trigger')
+    expect(iconMenuItem).toBeDefined()
+    const modelIconMenuItem = screen
+      .getAllByRole('menuitem', { name: 'Model' })
+      .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
+    expect(modelIconMenuItem).toBeDefined()
+    fireEvent.click(modelIconMenuItem as HTMLElement)
+
+    await vi.waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('assistant.icon_type', 'model'))
   })
 
-  it('deletes agent group sessions through the agent-scoped batch endpoint', async () => {
+  it('deletes an agent from the agent group menu', async () => {
+    const onActiveAgentDeleted = vi.fn()
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
@@ -2264,96 +2405,44 @@ describe('Sessions', () => {
         createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
       ]
     })
-    dataApiMocks.deleteAgentSessions.mockResolvedValueOnce({ deletedIds: ['session-a'], deletedCount: 1 })
 
-    render(<SessionsForTest />)
+    render(<SessionsForTest onActiveAgentDeleted={onActiveAgentDeleted} />)
 
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
     expect(agentGroup).not.toBeNull()
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    const deleteMenuItem = screen
-      .getAllByRole('menuitem', { name: 'Delete agent tasks' })
+    expect(screen.queryByRole('menuitem', { name: 'Delete agent tasks' })).not.toBeInTheDocument()
+    const deleteAgentMenuItem = screen
+      .getAllByRole('menuitem', { name: 'Delete Agent' })
       .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
-    expect(deleteMenuItem).toBeDefined()
-    expect(deleteMenuItem?.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
-    fireEvent.click(deleteMenuItem as HTMLElement)
+    expect(deleteAgentMenuItem).toBeDefined()
+    expect(deleteAgentMenuItem?.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
+
+    fireEvent.click(deleteAgentMenuItem as HTMLElement)
 
     await vi.waitFor(() =>
-      expect(dataApiMocks.deleteAgentSessions).toHaveBeenCalledWith({
-        params: { agentId: 'agent-a' }
+      expect(dataApiMocks.deleteAgent).toHaveBeenCalledWith({
+        params: { agentId: 'agent-a' },
+        query: { deleteSessions: true }
       })
     )
     expect(window.modal.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
-        content:
-          "Deleting this agent's tasks will delete all tasks associated with this agent. The agent itself will not be deleted.",
-        title: 'Delete agent tasks'
+        content: 'Delete this agent and its tasks?',
+        title: 'Delete Agent'
       })
     )
-    expect(dataApiMocks.mutationOptions.get('DELETE /agents/:agentId/sessions')?.refresh).toEqual([
+    expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-a')
+    expect(dataApiMocks.mutationOptions.get('DELETE /agents/:agentId')?.refresh).toEqual([
+      '/agents',
       '/agent-sessions',
       '/agent-workspaces',
       '/pins',
       '/agent-channels'
     ])
-    expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
-    expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(
-      'session-b',
-      expect.objectContaining({ id: 'session-b' })
-    )
+    await vi.waitFor(() => expect(dataApiMocks.refetchAgents).toHaveBeenCalled())
     await vi.waitFor(() => expect(sessionDataMocks.reload).toHaveBeenCalled())
-  })
-
-  it('blocks concurrent agent group delete confirmations', async () => {
-    let resolveConfirm!: (value: boolean) => void
-    const confirmPromise = new Promise<boolean>((resolve) => {
-      resolveConfirm = resolve
-    })
-    const confirm = vi.fn().mockReturnValue(confirmPromise)
-    Object.assign(window, { modal: { confirm } })
-    preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    agentDataMocks.useAgents.mockReturnValue({
-      agents: [
-        { id: 'agent-a', model: 'model-a', name: 'Alpha agent' },
-        { id: 'agent-b', model: 'model-b', name: 'Beta agent' }
-      ],
-      isLoading: false,
-      error: undefined,
-      refetch: dataApiMocks.refetchAgents
-    })
-    setupSessions({
-      sessions: [
-        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
-        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
-      ]
-    })
-    dataApiMocks.deleteAgentSessions.mockResolvedValueOnce({ deletedIds: ['session-a'], deletedCount: 1 })
-
-    render(<SessionsForTest />)
-
-    const alphaGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
-    const betaGroup = screen.getByRole('button', { name: 'Beta agent' }).closest('div')
-    expect(alphaGroup).not.toBeNull()
-    expect(betaGroup).not.toBeNull()
-    fireEvent.pointerDown(within(alphaGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(within(alphaGroup as HTMLElement).getByRole('menuitem', { name: 'Delete agent tasks' }))
-
-    await vi.waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
-    fireEvent.pointerDown(within(betaGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    const betaDeleteMenuItem = within(betaGroup as HTMLElement).getByRole('menuitem', { name: 'Delete agent tasks' })
-    await vi.waitFor(() => expect(betaDeleteMenuItem).toBeDisabled())
-    fireEvent.click(betaDeleteMenuItem)
-
-    expect(confirm).toHaveBeenCalledTimes(1)
-    expect(dataApiMocks.deleteAgentSessions).not.toHaveBeenCalled()
-
-    await act(async () => {
-      resolveConfirm(true)
-      await confirmPromise
-    })
-
-    await vi.waitFor(() => expect(dataApiMocks.deleteAgentSessions).toHaveBeenCalledTimes(1))
-    expect(dataApiMocks.deleteAgentSessions).toHaveBeenCalledWith({ params: { agentId: 'agent-a' } })
+    expect(window.toast.success).toHaveBeenCalledWith('Deleted successfully')
   })
 
   it('collapses agent groups from the display options menu', async () => {

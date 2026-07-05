@@ -2,6 +2,7 @@ import { createActionRegistry } from '@renderer/components/chat/actions/actionRe
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { OpenInNewWindowIcon } from '@renderer/components/Icons'
 import type { Topic } from '@renderer/types/topic'
+import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
 import {
   BrushCleaning,
@@ -12,6 +13,7 @@ import {
   FileText,
   Image,
   NotebookPen,
+  PanelLeft,
   PinIcon,
   PinOffIcon,
   Sparkles,
@@ -60,7 +62,9 @@ export interface TopicActionContext {
   onPinTopic: TopicMenuHandler
   onSaveToKnowledge: TopicMenuHandler
   onSaveToNotes: TopicMenuHandler
+  onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onStartRename: TopicMenuHandler
+  panePosition?: TopicTabPosition
   t: TFunction
   topic: Topic
   topicsLength: number
@@ -110,6 +114,24 @@ topicActionRegistry.registerCommand({
     enabled: !!onOpenInNewWindow
   }),
   run: ({ onOpenInNewWindow, topic }) => onOpenInNewWindow?.(topic)
+})
+
+topicActionRegistry.registerCommand({
+  id: 'topic.position-left',
+  availability: ({ onSetPanePosition, panePosition }) => ({
+    visible: !!onSetPanePosition && !!panePosition,
+    enabled: !!onSetPanePosition && panePosition !== 'left'
+  }),
+  run: ({ onSetPanePosition }) => onSetPanePosition?.('left')
+})
+
+topicActionRegistry.registerCommand({
+  id: 'topic.position-right',
+  availability: ({ onSetPanePosition, panePosition }) => ({
+    visible: !!onSetPanePosition && !!panePosition,
+    enabled: !!onSetPanePosition && panePosition !== 'right'
+  }),
+  run: ({ onSetPanePosition }) => onSetPanePosition?.('right')
 })
 
 topicActionRegistry.registerCommand({
@@ -237,6 +259,31 @@ topicActionRegistry.registerAction({
   icon: () => <OpenInNewWindowIcon size={14} />,
   order: 37,
   surface: 'menu'
+})
+
+topicActionRegistry.registerAction({
+  id: 'topic.position',
+  label: ({ t }) => t('settings.topic.position.label'),
+  icon: () => <PanelLeft size={14} />,
+  order: 38,
+  surface: 'menu',
+  availability: ({ onSetPanePosition, panePosition }) => ({ visible: !!onSetPanePosition && !!panePosition }),
+  children: [
+    {
+      id: 'topic.position-left',
+      commandId: 'topic.position-left',
+      label: ({ t }) => t('settings.topic.position.left'),
+      order: 10,
+      surface: 'menu'
+    },
+    {
+      id: 'topic.position-right',
+      commandId: 'topic.position-right',
+      label: ({ t }) => t('settings.topic.position.right'),
+      order: 20,
+      surface: 'menu'
+    }
+  ]
 })
 
 topicActionRegistry.registerAction({

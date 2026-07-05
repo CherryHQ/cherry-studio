@@ -1,6 +1,6 @@
 import { MenuDivider, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import type { TopicDisplayMode } from '@shared/data/preference/preferenceTypes'
-import { Bot, Clock, History, ListFilter } from 'lucide-react'
+import { Bot, ChevronsDownUp, ChevronsUpDown, Clock, History, ListFilter } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,6 +22,7 @@ type TopicListOptionsMenuProps = {
   onChange: (mode: TopicDisplayMode) => void
   onManageAssistants?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  sectionId?: string
 }
 
 export function TopicListOptionsMenu({
@@ -29,7 +30,8 @@ export function TopicListOptionsMenu({
   mode,
   onChange,
   onManageAssistants,
-  onOpenHistoryRecords
+  onOpenHistoryRecords,
+  sectionId
 }: TopicListOptionsMenuProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -57,6 +59,22 @@ export function TopicListOptionsMenu({
               }}
             />
           ))}
+          {sectionId && (
+            <>
+              <MenuDivider />
+              <ResourceList.SectionToggleMenuItem
+                size="sm"
+                expandIcon={<ChevronsUpDown size={16} />}
+                collapseIcon={<ChevronsDownUp size={16} />}
+                sectionId={sectionId}
+                expandLabel={t('chat.topics.group.expand_all')}
+                collapseLabel={t('chat.topics.group.collapse_all')}
+                onClick={() => {
+                  setOpen(false)
+                }}
+              />
+            </>
+          )}
           {onOpenHistoryRecords && <MenuDivider />}
           {onOpenHistoryRecords && (
             <MenuItem

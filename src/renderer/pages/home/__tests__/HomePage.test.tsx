@@ -151,15 +151,18 @@ vi.mock('@renderer/components/chat', () => ({
     center,
     pane,
     paneOpen,
+    panePosition,
     topBar
   }: {
     center?: { content?: ReactNode }
     pane?: ReactNode
     paneOpen?: boolean
+    panePosition?: string
     topBar?: ReactNode
   }) => (
     <section data-testid="home-conversation-page-shell">
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      <output data-testid="pane-position">{panePosition ?? ''}</output>
       <div>{topBar}</div>
       <div>{pane}</div>
       <div>{center?.content}</div>
@@ -385,6 +388,7 @@ vi.mock('../Chat', () => ({
     activeTopic,
     pane,
     paneOpen,
+    panePosition,
     showResourceListControls,
     locateMessageId,
     resourcePaneCount,
@@ -396,6 +400,7 @@ vi.mock('../Chat', () => ({
     activeTopic: Topic
     pane?: ReactNode
     paneOpen?: boolean
+    panePosition?: string
     showResourceListControls?: boolean
     locateMessageId?: string
     resourcePaneCount?: { label: string; count: number }
@@ -408,6 +413,7 @@ vi.mock('../Chat', () => ({
       <output data-testid="active-topic">{activeTopic.id}</output>
       <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      <output data-testid="pane-position">{panePosition ?? ''}</output>
       <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
       <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
       {resourcePaneCount && (
@@ -463,7 +469,7 @@ vi.mock('../components/ChatNavbar', () => ({
 }))
 
 vi.mock('../Tabs', () => ({
-  default: ({ onOpenHistoryRecords, resourceMenuItems, revealRequest, setActiveTopic }: any) => (
+  default: ({ onOpenHistoryRecords, onSetPanePosition, resourceMenuItems, revealRequest, setActiveTopic }: any) => (
     <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs">
       <button
         type="button"
@@ -481,6 +487,12 @@ vi.mock('../Tabs', () => ({
       </button>
       <button type="button" onClick={() => onOpenHistoryRecords?.()}>
         Open history records
+      </button>
+      <button type="button" onClick={() => void onSetPanePosition?.('right')}>
+        Move topics right
+      </button>
+      <button type="button" onClick={() => void onSetPanePosition?.('left')}>
+        Move topics left
       </button>
       {resourceMenuItems
         ?.filter((item: { id: string }) => item.id === 'assistant-resource-view')
@@ -661,6 +673,7 @@ describe('HomePage', () => {
     homeMocks.forceActiveTopicUndefined = false
     homeMocks.preferenceValues.clear()
     homeMocks.preferenceValues.set('topic.tab.show', false)
+    homeMocks.preferenceValues.set('topic.tab.position', 'right')
     homeMocks.preferenceValues.set('chat.message.style', 'message-style')
 
     Object.defineProperty(window, 'api', {
@@ -687,6 +700,20 @@ describe('HomePage', () => {
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
   })
 
+  it('does not render the topic resource pane when the classic topic position is left', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.preferenceValues.set('topic.tab.position', 'left')
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open', true)
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('home-tabs')).toBeInTheDocument()
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-tab', 'branch')
+    expect(screen.queryByTestId('assistant-resource-list')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('topic-resource-panel')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('resource-pane-count')).not.toBeInTheDocument()
+  })
+
   it('toggles the classic topic pane when the selected assistant is clicked again', () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
 
@@ -699,12 +726,46 @@ describe('HomePage', () => {
 
   it('renders the modern topic sidebar when topic display mode is time', () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.preferenceValues.set('topic.tab.position', 'right')
 
     render(<HomePage />)
 
     expect(screen.getByTestId('home-tabs')).toBeInTheDocument()
     expect(screen.queryByTestId('assistant-resource-list')).not.toBeInTheDocument()
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-tab', 'branch')
+    expect(screen.getByTestId('pane-position')).toHaveTextContent('left')
+  })
+
+  it('switches to assistant grouping when changing topic position from the left sidebar', async () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.preferenceValues.set('topic.tab.position', 'left')
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move topics right' }))
+
+    await waitFor(() => expect(homeMocks.preferenceValues.get('topic.tab.display_mode')).toBe('assistant'))
+    expect(homeMocks.preferenceValues.get('topic.tab.position')).toBe('right')
+  })
+
+  it('expands only the active topic assistant when changing topic position to the left sidebar', async () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.preferenceValues.set('topic.tab.position', 'right')
+    homeMocks.classicLayoutTopics = [
+      { ...historyTopic, id: 'topic-a', assistantId: 'assistant-1' },
+      { ...historyTopic, id: 'topic-b', assistantId: 'assistant-2' },
+      { ...historyTopic, id: 'topic-c', assistantId: 'assistant-3' }
+    ]
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move topics left' }))
+
+    await waitFor(() => expect(homeMocks.preferenceValues.get('topic.tab.position')).toBe('left'))
+    expect(homeMocks.persistCacheValues.get('ui.topic.expansion.assistant')).toEqual([
+      'topic:assistant:assistant-2',
+      'topic:assistant:assistant-3'
+    ])
   })
 
   it('renders the assistant resource view in the chat center', () => {

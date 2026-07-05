@@ -180,6 +180,10 @@ export function getAssistantIdFromTopicGroupId(groupId: string): string | undefi
   return groupId.slice(TOPIC_ASSISTANT_GROUP_ID_PREFIX.length)
 }
 
+export function getTopicAssistantGroupId(assistantId: string): string {
+  return `${TOPIC_ASSISTANT_GROUP_ID_PREFIX}${assistantId}`
+}
+
 export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistantId' | 'pinned' | 'updatedAt'>>({
   assistantById,
   defaultAssistant,

@@ -8,6 +8,8 @@ function createSessionActionFixture(overrides: Partial<SessionActionContext> = {
   return {
     isActiveInCurrentTab: false,
     onDelete: vi.fn(),
+    onSetPanePosition: vi.fn(),
+    panePosition: 'left',
     pinned: false,
     sessionName: 'Session title',
     startEdit: vi.fn(),
@@ -20,7 +22,7 @@ describe('session item actions', () => {
   it('resolves rename and delete actions without pin when pin callback is absent', () => {
     const actions = resolveSessionMenuActions(createSessionActionFixture())
 
-    expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.delete'])
+    expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.position', 'session.delete'])
   })
 
   it('resolves pin label from pinned state and executes callbacks without agent editing', async () => {
@@ -33,7 +35,7 @@ describe('session item actions', () => {
     })
     const actions = resolveSessionMenuActions(actionContext)
 
-    expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.toggle-pin'])
+    expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.toggle-pin', 'session.position'])
     expect(actions.find((action) => action.id === 'session.toggle-pin')?.label).toBe('agent.session.unpin.title')
 
     await executeSessionMenuAction(actions[0], actionContext)
@@ -51,7 +53,7 @@ describe('session item actions', () => {
       })
     )
 
-    expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.delete'])
+    expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.position', 'session.delete'])
   })
 
   it('keeps open-in-new-window available even when the session is active in the current tab', async () => {
@@ -65,12 +67,42 @@ describe('session item actions', () => {
     expect(actions.map((action) => action.id)).toEqual([
       'session.rename',
       'session.open-in-new-window',
+      'session.position',
       'session.delete'
     ])
 
     const action = actions.find((candidate) => candidate.id === 'session.open-in-new-window')
     await executeSessionMenuAction(action as (typeof actions)[number], actionContext)
     expect(onOpenInNewWindow).toHaveBeenCalled()
+  })
+
+  it('sets the pane position from the position submenu', async () => {
+    const onSetPanePosition = vi.fn()
+    const actionContext = createSessionActionFixture({ onSetPanePosition })
+    const actions = resolveSessionMenuActions(actionContext)
+    const positionAction = actions.find((action) => action.id === 'session.position')
+    const rightAction = positionAction?.children.find((action) => action.id === 'session.position-right')
+
+    expect(positionAction?.label).toBe('settings.topic.position.label')
+    expect(rightAction?.availability.enabled).toBe(true)
+
+    await executeSessionMenuAction(rightAction as (typeof actions)[number], actionContext)
+
+    expect(onSetPanePosition).toHaveBeenCalledWith('right')
+  })
+
+  it('sets the pane position back to left from the right pane state', async () => {
+    const onSetPanePosition = vi.fn()
+    const actionContext = createSessionActionFixture({ onSetPanePosition, panePosition: 'right' })
+    const actions = resolveSessionMenuActions(actionContext)
+    const positionAction = actions.find((action) => action.id === 'session.position')
+    const leftAction = positionAction?.children.find((action) => action.id === 'session.position-left')
+
+    expect(leftAction?.availability.enabled).toBe(true)
+
+    await executeSessionMenuAction(leftAction as (typeof actions)[number], actionContext)
+
+    expect(onSetPanePosition).toHaveBeenCalledWith('left')
   })
 
   it('uses localized cancel text for the delete confirmation', () => {
