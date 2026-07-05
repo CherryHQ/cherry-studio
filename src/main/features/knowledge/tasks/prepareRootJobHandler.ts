@@ -3,10 +3,10 @@ import './jobTypes'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
-import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
 import { markUnscheduledKnowledgeItemsFailed } from '../ingestion/statusCleanup'
 import { purgeKnowledgeSubtreeWithinLock } from '../ingestion/subtreePurge'
@@ -19,7 +19,7 @@ import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './util
 const logger = loggerService.withContext('Knowledge:PrepareRootJobHandler')
 
 export function createPrepareRootJobHandler(
-  knowledgeLockManager: KnowledgeLockManager,
+  knowledgeLockManager: KeyedMutex,
   ingestionService: KnowledgeItemScheduler
 ): JobHandler<KnowledgePrepareRootPayload> {
   return {
@@ -96,9 +96,9 @@ function loadPrepareRootItemOrSkip(ctx: JobContext<KnowledgePrepareRootPayload>)
 async function deletePreviousLeafExpansion(
   baseId: string,
   itemId: string,
-  knowledgeLockManager: KnowledgeLockManager
+  knowledgeLockManager: KeyedMutex
 ): Promise<void> {
-  await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
+  await knowledgeLockManager.runExclusive(baseId, async () => {
     const base = knowledgeBaseService.getById(baseId)
     const descendants = knowledgeItemService.getSubtreeItems(baseId, [itemId])
     const removableDescendants = descendants.filter((item) => item.status !== 'deleting')
@@ -108,11 +108,11 @@ async function deletePreviousLeafExpansion(
 
 async function scanRootItem(
   ctx: JobContext<KnowledgePrepareRootPayload>,
-  knowledgeLockManager: KnowledgeLockManager
+  knowledgeLockManager: KeyedMutex
 ): Promise<KnowledgeItem[]> {
   const { baseId, itemId } = ctx.input
 
-  return await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
+  return await knowledgeLockManager.runExclusive(baseId, async () => {
     const result = resolveLiveKnowledgeItem(itemId)
     if ('skip' in result) {
       if (result.skip === 'deleting') {

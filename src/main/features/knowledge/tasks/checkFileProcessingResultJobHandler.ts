@@ -3,6 +3,7 @@ import './jobTypes'
 import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
 import {
@@ -12,7 +13,6 @@ import {
 } from '@main/features/fileProcessing'
 import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 
-import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
 import { toKnowledgeRelativePath } from '../pathStorage'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
@@ -27,7 +27,7 @@ const FILE_PROCESSING_MAX_WAIT_MS = 30 * 60 * 1000
 const FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON = 'knowledge-file-processing-item-unavailable'
 
 export function createCheckFileProcessingResultJobHandler(
-  knowledgeLockManager: KnowledgeLockManager,
+  knowledgeLockManager: KeyedMutex,
   ingestionService: KnowledgeItemScheduler
 ): JobHandler<KnowledgeCheckFileProcessingResultPayload> {
   return {
@@ -47,7 +47,7 @@ export function createCheckFileProcessingResultJobHandler(
     async execute(ctx) {
       const { baseId, itemId, fileProcessingJobId } = ctx.input
       const firstScheduledAt = ctx.input.firstScheduledAt
-      const workflowParentJobId = ctx.input.parentJobId ?? ctx.jobId
+      const workflowParentJobId = ctx.parentId ?? ctx.jobId
       ctx.signal.throwIfAborted()
 
       if (shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
@@ -109,7 +109,7 @@ export function createCheckFileProcessingResultJobHandler(
         return
       }
 
-      const canContinue = await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
+      const canContinue = await knowledgeLockManager.runExclusive(baseId, async () => {
         if (shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
           return false
         }

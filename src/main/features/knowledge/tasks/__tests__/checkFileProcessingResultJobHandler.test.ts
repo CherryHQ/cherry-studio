@@ -48,7 +48,6 @@ function createCheckPayload(
     fileProcessingJobId: 'fp-job-1',
     pollRound: 0,
     firstScheduledAt: Date.now(),
-    parentJobId: null,
     ...overrides
   }
 }
@@ -101,10 +100,10 @@ describe('check-file-processing-result job handler', () => {
       createCtx(
         createCheckPayload({
           pollRound: 2,
-          firstScheduledAt,
-          parentJobId: 'reindex-job'
+          firstScheduledAt
         }),
-        'check-job-2'
+        'check-job-2',
+        'reindex-job'
       )
     )
 
@@ -198,13 +197,7 @@ describe('check-file-processing-result job handler', () => {
       })
     )
 
-    await handler.execute(
-      createCtx(
-        createCheckPayload({
-          parentJobId: 'reindex-job'
-        })
-      )
-    )
+    await handler.execute(createCtx(createCheckPayload(), 'job-1', 'reindex-job'))
 
     expect(ingestionService.scheduleIndexing).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'reindex-job')
   })
@@ -344,29 +337,6 @@ describe('check-file-processing-result job handler', () => {
 
   it('onSettled marks active items failed when the check job fails', async () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
-    getJobMock.mockResolvedValue({
-      id: 'job-1',
-      status: 'failed',
-      priority: 0,
-      queue: 'base.kb-1',
-      idempotencyKey: null,
-      scheduleId: null,
-      scheduledAt: '2026-04-08T00:00:00.000Z',
-      startedAt: '2026-04-08T00:00:00.000Z',
-      finishedAt: null,
-      attempt: 1,
-      maxAttempts: 3,
-      output: null,
-      error: null,
-      parentId: null,
-      cancelRequested: false,
-      metadata: {},
-      timeoutMs: null,
-      createdAt: '2026-04-08T00:00:00.000Z',
-      updatedAt: '2026-04-08T00:00:00.000Z',
-      type: 'knowledge.check-file-processing-result',
-      input: createCheckPayload()
-    })
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
 
     await handler.onSettled?.({
@@ -386,29 +356,6 @@ describe('check-file-processing-result job handler', () => {
 
   it('onSettled falls back to the terminal status when a failed job has no error message', async () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
-    getJobMock.mockResolvedValue({
-      id: 'job-1',
-      status: 'failed',
-      priority: 0,
-      queue: 'base.kb-1',
-      idempotencyKey: null,
-      scheduleId: null,
-      scheduledAt: '2026-04-08T00:00:00.000Z',
-      startedAt: '2026-04-08T00:00:00.000Z',
-      finishedAt: null,
-      attempt: 1,
-      maxAttempts: 3,
-      output: null,
-      error: null,
-      parentId: null,
-      cancelRequested: false,
-      metadata: {},
-      timeoutMs: null,
-      createdAt: '2026-04-08T00:00:00.000Z',
-      updatedAt: '2026-04-08T00:00:00.000Z',
-      type: 'knowledge.check-file-processing-result',
-      input: createCheckPayload()
-    })
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
 
     await handler.onSettled?.({
@@ -428,29 +375,6 @@ describe('check-file-processing-result job handler', () => {
 
   it('onSettled marks a cancelled (app-quit) item failed with the reindex-to-finish message', async () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, ingestionService)
-    getJobMock.mockResolvedValue({
-      id: 'job-1',
-      status: 'cancelled',
-      priority: 0,
-      queue: 'base.kb-1',
-      idempotencyKey: null,
-      scheduleId: null,
-      scheduledAt: '2026-04-08T00:00:00.000Z',
-      startedAt: '2026-04-08T00:00:00.000Z',
-      finishedAt: null,
-      attempt: 1,
-      maxAttempts: 3,
-      output: null,
-      error: { code: 'CANCELLED', message: 'JobManager shutdown', retryable: false },
-      parentId: null,
-      cancelRequested: false,
-      metadata: {},
-      timeoutMs: null,
-      createdAt: '2026-04-08T00:00:00.000Z',
-      updatedAt: '2026-04-08T00:00:00.000Z',
-      type: 'knowledge.check-file-processing-result',
-      input: createCheckPayload()
-    })
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem())
 
     await handler.onSettled?.({

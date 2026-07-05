@@ -2865,7 +2865,8 @@
       "indexing_interrupted": "索引因應用程式關閉而中斷，請重新索引以完成。",
       "missing_embedding_model": "遷移時未找到原知識庫使用的嵌入模型，請重建知識庫並選擇新的嵌入模型。",
       "missing_vector_store": "遷移時未能讀取該知識庫的向量庫（缺失、為空或被占用），知識庫已保留，請重新索引以恢復。",
-      "model_invalid": "未選擇模型"
+      "model_invalid": "未選擇模型",
+      "never_indexed": "該項在遷移時從未開始索引，請重新索引以完成。"
     },
     "groups": {
       "add": "新建分组",

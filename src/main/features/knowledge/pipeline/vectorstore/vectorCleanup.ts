@@ -11,7 +11,7 @@ export async function deleteKnowledgeItemVectors(base: KnowledgeBase, itemIds: s
   }
 
   const vectorStoreService = application.get('KnowledgeVectorStoreService')
-  const store = await vectorStoreService.getIndexStoreIfExists(base)
+  const store = vectorStoreService.getIndexStoreIfExists(base)
   if (!store) {
     return
   }
@@ -44,7 +44,7 @@ export async function reclaimKnowledgeIndexSpace(base: KnowledgeBase): Promise<v
     // getIndexStoreIfExists itself can throw (a corrupt index, a readiness/base_id mismatch, a
     // schema open failure) — keep it inside the try so an open failure is best-effort just like a
     // reclaim failure, never failing the already-completed delete job.
-    const store = await application.get('KnowledgeVectorStoreService').getIndexStoreIfExists(base)
+    const store = application.get('KnowledgeVectorStoreService').getIndexStoreIfExists(base)
     if (!store) {
       return
     }

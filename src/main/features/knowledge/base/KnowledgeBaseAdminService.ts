@@ -2,6 +2,7 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { DataApiErrorFactory } from '@shared/data/api'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import {
@@ -18,14 +19,13 @@ import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionS
 import { classifyKnowledgeItemSource } from '../items'
 import { getKnowledgeBaseFilePath } from '../pathStorage'
 import { cancelActiveKnowledgeJobs } from '../tasks/utils/cancel'
-import type { KnowledgeLockManager } from './KnowledgeLockManager'
 
 const logger = loggerService.withContext('Knowledge:BaseAdmin')
 
 /** Knowledge base lifecycle: create (with rollback), delete, restore, and list — everything about the base row + its on-disk artifacts, not about items. */
 export class KnowledgeBaseAdminService {
   constructor(
-    private readonly knowledgeLockManager: KnowledgeLockManager,
+    private readonly knowledgeLockManager: KeyedMutex,
     private readonly ingestionService: KnowledgeIngestionService
   ) {}
 
@@ -34,7 +34,7 @@ export class KnowledgeBaseAdminService {
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
 
     try {
-      await vectorStoreService.getIndexStore(base)
+      vectorStoreService.getIndexStore(base)
     } catch (error) {
       await this.rollbackFailedBaseCreation(base.id)
       throw error
@@ -66,7 +66,7 @@ export class KnowledgeBaseAdminService {
   async deleteBase(baseId: string): Promise<void> {
     await cancelActiveKnowledgeJobs(baseId, 'delete-base', { onCancelTimeout: 'proceed' })
 
-    await this.knowledgeLockManager.withBaseMutationLock(baseId, async () => {
+    await this.knowledgeLockManager.runExclusive(baseId, async () => {
       try {
         const vectorStoreService = application.get('KnowledgeVectorStoreService')
         await vectorStoreService.deleteStore(baseId)

@@ -36,13 +36,14 @@ function assertVectorStoreReadyBase(base: KnowledgeBase): asserts base is Comple
 @ServicePhase(Phase.WhenReady)
 export class KnowledgeVectorStoreService extends BaseService {
   // Opening a store (better-sqlite3 connect + schema + meta) is fully synchronous
-  // (see openIndexStore), so it runs to completion in one JS turn — no concurrent
-  // getIndexStore call for the same base can ever observe an in-flight open, and a
-  // failed open never gets cached (the throw happens before .set() below runs).
+  // (see openIndexStore), so getIndexStore/getIndexStoreIfExists are plain sync
+  // methods that run to completion in one JS turn — no concurrent call for the
+  // same base can ever observe an in-flight open, and a failed open never gets
+  // cached (the throw happens before .set() below runs).
   private instanceCache = new Map<string, KnowledgeIndexStore>()
 
   /** Open (or reuse) the base's index store, ensuring its schema exists. */
-  async getIndexStore(base: KnowledgeBase): Promise<KnowledgeIndexStore> {
+  getIndexStore(base: KnowledgeBase): KnowledgeIndexStore {
     assertVectorStoreReadyBase(base)
 
     const cached = this.instanceCache.get(base.id)
@@ -58,7 +59,7 @@ export class KnowledgeVectorStoreService extends BaseService {
   }
 
   /** Reuse or open the store only if its file already exists on disk; used by cleanup paths that must not create one. */
-  async getIndexStoreIfExists(base: KnowledgeBase): Promise<KnowledgeIndexStore | undefined> {
+  getIndexStoreIfExists(base: KnowledgeBase): KnowledgeIndexStore | undefined {
     // No readiness assert here: cleanup must keep working on failed bases (see
     // operation-guards.md — deleteItems intentionally skips the guard, so its
     // delete-subtree job lands here for any base). A failed base never has a
@@ -69,7 +70,7 @@ export class KnowledgeVectorStoreService extends BaseService {
       return cached
     }
 
-    if (!(await this.storeFileExists(base.id))) {
+    if (!this.storeFileExists(base.id)) {
       logger.debug('Knowledge index store does not exist on disk', { baseId: base.id })
       return undefined
     }
@@ -153,10 +154,9 @@ export class KnowledgeVectorStoreService extends BaseService {
     }
   }
 
-  private async storeFileExists(baseId: string): Promise<boolean> {
+  private storeFileExists(baseId: string): boolean {
     try {
-      const stat = await fs.promises.stat(getKnowledgeVectorStoreFilePathSync(baseId))
-      return stat.isFile()
+      return fs.statSync(getKnowledgeVectorStoreFilePathSync(baseId)).isFile()
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         return false

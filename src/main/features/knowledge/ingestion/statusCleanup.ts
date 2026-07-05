@@ -21,31 +21,14 @@ export function markUnscheduledKnowledgeItemsFailed(input: MarkFailedInput): voi
     }
 
     try {
-      knowledgeItemService.updateStatus(item.id, 'failed', {
-        error: input.failedStatusError
-      })
-      continue
-    } catch (cleanupError) {
-      input.logger.error(
-        input.logMessage,
-        cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
-        {
-          baseId: input.baseId,
-          itemId: item.id,
-          scheduleError: input.errorMessage
-        }
-      )
-    }
-
-    try {
       knowledgeItemService.setSubtreeStatus(input.baseId, [item.id], 'failed', {
         error: input.failedStatusError
       })
-    } catch (fallbackError) {
+    } catch (cleanupError) {
       unrecoveredItemIds.push(item.id)
       input.logger.error(
-        'Failed to mark unscheduled knowledge item through subtree fallback',
-        fallbackError instanceof Error ? fallbackError : new Error(String(fallbackError)),
+        input.logMessage,
+        cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
         {
           baseId: input.baseId,
           itemId: item.id,

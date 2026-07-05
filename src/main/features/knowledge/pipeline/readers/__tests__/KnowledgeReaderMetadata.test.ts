@@ -65,7 +65,7 @@ describe('knowledge reader metadata', () => {
         source: '/tmp/original.txt',
         relativePath: 'original.txt'
       },
-      status: 'idle',
+      status: 'processing',
       error: null,
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z'
@@ -89,7 +89,7 @@ describe('knowledge reader metadata', () => {
         groupId: null,
         type: 'url',
         data: { source: 'https://example.com', url: 'https://example.com', relativePath: 'example.md' },
-        status: 'idle',
+        status: 'processing',
         error: null,
         createdAt: '2026-04-08T00:00:00.000Z',
         updatedAt: '2026-04-08T00:00:00.000Z'
@@ -114,7 +114,7 @@ describe('knowledge reader metadata', () => {
           groupId: null,
           type: 'url',
           data: { source: 'https://example.com', url: 'https://example.com' },
-          status: 'idle',
+          status: 'processing',
           error: null,
           createdAt: '2026-04-08T00:00:00.000Z',
           updatedAt: '2026-04-08T00:00:00.000Z'
@@ -134,7 +134,7 @@ describe('knowledge reader metadata', () => {
         groupId: null,
         type: 'note',
         data: { source: 'My note', content: '# Note title\n\nbody', relativePath: 'My note.md' },
-        status: 'idle',
+        status: 'processing',
         error: null,
         createdAt: '2026-04-08T00:00:00.000Z',
         updatedAt: '2026-04-08T00:00:00.000Z'
@@ -159,7 +159,7 @@ describe('knowledge reader metadata', () => {
           groupId: null,
           type: 'note',
           data: { source: 'My note', content: 'body' },
-          status: 'idle',
+          status: 'processing',
           error: null,
           createdAt: '2026-04-08T00:00:00.000Z',
           updatedAt: '2026-04-08T00:00:00.000Z'

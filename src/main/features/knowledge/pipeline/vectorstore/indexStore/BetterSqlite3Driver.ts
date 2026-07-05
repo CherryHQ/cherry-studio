@@ -39,7 +39,7 @@ function toBindable(value: SqlValue): Bindable {
  * SqliteDriver backed by a synchronous better-sqlite3 connection (the only engine).
  *
  * No internal write mutex: every writer (rebuildMaterial / deleteMaterials /
- * reclaimSpace) runs under `KnowledgeLockManager.withBaseMutationLock(baseId)`, a
+ * reclaimSpace) runs under `KeyedMutex.runExclusive(baseId, ...)`, a
  * per-base async-mutex that already serializes all writes to a base's index — so the
  * driver never self-serializes. better-sqlite3's single connection makes
  * `transaction` inherently atomic; reads run on the same connection and ride WAL /

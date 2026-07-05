@@ -89,8 +89,7 @@ describe('cancelActiveKnowledgeJobs', () => {
           itemId: 'file-1',
           fileProcessingJobId: 'fp-job-1',
           pollRound: 0,
-          firstScheduledAt: 1779811200000,
-          parentJobId: null
+          firstScheduledAt: 1779811200000
         }
       })
     ])
@@ -125,12 +124,12 @@ describe('cancelActiveKnowledgeJobs', () => {
       createJobSnapshot({
         id: 'index-job',
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null }
+        input: { baseId: 'kb-1', itemId: 'note-1' }
       }),
       createJobSnapshot({
         id: 'unrelated-job',
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'other', parentJobId: null }
+        input: { baseId: 'kb-1', itemId: 'other' }
       })
     ])
 
@@ -150,7 +149,7 @@ describe('cancelActiveKnowledgeJobs', () => {
       createJobSnapshot({
         id: 'index-job',
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null }
+        input: { baseId: 'kb-1', itemId: 'note-1' }
       })
     ])
     cancelMock.mockResolvedValue({ outcome: 'timed-out' })
@@ -168,7 +167,7 @@ describe('cancelActiveKnowledgeJobs', () => {
       createJobSnapshot({
         id: 'index-job',
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null }
+        input: { baseId: 'kb-1', itemId: 'note-1' }
       })
     ])
     cancelMock.mockResolvedValue({ outcome: 'timed-out' })

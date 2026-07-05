@@ -4,6 +4,7 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { getFileExt } from '@main/utils/legacyFile'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
@@ -23,7 +24,6 @@ import { knowledgeSupportedFileExts } from '@shared/utils/file'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 
 import { assertBaseCanRunRuntimeOperation } from '../base/baseGuards'
-import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
 import { classifyKnowledgeItemSource } from '../items'
 import {
   assertKnowledgeFileTargetAvailable,
@@ -80,7 +80,7 @@ export interface KnowledgeItemScheduler {
 
 /** Write-side orchestration: admission checks, item creation, conflict handling, and job enqueueing for the add/delete/reindex flows. */
 export class KnowledgeIngestionService implements KnowledgeItemScheduler {
-  constructor(private readonly knowledgeLockManager: KnowledgeLockManager) {}
+  constructor(private readonly knowledgeLockManager: KeyedMutex) {}
 
   async addItems(
     baseId: string,
@@ -124,7 +124,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     const acceptedItems: KnowledgeItem[] = []
     const copiedFileItems: Array<Pick<CreateKnowledgeItemDto, 'type' | 'data'>> = []
 
-    await this.knowledgeLockManager.withBaseMutationLock(base.id, async () => {
+    await this.knowledgeLockManager.runExclusive(base.id, async () => {
       try {
         if (conflictStrategy === 'replace') {
           // Purge the conflicting existing items synchronously inside the lock and
@@ -204,7 +204,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     knowledgeBaseService.getById(baseId)
     const knowledgeBaseId = toKnowledgeBaseId(baseId)
     const knowledgeRootItemIds = toKnowledgeItemIds(rootItemIds)
-    const markedIds = await this.knowledgeLockManager.withBaseMutationLock(baseId, () =>
+    const markedIds = await this.knowledgeLockManager.runExclusive(baseId, () =>
       knowledgeItemService.setSubtreeStatus(baseId, rootItemIds, 'deleting')
     )
     try {
@@ -379,8 +379,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
         itemId,
         fileProcessingJobId,
         pollRound,
-        firstScheduledAt,
-        parentJobId
+        firstScheduledAt
       },
       {
         idempotencyKey: knowledgeFileProcessingCheckIdempotencyKey(baseId, itemId, fileProcessingJobId, pollRound),
@@ -404,7 +403,7 @@ export class KnowledgeIngestionService implements KnowledgeItemScheduler {
     const jobManager = application.get('JobManager')
     jobManager.enqueue(
       'knowledge.index-documents',
-      { baseId, itemId, parentJobId },
+      { baseId, itemId },
       {
         idempotencyKey: knowledgeIndexIdempotencyKey(baseId, itemId, parentJobId),
         queue: knowledgeQueueName(baseId),

@@ -58,7 +58,7 @@ function createBase(): KnowledgeBase {
 describe('deleteKnowledgeItemVectors', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getIndexStoreIfExistsMock.mockResolvedValue({
+    getIndexStoreIfExistsMock.mockReturnValue({
       deleteMaterials: deleteMaterialsMock,
       reclaimSpace: reclaimSpaceMock
     })
@@ -67,7 +67,7 @@ describe('deleteKnowledgeItemVectors', () => {
   })
 
   it('skips cleanup when no vector store exists', async () => {
-    getIndexStoreIfExistsMock.mockResolvedValueOnce(undefined)
+    getIndexStoreIfExistsMock.mockReturnValueOnce(undefined)
 
     await deleteKnowledgeItemVectors(createBase(), ['note-1'])
 
@@ -95,7 +95,7 @@ describe('deleteKnowledgeItemVectors', () => {
 describe('reclaimKnowledgeIndexSpace', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getIndexStoreIfExistsMock.mockResolvedValue({
+    getIndexStoreIfExistsMock.mockReturnValue({
       deleteMaterials: deleteMaterialsMock,
       reclaimSpace: reclaimSpaceMock
     })
@@ -103,7 +103,7 @@ describe('reclaimKnowledgeIndexSpace', () => {
   })
 
   it('skips reclaim when no vector store exists', async () => {
-    getIndexStoreIfExistsMock.mockResolvedValueOnce(undefined)
+    getIndexStoreIfExistsMock.mockReturnValueOnce(undefined)
 
     await reclaimKnowledgeIndexSpace(createBase())
 
@@ -150,7 +150,9 @@ describe('reclaimKnowledgeIndexSpace', () => {
     // The open itself can throw (corrupt index, readiness/base_id mismatch, schema open failure).
     // It is inside the same best-effort try, so an open failure must not fail the delete job whose
     // rows and vectors are already gone.
-    getIndexStoreIfExistsMock.mockRejectedValueOnce(new Error('index store failed to open'))
+    getIndexStoreIfExistsMock.mockImplementationOnce(() => {
+      throw new Error('index store failed to open')
+    })
 
     await expect(reclaimKnowledgeIndexSpace(createBase())).resolves.toBeUndefined()
     expect(reclaimSpaceMock).not.toHaveBeenCalled()

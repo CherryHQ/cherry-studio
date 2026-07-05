@@ -3,9 +3,9 @@ import './jobTypes'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobHandler } from '@main/core/job/types'
 
-import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
 import { purgeKnowledgeSubtreeWithinLock } from '../ingestion/subtreePurge'
 import { reclaimKnowledgeIndexSpace } from '../pipeline/vectorstore/vectorCleanup'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '../types'
@@ -15,7 +15,7 @@ import { cancelActiveKnowledgeJobs } from './utils/cancel'
 const logger = loggerService.withContext('Knowledge:DeleteSubtreeJobHandler')
 
 export function createDeleteSubtreeJobHandler(
-  knowledgeLockManager: KnowledgeLockManager
+  knowledgeLockManager: KeyedMutex
 ): JobHandler<KnowledgeDeleteSubtreePayload> {
   return {
     recovery: 'retry',
@@ -51,7 +51,7 @@ export function createDeleteSubtreeJobHandler(
       })
 
       // Cleanup is locked so no indexer can write vectors for rows being removed.
-      await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
+      await knowledgeLockManager.runExclusive(baseId, async () => {
         const base = knowledgeBaseService.getById(baseId)
         const subtreeItems = knowledgeItemService
           .getSubtreeItems(baseId, rootItemIds, { includeRoots: true })

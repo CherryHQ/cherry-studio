@@ -286,12 +286,12 @@ export function createDirectoryItem(
   }
 }
 
-export function createCtx<TInput>(input: TInput, jobId = 'job-1'): JobContext<TInput> {
+export function createCtx<TInput>(input: TInput, jobId = 'job-1', parentId: string | null = null): JobContext<TInput> {
   return {
     jobId,
     input,
     attempt: 1,
-    parentId: null,
+    parentId,
     signal: new AbortController().signal,
     metadata: {},
     patchMetadata: vi.fn().mockResolvedValue(undefined),
@@ -340,7 +340,7 @@ export function createJobSnapshot(overrides: KnowledgeJobSnapshotInput): JobSnap
 }
 
 export const knowledgeLockManager = {
-  withBaseMutationLock: vi.fn(async (_baseId: string, task: () => Promise<unknown>) => await task())
+  runExclusive: vi.fn(async (_key: string, task: () => Promise<unknown>) => await task())
 }
 
 export const ingestionService: Mocked<KnowledgeItemScheduler> = {
@@ -352,8 +352,8 @@ export const ingestionService: Mocked<KnowledgeItemScheduler> = {
 beforeEach(() => {
   vi.clearAllMocks()
   MockMainCacheServiceUtils.resetMocks()
-  knowledgeLockManager.withBaseMutationLock.mockImplementation(
-    async (_baseId: string, task: () => Promise<unknown>) => await task()
+  knowledgeLockManager.runExclusive.mockImplementation(
+    async (_key: string, task: () => Promise<unknown>) => await task()
   )
   knowledgeBaseGetByIdMock.mockReturnValue(createBase())
   knowledgeItemGetByIdMock.mockReturnValue(createNoteItem())
@@ -381,8 +381,8 @@ beforeEach(() => {
     reclaimSpace: reclaimSpaceMock,
     listExistingEmbeddingHashes: listExistingEmbeddingHashesMock
   }
-  getIndexStoreMock.mockResolvedValue(indexStore)
-  getIndexStoreIfExistsMock.mockResolvedValue(indexStore)
+  getIndexStoreMock.mockReturnValue(indexStore)
+  getIndexStoreIfExistsMock.mockReturnValue(indexStore)
   rebuildMaterialMock.mockReturnValue(undefined)
   deleteMaterialsMock.mockResolvedValue(undefined)
   reclaimSpaceMock.mockReturnValue({ vacuumed: false, reclaimedBytes: 0 })

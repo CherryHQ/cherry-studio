@@ -67,17 +67,13 @@ function narrowFileProcessingCheckJobPayload(
   if (typeof input.fileProcessingJobId !== 'string') return null
   if (typeof input.pollRound !== 'number') return null
   if (typeof input.firstScheduledAt !== 'number') return null
-  if (!('parentJobId' in input)) return null
-  const parentJobId = input.parentJobId
-  if (parentJobId !== null && typeof parentJobId !== 'string') return null
 
   return {
     baseId: basePayload.baseId,
     itemId: basePayload.itemId,
     fileProcessingJobId: input.fileProcessingJobId,
     pollRound: input.pollRound,
-    firstScheduledAt: input.firstScheduledAt,
-    parentJobId
+    firstScheduledAt: input.firstScheduledAt
   }
 }
 
@@ -96,19 +92,7 @@ function narrowItemJobPayload(
 }
 
 function narrowIndexDocumentsJobPayload(rawInput: JobSnapshot['input']): KnowledgeIndexDocumentsPayload | null {
-  const input = narrowJobInputObject(rawInput)
-  if (!input) return null
-  const basePayload = narrowItemJobPayload(rawInput)
-  if (!basePayload) return null
-  if (!('parentJobId' in input)) return null
-  const parentJobId = input.parentJobId
-  if (parentJobId !== null && typeof parentJobId !== 'string') return null
-
-  return {
-    baseId: basePayload.baseId,
-    itemId: basePayload.itemId,
-    parentJobId
-  }
+  return narrowItemJobPayload(rawInput)
 }
 
 function narrowSubtreeJobPayload(

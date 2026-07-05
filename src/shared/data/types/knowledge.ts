@@ -26,19 +26,18 @@ export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
  *
  * ```text
  * file/url/note:
- *   idle -> processing -> reading -> embedding -> completed
- *      \                    \             \          \
- *       +--------------------+-------------+-----------> failed
- *      \---------------------------------------------> deleting
+ *   processing -> reading -> embedding -> completed
+ *        \             \          \
+ *         +-------------+-----------> failed
+ *        \---------------------------------------------> deleting
  *
  * directory:
- *   idle -> preparing -> processing -> completed
- *      \        \             \          \
- *       +--------+-------------+-----------> failed
- *      \---------------------------------> deleting
+ *   preparing -> processing -> completed
+ *        \             \          \
+ *         +-------------+-----------> failed
+ *        \---------------------------------> deleting
  * ```
  *
- * - `idle`: item row exists but indexing has not started.
  * - `preparing`: container expansion is running; only `directory` items may use it.
  * - `processing`: work has been queued or is running before a more specific phase is known.
  * - `reading`: leaf source documents are being read; only `file` / `url` / `note` items may use it.
@@ -50,7 +49,6 @@ export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
  * - `deleting`: delete cleanup is in progress; default list/search/RAG reads hide the item.
  */
 export const KNOWLEDGE_ITEM_STATUSES = [
-  'idle',
   'preparing',
   'processing',
   'reading',
@@ -83,20 +81,23 @@ export const KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL: KnowledgeBaseErrorCod
 export const KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE: KnowledgeBaseErrorCode = 'missing_vector_store'
 
 /**
- * Item-level error codes stored on `knowledge_item.error`. Two are set today:
+ * Item-level error codes stored on `knowledge_item.error`. Three are set today:
  * - `directory_not_migrated`: a v1-indexed `directory` whose container-level vectors could not
  *   be re-attributed to per-file children (unreadable legacy sources, or no migratable vectors).
  * - `indexing_interrupted`: an indexing job was abandoned by an app quit / restart, so the item
  *   was parked at `failed` instead of silently resumed (see KnowledgeService.recoverInterruptedItems).
+ * - `never_indexed`: a migrated v1 item never started indexing (no `uniqueId`), so there is
+ *   nothing to resume from and it is parked at `failed` instead of a synthetic in-progress state.
  * Modeled as a zod enum (the same shape as the base error codes above) so the renderer's
  * code → i18n switch in `error.ts` stays exhaustive-checkable and the code ↔ translator-key
  * triple is tied together. Codes are localized by the UI; any other value is a free-form message.
  */
-export const KNOWLEDGE_ITEM_ERROR_CODES = ['directory_not_migrated', 'indexing_interrupted'] as const
+export const KNOWLEDGE_ITEM_ERROR_CODES = ['directory_not_migrated', 'indexing_interrupted', 'never_indexed'] as const
 export const KnowledgeItemErrorCodeSchema = z.enum(KNOWLEDGE_ITEM_ERROR_CODES)
 export type KnowledgeItemErrorCode = z.infer<typeof KnowledgeItemErrorCodeSchema>
 export const KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED: KnowledgeItemErrorCode = 'directory_not_migrated'
 export const KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED: KnowledgeItemErrorCode = 'indexing_interrupted'
+export const KNOWLEDGE_ITEM_ERROR_NEVER_INDEXED: KnowledgeItemErrorCode = 'never_indexed'
 
 export const KnowledgeChunkSizeSchema = z.number().int().positive()
 export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
@@ -335,11 +336,6 @@ const KnowledgeItemEntityBaseSchema = z.strictObject({
   updatedAt: z.iso.datetime().describe('ISO timestamp when the item row was last updated.')
 })
 
-const IdleKnowledgeItemLifecycleSchema = {
-  status: z.literal('idle').describe('Item row exists but indexing has not started.'),
-  error: z.null().describe('No error is stored for non-failed lifecycle states.')
-} as const
-
 const PreparingKnowledgeItemLifecycleSchema = {
   status: z.literal('preparing').describe('Container expansion is running; only directory items use it.'),
   error: z.null().describe('No error is stored for non-failed lifecycle states.')
@@ -385,11 +381,6 @@ const createLeafKnowledgeItemEntitySchemas = <TType extends KnowledgeItemType, T
     KnowledgeItemEntityBaseSchema.extend({
       type: z.literal(type),
       data,
-      ...IdleKnowledgeItemLifecycleSchema
-    }),
-    KnowledgeItemEntityBaseSchema.extend({
-      type: z.literal(type),
-      data,
       ...ProcessingKnowledgeItemLifecycleSchema
     }),
     KnowledgeItemEntityBaseSchema.extend({
@@ -424,11 +415,6 @@ const createContainerKnowledgeItemEntitySchemas = <TType extends KnowledgeItemTy
   data: TData
 ) =>
   [
-    KnowledgeItemEntityBaseSchema.extend({
-      type: z.literal(type),
-      data,
-      ...IdleKnowledgeItemLifecycleSchema
-    }),
     KnowledgeItemEntityBaseSchema.extend({
       type: z.literal(type),
       data,

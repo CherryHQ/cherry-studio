@@ -15,7 +15,6 @@ declare module '@main/core/job/jobRegistry' {
     'knowledge.index-documents': {
       baseId: string
       itemId: string
-      parentJobId: string | null
     }
     'knowledge.check-file-processing-result': {
       baseId: string
@@ -23,7 +22,6 @@ declare module '@main/core/job/jobRegistry' {
       fileProcessingJobId: string
       pollRound: number
       firstScheduledAt: number
-      parentJobId: string | null
     }
     'knowledge.delete-subtree': {
       baseId: string

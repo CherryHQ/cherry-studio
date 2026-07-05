@@ -3,13 +3,11 @@ import { describe, expect, it } from 'vitest'
 import {
   createCtx,
   createDirectoryItem,
-  createJobSnapshot,
   createNoteItem,
   createPrepareRootJobHandler,
   deleteItemsByIdsMock,
   deleteKnowledgeItemFilesBestEffortMock,
   deleteMaterialsMock,
-  getJobMock,
   ingestionService,
   knowledgeItemGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
@@ -128,35 +126,11 @@ describe('prepare-root job handler', () => {
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'leaf-1', 'prepare-job')
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'leaf-2', 'prepare-job')
     expect(scheduleItemMock).not.toHaveBeenCalledWith('kb-1', 'leaf-3', 'prepare-job')
-    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('leaf-1', 'failed', expect.anything())
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('leaf-2', 'failed', {
+    expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalledWith('kb-1', ['leaf-1'], 'failed', expect.anything())
+    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['leaf-2'], 'failed', {
       error: 'Failed to schedule knowledge child item job: enqueue failed'
     })
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('leaf-3', 'failed', {
-      error: 'Failed to schedule knowledge child item job: enqueue failed'
-    })
-  })
-
-  it('falls back to subtree failed status when marking an unscheduled leaf fails', async () => {
-    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
-    const leaves = [createNoteItem('leaf-1', 'dir-1'), createNoteItem('leaf-2', 'dir-1')]
-    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
-    prepareKnowledgeItemMock.mockResolvedValue(leaves)
-    scheduleItemMock.mockRejectedValueOnce(new Error('enqueue failed'))
-    knowledgeItemUpdateStatusMock
-      .mockReturnValueOnce(createDirectoryItem('dir-1', 'processing'))
-      .mockImplementationOnce(() => {
-        throw new Error('status busy')
-      })
-
-    await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))).rejects.toThrow(
-      'enqueue failed'
-    )
-
-    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['leaf-1'], 'failed', {
-      error: 'Failed to schedule knowledge child item job: enqueue failed'
-    })
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('leaf-2', 'failed', {
+    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['leaf-3'], 'failed', {
       error: 'Failed to schedule knowledge child item job: enqueue failed'
     })
   })
@@ -167,11 +141,6 @@ describe('prepare-root job handler', () => {
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     prepareKnowledgeItemMock.mockResolvedValue(leaves)
     scheduleItemMock.mockRejectedValueOnce(new Error('enqueue failed'))
-    knowledgeItemUpdateStatusMock
-      .mockReturnValueOnce(createDirectoryItem('dir-1', 'processing'))
-      .mockImplementationOnce(() => {
-        throw new Error('status busy')
-      })
     knowledgeItemSetSubtreeStatusMock.mockImplementationOnce(() => {
       throw new Error('subtree busy')
     })
@@ -183,13 +152,6 @@ describe('prepare-root job handler', () => {
 
   it('onSettled skips failed status when the item is deleting', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
-    getJobMock.mockResolvedValue(
-      createJobSnapshot({
-        id: 'prepare-job',
-        type: 'knowledge.prepare-root',
-        input: { baseId: 'kb-1', itemId: 'dir-1' }
-      })
-    )
     knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem('dir-1', 'deleting'))
 
     await handler.onSettled?.({

@@ -3,7 +3,8 @@ import fs from 'node:fs'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE,
-  KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+  KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED,
+  KNOWLEDGE_ITEM_ERROR_NEVER_INDEXED
 } from '@shared/data/types/knowledge'
 import Database from 'better-sqlite3'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -855,9 +856,9 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     )
 
     expect(result.success).toBe(true)
-    expect(statusByLegacyId.get('i-no-unique-id')).toBe('idle')
+    expect(statusByLegacyId.get('i-no-unique-id')).toBe('failed')
     expect(statusByLegacyId.get('i-with-unique-id')).toBe('completed')
-    expect(statusByLegacyId.get('i-with-empty-unique-id')).toBe('idle')
+    expect(statusByLegacyId.get('i-with-empty-unique-id')).toBe('failed')
     expect(statusByLegacyId.get('i-processing-but-no-unique-id')).toBe('failed')
     expect(statusByLegacyId.get('i-failed-with-unique-id')).toBe('failed')
   })
@@ -1462,10 +1463,10 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     )
   })
 
-  it('keeps an idle directory (loader ids but no completed marker) as idle without expanding it', async () => {
+  it('keeps a never-indexed directory (loader ids but no completed marker) as failed without expanding it', async () => {
     // Expansion keys off the `completed` marker (singular `uniqueId`), not the mere presence of
-    // child loader ids (plural `uniqueIds`). A folder with loader ids but no completed marker is
-    // `idle`, so the gate must NOT expand it even when the loader sources resolve.
+    // child loader ids (plural `uniqueIds`). A folder with loader ids but no completed marker never
+    // started indexing, so the gate must NOT expand it even when the loader sources resolve.
     const migrator = new KnowledgeMigrator() as any
     vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
     vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({
@@ -1506,12 +1507,12 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(result.success).toBe(true)
 
     const migratedId = migrator.legacyItemIdRemap.get('item-directory')
-    // Not expanded: a single idle directory item, no synthesized children, no loader remap.
+    // Not expanded: a single never-indexed directory item, no synthesized children, no loader remap.
     expect(migrator.preparedItems.filter((i: any) => i.groupId === migratedId)).toHaveLength(0)
     expect(migrator.preparedItems.find((i: any) => i.id === migratedId)).toMatchObject({
       type: 'directory',
-      status: 'idle',
-      error: null
+      status: 'failed',
+      error: KNOWLEDGE_ITEM_ERROR_NEVER_INDEXED
     })
     expect(migrator.directoryChildLoaderRemap.size).toBe(0)
   })
@@ -1932,7 +1933,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { content: 'n1' },
-        status: 'idle'
+        status: 'processing'
       },
       {
         id: 'item-2',
@@ -1940,7 +1941,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { content: 'n2' },
-        status: 'idle'
+        status: 'processing'
       }
     ]
 
@@ -2049,7 +2050,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { source: 'n1', content: 'n1' },
-        status: 'idle',
+        status: 'processing',
         error: null
       }
     ]
@@ -2137,7 +2138,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { source: 'note', content: 'note' },
-        status: 'idle',
+        status: 'processing',
         error: null,
         createdAt: 1775114958369,
         updatedAt: 1775114958369
@@ -2172,7 +2173,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         expect.objectContaining({
           id: 'item-1',
           baseId: 'kb-missing-model',
-          status: 'idle'
+          status: 'processing'
         })
       ]
     ])
@@ -2201,7 +2202,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { content: 'n1' },
-        status: 'idle'
+        status: 'processing'
       },
       {
         id: 'item-2',
@@ -2209,7 +2210,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { content: 'n2' },
-        status: 'idle'
+        status: 'processing'
       }
     ]
 
@@ -2365,7 +2366,7 @@ describe('KnowledgeMigrator file item path storage', () => {
         groupId: null,
         type: 'file',
         data: { source: '/tmp/a.pdf', relativePath: 'a.pdf' },
-        status: 'idle'
+        status: 'processing'
       },
       {
         id: 'item-b',
@@ -2373,7 +2374,7 @@ describe('KnowledgeMigrator file item path storage', () => {
         groupId: null,
         type: 'file',
         data: { source: '/tmp/b.pdf', relativePath: 'b.pdf', indexedRelativePath: 'b.md' },
-        status: 'idle'
+        status: 'processing'
       },
       {
         id: 'item-note',
@@ -2381,7 +2382,7 @@ describe('KnowledgeMigrator file item path storage', () => {
         groupId: null,
         type: 'note',
         data: { source: 'some note', content: 'some note' },
-        status: 'idle'
+        status: 'processing'
       }
     ]
 
@@ -2416,7 +2417,7 @@ describe('KnowledgeMigrator file item path storage', () => {
         groupId: null,
         type: 'file',
         data: { source: '/tmp/ok.pdf', relativePath: 'ok.pdf' },
-        status: 'idle'
+        status: 'processing'
       },
       {
         id: 'item-skipped-file-entry',
@@ -2424,7 +2425,7 @@ describe('KnowledgeMigrator file item path storage', () => {
         groupId: null,
         type: 'file',
         data: { source: '/tmp/bad.xyz', relativePath: 'bad.xyz' },
-        status: 'idle'
+        status: 'processing'
       }
     ]
     migrator.legacyItemIdRemap = new Map([

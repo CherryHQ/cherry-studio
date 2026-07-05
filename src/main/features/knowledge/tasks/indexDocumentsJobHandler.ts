@@ -4,12 +4,12 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
 
-import type { KnowledgeLockManager } from '../base/KnowledgeLockManager'
 import type { IndexableKnowledgeItem } from '../items'
 import { isIndexableKnowledgeItem } from '../items'
 import { collectKnowledgeReservedRelativePaths } from '../pathStorage'
@@ -37,7 +37,7 @@ type LoadedIndexDocumentsInput = {
 type LoadedDocuments = Awaited<ReturnType<typeof loadKnowledgeItemDocuments>>
 
 export function createIndexDocumentsJobHandler(
-  knowledgeLockManager: KnowledgeLockManager
+  knowledgeLockManager: KeyedMutex
 ): JobHandler<KnowledgeIndexDocumentsPayload> {
   return {
     // Don't auto-resume on restart — a deliberate app quit must not re-spend the
@@ -226,7 +226,7 @@ function resolveSnapshotCaptureSpec(item: IndexableKnowledgeItem): SnapshotCaptu
 async function ensureSnapshot(
   ctx: JobContext<KnowledgeIndexDocumentsPayload>,
   item: IndexableKnowledgeItem,
-  knowledgeLockManager: KnowledgeLockManager
+  knowledgeLockManager: KeyedMutex
 ): Promise<IndexableKnowledgeItem> {
   const spec = resolveSnapshotCaptureSpec(item)
   if (!spec) {
@@ -235,7 +235,7 @@ async function ensureSnapshot(
 
   const markdown = await spec.produce(ctx.signal)
 
-  return await knowledgeLockManager.withBaseMutationLock(ctx.input.baseId, async () => {
+  return await knowledgeLockManager.runExclusive(ctx.input.baseId, async () => {
     const latest = knowledgeItemService.getById(ctx.input.itemId)
     if (latest.type !== spec.type || latest.data.relativePath) {
       // Another job captured the snapshot (or the item changed) while we produced.
@@ -288,7 +288,7 @@ async function buildRebuildMaterialInput(
   let embeddings: RebuildMaterialEmbeddingInput[] = []
   if (usesEmbeddings) {
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
-    const store = await vectorStoreService.getIndexStore(base)
+    const store = vectorStoreService.getIndexStore(base)
     const existingHashes = store.listExistingEmbeddingHashes([...bodyByHash.keys()])
     const missing = [...bodyByHash.entries()].filter(([hash]) => !existingHashes.has(hash))
     const vectors = await embedKnowledgeTexts(
@@ -321,11 +321,11 @@ async function writeItemMaterial(
   ctx: JobContext<KnowledgeIndexDocumentsPayload>,
   base: KnowledgeBase,
   input: RebuildMaterialInput,
-  knowledgeLockManager: KnowledgeLockManager
+  knowledgeLockManager: KeyedMutex
 ): Promise<void> {
   const { baseId, itemId } = ctx.input
 
-  await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
+  await knowledgeLockManager.runExclusive(baseId, async () => {
     ctx.signal.throwIfAborted()
     const result = resolveLiveKnowledgeItem(itemId)
     if ('skip' in result) {
@@ -334,7 +334,7 @@ async function writeItemMaterial(
     }
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
-    const store = await vectorStoreService.getIndexStore(base)
+    const store = vectorStoreService.getIndexStore(base)
     store.rebuildMaterial(itemId, input)
     knowledgeItemService.updateStatus(itemId, 'completed')
   })

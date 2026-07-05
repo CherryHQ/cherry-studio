@@ -363,7 +363,7 @@ export class KnowledgeConceptService {
   ): Promise<{ found: Array<{ conceptId: string; itemId: string }>; notFound: string[] }> {
     const base = knowledgeBaseService.getById(baseId)
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
-    const store = await vectorStoreService.getIndexStore(base)
+    const store = vectorStoreService.getIndexStore(base)
 
     const found: Array<{ conceptId: string; itemId: string }> = []
     const notFound: string[] = []
@@ -404,7 +404,7 @@ export class KnowledgeConceptService {
     const base = assertBaseCanRunRuntimeOperation(baseId, operation)
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
-    const store = await vectorStoreService.getIndexStore(base)
+    const store = vectorStoreService.getIndexStore(base)
 
     const ref = await runStoreOperation(store, baseId, operation, () => store.getMaterialByRelativePath(conceptId))
     if (!ref) {

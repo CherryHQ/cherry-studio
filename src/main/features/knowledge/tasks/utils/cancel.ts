@@ -1,16 +1,9 @@
 import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+import { ACTIVE_JOB_STATUSES } from '@shared/data/api/schemas/jobs'
 
-import {
-  KNOWLEDGE_ACTIVE_JOB_LIMIT,
-  KNOWLEDGE_ACTIVE_JOB_STATUSES,
-  KNOWLEDGE_JOB_TYPES,
-  knowledgeQueueName,
-  toKnowledgeBaseId
-} from '../../types'
+import { KNOWLEDGE_ACTIVE_JOB_LIMIT, KNOWLEDGE_JOB_TYPES, knowledgeQueueName, toKnowledgeBaseId } from '../../types'
 import { narrowKnowledgeJobInput } from './jobInput'
-
-const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
 
 export async function cancelJobOrThrow(jobId: string, reason: string): Promise<void> {
   const result = await application.get('JobManager').cancel(jobId, reason)
@@ -38,7 +31,7 @@ export interface CancelActiveKnowledgeJobsOptions {
  * Cancel any in-flight knowledge job in `baseId`'s queue (optionally scoped to a
  * subtree). MUST run OUTSIDE the base mutation lock: `cancel` awaits each running
  * handler's settlement, and knowledge index/prepare/reindex handlers themselves
- * acquire `withBaseMutationLock`, so cancelling while holding the lock would
+ * acquire the per-base `KeyedMutex.runExclusive` lock, so cancelling while holding the lock would
  * deadlock (the handler can never reach its abort check). This is why every
  * caller (delete-base, delete-subtree, replace-on-add) cancels first, then
  * purges/locks.
@@ -62,13 +55,14 @@ export async function cancelActiveKnowledgeJobs(
   const jobManager = application.get('JobManager')
   const activeJobs = await jobManager.list({
     queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
-    status: [...KNOWLEDGE_ACTIVE_JOB_STATUSES],
+    status: [...ACTIVE_JOB_STATUSES],
+    type: [...KNOWLEDGE_JOB_TYPES],
     limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
   })
 
   const jobIds = activeJobs
     .filter((job) => job.id !== excludeJobId)
-    .filter((job) => (subtreeItemIds ? jobTouchesSubtree(job, subtreeItemIds) : KNOWLEDGE_JOB_TYPE_SET.has(job.type)))
+    .filter((job) => !subtreeItemIds || jobTouchesSubtree(job, subtreeItemIds))
     .map((job) => job.id)
   const fileProcessingJobIds = activeJobs.flatMap((job) => getLinkedFileProcessingJobIds(job, subtreeItemIds))
 

@@ -54,7 +54,7 @@ export class KnowledgeQueryService {
     const candidateLimit = Math.min(resolvedTopK * KNOWLEDGE_SEARCH_OVERFETCH_FACTOR, KNOWLEDGE_SEARCH_CANDIDATE_CAP)
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
-    const store = await vectorStoreService.getIndexStore(base)
+    const store = vectorStoreService.getIndexStore(base)
     const matches = await runStoreOperation(store, baseId, 'search', () =>
       store.search({
         queryText: query,
@@ -91,7 +91,7 @@ export class KnowledgeQueryService {
     }
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
-    const store = await vectorStoreService.getIndexStore(base)
+    const store = vectorStoreService.getIndexStore(base)
     const chunkGroups = await runStoreOperation(store, knowledgeBaseId, 'listItemChunks', () =>
       leafItems.map((leafItem) => {
         const units = store.listMaterialUnits(leafItem.id)

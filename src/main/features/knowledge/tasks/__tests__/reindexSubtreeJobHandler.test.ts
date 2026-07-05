@@ -13,7 +13,6 @@ import {
   deleteKnowledgeItemFilesBestEffortMock,
   deleteMaterialsMock,
   FILE_ITEM_ID,
-  getJobMock,
   ingestionService,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeItemSetSubtreeStatusMock,
@@ -286,13 +285,6 @@ describe('reindex-subtree job handler', () => {
 
   it('onSettled marks active roots without follow-up jobs failed', async () => {
     const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
-    getJobMock.mockResolvedValue(
-      createJobSnapshot({
-        id: 'reindex-job',
-        type: 'knowledge.reindex-subtree',
-        input: { baseId: 'kb-1', rootItemIds: ['dir-1', 'note-1'] }
-      })
-    )
     listMock.mockResolvedValue([])
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([
       createDirectoryItem('dir-1', 'preparing'),
@@ -318,13 +310,6 @@ describe('reindex-subtree job handler', () => {
 
   it('onSettled stores the localized interruption code when the reindex job was cancelled', async () => {
     const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
-    getJobMock.mockResolvedValue(
-      createJobSnapshot({
-        id: 'reindex-job',
-        type: 'knowledge.reindex-subtree',
-        input: { baseId: 'kb-1', rootItemIds: ['dir-1', 'note-1'] }
-      })
-    )
     listMock.mockResolvedValue([])
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([
       createDirectoryItem('dir-1', 'preparing'),
@@ -352,13 +337,6 @@ describe('reindex-subtree job handler', () => {
 
   it('onSettled skips deleting roots and roots with follow-up jobs', async () => {
     const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
-    getJobMock.mockResolvedValue(
-      createJobSnapshot({
-        id: 'reindex-job',
-        type: 'knowledge.reindex-subtree',
-        input: { baseId: 'kb-1', rootItemIds: ['dir-1', 'note-1'] }
-      })
-    )
     listMock.mockResolvedValue([
       createJobSnapshot({
         id: 'prepare-dir-1',
@@ -389,13 +367,6 @@ describe('reindex-subtree job handler', () => {
 
   it('onSettled treats file-processing check jobs as follow-up jobs', async () => {
     const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
-    getJobMock.mockResolvedValue(
-      createJobSnapshot({
-        id: 'reindex-job',
-        type: 'knowledge.reindex-subtree',
-        input: { baseId: 'kb-1', rootItemIds: [FILE_ITEM_ID] }
-      })
-    )
     listMock.mockResolvedValue([
       createJobSnapshot({
         id: 'check-file-1',
@@ -406,8 +377,7 @@ describe('reindex-subtree job handler', () => {
           itemId: FILE_ITEM_ID,
           fileProcessingJobId: 'fp-job-1',
           pollRound: 0,
-          firstScheduledAt: 1779811200000,
-          parentJobId: 'reindex-job'
+          firstScheduledAt: 1779811200000
         }
       })
     ])

@@ -79,7 +79,7 @@ describe('KnowledgeItemService', () => {
       groupId: null,
       type: 'note',
       data: { source: 'seed-note', content: 'hello world' },
-      status: 'idle',
+      status: 'processing',
       error: null,
       ...overrides
     }
@@ -229,7 +229,7 @@ describe('KnowledgeItemService', () => {
         groupId: null,
         type: 'note',
         data: { source: ITEM_1_ID, content: 'item 1' },
-        status: 'idle',
+        status: 'processing',
         error: null
       })
     })
@@ -382,12 +382,11 @@ describe('KnowledgeItemService', () => {
     const READING_LEAF = itemId('7e02')
     const EMBEDDING_LEAF = itemId('7e03')
     const PROCESSING_LEAF = itemId('7e04')
-    const IDLE_LEAF = itemId('7e05')
     const COMPLETED_LEAF = itemId('7e06')
     const FAILED_LEAF = itemId('7e07')
     const DELETING_LEAF = itemId('7e08')
 
-    it('marks every in-flight item (leaves and containers) failed, leaving terminal/idle/deleting untouched', async () => {
+    it('marks every in-flight item (leaves and containers) failed, leaving terminal/deleting untouched', async () => {
       // In-flight: a container mid-expansion, a container with an in-flight child, and standalone leaves.
       await seedItem({ id: PREPARING_DIR, type: 'directory', data: { source: '/p' }, status: 'preparing' })
       await seedItem({ id: PROCESSING_DIR, type: 'directory', data: { source: '/q' }, status: 'processing' })
@@ -400,8 +399,7 @@ describe('KnowledgeItemService', () => {
       await seedItem({ id: EMBEDDING_LEAF, data: { source: 'e', content: 'e' }, status: 'embedding' })
       await seedItem({ id: PROCESSING_LEAF, data: { source: 'p2', content: 'p2' }, status: 'processing' })
 
-      // Untouched: not started, already terminal, or being deleted.
-      await seedItem({ id: IDLE_LEAF, data: { source: 'i', content: 'i' }, status: 'idle' })
+      // Untouched: already terminal, or being deleted.
       await seedItem({ id: COMPLETED_LEAF, data: { source: 'c', content: 'c' }, status: 'completed' })
       await seedItem({ id: FAILED_LEAF, data: { source: 'f', content: 'f' }, status: 'failed', error: 'real failure' })
       await seedItem({ id: DELETING_LEAF, data: { source: 'd', content: 'd' }, status: 'deleting' })
@@ -415,7 +413,6 @@ describe('KnowledgeItemService', () => {
         expect(item.error).toBe(INTERRUPTED)
       }
 
-      expect(service.getById(IDLE_LEAF).status).toBe('idle')
       expect(service.getById(COMPLETED_LEAF).status).toBe('completed')
       const realFailure = service.getById(FAILED_LEAF)
       expect(realFailure.status).toBe('failed')

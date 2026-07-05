@@ -223,7 +223,7 @@ function createNoteItem(
   id = 'note-1',
   baseId = 'kb-1',
   groupId: string | null = null,
-  status: KnowledgeItemOf<'note'>['status'] = 'idle'
+  status: KnowledgeItemOf<'note'>['status'] = 'processing'
 ): KnowledgeItemOf<'note'> {
   const lifecycle =
     status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
@@ -243,7 +243,7 @@ function createNoteItem(
 function createDirectoryItem(
   id = 'dir-1',
   groupId: string | null = null,
-  status: KnowledgeItemOf<'directory'>['status'] = 'idle'
+  status: KnowledgeItemOf<'directory'>['status'] = 'processing'
 ): KnowledgeItemOf<'directory'> {
   const lifecycle =
     status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
@@ -264,7 +264,7 @@ function createFileItem(
   id = 'file-1',
   baseId = 'kb-1',
   source = '/docs/source.pdf',
-  status: KnowledgeItemOf<'file'>['status'] = 'idle'
+  status: KnowledgeItemOf<'file'>['status'] = 'processing'
 ): KnowledgeItemOf<'file'> {
   const lifecycle =
     status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
@@ -367,7 +367,7 @@ describe('KnowledgeService', () => {
     fileProcessingStartJobMock.mockResolvedValue({ id: 'fp-job-1', snapshot: {}, finished: Promise.resolve({}) })
     getJobMock.mockResolvedValue(null)
     listMock.mockResolvedValue([])
-    getIndexStoreMock.mockResolvedValue({
+    getIndexStoreMock.mockReturnValue({
       search: storeSearchMock,
       listMaterialUnits: listMaterialUnitsMock,
       getMaterialByRelativePath: getMaterialByRelativePathMock,
@@ -533,7 +533,9 @@ describe('KnowledgeService', () => {
     )
     expect(getIndexStoreMock).toHaveBeenCalledWith(base)
 
-    getIndexStoreMock.mockRejectedValueOnce(new Error('store failed'))
+    getIndexStoreMock.mockImplementationOnce(() => {
+      throw new Error('store failed')
+    })
     await expect(
       service.createBase({ name: 'KB', dimensions: 3, embeddingModelId: 'provider::embed' })
     ).rejects.toThrow('store failed')
@@ -542,7 +544,9 @@ describe('KnowledgeService', () => {
 
   it('rollback removes the orphaned index dir and still surfaces the original error when cleanup itself fails', async () => {
     const service = new KnowledgeService()
-    getIndexStoreMock.mockRejectedValueOnce(new Error('store failed'))
+    getIndexStoreMock.mockImplementationOnce(() => {
+      throw new Error('store failed')
+    })
     // Even if the orphan-dir cleanup throws, the caller must see the open error.
     deleteStoreMock.mockRejectedValueOnce(new Error('cleanup boom'))
 
@@ -562,6 +566,13 @@ describe('KnowledgeService', () => {
     expect(listMock).toHaveBeenCalledWith({
       queue: 'base.kb-1',
       status: ['pending', 'delayed', 'running'],
+      type: [
+        'knowledge.prepare-root',
+        'knowledge.index-documents',
+        'knowledge.check-file-processing-result',
+        'knowledge.delete-subtree',
+        'knowledge.reindex-subtree'
+      ],
       limit: 5000
     })
     expect(deleteStoreMock).toHaveBeenCalledWith('kb-1')
@@ -583,8 +594,7 @@ describe('KnowledgeService', () => {
           itemId: 'file-1',
           fileProcessingJobId: 'fp-job-1',
           pollRound: 0,
-          firstScheduledAt: 1779811200000,
-          parentJobId: null
+          firstScheduledAt: 1779811200000
         }
       }
     ])
@@ -1098,8 +1108,7 @@ describe('KnowledgeService', () => {
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
         pollRound: 0,
-        firstScheduledAt: expect.any(Number),
-        parentJobId: 'fp-job-1'
+        firstScheduledAt: expect.any(Number)
       },
       expect.objectContaining({
         idempotencyKey: 'knowledge:kb-1:file-1:fp-check:fp-job-1:0',
@@ -1372,8 +1381,7 @@ describe('KnowledgeService', () => {
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
         pollRound: 0,
-        firstScheduledAt: expect.any(Number),
-        parentJobId: 'reindex-job'
+        firstScheduledAt: expect.any(Number)
       },
       expect.objectContaining({
         idempotencyKey: 'knowledge:kb-1:file-1:fp-check:fp-job-1:0',
@@ -1446,7 +1454,7 @@ describe('KnowledgeService', () => {
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
-      { baseId: 'kb-1', itemId: 'file-1', parentJobId: 'reindex-job' },
+      { baseId: 'kb-1', itemId: 'file-1' },
       {
         idempotencyKey: 'knowledge:kb-1:file-1:index:reindex-job',
         queue: 'base.kb-1',
@@ -1485,8 +1493,7 @@ describe('KnowledgeService', () => {
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
         pollRound: 1,
-        firstScheduledAt: Date.parse('2026-04-08T00:00:00.000Z'),
-        parentJobId: 'check-job-0'
+        firstScheduledAt: Date.parse('2026-04-08T00:00:00.000Z')
       },
       expect.objectContaining({
         idempotencyKey: 'knowledge:kb-1:file-1:fp-check:fp-job-1:1',
@@ -1509,7 +1516,7 @@ describe('KnowledgeService', () => {
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
-      { baseId: 'kb-1', itemId: 'file-1', parentJobId: null },
+      { baseId: 'kb-1', itemId: 'file-1' },
       {
         idempotencyKey: 'knowledge:kb-1:file-1:index',
         queue: 'base.kb-1',
@@ -1530,7 +1537,7 @@ describe('KnowledgeService', () => {
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
-      { baseId: 'kb-1', itemId: 'file-1', parentJobId: null },
+      { baseId: 'kb-1', itemId: 'file-1' },
       {
         idempotencyKey: 'knowledge:kb-1:file-1:index',
         queue: 'base.kb-1',
@@ -1554,10 +1561,10 @@ describe('KnowledgeService', () => {
       ])
     ).rejects.toThrow('enqueue failed')
 
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-2', 'failed', {
+    expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['note-2'], 'failed', {
       error: 'Failed to schedule knowledge item job: enqueue failed'
     })
-    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('note-1', 'failed', expect.anything())
+    expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalledWith('kb-1', ['note-1'], 'failed', expect.anything())
   })
 
   it('rolls back already-created addItems rows when a later create fails mid-batch', async () => {
@@ -2144,11 +2151,11 @@ describe('KnowledgeService', () => {
 
     it('omits conceptId for a leaf that is not completed (not readable yet)', async () => {
       const service = new KnowledgeService()
-      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([createFileItem('f1', 'kb-1', '/a.pdf', 'idle')])
+      knowledgeItemGetItemsByBaseIdMock.mockReturnValue([createFileItem('f1', 'kb-1', '/a.pdf', 'processing')])
 
       const tree = service.getOrganizationTree('kb-1')
 
-      expect(tree.nodes[0]).toMatchObject({ depth: 0, itemType: 'file', status: 'idle' })
+      expect(tree.nodes[0]).toMatchObject({ depth: 0, itemType: 'file', status: 'processing' })
       expect(tree.nodes[0].conceptId).toBeUndefined()
     })
 
@@ -2372,7 +2379,7 @@ describe('KnowledgeService', () => {
 
   it('translates a search failure into a defined error when the store was closed mid-flight', async () => {
     const service = new KnowledgeService()
-    getIndexStoreMock.mockResolvedValueOnce({
+    getIndexStoreMock.mockReturnValueOnce({
       search: vi.fn().mockRejectedValue(new Error('Knowledge index store driver is closed')),
       listMaterialUnits: listMaterialUnitsMock,
       isClosed: () => true
@@ -2387,7 +2394,7 @@ describe('KnowledgeService', () => {
   it('rethrows a genuine search failure unchanged when the store is still open', async () => {
     const service = new KnowledgeService()
     const queryError = new Error('disk I/O error')
-    getIndexStoreMock.mockResolvedValueOnce({
+    getIndexStoreMock.mockReturnValueOnce({
       search: vi.fn().mockRejectedValue(queryError),
       listMaterialUnits: listMaterialUnitsMock,
       isClosed: () => false
@@ -2456,7 +2463,7 @@ describe('KnowledgeService', () => {
     expect(listMaterialUnitsMock).not.toHaveBeenCalled()
   })
 
-  it.each(['idle', 'processing', 'reading', 'embedding', 'failed', 'deleting'] as const)(
+  it.each(['processing', 'reading', 'embedding', 'failed', 'deleting'] as const)(
     'rejects chunk operations for %s leaf items',
     async (status) => {
       const service = new KnowledgeService()
@@ -2474,7 +2481,7 @@ describe('KnowledgeService', () => {
   it('translates a listItemChunks failure into a defined error when the store was closed mid-flight', async () => {
     const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem('note-1', 'kb-1', null, 'completed'))
-    getIndexStoreMock.mockResolvedValueOnce({
+    getIndexStoreMock.mockReturnValueOnce({
       search: storeSearchMock,
       listMaterialUnits: vi.fn().mockImplementation(() => {
         throw new Error('Knowledge index store driver is closed')

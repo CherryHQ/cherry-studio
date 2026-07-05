@@ -114,7 +114,7 @@ describe('KnowledgeService integration', () => {
         groupId: null,
         type: 'note',
         data: { source: 'source-root', content: 'root content' },
-        status: 'idle',
+        status: 'processing',
         error: null
       },
       {
@@ -123,7 +123,7 @@ describe('KnowledgeService integration', () => {
         groupId: SOURCE_ROOT_ITEM_ID,
         type: 'note',
         data: { source: 'source-child', content: 'child content' },
-        status: 'idle',
+        status: 'processing',
         error: null
       }
     ])
@@ -178,7 +178,7 @@ describe('KnowledgeService integration', () => {
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
-      { baseId: restoredBase.id, itemId: restoredItems[0].id, parentJobId: null },
+      { baseId: restoredBase.id, itemId: restoredItems[0].id },
       {
         idempotencyKey: `knowledge:${restoredBase.id}:${restoredItems[0].id}:index`,
         queue: `base.${restoredBase.id}`,

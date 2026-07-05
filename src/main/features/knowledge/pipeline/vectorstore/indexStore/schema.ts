@@ -159,7 +159,7 @@ export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS search_text_kind_idx ON search_text(kind)`,
   // UNIQUE so its backing index makes the trigger's per-row MAX(fts_rowid)+1 an O(log N) lookup and
   // rejects any duplicate loudly (the assignment is race-free only because all writes to a base's
-  // index are serialized upstream by KnowledgeLockManager.withBaseMutationLock — see BetterSqlite3Driver).
+  // index are serialized upstream by KeyedMutex.runExclusive (per knowledge base) — see BetterSqlite3Driver).
   `CREATE UNIQUE INDEX IF NOT EXISTS search_text_fts_rowid_uniq ON search_text(fts_rowid)`,
 
   // embedding — current embedding vector keyed by embedding-text hash.

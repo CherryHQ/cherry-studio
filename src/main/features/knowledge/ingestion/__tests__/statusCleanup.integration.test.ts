@@ -81,42 +81,33 @@ describe('markUnscheduledKnowledgeItemsFailed integration', () => {
     ])
   })
 
-  it('falls back to subtree status without reviving deleting descendants', async () => {
-    const updateStatusSpy = vi.spyOn(knowledgeItemService, 'updateStatus')
-    updateStatusSpy.mockImplementationOnce(() => {
-      throw new Error('status busy')
+  it('does not revive deleting descendants when marking unscheduled items failed', async () => {
+    markUnscheduledKnowledgeItemsFailed({
+      baseId: BASE_ID,
+      items: [
+        {
+          id: ROOT_ID,
+          baseId: BASE_ID,
+          groupId: null,
+          type: 'directory',
+          data: { source: 'root' },
+          status: 'processing',
+          error: null,
+          createdAt: '2026-04-08T00:00:00.000Z',
+          updatedAt: '2026-04-08T00:00:00.000Z'
+        }
+      ],
+      completedItemIds: new Set(),
+      errorMessage: 'enqueue failed',
+      failedStatusError: 'Failed to schedule knowledge child item job: enqueue failed',
+      logger: {
+        debug: vi.fn(),
+        error: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn()
+      } as unknown as LoggerService,
+      logMessage: 'Failed to mark unscheduled item'
     })
-
-    try {
-      markUnscheduledKnowledgeItemsFailed({
-        baseId: BASE_ID,
-        items: [
-          {
-            id: ROOT_ID,
-            baseId: BASE_ID,
-            groupId: null,
-            type: 'directory',
-            data: { source: 'root' },
-            status: 'processing',
-            error: null,
-            createdAt: '2026-04-08T00:00:00.000Z',
-            updatedAt: '2026-04-08T00:00:00.000Z'
-          }
-        ],
-        completedItemIds: new Set(),
-        errorMessage: 'enqueue failed',
-        failedStatusError: 'Failed to schedule knowledge child item job: enqueue failed',
-        logger: {
-          debug: vi.fn(),
-          error: vi.fn(),
-          info: vi.fn(),
-          warn: vi.fn()
-        } as unknown as LoggerService,
-        logMessage: 'Failed to mark unscheduled item'
-      })
-    } finally {
-      updateStatusSpy.mockRestore()
-    }
 
     const rows = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.baseId, BASE_ID))
     expect(rows).toEqual(
@@ -132,6 +123,53 @@ describe('markUnscheduledKnowledgeItemsFailed integration', () => {
           error: null
         })
       ])
+    )
+  })
+
+  it('aggregates unrecovered item ids and throws when setSubtreeStatus fails', () => {
+    const setSubtreeStatusSpy = vi.spyOn(knowledgeItemService, 'setSubtreeStatus')
+    setSubtreeStatusSpy.mockImplementationOnce(() => {
+      throw new Error('status busy')
+    })
+    const errorLogger = vi.fn()
+
+    try {
+      expect(() =>
+        markUnscheduledKnowledgeItemsFailed({
+          baseId: BASE_ID,
+          items: [
+            {
+              id: ROOT_ID,
+              baseId: BASE_ID,
+              groupId: null,
+              type: 'directory',
+              data: { source: 'root' },
+              status: 'processing',
+              error: null,
+              createdAt: '2026-04-08T00:00:00.000Z',
+              updatedAt: '2026-04-08T00:00:00.000Z'
+            }
+          ],
+          completedItemIds: new Set(),
+          errorMessage: 'enqueue failed',
+          failedStatusError: 'Failed to schedule knowledge child item job: enqueue failed',
+          logger: {
+            debug: vi.fn(),
+            error: errorLogger,
+            info: vi.fn(),
+            warn: vi.fn()
+          } as unknown as LoggerService,
+          logMessage: 'Failed to mark unscheduled item'
+        })
+      ).toThrow(`Failed to mark unscheduled knowledge items failed; unrecovered item ids: ${ROOT_ID}`)
+    } finally {
+      setSubtreeStatusSpy.mockRestore()
+    }
+
+    expect(errorLogger).toHaveBeenCalledWith(
+      'Failed to mark unscheduled item',
+      expect.any(Error),
+      expect.objectContaining({ baseId: BASE_ID, itemId: ROOT_ID })
     )
   })
 })

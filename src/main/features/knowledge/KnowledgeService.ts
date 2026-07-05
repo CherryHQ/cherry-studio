@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type {
@@ -15,7 +16,6 @@ import type {
 } from '@shared/data/types/knowledge'
 
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
-import { KnowledgeLockManager } from './base/KnowledgeLockManager'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import type {
   KnowledgeConceptContent,
@@ -41,7 +41,7 @@ import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService'])
 export class KnowledgeService extends BaseService {
-  private readonly knowledgeLockManager = new KnowledgeLockManager()
+  private readonly knowledgeLockManager = new KeyedMutex()
   private readonly ingestionService = new KnowledgeIngestionService(this.knowledgeLockManager)
   private readonly baseAdmin = new KnowledgeBaseAdminService(this.knowledgeLockManager, this.ingestionService)
   private readonly queryService = new KnowledgeQueryService()
