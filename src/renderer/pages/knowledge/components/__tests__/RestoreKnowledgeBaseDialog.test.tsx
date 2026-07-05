@@ -53,11 +53,24 @@ vi.mock('@cherrystudio/ui', async () => {
       </button>
     ),
     Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
-    DialogContent: ({ children, size, ...props }: { children: ReactNode; size?: string; [key: string]: unknown }) => (
-      <div role="dialog" data-size={size} {...props}>
-        {children}
-      </div>
-    ),
+    DialogContent: ({
+      children,
+      closeOnOverlayClick,
+      size,
+      ...props
+    }: {
+      children: ReactNode
+      closeOnOverlayClick?: boolean
+      size?: string
+      [key: string]: unknown
+    }) => {
+      void closeOnOverlayClick
+      return (
+        <div role="dialog" data-size={size} {...props}>
+          {children}
+        </div>
+      )
+    },
     DialogDescription: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <p {...props}>{children}</p>
     ),

@@ -259,7 +259,7 @@ const ChannelEditModal: FC<
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="max-w-125">
+      <DialogContent closeOnOverlayClick={false} className="max-w-125">
         {channel && (
           <>
             <DialogHeader>

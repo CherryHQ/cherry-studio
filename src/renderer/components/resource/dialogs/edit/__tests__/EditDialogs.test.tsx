@@ -196,7 +196,7 @@ vi.mock('@renderer/components/TopView/toast', () => ({
   useToasts: () => ({ error: toastErrorMock })
 }))
 
-vi.mock('@renderer/services/ApiService', () => ({
+vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchGenerate: fetchGenerateMock
 }))
 
@@ -652,6 +652,19 @@ describe('edit dialogs', () => {
     expect(screen.queryByPlaceholderText('Search tags')).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'No tag' })).not.toBeInTheDocument()
     expect(screen.queryByText('new-tag')).not.toBeInTheDocument()
+  })
+
+  it('closes the tag selector without closing the assistant edit dialog when clicking elsewhere inside it', async () => {
+    const onOpenChange = vi.fn()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+
+    openTagSelect()
+    await screen.findByRole('option', { name: 'personal' })
+    fireEvent.pointerDown(screen.getByLabelText('Name'))
+    fireEvent.click(screen.getByLabelText('Name'))
+
+    await waitFor(() => expect(screen.queryByRole('option', { name: 'personal' })).not.toBeInTheDocument())
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
   })
 
   it('submits agent instructions and model changes as a PATCH', async () => {

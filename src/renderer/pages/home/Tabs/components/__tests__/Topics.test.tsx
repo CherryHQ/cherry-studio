@@ -179,7 +179,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   }
 }))
 
-vi.mock('@renderer/services/ApiService', () => ({
+vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchMessagesSummary: vi.fn().mockResolvedValue({ text: 'Auto title' })
 }))
 
@@ -216,7 +216,7 @@ vi.mock('@renderer/services/ExportService', () => ({
   topicToMarkdown: vi.fn().mockResolvedValue('# topic')
 }))
 
-vi.mock('@renderer/services/CopyService', () => ({
+vi.mock('@renderer/services/copy', () => ({
   copyTopicAsMarkdown: vi.fn(),
   copyTopicAsPlainText: vi.fn()
 }))

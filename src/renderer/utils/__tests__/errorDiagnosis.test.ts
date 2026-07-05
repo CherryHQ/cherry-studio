@@ -1,18 +1,18 @@
 import type { SerializedError } from '@renderer/types/error'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('../ApiService', () => ({
+vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchGenerate: vi.fn()
 }))
 
 // `readDefaultModel` now reads from preferenceService + dataApiService, not Redux.
 // Mock the boundary directly so tests can stage the value without rewiring v2 data.
-vi.mock('../ModelService', () => ({
+vi.mock('@renderer/utils/model', () => ({
   readDefaultModel: vi.fn().mockResolvedValue(undefined)
 }))
 
-// Mock LoggerService
-vi.mock('@renderer/services/LoggerService', () => ({
+// Mock logger
+vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
       info: vi.fn(),
@@ -23,9 +23,10 @@ vi.mock('@renderer/services/LoggerService', () => ({
   }
 }))
 
-import { fetchGenerate } from '../ApiService'
-import { diagnoseError } from '../ErrorDiagnosisService'
-import { readDefaultModel } from '../ModelService'
+import { fetchGenerate } from '@renderer/utils/aiGeneration'
+import { readDefaultModel } from '@renderer/utils/model'
+
+import { diagnoseError } from '../errorDiagnosis'
 
 const mockFetchGenerate = vi.mocked(fetchGenerate)
 const mockReadDefaultModel = vi.mocked(readDefaultModel)

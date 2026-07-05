@@ -9,7 +9,7 @@ vi.mock('@renderer/i18n', () => ({
   }
 }))
 
-import { ImportService } from '../ImportService'
+import { importService } from '../ImportService'
 
 /**
  * Minimal ChatGPT export shape — enough to pass `validate()` and exercise the
@@ -49,7 +49,7 @@ function chatgptExport() {
   ])
 }
 
-describe('ImportService.importConversations', () => {
+describe('importService.importConversations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -65,7 +65,7 @@ describe('ImportService.importConversations', () => {
       return { id: returnedId }
     })
 
-    const response = await ImportService.importConversations(chatgptExport())
+    const response = await importService.importConversations(chatgptExport())
 
     expect(response.success).toBe(true)
     expect(response.assistant?.id).toBe('asst_1')
@@ -107,7 +107,7 @@ describe('ImportService.importConversations', () => {
   })
 
   it('returns a failure response without creating an assistant for an unsupported format', async () => {
-    const response = await ImportService.importConversations('definitely not json')
+    const response = await importService.importConversations('definitely not json')
 
     expect(response.success).toBe(false)
     expect(vi.mocked(dataApiService.post)).not.toHaveBeenCalled()

@@ -88,8 +88,31 @@ const pageSiblingZones = PAGE_DOMAINS.map((p) => ({
   message: 'A page must not import another page (cross-page coupling). renderer-architecture.md §7.'
 }))
 
-// Each block's `files` is scoped to its zones' targets so the two no-restricted-paths instances never both
-// apply to one file — flat config merges rules by key (last-wins), which would otherwise drop one block silently.
+// Topic barrels under services/: a services/<topic>/ exposes exactly one curated index.ts as its sole
+// external entry (renderer-architecture.md §3.1/§5). Auto-discovered from the filesystem so a new topic dir
+// needs zero rule edits — mirrors pageSiblingZones above. A topic's own subtree is excluded from `target`
+// (extglob negation), so internal `./sibling` imports stay legal while every outside importer is limited to
+// the barrel. Applied in every renderer importer region via blocks L/P/B below.
+const SERVICES_DIR = path.join(RENDERER_DIRNAME, 'src/renderer/services')
+const serviceTopics = fs
+  .readdirSync(SERVICES_DIR, { withFileTypes: true })
+  .filter((d) => d.isDirectory() && d.name !== '__tests__' && d.name !== '__mocks__')
+  .filter((d) => fs.existsSync(path.join(SERVICES_DIR, d.name, 'index.ts')))
+  .map((d) => d.name)
+
+const serviceBarrelZones = serviceTopics.map((topic) => ({
+  target: [
+    `src/renderer/!(services)/**/*`, // importers outside services/ entirely
+    `src/renderer/services/!(${topic})/**/*`, // sibling topic dirs
+    `src/renderer/services/*` // flat files at the services/ root
+  ],
+  from: `src/renderer/services/${topic}/**/*`,
+  except: ['**/index.ts'], // the barrel itself stays importable
+  message: `services/${topic}/ is a topic barrel — import @renderer/services/${topic} (its index.ts), not its internals. renderer-architecture.md §3.1/§5.`
+}))
+
+// Each block's `files` is scoped so the three no-restricted-paths instances (L/P/B) never both apply to one
+// file — flat config merges rules by key (last-wins), which would otherwise drop one block silently.
 const SHARED_BUCKET_FILES = [
   'src/renderer/components/**/*.{ts,tsx,js,jsx}',
   'src/renderer/hooks/**/*.{ts,tsx,js,jsx}',
@@ -396,7 +419,8 @@ export default defineConfig([
               from: ['src/renderer/services/**/*'],
               except: ['**/LoggerService.ts'],
               message: 'utils/ must not import renderer services (except @logger). renderer-architecture.md §3.'
-            }
+            },
+            ...serviceBarrelZones
           ]
         }
       ]
@@ -421,8 +445,27 @@ export default defineConfig([
               from: 'src/renderer/windows',
               message: 'A page must not import a window (reverse edge). renderer-architecture.md §2/§7.'
             },
-            ...pageSiblingZones
+            ...pageSiblingZones,
+            ...serviceBarrelZones
           ]
+        }
+      ]
+    }
+  },
+  // Renderer boundary block B: topic-barrel guard for the importer regions blocks L/P do not cover
+  // (windows, routes, data, ipc, workers, …). Its `files` ignore the L and P scopes so it never shares a
+  // file with them — avoiding the flat-config last-wins collision noted above. Held at error like block L.
+  {
+    files: ['src/renderer/**/*.{ts,tsx,js,jsx}'],
+    ignores: [...RENDERER_IGNORES, ...SHARED_BUCKET_FILES, ...PAGE_FILES],
+    plugins: { 'import-x': importX },
+    settings: boundarySettings,
+    rules: {
+      'import-x/no-restricted-paths': [
+        RENDERER_BOUNDARY,
+        {
+          basePath: RENDERER_DIRNAME,
+          zones: [...serviceBarrelZones]
         }
       ]
     }
