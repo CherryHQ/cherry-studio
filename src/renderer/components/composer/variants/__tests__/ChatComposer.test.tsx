@@ -964,6 +964,17 @@ describe('ChatComposer', () => {
     expect(mocks.updateTopic).not.toHaveBeenCalled()
   })
 
+  it('keeps the assistant selector available in classic layout when no assistant is selected', () => {
+    mocks.topicLayout = 'classic'
+    mocks.assistant = undefined
+
+    render(<ChatHomeComposer topic={unlinkedTopic} onSend={vi.fn()} onDraftAssistantChange={vi.fn()} />)
+
+    expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
+    expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-auto-select-on-create', 'true')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('button.select_assistant')
+  })
+
   it('keeps the assistant switcher in the toolbar in the modern layout', () => {
     mocks.topicLayout = 'modern'
 
