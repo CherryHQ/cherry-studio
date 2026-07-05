@@ -212,9 +212,13 @@ export default defineConfig([
       ]
     }
   },
-  // FilePath brand integrity — `as FilePath` forges the brand, skipping
-  // FilePathSchema's shape validation. Production code must build a FilePath
-  // via FilePathSchema.parse(value).
+  // Path brand integrity — `as FilePath` / `as CanonicalFilePath` forge the
+  // brands, skipping the validation each asserts. `FilePath` asserts shape
+  // validation (build via FilePathSchema.parse); `CanonicalFilePath` asserts
+  // the byte-faithful lexical form that backs the external-path dedup key
+  // (build via the canonicalizeFilePath() factory). A forged
+  // `as CanonicalFilePath` silently bypasses canonicalization and can write a
+  // ghost-duplicate key, so the stronger brand is guarded too.
   // Exemptions: test fixtures; and two deliberate raw-OS-path regimes — the
   // directory watcher (watcher/**) and the tree builder (tree/**) hold raw
   // chokidar/OS event paths that are compared byte-for-byte against event
@@ -237,24 +241,25 @@ export default defineConfig([
               type: 'problem',
               docs: {
                 description:
-                  'Disallow `as FilePath` casts. FilePath is a Zod brand asserting shape validation (absolute path, no null bytes); forging it bypasses that validation. Construct via FilePathSchema.parse().',
+                  'Disallow `as FilePath` / `as CanonicalFilePath` casts. Both are Zod-derived brands: FilePath asserts shape validation (absolute path, no null bytes), CanonicalFilePath additionally asserts the byte-faithful lexical form backing the dedup key. Forging either bypasses its validation. Construct via FilePathSchema.parse() / canonicalizeFilePath().',
                 recommended: true
               },
               messages: {
                 noAsFilePath:
-                  '`as FilePath` forges the brand, skipping FilePathSchema\'s absolute-path validation. Build it with FilePathSchema.parse(value) instead. If this is a deliberate raw-path regime, move it under an exempted path or justify with an eslint-disable + reason.'
+                  '`as FilePath` forges the brand, skipping FilePathSchema\'s absolute-path validation. Build it with FilePathSchema.parse(value) instead. If this is a deliberate raw-path regime, move it under an exempted path or justify with an eslint-disable + reason.',
+                noAsCanonicalFilePath:
+                  '`as CanonicalFilePath` forges the brand, skipping canonicalization — a non-canonical value silently becomes a ghost-duplicate dedup key. Build it with canonicalizeFilePath(value) instead, or justify the sanctioned producer with an eslint-disable + reason.'
               }
             },
             create(context) {
               return {
                 TSAsExpression(node) {
                   const ann = node.typeAnnotation
-                  if (
-                    ann?.type === 'TSTypeReference' &&
-                    ann.typeName?.type === 'Identifier' &&
-                    ann.typeName.name === 'FilePath'
-                  ) {
+                  if (ann?.type !== 'TSTypeReference' || ann.typeName?.type !== 'Identifier') return
+                  if (ann.typeName.name === 'FilePath') {
                     context.report({ node, messageId: 'noAsFilePath' })
+                  } else if (ann.typeName.name === 'CanonicalFilePath') {
+                    context.report({ node, messageId: 'noAsCanonicalFilePath' })
                   }
                 }
               }
