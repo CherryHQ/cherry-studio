@@ -602,7 +602,8 @@ describe('KnowledgeService', () => {
           itemId: 'file-1',
           fileProcessingJobId: 'fp-job-1',
           pollRound: 0,
-          firstScheduledAt: 1779811200000
+          firstScheduledAt: 1779811200000,
+          processedRelativePath: 'source.md'
         }
       }
     ])
@@ -1116,7 +1117,8 @@ describe('KnowledgeService', () => {
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
         pollRound: 0,
-        firstScheduledAt: expect.any(Number)
+        firstScheduledAt: expect.any(Number),
+        processedRelativePath: 'source.md'
       },
       expect.objectContaining({
         idempotencyKey: 'knowledge:kb-1:file-1:fp-check:fp-job-1:0',
@@ -1389,7 +1391,8 @@ describe('KnowledgeService', () => {
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
         pollRound: 0,
-        firstScheduledAt: expect.any(Number)
+        firstScheduledAt: expect.any(Number),
+        processedRelativePath: 'source.md'
       },
       expect.objectContaining({
         idempotencyKey: 'knowledge:kb-1:file-1:fp-check:fp-job-1:0',
@@ -1482,7 +1485,12 @@ describe('KnowledgeService', () => {
             baseId: string,
             itemId: string,
             fileProcessingJobId: string,
-            options: { pollRound: number; firstScheduledAt: number; parentJobId: string | null }
+            options: {
+              pollRound: number
+              firstScheduledAt: number
+              parentJobId: string | null
+              processedRelativePath: string
+            }
           ): Promise<void>
         }
       }
@@ -1491,7 +1499,8 @@ describe('KnowledgeService', () => {
     await ingestionService.scheduleFileProcessingCheck('kb-1', 'file-1', 'fp-job-1', {
       pollRound: 1,
       firstScheduledAt: Date.parse('2026-04-08T00:00:00.000Z'),
-      parentJobId: 'check-job-0'
+      parentJobId: 'check-job-0',
+      processedRelativePath: 'source.md'
     })
 
     expect(enqueueMock).toHaveBeenCalledWith(
@@ -1501,7 +1510,8 @@ describe('KnowledgeService', () => {
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
         pollRound: 1,
-        firstScheduledAt: Date.parse('2026-04-08T00:00:00.000Z')
+        firstScheduledAt: Date.parse('2026-04-08T00:00:00.000Z'),
+        processedRelativePath: 'source.md'
       },
       expect.objectContaining({
         idempotencyKey: 'knowledge:kb-1:file-1:fp-check:fp-job-1:1',

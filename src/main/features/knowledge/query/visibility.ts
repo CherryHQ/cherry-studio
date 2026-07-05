@@ -2,7 +2,7 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
-import { toMaterialRelativePath } from '../pipeline/indexing/materialFields'
+import { toMaterialRelativePath } from '../items'
 import { isDataApiNotFoundError } from '../tasks/utils/settled'
 
 const logger = loggerService.withContext('Knowledge:Query')

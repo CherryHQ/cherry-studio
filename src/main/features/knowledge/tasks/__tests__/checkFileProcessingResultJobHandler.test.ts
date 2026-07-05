@@ -48,6 +48,7 @@ function createCheckPayload(
     fileProcessingJobId: 'fp-job-1',
     pollRound: 0,
     firstScheduledAt: Date.now(),
+    processedRelativePath: PROCESSED_RELATIVE_PATH,
     ...overrides
   }
 }
@@ -84,7 +85,8 @@ describe('check-file-processing-result job handler', () => {
     expect(ingestionService.scheduleFileProcessingCheck).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'fp-job-1', {
       pollRound: 3,
       firstScheduledAt,
-      parentJobId: 'job-1'
+      parentJobId: 'job-1',
+      processedRelativePath: PROCESSED_RELATIVE_PATH
     })
     expect(ingestionService.scheduleIndexing).not.toHaveBeenCalled()
     expect(ctx.reportProgress).toHaveBeenCalledWith(0, { stage: 'waiting', pollRound: 3 })
@@ -110,7 +112,8 @@ describe('check-file-processing-result job handler', () => {
     expect(ingestionService.scheduleFileProcessingCheck).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'fp-job-1', {
       pollRound: 3,
       firstScheduledAt,
-      parentJobId: 'reindex-job'
+      parentJobId: 'reindex-job',
+      processedRelativePath: PROCESSED_RELATIVE_PATH
     })
   })
 

@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
+import { type MaterialFieldSource, toMaterialRelativePath } from '@main/features/knowledge/items'
 import {
   assertSafeKnowledgeRelativePath,
   buildNoteSnapshotFile,

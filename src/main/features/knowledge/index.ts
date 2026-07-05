@@ -7,7 +7,7 @@ export { KnowledgeVectorStoreService } from './pipeline/vectorstore/KnowledgeVec
 // engine internals (driver / schema / meta / vector index) stay private behind
 // createKnowledgeIndexStoreAtPath; the snapshot derivation stays private behind build*SnapshotFile.
 export { DOCUMENT_SEPARATOR } from './pipeline/indexing/chunk'
-export { type MaterialFieldSource, toMaterialRelativePath } from './pipeline/indexing/materialFields'
+export { type MaterialFieldSource, toMaterialRelativePath } from './items'
 export { buildNoteSnapshotFile } from './pipeline/sources/noteSnapshot'
 export { buildUrlSnapshotFile } from './pipeline/sources/urlSnapshot'
 export {

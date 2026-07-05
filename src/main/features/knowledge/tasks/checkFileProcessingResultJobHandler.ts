@@ -14,7 +14,6 @@ import {
 import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
-import { toKnowledgeRelativePath } from '../pathStorage'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgeCheckFileProcessingResultPayload } from './jobTypes'
 import { cancelJobOrThrow } from './utils/cancel'
@@ -86,7 +85,8 @@ export function createCheckFileProcessingResultJobHandler(
           {
             pollRound: nextPollRound,
             firstScheduledAt,
-            parentJobId: workflowParentJobId
+            parentJobId: workflowParentJobId,
+            processedRelativePath: ctx.input.processedRelativePath
           }
         )
         reportWaitingProgress(ctx, fileProcessingJobId, nextPollRound)
@@ -102,12 +102,12 @@ export function createCheckFileProcessingResultJobHandler(
         return
       }
 
-      const indexedRelativePath = parseMarkdownArtifactRelativePathOrNull(baseId, snapshot)
-      if (!indexedRelativePath) {
+      if (!isCompletedMarkdownArtifact(snapshot)) {
         markItemFailed(itemId, `Invalid file processing result for job ${fileProcessingJobId}`)
         reportKnowledgeProgress(ctx, 100, { stage: 'failed' })
         return
       }
+      const indexedRelativePath = ctx.input.processedRelativePath
 
       const canContinue = await knowledgeLockManager.runExclusive(baseId, async () => {
         if (shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
@@ -197,14 +197,20 @@ function markItemFailed(itemId: string, error: string): void {
   knowledgeItemService.updateStatus(itemId, 'failed', { error })
 }
 
-function parseMarkdownArtifactRelativePathOrNull(baseId: string, snapshot: JobSnapshot): string | null {
+/**
+ * Validates that a completed file-processing job actually produced a markdown-file
+ * artifact (not a degraded inline-text result) — the item's `indexedRelativePath`
+ * is the job's own `processedRelativePath` input, not derived from this artifact.
+ */
+function isCompletedMarkdownArtifact(snapshot: JobSnapshot): boolean {
   try {
-    return toKnowledgeRelativePath(baseId, getFileProcessingMarkdownArtifactPath(snapshot))
+    getFileProcessingMarkdownArtifactPath(snapshot)
+    return true
   } catch (error) {
     logger.warn('Invalid file-processing result for knowledge item', {
       jobId: snapshot.id,
       error: error instanceof Error ? error.message : String(error)
     })
-    return null
+    return false
   }
 }

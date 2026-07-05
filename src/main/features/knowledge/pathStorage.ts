@@ -84,16 +84,6 @@ export function getKnowledgeSourceRelativePath(sourcePath: string): string {
   return fileName
 }
 
-export function toKnowledgeRelativePath(baseId: string, absolutePath: string): string {
-  const materialDir = getKnowledgeMaterialDir(baseId)
-  const relativePath = path.relative(materialDir, absolutePath)
-  assertSafeKnowledgeRelativePath(relativePath)
-  if (!isPathInsideBase(materialDir, absolutePath)) {
-    throw new Error(`Path is outside knowledge base material root '${baseId}': ${absolutePath}`)
-  }
-  return normalizeRelativePath(relativePath)
-}
-
 export function getProcessedMarkdownRelativePath(relativePath: string): string {
   assertSafeKnowledgeRelativePath(relativePath)
   const parsed = path.parse(relativePath)
@@ -323,11 +313,6 @@ export function assertSafeKnowledgeRelativePath(relativePath: string): void {
 
 function normalizeRelativePath(relativePath: string): string {
   return path.normalize(relativePath).replace(/\\/g, '/')
-}
-
-function isPathInsideBase(baseDir: string, candidatePath: string): boolean {
-  const relativePath = path.relative(baseDir, candidatePath)
-  return Boolean(relativePath) && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)
 }
 
 async function assertTargetAvailable(destPath: FilePath): Promise<void> {

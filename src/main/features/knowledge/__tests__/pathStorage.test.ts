@@ -1,7 +1,7 @@
 // Path-safety tests for the knowledge "store by relative path" core. The reject
-// branches of `assertSafeKnowledgeRelativePath` / `isPathInsideBase` are the
-// security boundary for every copied source file, so they are exercised here
-// through the exported helpers (the guards themselves are private).
+// branches of `assertSafeKnowledgeRelativePath` are the security boundary for
+// every copied source file, so they are exercised here through the exported
+// helpers (the guard itself is private).
 import path from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -43,11 +43,9 @@ vi.mock('@main/utils/file', () => ({
 }))
 
 const {
-  getKnowledgeBaseDir,
   getKnowledgeMaterialDir,
   getKnowledgeBaseFilePath,
   getKnowledgeSourceRelativePath,
-  toKnowledgeRelativePath,
   getProcessedMarkdownRelativePath,
   reserveImportedFileRelativePath,
   needsProcessedArtifactReservation,
@@ -59,7 +57,6 @@ const {
 } = await import('../pathStorage')
 
 const BASE_ID = 'kb-1'
-const BASE_DIR = getKnowledgeBaseDir(BASE_ID)
 // Material bytes resolve under the base's `raw/` material root, not the base dir itself.
 const MATERIAL_DIR = getKnowledgeMaterialDir(BASE_ID)
 
@@ -96,19 +93,6 @@ describe('pathStorage relative-path safety', () => {
   describe('getKnowledgeSourceRelativePath', () => {
     it('reduces a source path to its basename', () => {
       expect(getKnowledgeSourceRelativePath('/some/dir/report.pdf')).toBe('report.pdf')
-    })
-  })
-
-  describe('toKnowledgeRelativePath', () => {
-    it('returns a POSIX relative path for a path inside the base', () => {
-      expect(toKnowledgeRelativePath(BASE_ID, path.join(MATERIAL_DIR, 'a', 'b.md'))).toBe('a/b.md')
-    })
-
-    it.each([
-      ['an unrelated absolute path', '/etc/passwd'],
-      ['a sibling base', path.join(path.dirname(BASE_DIR), 'kb-2', 'x.md')]
-    ])('rejects %s', (_label, absolutePath) => {
-      expect(() => toKnowledgeRelativePath(BASE_ID, absolutePath)).toThrow()
     })
   })
 
