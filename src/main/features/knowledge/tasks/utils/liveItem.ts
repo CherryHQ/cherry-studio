@@ -1,7 +1,6 @@
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
-
-import { isDataApiNotFoundError } from './settled'
 
 export type LiveKnowledgeItemSkipReason = 'missing' | 'deleting'
 export type LiveKnowledgeItemResult = { item: KnowledgeItem } | { skip: LiveKnowledgeItemSkipReason }

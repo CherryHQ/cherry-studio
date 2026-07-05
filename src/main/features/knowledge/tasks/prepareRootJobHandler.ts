@@ -5,7 +5,8 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext, JobHandler } from '@main/core/job/types'
-import { removeDir } from '@main/utils/file/fs'
+import { removeDir } from '@main/utils/file'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
@@ -16,7 +17,7 @@ import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowl
 import type { KnowledgePrepareRootPayload } from './jobTypes'
 import { prepareKnowledgeItem } from './prepareItem'
 import { resolveLiveKnowledgeItem } from './utils/liveItem'
-import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
+import { markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:PrepareRootJobHandler')
 

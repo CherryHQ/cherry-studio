@@ -2,7 +2,7 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { KnowledgeItem, KnowledgeItemStatus, KnowledgeItemType } from '@shared/data/types/knowledge'
 import { getKnowledgeItemDisplayTitle } from '@shared/data/types/knowledge'
 
