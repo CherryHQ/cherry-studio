@@ -1,4 +1,4 @@
-import type { ConversationResourceMenuItem } from '@renderer/components/chat/resources'
+import type { ConversationResourceMenuItem } from '@renderer/components/chat/resourceList/base'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 

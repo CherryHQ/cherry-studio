@@ -8,7 +8,7 @@ For each domain, in **one atomic PR** (the four actions must land together, or t
 
 1. Add the domain's `*RequestSchemas` + `*EventSchemas` to `src/shared/ipc/schemas/`.
 2. Move the handler logic into `src/main/ipc/handlers/<domain>.ts` (pure function if stateless; otherwise delegate to the existing service via `application.get`). The service keeps its business logic and resource lifecycle; it just stops registering IPC.
-3. Delete the old hand-written `preload/index.ts` method(s) for that domain.
+3. Delete the old hand-written `preload/preload.ts` method(s) for that domain.
 4. Switch renderer call sites to `ipcApi.request(...)` / `useIpcOn(...)`, then delete the old `IpcChannel` enum entries.
 
 Each PR is independently revertible.

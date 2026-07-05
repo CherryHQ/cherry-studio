@@ -17,7 +17,7 @@ vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
 }))
 
-vi.mock('@renderer/components/TopView', () => ({
+vi.mock('@renderer/components/TopView/TopView', () => ({
   TopView: {
     show: vi.fn(),
     hide: vi.fn()

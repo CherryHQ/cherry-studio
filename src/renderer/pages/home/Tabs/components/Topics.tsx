@@ -15,11 +15,11 @@ import {
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
-  TopicResourceList,
   useResourceListActions,
   useResourceListPinnedState,
   useResourceListRowState
-} from '@renderer/components/chat/resources'
+} from '@renderer/components/chat/resourceList/base'
+import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'

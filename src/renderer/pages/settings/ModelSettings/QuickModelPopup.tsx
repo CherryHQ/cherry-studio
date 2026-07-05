@@ -17,12 +17,11 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/icons'
-import { TopView } from '@renderer/components/TopView'
+import { SettingSubtitle } from '@renderer/components/SettingsPrimitives'
+import { TopView } from '@renderer/components/TopView/TopView'
 import { CircleHelp } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingSubtitle } from '..'
 
 interface Props {
   resolve: (data: any) => void

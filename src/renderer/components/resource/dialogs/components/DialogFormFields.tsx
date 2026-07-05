@@ -1,7 +1,7 @@
 import { Button, EmojiAvatar, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import EmojiPicker from '@renderer/components/EmojiPicker'
+import { EmojiPicker } from '@renderer/components/EmojiPicker'
 import { ChevronDown } from 'lucide-react'
 import { type ComponentProps, type ComponentPropsWithoutRef, type FC, type ReactNode } from 'react'
 

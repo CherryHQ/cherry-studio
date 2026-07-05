@@ -4,6 +4,7 @@ import {
   CodeEditor,
   Combobox,
   type ComboboxOption,
+  EditableNumber,
   Flex,
   InfoTooltip,
   SegmentedControl,
@@ -13,9 +14,17 @@ import {
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
-import EditableNumber from '@renderer/components/EditableNumber'
 import { ResetIcon } from '@renderer/components/icons'
 import Selector from '@renderer/components/Selector'
+import {
+  SettingDescription,
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingsContentColumn,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -33,15 +42,6 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  SettingDescription,
-  SettingDivider,
-  SettingGroup,
-  SettingRow,
-  SettingRowTitle,
-  SettingsContentColumn,
-  SettingTitle
-} from '..'
 import ThemeColorPicker from './components/ThemeColorPicker'
 
 const DEFAULT_COLOR_PRIMARY = '#00b96b'

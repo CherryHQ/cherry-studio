@@ -4,7 +4,7 @@ import {
   type ResourceCreateWizardValues
 } from '@renderer/components/resource/dialogs/create/ResourceCreateWizard'
 import { isSelectableAssistantModel } from '@renderer/components/resource/dialogs/form/assistantModelFilter'
-import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/Selector/shell/SelectorShell'
+import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePins } from '@renderer/hooks/usePins'
 import type { Assistant } from '@shared/data/types/assistant'

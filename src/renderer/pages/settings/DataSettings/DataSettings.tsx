@@ -1,22 +1,22 @@
 import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
 import { JoplinIcon, NutstoreIcon, SiyuanIcon } from '@renderer/components/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
-import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, FolderOpen, Server } from 'lucide-react'
-import type { FC } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
 import {
-  SettingsContentColumn,
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
   settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
-} from '..'
+} from '@renderer/pages/settings/settingsStyles'
+import { BookOpen, CloudUpload, FileText, FolderCog, FolderInput, FolderOpen, Server } from 'lucide-react'
+import type { FC } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import BasicDataSettings from './BasicDataSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'

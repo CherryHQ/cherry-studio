@@ -3,7 +3,7 @@ import {
   ResourceCreateWizard,
   type ResourceCreateWizardValues
 } from '@renderer/components/resource/dialogs/create/ResourceCreateWizard'
-import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/Selector/shell/SelectorShell'
+import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/components/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { usePins } from '@renderer/hooks/usePins'

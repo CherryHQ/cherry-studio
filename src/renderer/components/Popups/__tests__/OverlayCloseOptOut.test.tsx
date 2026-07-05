@@ -10,14 +10,14 @@ const mocks = vi.hoisted(() => ({
   show: vi.fn()
 }))
 
-vi.mock('../../TopView', () => ({
+vi.mock('../../TopView/TopView', () => ({
   TopView: {
     hide: mocks.hide,
     show: mocks.show
   }
 }))
 
-vi.mock('@renderer/components/TopView', () => ({
+vi.mock('@renderer/components/TopView/TopView', () => ({
   TopView: {
     hide: mocks.hide,
     show: mocks.show

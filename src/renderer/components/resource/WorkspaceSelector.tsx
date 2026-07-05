@@ -1,13 +1,13 @@
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ModelSelectorRow } from '@renderer/components/ModelSelector'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { ModelSelectorRow } from '@renderer/components/Selector/model/ModelSelectorRow'
 import {
   DEFAULT_SELECTOR_CONTENT_HEIGHT,
   SelectorShell,
   type SelectorShellMountStrategy,
   type SelectorShellProps
-} from '@renderer/components/Selector/shell/SelectorShell'
+} from '@renderer/components/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { CircleSlash, Folder, FolderPlus } from 'lucide-react'

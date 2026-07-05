@@ -13,7 +13,7 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { TopView } from '@renderer/components/TopView'
+import { TopView } from '@renderer/components/TopView/TopView'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'

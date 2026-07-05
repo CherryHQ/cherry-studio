@@ -5,7 +5,7 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { sanitizeUrl } from 'strict-url-sanitise'
 
-import { normalizeKnowledgeError } from '../utils'
+import { normalizeKnowledgeError } from '../utils/error'
 
 const logger = loggerService.withContext('usePreviewKnowledgeSource')
 

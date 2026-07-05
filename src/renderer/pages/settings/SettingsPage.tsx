@@ -2,6 +2,13 @@ import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import {
+  settingsSubmenuDividerClassName,
+  settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
+  settingsSubmenuListClassName,
+  settingsSubmenuSectionTitleClassName
+} from '@renderer/pages/settings/settingsStyles'
 import { cn } from '@renderer/utils/style'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
@@ -24,14 +31,6 @@ import {
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import {
-  settingsSubmenuDividerClassName,
-  settingsSubmenuItemClassName,
-  settingsSubmenuItemLabelClassName,
-  settingsSubmenuListClassName,
-  settingsSubmenuSectionTitleClassName
-} from '.'
 
 const SettingsPage: FC = () => {
   const location = useLocation()

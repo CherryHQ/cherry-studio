@@ -1,6 +1,10 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
-import { ResourceList, useResourceListActions, useResourceListRowState } from '@renderer/components/chat/resources'
+import {
+  ResourceList,
+  useResourceListActions,
+  useResourceListRowState
+} from '@renderer/components/chat/resourceList/base'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'

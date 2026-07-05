@@ -73,7 +73,7 @@ const MODEL = vi.hoisted(
     }) as const
 )
 
-vi.mock('@renderer/components/Selector/model', () => ({
+vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({ trigger, onSelect }: { trigger: ReactNode; onSelect: (modelId: string | undefined) => void }) => (
     <div>
       {trigger}
@@ -90,7 +90,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@renderer/components/EmojiPicker', () => ({
-  default: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (
+  EmojiPicker: ({ onEmojiClick }: { onEmojiClick: (emoji: string) => void }) => (
     <button type="button" onClick={() => onEmojiClick('🎓')}>
       Choose emoji
     </button>

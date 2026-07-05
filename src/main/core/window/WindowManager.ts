@@ -1333,7 +1333,7 @@ export class WindowManager extends BaseService {
     // Resolve preload path. `metadata.preload` mirrors `htmlPath`'s three-state
     // encoding: omitted → default file, non-empty string → that file, empty
     // string → no preload (for nodeIntegration:true cases).
-    const preloadName = metadata.preload ?? 'index.js'
+    const preloadName = metadata.preload ?? 'preload.js'
     const preloadPath = preloadName ? join(__dirname, '../preload/', preloadName) : undefined
 
     // 1. Create BrowserWindow

@@ -1,23 +1,20 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
-  ChatAppShell,
-  type ChatPanePosition,
-  ConversationPageShell,
-  ConversationShell,
-  ConversationStageCenter,
-  EmptyState,
-  LoadingState
-} from '@renderer/components/chat'
-import {
   type ResourcePaneConfig,
   ResourcePaneCountButton,
   type ResourcePaneCountButtonProps,
   useResourcePane
 } from '@renderer/components/chat/panes/Shell'
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import { AssistantResourceList } from '@renderer/components/chat/resources/variants/AssistantResourceList'
+import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
+import { AssistantResourceList } from '@renderer/components/chat/resourceList/AssistantResourceList'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import { ChatAppShell } from '@renderer/components/chat/shell/ChatAppShell'
+import ConversationPageShell from '@renderer/components/chat/shell/ConversationPageShell'
+import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
+import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import { ChatHomePlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
 import {
   createRecentTopicEntryFromTopic,
@@ -66,8 +63,8 @@ import {
 import ChatNavbar from './components/ChatNavbar'
 import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
-import HomeTabs from './Tabs'
 import { Topics } from './Tabs/components/Topics'
+import HomeTabs from './Tabs/HomeTabs'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')

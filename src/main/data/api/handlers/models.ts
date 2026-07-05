@@ -9,9 +9,7 @@
 import { modelService } from '@data/services/ModelService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
-import { SuccessStatus } from '@shared/data/api/apiTypes'
+import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import {
   BulkUpdateModelsSchema,
@@ -23,6 +21,8 @@ import {
   ResolveProviderModelsQuerySchema,
   UpdateModelSchema
 } from '@shared/data/api/schemas/models'
+import type { HandlersFor } from '@shared/data/api/types'
+import { SuccessStatus } from '@shared/data/api/types'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 
 const logger = loggerService.withContext('DataApi:ModelHandlers')

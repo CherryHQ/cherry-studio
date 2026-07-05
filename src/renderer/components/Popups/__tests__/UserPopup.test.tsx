@@ -106,7 +106,7 @@ vi.mock('@cherrystudio/ui', () => {
   }
 })
 
-vi.mock('@renderer/components/TopView', () => ({
+vi.mock('@renderer/components/TopView/TopView', () => ({
   TopView: mocks.TopView
 }))
 

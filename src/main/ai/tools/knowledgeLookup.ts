@@ -31,7 +31,7 @@ import type {
   KbSearchOutput,
   KbTreeOutput
 } from '@shared/ai/builtinTools'
-import { ErrorCode, isDataApiError } from '@shared/data/api'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type {
   KnowledgeAddItemInput,
   KnowledgeBase,

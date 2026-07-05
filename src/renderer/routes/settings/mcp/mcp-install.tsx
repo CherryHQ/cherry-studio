@@ -1,4 +1,4 @@
-import { SettingsContentColumn } from '@renderer/pages/settings'
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
 import { createFileRoute } from '@tanstack/react-router'
 

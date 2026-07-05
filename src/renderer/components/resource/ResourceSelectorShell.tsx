@@ -1,17 +1,17 @@
 import { Checkbox, CustomTag, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import Scrollbar from '@renderer/components/Scrollbar'
 import {
   MODEL_SELECTOR_ROW_CHECKBOX_CLASS,
   ModelSelectorRow,
   ModelSelectorRowActionButton
-} from '@renderer/components/Selector/model/ModelSelectorRow'
+} from '@renderer/components/ModelSelector'
+import Scrollbar from '@renderer/components/Scrollbar'
 import {
   DEFAULT_SELECTOR_CONTENT_HEIGHT,
   SelectorShell,
   type SelectorShellMountStrategy,
   type SelectorShellProps
-} from '@renderer/components/Selector/shell/SelectorShell'
+} from '@renderer/components/SelectorShell'
 import { Pin, Plus, SquarePen } from 'lucide-react'
 import {
   type KeyboardEvent as ReactKeyboardEvent,

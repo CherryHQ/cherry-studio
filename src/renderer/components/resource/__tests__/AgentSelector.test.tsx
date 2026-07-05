@@ -1,4 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -42,7 +43,8 @@ const MODEL = vi.hoisted(
     }) as const
 )
 
-vi.mock('@renderer/components/Selector/model', () => ({
+vi.mock('@renderer/components/ModelSelector', async (importOriginal) => ({
+  ...(await importOriginal<typeof ModelSelectorModule>()),
   ModelSelector: ({
     trigger,
     onSelect
@@ -175,7 +177,7 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '@renderer/components/Selector/shell/SelectorShell'
+import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '@renderer/components/SelectorShell'
 
 import { AgentSelector, type AgentSelectorItem } from '../AgentSelector'
 

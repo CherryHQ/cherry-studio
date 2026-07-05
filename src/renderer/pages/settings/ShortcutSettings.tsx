@@ -14,6 +14,7 @@ import {
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { SettingsContentBody } from '@renderer/components/SettingsPrimitives'
 import {
   getAllShortcutDefaultPreferences,
   type ShortcutSettingsGroup,
@@ -21,6 +22,11 @@ import {
 } from '@renderer/hooks/command/useCommandShortcuts'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import {
+  settingsContentHeaderClassName,
+  settingsContentHeaderTitleClassName,
+  settingsContentScrollClassName
+} from '@renderer/pages/settings/settingsStyles'
 import { isMac, platform } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
@@ -41,13 +47,6 @@ import { Check, ChevronDown, Filter, Keyboard, MessageSquareText, Search, Sparkl
 import type { FC, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import {
-  SettingsContentBody,
-  settingsContentHeaderClassName,
-  settingsContentHeaderTitleClassName,
-  settingsContentScrollClassName
-} from '.'
 
 const logger = loggerService.withContext('ShortcutSettings')
 

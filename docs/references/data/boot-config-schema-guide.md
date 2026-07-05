@@ -76,7 +76,7 @@ export type GpuMode = 'auto' | 'disabled' | 'software'
 
 Only for settings that must take effect before lifecycle:
 
-**File:** `src/main/index.ts`
+**File:** `src/main/main.ts`
 
 ```typescript
 import { bootConfigService } from '@main/data/bootConfig'

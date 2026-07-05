@@ -15,6 +15,7 @@ import {
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { EditIcon } from '@renderer/components/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
 import { matchKeywordsInString } from '@renderer/utils/match'
@@ -26,7 +27,6 @@ import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingTitle } from '..'
 import AddMcpServerModal from './AddMcpServerModal'
 import McpServerCard from './McpServerCard'
 

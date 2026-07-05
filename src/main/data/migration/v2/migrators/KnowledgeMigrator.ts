@@ -13,14 +13,14 @@ import {
   needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
 } from '@main/features/knowledge/utils/storage/pathStorage'
-import { sanitizeFilename } from '@main/utils/file'
-import { copy, ensureDir } from '@main/utils/file/fs'
+import { copy, ensureDir } from '@main/utils/file'
+import { sanitizeFilename } from '@main/utils/legacyFile'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
 } from '@shared/data/types/knowledge'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { UNIQUE_MODEL_ID_SEPARATOR, type UniqueModelId } from '@shared/data/types/model'
 import type { FilePath } from '@shared/types/file'
 import Database from 'better-sqlite3'

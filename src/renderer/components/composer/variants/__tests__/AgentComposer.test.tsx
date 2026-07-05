@@ -322,7 +322,7 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   ModelAvatar: () => <span data-testid="model-avatar" />
 }))
 
-vi.mock('@renderer/components/Selector', () => ({
+vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({ onSelect, trigger, open, onOpenChange, shortcut }: any) => (
     <div data-testid="agent-model-selector" data-open={String(Boolean(open))} data-shortcut={shortcut ?? ''}>
       {trigger}

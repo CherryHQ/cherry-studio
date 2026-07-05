@@ -42,7 +42,7 @@ Use this checklist when migrating an existing service (KnowledgeRuntime / FilePr
 ## Cross-cutting verification (each phase)
 
 - [ ] `pnpm lint` + `pnpm test` + `pnpm format` clean
-- [ ] DataApi paths (if added) registered in `apiPaths.ts` / `apiTypes.ts`
+- [ ] DataApi paths (if added) registered in `paths.ts` / `types.ts`
 - [ ] cacheSchemas entries (if any new cache keys) registered
 - [ ] No commits to legacy services unless they're being deleted/refactored
 - [ ] Phase summary added to PR description (what migrated, what stayed)

@@ -13,11 +13,11 @@ import {
 } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
 // Direct `Selector/model` path: the `Selector` barrel's nested `export *` isn't
 // resolved by tsgo on main's program (resolves on feat's); transitional, reverts
 // to the barrel once main converges with feat.
-import { ModelSelector } from '@renderer/components/Selector/model'
+import { ModelSelector } from '@renderer/components/ModelSelector'
+import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useModels } from '@renderer/hooks/useModel'
@@ -52,17 +52,11 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  CLI_TOOL_PROVIDER_MAP,
-  CLI_TOOLS,
-  generateToolEnvironment,
-  isOpenCodeProvider,
-  OPENAI_CODEX_SUPPORTED_PROVIDERS,
-  parseEnvironmentVariables
-} from '.'
+import { CLI_TOOL_PROVIDER_MAP, CLI_TOOLS, isOpenCodeProvider, OPENAI_CODEX_SUPPORTED_PROVIDERS } from './cliTools'
 import { CodeToolGallery } from './components/CodeToolGallery'
 import { FieldLabel } from './components/FieldLabel'
 import type { CodeToolMeta } from './components/types'
+import { generateToolEnvironment, parseEnvironmentVariables } from './toolEnvironment'
 
 const logger = loggerService.withContext('CodeCliPage')
 

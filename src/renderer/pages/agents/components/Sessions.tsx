@@ -20,9 +20,9 @@ import {
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
-  type ResourceListSection,
-  SessionResourceList
-} from '@renderer/components/chat/resources'
+  type ResourceListSection
+} from '@renderer/components/chat/resourceList/base'
+import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'

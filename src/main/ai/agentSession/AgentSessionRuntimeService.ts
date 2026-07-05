@@ -29,6 +29,7 @@ import {
   type AgentRuntimePolicyUpdate,
   type AgentRuntimeTraceContext,
   type AgentRuntimeUserInput,
+  registerRuntimeDrivers,
   runtimeDriverRegistry
 } from '../runtime'
 import { type DispatchDecision, toolApprovalRegistry } from '../runtime/claudeCode/ToolApprovalRegistry'
@@ -161,6 +162,10 @@ export class AgentSessionRuntimeService extends BaseService {
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
 
   protected async onInit(): Promise<void> {
+    // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
+    // any agent session runs) instead of relying on an import-time side effect.
+    registerRuntimeDrivers()
+
     // Resolve agent-session assistant rows a prior main-process crash left `pending` — at boot the
     // in-memory entry map is empty, so every such row is stale. Mirrors AiStreamManager's chat
     // reconcile so both message tables are settled on restart (neither stays a frozen "thinking"
