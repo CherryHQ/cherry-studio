@@ -1296,12 +1296,14 @@
       "add": "Προσθήκη ετικέτας",
       "delete": "Διαγραφή ετικέτας",
       "deleteConfirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτήν την ετικέτα;",
+      "group_by": "Ομαδοποίηση κατά ετικέτα",
       "manage": "Διαχείριση ετικετών",
       "modify": "Επεξεργασία ετικέτας",
       "none": "Δεν υπάρχουν προς το παρόν ετικέτες",
       "settings": {
         "title": "Ρυθμίσεις Ετικέτας"
       },
+      "ungroup": "Απενεργοποίηση ομαδοποίησης ετικετών",
       "untagged": "Αχαρακτήριστο"
     },
     "title": "Βοηθός",
@@ -1563,8 +1565,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Cache {{hit_rate}}%",
+        "tooltip": "Ανάγνωση κρυφής μνήμης {{cache_read}} / εγγραφή {{cache_write}} / χωρίς κρυφή μνήμη {{no_cache}} · εξοικονομήθηκαν {{saved}} tokens εισόδου"
       },
       "editing_current": "Αυτό το μήνυμα επεξεργάζεται στον συνθέτη",
       "flow": {
@@ -1613,6 +1615,13 @@
       "top": "Επιστροφή στην κορυφή"
     },
     "resend": "Ξαναστείλε",
+    "resource_view": {
+      "menu": {
+        "agent": "Πράκτορες",
+        "assistant": "Βοηθοί",
+        "skill": "Δεξιότητες"
+      }
+    },
     "save": {
       "file": {
         "title": "Αποθήκευση σε τοπικό αρχείο"
@@ -2059,6 +2068,7 @@
     "generate_random_seed": "Δημιουργία τυχαίου σπόρου",
     "get_embedding_dimension": "Λήψη διάστασης ενσωμάτωσης",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
+    "help": "Βοήθεια",
     "html_preview": "Προεπισκόπηση HTML",
     "i_know": "Το έχω καταλάβει",
     "ignore": "Αγνόησε",
@@ -2328,6 +2338,7 @@
       "no_match_description": "Κανένα αρχείο δεν ταιριάζει με τα τρέχοντα φίλτρα",
       "no_match_title": "Δεν βρέθηκαν αρχεία που να ταιριάζουν"
     },
+    "empty_trash": "Άδειασμα κάδου απορριμμάτων",
     "error": {
       "delete_failed": "Αποτυχία διαγραφής αρχείων",
       "delete_partial_failed": "Μερικά αρχεία δεν μπόρεσαν να διαγραφούν",
@@ -2345,6 +2356,7 @@
     "missing": "Αγνοούμενος",
     "modified_at": "Τροποποιήθηκε στις",
     "name": "Όνομα αρχείου",
+    "no_actions": "Δεν υπάρχουν διαθέσιμες ενέργειες",
     "open": "Άνοιγμα",
     "other": "Άλλο",
     "permanent_delete": "Διαγραφή οριστικά",
@@ -2358,13 +2370,18 @@
     "remove_from_library": "Αφαίρεση από τη βιβλιοθήκη",
     "rename": "Μετονομασία",
     "restore": "Επαναφορά",
+    "select_all": "Επιλογή ορατών αρχείων",
+    "select_all_short": "Επιλογή Όλων",
+    "select_file": "Επιλογή {{name}}",
     "selected_count": "{{count}} αρχεία επιλέχθηκαν",
+    "selected_missing_hint": "Μερικά επιλεγμένα αρχεία λείπουν. Εντοπίστε τα ή καταργήστε τις εγγραφές τους.",
     "show_in_folder": "Εμφάνιση στο φάκελο",
     "size": "Μέγεθος",
     "text": "Κείμενο",
     "title": "Αρχεία",
     "trash": "Σκουπίδια",
     "type": "Τύπος",
+    "upload": "Μεταφόρτωση αρχείων",
     "video": "Βίντεο"
   },
   "globalSearch": {
@@ -2748,7 +2765,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} πηγές",
-      "documents_count": "{{count}} έγγραφα",
       "updated_at": "Ενημερώθηκε {{time}}"
     },
     "name_required": "Απαιτείται το όνομα της βάσης γνώσεων",
@@ -2908,7 +2924,8 @@
       "preview_description": "Επισκόπηση",
       "preview_prompt": "Προτροπή",
       "scroll_left": "Κύλιση κατηγοριών αριστερά",
-      "scroll_right": "Κύλιση κατηγοριών δεξιά"
+      "scroll_right": "Κύλιση κατηγοριών δεξιά",
+      "title": "Βιβλιοθήκη Βοηθών"
     },
     "badge": {
       "update": "Ενημέρωση"
@@ -4681,7 +4698,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "AliCloud Bailian",
     "deepseek": "Βαθιά Αναζήτηση",
@@ -4694,6 +4711,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
@@ -4717,6 +4735,8 @@
     "ollama": "Ollama",
     "open-mineru": "Ανοιχτό MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -6794,6 +6814,7 @@
         "reorderFailed": "Αποτυχία αναδιάταξης προτροπών",
         "updateFailed": "Αποτυχία ενημέρωσης προτροπής"
       },
+      "manage": "Διαχείριση Προτροπών",
       "title": "Διαχείριση Prompts",
       "titleLabel": "Τίτλος",
       "titlePlaceholder": "Εισαγάγετε τίτλο prompt",
@@ -6942,15 +6963,25 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "Ο πάροχος Claude Code είναι διαθέσιμος μόνο στους Πράκτορες — δεν μπορεί να χρησιμοποιηθεί στη συνομιλία ή στους βοηθούς.",
+        "description": "Συνδεθείτε με τη συνδρομή σας Claude",
+        "description_detail": "Αυτός ο πάροχος επαναχρησιμοποιεί τη σύνδεση Claude Code CLI (Claude Pro/Max) και είναι διαθέσιμος μόνο σε Agents. Ανοίξτε ένα τερματικό και εκτελέστε `claude /login` για να συνδεθείτε.",
+        "launch_failed": "Αποτυχία ανοίγματος του τερματικού. Εκτελέστε χειροκίνητα το `claude /login` για να συνδεθείτε.",
+        "legal_link": "Νομικά & Συμμόρφωση",
+        "logged_in": "Συνδεθήκατε στο Claude Code",
+        "logged_in_detail": "Οι πράκτορες θα χρησιμοποιήσουν τα διαπιστευτήρια της συνδρομής σας στο Claude Code CLI.",
+        "open_terminal": "Άνοιγμα τερματικού για σύνδεση",
+        "recheck": "Επανέλεγχος"
+      },
+      "codex": {
+        "account": "Λογαριασμός: {{accountId}}",
+        "description": "Συνδεθείτε με τη συνδρομή σας στο ChatGPT",
+        "description_detail": "Αυτός ο πάροχος χρησιμοποιεί τη σύνδεση ChatGPT Plus/Pro (OAuth) για πρόσβαση στα μοντέλα OpenAI Codex. Το πρόγραμμα περιήγησής σας θα ανοίξει για την ολοκλήρωση της σύνδεσης.",
+        "logged_in": "Συνδεθήκατε στο OpenAI Codex",
+        "sign_in_button": "Σύνδεση με το ChatGPT",
+        "sign_in_failed": "Η σύνδεση απέτυχε. Παρακαλώ δοκιμάστε ξανά.",
+        "sign_in_success": "Συνδεθήκατε στο OpenAI Codex",
+        "signing_in": "Αναμονή για πρόγραμμα περιήγησης…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7026,6 +7057,15 @@
       },
       "filter_agent": "Υποστηριζόμενοι Πάροχοι του Φίλτρου Πράκτορα",
       "get_api_key": "Κάντε κλικ εδώ για να πάρετε κλειδί",
+      "grok_cli": {
+        "description": "Συνδεθείτε με τη συνδρομή σας SuperGrok",
+        "description_detail": "Αυτός ο πάροχος χρησιμοποιεί τη σύνδεσή σας xAI SuperGrok (OAuth) για πρόσβαση στα μοντέλα Grok CLI (Grok Build, Composer). Ο περιηγητής σας θα ανοίξει για να ολοκληρώσετε τη σύνδεση.",
+        "logged_in": "Συνδεδεμένος στο Grok CLI",
+        "sign_in_button": "Σύνδεση με xAI",
+        "sign_in_failed": "Η σύνδεση απέτυχε. Παρακαλώ δοκιμάστε ξανά.",
+        "sign_in_success": "Συνδεδεμένος στο Grok CLI",
+        "signing_in": "Αναμονή για πρόγραμμα περιήγησης…"
+      },
       "logo_upload_failed": "Αποτυχία επεξεργασίας της επιλεγμένης εικόνας",
       "misc": "Άλλο",
       "more_endpoints": {
@@ -7546,7 +7586,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Ζωγραφική",
     "settings": "Ρυθμίσεις",
-    "store": "Βιβλιοθήκη βοηθών",
     "translate": "Μετάφραση",
     "work": "Εργασία"
   },
