@@ -1,4 +1,5 @@
 import { useQuery } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
 import type { MessageListActions, MessageListState } from '@renderer/components/chat/messages/types'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
@@ -19,6 +20,8 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { type MessagePlatformActions, useMessagePlatformActions } from './useMessagePlatformActions'
+
+const logger = loggerService.withContext('useMessageLeafCapabilities')
 
 type MessageLeafActions = Pick<
   MessageListActions,
@@ -58,6 +61,10 @@ function fileMetadataToHandle(file: FileMetadata): FileHandle {
     } catch {
       // Fall back to the entry id for legacy FileMetadata whose path is not an
       // absolute filesystem path. The IPC schema is still the authority.
+      logger.debug('fileMetadataToHandle: falling back to entry id for non-absolute path', {
+        fileId: file.id,
+        path: file.path
+      })
     }
   }
 
@@ -136,6 +143,9 @@ export function useMessageLeafCapabilities({
   const getFileView = useCallback<NonNullable<MessageListState['getFileView']>>(
     (file) => {
       const parsedPath = file.path ? FilePathSchema.safeParse(file.path) : undefined
+      if (parsedPath && !parsedPath.success) {
+        logger.warn('getFileView: non-canonical/invalid attachment path', { fileId: file.id, path: file.path })
+      }
       return {
         displayName: formatMessageAttachmentFileName(file, t),
         previewUrl: parsedPath?.success ? toSafeFileUrl(parsedPath.data, file.ext || null) : undefined

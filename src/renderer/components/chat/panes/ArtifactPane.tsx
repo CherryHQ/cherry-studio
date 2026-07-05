@@ -106,6 +106,10 @@ type OfficePreviewPanelComponent = ComponentType<OfficePreviewPanelProps>
 let pdfPreviewPanelPromise: Promise<PdfPreviewPanelComponent> | null = null
 let officePreviewPanelPromise: Promise<OfficePreviewPanelComponent> | null = null
 
+// `ArtifactFilePreview` re-derives `parsedHtmlBase` on every render; dedupe the
+// warn per offending path so an open HTML preview doesn't flood the log.
+const warnedArtifactHtmlBasePaths = new Set<string>()
+
 const loadPdfPreviewPanel = () => {
   pdfPreviewPanelPromise ??= import('@renderer/components/ArtifactPreview/pdf/PdfPreviewPanel')
     .then((module) => module.default)
@@ -445,7 +449,14 @@ export function ArtifactFilePreview({
   }
 
   if (isHtmlFile(filePath)) {
-    const parsedHtmlBase = FilePathSchema.safeParse(joinPath(workspacePath, filePath))
+    const htmlBasePath = joinPath(workspacePath, filePath)
+    const parsedHtmlBase = FilePathSchema.safeParse(htmlBasePath)
+    if (!parsedHtmlBase.success && !warnedArtifactHtmlBasePaths.has(htmlBasePath)) {
+      warnedArtifactHtmlBasePaths.add(htmlBasePath)
+      logger.warn('ArtifactPane: non-absolute HTML base path, relative resources may not resolve', {
+        path: htmlBasePath
+      })
+    }
     return (
       <HtmlPreviewFrame
         key={`html-${filePath}-${contentRefreshKey}`}

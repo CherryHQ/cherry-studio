@@ -1,8 +1,22 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  warn: vi.fn()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({ warn: mocks.warn })
+  }
+}))
 
 import { getPaintingFileUrl } from '../paintingFileUrl'
 
 describe('getPaintingFileUrl', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('returns undefined when no physical path is available', () => {
     expect(getPaintingFileUrl({ path: '', ext: '.png' })).toBeUndefined()
   })
@@ -16,9 +30,13 @@ describe('getPaintingFileUrl', () => {
     ).toBe('file:///resolved%20output/paint%20result.png')
   })
 
-  it('returns undefined without throwing when the path is not absolute', () => {
+  it('returns undefined without throwing when the path is not absolute, and logs a warning', () => {
     expect(() => getPaintingFileUrl({ path: 'relative/legacy.png', ext: '.png' })).not.toThrow()
     expect(getPaintingFileUrl({ path: 'relative/legacy.png', ext: '.png' })).toBeUndefined()
+    expect(mocks.warn).toHaveBeenCalledWith(
+      'getPaintingFileUrl: non-canonical/invalid painting path',
+      expect.objectContaining({ path: 'relative/legacy.png' })
+    )
   })
 
   it('keeps shared file-url safety behavior', () => {
