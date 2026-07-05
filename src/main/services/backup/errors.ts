@@ -18,3 +18,16 @@ export class InsufficientDiskSpaceError extends Error {
     this.available = available
   }
 }
+
+/**
+ * Thrown by ExportOrchestrator when an AbortSignal is already aborted at a step
+ * boundary ( BackupV2_CancelBackup ). Propagates out of exportBackup so BackupService
+ * can distinguish cancellation from real failure — the temp-copy + staging cleanup
+ * still runs (finally block) either way.
+ */
+export class BackupCancelledError extends Error {
+  constructor(message = 'Backup cancelled by the user') {
+    super(message)
+    this.name = 'BackupCancelledError'
+  }
+}

@@ -12,7 +12,7 @@ import { useBackupV2 } from '@renderer/hooks/useBackupV2'
 type Preset = 'full' | 'lite'
 
 export const BackupV2DevExport: React.FC = () => {
-  const { startBackup, loading } = useBackupV2()
+  const { startBackup, cancelBackup, loading, progress, cancelled } = useBackupV2()
   const [preset, setPreset] = useState<Preset>('full')
   const [outputPath, setOutputPath] = useState('')
   const [status, setStatus] = useState<string | null>(null)
@@ -59,7 +59,23 @@ export const BackupV2DevExport: React.FC = () => {
         <button onClick={onExport} disabled={loading || !outputPath} data-testid="v2-export-run">
           {loading ? '...' : 'Export V2'}
         </button>
+        {loading && (
+          <button onClick={() => cancelBackup()} data-testid="v2-export-cancel">
+            Cancel
+          </button>
+        )}
       </div>
+      {progress && (
+        <div style={{ fontSize: 12, marginTop: 4 }} data-testid="v2-export-progress">
+          {progress.phase} {progress.current}/{progress.total}
+          {progress.message ? ` — ${progress.message}` : ''}
+        </div>
+      )}
+      {cancelled && (
+        <div style={{ fontSize: 12, marginTop: 4 }} data-testid="v2-export-cancelled">
+          cancelled
+        </div>
+      )}
       {status && <div style={{ fontSize: 12, marginTop: 4 }}>{status}</div>}
     </div>
   )

@@ -19,6 +19,7 @@ import { topicTable } from '@main/data/db/schemas/topic'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
+import type { BackupProgressUpdate } from '@shared/types/backup'
 import { SqliteBackupCopier, StubBackupCopier } from './BackupDbCopier'
 import { SqliteBackupStripper, StubStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
@@ -193,6 +194,62 @@ describe('ExportOrchestrator (full-preset DB-only slice)', () => {
           schemaMigrationId: '0001_x.sql'
         })
       ).rejects.toThrow()
+      expect(existsSync(tempCopyPath)).toBe(false)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('emits progress ticks across phases (snapshot → collect → archive)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-export-progress-'))
+    try {
+      const fixture = join(dir, 'fixture.db')
+      await makeFixtureDb(fixture)
+      const ticks: BackupProgressUpdate['phase'][] = []
+      const orch = newOrch(dir, fixture)
+      await orch.exportBackup({
+        preset: 'full',
+        outputPath: join(dir, 'out.cbu'),
+        restoreId: 'rp',
+        producerAppVersion: '1.0.0',
+        schemaMigrationId: '0001_x.sql',
+        onProgress: (u) => {
+          ticks.push(u.phase)
+        }
+      })
+
+      // The pipeline emits at least copy (snapshot), strip/collect/stage (collect),
+      // and archive (archive) — proving progress fires across phases.
+      expect(ticks).toContain('snapshot')
+      expect(ticks).toContain('collect')
+      expect(ticks).toContain('archive')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('throws BackupCancelledError when the signal is pre-aborted + cleans up temp', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-export-cancel-'))
+    try {
+      const fixture = join(dir, 'fixture.db')
+      await makeFixtureDb(fixture)
+      const tempCopyPath = join(dir, 'rc.sqlite')
+      const orch = newOrch(dir, fixture)
+      const ac = new AbortController()
+      ac.abort()
+
+      await expect(
+        orch.exportBackup({
+          preset: 'full',
+          outputPath: join(dir, 'out.cbu'),
+          restoreId: 'rc',
+          producerAppVersion: '1.0.0',
+          schemaMigrationId: '0001_x.sql',
+          signal: ac.signal
+        })
+      ).rejects.toThrow(/cancelled/i)
+
+      // Temp copy cleaned up despite cancellation (the finally block runs).
       expect(existsSync(tempCopyPath)).toBe(false)
     } finally {
       await rm(dir, { recursive: true, force: true })

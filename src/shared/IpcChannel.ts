@@ -120,10 +120,13 @@ export enum IpcChannel {
   Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
   Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 
-  // V2 backup (modular contributor stack). Export-only this slice; restore channels
-  // (StartRestore / CancelRestore / UndoRestore / ListRestores / GetRestoreProgress)
-  // land with the C-import / D-model restore slice.
+  // V2 backup (modular contributor stack). Export + progress + cancel this slice;
+  // restore channels (StartRestore / CancelRestore / UndoRestore / ListRestores /
+  // GetRestoreProgress) land with the C-import / D-model restore slice.
   BackupV2_StartBackup = 'backupV2:startBackup',
+  BackupV2_CancelBackup = 'backupV2:cancelBackup',
+  // V2 export progress event — main → renderer broadcast (WindowManager.broadcastToType).
+  BackupV2_Progress = 'backupV2:progress',
 
   // zip
   Zip_Decompress = 'zip:decompress',

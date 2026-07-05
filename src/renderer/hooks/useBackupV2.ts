@@ -1,7 +1,8 @@
 // useBackupV2 — renderer hook for the v2 modular backup export pipeline.
 //
-// Wraps window.api.backupV2.startBackup (BackupV2_StartBackup IPC) with loading /
-// error state so a UI surface can bind a single onClick without re-deriving it.
+// Wraps window.api.backupV2 (BackupV2_StartBackup / CancelBackup / GetBackupProgress /
+// BackupV2_Progress event) with loading / error / progress / cancel state so a UI
+// surface can bind a single onClick without re-deriving it.
 //
 // SLICE SCOPE: the v2 backup settings PAGE (a new V2 surface — intentionally NOT
 // mixed into the legacy v1 LocalBackupSettings, which is throwaway under the v2
@@ -10,44 +11,73 @@
 
 import { useCallback, useState } from 'react'
 
+import type { BackupProgressUpdate } from '@shared/types/backup'
+
 export interface UseBackupV2State {
   readonly loading: boolean
   readonly error: string | null
   readonly archivePath: string | null
+  /** Active export id (cancel/progress routing key) — set from the first progress tick. */
+  readonly backupId: string | null
+  readonly progress: BackupProgressUpdate | null
+  readonly cancelled: boolean
 }
 
-/** Minimal result shape the renderer consumes (manifest stays main-side for now). */
+/** Minimal result shape the renderer consumes (manifest stays main-side). */
 export interface BackupV2Result {
+  readonly backupId: string
   readonly archivePath: string
 }
 
-const INITIAL: UseBackupV2State = { loading: false, error: null, archivePath: null }
+const INITIAL: UseBackupV2State = {
+  loading: false,
+  error: null,
+  archivePath: null,
+  backupId: null,
+  progress: null,
+  cancelled: false
+}
 
 /**
  * Trigger a v2 .cbu export. Full = all domains + blobs; lite = 10 domains (no
  * KNOWLEDGE / PAINTINGS / FILE_STORAGE / TRANSLATE_HISTORY, no blobs — the
- * orchestrator's step 2.5 physically strips their rows from the copy). The hook
- * owns the request lifecycle; `startBackup` resolves with the archive path on
- * success and rethrows (after recording the message in `error`) on failure.
+ * orchestrator's step 2.5 physically strips their rows from the copy).
+ *
+ * Subscribes to BackupV2_Progress for the export's lifetime (unsubscribes on
+ * resolve/reject). The first tick carries backupId, which cancelBackup uses to
+ * abort the active export.
  */
 export function useBackupV2() {
   const [state, setState] = useState<UseBackupV2State>(INITIAL)
 
   const startBackup = useCallback(
     async (preset: 'full' | 'lite', outputPath: string): Promise<BackupV2Result> => {
-      setState({ loading: true, error: null, archivePath: null })
+      setState({ ...INITIAL, loading: true })
+      // Subscribe for THIS export; the first tick carries backupId (cancel routing).
+      const unsubscribe = window.api.backupV2.onProgress((update) => {
+        setState((s) => ({ ...s, backupId: update.backupId, progress: update }))
+      })
       try {
-        const result = (await window.api.backupV2.startBackup({ preset, outputPath })) as BackupV2Result
-        setState({ loading: false, error: null, archivePath: result.archivePath })
+        const result = await window.api.backupV2.startBackup({ preset, outputPath })
+        setState({ ...INITIAL, backupId: result.backupId, archivePath: result.archivePath })
         return result
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e)
-        setState({ loading: false, error: message, archivePath: null })
+        const cancelled = /cancelled/i.test(message)
+        setState({ ...INITIAL, error: message, cancelled })
         throw e
+      } finally {
+        unsubscribe()
       }
     },
     []
   )
 
-  return { ...state, startBackup }
+  const cancelBackup = useCallback(async (): Promise<void> => {
+    // No-op if no active export (backupId is set from the first progress tick).
+    if (!state.backupId) return
+    await window.api.backupV2.cancelBackup(state.backupId)
+  }, [state.backupId])
+
+  return { ...state, startBackup, cancelBackup }
 }
