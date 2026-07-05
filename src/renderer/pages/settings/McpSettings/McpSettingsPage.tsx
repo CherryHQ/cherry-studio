@@ -1,5 +1,5 @@
 import { Flex, MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
-import { McpLogo } from '@renderer/components/icons'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import {
   settingsSubmenuDividerClassName,

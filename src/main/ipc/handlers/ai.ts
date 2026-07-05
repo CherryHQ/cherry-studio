@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { WebContentsListener } from '@main/ai/streamManager/listeners/WebContentsListener'
+import { WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'

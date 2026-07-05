@@ -33,9 +33,13 @@ import {
   runtimeDriverRegistry
 } from '../runtime'
 import { type DispatchDecision, toolApprovalRegistry } from '../runtime/claudeCode/ToolApprovalRegistry'
-import { PersistenceListener } from '../streamManager/listeners/PersistenceListener'
-import { TraceFlushListener } from '../streamManager/listeners/TraceFlushListener'
-import type { StreamErrorResult, StreamListener, StreamPausedResult } from '../streamManager/types'
+import {
+  PersistenceListener,
+  type StreamErrorResult,
+  type StreamListener,
+  type StreamPausedResult,
+  TraceFlushListener
+} from '../streamManager'
 import { AgentSessionMessageBackend } from './persistence/AgentSessionMessageBackend'
 import { extractAgentSessionId, isAgentSessionTopic } from './topic'
 

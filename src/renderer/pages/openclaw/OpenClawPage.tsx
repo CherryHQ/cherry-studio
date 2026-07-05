@@ -1,7 +1,7 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import { Openclaw } from '@cherrystudio/ui/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { CopyIcon } from '@renderer/components/icons'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
 import { useSharedCache } from '@renderer/data/hooks/useCache'

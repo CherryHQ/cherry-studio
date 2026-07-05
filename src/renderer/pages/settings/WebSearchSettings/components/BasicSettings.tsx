@@ -9,7 +9,7 @@ import {
   SelectValue,
   Tooltip
 } from '@cherrystudio/ui'
-import { ResetIcon } from '@renderer/components/icons'
+import ResetIcon from '@renderer/components/icons/ResetIcon'
 import {
   SettingDivider,
   SettingGroup,

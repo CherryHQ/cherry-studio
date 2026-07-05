@@ -24,8 +24,8 @@ vi.mock('@renderer/components/TopView/TopView', () => ({
   }
 }))
 
-vi.mock('@renderer/components/icons', () => ({
-  EditIcon: ({ size }: { size?: number }) => <span data-size={size}>edit</span>
+vi.mock('@renderer/components/icons/EditIcon', () => ({
+  default: ({ size }: { size?: number }) => <span data-size={size}>edit</span>
 }))
 
 vi.mock('@cherrystudio/ui', () => ({

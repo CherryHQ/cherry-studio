@@ -14,7 +14,7 @@ import {
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
-import { ResetIcon } from '@renderer/components/icons'
+import ResetIcon from '@renderer/components/icons/ResetIcon'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDescription,
