@@ -18,8 +18,9 @@
 // SLICE SCOPE: export-only, FULL + LITE presets, DB + file-blob archive. The
 // renderer triggers export via the BackupV2_StartBackup IPC channel (filled
 // defaults: restoreId / producerAppVersion / schemaMigrationId). preflightDisk
-// guards the entry. lite runs step 2.5 (ExcludedDomainStripper). cancel/progress/
-// validate channels and the restore side land in follow-up slices.
+// guards the entry. Step 2.5 (SqliteBackupStripper) strips ALWAYS_STRIP + lite
+// excluded rows from the copy. cancel/progress/validate channels and the restore
+// side land in follow-up slices.
 
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
@@ -35,7 +36,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { app } from 'electron'
 
 import { SqliteBackupCopier } from './BackupDbCopier'
-import { SqliteExcludedDomainStripper } from './ExcludedDomainStripper'
+import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import type { ExportBackupResult } from './ExportOrchestrator'
 import { ExportOrchestrator } from './ExportOrchestrator'
 import { contributorManager } from './contributors/ContributorManager'
@@ -76,7 +77,7 @@ export class BackupService extends BaseService {
       tempDir: application.getPath('feature.backup.temp'),
       filesRoot: application.getPath('feature.files.data'),
       knowledgeRoot: application.getPath('feature.knowledgebase.data'),
-      stripper: new SqliteExcludedDomainStripper(registry)
+      stripper: new SqliteBackupStripper()
     })
 
     this.registerIpcHandlers()
@@ -97,9 +98,10 @@ export class BackupService extends BaseService {
   }
 
   /**
-   * Export a .cbu archive (renderer-facing). Full = all domains + blobs; lite
-   * runs step 2.5 (ExcludedDomainStripper strips excluded-domain rows + cascade-
-   * prunes junction referrers) so the lite archive carries no excluded rows.
+   * Export a .cbu archive (renderer-facing). Step 2.5 (SqliteBackupStripper) runs
+   * on every preset: full strips ALWAYS_STRIP tables (app_state / job), lite adds
+   * the excluded-domain tables (cascade-pruning junction referrers) so the lite
+   * archive carries no excluded rows.
    */
   async startBackup({ preset, outputPath }: BackupV2StartOptions): Promise<ExportBackupResult> {
     if (!this.orchestrator || !this.schemaMigrationId) {

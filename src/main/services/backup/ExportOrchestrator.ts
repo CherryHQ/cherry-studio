@@ -36,6 +36,7 @@ import { loggerService } from '@logger'
 import { BackupReadonlyDb, type FileResourceContext } from '@main/data/db/backup/contexts'
 import type { ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import type { ConflictStrategy } from '@main/data/db/backup/domains'
+import { ALWAYS_STRIP_PHYSICAL_TABLES } from '@main/data/db/backup/exclusions'
 
 import { assembleArchive } from './archive'
 import type { BackupDbCopier } from './BackupDbCopier'
@@ -91,12 +92,23 @@ export interface ExportOrchestratorDeps {
   readonly filesRoot: string
   /** Live filesystem root for knowledge base dirs (<baseId>/). */
   readonly knowledgeRoot: string
-  /** Strips excluded-domain rows from the copy on lite preset (step 2.5). */
+  /** Strips ALWAYS_STRIP + (lite only) excluded-domain rows from the copy (step 2.5). */
   readonly stripper: BackupStripper
 }
 
 /** Default conflict strategy stamped on collect contexts (full export = SKIP by id). */
 const EXPORT_STRATEGY: ConflictStrategy = 'SKIP'
+
+/**
+ * Global physical tables every export strips (full + lite): ALWAYS_STRIP_PHYSICAL_TABLES
+ * (app_state / job) — runtime state / job queue. FTS5 virtual tables (message_fts /
+ * agent_session_message_fts) are NOT stripped — external-content FTS index binds to
+ * the content table, so `DELETE FROM` does not clear the shadow index while content
+ * rows survive; restore runs the 'rebuild' command instead.
+ * See export-orchestrator.md "ALWAYS_STRIP_TABLES global strip".
+ */
+const ALWAYS_STRIP_DB_TABLES: readonly DbTableName[] =
+  ALWAYS_STRIP_PHYSICAL_TABLES as readonly DbTableName[]
 
 /**
  * Export orchestrator. Pure class (no lifecycle wiring) — BackupService constructs
@@ -133,14 +145,20 @@ export class ExportOrchestrator {
     try {
       await copier.copyTo(backupDbPath)
 
-      // 2.5 lite: physically strip excluded-domain rows from the copy BEFORE opening
-      // the readonly snapshot. The stripper enables `PRAGMA foreign_keys = ON` and
-      // DELETEs the excluded tables — schema CASCADE prunes cross-domain junction
-      // referrers (chat_message_file_ref / assistant_knowledge_base), so a lite
-      // archive never carries rows the manifest claims are absent (spec
-      // export-orchestrator.md "Excluded-domain row strip"). Full preset skips this.
-      if (options.preset === 'lite') {
-        await stripper.strip(backupDbPath, LITE_EXCLUDED)
+      // 2.5 strip the copy BEFORE opening the readonly snapshot (every preset).
+      // resolveStripTables combines two sources:
+      // - ALWAYS_STRIP physical (app_state / job) — global runtime state / job
+      //   queue; stripped on full + lite (spec export-orchestrator.md
+      //   "ALWAYS_STRIP_TABLES global strip"). FTS5 virtuals are NOT stripped
+      //   (external-content index binds to content; restore rebuilds).
+      // - lite only: LITE_EXCLUDED-owned tables — schema CASCADE prunes cross-domain
+      //   junction referrers (chat_message_file_ref / assistant_knowledge_base) so a
+      //   lite archive never carries rows the manifest claims are absent (spec
+      //   "Excluded-domain row strip").
+      // The stripper enables `PRAGMA foreign_keys = ON` + DELETEs in one tx + VACUUM.
+      const stripTables = this.resolveStripTables(options.preset, registry)
+      if (stripTables.length > 0) {
+        await stripper.strip(backupDbPath, stripTables)
       }
 
       // Open a READ-ONLY handle on the SNAPSHOT so collect + stage agree exactly
@@ -213,5 +231,27 @@ export class ExportOrchestrator {
     }
 
     return { archivePath: options.outputPath, manifest }
+  }
+
+  /**
+   * Resolve the preset-aware strip table set (DbTableName[]) for step 2.5.
+   *
+   * - full: ALWAYS_STRIP_DB_TABLES (app_state / job) — global runtime state / job
+   *   queue; stripped on every export.
+   * - lite: full set ∪ LITE_EXCLUDED-owned tables (registry.getSchema(d).tables).
+   *   CASCADE prunes cross-domain junction referrers so a lite archive never
+   *   carries rows the manifest claims are absent.
+   *
+   * FTS5 virtual tables are intentionally absent — external-content FTS index binds
+   * to the content table (cannot be stripped independently); restore rebuilds.
+   */
+  private resolveStripTables(preset: 'full' | 'lite', registry: ReadonlyBackupRegistry): readonly DbTableName[] {
+    const tables = new Set<DbTableName>(ALWAYS_STRIP_DB_TABLES)
+    if (preset === 'lite') {
+      for (const d of LITE_EXCLUDED) {
+        for (const t of registry.getSchema(d).tables) tables.add(t)
+      }
+    }
+    return [...tables]
   }
 }
