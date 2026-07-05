@@ -110,7 +110,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
 
   return (
     <Dialog open={isModalOpen} onOpenChange={(next) => !next && onCancel()}>
-      <DialogContent className="sm:max-w-130">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-130">
         <DialogHeader>
           <DialogTitle>
             {editingAction

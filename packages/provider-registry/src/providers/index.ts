@@ -10,6 +10,7 @@ import p_baidu_cloud from './baidu-cloud'
 import p_burncloud from './burncloud'
 import p_cerebras from './cerebras'
 import p_cherryin from './cherryin'
+import p_claude_code from './claude-code'
 import p_copilot from './copilot'
 import p_dashscope from './dashscope'
 import p_deepseek from './deepseek'
@@ -21,6 +22,7 @@ import p_gemini from './gemini'
 import p_github from './github'
 import p_gpustack from './gpustack'
 import p_grok from './grok'
+import p_grok_cli from './grok-cli'
 import p_groq from './groq'
 import p_huggingface from './huggingface'
 import p_hunyuan from './hunyuan'
@@ -41,6 +43,7 @@ import p_nvidia from './nvidia'
 import p_ocoolai from './ocoolai'
 import p_ollama from './ollama'
 import p_openai from './openai'
+import p_openai_codex from './openai-codex'
 import p_opencode from './opencode'
 import p_openrouter from './openrouter'
 import p_ovms from './ovms'
@@ -87,6 +90,9 @@ export const PROVIDERS: Provider[] = [
   p_new_api,
   p_lmstudio,
   p_anthropic,
+  p_claude_code,
+  p_openai_codex,
+  p_grok_cli,
   p_openai,
   p_opencode,
   p_azure_openai,

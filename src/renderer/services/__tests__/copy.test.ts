@@ -2,7 +2,7 @@ import type { Message } from '@renderer/types/newMessage'
 import type { Topic } from '@renderer/types/topic'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { copyMessageAsPlainText, copyTopicAsMarkdown, copyTopicAsPlainText } from '../CopyService'
+import { copyMessageAsPlainText, copyTopicAsMarkdown, copyTopicAsPlainText } from '../copy'
 
 // Mock dependencies
 vi.mock('@renderer/services/ExportService', () => ({
