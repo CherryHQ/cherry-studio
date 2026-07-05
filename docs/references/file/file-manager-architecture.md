@@ -99,9 +99,12 @@ If real NFD/NFC duplicates are ever *observed*, the correct fix is an FS-aware `
 
 Case-insensitive uniqueness on `externalPath` is enforced at **both layers**: the functional UNIQUE index `fe_external_path_lower_unique_idx` (DB) and `ensureExternalEntry`'s pre-INSERT collision check (application). The two-layer scheme keeps the DB-level guarantee unbreakable while letting the application disambiguate the FS-correct interpretation case-by-case.
 
+Presence is **probed, not required**: after the `findByExternalPath` miss, `ensureExternalEntry` runs one `fs.stat`. `ENOENT` / `ENOTDIR` ("the file is simply not there") does **not** abort — the entry is created **dangling** (an external ref to an off-disk path is a first-class state; see [§3.3 Dangling Model](#33-dangling-model)), seeding a `'missing'` DanglingCache observation. Only a *genuine* FS fault (`EACCES`, `EIO`, …) rethrows. The `fs.realpath` collision probe below **requires the file on disk**, so it runs **only when the file is present**; when the new path is missing the block is skipped and a case-colliding missing path is left to the DB `lower(externalPath)` UNIQUE index to reject at INSERT (`SQLITE_CONSTRAINT`) — the correct outcome, just without the friendlier pre-INSERT error we cannot produce without the file.
+
 ```typescript
 // Inside ensureExternalEntry, AFTER canonicalize, AFTER findByExternalPath miss,
-// AFTER fs.stat verifies the new path exists, BEFORE INSERT:
+// AFTER the fs.stat presence probe reports the new path is present (a MISSING
+// path skips this block and is created dangling), BEFORE INSERT:
 const peers = await fileEntryService.findCaseInsensitivePeers(canonicalPath)
 if (peers.length > 0) {
   // `fs.realpath` is the platform-correct probe for "are these the same FS

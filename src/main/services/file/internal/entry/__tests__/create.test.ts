@@ -233,6 +233,43 @@ describe('internal/entry/create.createInternal', () => {
     })
   })
 
+  describe('ensureExternal dangling create (missing path is a first-class state, not an error)', () => {
+    it('creates an external entry for a path that does not exist and seeds a "missing" observation', async () => {
+      // The file is never written to disk. `ensureExternal` probes presence
+      // best-effort: ENOENT means "simply absent" → create the entry DANGLING
+      // rather than throw (an external ref to an off-disk path is a first-class
+      // state). The returned row is a real external entry, and the DanglingCache
+      // observation seeded on insert is 'missing' — i.e. a subsequent
+      // `danglingCache.check(entry)` resolves to 'missing'.
+      const missing = path.join(tmp, 'never-written.pdf')
+      const entry = await ensureExternal(deps, { externalPath: missing as FilePath })
+      if (entry.origin !== 'external') throw new Error('expected external entry')
+      expect(entry.externalPath).toBe(missing)
+      expect(entry.name).toBe('never-written')
+      expect(entry.ext).toBe('pdf')
+      // Persisted, not just returned.
+      expect(fileEntryService.getById(entry.id).id).toBe(entry.id)
+      // Reverse-indexed and seeded 'missing' (dangling), NOT 'present'.
+      expect(deps.danglingCache.addEntry).toHaveBeenCalledWith(entry.id, entry.externalPath)
+      expect(deps.danglingCache.onFsEvent).toHaveBeenCalledWith(entry.externalPath, 'missing', 'ops')
+    })
+
+    it('rethrows a non-ENOENT stat error (EACCES) instead of creating a dangling entry', async () => {
+      // ENOENT / ENOTDIR flip to dangling-create; every other errno is a
+      // genuine FS fault that must preserve the old fail-loud behavior. Drive
+      // the same `@main/utils/file/fs` stat seam that write/rename suites mock,
+      // making it throw an EACCES-coded error.
+      const fsModule = await import('@main/utils/file/fs')
+      const guarded = path.join(tmp, 'guarded.txt')
+      const statErr = Object.assign(new Error('permission denied'), { code: 'EACCES' })
+      vi.spyOn(fsModule, 'stat').mockRejectedValue(statErr)
+      await expect(ensureExternal(deps, { externalPath: guarded as FilePath })).rejects.toBe(statErr)
+      // No entry inserted, no cache observation recorded on the fail-loud path.
+      expect(deps.danglingCache.addEntry).not.toHaveBeenCalled()
+      expect(deps.danglingCache.onFsEvent).not.toHaveBeenCalled()
+    })
+  })
+
   describe('ensureExternal case-collision policy (M2: functional unique index + fs.realpath)', () => {
     // Background: `fe_external_path_lower_unique_idx` enforces case-insensitive
     // uniqueness on `externalPath` at the DB layer. Application-side, the

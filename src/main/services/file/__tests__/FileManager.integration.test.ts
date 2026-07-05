@@ -543,29 +543,50 @@ describe('FileManager (integration)', () => {
     expect(rows).toHaveLength(2)
   })
 
-  it('INT-15b: batchEnsureExternalEntries dedupes within-batch duplicate paths and aggregates per-item failures', async () => {
+  it('INT-15b: batchEnsureExternalEntries dedupes duplicates, creates a dangling entry for a missing path, and aggregates a genuine per-item failure', async () => {
     const same = path.join(tmp, 'dedupe.txt')
     await writeFile(same, 'x')
-    const missing = path.join(tmp, 'no-such-file.txt')
+    const missing = path.join(tmp, 'no-such-file.txt') // absent on disk → dangling success
+    const guarded = path.join(tmp, 'guarded.txt') // stat EACCES → genuine per-item failure
+
+    // A missing external path is a first-class dangling state, not an error, so
+    // only a *genuine* FS fault still fails an item. Drive the fs stat seam to
+    // throw EACCES for `guarded` alone; every other path stats for real.
+    const fsModule = await import('@main/utils/file/fs')
+    const realStat = fsModule.stat
+    const statSpy = vi.spyOn(fsModule, 'stat').mockImplementation(async (p) => {
+      if (p === guarded) throw Object.assign(new Error('permission denied'), { code: 'EACCES' })
+      return realStat(p)
+    })
 
     const result = await fm.batchEnsureExternalEntries([
       { externalPath: same as never },
       { externalPath: same as never },
-      { externalPath: missing as never }
+      { externalPath: missing as never },
+      { externalPath: guarded as never }
     ])
     // Two `same`-path inputs collapse to ONE DB row, but BOTH appear in
     // succeeded with the matching sourceRef so callers can still correlate
     // each input — that is the dedupe contract the BatchCreateResult split
-    // (I3) was designed to express.
-    expect(result.succeeded).toHaveLength(2)
+    // (I3) was designed to express. The missing path succeeds as a DANGLING
+    // entry; only the EACCES fault lands in failed.
+    expect(result.succeeded).toHaveLength(3)
     expect(result.succeeded[0].sourceRef).toBe(same)
     expect(result.succeeded[1].sourceRef).toBe(same)
     expect(result.succeeded[0].id).toBe(result.succeeded[1].id)
+    expect(result.succeeded[2].sourceRef).toBe(missing)
     expect(result.failed).toHaveLength(1)
-    expect(result.failed[0].sourceRef).toBe(missing)
-    // The DB must contain exactly one external row for `same`.
+    expect(result.failed[0].sourceRef).toBe(guarded)
+    // The missing path produced a real external row whose dangling state is 'missing'.
+    const missingEntry = await fm.findByExternalPath(FilePathSchema.parse(missing))
+    if (!missingEntry) throw new Error('expected a dangling entry for the missing path')
+    expect(await fm.getDanglingState({ id: missingEntry.id })).toBe('missing')
+    // Exactly one external row for `same`; the EACCES fault left no row.
     const rows = await dbh.db.select().from(fileEntryTable)
     expect(rows.filter((r) => r.externalPath === same)).toHaveLength(1)
+    expect(rows.filter((r) => r.externalPath === guarded)).toHaveLength(0)
+
+    statSpy.mockRestore()
   })
 
   it('INT-8: batchGetDanglingStates returns "unknown" for ids that have no entry', async () => {
