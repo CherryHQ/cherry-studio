@@ -1,4 +1,5 @@
 import type { JobContext } from '@main/core/job/types'
+import type * as FsUtils from '@main/utils/file/fs'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
@@ -38,7 +39,8 @@ const mocks = vi.hoisted(() => ({
   embedKnowledgeTextsMock: vi.fn(),
   refineLocalEmbeddingChunksMock: vi.fn(),
   loggerWarnMock: vi.fn(),
-  scheduleItemMock: vi.fn()
+  scheduleItemMock: vi.fn(),
+  removeDirMock: vi.fn()
 }))
 
 export const {
@@ -72,7 +74,8 @@ export const {
   embedKnowledgeTextsMock,
   refineLocalEmbeddingChunksMock,
   loggerWarnMock,
-  scheduleItemMock
+  scheduleItemMock,
+  removeDirMock
 } = mocks
 
 /**
@@ -167,6 +170,16 @@ vi.mock('../../pathStorage', async () => {
     // rebuildability without touching the real filesystem; default to 'readable' in beforeEach.
     probeKnowledgeFile: probeKnowledgeFileMock,
     probeKnowledgeSourcePath: probeKnowledgeSourcePathMock
+  }
+})
+
+// prepare-root reclaims the container's own `raw/<prefix>` shell via removeDir on retry;
+// spy on it while keeping every other fs helper real. Default no-op resolve in beforeEach.
+vi.mock('@main/utils/file/fs', async () => {
+  const actual = await vi.importActual<typeof FsUtils>('@main/utils/file/fs')
+  return {
+    ...actual,
+    removeDir: removeDirMock
   }
 })
 
@@ -398,6 +411,7 @@ beforeEach(() => {
   knowledgeItemUpdateIndexedRelativePathMock.mockReturnValue(createFileItem())
   deleteItemsByIdsMock.mockReturnValue(undefined)
   deleteKnowledgeItemFilesBestEffortMock.mockResolvedValue(undefined)
+  removeDirMock.mockResolvedValue(undefined)
   probeKnowledgeFileMock.mockResolvedValue('readable')
   probeKnowledgeSourcePathMock.mockResolvedValue('readable')
   cancelMock.mockResolvedValue({ outcome: 'cancelled' })

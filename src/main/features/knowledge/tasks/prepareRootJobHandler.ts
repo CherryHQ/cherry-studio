@@ -5,11 +5,13 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import type { JobContext, JobHandler } from '@main/core/job/types'
+import { removeDir } from '@main/utils/file/fs'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import type { KnowledgeItemScheduler } from '../ingestion/KnowledgeIngestionService'
 import { markUnscheduledKnowledgeItemsFailed } from '../ingestion/statusCleanup'
 import { purgeKnowledgeSubtreeWithinLock } from '../ingestion/subtreePurge'
+import { getKnowledgeBaseFilePath } from '../pathStorage'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgePrepareRootPayload } from './jobTypes'
 import { prepareKnowledgeItem } from './prepareItem'
@@ -103,6 +105,19 @@ async function deletePreviousLeafExpansion(
     const descendants = knowledgeItemService.getSubtreeItems(baseId, [itemId])
     const removableDescendants = descendants.filter((item) => item.status !== 'deleting')
     await purgeKnowledgeSubtreeWithinLock(base, removableDescendants, { baseId, itemId })
+
+    // `getSubtreeItems` excludes the container row, so the purge above never touches the
+    // container's own `raw/<pathPrefix>` shell. A prior attempt pins `relativePath` before
+    // copying any byte (see prepareDirectoryForRuntime), so if orphan bytes exist the row
+    // records their prefix — reclaim the whole shell here. removeDir is idempotent (ENOENT
+    // no-op) when the shell was never created.
+    const result = resolveLiveKnowledgeItem(itemId)
+    if ('item' in result && result.item.type === 'directory') {
+      const prefix = result.item.data.relativePath
+      if (prefix) {
+        await removeDir(getKnowledgeBaseFilePath(baseId, prefix))
+      }
+    }
   })
 }
 

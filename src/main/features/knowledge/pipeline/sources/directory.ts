@@ -1,15 +1,12 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { loggerService } from '@logger'
-import { removeDir } from '@main/utils/file/fs'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
 import { knowledgeSupportedFileExts } from '@shared/utils/file'
 
-import { copyFileIntoKnowledgeBaseAt, getKnowledgeBaseFilePath } from '../../pathStorage'
+import { copyFileIntoKnowledgeBaseAt } from '../../pathStorage'
 
-const logger = loggerService.withContext('Knowledge:Directory')
 const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
 
 /** A scanned filesystem entry under a directory owner — only the fields this module reads. */
@@ -32,15 +29,6 @@ export type ExpandedDirectoryNode =
       type: 'file'
       data: Pick<FileItemData, 'source' | 'relativePath'>
     }
-
-/**
- * Result of expanding a directory owner: the deduped `raw/` prefix its files were
- * stored under (to pin onto the owner's `relativePath`) plus the child tree.
- */
-export interface ExpandedDirectoryTree {
-  pathPrefix: string
-  children: ExpandedDirectoryNode[]
-}
 
 async function readDirectoryTree(
   dirPath: string,
@@ -141,51 +129,59 @@ async function expandDirectoryNode(
   }
 }
 
-export async function expandDirectoryOwnerToTree(
-  owner: KnowledgeItem,
-  baseId: string,
-  reservedTopLevelNames: Set<string>,
-  signal: AbortSignal
-): Promise<ExpandedDirectoryTree> {
+/**
+ * The deduped top-level `raw/` prefix a directory owner's files will be stored under —
+ * its own name (e.g. `raw/docs/...`) instead of the opaque owner UUID, so the on-disk
+ * layout mirrors what the user picked. When that name is already taken under raw/,
+ * dedupe it with a `_N` suffix (the same strategy file imports use, see
+ * reserveImportedFileRelativePath). Pure — no I/O — so the caller can pin it onto the
+ * container's `relativePath` BEFORE any byte is copied, making a mid-expansion crash
+ * recoverable (the retry reclaims `raw/<pathPrefix>` from the pinned row).
+ */
+export function chooseDirectoryPathPrefix(owner: KnowledgeItem, reservedTopLevelNames: Set<string>): string {
   if (owner.type !== 'directory') {
     throw new Error(`Knowledge item '${owner.id}' must be type 'directory', received '${owner.type}'`)
   }
 
   // The original folder to scan lives in `source` (shared by every item type). `path`
-  // was retired in favour of a `relativePath` written back from `pathPrefix` below.
+  // was retired in favour of a `relativePath` written back from `pathPrefix`.
   const resolvedPath = path.resolve(owner.data.source)
-  // Store children under the directory's own name (e.g. `raw/docs/...`) instead of
-  // the opaque owner UUID, so the on-disk layout mirrors what the user picked. When
-  // that top-level name is already taken under raw/, dedupe it with a `_N` suffix —
-  // the same strategy file imports use (see reserveImportedFileRelativePath).
-  const pathPrefix = nextFreeKnowledgeRelativePath(
+  return nextFreeKnowledgeRelativePath(
     path.basename(resolvedPath),
     (candidate) => !reservedTopLevelNames.has(candidate),
     false // a directory basename is not a filename — keep any trailing ".ext" intact
   )
+}
 
-  // Expansion durably copies bytes into `raw/<pathPrefix>/...` before any `knowledge_item`
-  // row references them (child rows are only created once the whole tree succeeds). A
-  // mid-expansion failure (disk full, permission error, an aborted signal) must not leave
-  // orphaned bytes under a name the DB doesn't know is occupied — the next attempt would
-  // pick the same `pathPrefix` again and collide with its own partial copy. This function
-  // owns the namespace it just reserved, so it cleans it up on any failure.
-  try {
-    const children = await readDirectoryTree(resolvedPath, signal)
-    const expandedChildren: ExpandedDirectoryNode[] = []
-
-    for (const child of children) {
-      const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal)
-      if (expandedChild) {
-        expandedChildren.push(expandedChild)
-      }
-    }
-
-    return { pathPrefix, children: expandedChildren }
-  } catch (error) {
-    await removeDir(getKnowledgeBaseFilePath(baseId, pathPrefix)).catch((cleanupError) => {
-      logger.warn('Failed to clean up partially expanded directory materials', { baseId, pathPrefix, cleanupError })
-    })
-    throw error
+/**
+ * Scan a directory owner's on-disk tree and durably copy every supported file into
+ * `raw/<pathPrefix>/...`. The prefix is chosen and pinned by the caller
+ * (`chooseDirectoryPathPrefix`) before this runs, so a mid-expansion crash leaves the
+ * container row already pointing at `pathPrefix`; the next attempt's
+ * `deletePreviousLeafExpansion` reclaims the whole `raw/<pathPrefix>` shell. This
+ * function therefore does not clean up on failure — the retry-level reclaimer does,
+ * and it also survives a hard kill this local cleanup could not.
+ */
+export async function expandDirectoryOwnerToTree(
+  owner: KnowledgeItem,
+  baseId: string,
+  pathPrefix: string,
+  signal: AbortSignal
+): Promise<ExpandedDirectoryNode[]> {
+  if (owner.type !== 'directory') {
+    throw new Error(`Knowledge item '${owner.id}' must be type 'directory', received '${owner.type}'`)
   }
+
+  const resolvedPath = path.resolve(owner.data.source)
+  const children = await readDirectoryTree(resolvedPath, signal)
+  const expandedChildren: ExpandedDirectoryNode[] = []
+
+  for (const child of children) {
+    const expandedChild = await expandDirectoryNode(baseId, pathPrefix, child, signal)
+    if (expandedChild) {
+      expandedChildren.push(expandedChild)
+    }
+  }
+
+  return expandedChildren
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { getKnowledgeBaseFilePath } from '../../pathStorage'
 import {
   createCtx,
   createDirectoryItem,
@@ -15,8 +16,15 @@ import {
   knowledgeItemUpdateStatusMock,
   knowledgeLockManager,
   prepareKnowledgeItemMock,
+  removeDirMock,
   scheduleItemMock
 } from './jobHandlerTestUtils'
+
+/** A directory container whose `raw/<prefix>` was pinned by a prior attempt (pin-before-copy). */
+function createPinnedDirectoryItem(relativePath: string) {
+  const container = createDirectoryItem()
+  return { ...container, data: { ...container.data, relativePath } }
+}
 
 describe('prepare-root job handler', () => {
   it('clears stale expansion and schedules recreated leaves', async () => {
@@ -82,11 +90,54 @@ describe('prepare-root job handler', () => {
     expect(deleteItemsByIdsMock).not.toHaveBeenCalledWith('kb-1', expect.arrayContaining(['deleting-note']))
   })
 
+  it('reclaims the container pinned prefix shell even when no descendant rows exist to purge', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    // A crash in the pin-before-copy window leaves orphan bytes under raw/docs but zero
+    // descendant rows. getSubtreeItems excludes the container, so the row-scoped purge sees
+    // nothing — only the explicit container removeDir can reclaim those orphan bytes.
+    knowledgeItemGetByIdMock.mockReturnValue(createPinnedDirectoryItem('docs'))
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
+    expect(removeDirMock).toHaveBeenCalledWith(getKnowledgeBaseFilePath('kb-1', 'docs'))
+  })
+
+  it('does not reclaim a container shell when no prefix was ever pinned', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    // Default createDirectoryItem() carries data.source only, no relativePath — the guard
+    // must skip removeDir so a never-expanded directory does not blow away an unrelated path.
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(removeDirMock).not.toHaveBeenCalled()
+  })
+
+  it('purges descendant rows before reclaiming the container shell', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    const activeChild = createNoteItem('active-note', 'dir-1')
+    knowledgeItemGetByIdMock.mockReturnValue(createPinnedDirectoryItem('docs'))
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([activeChild])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
+    expect(removeDirMock).toHaveBeenCalledWith(getKnowledgeBaseFilePath('kb-1', 'docs'))
+    // Row-scoped purge runs first; the container removeDir then sweeps whatever the purge
+    // could not see (nested dir shells, bytes of rows that were never committed).
+    expect(deleteItemsByIdsMock.mock.invocationCallOrder[0]).toBeLessThan(removeDirMock.mock.invocationCallOrder[0])
+  })
+
   it('skips expansion when the root becomes deleting inside the mutation lock', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, ingestionService)
+    // Live on the pre-lock load, then deleting for every in-lock re-resolve (the shell-reclaim
+    // guard and the expansion guard both re-read the row); expansion must be skipped.
     knowledgeItemGetByIdMock
       .mockReturnValueOnce(createDirectoryItem())
-      .mockReturnValueOnce(createDirectoryItem('dir-1', 'deleting'))
+      .mockReturnValue(createDirectoryItem('dir-1', 'deleting'))
 
     const ctx = createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job')
     await handler.execute(ctx)

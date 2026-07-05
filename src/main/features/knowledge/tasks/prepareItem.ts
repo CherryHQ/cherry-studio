@@ -9,7 +9,11 @@ import {
 
 import { type IndexableKnowledgeItem, isIndexableKnowledgeItem } from '../items'
 import { collectKnowledgeReservedRelativePaths } from '../pathStorage'
-import { expandDirectoryOwnerToTree, type ExpandedDirectoryNode } from '../pipeline/sources/directory'
+import {
+  chooseDirectoryPathPrefix,
+  expandDirectoryOwnerToTree,
+  type ExpandedDirectoryNode
+} from '../pipeline/sources/directory'
 
 const logger = loggerService.withContext('KnowledgePrepare')
 const EMPTY_DIRECTORY_ERROR = 'Directory contains no indexable files'
@@ -42,7 +46,16 @@ async function prepareDirectoryForRuntime(
   // Exclude this container itself: on reindex it already owns its `relativePath`
   // prefix, and counting it as reserved would self-collide it to `_1` every time.
   const reservedTopLevelNames = collectReservedTopLevelNames(baseId, item.id)
-  const { pathPrefix, children } = await expandDirectoryOwnerToTree(item, baseId, reservedTopLevelNames, signal)
+  const pathPrefix = chooseDirectoryPathPrefix(item, reservedTopLevelNames)
+
+  // Pin the deduped `raw/` prefix onto the container BEFORE any byte is copied. Expansion
+  // durably writes files under `raw/<pathPrefix>/...`; if a crash/kill/abort lands mid-copy,
+  // the pinned `relativePath` lets the next attempt's `deletePreviousLeafExpansion` reclaim
+  // the whole shell (orphan bytes are always a subset of `raw/<pathPrefix>`). The UI also
+  // shows the on-disk name (e.g. `docs_2`) and delete removes the shell by it.
+  knowledgeItemService.updateDirectoryRelativePath(item.id, pathPrefix)
+
+  const children = await expandDirectoryOwnerToTree(item, baseId, pathPrefix, signal)
   signal.throwIfAborted()
 
   if (children.length === 0) {
@@ -54,10 +67,6 @@ async function prepareDirectoryForRuntime(
     knowledgeItemService.updateStatus(item.id, 'failed', { error: EMPTY_DIRECTORY_ERROR })
     return []
   }
-
-  // Pin the deduped `raw/` prefix the children were stored under onto the container, so the
-  // UI shows the on-disk name (e.g. `docs_2`) and delete can remove the whole shell by it.
-  knowledgeItemService.updateDirectoryRelativePath(item.id, pathPrefix)
 
   return await createDirectoryChildren(baseId, item.id, children, signal)
 }
