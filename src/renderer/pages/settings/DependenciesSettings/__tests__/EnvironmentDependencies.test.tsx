@@ -60,8 +60,10 @@ vi.mock('@data/hooks/usePreference', () => ({
 vi.mock('@cherrystudio/ui', () => {
   const passthrough =
     (tag: string) =>
-    ({ children, ...props }: { children?: React.ReactNode }) =>
-      React.createElement(tag, props, children)
+    ({ children, closeOnOverlayClick, ...props }: { children?: React.ReactNode; closeOnOverlayClick?: boolean }) => {
+      void closeOnOverlayClick
+      return React.createElement(tag, props, children)
+    }
   // Render children only — these carry non-DOM props (onOpenChange, onConfirm,
   // destructive, open) that React would warn about if spread onto a div.
   const childrenOnly = ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children)

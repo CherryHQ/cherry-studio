@@ -57,7 +57,7 @@ type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> &
 function DialogContent({
   className,
   children,
-  closeOnOverlayClick = false,
+  closeOnOverlayClick = true,
   showCloseButton = true,
   overlayClassName,
   onPointerDown,

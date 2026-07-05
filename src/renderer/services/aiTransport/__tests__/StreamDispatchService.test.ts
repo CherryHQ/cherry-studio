@@ -1,7 +1,7 @@
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { streamDispatchCoordinator } from '../streamDispatchCoordinator'
+import { streamDispatchService } from '../StreamDispatchService'
 
 const TOPIC = 'topic-1'
 const req: AiStreamOpenRequest = { trigger: 'submit-message', topicId: TOPIC, userMessageParts: [] }
@@ -30,7 +30,7 @@ afterEach(() => {
 
 const flush = () => new Promise((r) => setTimeout(r, 0))
 
-describe('streamDispatchCoordinator', () => {
+describe('StreamDispatchService', () => {
   it('routes a resolved ack to subscribers', async () => {
     const ack: AiStreamOpenResponse = {
       mode: 'started',
@@ -68,9 +68,9 @@ describe('streamDispatchCoordinator', () => {
     }
     streamOpen.mockResolvedValue(ack)
     const seen: unknown[] = []
-    const off = streamDispatchCoordinator.subscribe(TOPIC, (r) => seen.push(r))
+    const off = streamDispatchService.subscribe(TOPIC, (r) => seen.push(r))
 
-    streamDispatchCoordinator.dispatch(TOPIC, req)
+    streamDispatchService.dispatch(TOPIC, req)
     await flush()
 
     expect(streamOpen).toHaveBeenCalledWith(req)
@@ -81,9 +81,9 @@ describe('streamDispatchCoordinator', () => {
   it('routes a rejected dispatch as an error result', async () => {
     streamOpen.mockRejectedValue(new Error('ipc boom'))
     const seen: Array<{ ok: boolean }> = []
-    const off = streamDispatchCoordinator.subscribe(TOPIC, (r) => seen.push(r))
+    const off = streamDispatchService.subscribe(TOPIC, (r) => seen.push(r))
 
-    streamDispatchCoordinator.dispatch(TOPIC, req)
+    streamDispatchService.dispatch(TOPIC, req)
     await flush()
 
     expect(seen).toHaveLength(1)
@@ -99,7 +99,7 @@ describe('streamDispatchCoordinator', () => {
       message: 'Workspace path for session session-1 is not accessible: /missing'
     } satisfies AiStreamOpenResponse)
 
-    streamDispatchCoordinator.dispatch(TOPIC, req)
+    streamDispatchService.dispatch(TOPIC, req)
     await flush()
 
     expect(window.toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
@@ -108,9 +108,9 @@ describe('streamDispatchCoordinator', () => {
   it('unsubscribe stops further delivery', async () => {
     streamOpen.mockResolvedValue({ mode: 'started' })
     const seen: unknown[] = []
-    const off = streamDispatchCoordinator.subscribe(TOPIC, (r) => seen.push(r))
+    const off = streamDispatchService.subscribe(TOPIC, (r) => seen.push(r))
     off()
-    streamDispatchCoordinator.dispatch(TOPIC, req)
+    streamDispatchService.dispatch(TOPIC, req)
     await flush()
     expect(seen).toHaveLength(0)
   })

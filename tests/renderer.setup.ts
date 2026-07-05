@@ -442,7 +442,7 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
     Dialog: ({ children, onOpenChange: _onOpenChange, open, ...props }) =>
       open ? React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children) : null,
-    DialogContent: ({ children, ...props }) =>
+    DialogContent: ({ children, closeOnOverlayClick: _closeOnOverlayClick, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-content' }, children),
     DialogHeader: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-header' }, children),

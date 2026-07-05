@@ -169,7 +169,6 @@ export function AssistantLibraryDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
-          closeOnOverlayClick
           size="xl"
           className="flex h-[min(600px,76vh)] flex-col gap-0 overflow-hidden p-0 pb-3"
           data-testid="assistant-library-dialog">

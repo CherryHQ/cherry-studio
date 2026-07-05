@@ -506,7 +506,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
             {title ||

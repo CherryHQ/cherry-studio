@@ -195,9 +195,12 @@ describe('prepare-root job handler', () => {
       jobId: 'prepare-job',
       type: 'knowledge.prepare-root',
       scheduleId: null,
+      parentId: null,
       status: 'cancelled',
+      input: { baseId: 'kb-1', itemId: 'dir-1' },
       error: { code: 'CANCELLED', message: 'cancelled', retryable: false },
-      attempt: 1
+      attempt: 1,
+      metadata: {}
     })
 
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('dir-1', 'failed', expect.anything())
