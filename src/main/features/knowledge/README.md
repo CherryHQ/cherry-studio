@@ -28,17 +28,17 @@ orchestration, and it lives in `ingestion/` and `tasks/`.
 
 | Directory | Role |
 | --- | --- |
-| `KnowledgeService.ts` | Lifecycle facade: registers job handlers, runs boot recovery, delegates every public method. No domain logic. |
-| `base/` | Per-base domain: lifecycle admin (`KnowledgeBaseAdminService` — create with rollback, delete, restore, list), failed-base guard (`baseGuards.ts`), per-base mutation lock (`KnowledgeLockManager`). |
+| `KnowledgeService.ts` | Lifecycle facade: registers job handlers, runs boot recovery, delegates every public method, and creates the shared per-base mutation lock (`KeyedMutex`). No domain logic. |
+| `base/` | Per-base domain: lifecycle admin (`KnowledgeBaseAdminService` — create with rollback, delete, restore, list), failed-base guard (`baseGuards.ts`). |
 | `ingestion/` | Write-side orchestration: admission checks, item creation, add-conflict resolution, job enqueueing, subtree purge (`subtreePurge.ts`), boot recovery. |
 | `pipeline/sources/` | Input stage: directory expansion, url fetch (Jina reader), url/note snapshot capture, OKF frontmatter. |
 | `pipeline/readers/` | Preprocess stage: file → markdown/text `Document[]` readers (pdf/docx/epub/…). |
-| `pipeline/indexing/` | Index stage: offset-preserving splitter + chunker, `AiService` embedding/rerank wrappers, material field derivation. |
+| `pipeline/indexing/` | Index stage: offset-preserving splitter + chunker, `AiService` embedding/rerank wrappers. |
 | `pipeline/vectorstore/` | Persist stage: per-base `index.sqlite` lifecycle (`KnowledgeVectorStoreService`), the store itself (`indexStore/`, synchronous better-sqlite3 driver), vector deletion + index space reclamation (`vectorCleanup.ts`). |
-| `query/` | Read side: hybrid search with visibility filtering (`KnowledgeQueryService`), Concept ID tool surface (`KnowledgeConceptService`). |
+| `query/` | Read side + Concept ID tool surface: hybrid search with visibility filtering (`KnowledgeQueryService`); Concept ID read/grep/tree plus the `kb_manage` delete/refresh writes, which delegate to `ingestion/` (`KnowledgeConceptService`). |
 | `tasks/` | Job handlers — the pipeline executors (see below); `prepareItem.ts` is a prepare-root handler-private helper that expands a directory root into child items. |
 | `pathStorage.ts` | `raw/` path allocation: collision-free names, reservation, base file paths. |
-| `items.ts` / `types.ts` | Shared item vocabulary (type aliases, predicates, source probing); branded ids, queue names, idempotency keys. |
+| `items.ts` / `types.ts` | Shared item vocabulary (type aliases, predicates, source probing, material-path derivation); branded ids, queue names, idempotency keys. |
 
 ## Jobs
 
@@ -62,7 +62,7 @@ job runs.
 
 ## Concurrency
 
-`KnowledgeLockManager` is a per-base **application-level** mutex serializing multi-step business
+The per-base mutation lock is a core `KeyedMutex` (acquired via `runExclusive`), an **application-level** mutex serializing multi-step business
 invariants that span the main DB, the index store, and the filesystem (e.g. add's
 read-conflicts-then-create-rows sequence). It is not about protecting SQLite itself — the per-base
 driver is synchronous, and single statements are atomic. Handlers acquire the lock only around the

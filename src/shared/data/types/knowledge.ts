@@ -72,7 +72,7 @@ export const DEFAULT_KNOWLEDGE_BASE_STATUS: KnowledgeBaseStatus = 'completed'
 // user_model, so the base needs a new embedding model on restore.
 // `missing_vector_store`: the embedding model resolved, but the per-base legacy vector store
 // was missing/empty/locked so its dimensions could not be determined. The base (name, model,
-// config, idle items) is kept as a restorable `failed` row instead of being dropped, so the
+// config, unindexed items) is kept as a restorable `failed` row instead of being dropped, so the
 // user can re-index it — a transient lock is recoverable by re-running rather than a data loss.
 export const KNOWLEDGE_BASE_ERROR_CODES = ['missing_embedding_model', 'missing_vector_store'] as const
 export const KnowledgeBaseErrorCodeSchema = z.enum(KNOWLEDGE_BASE_ERROR_CODES)
@@ -85,7 +85,7 @@ export const KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE: KnowledgeBaseErrorCode =
  * - `directory_not_migrated`: a v1-indexed `directory` whose container-level vectors could not
  *   be re-attributed to per-file children (unreadable legacy sources, or no migratable vectors).
  * - `indexing_interrupted`: an indexing job was abandoned by an app quit / restart, so the item
- *   was parked at `failed` instead of silently resumed (see KnowledgeService.recoverInterruptedItems).
+ *   was parked at `failed` instead of silently resumed (see KnowledgeIngestionService.recoverInterruptedItems).
  * - `never_indexed`: a migrated v1 item never started indexing (no `uniqueId`), so there is
  *   nothing to resume from and it is parked at `failed` instead of a synthetic in-progress state.
  * Modeled as a zod enum (the same shape as the base error codes above) so the renderer's
@@ -265,7 +265,7 @@ const KnowledgeItemSharedSchema = z.strictObject({
  */
 export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
   // relativePath / indexedRelativePath are always produced by main-side helpers
-  // (copyFileIntoKnowledgeBaseAt, toKnowledgeRelativePath, ...), never raw caller
+  // (copyFileIntoKnowledgeBaseAt, toMaterialRelativePath, ...), never raw caller
   // input. The base-relative, POSIX-normalized, no-traversal invariant is
   // enforced imperatively by assertSafeKnowledgeRelativePath at the filesystem
   // boundary (getKnowledgeBaseFilePath). This schema only validates shape, so a

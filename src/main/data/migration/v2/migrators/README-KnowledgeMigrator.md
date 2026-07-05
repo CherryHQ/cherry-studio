@@ -52,7 +52,7 @@
    - Legacy `processingStatus` is treated as runtime-only and not trusted for migration.
    - Item status is inferred from `uniqueId`:
      - `uniqueId` present and non-empty -> `completed`
-     - otherwise -> `idle`
+     - otherwise -> `failed` (`never_indexed`)
 
 6. Vector dimension dependency
    - Completed bases require a resolved positive `knowledge_base.dimensions` value.
@@ -90,7 +90,7 @@
 | _no legacy grouping field_ | `groupId` | V1 exports are flat; migrated items are inserted without grouping metadata (`null`) |
 | `type` | `type` | Supported target types: file/url/note/directory. Legacy sitemap maps to url. |
 | `content` + Dexie lookups | `data` | Type-specific transform |
-| `uniqueId` | `status` | `uniqueId` non-empty => `completed`, otherwise `idle` |
+| `uniqueId` | `status` | `uniqueId` non-empty => `completed`, otherwise `failed` (`never_indexed`) |
 | `processingError` | `error` | Direct copy |
 | `created_at` | `createdAt` | Timestamp conversion |
 | `updated_at` | `updatedAt` | Timestamp conversion |

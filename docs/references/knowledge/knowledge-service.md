@@ -22,13 +22,13 @@ The current implementation is split into four responsibility areas:
    - Do not perform vector-store mutations.
 3. `KnowledgeService`
    - Thin lifecycle facade: registers Knowledge JobManager handlers, runs boot recovery, and delegates every public method to `base/`, `ingestion/`, and `query/`.
-   - `base/` (`KnowledgeBaseAdminService`) creates/deletes/restores bases through data services and vector store services, and owns the per-base `KnowledgeLockManager`.
+   - `base/` (`KnowledgeBaseAdminService`) creates/deletes/restores bases through data services and vector store services. The per-base mutation lock (a core `KeyedMutex`) is created by the `KnowledgeService` facade and shared with `base/`, `ingestion/`, and the job handlers.
    - `ingestion/` (`KnowledgeIngestionService`) collapses delete/reindex item inputs to top-level roots, enforces runtime guards, and schedules the next workflow step.
    - `query/` (`KnowledgeQueryService` / `KnowledgeConceptService`) serves search and the Concept ID tool surface.
 4. Knowledge job handlers
    - Execute durable workflow stages through JobManager.
    - Use `KnowledgeIngestionService` for next-step scheduling.
-   - Use `KnowledgeLockManager` for same-base mutations and vector cleanup.
+   - Use the per-base mutation lock (`KeyedMutex.runExclusive`) for same-base mutations and vector cleanup.
 
 ```text
 caller
@@ -42,7 +42,7 @@ caller
         -> JobManager
            -> knowledge.prepare-root / knowledge.index-documents
            -> knowledge.delete-subtree / knowledge.reindex-subtree
-              -> KnowledgeLockManager
+              -> KeyedMutex.runExclusive
                  -> KnowledgeBaseService / KnowledgeItemService
                  -> KnowledgeVectorStoreService
 ```
@@ -131,11 +131,10 @@ Knowledge runtime work is persisted in JobManager. `KnowledgeService.onInit` reg
 - `knowledge.delete-subtree`
 - `knowledge.reindex-subtree`
 
-Each base uses queue `base.${baseId}`. JobManager owns queue persistence, dispatch, retry, cancellation, timeout, and startup recovery. Knowledge code uses `KnowledgeLockManager` to serialize same-base vector and item mutations inside the current process.
+Each base uses queue `base.${baseId}`. JobManager owns queue persistence, dispatch, retry, cancellation, timeout, and startup recovery. Knowledge code uses the per-base mutation lock (`KeyedMutex.runExclusive`) to serialize same-base vector and item mutations inside the current process.
 
 Current item statuses are:
 
-- `idle`
 - `preparing`
 - `processing`
 - `reading`

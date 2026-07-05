@@ -11,14 +11,14 @@ API / user action
   -> KnowledgeIngestionService
      -> JobManager
         -> Knowledge job handlers
-           -> KnowledgeLockManager
+           -> KeyedMutex.runExclusive
               -> SQLite / index store / knowledge-owned files (raw/)
 ```
 
 The design keeps three owners:
 
 - `KnowledgeIngestionService` decides the next workflow step.
-- `KnowledgeLockManager` serializes same-base mutations and cleanup.
+- The per-base mutation lock (`KeyedMutex.runExclusive`) serializes same-base mutations and cleanup.
 - Knowledge job handlers execute one durable stage and call the workflow service for the next step.
 
 Helpers may own source planning, lifecycle writes, knowledge-owned raw files, and FileProcessing adaptation. They should stay as modules until they need lifecycle-managed resources, IPC, timers, or long-lived state.
@@ -78,10 +78,10 @@ Round 1 job types:
 
 ## Mutation And Crash Semantics
 
-Same-base Knowledge mutations must go through `KnowledgeLockManager`. Main SQLite writes still use a synchronous write transaction (`DbService.withWriteTx`, or an equivalent `db.transaction()`); the lock manager is not a replacement for that write transaction.
+Same-base Knowledge mutations must go through the per-base mutation lock (`KeyedMutex.runExclusive`). Main SQLite writes still use a synchronous write transaction (`DbService.withWriteTx`, or an equivalent `db.transaction()`); the mutation lock is not a replacement for that write transaction.
 
 Crash safety comes from durable jobs, durable item states, JobManager recovery, and idempotent cleanup. The in-memory mutation lock only serializes concurrent work in the current process.
 
 Delete and reindex span two stores: the main SQLite database and the per-base vector store. They cannot be one cross-store transaction. Consistency relies on durable re-entry and idempotent vector/artifact/row cleanup.
 
-User-triggered reindex is not a cancellation primitive. The service admits reindex only when the entire selected subtree is already `completed` or `failed`. Active states (`idle`, `preparing`, `processing`, `reading`, `embedding`) and `deleting` are rejected; delete remains the operation that can be requested at any time.
+User-triggered reindex is not a cancellation primitive. The service admits reindex only when the entire selected subtree is already `completed` or `failed`. Active states (`preparing`, `processing`, `reading`, `embedding`) and `deleting` are rejected; delete remains the operation that can be requested at any time.

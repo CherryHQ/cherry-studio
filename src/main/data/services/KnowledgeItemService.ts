@@ -29,8 +29,8 @@ const logger = loggerService.withContext('DataApi:KnowledgeItemService')
 const CONTAINER_CHILD_FAILURE_ERROR = 'One or more child items failed'
 /**
  * Item statuses that mean "indexing is in progress" — the item is being driven
- * by a job and is neither finished (completed/failed), idle (never started), nor
- * being deleted. Used to find items stranded by an interrupted job on boot.
+ * by a job and is neither finished (completed/failed) nor being deleted. Used to
+ * find items stranded by an interrupted job on boot.
  */
 const KNOWLEDGE_ITEM_IN_FLIGHT_STATUSES = [
   'preparing',
@@ -218,7 +218,7 @@ export class KnowledgeItemService {
    * A single UPDATE covers leaves and their ancestor containers together: a
    * container with an in-flight descendant is itself in-flight
    * (`reconcileContainers` keeps it `processing` while any child is active), so
-   * failing every in-flight row leaves no completed/idle container pointing at a
+   * failing every in-flight row leaves no completed container pointing at a
    * failed child — the rollup invariant holds without a separate reconcile pass.
    *
    * @returns the number of items marked failed.
