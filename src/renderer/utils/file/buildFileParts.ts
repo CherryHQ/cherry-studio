@@ -11,14 +11,11 @@
  * for the accessor + Zod.
  */
 
-import { loggerService } from '@logger'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 import { FilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file/handle'
-
-const logger = loggerService.withContext('buildFileParts')
 
 /**
  * For each `ComposerAttachment` (with an absolute `path`), create a v2 internal
@@ -26,11 +23,14 @@ const logger = loggerService.withContext('buildFileParts')
  * `FileUIPart` that carries the new `fileEntryId` plus a `file://` URL
  * pointing at the freshly-copied physical file.
  *
- * A single attachment failing (e.g. a legacy/non-absolute `path`) is isolated:
- * it is logged and skipped rather than rejecting the whole batch.
+ * `attachment.path` is validated through `FilePathSchema.parse` (not an `as`
+ * cast). Any failure — a non-absolute / malformed path, or a rejected
+ * `createInternalEntry` — rejects the whole batch, so the caller's send-flow
+ * try/catch surfaces it (toast + keep editing) rather than silently dropping a
+ * file the user attached.
  */
 export async function buildFilePartsForAttachments(attachments: ComposerAttachment[]): Promise<FileUIPart[]> {
-  const results = await Promise.allSettled(
+  return Promise.all(
     attachments.map(async (attachment) => {
       const entry = await window.api.file.createInternalEntry({
         source: 'path',
@@ -47,19 +47,4 @@ export async function buildFilePartsForAttachments(attachments: ComposerAttachme
       return withCherryMeta(basePart, { fileEntryId: entry.id })
     })
   )
-
-  const parts: FileUIPart[] = []
-  results.forEach((result, index) => {
-    if (result.status === 'fulfilled') {
-      parts.push(result.value)
-      return
-    }
-    const attachment = attachments[index]
-    logger.warn('failed to build file part for attachment, skipping it', {
-      path: attachment.path,
-      name: attachment.name,
-      error: result.reason
-    })
-  })
-  return parts
 }
