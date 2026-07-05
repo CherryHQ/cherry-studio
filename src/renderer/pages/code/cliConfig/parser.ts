@@ -1,6 +1,5 @@
 import { CodeCli } from '@shared/types/codeCli'
 
-import { CHERRY_PROVIDER_PREFIX } from './constants'
 import { parseDotenv } from './dotenv'
 import { getDraftFile } from './draftFiles'
 import { parseJsonOrThrow, parseTomlOrThrow } from './file'
@@ -14,7 +13,7 @@ import {
 } from './permissionModes'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import type { CliConfigConnection, CliConfigFileDraft } from './types'
-import { asRecord, stringValue } from './values'
+import { asRecord, findCherryProviderKey, isCherryManagedModel, stringValue } from './values'
 
 export function extractConnectionFromCliConfigDraft(
   cliTool: string,
@@ -45,8 +44,8 @@ export function extractConnectionFromCliConfigDraft(
       case CodeCli.OPEN_CODE: {
         const config = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
         const providers = asRecord(config.provider)
-        const entry = Object.entries(providers).find(([key]) => key.startsWith(CHERRY_PROVIDER_PREFIX))?.[1]
-        const provider = asRecord(entry)
+        const providerKey = findCherryProviderKey(providers)
+        const provider = asRecord(providerKey ? providers[providerKey] : undefined)
         const models = asRecord(provider.models)
         const modelEntry = Object.entries(models)[0]
         const model = stringValue(asRecord(modelEntry?.[1]).name) ?? modelEntry?.[0]
@@ -68,10 +67,7 @@ export function extractConnectionFromCliConfigDraft(
       case CodeCli.QWEN_CODE: {
         const settings = parseJsonOrThrow(getDraftFile(files, 'qwen-settings')?.content ?? '')
         const models = Array.isArray(settings.modelProviders?.openai) ? settings.modelProviders.openai : []
-        const modelEntry = models.find(
-          (item: any) =>
-            item && typeof item === 'object' && typeof item.envKey === 'string' && item.envKey.startsWith('CHERRY_')
-        )
+        const modelEntry = models.find((item: any) => isCherryManagedModel(item))
         const envKey = stringValue(modelEntry?.envKey)
         return {
           baseUrl: stringValue(modelEntry?.baseUrl),
@@ -147,9 +143,8 @@ export function extractConfigFromCliConfigDraft(
         if (config.autoCompact === true) out.autoCompact = true
         if (isOpenCodePermissionMode(config.permission)) out.permissionMode = config.permission
         const providers = asRecord(config.provider)
-        const provider = asRecord(
-          Object.entries(providers).find(([key]) => key.startsWith(CHERRY_PROVIDER_PREFIX))?.[1]
-        )
+        const providerKey = findCherryProviderKey(providers)
+        const provider = asRecord(providerKey ? providers[providerKey] : undefined)
         const model = asRecord(Object.entries(asRecord(provider.models))[0]?.[1])
         if (model.reasoning === true) out.env = { OPENCODE_REASONING: 'true' }
         return out

@@ -19,7 +19,14 @@ import {
 } from './permissionModes'
 import type { OpenCodeNpmInfo } from './resolvers'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
-import { asRecord, dropFeatureGoalsIfEmpty, normalizeUrl, omitKeysByPrefix, sanitizeProviderName } from './values'
+import {
+  asRecord,
+  dropFeatureGoalsIfEmpty,
+  isCherryManagedModel,
+  normalizeUrl,
+  omitKeysByPrefix,
+  sanitizeProviderName
+} from './values'
 
 const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
 
@@ -33,7 +40,7 @@ export function buildClaudeConfig(
   userBlob: Record<string, any>,
   resolved: { apiKey: string; baseUrl: string; model: string; writePrimaryModel?: boolean }
 ): Record<string, any> {
-  const configEnv = userBlob.env && typeof userBlob.env === 'object' ? { ...(userBlob.env as Record<string, any>) } : {}
+  const configEnv = { ...asRecord(userBlob.env) }
   const envBlock: Record<string, any> = { ...configEnv }
   if (resolved.baseUrl) envBlock.ANTHROPIC_BASE_URL = resolved.baseUrl
   if (resolved.apiKey) envBlock.ANTHROPIC_AUTH_TOKEN = resolved.apiKey
@@ -204,16 +211,10 @@ export function buildQwenConfig(
   const sanitizedConfigBlob = sanitizeQwenConfigBlob(configBlob)
   const envKey = 'CHERRY_QWEN_API_KEY'
   const existingModels = Array.isArray(existing.modelProviders?.openai) ? [...existing.modelProviders.openai] : []
-  const userModels = existingModels.filter(
-    (m) => !(m && typeof m === 'object' && typeof m.envKey === 'string' && m.envKey.startsWith('CHERRY_'))
-  )
+  const userModels = existingModels.filter((m) => !isCherryManagedModel(m))
   userModels.push({ id: resolved.model, name: resolved.modelLabel, baseUrl: resolved.baseUrl, envKey })
 
-  const existingEnv =
-    existing.env && typeof existing.env === 'object' ? { ...(existing.env as Record<string, any>) } : {}
-  for (const key of Object.keys(existingEnv)) {
-    if (key.startsWith('CHERRY_')) delete existingEnv[key]
-  }
+  const existingEnv = omitKeysByPrefix(asRecord(existing.env), 'CHERRY_')
   existingEnv[envKey] = resolved.apiKey
 
   const merged = {

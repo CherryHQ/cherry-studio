@@ -1,5 +1,7 @@
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 
+import { CHERRY_PROVIDER_PREFIX } from './constants'
+
 export { sanitizeProviderName } from '@shared/utils/provider'
 
 export function firstApiKey(keys: ApiKeyEntry[] | undefined): string {
@@ -13,6 +15,21 @@ export function asRecord(value: unknown): Record<string, any> {
 /** Drop every key in `record` whose name starts with `prefix`. */
 export function omitKeysByPrefix<T>(record: Record<string, T>, prefix: string): Record<string, T> {
   return Object.fromEntries(Object.entries(record).filter(([key]) => !key.startsWith(prefix)))
+}
+
+/** True when a model entry was injected by Cherry Studio (its `envKey` starts with `CHERRY_`). */
+export function isCherryManagedModel(item: unknown): boolean {
+  return Boolean(
+    item &&
+      typeof item === 'object' &&
+      typeof (item as any).envKey === 'string' &&
+      (item as any).envKey.startsWith('CHERRY_')
+  )
+}
+
+/** Find the provider key Cherry Studio manages (prefixed with `CHERRY_PROVIDER_PREFIX`). */
+export function findCherryProviderKey(providers: Record<string, any>): string | undefined {
+  return Object.keys(providers).find((key) => key.startsWith(CHERRY_PROVIDER_PREFIX))
 }
 
 /** Delete `target.features.goals`, dropping the whole `features` object if it becomes empty. */

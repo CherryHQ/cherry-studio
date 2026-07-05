@@ -34,7 +34,7 @@ import {
   OPENCODE_CONFIG_PATH,
   QWEN_CONFIG_PATH
 } from './targets'
-import { dropFeatureGoalsIfEmpty, omitKeysByPrefix } from './values'
+import { dropFeatureGoalsIfEmpty, isCherryManagedModel, omitKeysByPrefix } from './values'
 
 const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
 
@@ -132,22 +132,10 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
       if (!existing) return
       const next: Record<string, any> = { ...existing }
       if (next.env && typeof next.env === 'object') {
-        const env: Record<string, any> = {}
-        for (const [key, value] of Object.entries(next.env as Record<string, any>)) {
-          if (!key.startsWith('CHERRY_')) env[key] = value
-        }
-        next.env = env
+        next.env = omitKeysByPrefix(next.env as Record<string, any>, 'CHERRY_')
       }
       if (Array.isArray(next.modelProviders?.openai)) {
-        const filtered = next.modelProviders.openai.filter(
-          (model: any) =>
-            !(
-              model &&
-              typeof model === 'object' &&
-              typeof model.envKey === 'string' &&
-              model.envKey.startsWith('CHERRY_')
-            )
-        )
+        const filtered = next.modelProviders.openai.filter((model: any) => !isCherryManagedModel(model))
         next.modelProviders = { ...next.modelProviders, openai: filtered }
       }
       applyManagedJsonSettings(next, {}, QWEN_MANAGED_SETTINGS_KEYS)

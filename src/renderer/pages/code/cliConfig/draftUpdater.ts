@@ -19,7 +19,7 @@ import { extractConnectionFromCliConfigDraft } from './parser'
 import { openCodeNpmInfoFromNpmPackage } from './resolvers'
 import { sanitizeCliConfigBlob } from './sanitize'
 import type { CliConfigFileDraft, CliConfigTarget } from './types'
-import { asRecord, numberValue, stringValue } from './values'
+import { asRecord, findCherryProviderKey, numberValue, stringValue } from './values'
 
 export function formatCliConfigDraftFile(file: CliConfigFileDraft): CliConfigFileDraft {
   if (file.language !== 'json') return file
@@ -50,8 +50,7 @@ function providerNameFromKey(providerKey: string | undefined, label: string): st
 }
 
 function cherryProviderKeyFrom(providers: Record<string, any>): string {
-  const providerKey = Object.keys(providers).find((key) => key.startsWith(CHERRY_PROVIDER_PREFIX))
-  return requireDraftValue(providerKey, 'OpenCode provider')
+  return requireDraftValue(findCherryProviderKey(providers), 'OpenCode provider')
 }
 
 export function updateCliConfigDraftConfig(
