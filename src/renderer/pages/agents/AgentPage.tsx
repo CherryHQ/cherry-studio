@@ -15,7 +15,7 @@ import {
   ConversationResourceView,
   type ConversationResourceViewDefinition,
   useConversationResourceView
-} from '@renderer/components/resource/conversation'
+} from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgent, useAgents } from '@renderer/hooks/agent/useAgent'

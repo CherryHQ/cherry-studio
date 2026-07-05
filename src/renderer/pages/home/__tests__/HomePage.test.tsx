@@ -215,7 +215,7 @@ vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
   LoadingState: ({ label }: { label?: string }) => <div role="status">{label}</div>
 }))
 
-vi.mock('@renderer/components/resource/catalog', () => ({
+vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
   ResourceCatalogView: ({
     onOpenAssistantChat,
     resourceType,

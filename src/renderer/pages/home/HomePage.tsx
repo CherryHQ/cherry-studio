@@ -24,7 +24,7 @@ import {
   ConversationResourceView,
   type ConversationResourceViewDefinition,
   useConversationResourceView
-} from '@renderer/components/resource/conversation'
+} from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'

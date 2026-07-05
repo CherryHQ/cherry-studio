@@ -30,7 +30,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ListItem from '@renderer/components/ListItem'
-import { WorkspaceSelector } from '@renderer/components/resource'
+import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import Scrollbar from '@renderer/components/Scrollbar'
 import {
   SettingDivider,

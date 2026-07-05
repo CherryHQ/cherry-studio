@@ -273,7 +273,7 @@ vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resource/catalog', () => ({
+vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
   ResourceCatalogView: ({ resourceType, toolbarLeading }: { resourceType: string; toolbarLeading?: ReactNode }) => (
     <div data-testid={`resource-catalog-${resourceType}`}>
       {toolbarLeading && <div data-testid="resource-toolbar-leading">{toolbarLeading}</div>}

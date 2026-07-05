@@ -20,7 +20,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
-import { WorkspaceSelector } from '@renderer/components/resource'
+import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingDivider, SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
