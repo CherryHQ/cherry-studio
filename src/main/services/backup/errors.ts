@@ -31,3 +31,17 @@ export class BackupCancelledError extends Error {
     this.name = 'BackupCancelledError'
   }
 }
+
+/**
+ * Thrown when the disk fills up mid-archive (preflight passed but the volume ran out
+ * during the write stream — typically external blobs whose size is NULL in
+ * file_entry.size and so not counted in preflight). Spec export-orchestrator.md
+ * §磁盘预算 L254: archive writeStream ENOSPC is wrapped to DiskFullError so the
+ * renderer surfaces a clear "disk full" message rather than a raw errno.
+ */
+export class DiskFullError extends Error {
+  constructor(message = 'Disk became full mid-archive') {
+    super(message)
+    this.name = 'DiskFullError'
+  }
+}
