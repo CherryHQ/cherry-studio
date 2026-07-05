@@ -1,5 +1,6 @@
 /**
- * 职责：提供原子化的、无状态的API调用函数
+ * Renderer helpers that call the AI (`ai.generate_text`) to produce short text:
+ * generic text generation plus topic/note auto-naming. Stateless request/response.
  */
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
@@ -13,11 +14,11 @@ import { getNamingTextContent } from '@renderer/utils/message/find'
 import { readDefaultModel, readQuickModel } from '@renderer/utils/model'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils/naming'
 import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
 import { isFileUIPart } from 'ai'
 import { takeRight } from 'es-toolkit/compat'
 
-const logger = loggerService.withContext('ApiService')
+const logger = loggerService.withContext('aiGeneration')
 
 export async function fetchMessagesSummary({
   messages
@@ -121,22 +122,4 @@ export async function fetchGenerate({
     if (throwOnError) throw error
     return ''
   }
-}
-
-/**
- * Validates that a provider/model pair is working by sending a minimal probe.
- *
- * Renderer responsibilities are limited to UI-side preflight (toast on missing
- * api key / host / models) and IPC forwarding. Probe dispatch (embedding vs
- * chat), timeout handling, and latency measurement all happen in Main.
- */
-export async function checkApi(
-  uniqueModelId: UniqueModelId,
-  options?: { timeout?: number; signal?: AbortSignal }
-): Promise<{ latency: number }> {
-  options?.signal?.throwIfAborted()
-  return await ipcApi.request('ai.check_model', {
-    uniqueModelId,
-    timeout: options?.timeout ?? 15000
-  })
 }

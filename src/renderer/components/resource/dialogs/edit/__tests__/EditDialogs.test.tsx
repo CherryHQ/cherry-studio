@@ -196,7 +196,7 @@ vi.mock('@renderer/components/TopView/toast', () => ({
   useToasts: () => ({ error: toastErrorMock })
 }))
 
-vi.mock('@renderer/services/ApiService', () => ({
+vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchGenerate: fetchGenerateMock
 }))
 

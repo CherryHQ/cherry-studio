@@ -9,9 +9,9 @@ import {
   exportMessageAsMarkdown as exportMessageAsMarkdownFile,
   exportMessageToNotes,
   exportMessageToNotion,
+  getMessageTitle,
   messageToMarkdown
 } from '@renderer/services/ExportService'
-import { getMessageTitle } from '@renderer/services/MessagesService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { useCallback, useMemo } from 'react'
 

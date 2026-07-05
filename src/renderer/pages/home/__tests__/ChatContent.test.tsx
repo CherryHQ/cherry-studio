@@ -64,10 +64,6 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: (...args: unknown[]) => mockUseExecutionOverlay(...args)
 }))
 
-vi.mock('@renderer/services/ApiService', () => ({
-  fetchMcpTools: vi.fn(async () => [])
-}))
-
 vi.mock('@renderer/utils/assistant', () => ({
   isSupportedToolUse: vi.fn(() => false)
 }))

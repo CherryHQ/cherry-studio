@@ -32,6 +32,12 @@ const waitForReady = async (w: DirectoryWatcher): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 50))
 }
 
+// Default 15s: native inotify/FSEvents delivery on loaded CI runners can lag
+// several seconds behind the write. A tighter per-call deadline (we had 8s on
+// three positive-event waits) was the flakiest thing in the file — the sibling
+// `add` test on this default passes reliably on the same runner. Keep every
+// wait for an event we DO expect on this default; only absence checks use short
+// fixed sleeps.
 const waitForEvent = (
   w: DirectoryWatcher,
   pred: (e: WatcherEvent) => boolean,
@@ -132,11 +138,11 @@ describe('createDirectoryWatcher', () => {
 
     // First write registers the file (fires 'add'); second write fires 'change'.
     await writeFile(target, 'v1')
-    await waitForEvent(w, (e) => e.kind === 'add' && e.path === target, 8000)
+    await waitForEvent(w, (e) => e.kind === 'add' && e.path === target)
     // Brief settle so chokidar's awaitWriteFinish window closes on the add.
     await new Promise((r) => setTimeout(r, 250))
     await writeFile(target, 'v2-content-larger')
-    const ev = await waitForEvent(w, (e) => e.kind === 'change' && e.path === target, 8000)
+    const ev = await waitForEvent(w, (e) => e.kind === 'change' && e.path === target)
     expect(ev.kind).toBe('change')
     await w.close()
   })
@@ -165,7 +171,7 @@ describe('createDirectoryWatcher', () => {
     const rootFile = path.join(dir, 'root.txt') as FilePath
     const nestedFile = path.join(nestedDir, 'nested.txt') as FilePath
     await writeFile(rootFile, 'root')
-    await waitForEvent(w, (e) => e.kind === 'add' && e.path === rootFile, 8000)
+    await waitForEvent(w, (e) => e.kind === 'add' && e.path === rootFile)
 
     await writeFile(nestedFile, 'nested')
     await new Promise((r) => setTimeout(r, 400))

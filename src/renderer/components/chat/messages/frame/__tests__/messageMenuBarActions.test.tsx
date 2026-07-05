@@ -109,11 +109,8 @@ vi.mock('@renderer/components/command', async () => {
   }
 })
 
-vi.mock('@renderer/services/MessagesService', () => ({
-  getMessageTitle: vi.fn()
-}))
-
 vi.mock('@renderer/services/ExportService', () => ({
+  getMessageTitle: vi.fn(),
   messageToMarkdown: vi.fn()
 }))
 

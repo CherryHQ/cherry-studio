@@ -135,7 +135,7 @@ vi.mock('@renderer/hooks/useNotesSettings', () => ({
   useNotesSettings: () => ({ notesPath: '/notes' })
 }))
 
-vi.mock('@renderer/services/ApiService', () => ({
+vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchMessagesSummary: vi.fn().mockResolvedValue({ text: 'Auto title' })
 }))
 

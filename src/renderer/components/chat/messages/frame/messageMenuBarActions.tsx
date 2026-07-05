@@ -5,8 +5,7 @@ import {
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
 import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/icons'
-import { messageToMarkdown } from '@renderer/services/ExportService'
-import { getMessageTitle } from '@renderer/services/MessagesService'
+import { getMessageTitle, messageToMarkdown } from '@renderer/services/ExportService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { messageToPlainText } from '@renderer/utils/export'

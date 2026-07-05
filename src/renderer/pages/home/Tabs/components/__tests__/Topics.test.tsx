@@ -179,7 +179,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   }
 }))
 
-vi.mock('@renderer/services/ApiService', () => ({
+vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchMessagesSummary: vi.fn().mockResolvedValue({ text: 'Auto title' })
 }))
 

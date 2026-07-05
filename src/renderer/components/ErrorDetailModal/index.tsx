@@ -4,7 +4,6 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n'
-import type { DiagnosisContext, DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
   isSerializedAiSdkApiCallError,
@@ -31,6 +30,7 @@ import {
   isSerializedError
 } from '@renderer/types/error'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
+import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { CheckCircle, Copy, Loader2, Stethoscope } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
