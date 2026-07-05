@@ -200,6 +200,8 @@ export function buildGeminiSettingsConfig(
   const next = { ...settings }
   applyManagedJsonSettings(next, sanitizeGeminiConfigBlob(configBlob), GEMINI_MANAGED_SETTINGS_KEYS)
   next.model = { ...asRecord(next.model), name: resolved.model }
+  const security = asRecord(next.security)
+  next.security = { ...security, auth: { ...asRecord(security.auth), selectedType: 'gemini-api-key' } }
   return next
 }
 

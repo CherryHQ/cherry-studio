@@ -94,6 +94,20 @@ describe('clearCliConfig', () => {
     })
   })
 
+  it('gemini: strips security.auth.selectedType when config exists', async () => {
+    existing['/resolved~/.gemini/settings.json'] = JSON.stringify({
+      general: { vimMode: true, userSetting: 'keep' },
+      model: { name: 'gemini-2.5-pro' },
+      security: { auth: { selectedType: 'gemini-api-key' } }
+    })
+
+    await clearCliConfig({ cliTool: CodeCli.GEMINI_CLI })
+
+    expect(JSON.parse(writes['/resolved~/.gemini/settings.json'])).toEqual({
+      general: { userSetting: 'keep' }
+    })
+  })
+
   it('qwen: missing config is already clear and does not create files', async () => {
     await clearCliConfig({ cliTool: CodeCli.QWEN_CODE })
 
@@ -108,6 +122,7 @@ describe('clearCliConfig', () => {
       general: { vimMode: true, userSetting: 'keep' },
       tools: { approvalMode: 'yolo', userTool: 'keep' },
       model: 'qwen3-max',
+      security: { auth: { selectedType: 'openai' } },
       modelProviders: {
         openai: [
           { id: 'qwen3-max', envKey: 'CHERRY_QWEN_API_KEY' },

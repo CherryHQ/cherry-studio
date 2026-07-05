@@ -41,6 +41,20 @@ export function dropFeatureGoalsIfEmpty(target: Record<string, any>): void {
   else target.features = features
 }
 
+/** Delete `target.security.auth.selectedType`, dropping `auth`/`security` when they become empty. */
+export function dropSecurityAuthSelectedTypeIfEmpty(target: Record<string, any>): void {
+  if (!target.security || typeof target.security !== 'object') return
+  const security = { ...(target.security as Record<string, any>) }
+  if (security.auth && typeof security.auth === 'object') {
+    const auth = { ...(security.auth as Record<string, any>) }
+    delete auth.selectedType
+    if (Object.keys(auth).length === 0) delete security.auth
+    else security.auth = auth
+  }
+  if (Object.keys(security).length === 0) delete target.security
+  else target.security = security
+}
+
 export function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }

@@ -631,6 +631,7 @@ describe('writeCliConfigDraft', () => {
       expect(settings.ui.hideBanner).toBe(true)
       expect(settings.privacy.usageStatisticsEnabled).toBe(false)
       expect(settings.model).toEqual({ name: 'gemini-2.5-pro' })
+      expect(settings.security).toEqual({ auth: { selectedType: 'gemini-api-key' } })
       expect(settings.context).toBeUndefined()
       expect(settings.tools).toBeUndefined()
       expect(settings.advanced).toBeUndefined()

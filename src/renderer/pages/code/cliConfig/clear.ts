@@ -34,7 +34,12 @@ import {
   OPENCODE_CONFIG_PATH,
   QWEN_CONFIG_PATH
 } from './targets'
-import { dropFeatureGoalsIfEmpty, isCherryManagedModel, omitKeysByPrefix } from './values'
+import {
+  dropFeatureGoalsIfEmpty,
+  dropSecurityAuthSelectedTypeIfEmpty,
+  isCherryManagedModel,
+  omitKeysByPrefix
+} from './values'
 
 const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
 
@@ -119,6 +124,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
       const settings = await readValidatedJsonOrNull(settingsAbsPath, 'Gemini CLI settings')
       if (!settings) return
       applyManagedJsonSettings(settings, {}, GEMINI_MANAGED_SETTINGS_KEYS)
+      dropSecurityAuthSelectedTypeIfEmpty(settings)
       if (settings.model && typeof settings.model === 'object') {
         delete settings.model.name
         if (Object.keys(settings.model as Record<string, any>).length === 0) delete settings.model
@@ -139,6 +145,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
         next.modelProviders = { ...next.modelProviders, openai: filtered }
       }
       applyManagedJsonSettings(next, {}, QWEN_MANAGED_SETTINGS_KEYS)
+      dropSecurityAuthSelectedTypeIfEmpty(next)
       delete next.model
       await window.api.file.write(absPath, renderJsonFile(next))
       return
