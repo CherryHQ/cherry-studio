@@ -26,8 +26,11 @@ import { readFileSync } from 'node:fs'
 import { stat, statfs } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { and, eq, isNull, sum } from 'drizzle-orm'
+
 import { application } from '@application'
 import { BaseService, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { fileEntryTable } from '@main/data/db/schemas/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app } from 'electron'
 
@@ -106,7 +109,7 @@ export class BackupService extends BaseService {
     }
     // Preflight BEFORE any copy/archive work — disk-full surfaces as a clear error
     // here rather than a mid-export SQLITE_FULL (spec export-orchestrator.md §磁盘预算).
-    await this.preflightDisk()
+    await this.preflightDisk(preset)
     return this.orchestrator.exportBackup({
       preset,
       outputPath,
@@ -117,21 +120,52 @@ export class BackupService extends BaseService {
   }
 
   /**
-   * Verify enough free space for the export. Conservative lower bound = 2× live DB
-   * (online copy + archive); the 1.2× safety factor matches spec §磁盘预算.
+   * Verify enough free space for the export. The 1.2× safety factor matches spec
+   * §磁盘预算.
+   *
+   * Budget per preset:
+   * - DB online copy + DB embedded in archive = 2× live DB (both presets).
+   * - full: internal blobs staged to files/ AND embedded in the .cbu while
+   *   assembleArchive runs (temp + archive co-exist briefly) = 2× internal blob total.
+   * - lite: omits files/ entirely (presetIncludesFiles=false), so no blob budget —
+   *   charging lite for blobs would defeat its "skip large files" purpose.
+   *
+   * External blobs are also staged under files/ for full, but `file_entry.size` is
+   * NULL for external rows (schema enforces), so a cheap SUM is unavailable — counting
+   * them needs per-file fs.stat after collectFileResources resolves the ids (later in
+   * the pipeline than this preflight). Accepted as a known gap: preflight is a
+   * best-effort early check; a mid-export disk-full is caught at the archive write
+   * stream (DiskFullError + temp cleanup, see archive.ts).
    */
-  private async preflightDisk(): Promise<void> {
+  private async preflightDisk(preset: 'full' | 'lite'): Promise<void> {
     const liveDbPath = application.getPath('app.database.file')
     const liveDbSize = (await stat(liveDbPath)).size
-    // TODO: add file_entry blob size sum (internal size column) once a cheap aggregate
-    // is wired — blobs can dominate the archive size for file-heavy users.
-    const needed = liveDbSize * 2
+    let needed = liveDbSize * 2
+    if (preset === 'full') {
+      const internalBlobBytes = await this.sumInternalBlobBytes()
+      needed += internalBlobBytes * 2
+    }
     const tempDir = application.getPath('feature.backup.temp')
     const fsStats = await statfs(tempDir)
     const available = fsStats.bavail * fsStats.bsize
     if (available < needed * 1.2) {
       throw new InsufficientDiskSpaceError({ needed: Math.round(needed * 1.2), available })
     }
+  }
+
+  /**
+   * Sum the `size` column over live (non-soft-deleted) internal file_entry rows.
+   * Returns 0 when there are no matching rows. SQLite SUM over INTEGER returns a
+   * decimal string via drizzle; coerce with Number().
+   */
+  private async sumInternalBlobBytes(): Promise<number> {
+    // WhenReady runs after DbService (BeforeReady), so getDb() is safe to call here.
+    const db = application.get('DbService').getDb()
+    const rows = await db
+      .select({ total: sum(fileEntryTable.size) })
+      .from(fileEntryTable)
+      .where(and(eq(fileEntryTable.origin, 'internal'), isNull(fileEntryTable.deletedAt)))
+    return Number(rows[0]?.total ?? 0)
   }
 
   /** Read the last migration's `when` (folderMillis) from the drizzle migration journal. */
