@@ -181,29 +181,27 @@ describe('createDirectoryWatcher', () => {
     await w.close()
   })
 
-  // Reverse-direction skip from the NFD test in entry/create.test.ts:
-  // chokidar emits whatever the OS hands it. On macOS APFS / Windows NTFS the
-  // FS normalizes to NFC at storage time, so even a file we name with NFD
-  // bytes gets surfaced as NFC and the case under test (chokidar firing NFD)
-  // can't be set up locally. On Linux ext4, filenames are opaque bytes —
-  // writeFile preserves the NFD encoding verbatim, chokidar surfaces it as
-  // NFD, which is exactly the scenario the production fix targets (a CJK
-  // file migrated from HFS+ via `rsync -E` arrives in NFD on macOS users'
-  // disks; we use Linux to *reproduce* that byte pattern under test).
+  // On Linux ext4, filenames are opaque bytes — writeFile preserves the NFD
+  // encoding verbatim and chokidar surfaces it as NFD, so we use Linux to
+  // *reproduce* the byte pattern a CJK/accented file migrated from HFS+ (via
+  // `rsync -E`) shows up as on a macOS user's disk. Because `externalPath` is
+  // now stored byte-faithful (no NFC), the DanglingCache reverse index is
+  // keyed by that exact NFD form and the watcher matches the chokidar event by
+  // *raw byte equality* — the previous NFC-normalize bridge in `handle()` is
+  // gone. On Linux the raw event byte-matches the stored key by construction.
   it.runIf(process.platform === 'linux')(
-    'normalizes NFD chokidar paths to NFC before feeding DanglingCache (linux-reproducible regression)',
+    'feeds DanglingCache by raw byte equality — NFD event matches the byte-faithful NFD key (no NFC step)',
     async () => {
       const nfd = 'qu\u0065\u0301.txt' // q, u, e, combining acute -> NFD
       const nfc = 'qu\u00E9.txt' // q, u, e-precomposed -> NFC
       expect(nfd).not.toBe(nfc) // byte-distinct strings reaching us at runtime
 
       const writtenPath = path.join(dir, nfd) as FilePath
-      const canonicalPath = path.join(dir, nfc) as FilePath
 
       // DanglingCache's reverse index is populated by `ensureExternalEntry`,
-      // whose `externalPath` is already NFC-canonical via `canonicalizeFilePath`.
-      // Mirror that here.
-      danglingCache.addEntry('e-w-nfd' as FileEntryId, canonicalPath)
+      // whose `externalPath` is now stored byte-faithful (no NFC). Mirror that
+      // by registering the entry under the exact NFD bytes on disk.
+      danglingCache.addEntry('e-w-nfd' as FileEntryId, writtenPath)
 
       const w = createDirectoryWatcher(dir as FilePath)
       await waitForReady(w)
@@ -212,13 +210,13 @@ describe('createDirectoryWatcher', () => {
       if (ev.kind !== 'add') throw new Error('expected add event')
       expect(ev.path).toBe(writtenPath)
 
-      // The cache lookup uses NFC keys; without the NFC-normalize step in
-      // `handle()` this would miss and the cache would stay 'unknown'.
+      // The reverse-index key and the chokidar event path are the same
+      // byte-faithful NFD string, so the lookup hits with no NFC normalization.
       expect(
         await danglingCache.check({
           id: 'e-w-nfd' as FileEntryId,
           origin: 'external',
-          externalPath: canonicalPath,
+          externalPath: writtenPath,
           name: 'qué',
           ext: 'txt',
           size: null,

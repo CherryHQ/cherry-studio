@@ -211,23 +211,31 @@ export const ExternalEntrySchema = z.strictObject({
   origin: z.literal('external'),
   /**
    * Absolute filesystem path to the user-provided file, as a
-   * `CanonicalFilePath`. Canonical form is guaranteed at WRITE time by
-   * `canonicalizeFilePath` (external-entry insert / rename); this field does
-   * NOT re-canonicalize on read. A stored value that is not already canonical
-   * is REJECTED at parse (surfaced via `rowToFileEntrySafe`'s warn-skip) —
-   * reads never silently rewrite the value. Rejecting rather than repairing
-   * keeps the lookup/dedup key stable: a re-canonicalization migration is the
-   * only sanctioned way to fix historically non-canonical rows.
+   * `CanonicalFilePath` — the byte-faithful lexical form produced by
+   * `canonicalizeFilePath` (segment-resolve + trailing-strip + drive-upcase,
+   * NOT Unicode-normalized). This byte-faithful form is guaranteed at WRITE
+   * time (external-entry insert / rename); this field does NOT re-canonicalize
+   * on read. A stored value that is not already in that lexical form (a raw
+   * `./` / `..` / trailing-slash path) is REJECTED at parse (surfaced via
+   * `rowToFileEntrySafe`'s warn-skip); a byte-faithful path — including one
+   * carrying NFD Unicode — is accepted as-is. Reads never silently rewrite the
+   * value: rejecting rather than repairing keeps the lookup/dedup key stable,
+   * so a re-canonicalization migration is the only sanctioned way to fix
+   * historically non-canonical rows.
    */
   externalPath: FilePathSchema.refine((s) => {
-    // Reject a stored value that is not already canonical (no silent repair):
-    // canonicalizeAbsolutePath throws on structural failure, absorbed here.
+    // Validate the stored value is already in the byte-faithful lexical form
+    // produced by `canonicalizeFilePath` (segment-resolve + trailing-strip +
+    // drive-upcase, NOT Unicode-normalized) — no silent repair. A raw `./` /
+    // `..` / trailing-slash path is rejected; a byte-faithful path (including
+    // NFD Unicode) is accepted unchanged. canonicalizeAbsolutePath throws on
+    // structural failure, absorbed here.
     try {
       return s === canonicalizeAbsolutePath(s)
     } catch {
       return false
     }
-  }, 'externalPath must be canonical (produced via canonicalizeFilePath) before persistence').transform(
+  }, 'externalPath must be in byte-faithful canonical form (produced via canonicalizeFilePath) before persistence').transform(
     (s): CanonicalFilePath => s as CanonicalFilePath
   )
 })

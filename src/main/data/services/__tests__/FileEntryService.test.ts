@@ -1622,26 +1622,54 @@ describe('FileEntryService', () => {
     })
   })
 
-  describe('non-canonical externalPath rejection (read-time contract)', () => {
-    it('warn-skips an external row whose stored externalPath is not canonical (NFD form)', async () => {
-      // Non-canonical externalPath rows are rejected on read — no silent repair;
-      // lookup-by-path requires a re-canonicalization migration. externalPath is
-      // guaranteed canonical only at WRITE time (via canonicalizeFilePath in
-      // ensureExternal / rename); a row inserted directly with a non-canonical
-      // value (bypassing the service write path) fails the schema's
-      // canonical-equivalence refine and is warn-skipped by rowToFileEntrySafe
-      // rather than returned or silently rewritten.
+  describe('externalPath byte-faithful acceptance + lexical rejection (read-time contract)', () => {
+    it('accepts an external row whose stored externalPath carries NFD Unicode (byte-faithful)', async () => {
+      // externalPath is stored byte-faithful — canonicalizeAbsolutePath does NOT
+      // Unicode-normalize, so an NFD path IS already in canonical form and reads
+      // back cleanly. (NFC-folding here would break reachability on
+      // normalization-sensitive filesystems like Linux ext4.) ASCII \u escapes
+      // keep the literal stable — raw combining marks get re-normalized by tooling.
       const id = '019606a0-0000-7000-8000-00000000ab01' as FileEntryId
       const now = Date.now()
       // "café.pdf" written in NFD: base 'e' + combining acute accent (U+0301).
-      // canonicalizeAbsolutePath NFC-folds this to a single U+00E9, so the stored
-      // bytes differ from their canonical form. ASCII \u escapes keep the literal
-      // stable — raw combining marks get silently re-normalized by tooling.
-      const nonCanonicalPath = '/Users/me/cafe\u0301.pdf'
+      const nfdPath = '/Users/me/cafe\u0301.pdf'
       await dbh.db.insert(fileEntryTable).values({
         id,
         origin: 'external',
         name: 'cafe',
+        ext: 'pdf',
+        size: null,
+        externalPath: nfdPath,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+      mockMainLoggerService.warn.mockClear()
+
+      // Bulk read returns the row unchanged — no warn, no silent rewrite.
+      const entries = fileEntryService.findMany({ origin: 'external' })
+      expect(entries.map((e) => e.id)).toEqual([id])
+      expect(entries[0].origin).toBe('external')
+      if (entries[0].origin === 'external') {
+        expect(entries[0].externalPath).toBe(nfdPath) // byte-faithful, still NFD
+      }
+      expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+    })
+
+    it('warn-skips an external row whose stored externalPath is not in lexical canonical form (unresolved `..`)', async () => {
+      // The byte-faithful refine still rejects a stored value that is not in the
+      // lexically-resolved form `canonicalizeFilePath` produces — no silent
+      // repair; lookup-by-path requires a re-canonicalization migration. A row
+      // carrying an unresolved `/../` segment (canonicalizeAbsolutePath collapses
+      // it) fails the schema's canonical-equivalence refine and is warn-skipped
+      // by rowToFileEntrySafe rather than returned or silently rewritten.
+      const id = '019606a0-0000-7000-8000-00000000ab02' as FileEntryId
+      const now = Date.now()
+      const nonCanonicalPath = '/Users/me/../me/DOC.pdf' // canonicalizes to /Users/me/DOC.pdf
+      await dbh.db.insert(fileEntryTable).values({
+        id,
+        origin: 'external',
+        name: 'DOC',
         ext: 'pdf',
         size: null,
         externalPath: nonCanonicalPath,

@@ -123,10 +123,11 @@ export type CreateInternalEntryIpcParams =
  *
  * `externalPath` is typed as `FilePath` at this IPC boundary — shape-validated
  * only (absolute form, no null bytes; see `FilePathSchema`), NOT canonicalized.
- * Canonicalization into the stored `CanonicalFilePath` form (NFC normalize,
- * resolve segments, strip trailing separator, drive-letter upcase) happens
- * inside `ensureExternalEntry`, via `canonicalizeFilePath()`
- * (`@shared/utils/file/canonicalize`) — not at IPC parse time.
+ * Canonicalization into the stored `CanonicalFilePath` form (byte-faithful
+ * lexical cleanup: resolve segments, strip trailing separator, drive-letter
+ * upcase — NOT Unicode-normalized) happens inside `ensureExternalEntry`, via
+ * `canonicalizeFilePath()` (`@shared/utils/file/canonicalize`) — not at IPC
+ * parse time.
  *
  * What stays main-only is the **disambiguation** step beyond canonicalization:
  * `ensureExternalEntry` additionally runs `fs.realpath` to resolve

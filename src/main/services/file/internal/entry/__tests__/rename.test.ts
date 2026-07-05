@@ -119,21 +119,22 @@ describe('internal/entry/rename', () => {
     expect(await readFile(collision, 'utf-8')).toBe('B')
   })
 
-  it('treats NFC/NFD-equivalent names as a no-op (no fs.rename, no DB write)', async () => {
-    // macOS HFS+/APFS surface filenames in NFD; renderer input is NFC.
-    // path.join produces a string whose codepoints differ from the stored
-    // (NFC) externalPath even though they refer to the same logical file.
-    // Canonicalization on both sides must collapse this difference.
-    // Explicit escape construction — relying on source-literal `é` is
-    // unreliable because editors/formatters may NFC-normalize on save.
-    const nfcName = 'qu\u00e9' // 'qué' — single codepoint U+00E9
-    const nfdName = 'qu\u0065\u0301' // 'qué' — e + combining acute
+  it('treats NFC and NFD spellings as distinct byte-faithful targets (renames, not a no-op)', async () => {
+    // externalPath is stored byte-faithful (no NFC), so an NFC-stored entry
+    // renamed to the NFD spelling of the same display name is a REAL rename to
+    // a byte-distinct target, not a short-circuited no-op. Explicit escape
+    // construction — relying on source-literal `é` is unreliable because
+    // editors/formatters may NFC-normalize on save.
+    const nfcName = 'qu\u00e9' // 'qué' — single codepoint U+00E9 (NFC)
+    const nfdName = 'qu\u0065\u0301' // 'qué' — e + combining acute (NFD)
     expect(nfcName).not.toBe(nfdName) // byte-distinct strings
     expect(nfcName.normalize('NFC')).toBe(nfdName.normalize('NFC'))
 
     const filePath = path.join(tmp, `${nfcName}.txt`)
     await writeFile(filePath, 'x')
     const entry = await ensureExternal(deps, { externalPath: filePath as FilePath })
+    if (entry.origin !== 'external') throw new Error('expected external entry')
+    expect(entry.externalPath).toBe(filePath) // byte-faithful NFC, no fold
 
     // Spy on the file module's `move` wrapper, not `node:fs/promises.rename`:
     // the latter is a Node native ESM namespace member and Vitest cannot
@@ -144,15 +145,18 @@ describe('internal/entry/rename', () => {
     const fsModule = await import('@main/utils/file/fs')
     const moveSpy = vi.spyOn(fsModule, 'move')
 
-    // Re-rename to the NFD form — same logical name, different codepoints.
+    // Rename to the NFD spelling — same logical name, byte-distinct target.
     const result = await rename(deps, entry.id, nfdName)
 
-    expect(moveSpy).not.toHaveBeenCalled()
+    // The rename is NOT short-circuited: `move` runs and the DB row takes the
+    // byte-faithful NFD path (no NFC fold).
+    expect(moveSpy).toHaveBeenCalled()
     expect(result.id).toBe(entry.id)
     if (result.origin !== 'external' || entry.origin !== 'external') {
       throw new Error('expected external entries')
     }
-    expect(result.externalPath).toBe(entry.externalPath) // still NFC-canonical
+    expect(result.name).toBe(nfdName)
+    expect(result.externalPath).toBe(path.join(tmp, `${nfdName}.txt`)) // byte-faithful NFD
   })
 
   it('allows a case-only rename when the existing file at target is the same inode', async () => {

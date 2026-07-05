@@ -125,7 +125,9 @@ describe('FileManager (integration)', () => {
     const found = await fm.findByExternalPath(FilePathSchema.parse(`${file}/`)) // trailing slash → canonicalize strips
     expect(found?.id).toBe(id)
 
-    // NFC re-normalization survives a synthesized NFD form
+    // Byte-faithful lookup: canonicalization does NOT Unicode-normalize, so an
+    // NFD synthesis of this ASCII path is byte-identical and matches the stored
+    // (byte-faithful) row exactly.
     const nfdFile = file.normalize('NFD')
     const foundNfc = await fm.findByExternalPath(FilePathSchema.parse(nfdFile))
     expect(foundNfc?.id).toBe(id)

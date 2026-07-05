@@ -38,10 +38,11 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   // `if (!entry.externalPath)` throw was unreachable and has been removed.
   const dir = path.dirname(entry.externalPath)
   const ext = entry.ext ? `.${entry.ext}` : ''
-  // Canonicalize the target so the no-op check below tolerates NFC/NFD,
-  // trailing-separator, and `.`/`..` noise — `entry.externalPath` is already
-  // canonical (written through `ensureExternalEntry`), so string equality
-  // here is a reliable "same logical path" test.
+  // Canonicalize the target so the no-op check below tolerates trailing-
+  // separator and `.`/`..` noise — `entry.externalPath` is already canonical
+  // (byte-faithful, written through `ensureExternalEntry`), so string equality
+  // here is a reliable "same byte path" test. Canonicalization is byte-faithful
+  // (no NFC), so NFC and NFD spellings of a name are distinct targets.
   const oldPath = entry.externalPath
   const target = canonicalizeFilePath(path.join(dir, `${newName}${ext}`))
   // Defense in depth: `SafeNameSchema.parse(newName)` above already rejects

@@ -161,24 +161,27 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
    * not mirrored — the file is still present; only mtime drift, which the
    * cache doesn't track.
    *
-   * The cache feed is keyed by canonical (NFC) path because `DanglingCache`'s
-   * reverse index is populated by `ensureExternalEntry`, whose `externalPath`
-   * is already NFC-canonical via `canonicalizeFilePath`. chokidar emits whatever the
-   * OS hands it; on macOS APFS that is NFD
-   * for CJK / accented filenames migrated from HFS+ (or written by tools like
-   * `rsync -E` that preserve the source encoding). Without normalizing here
-   * the `path → entryIds` lookup misses and the cache stays stale. The
-   * outbound `emitter.fire(ev)` keeps the raw OS path so external subscribers
-   * (e.g. opening the file with the same string chokidar saw) stay coherent
-   * with what the FS actually has — only the DanglingCache leg gets the NFC
-   * form, since it is the only leg that compares against canonical keys.
+   * DanglingCache's reverse index is keyed **byte-faithful**: it is populated
+   * by `ensureExternalEntry`, whose `externalPath` is stored exactly as the OS
+   * handed it (byte-faithful lexical form, no NFC). So the watcher matches
+   * chokidar events by **raw byte equality** — no normalization on either leg.
+   * (The NFC step that used to sit here existed only to bridge to the old
+   * NFC-canonical keys; it is removed together with them.) On Linux the raw
+   * event byte-matches the stored key by construction; on macOS/Windows it
+   * matches when the path source and chokidar agree on Unicode form.
+   *
+   * `check()` — which stats the byte-faithful stored path directly — is the
+   * correctness baseline, so a missed watcher match is never a correctness
+   * bug: it only delays a badge update until the next `check()`, which is
+   * benign and self-healing. See
+   * `docs/references/file/file-manager-architecture.md §11.3 "Watcher
+   * Auto-Wiring"`.
    */
   private handle(ev: Extract<WatcherEvent, { path: FilePath }>): void {
     if (this.closed) return
     if (ev.kind === 'add' || ev.kind === 'unlink') {
-      const canonical = ev.path.normalize('NFC') as FilePath
       const presence = ev.kind === 'add' ? 'present' : 'missing'
-      danglingCache.onFsEvent(canonical, presence, 'watcher')
+      danglingCache.onFsEvent(ev.path, presence, 'watcher')
     }
     this.emitter.fire(ev)
   }

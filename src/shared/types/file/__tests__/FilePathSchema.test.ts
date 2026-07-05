@@ -4,10 +4,11 @@ import { FilePathSchema } from '../common'
 
 describe('FilePathSchema', () => {
   // FilePathSchema validates absolute-path SHAPE only and does NOT canonicalize:
-  // `parse(x)` returns `x` byte-for-byte. Canonicalization (NFC + segment
-  // resolve + trailing-strip + drive-letter upcase) is a separate concern owned
-  // by `canonicalizeFilePath` / `canonicalizeAbsolutePath` — its behavior is
-  // pinned in `@shared/utils/file/__tests__/canonicalize.test.ts`.
+  // `parse(x)` returns `x` byte-for-byte. Canonicalization (byte-faithful
+  // lexical cleanup: segment-resolve + trailing-strip + drive-letter upcase,
+  // NOT Unicode-normalized) is a separate concern owned by `canonicalizeFilePath`
+  // / `canonicalizeAbsolutePath` — its behavior is pinned in
+  // `@shared/utils/file/__tests__/canonicalize.test.ts`.
 
   it('returns a POSIX absolute path unchanged', () => {
     expect(FilePathSchema.parse('/Users/me/doc.pdf')).toBe('/Users/me/doc.pdf')

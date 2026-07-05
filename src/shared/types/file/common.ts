@@ -33,11 +33,11 @@ export type FileType = z.infer<typeof FileTypeSchema>
  * SHAPE only — absolute form, no null bytes — and does NOT canonicalize:
  * `FilePathSchema.parse(x)` returns `x` unchanged (the path exactly as given).
  *
- * The canonical form of a path (NFC + segment-resolve + trailing-separator
- * strip + drive-letter upcase) is a distinct `CanonicalFilePath` produced by
- * `canonicalizeFilePath()` (`@shared/utils/file/canonicalize`); it is applied
- * explicitly at the external-path persistence / lookup boundary, not on every
- * `FilePath` parse.
+ * The canonical form of a path (byte-faithful lexical resolve: segment-resolve
+ * + trailing-separator strip + drive-letter upcase, NOT Unicode-normalized) is
+ * a distinct `CanonicalFilePath` produced by `canonicalizeFilePath()`
+ * (`@shared/utils/file/canonicalize`); it is applied explicitly at the
+ * external-path persistence / lookup boundary, not on every `FilePath` parse.
  *
  * The `z.brand` is a phantom brand — zero runtime cost, dropped on IPC
  * serialization; receivers re-assert via `FilePathSchema.parse()` at the
@@ -62,10 +62,11 @@ export const FilePathSchema = z
 export type FilePath = z.infer<typeof FilePathSchema>
 
 /**
- * A `FilePath` additionally proven to be in canonical form
- * (`canonicalizeAbsolutePath`: NFC + segment-resolve + trailing-separator
- * strip + drive-letter upcase). This is the form persisted in
- * `file_entry.externalPath` and used as the dedup / lookup key.
+ * A `FilePath` additionally proven to be in canonical form — the
+ * byte-faithful, lexically-resolved output of `canonicalizeAbsolutePath`
+ * (segment-resolve + trailing-separator strip + drive-letter upcase), NOT
+ * Unicode-normalized. This is the form persisted in `file_entry.externalPath`
+ * and used as the dedup / lookup key.
  *
  * TS-only phantom brand with a STRING-LITERAL key (not a `unique symbol`):
  * `FileEntry.externalPath` flows into preload's inferred `WindowApiType`

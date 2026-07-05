@@ -3,12 +3,13 @@
  * implementation that backs the FileEntry schema's `externalPath` refine.
  *
  * For inputs that match the host platform, the result must equal what the
- * main-side `path.resolve` + NFC + trailing-strip pipeline produces; this
- * keeps the canonicalize-on-write path (`canonicalizeFilePath`, applied at the
- * external-path boundary) and the schema's `externalPath` canonical-equivalence
- * refine in lockstep. Cross-platform cases (Windows-shaped paths processed on
- * POSIX hosts and vice versa) are pinned by handcrafted expectations because
- * `path.resolve` is host-aware and can't be used as the oracle there.
+ * main-side `path.resolve` + trailing-strip pipeline produces (byte-faithful,
+ * NO Unicode normalization); this keeps the canonicalize-on-write path
+ * (`canonicalizeFilePath`, applied at the external-path boundary) and the
+ * schema's `externalPath` canonical-equivalence refine in lockstep.
+ * Cross-platform cases (Windows-shaped paths processed on POSIX hosts and vice
+ * versa) are pinned by handcrafted expectations because `path.resolve` is
+ * host-aware and can't be used as the oracle there.
  */
 
 import path from 'node:path'
@@ -18,8 +19,10 @@ import { describe, expect, it } from 'vitest'
 import { canonicalizeAbsolutePath, canonicalizeFilePath } from '../canonicalize'
 
 function nodeCanonicalize(raw: string): string {
+  // Byte-faithful: `path.resolve` (segment resolve) + trailing-strip only.
+  // No `.normalize('NFC')` — canonicalization deliberately preserves the
+  // exact bytes so the path reaches the real file on every filesystem.
   let normalized = path.resolve(raw)
-  normalized = normalized.normalize('NFC')
   if (normalized.length > 1 && (normalized.endsWith(path.sep) || normalized.endsWith('/'))) {
     normalized = normalized.slice(0, -1)
   }
@@ -48,10 +51,14 @@ describe('canonicalizeAbsolutePath — POSIX', () => {
     expect(canonicalizeAbsolutePath('/foo//bar')).toBe('/foo/bar')
   })
 
-  it('NFC-normalizes Unicode', () => {
-    const nfd = '/users/qué' // qu + e + combining acute
-    const nfc = '/users/qué' // qu + é
-    expect(canonicalizeAbsolutePath(nfd)).toBe(nfc)
+  it('does NOT Unicode-normalize \u2014 returns decomposed (NFD) input byte-faithfully unchanged', () => {
+    // Canonicalization is byte-faithful: an NFD path stays NFD so it still
+    // reaches the real file on normalization-sensitive filesystems (Linux
+    // ext4). ASCII \\u escapes keep the literals stable across tooling.
+    const nfd = '/users/qu\u0065\u0301' // qu + e + combining acute (NFD)
+    const nfc = '/users/qu\u00E9' // qu + e-precomposed (NFC)
+    expect(nfd).not.toBe(nfc) // byte-distinct inputs
+    expect(canonicalizeAbsolutePath(nfd)).toBe(nfd) // unchanged, NOT folded to NFC
   })
 
   it('matches node:path on the host platform for representative inputs', () => {
