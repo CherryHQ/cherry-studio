@@ -1098,10 +1098,6 @@
     "clear": {
       "content": "Clearing topics will delete all topics under this assistant. Are you sure you want to continue?",
       "menu_title": "Clear Topics",
-      "success_content": {
-        "line1": "This assistant has no topics now and will be hidden from the current list.",
-        "line2": "To view it, open Manage Assistants from the filter menu."
-      },
       "success_title": "Cleared {{count}} topics",
       "title": "Clear conversations"
     },

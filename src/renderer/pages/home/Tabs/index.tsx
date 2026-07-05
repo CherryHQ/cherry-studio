@@ -8,6 +8,7 @@ import { Topics } from './components/Topics'
 
 interface Props {
   activeTopic?: Topic
+  onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
   setActiveTopic: (topic: Topic) => void
@@ -18,6 +19,7 @@ interface Props {
 
 const HomeTabs: FC<Props> = ({
   activeTopic,
+  onCreateTopicAfterClear,
   onNewTopic,
   onOpenHistoryRecords,
   setActiveTopic,
@@ -31,6 +33,7 @@ const HomeTabs: FC<Props> = ({
         <Topics
           activeTopic={activeTopic}
           setActiveTopic={setActiveTopic}
+          onCreateTopicAfterClear={onCreateTopicAfterClear}
           onNewTopic={onNewTopic}
           onOpenHistoryRecords={onOpenHistoryRecords}
           revealRequest={revealRequest}

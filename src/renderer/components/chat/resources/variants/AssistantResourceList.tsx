@@ -54,6 +54,7 @@ type AssistantResourceListProps = {
   onAddAssistant?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSelectTopic: (topic: Topic) => void | boolean
+  onCreateTopicAfterClear?: (assistantId: string) => void | Promise<void>
   onSelectedAssistantClick?: () => void | Promise<void>
   onStartDraftAssistant: (assistantId: string | null) => void | Promise<void>
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
@@ -70,6 +71,7 @@ export function AssistantResourceList({
   onAddAssistant,
   onOpenHistoryRecords,
   onSelectTopic,
+  onCreateTopicAfterClear,
   onSelectedAssistantClick,
   onStartDraftAssistant,
   resourceMenuItems,
@@ -210,13 +212,6 @@ export function AssistantResourceList({
       const targetTopics = topics.filter((topic) => topic.assistantId === assistantId)
       if (targetTopics.length === 0) return
 
-      const targetTopicIds = new Set(targetTopics.map((topic) => topic.id))
-      const remainingTopics = topics.filter((topic) => !targetTopicIds.has(topic.id))
-      if (remainingTopics.length === 0) {
-        window.toast.error(t('chat.topics.manage.error.at_least_one'))
-        return
-      }
-
       setClearingTopicsAssistantId(assistantId)
       try {
         const confirmed = await window.modal.confirm({
@@ -232,24 +227,10 @@ export function AssistantResourceList({
         if (!confirmed) return
 
         const result = await deleteTopicsByAssistantId(assistantId)
-        const deletedIds = new Set(result.deletedIds)
-        const actualRemainingTopics = topics.filter((topic) => !deletedIds.has(topic.id))
-        if (activeAssistantId === assistantId && actualRemainingTopics.length > 0) {
-          onSelectTopic(actualRemainingTopics[0])
-        }
-
-        void window.modal.success({
-          title: t('assistants.clear.success_title', { count: result.deletedCount }),
-          content: (
-            <div className="space-y-1">
-              <p>{t('assistants.clear.success_content.line1')}</p>
-              <p>{t('assistants.clear.success_content.line2')}</p>
-            </div>
-          ),
-          okText: t('common.i_know'),
-          centered: true
-        })
         await refreshTopics()
+        await onCreateTopicAfterClear?.(assistantId)
+
+        window.toast.success(t('assistants.clear.success_title', { count: result.deletedCount }))
       } catch (err) {
         logger.error('Failed to clear assistant topics from classic-layout rail', { assistantId, err })
         window.toast.error(t('chat.topics.manage.delete.error'))
@@ -258,11 +239,10 @@ export function AssistantResourceList({
       }
     },
     [
-      activeAssistantId,
       clearingTopicsAssistantId,
       deleteTopicsByAssistantId,
       deletingAssistantId,
-      onSelectTopic,
+      onCreateTopicAfterClear,
       refreshTopics,
       t,
       topics

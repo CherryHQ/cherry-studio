@@ -90,6 +90,7 @@ const LEFT_PANEL_TIME_TOPIC_GROUP_VISIBLE_COUNT = 50
 interface Props {
   activeTopic?: Topic
   assistantIdFilter?: string | null
+  onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
   presentation?: 'sidebar' | 'right-panel'
@@ -190,6 +191,7 @@ function AssistantGroupMoreMenu({
 export function Topics({
   activeTopic,
   assistantIdFilter,
+  onCreateTopicAfterClear,
   onNewTopic,
   onOpenHistoryRecords,
   presentation = 'sidebar',
@@ -685,13 +687,6 @@ export function Topics({
       const targetTopics = topicsRef.current.filter((topic) => topic.assistantId === assistantId)
       if (targetTopics.length === 0) return
 
-      const targetTopicIds = new Set(targetTopics.map((topic) => topic.id))
-      const remainingTopics = topicsRef.current.filter((topic) => !targetTopicIds.has(topic.id))
-      if (remainingTopics.length === 0) {
-        window.toast.error(t('chat.topics.manage.error.at_least_one'))
-        return
-      }
-
       deletingAssistantGroupIdRef.current = assistantId
       setDeletingAssistantGroupId(assistantId)
 
@@ -713,21 +708,10 @@ export function Topics({
         )
         if (latestTargetTopicIds.size === 0) return
 
-        const latestRemainingTopics = topicsRef.current.filter((topic) => !latestTargetTopicIds.has(topic.id))
-        if (latestRemainingTopics.length === 0) {
-          window.toast.error(t('chat.topics.manage.error.at_least_one'))
-          return
-        }
-
         const result = await deleteTopicsByAssistantId(assistantId)
-        const successfulIds = new Set(result.deletedIds)
-        const actualRemainingTopics = topicsRef.current.filter((topic) => !successfulIds.has(topic.id))
-        if (successfulIds.has(activeTopicIdRef.current) && actualRemainingTopics.length > 0) {
-          setActiveTopic(actualRemainingTopics[0])
-        }
-
-        window.toast.success(t('chat.topics.manage.delete.success', { count: result.deletedCount }))
         await refreshTopics()
+        await onCreateTopicAfterClear?.({ assistantId })
+        window.toast.success(t('chat.topics.manage.delete.success', { count: result.deletedCount }))
       } catch (err) {
         logger.error('Failed to delete assistant topics', { assistantId, err })
         window.toast.error(t('chat.topics.manage.delete.error'))
@@ -736,7 +720,7 @@ export function Topics({
         setDeletingAssistantGroupId(null)
       }
     },
-    [deleteTopicsByAssistantId, refreshTopics, setActiveTopic, t]
+    [deleteTopicsByAssistantId, onCreateTopicAfterClear, refreshTopics, t]
   )
 
   const getGroupHeaderAction = useCallback(

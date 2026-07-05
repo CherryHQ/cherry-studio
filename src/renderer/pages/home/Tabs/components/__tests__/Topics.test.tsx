@@ -294,7 +294,6 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.topics.manage.deselect_all') return 'Deselect All'
       if (key === 'chat.topics.manage.delete.confirm.title') return 'Delete Conversations'
       if (key === 'chat.topics.manage.delete.confirm.content') return `Delete ${options?.count ?? 0} conversation(s)?`
-      if (key === 'chat.topics.manage.error.at_least_one') return 'At least one conversation must be kept'
       if (key === 'chat.add.topic.title') return 'New Conversation'
       if (key === 'chat.default.name') return 'Default Assistant'
       if (key === 'common.prompt') return 'Prompt'
@@ -437,6 +436,7 @@ type OnNewTopicMock = Mock<(payload?: { assistantId?: string | null }) => void>
 function renderTopicList({
   activeTopic = createRendererTopic(),
   assistantIdFilter,
+  onCreateTopicAfterClear = vi.fn(),
   onNewTopic = vi.fn(),
   onOpenHistoryRecords = vi.fn(),
   presentation,
@@ -445,6 +445,7 @@ function renderTopicList({
 }: {
   activeTopic?: Topic
   assistantIdFilter?: string | null
+  onCreateTopicAfterClear?: OnNewTopicMock
   onNewTopic?: OnNewTopicMock
   onOpenHistoryRecords?: Mock<() => void>
   presentation?: 'sidebar' | 'right-panel'
@@ -457,6 +458,7 @@ function renderTopicList({
       activeTopic={nextActiveTopic}
       assistantIdFilter={assistantIdFilter}
       setActiveTopic={setActiveTopic}
+      onCreateTopicAfterClear={onCreateTopicAfterClear}
       onNewTopic={onNewTopic}
       onOpenHistoryRecords={onOpenHistoryRecords}
       presentation={presentation}
@@ -467,6 +469,7 @@ function renderTopicList({
   const view = render(renderNode())
   return {
     ...view,
+    onCreateTopicAfterClear,
     onNewTopic,
     onOpenHistoryRecords,
     rerenderTopicList: (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) =>
@@ -2001,7 +2004,7 @@ describe('Topics', () => {
 
   it('moves assistant group actions into the more menu', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
-    const { onNewTopic, setActiveTopic } = renderTopicList()
+    const { onCreateTopicAfterClear, onNewTopic, setActiveTopic } = renderTopicList()
 
     const assistantGroupButton = screen.getByRole('button', { name: 'Alpha Assistant' })
     const assistantHeader = assistantGroupButton.closest('div')
@@ -2063,7 +2066,8 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
-    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
+    expect(onCreateTopicAfterClear).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+    expect(setActiveTopic).not.toHaveBeenCalled()
     expect(onNewTopic).not.toHaveBeenCalled()
 
     fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
@@ -2192,7 +2196,7 @@ describe('Topics', () => {
     expect(screen.getAllByRole('button', { name: 'Edit Assistant' }).length).toBeGreaterThan(0)
   })
 
-  it('keeps at least one topic when clearing an assistant group would delete all topics', async () => {
+  it('creates a fresh topic after clearing the only assistant group topics', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     mockUseInfiniteQuery.mockReturnValue({
       pages: [
@@ -2223,7 +2227,11 @@ describe('Topics', () => {
       mutate: vi.fn()
     })
 
-    renderTopicList()
+    const { onCreateTopicAfterClear } = renderTopicList()
+    topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({
+      deletedIds: ['topic-a', 'topic-b'],
+      deletedCount: 2
+    })
 
     const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
     expect(assistantHeader).toBeInTheDocument()
@@ -2234,11 +2242,12 @@ describe('Topics', () => {
       within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
     )
 
-    await vi.waitFor(() => expect(window.toast.error).toHaveBeenCalledWith('At least one conversation must be kept'))
-    expect(window.modal.confirm).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(window.modal.confirm).toHaveBeenCalled())
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
-    expect(topicDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
-    expect(topicDataMocks.refreshTopics).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
+    await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
+    expect(onCreateTopicAfterClear).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+    expect(window.toast.error).not.toHaveBeenCalled()
   })
 
   it('keeps assistant pin reads disabled outside assistant display mode', () => {

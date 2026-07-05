@@ -343,11 +343,13 @@ describe('classic layout entity resource list actions', () => {
 
   it('clears assistant topics from the classic layout assistant context menu', async () => {
     const onSelectTopic = vi.fn()
+    const onCreateTopicAfterClear = vi.fn()
 
     render(
       <AssistantResourceList
         activeAssistantId="assistant-1"
         onSelectTopic={onSelectTopic}
+        onCreateTopicAfterClear={onCreateTopicAfterClear}
         onStartDraftAssistant={vi.fn()}
       />
     )
@@ -368,31 +370,24 @@ describe('classic layout entity resource list actions', () => {
     )
     await waitFor(() => expect(assistantDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
     await waitFor(() => expect(assistantDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
-    expect(onSelectTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-2' }))
-    expect(window.toast.success).not.toHaveBeenCalled()
-    expect(window.modal.success).toHaveBeenCalledWith(
-      expect.objectContaining({
-        centered: true,
-        okText: 'common.i_know',
-        title: 'assistants.clear.success_title:1'
-      })
-    )
-    const successOptions = vi.mocked(window.modal.success).mock.calls[0][0]
-    expect(successOptions.content).toMatchObject({
-      props: {
-        children: [
-          expect.objectContaining({ props: { children: 'assistants.clear.success_content.line1' } }),
-          expect.objectContaining({ props: { children: 'assistants.clear.success_content.line2' } })
-        ]
-      }
-    })
+    expect(onCreateTopicAfterClear).toHaveBeenCalledWith('assistant-1')
+    expect(onSelectTopic).not.toHaveBeenCalled()
+    expect(window.toast.success).toHaveBeenCalledWith('assistants.clear.success_title:1')
+    expect(window.modal.success).not.toHaveBeenCalled()
   })
 
-  it('keeps at least one topic when clearing classic assistant topics would delete all topics', async () => {
+  it('creates a fresh topic after clearing the only classic assistant topics', async () => {
     assistantDataMocks.topics = [{ id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }]
+    assistantDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({ deletedIds: ['topic-2'], deletedCount: 1 })
+    const onCreateTopicAfterClear = vi.fn()
 
     render(
-      <AssistantResourceList activeAssistantId="assistant-2" onSelectTopic={vi.fn()} onStartDraftAssistant={vi.fn()} />
+      <AssistantResourceList
+        activeAssistantId="assistant-2"
+        onSelectTopic={vi.fn()}
+        onCreateTopicAfterClear={onCreateTopicAfterClear}
+        onStartDraftAssistant={vi.fn()}
+      />
     )
 
     fireEvent.click(
@@ -401,10 +396,11 @@ describe('classic layout entity resource list actions', () => {
       })
     )
 
-    await waitFor(() => expect(window.toast.error).toHaveBeenCalledWith('chat.topics.manage.error.at_least_one'))
-    expect(window.modal.confirm).not.toHaveBeenCalled()
-    expect(assistantDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
-    expect(assistantDataMocks.refreshTopics).not.toHaveBeenCalled()
+    await waitFor(() => expect(window.modal.confirm).toHaveBeenCalled())
+    await waitFor(() => expect(assistantDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-2'))
+    await waitFor(() => expect(assistantDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
+    expect(onCreateTopicAfterClear).toHaveBeenCalledWith('assistant-2')
+    expect(window.toast.error).not.toHaveBeenCalled()
   })
 
   it('toggles assistant tag grouping from the context menu (list → tags)', () => {

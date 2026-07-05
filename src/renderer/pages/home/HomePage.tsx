@@ -617,6 +617,29 @@ const HomePage: FC = () => {
     [createTopic, classicLayoutTopics, refreshTopics, resolveDraftAssistantTarget, setActiveTopicAndDiscardDraft, t]
   )
 
+  const createAndActivateFreshTopic = useCallback(
+    async (payload: AddNewTopicPayload) => {
+      if (isCreatingTopicRef.current) return
+      isCreatingTopicRef.current = true
+      try {
+        const selection = resolveDraftAssistantTarget(payload.assistantId)
+        const topic = await createTopic({
+          ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
+        })
+        setActiveTopicAndDiscardDraft(mapApiTopicToRendererTopic(topic))
+        void refreshTopics().catch((err) => {
+          logger.warn('Failed to refresh topics after fresh topic create', err as Error)
+        })
+      } catch (err) {
+        logger.error('Failed to create fresh topic', err as Error)
+        window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+      } finally {
+        isCreatingTopicRef.current = false
+      }
+    },
+    [createTopic, refreshTopics, resolveDraftAssistantTarget, setActiveTopicAndDiscardDraft, t]
+  )
+
   // "去对话" from the assistant library (after adding a preset). The legacy navigate-to-chat no longer
   // fits the classic/modern split, so branch on layout: classic auto-creates an empty topic and
   // switches to it; modern drops into the draft compose with the assistant pre-selected. Both handlers
@@ -759,6 +782,7 @@ const HomePage: FC = () => {
       }}
       onOpenHistoryRecords={openHistoryRecords}
       onSelectTopic={setActiveTopicAndDiscardDraft}
+      onCreateTopicAfterClear={(assistantId) => createAndActivateFreshTopic({ assistantId })}
       onSelectedAssistantClick={() => setTopicPaneOpen(!topicPaneOpen)}
       onStartDraftAssistant={(assistantId) => startDraftAssistantSelection({ assistantId })}
       resourceMenuItems={resourceMenuItems}
@@ -768,6 +792,7 @@ const HomePage: FC = () => {
     <HomeTabs
       activeTopic={visibleTopic}
       setActiveTopic={setActiveTopicAndDiscardDraft}
+      onCreateTopicAfterClear={isMessageOnlyView ? undefined : createAndActivateFreshTopic}
       onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
       onOpenHistoryRecords={openHistoryRecords}
       revealRequest={topicRevealRequest}
@@ -786,6 +811,7 @@ const HomePage: FC = () => {
             activeTopic={visibleTopic}
             assistantIdFilter={visibleAssistantId ?? null}
             setActiveTopic={setActiveTopicAndDiscardDraft}
+            onCreateTopicAfterClear={isMessageOnlyView ? undefined : createAndActivateFreshTopic}
             onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
             revealRequest={topicRevealRequest}
           />
