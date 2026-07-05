@@ -218,6 +218,7 @@ export class KnowledgeBaseService {
       chunkOverlap: createConfig.chunkOverlap,
       chunkStrategy: createConfig.chunkStrategy,
       chunkSeparator: createConfig.chunkSeparator,
+      threshold: dto.threshold ?? null,
       documentCount: dto.documentCount ?? null
     }
 
@@ -306,6 +307,9 @@ export class KnowledgeBaseService {
     }
     if (nextConfig.chunkSeparator !== existing.chunkSeparator) {
       updates.chunkSeparator = nextConfig.chunkSeparator
+    }
+    if (dto.threshold !== undefined && dto.threshold !== existing.threshold) {
+      updates.threshold = dto.threshold
     }
     if (dto.documentCount !== undefined && dto.documentCount !== existing.documentCount) {
       updates.documentCount = dto.documentCount

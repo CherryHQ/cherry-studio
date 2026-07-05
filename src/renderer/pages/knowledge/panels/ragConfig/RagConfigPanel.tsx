@@ -152,9 +152,12 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
 
           <RetrievalSection
             documentCount={values.documentCount}
+            threshold={values.threshold}
+            rerankModelId={values.rerankModelId}
             onDocumentCountChange={(documentCount) =>
               setValues((currentValues) => ({ ...currentValues, documentCount }))
             }
+            onThresholdChange={(threshold) => setValues((currentValues) => ({ ...currentValues, threshold }))}
           />
 
           {/* Chunking knobs are set-and-forget internals, so they live under a

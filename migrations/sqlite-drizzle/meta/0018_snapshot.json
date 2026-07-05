@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9e280a05-baea-4107-a075-0539b8166be7",
+  "id": "056f15b4-1256-4d30-85f9-c1ad2f1b23c6",
   "prevId": "53ba65df-7a61-4a0c-a563-3e32dfba69fa",
   "tables": {
     "agent": {
@@ -2002,6 +2002,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": "'\\n\\n'"
+        },
+        "threshold": {
+          "name": "threshold",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         },
         "document_count": {
           "name": "document_count",

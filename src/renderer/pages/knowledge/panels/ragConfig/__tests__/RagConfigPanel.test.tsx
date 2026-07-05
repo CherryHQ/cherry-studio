@@ -244,9 +244,11 @@ vi.mock('react-i18next', () => ({
           'knowledge.rag.hints.chunk_overlap': '相邻文档片段之间保留的重叠 token 数。',
           'knowledge.rag.hints.document_count': '每次召回返回的最大文档片段数。',
           'knowledge.rag.hints.rerank_model': '对初步召回结果重新排序的模型。',
+          'knowledge.rag.hints.threshold': '用于过滤低相关性重排片段的相似度阈值。',
           'knowledge.rag.chunk_size_invalid': '分块大小必须大于 0',
           'knowledge.rag.chunk_overlap_invalid': '分块重叠必须大于等于 0',
-          'knowledge.rag.chunk_overlap_must_be_smaller': '分块重叠必须小于分块大小'
+          'knowledge.rag.chunk_overlap_must_be_smaller': '分块重叠必须小于分块大小',
+          'knowledge.rag.threshold': '相似度阈值'
         }) as Record<string, string>
       )[key] ?? key
   })
@@ -264,6 +266,7 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   chunkOverlap: 200,
   chunkStrategy: 'structured',
   chunkSeparator: '\\n\\n',
+  threshold: undefined,
   documentCount: 6,
   status: 'completed',
   error: null,
@@ -292,7 +295,8 @@ describe('RagConfigPanel', () => {
         chunkSeparator: '\\n\\n',
         embeddingModelId: 'openai::text-embedding-3-small',
         rerankModelId: null,
-        documentCount: 6
+        documentCount: 6,
+        threshold: 0
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
       save: mockSave,
@@ -353,6 +357,31 @@ describe('RagConfigPanel', () => {
       )
     })
     expect(window.toast.success).toHaveBeenCalledWith('已保存')
+  })
+
+  it('shows and saves the threshold slider only after a rerank model is selected', async () => {
+    renderRagConfigPanel()
+
+    expect(screen.queryByRole('slider', { name: '相似度阈值' })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('重排模型'), {
+      target: { value: 'jina::jina-reranker-v2-base-multilingual' }
+    })
+
+    const thresholdSlider = screen.getByRole('slider', { name: '相似度阈值' })
+    expect(thresholdSlider).toHaveValue('0')
+
+    fireEvent.change(thresholdSlider, { target: { value: '0.7' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
+          threshold: 0.7
+        })
+      )
+    })
   })
 
   it('shows save failure toast with the original error', async () => {
@@ -485,7 +514,8 @@ describe('RagConfigPanel', () => {
         chunkSeparator: '\\n\\n',
         embeddingModelId: null,
         rerankModelId: null,
-        documentCount: 6
+        documentCount: 6,
+        threshold: 0
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
       save: mockSave,

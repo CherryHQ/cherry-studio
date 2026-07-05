@@ -2795,7 +2795,8 @@
         "embedding_model": "用于将知识库内容转换为向量。更换模型后，通常需要重新索引已有内容。",
         "processor": "导入文件时使用的解析处理服务，用于提取正文、表格等内容。",
         "rerank_model": "对初步召回结果重新排序的模型，可提升最终片段相关性。",
-        "smart_chunking": "自动沿 Markdown 结构（标题、代码块、段落）分段，且不从代码块内部切开。关闭后仅按分隔符切分。"
+        "smart_chunking": "自动沿 Markdown 结构（标题、代码块、段落）分段，且不从代码块内部切开。关闭后仅按分隔符切分。",
+        "threshold": "用于过滤低相关性重排片段的相似度阈值，数值越高召回越严格。"
       },
       "processor": "处理服务商",
       "rerank_disabled": "不使用",
@@ -2807,6 +2808,7 @@
       "saved": "已保存",
       "separator_rule": "分隔符规则",
       "smart_chunking": "智能分段",
+      "threshold": "相似度阈值",
       "tokens_unit": "tokens"
     },
     "recall": {

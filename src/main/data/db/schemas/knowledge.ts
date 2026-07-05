@@ -7,7 +7,7 @@ import {
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
 import { sql } from 'drizzle-orm'
-import { check, foreignKey, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+import { check, foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { groupTable } from './group'
@@ -36,6 +36,7 @@ export const knowledgeBaseTable = sqliteTable(
     chunkOverlap: integer().notNull(),
     chunkStrategy: text().$type<KnowledgeChunkStrategy>().notNull().default('structured'),
     chunkSeparator: text().notNull().default('\\n\\n'),
+    threshold: real(),
     documentCount: integer(),
 
     ...createUpdateTimestamps

@@ -264,7 +264,8 @@ Search is executed by `KnowledgeService.search(baseId, query)`:
 4. Call `KnowledgeIndexStore.search` on the base's per-base index store with an over-fetched candidate limit (`topK × overfetch`, capped). The store runs the BM25 lane (`search_text_fts`, with a LIKE fallback for short CJK tokens) or fuses BM25 and brute-force vector results with RRF.
 5. Filter results whose source items are missing, outside the base, or `deleting`, then trim to `documentCount ?? 10`.
 6. Rerank when `base.rerankModelId` is configured.
-7. Assign ranks.
+7. Apply `threshold` only to results whose `scoreKind` is `relevance`; BM25/hybrid `ranking` scores pass through.
+8. Assign ranks.
 
 Current `KnowledgeSearchResult` includes:
 

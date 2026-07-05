@@ -105,6 +105,7 @@ export const KnowledgeChunkStrategySchema = z.enum(KNOWLEDGE_CHUNK_STRATEGIES)
 export type KnowledgeChunkStrategy = z.infer<typeof KnowledgeChunkStrategySchema>
 // Raw, user-typed delimiter in escaped form (e.g. "\\n\\n"); unescaped by the splitter.
 export const KnowledgeChunkSeparatorSchema = z.string()
+export const KnowledgeThresholdSchema = z.number().min(0).max(1)
 export const KnowledgeDocumentCountSchema = z.number().int().positive()
 export const KnowledgeBaseIdSchema = z.uuidv4()
 export const KnowledgeItemIdSchema = z.uuidv7()
@@ -137,6 +138,7 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
   chunkOverlap: KnowledgeChunkOverlapSchema,
   chunkStrategy: KnowledgeChunkStrategySchema,
   chunkSeparator: KnowledgeChunkSeparatorSchema,
+  threshold: KnowledgeThresholdSchema.optional(),
   documentCount: KnowledgeDocumentCountSchema.optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
@@ -538,6 +540,7 @@ const KnowledgeBaseRuntimeConfigSchema = z.strictObject({
   chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
   chunkStrategy: KnowledgeChunkStrategySchema.optional(),
   chunkSeparator: KnowledgeChunkSeparatorSchema.optional(),
+  threshold: KnowledgeThresholdSchema.optional(),
   documentCount: KnowledgeDocumentCountSchema.optional()
 })
 

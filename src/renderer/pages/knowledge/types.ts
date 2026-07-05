@@ -16,4 +16,5 @@ export interface KnowledgeRagConfigFormValues {
   embeddingModelId: string | null
   rerankModelId: string | null
   documentCount: number
+  threshold: number
 }

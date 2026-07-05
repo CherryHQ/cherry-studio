@@ -1803,6 +1803,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
                 model: { id: 'BAAI/bge-m3', name: 'BAAI/bge-m3', provider: 'silicon' },
                 chunkSize: 200,
                 chunkOverlap: 200,
+                threshold: 2,
                 documentCount: 0,
                 items: []
               }
@@ -1824,6 +1825,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
         (warning) =>
           warning.includes('Knowledge base kb-invalid-config: cleared invalid config fields:') &&
           warning.includes('chunkOverlap') &&
+          warning.includes('threshold') &&
           warning.includes('documentCount')
       )
     ).toBe(true)
@@ -1833,6 +1835,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
           typeof warning === 'string' &&
           warning.includes('Knowledge base kb-invalid-config: cleared invalid config fields:') &&
           warning.includes('chunkOverlap') &&
+          warning.includes('threshold') &&
           warning.includes('documentCount')
       )
     ).toBe(true)

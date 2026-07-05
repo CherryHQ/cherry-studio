@@ -119,6 +119,7 @@ const getInvalidKnowledgeBaseConfigWarning = (
   const clearedFields = [
     ['chunkSize', base.chunkSize, normalizedBase.chunkSize],
     ['chunkOverlap', base.chunkOverlap, normalizedBase.chunkOverlap],
+    ['threshold', base.threshold, normalizedBase.threshold],
     ['documentCount', base.documentCount, normalizedBase.documentCount]
   ].flatMap(([field, previousValue, nextValue]) => ((previousValue ?? null) !== (nextValue ?? null) ? [field] : []))
 

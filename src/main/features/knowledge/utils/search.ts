@@ -2,6 +2,8 @@ import type { KnowledgeSearchResult, KnowledgeSearchScoreKind } from '@shared/da
 
 import type { KnowledgeIndexSearchMode } from '../vectorstore/indexStore/model'
 
+const DEFAULT_SEARCH_THRESHOLD = 0
+
 /**
  * Only 'vector' mode yields a 'relevance' score: it runs cosine search, whose
  * similarity is comparable across vector results. 'bm25' and 'hybrid' yield
@@ -10,6 +12,13 @@ import type { KnowledgeIndexSearchMode } from '../vectorstore/indexStore/model'
  */
 export const getInitialSearchScoreKind = (mode: KnowledgeIndexSearchMode): KnowledgeSearchScoreKind => {
   return mode === 'vector' ? 'relevance' : 'ranking'
+}
+
+export const applyRelevanceThreshold = (
+  results: KnowledgeSearchResult[],
+  threshold = DEFAULT_SEARCH_THRESHOLD
+): KnowledgeSearchResult[] => {
+  return results.filter((result) => result.scoreKind !== 'relevance' || result.score >= threshold)
 }
 
 export const withSearchRanks = (results: KnowledgeSearchResult[]): KnowledgeSearchResult[] => {

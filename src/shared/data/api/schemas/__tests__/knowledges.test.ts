@@ -39,12 +39,14 @@ describe('Knowledge base schemas', () => {
       groupId: GROUP_ID,
       chunkSize: 800,
       chunkOverlap: 120,
+      threshold: 0.4,
       documentCount: 5
     })
 
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.groupId).toBe(GROUP_ID)
+      expect(result.data.threshold).toBe(0.4)
     }
   })
 
@@ -95,6 +97,15 @@ describe('Knowledge base schemas', () => {
     })
 
     expect(result.success).toBe(false)
+
+    expect(
+      CreateKnowledgeBaseSchema.safeParse({
+        name: 'KB',
+        dimensions: 1024,
+        embeddingModelId: 'embed-model',
+        threshold: 1.1
+      }).success
+    ).toBe(false)
   })
 
   it('rejects invalid create chunk relationships', () => {
@@ -127,6 +138,7 @@ describe('Knowledge base schemas', () => {
     })
 
     expect(result.success).toBe(false)
+    expect(UpdateKnowledgeBaseSchema.safeParse({ threshold: 1.1 }).success).toBe(false)
   })
 
   it('validates restore-base DTOs', () => {
@@ -267,12 +279,32 @@ describe('Knowledge base schemas', () => {
       error: null,
       chunkSize: 0,
       chunkOverlap: -1,
+      threshold: 2,
       documentCount: 0,
       createdAt: '2026-04-10T00:00:00.000Z',
       updatedAt: '2026-04-10T00:00:00.000Z'
     })
 
     expect(result.success).toBe(false)
+
+    expect(
+      KnowledgeBaseSchema.safeParse({
+        id: KNOWLEDGE_BASE_ID,
+        name: 'KB',
+        dimensions: 1024,
+        embeddingModelId: 'embed-model',
+        groupId: null,
+        status: 'completed',
+        error: null,
+        chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+        chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
+        threshold: -0.1,
+        createdAt: '2026-04-10T00:00:00.000Z',
+        updatedAt: '2026-04-10T00:00:00.000Z'
+      }).success
+    ).toBe(false)
   })
 
   it('accepts nullable groupId and requires persisted defaults in entity schema', () => {
@@ -288,6 +320,7 @@ describe('Knowledge base schemas', () => {
       chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
       chunkStrategy: 'structured',
       chunkSeparator: '\\n\\n',
+      threshold: 0.5,
       createdAt: '2026-04-10T00:00:00.000Z',
       updatedAt: '2026-04-10T00:00:00.000Z'
     })
@@ -613,6 +646,7 @@ it('rejects non-nullable optional config null clears in patch schema', () => {
     UpdateKnowledgeBaseSchema.safeParse({
       rerankModelId: 'rerank-1',
       fileProcessorId: 'processor-1',
+      threshold: 0.3,
       documentCount: 5
     }).success
   ).toBe(true)

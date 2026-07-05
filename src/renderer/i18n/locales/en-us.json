@@ -2795,7 +2795,8 @@
         "embedding_model": "Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
         "processor": "Parser used when importing files to extract body text, tables, and related content.",
         "rerank_model": "Model used to rerank initial retrieval results and improve final chunk relevance.",
-        "smart_chunking": "Automatically split along Markdown structure (headings, code blocks, paragraphs) and never split inside a code block. Turn off to split purely by the separator."
+        "smart_chunking": "Automatically split along Markdown structure (headings, code blocks, paragraphs) and never split inside a code block. Turn off to split purely by the separator.",
+        "threshold": "Similarity threshold for filtering low-relevance reranked chunks. Higher values make retrieval stricter."
       },
       "processor": "Processing Provider",
       "rerank_disabled": "Disabled",
@@ -2807,6 +2808,7 @@
       "saved": "Saved",
       "separator_rule": "Separator Rule",
       "smart_chunking": "Smart Chunking",
+      "threshold": "Similarity Threshold",
       "tokens_unit": "tokens"
     },
     "recall": {

@@ -8,7 +8,8 @@ const knowledgeRagConfigKeys = [
   'chunkSeparator',
   'embeddingModelId',
   'rerankModelId',
-  'documentCount'
+  'documentCount',
+  'threshold'
 ] as const satisfies readonly (keyof KnowledgeRagConfigFormValues)[]
 
 export type KnowledgeRagChunkValidationErrorCode =

@@ -63,6 +63,7 @@ export interface LegacyKnowledgeBase {
   preprocessProvider?: LegacyPreprocessConfig
   chunkSize?: number
   chunkOverlap?: number
+  threshold?: number
   documentCount?: number
   created_at?: number
   updated_at?: number
@@ -197,6 +198,10 @@ function normalizeMigratedKnowledgeBaseConfig<T extends Partial<NewKnowledgeBase
     normalized.documentCount = undefined as T['documentCount']
   }
 
+  if (normalized.threshold != null && (normalized.threshold < 0 || normalized.threshold > 1)) {
+    normalized.threshold = undefined as T['threshold']
+  }
+
   return normalized
 }
 
@@ -255,6 +260,7 @@ export const transformKnowledgeBase = (
     fileProcessorId: base.preprocessProvider?.provider?.id,
     chunkSize: base.chunkSize ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: base.chunkOverlap ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    threshold: base.threshold,
     documentCount: base.documentCount,
     createdAt: toTimestamp(base.created_at),
     updatedAt: toTimestamp(base.updated_at)

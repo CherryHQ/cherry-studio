@@ -26,6 +26,7 @@ const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
   chunkOverlap: true,
   chunkStrategy: true,
   chunkSeparator: true,
+  threshold: true,
   documentCount: true
 } as const
 
@@ -41,6 +42,7 @@ export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDG
     groupId: KnowledgeBaseGroupIdInputSchema.nullable().optional(),
     rerankModelId: KnowledgeBaseEntitySchema.shape.rerankModelId,
     fileProcessorId: KnowledgeBaseEntitySchema.shape.fileProcessorId,
+    threshold: KnowledgeBaseEntitySchema.shape.threshold,
     documentCount: KnowledgeBaseEntitySchema.shape.documentCount
   })
   .superRefine((value, ctx) => {

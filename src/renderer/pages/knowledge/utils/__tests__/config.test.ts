@@ -15,6 +15,7 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   chunkOverlap: 200,
   chunkStrategy: 'structured',
   chunkSeparator: '\\n\\n',
+  threshold: undefined,
   documentCount: undefined,
   status: 'completed',
   error: null,
@@ -41,7 +42,8 @@ describe('createKnowledgeV2RagConfigFormValues', () => {
       chunkSeparator: '\\n\\n',
       embeddingModelId: 'openai::text-embedding-3-small',
       rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
-      documentCount: 6
+      documentCount: 6,
+      threshold: 0
     })
   })
 })
@@ -54,7 +56,8 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
         chunkSize: 512,
         chunkOverlap: 64,
         rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
-        documentCount: 6
+        documentCount: 6,
+        threshold: 0.2
       })
     )
 
@@ -65,7 +68,8 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
       chunkOverlap: '128',
       embeddingModelId: 'voyage::voyage-3-large',
       rerankModelId: null,
-      documentCount: 10
+      documentCount: 10,
+      threshold: 0.4
     }
 
     expect(buildKnowledgeRagConfigPatch(initialValues, nextValues)).toEqual({
@@ -73,7 +77,8 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
       chunkSize: 1024,
       chunkOverlap: 128,
       rerankModelId: null,
-      documentCount: 10
+      documentCount: 10,
+      threshold: 0.4
     })
   })
 

@@ -48,7 +48,7 @@ import { embedKnowledgeQuery } from './utils/indexing/embed'
 import { toMaterialRelativePath } from './utils/indexing/materialFields'
 import { rerankKnowledgeSearchResults } from './utils/indexing/rerank'
 import { classifyKnowledgeItemSource } from './utils/items'
-import { getInitialSearchScoreKind, withSearchRanks } from './utils/search'
+import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
 import { getKnowledgeBaseFilePath } from './utils/storage/pathStorage'
 import type { KnowledgeIndexStore } from './vectorstore/indexStore/KnowledgeIndexStore'
 import type { KnowledgeIndexSearchMatch } from './vectorstore/indexStore/model'
@@ -518,10 +518,10 @@ export class KnowledgeService extends BaseService {
 
     if (base.rerankModelId) {
       const rerankedResults = await rerankKnowledgeSearchResults(base, query, topResults)
-      return withSearchRanks(rerankedResults)
+      return withSearchRanks(applyRelevanceThreshold(rerankedResults, base.threshold))
     }
 
-    return withSearchRanks(topResults)
+    return withSearchRanks(applyRelevanceThreshold(topResults, base.threshold))
   }
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {

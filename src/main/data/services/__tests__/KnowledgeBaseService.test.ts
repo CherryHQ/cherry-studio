@@ -359,6 +359,7 @@ describe('KnowledgeBaseService', () => {
       expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
       expect(result.chunkSize).toBe(1024)
       expect(result.chunkOverlap).toBe(200)
+      expect(result.threshold).toBeUndefined()
       expect(result.status).toBe('completed')
       expect(result.error).toBeNull()
 
@@ -370,6 +371,7 @@ describe('KnowledgeBaseService', () => {
       expect(row.fileProcessorId).toBeNull()
       expect(row.chunkSize).toBe(1024)
       expect(row.chunkOverlap).toBe(200)
+      expect(row.threshold).toBeNull()
       expect(row.documentCount).toBeNull()
       expect(row.status).toBe('completed')
       expect(row.error).toBeNull()
@@ -451,6 +453,22 @@ describe('KnowledgeBaseService', () => {
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
       expect(row.chunkSize).toBe(100)
       expect(row.chunkOverlap).toBe(20)
+    })
+
+    it('should create a knowledge base with an explicit threshold', async () => {
+      const dto: CreateKnowledgeBaseDto = {
+        name: 'Reranked Base',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        threshold: 0.42
+      }
+
+      const result = service.create(dto)
+
+      expect(result.threshold).toBe(0.42)
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
+      expect(row.threshold).toBe(0.42)
     })
 
     it('should reject create when default chunkOverlap does not fit explicit chunkSize', () => {
@@ -655,6 +673,19 @@ describe('KnowledgeBaseService', () => {
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(row.rerankModelId).toBeNull()
       expect(row.fileProcessorId).toBeNull()
+    })
+
+    it('should update and persist the relevance threshold', async () => {
+      await seedKnowledgeBase({ threshold: 0.2 })
+
+      const result = service.update(KNOWLEDGE_BASE_ID, {
+        threshold: 0.7
+      })
+
+      expect(result.threshold).toBe(0.7)
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+      expect(row.threshold).toBe(0.7)
     })
 
     it('should reject shrinking chunkSize when the existing chunkOverlap no longer fits', async () => {

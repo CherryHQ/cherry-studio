@@ -5,6 +5,7 @@ import type { KnowledgeRagConfigFormValues } from '../types'
 import { parseRequiredInteger } from './validate'
 
 const DEFAULT_KNOWLEDGE_DOCUMENT_COUNT = 6
+const DEFAULT_KNOWLEDGE_THRESHOLD = 0.0
 
 export const createKnowledgeRagConfigFormValues = (base: KnowledgeBase): KnowledgeRagConfigFormValues => ({
   fileProcessorId: base.fileProcessorId ?? null,
@@ -14,7 +15,8 @@ export const createKnowledgeRagConfigFormValues = (base: KnowledgeBase): Knowled
   chunkSeparator: base.chunkSeparator,
   embeddingModelId: base.embeddingModelId,
   rerankModelId: base.rerankModelId ?? null,
-  documentCount: base.documentCount ?? DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
+  documentCount: base.documentCount ?? DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
+  threshold: base.threshold ?? DEFAULT_KNOWLEDGE_THRESHOLD
 })
 
 export const buildKnowledgeRagConfigPatch = (
@@ -49,6 +51,10 @@ export const buildKnowledgeRagConfigPatch = (
 
   if (currentValues.documentCount !== initialValues.documentCount) {
     patch.documentCount = currentValues.documentCount
+  }
+
+  if (currentValues.threshold !== initialValues.threshold) {
+    patch.threshold = currentValues.threshold
   }
 
   return patch
