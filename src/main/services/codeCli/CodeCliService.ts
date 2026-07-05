@@ -29,6 +29,7 @@ import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import { CodeCli, TerminalApp, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
+import { sanitizeProviderName } from '@shared/utils/provider'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
 
@@ -490,12 +491,6 @@ export class CodeCliService extends BaseService {
     }
   }
 
-  /** Sanitize a provider display name for use in config file keys. */
-  private sanitizeProviderName(name: string, fallback: string): string {
-    const sanitized = name.replace(/[^a-zA-Z0-9_\s.-]/g, '').replace(/\s+/g, '-')
-    return sanitized || fallback
-  }
-
   async run(
     cliTool: string,
     model: string,
@@ -634,7 +629,7 @@ export class CodeCliService extends BaseService {
       let providerName = 'Studio'
       try {
         const provider = providerService.getByProviderId(providerId)
-        providerName = this.sanitizeProviderName(provider.name, provider.id)
+        providerName = sanitizeProviderName(provider.name, provider.id)
       } catch {
         /* keep default */
       }

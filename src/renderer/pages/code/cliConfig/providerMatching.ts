@@ -2,19 +2,17 @@ import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { formatApiHost } from '@shared/utils/api'
 
-import { CODEX_RESPONSES_ENDPOINT, OPEN_CODE_ENDPOINTS } from './constants'
-import { resolveGeminiBaseUrl, resolveOpenAIBaseUrl } from './resolvers'
+import { OPEN_CODE_ENDPOINTS } from './constants'
+import { resolveClaudeBaseUrl, resolveCodexBaseUrl, resolveGeminiBaseUrl, resolveOpenAIBaseUrl } from './resolvers'
 import type { CliConfigConnection } from './types'
 import { normalizeUrl } from './values'
 
 function providerBaseUrls(provider: Provider, cliTool: string): string[] {
   switch (cliTool) {
     case CodeCli.CLAUDE_CODE:
-      return [normalizeUrl(provider.endpointConfigs?.['anthropic-messages']?.baseUrl)].filter(Boolean)
+      return [normalizeUrl(resolveClaudeBaseUrl(provider))].filter(Boolean)
     case CodeCli.OPENAI_CODEX:
-      return [normalizeUrl(formatApiHost(provider.endpointConfigs?.[CODEX_RESPONSES_ENDPOINT]?.baseUrl))].filter(
-        Boolean
-      )
+      return [normalizeUrl(resolveCodexBaseUrl(provider))].filter(Boolean)
     case CodeCli.OPEN_CODE:
       return OPEN_CODE_ENDPOINTS.flatMap((endpoint) => {
         const baseUrl = normalizeUrl(formatApiHost(provider.endpointConfigs?.[endpoint]?.baseUrl))

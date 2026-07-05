@@ -9,13 +9,13 @@ export {
 } from './claudeModels'
 export { clearCliConfig } from './clear'
 export {
+  type CliConfigWriteArgs,
   readCliConfigDraft,
   readCliConfigFiles,
   writeCliConfigDraft
 } from './draft'
 export { validateCliConfigDraftForWrite } from './draftFiles'
 export { formatCliConfigDraftFile, updateCliConfigDraftConfig } from './draftUpdater'
-export { injectCliConfig, type InjectCliConfigArgs } from './inject'
 export { extractConfigFromCliConfigDraft, extractConnectionFromCliConfigDraft } from './parser'
 export { cliConfigConnectionMatchesProvider } from './providerMatching'
 export { sanitizeCliConfigBlob } from './sanitize'

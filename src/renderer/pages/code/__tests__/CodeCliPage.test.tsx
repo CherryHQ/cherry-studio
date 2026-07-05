@@ -10,7 +10,6 @@ import CodeCliPage from '../CodeCliPage'
 
 const {
   clearCliConfigMock,
-  injectCliConfigMock,
   readCliConfigFilesMock,
   extractConnectionFromCliConfigDraftMock,
   writeCliConfigDraftMock,
@@ -29,7 +28,6 @@ const {
   mockProviderConfigs
 } = vi.hoisted(() => ({
   clearCliConfigMock: vi.fn(),
-  injectCliConfigMock: vi.fn(),
   readCliConfigFilesMock: vi.fn(),
   extractConnectionFromCliConfigDraftMock: vi.fn(),
   writeCliConfigDraftMock: vi.fn(),
@@ -182,10 +180,6 @@ vi.mock('../cliConfig/clear', () => ({
 vi.mock('../cliConfig/draft', () => ({
   readCliConfigFiles: (...args: unknown[]) => readCliConfigFilesMock(...args),
   writeCliConfigDraft: (...args: unknown[]) => writeCliConfigDraftMock(...args)
-}))
-
-vi.mock('../cliConfig/inject', () => ({
-  injectCliConfig: (...args: unknown[]) => injectCliConfigMock(...args)
 }))
 
 vi.mock('../cliConfig/parser', () => ({
@@ -369,7 +363,6 @@ describe('CodeCliPage', () => {
     mockProviders.splice(0, mockProviders.length, provider)
     mockCodeCliState()
     clearCliConfigMock.mockResolvedValue(undefined)
-    injectCliConfigMock.mockResolvedValue(undefined)
     readCliConfigFilesMock.mockResolvedValue([])
     extractConnectionFromCliConfigDraftMock.mockReturnValue(null)
     writeCliConfigDraftMock.mockResolvedValue(undefined)
@@ -389,7 +382,6 @@ describe('CodeCliPage', () => {
     expect(await screen.findByTestId('config-panel')).toHaveAttribute('data-provider-id', 'anthropic')
     expect(screen.getByTestId('config-panel')).toHaveAttribute('data-model-id', '')
     expect(upsertProviderConfigMock).not.toHaveBeenCalled()
-    expect(injectCliConfigMock).not.toHaveBeenCalled()
     expect(writeCliConfigDraftMock).not.toHaveBeenCalled()
     expect(setCurrentProviderMock).not.toHaveBeenCalled()
   })
@@ -452,7 +444,7 @@ describe('CodeCliPage', () => {
     fireEvent.click(screen.getByText('toggle anthropic'))
 
     await waitFor(() =>
-      expect(injectCliConfigMock).toHaveBeenCalledWith({
+      expect(writeCliConfigDraftMock).toHaveBeenCalledWith({
         cliTool: CodeCli.CLAUDE_CODE,
         modelId: 'anthropic::claude-new',
         configBlob: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-new' } },

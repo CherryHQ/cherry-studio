@@ -1,5 +1,7 @@
 import type { UniqueModelId } from '@shared/data/types/model'
 
+import { stringValue } from './values'
+
 export const CLAUDE_DETAILED_MODEL_ROLES = [
   {
     roleKey: 'fable',
@@ -33,10 +35,6 @@ function getEnv(config: Record<string, unknown>): Record<string, unknown> {
     : {}
 }
 
-function stringValue(value: unknown): string {
-  return typeof value === 'string' ? value : ''
-}
-
 export function stripClaudeOneMMarker(value: string): string {
   const trimmed = value.trimEnd()
   if (trimmed.toLowerCase().endsWith(ONE_M_MARKER.toLowerCase())) {
@@ -47,7 +45,7 @@ export function stripClaudeOneMMarker(value: string): string {
 
 export function hasClaudeDetailedModels(config: Record<string, unknown>): boolean {
   const env = getEnv(config)
-  return CLAUDE_DETAILED_MODEL_ROLES.some((role) => stripClaudeOneMMarker(stringValue(env[role.model])).trim())
+  return CLAUDE_DETAILED_MODEL_ROLES.some((role) => stripClaudeOneMMarker(stringValue(env[role.model]) ?? '').trim())
 }
 
 export function stripClaudeDetailedModels(config: Record<string, unknown>): Record<string, unknown> {
@@ -71,7 +69,7 @@ export function getClaudeContextModelId(
 ): UniqueModelId | undefined {
   const env = getEnv(config)
   for (const role of CLAUDE_DETAILED_MODEL_ROLES) {
-    const modelId = stripClaudeOneMMarker(stringValue(env[role.model])).trim()
+    const modelId = stripClaudeOneMMarker(stringValue(env[role.model]) ?? '').trim()
     if (modelId) return `${providerId}::${modelId}`
   }
   return undefined

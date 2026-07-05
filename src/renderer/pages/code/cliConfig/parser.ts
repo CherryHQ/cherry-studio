@@ -4,16 +4,7 @@ import { CHERRY_PROVIDER_PREFIX } from './constants'
 import { parseDotenv } from './dotenv'
 import { getDraftFile } from './draftFiles'
 import { parseJsonOrThrow, parseTomlOrThrow } from './file'
-import {
-  asRecord,
-  CLAUDE_MANAGED_ENV_KEYS,
-  CLAUDE_MANAGED_PERMISSION_KEYS,
-  CLAUDE_MANAGED_TOP_LEVEL_KEYS,
-  GEMINI_WRITABLE_SETTINGS_KEYS,
-  KIMI_WRITABLE_SECTION_KEYS,
-  KIMI_WRITABLE_TOP_LEVEL_KEYS,
-  QWEN_WRITABLE_SETTINGS_KEYS
-} from './managedKeys'
+import { CLAUDE_MANAGED_ENV_KEYS, CLAUDE_MANAGED_PERMISSION_KEYS, CLAUDE_MANAGED_TOP_LEVEL_KEYS } from './managedKeys'
 import {
   codexConfigToPermissionMode,
   isClaudePermissionMode,
@@ -23,7 +14,7 @@ import {
 } from './permissionModes'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import type { CliConfigConnection, CliConfigFileDraft } from './types'
-import { stringValue } from './values'
+import { asRecord, stringValue } from './values'
 
 export function extractConnectionFromCliConfigDraft(
   cliTool: string,
@@ -165,42 +156,15 @@ export function extractConfigFromCliConfigDraft(
       }
       case CodeCli.GEMINI_CLI: {
         const settings = parseJsonOrThrow(getDraftFile(files, 'gemini-settings')?.content ?? '')
-        const out: Record<string, any> = {}
-        for (const [section, keys] of Object.entries(GEMINI_WRITABLE_SETTINGS_KEYS)) {
-          const sourceSection = asRecord(settings[section])
-          for (const key of keys) {
-            if (sourceSection[key] !== undefined)
-              out[section] = { ...asRecord(out[section]), [key]: sourceSection[key] }
-          }
-        }
-        return sanitizeGeminiConfigBlob(out)
+        return sanitizeGeminiConfigBlob(settings)
       }
       case CodeCli.QWEN_CODE: {
         const settings = parseJsonOrThrow(getDraftFile(files, 'qwen-settings')?.content ?? '')
-        const out: Record<string, any> = {}
-        for (const [section, keys] of Object.entries(QWEN_WRITABLE_SETTINGS_KEYS)) {
-          const sourceSection = asRecord(settings[section])
-          for (const key of keys) {
-            if (sourceSection[key] !== undefined)
-              out[section] = { ...asRecord(out[section]), [key]: sourceSection[key] }
-          }
-        }
-        return sanitizeQwenConfigBlob(out)
+        return sanitizeQwenConfigBlob(settings)
       }
       case CodeCli.KIMI_CODE: {
         const config = parseTomlOrThrow(getDraftFile(files, 'kimi-config')?.content ?? '')
-        const out: Record<string, any> = {}
-        for (const key of KIMI_WRITABLE_TOP_LEVEL_KEYS) {
-          if (config[key] !== undefined) out[key] = config[key]
-        }
-        for (const [section, keys] of Object.entries(KIMI_WRITABLE_SECTION_KEYS)) {
-          const sourceSection = asRecord(config[section])
-          for (const key of keys) {
-            if (sourceSection[key] !== undefined)
-              out[section] = { ...asRecord(out[section]), [key]: sourceSection[key] }
-          }
-        }
-        return sanitizeKimiConfigBlob(out)
+        return sanitizeKimiConfigBlob(config)
       }
       default:
         return null

@@ -28,6 +28,22 @@ export async function readDraftFileText(target: CliConfigTarget, files?: CliConf
   return readExternal(await resolveAbs(spec.path))
 }
 
+/** Read + parse a draft/on-disk config file, wrapping a parse failure with the file's label and path. */
+export async function readAndParseDraftFile<T>(
+  target: CliConfigTarget,
+  parseFn: (content: string) => T,
+  files?: CliConfigFileDraft[]
+): Promise<T> {
+  const content = await readDraftFileText(target, files)
+  try {
+    return parseFn(content)
+  } catch (err) {
+    const spec = CLI_CONFIG_FILE_SPECS[target]
+    const path = getDraftFile(files, target)?.path ?? (await resolveAbs(spec.path))
+    throw new Error(`Failed to parse ${spec.label} at ${path}: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
 function parseDraftFile(file: CliConfigFileDraft): Record<string, any> | Map<string, string> {
   switch (file.language) {
     case 'json':

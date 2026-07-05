@@ -15,12 +15,11 @@ import { CHERRY_PROVIDER_PREFIX } from './constants'
 import { parseDotenv } from './dotenv'
 import { getDraftFile } from './draftFiles'
 import { parseJsonOrThrow, parseTomlOrThrow, renderDotenvFile, renderJsonFile } from './file'
-import { asRecord } from './managedKeys'
 import { extractConnectionFromCliConfigDraft } from './parser'
-import type { OpenCodeNpmInfo } from './resolvers'
+import { openCodeNpmInfoFromNpmPackage } from './resolvers'
 import { sanitizeCliConfigBlob } from './sanitize'
 import type { CliConfigFileDraft, CliConfigTarget } from './types'
-import { getConfigBlob, numberValue, stringValue } from './values'
+import { asRecord, numberValue, stringValue } from './values'
 
 export function formatCliConfigDraftFile(file: CliConfigFileDraft): CliConfigFileDraft {
   if (file.language !== 'json') return file
@@ -55,27 +54,13 @@ function cherryProviderKeyFrom(providers: Record<string, any>): string {
   return requireDraftValue(providerKey, 'OpenCode provider')
 }
 
-function openCodeNpmInfoFromDraft(provider: Record<string, any>): OpenCodeNpmInfo {
-  const npm = requireDraftValue(stringValue(provider.npm), 'OpenCode provider npm package')
-  if (npm === '@ai-sdk/google') {
-    return { npm, providerType: 'google' as const, endpointType: 'google-generate-content' as const }
-  }
-  if (npm === '@ai-sdk/anthropic') {
-    return { npm, providerType: 'anthropic' as const, endpointType: 'anthropic-messages' as const }
-  }
-  if (npm === '@ai-sdk/openai') {
-    return { npm, providerType: 'openai' as const, endpointType: 'openai-responses' as const }
-  }
-  return { npm, providerType: 'openai-compatible' as const, endpointType: 'openai-chat-completions' as const }
-}
-
 export function updateCliConfigDraftConfig(
   cliTool: string,
   files: CliConfigFileDraft[],
   configBlob: Record<string, unknown>
 ): CliConfigFileDraft[] {
   const connection = extractConnectionFromCliConfigDraft(cliTool, files)
-  const blob = sanitizeCliConfigBlob(cliTool, getConfigBlob(configBlob))
+  const blob = sanitizeCliConfigBlob(cliTool, asRecord(configBlob))
   if (!connection) return files
 
   switch (cliTool) {
@@ -123,7 +108,7 @@ export function updateCliConfigDraftConfig(
       const nextConfig = buildOpenCodeConfig(
         existing,
         { id: providerName, name: providerName },
-        openCodeNpmInfoFromDraft(provider),
+        openCodeNpmInfoFromNpmPackage(requireDraftValue(stringValue(provider.npm), 'OpenCode provider npm package')),
         {
           apiKey: requireDraftValue(connection.apiKey, 'OpenCode API key'),
           baseUrl: requireDraftValue(connection.baseUrl, 'OpenCode base URL'),

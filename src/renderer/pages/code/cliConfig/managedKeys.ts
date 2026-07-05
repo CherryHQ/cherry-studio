@@ -1,3 +1,5 @@
+import { asRecord } from './values'
+
 export const CLAUDE_MANAGED_TOP_LEVEL_KEYS = ['attribution', 'effortLevel'] as const
 
 export const CLAUDE_MANAGED_PERMISSION_KEYS = ['defaultMode'] as const
@@ -108,10 +110,6 @@ export function mergeManagedSettingsKeys(...groups: ManagedSettingsKeys[]): Mana
     }
   }
   return merged
-}
-
-export function asRecord(value: unknown): Record<string, any> {
-  return value && typeof value === 'object' ? (value as Record<string, any>) : {}
 }
 
 export function applyManagedJsonSettings(

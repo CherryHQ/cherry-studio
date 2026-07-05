@@ -33,22 +33,49 @@ export async function readExternal(absPath: string): Promise<string> {
   }
 }
 
-/** Read + parse JSONC, throwing a contextual error on a malformed file. */
-export async function readValidatedJson(absPath: string, label: string): Promise<Record<string, any>> {
+function isMissingFileError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.includes('File does not exist') || message.includes('ENOENT')
+}
+
+/** Read an external file as text; returns null (not '') when the file is missing, throws on other read errors. */
+export async function readExternalOrNull(absPath: string): Promise<string | null> {
   try {
-    return parseJsonOrThrow(await readExternal(absPath))
+    return await window.api.file.readExternal(absPath)
+  } catch (error) {
+    if (isMissingFileError(error)) return null
+    throw error
+  }
+}
+
+function parseOrThrow<T>(content: string, label: string, absPath: string, parseFn: (content: string) => T): T {
+  try {
+    return parseFn(content)
   } catch (err) {
     throw new Error(`Failed to parse ${label} at ${absPath}: ${err instanceof Error ? err.message : String(err)}`)
   }
 }
 
+/** Read + parse JSONC, throwing a contextual error on a malformed file. */
+export async function readValidatedJson(absPath: string, label: string): Promise<Record<string, any>> {
+  return parseOrThrow(await readExternal(absPath), label, absPath, parseJsonOrThrow)
+}
+
 /** Read + parse TOML, throwing a contextual error on a malformed file. */
 export async function readValidatedToml(absPath: string, label: string): Promise<Record<string, any>> {
-  try {
-    return parseTomlOrThrow(await readExternal(absPath))
-  } catch (err) {
-    throw new Error(`Failed to parse ${label} at ${absPath}: ${err instanceof Error ? err.message : String(err)}`)
-  }
+  return parseOrThrow(await readExternal(absPath), label, absPath, parseTomlOrThrow)
+}
+
+/** Like readValidatedJson, but returns null (instead of {}) when the file doesn't exist. */
+export async function readValidatedJsonOrNull(absPath: string, label: string): Promise<Record<string, any> | null> {
+  const content = await readExternalOrNull(absPath)
+  return content === null ? null : parseOrThrow(content, label, absPath, parseJsonOrThrow)
+}
+
+/** Like readValidatedToml, but returns null (instead of {}) when the file doesn't exist. */
+export async function readValidatedTomlOrNull(absPath: string, label: string): Promise<Record<string, any> | null> {
+  const content = await readExternalOrNull(absPath)
+  return content === null ? null : parseOrThrow(content, label, absPath, parseTomlOrThrow)
 }
 
 export function parseTomlOrThrow(content: string): Record<string, any> {

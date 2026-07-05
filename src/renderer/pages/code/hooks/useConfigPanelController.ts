@@ -9,7 +9,6 @@ import { useTranslation } from 'react-i18next'
 import { parseConfiguredModelId, resolveCliConfigApplyContext } from '../cliConfig/applyContext'
 import { clearCliConfig } from '../cliConfig/clear'
 import { writeCliConfigDraft } from '../cliConfig/draft'
-import { injectCliConfig } from '../cliConfig/inject'
 import { extractConnectionFromCliConfigDraft } from '../cliConfig/parser'
 import { sanitizeCliConfigBlob } from '../cliConfig/sanitize'
 import type { CliConfigConnection } from '../cliConfig/types'
@@ -174,7 +173,7 @@ export function useConfigPanelController({
         // Inject first; only mark as current on success so the UI never shows a
         // provider as active while its CLI config file failed to write.
         try {
-          await injectCliConfig({
+          await writeCliConfigDraft({
             cliTool: selectedCliTool,
             modelId: cliConfigContext.modelId,
             configBlob: cfg?.config,

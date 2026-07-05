@@ -2,7 +2,6 @@ import { CHERRY_PROVIDER_PREFIX, OPENCODE_SCHEMA } from './constants'
 import {
   applyManagedJsonSettings,
   applyManagedTomlSettings,
-  asRecord,
   CLAUDE_MANAGED_ENV_KEYS,
   CLAUDE_MANAGED_PERMISSION_KEYS,
   CLAUDE_MANAGED_TOP_LEVEL_KEYS,
@@ -20,7 +19,7 @@ import {
 } from './permissionModes'
 import type { OpenCodeNpmInfo } from './resolvers'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
-import { normalizeUrl, sanitizeProviderName } from './values'
+import { asRecord, dropFeatureGoalsIfEmpty, normalizeUrl, omitKeysByPrefix, sanitizeProviderName } from './values'
 
 const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
 
@@ -71,23 +70,14 @@ export function buildCodexConfig(
   options: Record<string, any>
 ): Record<string, any> {
   const providerKey = `${CHERRY_PROVIDER_PREFIX}${resolved.providerName.replace(/\./g, '-')}`
-  const existingProviders =
-    existingToml.model_providers && typeof existingToml.model_providers === 'object' ? existingToml.model_providers : {}
-  const preservedProviders = Object.fromEntries(
-    Object.entries(existingProviders).filter(([key]) => !key.startsWith(CHERRY_PROVIDER_PREFIX))
-  )
+  const preservedProviders = omitKeysByPrefix(asRecord(existingToml.model_providers), CHERRY_PROVIDER_PREFIX)
   const cleaned: Record<string, any> = {}
   for (const [key, value] of Object.entries(existingToml)) {
     if (!CODEX_MANAGED_TOP_LEVEL_KEY_SET.has(key)) {
       cleaned[key] = value
     }
   }
-  if (cleaned.features && typeof cleaned.features === 'object') {
-    const features = { ...(cleaned.features as Record<string, any>) }
-    delete features.goals
-    if (Object.keys(features).length === 0) delete cleaned.features
-    else cleaned.features = features
-  }
+  dropFeatureGoalsIfEmpty(cleaned)
 
   const merged: Record<string, any> = {
     ...cleaned,
@@ -163,10 +153,7 @@ export function buildOpenCodeConfig(
     reasoning: options.reasoning === true,
     supportsReasoningEffort: options.supportsReasoningEffort === true
   })
-  const existingProviders = existing.provider && typeof existing.provider === 'object' ? existing.provider : {}
-  const preservedProviders = Object.fromEntries(
-    Object.entries(existingProviders).filter(([key]) => !key.startsWith(CHERRY_PROVIDER_PREFIX))
-  )
+  const preservedProviders = omitKeysByPrefix(asRecord(existing.provider), CHERRY_PROVIDER_PREFIX)
   const cleaned: Record<string, any> = { ...existing }
   for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete cleaned[key]
   const merged: Record<string, any> = {
@@ -249,16 +236,10 @@ export function buildKimiConfig(
   configBlob: Record<string, any>
 ): Record<string, any> {
   const sanitizedConfigBlob = sanitizeKimiConfigBlob(configBlob)
-  const providerTable = { ...asRecord(existing.providers) }
-  for (const key of Object.keys(providerTable)) {
-    if (key.startsWith(CHERRY_PROVIDER_PREFIX)) delete providerTable[key]
-  }
+  const providerTable = omitKeysByPrefix(asRecord(existing.providers), CHERRY_PROVIDER_PREFIX)
   providerTable[resolved.modelKey] = { type: 'openai', base_url: resolved.baseUrl, api_key: resolved.apiKey }
 
-  const modelsTable = { ...asRecord(existing.models) }
-  for (const key of Object.keys(modelsTable)) {
-    if (key.startsWith(CHERRY_PROVIDER_PREFIX)) delete modelsTable[key]
-  }
+  const modelsTable = omitKeysByPrefix(asRecord(existing.models), CHERRY_PROVIDER_PREFIX)
   const modelConfig: Record<string, any> = {
     provider: resolved.modelKey,
     model: resolved.model

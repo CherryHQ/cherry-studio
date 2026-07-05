@@ -1,4 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
 import type { Model } from '@shared/data/types/model'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
@@ -16,9 +17,9 @@ import {
   buildOpenCodeConfig,
   buildQwenConfig
 } from './builders'
-import { CHERRY_PROVIDER_PREFIX, CODEX_RESPONSES_ENDPOINT } from './constants'
+import { CHERRY_PROVIDER_PREFIX } from './constants'
 import { parseDotenv } from './dotenv'
-import { makeDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
+import { makeDraftFile, readAndParseDraftFile, readDraftFileText, validateCliConfigDraftForWrite } from './draftFiles'
 import {
   parseJsonOrThrow,
   parseTomlOrThrow,
@@ -27,11 +28,10 @@ import {
   resolveAbs,
   writeExternalConfigFile
 } from './file'
-import type { InjectCliConfigArgs } from './inject'
-import { injectCliConfig } from './inject'
-import { asRecord } from './managedKeys'
 import {
   modelSupportsReasoningEffort,
+  resolveClaudeBaseUrl,
+  resolveCodexBaseUrl,
   resolveGeminiBaseUrl,
   resolveOpenAIBaseUrl,
   resolveOpenCodeNpmInfo
@@ -39,7 +39,29 @@ import {
 import { sanitizeCliConfigBlob } from './sanitize'
 import { CLI_CONFIG_FILE_SPECS, FILE_CONFIGURED_CLI_TOOLS, getCliConfigTargets } from './targets'
 import type { CliConfigFileDraft } from './types'
-import { firstApiKey, sanitizeProviderName } from './values'
+import { asRecord, firstApiKey, sanitizeProviderName } from './values'
+
+const logger = loggerService.withContext('writeCliConfigDraft')
+
+/**
+ * Renderer-side CLI config file writing for the file-based CLI tools.
+ *
+ * Injection runs at the "enable config" trigger (see CodeCliPage); launch
+ * (`ipcApi.request('code_cli.run', …)`) is terminal-only. OpenClaw config is
+ * handled by the main-process OpenClawService, so this module is a no-op for it.
+ *
+ * There is no namespace-resolve IPC, so the renderer resolves the paths via
+ * `window.api.resolvePath` instead of `application.getPath`.
+ */
+export interface CliConfigWriteArgs {
+  cliTool: string
+  /** Unique model id ("providerId::modelId"). */
+  modelId: string
+  /** User-edited config blob (claude-code / codex / opencode consume it). */
+  configBlob?: Record<string, unknown>
+  /** Claude Code only: whether to write env.ANTHROPIC_MODEL. */
+  writePrimaryModel?: boolean
+}
 
 interface FileSnapshot {
   path: string
@@ -71,7 +93,7 @@ interface ResolvedCliConfigContext {
   configBlob: Record<string, any>
 }
 
-async function resolveContext(args: InjectCliConfigArgs): Promise<ResolvedCliConfigContext | null> {
+async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConfigContext | null> {
   if (!FILE_CONFIGURED_CLI_TOOLS.has(args.cliTool)) return null
   if (!isUniqueModelId(args.modelId)) {
     throw new Error(`Invalid model id: ${args.modelId}`)
@@ -108,17 +130,24 @@ export async function readCliConfigFiles(
 }
 
 export async function readCliConfigDraft(
-  args: InjectCliConfigArgs & { files?: CliConfigFileDraft[] }
+  args: CliConfigWriteArgs & { files?: CliConfigFileDraft[] }
 ): Promise<CliConfigFileDraft[]> {
   const context = await resolveContext(args)
   if (!context) return []
+  return buildCliConfigDraftFiles(args, context)
+}
+
+async function buildCliConfigDraftFiles(
+  args: CliConfigWriteArgs & { files?: CliConfigFileDraft[] },
+  context: ResolvedCliConfigContext
+): Promise<CliConfigFileDraft[]> {
   const { cliTool, files } = args
   const { provider, apiKey, model, modelRecord, configBlob } = context
 
   switch (cliTool) {
     case CodeCli.CLAUDE_CODE: {
-      const existing = parseJsonOrThrow(await readDraftFileText('claude-settings', files))
-      const baseUrl = provider.endpointConfigs?.['anthropic-messages']?.baseUrl ?? ''
+      const existing = await readAndParseDraftFile('claude-settings', parseJsonOrThrow, files)
+      const baseUrl = resolveClaudeBaseUrl(provider)
       return [
         await makeDraftFile(
           'claude-settings',
@@ -134,19 +163,17 @@ export async function readCliConfigDraft(
       ]
     }
     case CodeCli.OPENAI_CODEX: {
-      const responsesUrl = provider.endpointConfigs?.[CODEX_RESPONSES_ENDPOINT]?.baseUrl
+      const responsesUrl = resolveCodexBaseUrl(provider)
       if (!responsesUrl) {
         throw new Error('Codex requires an OpenAI Responses API endpoint, which this provider does not expose')
       }
-      const config = parseTomlOrThrow(await readDraftFileText('codex-config', files))
-      const auth = parseJsonOrThrow(await readDraftFileText('codex-auth', files))
+      const config = await readAndParseDraftFile('codex-config', parseTomlOrThrow, files)
+      const auth = await readAndParseDraftFile('codex-auth', parseJsonOrThrow, files)
       const providerName = sanitizeProviderName(provider.name, provider.id)
       return [
         await makeDraftFile(
           'codex-config',
-          stringifyToml(
-            buildCodexConfig(config, { baseUrl: formatApiHost(responsesUrl), providerName, model }, configBlob)
-          )
+          stringifyToml(buildCodexConfig(config, { baseUrl: responsesUrl, providerName, model }, configBlob))
         ),
         await makeDraftFile('codex-auth', renderJsonFile(buildCodexAuthConfig(auth, apiKey)))
       ]
@@ -154,7 +181,7 @@ export async function readCliConfigDraft(
     case CodeCli.OPEN_CODE: {
       const npmInfo = resolveOpenCodeNpmInfo(provider, modelRecord?.endpointTypes)
       const baseUrl = formatApiHost(provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? '')
-      const existing = parseJsonOrThrow(await readDraftFileText('opencode-config', files))
+      const existing = await readAndParseDraftFile('opencode-config', parseJsonOrThrow, files)
       const env = asRecord(configBlob.env)
       return [
         await makeDraftFile(
@@ -178,7 +205,7 @@ export async function readCliConfigDraft(
     }
     case CodeCli.GEMINI_CLI: {
       const envMap = parseDotenv(await readDraftFileText('gemini-env', files))
-      const settings = parseJsonOrThrow(await readDraftFileText('gemini-settings', files))
+      const settings = await readAndParseDraftFile('gemini-settings', parseJsonOrThrow, files)
       const baseUrl = resolveGeminiBaseUrl(provider)
       return [
         await makeDraftFile('gemini-env', renderDotenvFile(buildGeminiEnvConfig(envMap, { apiKey, baseUrl }))),
@@ -190,7 +217,7 @@ export async function readCliConfigDraft(
     }
     case CodeCli.QWEN_CODE: {
       const baseUrl = resolveOpenAIBaseUrl(provider)
-      const existing = parseJsonOrThrow(await readDraftFileText('qwen-settings', files))
+      const existing = await readAndParseDraftFile('qwen-settings', parseJsonOrThrow, files)
       return [
         await makeDraftFile(
           'qwen-settings',
@@ -202,7 +229,7 @@ export async function readCliConfigDraft(
     }
     case CodeCli.KIMI_CODE: {
       const baseUrl = resolveOpenAIBaseUrl(provider)
-      const existing = parseTomlOrThrow(await readDraftFileText('kimi-config', files))
+      const existing = await readAndParseDraftFile('kimi-config', parseTomlOrThrow, files)
       const providerName = sanitizeProviderName(provider.name, provider.id)
       return [
         await makeDraftFile(
@@ -228,6 +255,40 @@ export async function readCliConfigDraft(
   }
 }
 
+/**
+ * Per-tool required-credential checks (missing apiKey/baseUrl). Run only on the
+ * immediate-write path, before anything is read/written — preview
+ * (`readCliConfigDraft`) tolerates incomplete credentials and just renders
+ * around them, so it must never call this.
+ */
+function assertCliConfigCredentials(cliTool: string, context: ResolvedCliConfigContext): void {
+  const { provider, apiKey, modelRecord } = context
+  switch (cliTool) {
+    case CodeCli.OPENAI_CODEX:
+      if (!apiKey) throw new Error('Codex config is missing the API key')
+      return
+    case CodeCli.OPEN_CODE: {
+      const npmInfo = resolveOpenCodeNpmInfo(provider, modelRecord?.endpointTypes)
+      const baseUrl = formatApiHost(provider.endpointConfigs?.[npmInfo.endpointType]?.baseUrl ?? '')
+      if (!apiKey || !baseUrl) throw new Error('OpenCode config is missing required fields (apiKey/baseUrl)')
+      return
+    }
+    case CodeCli.GEMINI_CLI:
+      if (!apiKey) throw new Error('Gemini CLI config is missing the API key')
+      return
+    case CodeCli.QWEN_CODE:
+      if (!apiKey) throw new Error('Qwen Code config is missing the API key')
+      if (!resolveOpenAIBaseUrl(provider)) throw new Error('Qwen Code config is missing the OpenAI endpoint base URL')
+      return
+    case CodeCli.KIMI_CODE:
+      if (!apiKey) throw new Error('Kimi CLI config is missing the API key')
+      if (!resolveOpenAIBaseUrl(provider)) throw new Error('Kimi CLI config is missing the OpenAI endpoint base URL')
+      return
+    default:
+      return
+  }
+}
+
 export async function writeCliConfigDraft(args: {
   cliTool: string
   modelId?: string
@@ -235,20 +296,25 @@ export async function writeCliConfigDraft(args: {
   files?: CliConfigFileDraft[]
   writePrimaryModel?: boolean
 }): Promise<unknown> {
-  if (!args.files?.length) {
+  let files = args.files
+  if (!files?.length) {
     if (!args.modelId) throw new Error('Cannot write CLI config without a model id')
-    return injectCliConfig({
+    const writeArgs = {
       cliTool: args.cliTool,
       modelId: args.modelId,
       configBlob: args.configBlob,
       writePrimaryModel: args.writePrimaryModel
-    })
+    }
+    const context = await resolveContext(writeArgs)
+    if (!context) return
+    assertCliConfigCredentials(args.cliTool, context)
+    files = await buildCliConfigDraftFiles(writeArgs, context)
   }
-  validateCliConfigDraftForWrite(args.files)
+  validateCliConfigDraftForWrite(files)
 
   const snapshots: FileSnapshot[] = []
   const writeTargets = await Promise.all(
-    args.files.map(async (file) => ({
+    files.map(async (file) => ({
       path: file.path || (await resolveAbs(CLI_CONFIG_FILE_SPECS[file.target].path)),
       content: file.content
     }))
@@ -260,6 +326,7 @@ export async function writeCliConfigDraft(args: {
       writeQueue = writeQueue.then(async () => {
         snapshots.push(await snapshotFile(target.path))
         await writeExternalConfigFile(target.path, target.content)
+        logger.info(`Applied ${args.cliTool} config to ${target.path}`)
       })
     }
     await writeQueue

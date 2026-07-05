@@ -1,7 +1,6 @@
 import { CodeCli } from '@shared/types/codeCli'
 
 import {
-  asRecord,
   GEMINI_WRITABLE_SETTINGS_KEYS,
   KIMI_WRITABLE_SECTION_KEYS,
   KIMI_WRITABLE_TOP_LEVEL_KEYS,
@@ -19,7 +18,7 @@ import {
   isOpenCodePermissionMode,
   isQwenApprovalMode
 } from './permissionModes'
-import { getConfigBlob } from './values'
+import { asRecord } from './values'
 
 function pickTopLevel(source: Record<string, any>, keys: readonly string[]): Record<string, any> {
   const next: Record<string, any> = {}
@@ -43,7 +42,7 @@ function pickSectionFields(source: Record<string, any>, managedKeys: ManagedSett
 }
 
 export function sanitizeClaudeConfigBlob(configBlob: Record<string, unknown> | undefined): Record<string, any> {
-  const blob = getConfigBlob(configBlob)
+  const blob = asRecord(configBlob)
   const next = { ...blob }
   const defaultMode = asRecord(blob.permissions).defaultMode
   if (isClaudePermissionMode(defaultMode)) next.permissions = { defaultMode }
@@ -53,7 +52,7 @@ export function sanitizeClaudeConfigBlob(configBlob: Record<string, unknown> | u
 }
 
 export function sanitizeCodexConfigBlob(configBlob: Record<string, unknown> | undefined): Record<string, any> {
-  const blob = getConfigBlob(configBlob)
+  const blob = asRecord(configBlob)
   const next = pickTopLevel(blob, ['goalMode', 'remoteCompaction', 'commonConfig', 'disableResponseStorage'])
   if (isCodexPermissionMode(blob.permissionMode)) next.permissionMode = blob.permissionMode
   if (isCodexReasoningEffort(blob.reasoningEffort)) next.reasoningEffort = blob.reasoningEffort
@@ -61,7 +60,7 @@ export function sanitizeCodexConfigBlob(configBlob: Record<string, unknown> | un
 }
 
 export function sanitizeOpenCodeConfigBlob(configBlob: Record<string, unknown> | undefined): Record<string, any> {
-  const blob = getConfigBlob(configBlob)
+  const blob = asRecord(configBlob)
   const next = pickTopLevel(blob, OPEN_CODE_WRITABLE_TOP_LEVEL_KEYS)
   if (!isOpenCodePermissionMode(next.permissionMode)) delete next.permissionMode
   const env = asRecord(blob.env)
@@ -70,7 +69,7 @@ export function sanitizeOpenCodeConfigBlob(configBlob: Record<string, unknown> |
 }
 
 export function sanitizeGeminiConfigBlob(configBlob: Record<string, unknown> | undefined): Record<string, any> {
-  const next = pickSectionFields(getConfigBlob(configBlob), GEMINI_WRITABLE_SETTINGS_KEYS)
+  const next = pickSectionFields(asRecord(configBlob), GEMINI_WRITABLE_SETTINGS_KEYS)
   const general = asRecord(next.general)
   if (general.defaultApprovalMode !== undefined && !isGeminiApprovalMode(general.defaultApprovalMode)) {
     delete general.defaultApprovalMode
@@ -81,7 +80,7 @@ export function sanitizeGeminiConfigBlob(configBlob: Record<string, unknown> | u
 }
 
 export function sanitizeQwenConfigBlob(configBlob: Record<string, unknown> | undefined): Record<string, any> {
-  const next = pickSectionFields(getConfigBlob(configBlob), QWEN_WRITABLE_SETTINGS_KEYS)
+  const next = pickSectionFields(asRecord(configBlob), QWEN_WRITABLE_SETTINGS_KEYS)
   const tools = asRecord(next.tools)
   if (tools.approvalMode !== undefined && !isQwenApprovalMode(tools.approvalMode)) {
     delete tools.approvalMode
@@ -98,7 +97,7 @@ export function sanitizeQwenConfigBlob(configBlob: Record<string, unknown> | und
 }
 
 export function sanitizeKimiConfigBlob(configBlob: Record<string, unknown> | undefined): Record<string, any> {
-  const blob = getConfigBlob(configBlob)
+  const blob = asRecord(configBlob)
   const next = {
     ...pickTopLevel(blob, KIMI_WRITABLE_TOP_LEVEL_KEYS),
     ...pickSectionFields(blob, KIMI_WRITABLE_SECTION_KEYS)
@@ -127,6 +126,6 @@ export function sanitizeCliConfigBlob(
     case CodeCli.KIMI_CODE:
       return sanitizeKimiConfigBlob(configBlob)
     default:
-      return getConfigBlob(configBlob)
+      return asRecord(configBlob)
   }
 }

@@ -3,7 +3,14 @@ import { stringify as stringifyToml } from 'smol-toml'
 
 import { CHERRY_PROVIDER_PREFIX } from './constants'
 import { parseDotenv } from './dotenv'
-import { parseJsonOrThrow, parseTomlOrThrow, renderDotenvFile, renderJsonFile, resolveAbs } from './file'
+import {
+  readExternalOrNull,
+  readValidatedJsonOrNull,
+  readValidatedTomlOrNull,
+  renderDotenvFile,
+  renderJsonFile,
+  resolveAbs
+} from './file'
 import {
   applyManagedJsonSettings,
   applyManagedTomlSettings,
@@ -27,46 +34,13 @@ import {
   OPENCODE_CONFIG_PATH,
   QWEN_CONFIG_PATH
 } from './targets'
+import { dropFeatureGoalsIfEmpty, omitKeysByPrefix } from './values'
 
 const CODEX_MANAGED_TOP_LEVEL_KEY_SET = new Set<string>(CODEX_MANAGED_TOP_LEVEL_KEYS)
 
 export interface ClearCliConfigArgs {
   /** CLI tool whose config file should be scrubbed. */
   cliTool: string
-}
-
-function isMissingFileError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error)
-  return message.includes('File does not exist') || message.includes('ENOENT')
-}
-
-async function readExistingExternal(absPath: string): Promise<string | null> {
-  try {
-    return await window.api.file.readExternal(absPath)
-  } catch (error) {
-    if (isMissingFileError(error)) return null
-    throw error
-  }
-}
-
-async function readExistingValidatedJson(absPath: string, label: string): Promise<Record<string, any> | null> {
-  const content = await readExistingExternal(absPath)
-  if (content === null) return null
-  try {
-    return parseJsonOrThrow(content)
-  } catch (err) {
-    throw new Error(`Failed to parse ${label} at ${absPath}: ${err instanceof Error ? err.message : String(err)}`)
-  }
-}
-
-async function readExistingValidatedToml(absPath: string, label: string): Promise<Record<string, any> | null> {
-  const content = await readExistingExternal(absPath)
-  if (content === null) return null
-  try {
-    return parseTomlOrThrow(content)
-  } catch (err) {
-    throw new Error(`Failed to parse ${label} at ${absPath}: ${err instanceof Error ? err.message : String(err)}`)
-  }
 }
 
 /** Remove every Cherry-managed key from a CLI tool's config file, leaving user-owned keys intact. */
@@ -77,7 +51,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
   switch (cliTool) {
     case CodeCli.CLAUDE_CODE: {
       const absPath = await resolveAbs(CLAUDE_SETTINGS_PATH)
-      const existing = await readExistingValidatedJson(absPath, 'Claude Code settings')
+      const existing = await readValidatedJsonOrNull(absPath, 'Claude Code settings')
       if (!existing) return
       const next: Record<string, any> = { ...existing }
       for (const key of CLAUDE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
@@ -98,8 +72,8 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
     case CodeCli.OPENAI_CODEX: {
       const absPath = await resolveAbs(CODEX_CONFIG_PATH)
       const authAbsPath = await resolveAbs(CODEX_AUTH_PATH)
-      const existing = await readExistingValidatedToml(absPath, 'Codex config')
-      const existingAuth = await readExistingValidatedJson(authAbsPath, 'Codex auth')
+      const existing = await readValidatedTomlOrNull(absPath, 'Codex config')
+      const existingAuth = await readValidatedJsonOrNull(authAbsPath, 'Codex auth')
       if (existing) {
         const next: Record<string, any> = {}
         for (const [key, value] of Object.entries(existing)) {
@@ -108,18 +82,9 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
           }
         }
         if (next.model_providers && typeof next.model_providers === 'object') {
-          const modelProviders: Record<string, any> = {}
-          for (const [key, value] of Object.entries(next.model_providers as Record<string, any>)) {
-            if (!key.startsWith(CHERRY_PROVIDER_PREFIX)) modelProviders[key] = value
-          }
-          next.model_providers = modelProviders
+          next.model_providers = omitKeysByPrefix(next.model_providers as Record<string, any>, CHERRY_PROVIDER_PREFIX)
         }
-        if (next.features && typeof next.features === 'object') {
-          const features = { ...(next.features as Record<string, any>) }
-          delete features.goals
-          if (Object.keys(features).length === 0) delete next.features
-          else next.features = features
-        }
+        dropFeatureGoalsIfEmpty(next)
         await window.api.file.write(absPath, stringifyToml(next))
       }
       if (existingAuth?.OPENAI_API_KEY !== undefined) {
@@ -131,23 +96,19 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
     }
     case CodeCli.OPEN_CODE: {
       const absPath = await resolveAbs(OPENCODE_CONFIG_PATH)
-      const existing = await readExistingValidatedJson(absPath, 'OpenCode config')
+      const existing = await readValidatedJsonOrNull(absPath, 'OpenCode config')
       if (!existing) return
       const next: Record<string, any> = { ...existing }
       for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
       if (next.provider && typeof next.provider === 'object') {
-        const providers: Record<string, any> = {}
-        for (const [key, value] of Object.entries(next.provider as Record<string, any>)) {
-          if (!key.startsWith(CHERRY_PROVIDER_PREFIX)) providers[key] = value
-        }
-        next.provider = providers
+        next.provider = omitKeysByPrefix(next.provider as Record<string, any>, CHERRY_PROVIDER_PREFIX)
       }
       await window.api.file.write(absPath, renderJsonFile(next))
       return
     }
     case CodeCli.GEMINI_CLI: {
       const envAbsPath = await resolveAbs(GEMINI_ENV_PATH)
-      const envText = await readExistingExternal(envAbsPath)
+      const envText = await readExternalOrNull(envAbsPath)
       if (envText !== null) {
         const envMap = parseDotenv(envText)
         for (const key of GEMINI_MANAGED_ENV_KEYS) envMap.delete(key)
@@ -155,7 +116,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
       }
 
       const settingsAbsPath = await resolveAbs(GEMINI_SETTINGS_PATH)
-      const settings = await readExistingValidatedJson(settingsAbsPath, 'Gemini CLI settings')
+      const settings = await readValidatedJsonOrNull(settingsAbsPath, 'Gemini CLI settings')
       if (!settings) return
       applyManagedJsonSettings(settings, {}, GEMINI_MANAGED_SETTINGS_KEYS)
       if (settings.model && typeof settings.model === 'object') {
@@ -167,7 +128,7 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
     }
     case CodeCli.QWEN_CODE: {
       const absPath = await resolveAbs(QWEN_CONFIG_PATH)
-      const existing = await readExistingValidatedJson(absPath, 'Qwen Code config')
+      const existing = await readValidatedJsonOrNull(absPath, 'Qwen Code config')
       if (!existing) return
       const next: Record<string, any> = { ...existing }
       if (next.env && typeof next.env === 'object') {
@@ -196,16 +157,12 @@ export async function clearCliConfig(args: ClearCliConfigArgs): Promise<void> {
     }
     case CodeCli.KIMI_CODE: {
       const absPath = await resolveAbs(KIMI_CONFIG_PATH)
-      const existing = await readExistingValidatedToml(absPath, 'Kimi Code config')
+      const existing = await readValidatedTomlOrNull(absPath, 'Kimi Code config')
       if (!existing) return
       const next: Record<string, any> = { ...existing }
       for (const table of ['providers', 'models'] as const) {
         if (next[table] && typeof next[table] === 'object') {
-          const cleaned: Record<string, any> = {}
-          for (const [key, value] of Object.entries(next[table] as Record<string, any>)) {
-            if (!key.startsWith(CHERRY_PROVIDER_PREFIX)) cleaned[key] = value
-          }
-          next[table] = cleaned
+          next[table] = omitKeysByPrefix(next[table] as Record<string, any>, CHERRY_PROVIDER_PREFIX)
         }
       }
       applyManagedTomlSettings(next, {})

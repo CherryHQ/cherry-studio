@@ -3,7 +3,7 @@ import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { injectCliConfig } from '../cliConfig'
+import { clearCliConfig, writeCliConfigDraft } from '../index'
 
 /** Per-path DataApi.get mock returning provider / api-keys / model payloads.
  * Prefixes are matched longest-first so `/providers/:id/api-keys` is not
@@ -52,7 +52,7 @@ const codexProvider = {
 
 const enabledKey: ApiKeyEntry = { id: 'k1', key: 'sk-secret', isEnabled: true }
 
-describe('injectCliConfig', () => {
+describe('writeCliConfigDraft', () => {
   let written: { path: string; content: string } | null
   let writes: { path: string; content: string }[]
   let existing: Record<string, string>
@@ -66,12 +66,16 @@ describe('injectCliConfig', () => {
       value: {
         resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
         file: {
-          readExternal: vi.fn(async (absPath: string) => existing[absPath] ?? ''),
+          readExternal: vi.fn(async (absPath: string) => {
+            if (absPath in existing) return existing[absPath]
+            throw new Error(`File does not exist: ${absPath}`)
+          }),
           mkdir: vi.fn(async () => undefined),
           write: vi.fn(async (absPath: string, content: string) => {
             written = { path: absPath, content }
             writes.push({ path: absPath, content })
-          })
+          }),
+          deleteExternalFile: vi.fn(async () => undefined)
         }
       }
     })
@@ -83,14 +87,14 @@ describe('injectCliConfig', () => {
 
   it('is a no-op for openclaw (handled by OpenClawService)', async () => {
     mockGet({})
-    await injectCliConfig({ cliTool: CodeCli.OPENCLAW, modelId: 'p::m' })
+    await writeCliConfigDraft({ cliTool: CodeCli.OPENCLAW, modelId: 'p::m' })
     expect(written).toBeNull()
     expect(dataApiService.get).not.toHaveBeenCalled()
   })
 
   it('throws when the provider cannot be resolved', async () => {
     mockGet({ '/providers/ghost': () => undefined })
-    await expect(injectCliConfig({ cliTool: CodeCli.CLAUDE_CODE, modelId: 'ghost::claude-4' })).rejects.toThrow(
+    await expect(writeCliConfigDraft({ cliTool: CodeCli.CLAUDE_CODE, modelId: 'ghost::claude-4' })).rejects.toThrow(
       /Provider not found/
     )
   })
@@ -103,7 +107,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.CLAUDE_CODE,
         modelId: 'anthropic::claude-sonnet-4-5'
       })
@@ -130,7 +134,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.CLAUDE_CODE,
         modelId: 'anthropic::claude-sonnet-4-5',
         configBlob: {
@@ -163,7 +167,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.CLAUDE_CODE,
         modelId: 'anthropic::claude-sonnet-4-5'
       })
@@ -203,7 +207,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.CLAUDE_CODE,
         modelId: 'anthropic::claude-sonnet-4-5'
         // no configBlob: nothing re-asserted
@@ -240,7 +244,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.CLAUDE_CODE,
         modelId: 'anthropic::claude-sonnet-4-5',
         configBlob: { permissions: { defaultMode: 'acceptEdits', deny: ['Bash(rm -rf *)'] } }
@@ -261,7 +265,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.CLAUDE_CODE,
         modelId: 'anthropic::claude-sonnet-4-5',
         configBlob: { effortLevel: 'high' }
@@ -283,7 +287,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.OPENAI_CODEX,
         modelId: 'deepseek::deepseek-chat'
       })
@@ -319,7 +323,7 @@ describe('injectCliConfig', () => {
       })
 
       await expect(
-        injectCliConfig({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
+        writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
       ).rejects.toThrow(/Responses API endpoint/)
       // No file is touched when the provider cannot back Codex.
       expect(writes).toEqual([])
@@ -335,7 +339,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.OPENAI_CODEX,
         modelId: 'deepseek::deepseek-chat'
       })
@@ -352,7 +356,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.OPENAI_CODEX,
         modelId: 'deepseek::deepseek-chat',
         configBlob: { goalMode: true, remoteCompaction: true, permissionMode: 'workspace', reasoningEffort: 'high' }
@@ -395,7 +399,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.OPENAI_CODEX,
         modelId: 'deepseek::deepseek-chat'
         // no goalMode / remoteCompaction in the blob
@@ -425,7 +429,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
+      await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
 
       const { parse: parseToml } = await import('smol-toml')
       const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
@@ -441,7 +445,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
       await expect(
-        injectCliConfig({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
+        writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
       ).rejects.toThrow(/Responses API endpoint/)
     })
 
@@ -456,7 +460,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
+      await writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'deepseek::deepseek-chat' })
 
       const { parse: parseToml } = await import('smol-toml')
       const parsed = parseToml(findWrite('config.toml')!.content) as Record<string, any>
@@ -479,7 +483,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.OPEN_CODE,
         modelId: 'deepseek::deepseek-chat'
       })
@@ -502,7 +506,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.OPEN_CODE,
         modelId: 'anthropic::claude-sonnet-4-5',
         configBlob: { env: { OPENCODE_REASONING: 'true' } }
@@ -523,7 +527,7 @@ describe('injectCliConfig', () => {
         '/models/': () => reasoningModel
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.OPEN_CODE,
         modelId: 'deepseek::deepseek-chat',
         configBlob: { env: { OPENCODE_REASONING: 'true' } }
@@ -549,7 +553,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({ cliTool: CodeCli.OPEN_CODE, modelId: 'deepseek::deepseek-chat' })
+      await writeCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, modelId: 'deepseek::deepseek-chat' })
 
       const parsed = JSON.parse(opencodeWrite().content)
       expect(parsed.provider['cherry-DeepSeek'].options.baseURL).toBe('https://api.deepseek.com/v1')
@@ -572,7 +576,7 @@ describe('injectCliConfig', () => {
         '/models/': () => ({ id: 'gpt-compatible', endpointTypes: ['openai-chat-completions'] })
       })
 
-      await injectCliConfig({ cliTool: CodeCli.OPEN_CODE, modelId: 'mixed::gpt-compatible' })
+      await writeCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, modelId: 'mixed::gpt-compatible' })
 
       const provider = JSON.parse(opencodeWrite().content).provider['cherry-Mixed']
       expect(provider.npm).toBe('@ai-sdk/openai-compatible')
@@ -586,7 +590,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.OPEN_CODE,
         modelId: 'deepseek::deepseek-chat',
         configBlob: { permissionMode: 'ask' }
@@ -607,7 +611,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.GEMINI_CLI,
         modelId: 'gemini::gemini-2.5-pro',
         configBlob: {
@@ -641,7 +645,7 @@ describe('injectCliConfig', () => {
         '/models/': () => ({ id: 'deepseek-chat', name: 'DeepSeek Chat' })
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.QWEN_CODE,
         modelId: 'deepseek::deepseek-chat',
         configBlob: {
@@ -692,7 +696,7 @@ describe('injectCliConfig', () => {
         '/models/': () => ({ id: 'deepseek-chat', contextWindow: 65536 })
       })
 
-      await injectCliConfig({
+      await writeCliConfigDraft({
         cliTool: CodeCli.KIMI_CODE,
         modelId: 'deepseek::deepseek-chat',
         configBlob: {
@@ -732,7 +736,7 @@ describe('injectCliConfig', () => {
       vi.mocked(window.api.file.mkdir).mockRejectedValueOnce(new Error('mkdir failed'))
 
       await expect(
-        injectCliConfig({
+        writeCliConfigDraft({
           cliTool: CodeCli.KIMI_CODE,
           modelId: 'deepseek::deepseek-chat'
         })
@@ -747,7 +751,6 @@ describe('injectCliConfig', () => {
         theme: 'dark',
         env: { ANTHROPIC_AUTH_TOKEN: 'sk-injected', KEEP: '1' }
       })
-      const { clearCliConfig } = await import('../cliConfig')
       await clearCliConfig({ cliTool: CodeCli.CLAUDE_CODE })
 
       const afterClear = JSON.parse(writes.at(-1)!.content)
@@ -766,7 +769,7 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await expect(injectCliConfig({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'openai::gpt-4o' })).rejects.toThrow(
+      await expect(writeCliConfigDraft({ cliTool: CodeCli.OPENAI_CODEX, modelId: 'openai::gpt-4o' })).rejects.toThrow(
         /Failed to parse/
       )
       // Crucially, nothing was written — the malformed file is left intact.
@@ -781,9 +784,9 @@ describe('injectCliConfig', () => {
         '/models/': () => null
       })
 
-      await expect(injectCliConfig({ cliTool: CodeCli.OPEN_CODE, modelId: 'deepseek::deepseek-chat' })).rejects.toThrow(
-        /Failed to parse/
-      )
+      await expect(
+        writeCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, modelId: 'deepseek::deepseek-chat' })
+      ).rejects.toThrow(/Failed to parse/)
       expect(writes).toEqual([])
     })
   })

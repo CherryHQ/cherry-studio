@@ -206,3 +206,13 @@ export function isSupportAnthropicPromptCacheProvider(provider: Provider): boole
     isAzureOpenAIProvider(provider)
   )
 }
+
+/**
+ * Sanitize a provider display name for use in config file keys / launch args.
+ * Shared by the renderer (writes CLI config files) and main (assembles the
+ * matching launch command) — they must agree on the exact same output.
+ */
+export function sanitizeProviderName(name: string, fallback: string): string {
+  const sanitized = name.replace(/[^a-zA-Z0-9_\s.-]/g, '').replace(/\s+/g, '-')
+  return sanitized || fallback
+}

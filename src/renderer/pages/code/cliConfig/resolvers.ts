@@ -21,22 +21,47 @@ export function resolveGeminiBaseUrl(provider: Provider): string {
   )
 }
 
+export function resolveClaudeBaseUrl(provider: Provider): string {
+  return provider.endpointConfigs?.['anthropic-messages']?.baseUrl ?? ''
+}
+
+export function resolveCodexBaseUrl(provider: Provider): string {
+  return formatApiHost(provider.endpointConfigs?.[CODEX_RESPONSES_ENDPOINT]?.baseUrl)
+}
+
 export function resolveOpenAIBaseUrl(provider: Provider): string {
   const responses = provider.endpointConfigs?.[CODEX_RESPONSES_ENDPOINT]?.baseUrl
   const chat = provider.endpointConfigs?.[CODEX_CHAT_ENDPOINT]?.baseUrl
   return formatApiHost(responses ?? chat)
 }
 
+/** Single source of truth for the OpenCode endpointType <-> npm package mapping (both directions derive from it). */
+const OPEN_CODE_NPM_ENTRIES: Array<Pick<OpenCodeNpmInfo, 'endpointType' | 'npm' | 'providerType'>> = [
+  { endpointType: 'google-generate-content', npm: '@ai-sdk/google', providerType: 'google' },
+  { endpointType: 'anthropic-messages', npm: '@ai-sdk/anthropic', providerType: 'anthropic' },
+  { endpointType: 'openai-responses', npm: '@ai-sdk/openai', providerType: 'openai' }
+]
+const OPEN_CODE_DEFAULT_NPM_INFO: Pick<OpenCodeNpmInfo, 'npm' | 'providerType'> = {
+  npm: '@ai-sdk/openai-compatible',
+  providerType: 'openai-compatible'
+}
+
 function toOpenCodeNpmInfo(endpointType: EndpointType): OpenCodeNpmInfo {
-  switch (endpointType) {
-    case 'google-generate-content':
-      return { npm: '@ai-sdk/google', providerType: 'google', endpointType }
-    case 'anthropic-messages':
-      return { npm: '@ai-sdk/anthropic', providerType: 'anthropic', endpointType }
-    case 'openai-responses':
-      return { npm: '@ai-sdk/openai', providerType: 'openai', endpointType }
-    default:
-      return { npm: '@ai-sdk/openai-compatible', providerType: 'openai-compatible', endpointType }
+  const entry = OPEN_CODE_NPM_ENTRIES.find((e) => e.endpointType === endpointType)
+  return {
+    npm: entry?.npm ?? OPEN_CODE_DEFAULT_NPM_INFO.npm,
+    providerType: entry?.providerType ?? OPEN_CODE_DEFAULT_NPM_INFO.providerType,
+    endpointType
+  }
+}
+
+/** Reverse lookup of `toOpenCodeNpmInfo`, used when re-deriving info from an already-written opencode.json draft. */
+export function openCodeNpmInfoFromNpmPackage(npm: string): OpenCodeNpmInfo {
+  const entry = OPEN_CODE_NPM_ENTRIES.find((e) => e.npm === npm)
+  return {
+    npm,
+    providerType: entry?.providerType ?? OPEN_CODE_DEFAULT_NPM_INFO.providerType,
+    endpointType: entry?.endpointType ?? 'openai-chat-completions'
   }
 }
 
