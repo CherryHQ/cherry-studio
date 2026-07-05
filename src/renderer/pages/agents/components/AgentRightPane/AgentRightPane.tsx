@@ -111,7 +111,6 @@ interface AgentRightPaneState {
   status: AgentRightPaneStatus
   previewFileSelection: ArtifactPaneFileSelection | null
   selectedFile: string | null
-  fileTreeOpen: boolean
   fileTreeExpandedIds: ReadonlySet<string>
   fileTreeSearchKeyword: string
   workspaceId?: string
@@ -124,7 +123,6 @@ interface AgentRightPaneActions {
   closeFilePreview: () => void
   closeFlowTab: (toolCallId: string) => void
   setSelectedFile: (file: string | null) => void
-  setFileTreeOpen: (open: boolean) => void
   setFileTreeExpandedIds: (ids: ReadonlySet<string>) => void
   setFileTreeSearchKeyword: (keyword: string) => void
 }
@@ -194,13 +192,12 @@ function AgentRightPaneStateProvider({
   const [flowTabs, setFlowTabs] = useState<AgentFlowTab[]>([])
   const [previewFileSelection, setPreviewFileSelection] = useState<ArtifactPaneFileSelection | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
-  const [fileTreeOpen, setFileTreeOpen] = useState(true)
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
   const workspaceKey = `${workspaceId ?? ''}\0${workspacePath ?? ''}`
   const previousWorkspaceKeyRef = useRef(workspaceKey)
   const lastSelectableFileRef = useRef<string | null>(null)
-  const fileTreeModelOpen = filesEnabled !== false && shellState.open && activeTab === 'files' && fileTreeOpen
+  const fileTreeModelOpen = filesEnabled !== false && shellState.open && activeTab === 'files'
 
   // Built once here (the provider survives the Host↔Overlay maximize swap), so
   // maximize/minimize no longer remounts + rematerializes the workspace tree.
@@ -252,7 +249,6 @@ function AgentRightPaneStateProvider({
       } else {
         setSelectedFile(null)
       }
-      setFileTreeOpen(true)
       openTab('files')
     },
     [openTab, workspacePath]
@@ -322,7 +318,6 @@ function AgentRightPaneStateProvider({
         status,
         previewFileSelection,
         selectedFile,
-        fileTreeOpen,
         fileTreeExpandedIds,
         fileTreeSearchKeyword,
         workspaceId,
@@ -334,7 +329,6 @@ function AgentRightPaneStateProvider({
         closeFilePreview,
         closeFlowTab,
         setSelectedFile: selectFile,
-        setFileTreeOpen,
         setFileTreeExpandedIds,
         setFileTreeSearchKeyword
       },
@@ -358,7 +352,6 @@ function AgentRightPaneStateProvider({
       closeFilePreview,
       closeFlowTab,
       fileTreeExpandedIds,
-      fileTreeOpen,
       fileTreeSearchKeyword,
       filesEnabled,
       flow,
@@ -411,7 +404,6 @@ function AgentRightPaneFilesPanel() {
   return (
     <ArtifactPaneView
       workspacePath={state.workspacePath}
-      previewMode="overlay"
       previewFileSelection={state.previewFileSelection}
       onPreviewClose={actions.closeFilePreview}
       pdfLayoutPending={shellState.pdfLayoutPending}
@@ -420,8 +412,6 @@ function AgentRightPaneFilesPanel() {
       model={model}
       selectedFile={state.selectedFile}
       onSelectedFileChange={actions.setSelectedFile}
-      treeOpen={state.fileTreeOpen}
-      onTreeOpenChange={actions.setFileTreeOpen}
       searchKeyword={state.fileTreeSearchKeyword}
       onSearchKeywordChange={actions.setFileTreeSearchKeyword}
     />

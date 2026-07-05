@@ -10,8 +10,8 @@ import AgentChat from '../AgentChat'
 vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   ...(await importOriginal()),
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
-  Button: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
-    <button type="button" {...props}>
+  Button: ({ active, children, ...props }: PropsWithChildren<Record<string, unknown> & { active?: boolean }>) => (
+    <button type="button" data-active={active || undefined} {...props}>
       {children}
     </button>
   ),
@@ -197,36 +197,28 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
 vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
   const MockArtifactPane = ({
     workspacePath,
-    previewMode,
     previewFileSelection,
     onPreviewClose,
     selectedFile,
     onSelectedFileChange,
-    fileTreeOpen,
-    onFileTreeOpenChange,
     fileTreeExpandedIds,
     onFileTreeExpandedIdsChange,
     fileTreeSearchKeyword,
     onFileTreeSearchKeywordChange
   }: {
     workspacePath?: string
-    previewMode?: 'split' | 'overlay'
     previewFileSelection?: { workspacePath: string; filePath: string } | null
     onPreviewClose?: () => void
     selectedFile?: string | null
     onSelectedFileChange?: (file: string | null) => void
-    fileTreeOpen?: boolean
-    onFileTreeOpenChange?: (open: boolean) => void
     fileTreeExpandedIds?: ReadonlySet<string>
     onFileTreeExpandedIdsChange?: (ids: ReadonlySet<string>) => void
     fileTreeSearchKeyword?: string
     onFileTreeSearchKeywordChange?: (keyword: string) => void
   }) => {
     const [viewMode, setViewMode] = useState<'preview' | 'code'>('preview')
-    const [internalFileTreeOpen, setInternalFileTreeOpen] = useState(false)
     const [internalExpandedIds, setInternalExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
     const [internalFileSearchKeyword, setInternalFileSearchKeyword] = useState('')
-    const resolvedFileTreeOpen = fileTreeOpen ?? internalFileTreeOpen
     const resolvedExpandedIds = fileTreeExpandedIds ?? internalExpandedIds
     const resolvedFileSearchKeyword = fileTreeSearchKeyword ?? internalFileSearchKeyword
     const overlaySelection =
@@ -242,20 +234,10 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
         data-workspace-path={workspacePath ?? ''}
         data-selected-file={selectedFile ?? ''}
         data-view-mode={viewMode}
-        data-file-tree-open={String(resolvedFileTreeOpen)}
         data-expanded-ids={Array.from(resolvedExpandedIds).sort().join(',')}
         data-file-search-keyword={resolvedFileSearchKeyword}>
         <button type="button" onClick={() => onSelectedFileChange?.('README.md')}>
           select artifact file
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            const next = !resolvedFileTreeOpen
-            if (fileTreeOpen === undefined) setInternalFileTreeOpen(next)
-            onFileTreeOpenChange?.(next)
-          }}>
-          toggle artifact file tree
         </button>
         <button
           type="button"
@@ -281,7 +263,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
           aria-label={viewMode === 'preview' ? 'agent.preview_pane.preview' : 'agent.preview_pane.code'}
           onClick={() => setViewMode((current) => (current === 'preview' ? 'code' : 'preview'))}
         />
-        {previewMode === 'overlay' && overlaySelection && (
+        {overlaySelection && (
           <div data-testid="artifact-file-preview-overlay" className="overflow-auto">
             <button type="button" aria-label="agent.preview_pane.close" onClick={onPreviewClose}>
               close
@@ -312,14 +294,11 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
 
   const MockArtifactPaneView = ({
     model,
-    treeOpen,
-    onTreeOpenChange,
     searchKeyword,
     onSearchKeywordChange,
     selectedFile,
     onSelectedFileChange,
     workspacePath,
-    previewMode,
     previewFileSelection,
     onPreviewClose
   }: {
@@ -327,26 +306,20 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
       effectiveExpandedIds: ReadonlySet<string>
       setExpandedIds: (ids: ReadonlySet<string>) => void
     }
-    treeOpen: boolean
-    onTreeOpenChange: (open: boolean) => void
     searchKeyword: string
     onSearchKeywordChange: (keyword: string) => void
     selectedFile: string | null
     onSelectedFileChange: (file: string | null) => void
     workspacePath?: string
-    previewMode?: 'split' | 'overlay'
     previewFileSelection?: { workspacePath: string; filePath: string } | null
     onPreviewClose?: () => void
   }) => (
     <MockArtifactPane
       workspacePath={workspacePath}
-      previewMode={previewMode}
       previewFileSelection={previewFileSelection}
       onPreviewClose={onPreviewClose}
       selectedFile={selectedFile}
       onSelectedFileChange={onSelectedFileChange}
-      fileTreeOpen={treeOpen}
-      onFileTreeOpenChange={onTreeOpenChange}
       fileTreeExpandedIds={new Set(Array.from(model.effectiveExpandedIds).filter((id) => id !== '__workspace_root__'))}
       onFileTreeExpandedIdsChange={model.setExpandedIds}
       fileTreeSearchKeyword={searchKeyword}
@@ -440,8 +413,8 @@ vi.mock('motion/react', async (importOriginal) => ({
 }))
 
 vi.mock('@renderer/components/NavbarIcon', () => ({
-  default: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) => (
-    <button type="button" {...props}>
+  default: ({ active, children, ...props }: PropsWithChildren<Record<string, unknown> & { active?: boolean }>) => (
+    <button type="button" data-active={active || undefined} {...props}>
       {children}
     </button>
   )
@@ -767,19 +740,16 @@ describe('AgentChat artifact pane', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'artifact file search' }), {
       target: { value: 'index' }
     })
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-tree-open', 'true')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
     expect(screen.getByTestId('chat-center-overlay')).toContainElement(screen.getByTestId('artifact-pane'))
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-tree-open', 'true')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-tree-open', 'true')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
   })
@@ -798,7 +768,6 @@ describe('AgentChat artifact pane', () => {
 
     openFilesPane()
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-tree-open', 'true')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-expanded-ids', 'src')
     expect(screen.getByTestId('artifact-pane')).toHaveAttribute('data-file-search-keyword', 'index')
   })
