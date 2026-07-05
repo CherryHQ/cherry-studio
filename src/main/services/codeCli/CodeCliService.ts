@@ -637,6 +637,15 @@ export class CodeCliService extends BaseService {
       env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
     }
 
+    // gemini-cli only loads ~/.gemini/.env (where GEMINI_API_KEY lives) when it
+    // considers the launch directory "trusted"; a fresh directory otherwise falls
+    // through to an interactive "Enter Gemini API Key" prompt even though
+    // selectedType is already configured. This env var is gemini-cli's own
+    // documented bypass, scoped to this one launched session only.
+    if (cliTool === CodeCli.GEMINI_CLI) {
+      env.GEMINI_CLI_TRUST_WORKSPACE = 'true'
+    }
+
     // The Claude Code settings panel lands its terminal on the login flow rather
     // than a bare REPL. Modeled as a fixed boolean, NOT a free-form arg string:
     // this command is assembled into a shell string (and a Windows .bat), and
