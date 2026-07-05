@@ -8,12 +8,18 @@ import { join } from 'node:path'
 
 import type { ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import { BACKUP_DOMAINS } from '@main/data/db/backup/domains'
+import { assistantKnowledgeBaseTable } from '@main/data/db/schemas/assistantRelations'
+import { assistantTable } from '@main/data/db/schemas/assistant'
+import { chatMessageFileRefTable } from '@main/data/db/schemas/fileRelations'
 import { fileEntryTable } from '@main/data/db/schemas/file'
 import { knowledgeBaseTable } from '@main/data/db/schemas/knowledge'
+import { messageTable } from '@main/data/db/schemas/message'
+import { topicTable } from '@main/data/db/schemas/topic'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
 import { SqliteBackupCopier, StubBackupCopier } from './BackupDbCopier'
+import { SqliteExcludedDomainStripper, StubStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
 import { contributorManager } from './contributors/ContributorManager'
 
@@ -50,35 +56,13 @@ const newOrch = (dir: string, fixture: string) =>
     registry: STUB_REGISTRY,
     tempDir: dir,
     filesRoot: join(dir, 'files-root'),
-    knowledgeRoot: join(dir, 'kb-root')
+    knowledgeRoot: join(dir, 'kb-root'),
+    // StubStripper — the STUB_REGISTRY describe never runs lite (lite e2e is in
+    // the real-registry describe below); a stub satisfies the required dep.
+    stripper: new StubStripper()
   })
 
 describe('ExportOrchestrator (full-preset DB-only slice)', () => {
-  it('rejects the lite preset (gated off — needs contributor strip step)', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'cs-export-'))
-    try {
-      const fixture = join(dir, 'fixture.db')
-      await makeFixtureDb(fixture)
-      const out = join(dir, 'backup.cbu')
-      const orch = newOrch(dir, fixture)
-
-      // Act + Assert — lite is not supported this slice (would leak excluded-domain
-      // rows without a contributor strip). Rejects loudly; produces nothing.
-      await expect(
-        orch.exportBackup({
-          preset: 'lite',
-          outputPath: out,
-          restoreId: 'r1',
-          producerAppVersion: '1.0.0',
-          schemaMigrationId: '0001_x.sql'
-        })
-      ).rejects.toThrow(/lite/)
-      expect(existsSync(out)).toBe(false)
-    } finally {
-      await rm(dir, { recursive: true, force: true })
-    }
-  })
-
   it('rejects a restoreId with path separators (path-traversal guard on the temp-copy path)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'cs-export-'))
     try {
@@ -246,7 +230,10 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         registry: contributorManager.getRegistry(),
         tempDir: dir,
         filesRoot,
-        knowledgeRoot: kbRoot
+        knowledgeRoot: kbRoot,
+        // Full preset never invokes the stripper (gate is `preset === 'lite'`), but
+        // the dep is required — pass a real instance for shape parity.
+        stripper: new SqliteExcludedDomainStripper(contributorManager.getRegistry())
       })
       const out = join(dir, 'full.cbu')
       const { manifest } = await orch.exportBackup({
@@ -269,6 +256,102 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       try {
         expect(entries).toContain('files/f1')
         expect(entries).toContain('knowledge/kb1/source.md')
+      } finally {
+        await zip.close()
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('lite preset strips excluded-domain rows + cascade-prunes junction referrers', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-export-lite-'))
+    try {
+      // Seed: included anchors + excluded-domain rows + the 2 cross-domain junction
+      // referrers (chat_message_file_ref→file_entry, assistant_knowledge_base→knowledge_base).
+      const ASSISTANT_SETTINGS = {
+        temperature: 1.0,
+        enableTemperature: false,
+        topP: 1,
+        enableTopP: false,
+        maxTokens: 4096,
+        enableMaxTokens: false,
+        streamOutput: true,
+        reasoning_effort: 'default',
+        mcpMode: 'auto' as const,
+        maxToolCalls: 20,
+        enableMaxToolCalls: true,
+        enableWebSearch: false,
+        customParameters: []
+      }
+      await dbh.db.insert(topicTable).values([{ id: 'tpc1', name: 'T', isNameManuallyEdited: false, orderKey: 'a' }])
+      await dbh.db
+        .insert(messageTable)
+        .values([{ id: 'msg1', topicId: 'tpc1', role: 'root', parentId: null, data: { parts: [] }, searchableText: '', status: 'success', siblingsGroupId: 0 }])
+      await dbh.db.insert(assistantTable).values([{ id: 'ast1', name: 'A', prompt: '', emoji: '🤖', description: '', settings: ASSISTANT_SETTINGS, orderKey: 'a' }])
+      await dbh.db.insert(fileEntryTable).values([{ id: 'f1', origin: 'internal', name: 'test', ext: 'txt', size: 5 }])
+      await dbh.db.insert(chatMessageFileRefTable).values([{ id: 'cmfr1', fileEntryId: 'f1', sourceId: 'msg1', role: 'attachment' }])
+      await dbh.db
+        .insert(knowledgeBaseTable)
+        .values([{ id: 'kb1', name: 'KB', status: 'completed', chunkSize: 500, chunkOverlap: 50, searchMode: 'bm25' }])
+      await dbh.db.insert(assistantKnowledgeBaseTable).values([{ assistantId: 'ast1', knowledgeBaseId: 'kb1' }])
+
+      const liveRow = dbh.sqlite.prepare('PRAGMA database_list').get() as { file: string }
+      const orch = new ExportOrchestrator({
+        copier: new SqliteBackupCopier(liveRow.file),
+        registry: contributorManager.getRegistry(),
+        tempDir: dir,
+        filesRoot: join(dir, 'files-root'),
+        knowledgeRoot: join(dir, 'kb-root'),
+        // Real stripper — runs step 2.5 against the copy.
+        stripper: new SqliteExcludedDomainStripper(contributorManager.getRegistry())
+      })
+      const out = join(dir, 'lite.cbu')
+      const { manifest } = await orch.exportBackup({
+        preset: 'lite',
+        outputPath: out,
+        restoreId: 'rl',
+        producerAppVersion: '1.0.0',
+        schemaMigrationId: '0001_x.sql'
+      })
+
+      // manifest: 10 domains (excludes KNOWLEDGE / PAINTINGS / FILE_STORAGE / TRANSLATE_HISTORY), no blobs.
+      expect(manifest.preset).toBe('lite')
+      expect(manifest.domains).toHaveLength(10)
+      expect(new Set(manifest.domains)).toEqual(
+        new Set(BACKUP_DOMAINS.filter((d) => !['KNOWLEDGE', 'PAINTINGS', 'FILE_STORAGE', 'TRANSLATE_HISTORY'].includes(d)))
+      )
+      expect(manifest.includeFiles).toBe(false)
+      expect(manifest.includeKnowledgeFiles).toBe(false)
+
+      // archive: only manifest.json + backup.sqlite; no files/ or knowledge/.
+      const { zip, entries } = await openZip(out)
+      try {
+        expect(entries).toContain('manifest.json')
+        expect(entries).toContain('backup.sqlite')
+        expect(entries.some((e) => e.startsWith('files/'))).toBe(false)
+        expect(entries.some((e) => e.startsWith('knowledge/'))).toBe(false)
+
+        // backup.sqlite: excluded tables empty, junction referrers cascade-pruned,
+        // included rows preserved.
+        const extracted = join(dir, 'extracted.db')
+        await zip.extract('backup.sqlite', extracted)
+        const d = new Database(extracted, { readonly: true })
+        try {
+          const count = (t: string) => (d.prepare(`SELECT COUNT(*) AS c FROM "${t}"`).get() as { c: number }).c
+          for (const t of ['file_entry', 'knowledge_base', 'knowledge_item', 'painting', 'painting_file_ref', 'translate_language', 'translate_history']) {
+            expect(count(t), `${t} should be empty`).toBe(0)
+          }
+          // cross-domain junction referrers cascade-pruned (schema CASCADE under foreign_keys=ON)
+          expect(count('chat_message_file_ref')).toBe(0)
+          expect(count('assistant_knowledge_base')).toBe(0)
+          // included aggregate roots + members preserved
+          expect(count('topic')).toBe(1)
+          expect(count('message')).toBe(1)
+          expect(count('assistant')).toBe(1)
+        } finally {
+          d.close()
+        }
       } finally {
         await zip.close()
       }

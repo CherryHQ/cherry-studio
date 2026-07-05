@@ -9,8 +9,11 @@ import { useState } from 'react'
 
 import { useBackupV2 } from '@renderer/hooks/useBackupV2'
 
+type Preset = 'full' | 'lite'
+
 export const BackupV2DevExport: React.FC = () => {
   const { startBackup, loading } = useBackupV2()
+  const [preset, setPreset] = useState<Preset>('full')
   const [outputPath, setOutputPath] = useState('')
   const [status, setStatus] = useState<string | null>(null)
 
@@ -21,7 +24,7 @@ export const BackupV2DevExport: React.FC = () => {
     }
     setStatus(null)
     try {
-      const result = await startBackup('full', outputPath)
+      const result = await startBackup(preset, outputPath)
       setStatus(`ok → ${result.archivePath}`)
     } catch (e) {
       setStatus(e instanceof Error ? e.message : String(e))
@@ -31,6 +34,20 @@ export const BackupV2DevExport: React.FC = () => {
   return (
     <div style={{ borderTop: '1px dashed var(--border-color)', marginTop: 16, paddingTop: 12 }}>
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>V2 export (dev · WIP)</div>
+      {/* Preset picker — full (all 14 domains + blobs) vs lite (10 domains, no blobs). */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 12 }}>
+        {(['full', 'lite'] as const).map((p) => (
+          <label key={p} style={{ display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' }}>
+            <input
+              type="radio"
+              checked={preset === p}
+              onChange={() => setPreset(p)}
+              data-testid={`v2-export-preset-${p}`}
+            />
+            {p}
+          </label>
+        ))}
+      </div>
       <div style={{ display: 'flex', gap: 8 }}>
         <input
           value={outputPath}

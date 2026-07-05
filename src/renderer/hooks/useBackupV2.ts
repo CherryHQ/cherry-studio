@@ -24,16 +24,17 @@ export interface BackupV2Result {
 const INITIAL: UseBackupV2State = { loading: false, error: null, archivePath: null }
 
 /**
- * Trigger a v2 .cbu export. Full preset only this slice (lite is gated off in the
- * orchestrator — needs the FK-aware contributor strip). The hook owns the request
- * lifecycle; `startBackup` resolves with the archive path on success and rethrows
- * (after recording the message in `error`) on failure.
+ * Trigger a v2 .cbu export. Full = all domains + blobs; lite = 10 domains (no
+ * KNOWLEDGE / PAINTINGS / FILE_STORAGE / TRANSLATE_HISTORY, no blobs — the
+ * orchestrator's step 2.5 physically strips their rows from the copy). The hook
+ * owns the request lifecycle; `startBackup` resolves with the archive path on
+ * success and rethrows (after recording the message in `error`) on failure.
  */
 export function useBackupV2() {
   const [state, setState] = useState<UseBackupV2State>(INITIAL)
 
   const startBackup = useCallback(
-    async (preset: 'full', outputPath: string): Promise<BackupV2Result> => {
+    async (preset: 'full' | 'lite', outputPath: string): Promise<BackupV2Result> => {
       setState({ loading: true, error: null, archivePath: null })
       try {
         const result = (await window.api.backupV2.startBackup({ preset, outputPath })) as BackupV2Result

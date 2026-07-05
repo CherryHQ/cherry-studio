@@ -2,7 +2,7 @@
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
 import { describe, expect, it } from 'vitest'
 
-import { LITE_EXCLUDED, presetIncludesFiles, presetIncludesKnowledge, resolvePreset } from './presets'
+import { type BackupPreset, LITE_EXCLUDED, presetIncludesFiles, presetIncludesKnowledge, resolvePreset } from './presets'
 
 const ALL = new Set<BackupDomain>(BACKUP_DOMAINS)
 const LITE_EXCLUDED_SET = new Set<BackupDomain>(LITE_EXCLUDED)
@@ -34,6 +34,14 @@ describe('resolvePreset', () => {
     for (const d of LITE_EXCLUDED_SET) {
       expect(lite.has(d)).toBe(false)
     }
+  })
+
+  it('rejects an invalid preset (fail-closed — no silent fallthrough to lite)', () => {
+    // The static type is 'full' | 'lite', but IPC input is unvalidated at runtime
+    // (TODO(ipc-boundary) in BackupService). A typo MUST throw rather than resolve
+    // 10 domains + skip the step-2.5 strip (which would leak excluded-domain rows
+    // into a lite-labelled archive).
+    expect(() => resolvePreset('liten' as BackupPreset)).toThrow(/invalid preset/)
   })
 
   it('returns independent copies (mutating the result does not affect BACKUP_DOMAINS)', () => {

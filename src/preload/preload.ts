@@ -128,7 +128,7 @@ const api = {
   // settings page (a new V2 surface, not mixed into legacy v1 LocalBackupSettings)
   // binds via renderer/src/hooks/useBackupV2.ts.
   backupV2: {
-    startBackup: (opts: { preset: 'full'; outputPath: string }) =>
+    startBackup: (opts: { preset: 'full' | 'lite'; outputPath: string }) =>
       ipcRenderer.invoke(IpcChannel.BackupV2_StartBackup, opts)
   },
   file: {
