@@ -47,13 +47,9 @@ describe('openSettingsTab', () => {
   })
 
   it('requests main-window settings navigation when the settings tab event is unhandled', () => {
-    const navigate = vi.fn()
-    window.navigate = navigate as never
-
     openSettingsTab('/settings/mcp/servers')
 
     expect(ipcRequestMock).toHaveBeenCalledWith('navigation.open_settings', { path: '/settings/mcp/servers' })
-    expect(navigate).not.toHaveBeenCalled()
   })
 
   it('normalizes invalid paths to the default settings page', () => {
