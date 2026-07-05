@@ -8,6 +8,7 @@ import { join } from 'node:path'
 
 import type { ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import { BACKUP_DOMAINS } from '@main/data/db/backup/domains'
+import { appStateTable } from '@main/data/db/schemas/appState'
 import { assistantKnowledgeBaseTable } from '@main/data/db/schemas/assistantRelations'
 import { assistantTable } from '@main/data/db/schemas/assistant'
 import { chatMessageFileRefTable } from '@main/data/db/schemas/fileRelations'
@@ -19,7 +20,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
 import { SqliteBackupCopier, StubBackupCopier } from './BackupDbCopier'
-import { SqliteExcludedDomainStripper, StubStripper } from './ExcludedDomainStripper'
+import { SqliteBackupStripper, StubStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
 import { contributorManager } from './contributors/ContributorManager'
 
@@ -207,11 +208,12 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
   it('collects + stages file_entry blobs and knowledge base dirs into the archive', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'cs-export-e2e-'))
     try {
-      // Seed the live DB: 1 internal file + 1 knowledge base.
+      // Seed the live DB: 1 internal file + 1 knowledge base + app_state (ALWAYS_STRIP).
       await dbh.db.insert(fileEntryTable).values([{ id: 'f1', origin: 'internal', name: 'a', ext: 'txt', size: 5 }])
       await dbh.db
         .insert(knowledgeBaseTable)
         .values([{ id: 'kb1', name: 'kb', status: 'completed', chunkSize: 100, chunkOverlap: 20, searchMode: 'bm25' }])
+      await dbh.db.insert(appStateTable).values([{ key: 'migration_v2_status', value: 'completed' }])
       // Fixture blobs at the live filesystem roots.
       const filesRoot = await mkdtemp(join(tmpdir(), 'cs-files-root-'))
       const kbRoot = await mkdtemp(join(tmpdir(), 'cs-kb-root-'))
@@ -231,9 +233,8 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         tempDir: dir,
         filesRoot,
         knowledgeRoot: kbRoot,
-        // Full preset never invokes the stripper (gate is `preset === 'lite'`), but
-        // the dep is required — pass a real instance for shape parity.
-        stripper: new SqliteExcludedDomainStripper(contributorManager.getRegistry())
+        // Full preset strips ALWAYS_STRIP tables (app_state / job) via step 2.5.
+        stripper: new SqliteBackupStripper()
       })
       const out = join(dir, 'full.cbu')
       const { manifest } = await orch.exportBackup({
@@ -256,6 +257,21 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       try {
         expect(entries).toContain('files/f1')
         expect(entries).toContain('knowledge/kb1/source.md')
+
+        // backup.sqlite: ALWAYS_STRIP tables (app_state / job) are stripped on full
+        // too (step 2.5 runs every preset), while included business rows survive.
+        const extracted = join(dir, 'extracted.db')
+        await zip.extract('backup.sqlite', extracted)
+        const d = new Database(extracted, { readonly: true })
+        try {
+          const count = (t: string) => (d.prepare(`SELECT COUNT(*) AS c FROM "${t}"`).get() as { c: number }).c
+          expect(count('app_state'), 'app_state stripped on full (ALWAYS_STRIP)').toBe(0)
+          expect(count('job'), 'job stripped on full (ALWAYS_STRIP)').toBe(0)
+          expect(count('file_entry'), 'file_entry preserved on full').toBe(1)
+          expect(count('knowledge_base'), 'knowledge_base preserved on full').toBe(1)
+        } finally {
+          d.close()
+        }
       } finally {
         await zip.close()
       }
@@ -295,6 +311,8 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         .insert(knowledgeBaseTable)
         .values([{ id: 'kb1', name: 'KB', status: 'completed', chunkSize: 500, chunkOverlap: 50, searchMode: 'bm25' }])
       await dbh.db.insert(assistantKnowledgeBaseTable).values([{ assistantId: 'ast1', knowledgeBaseId: 'kb1' }])
+      // app_state (ALWAYS_STRIP) — runtime state, must be stripped even on lite.
+      await dbh.db.insert(appStateTable).values([{ key: 'migration_v2_status', value: 'completed' }])
 
       const liveRow = dbh.sqlite.prepare('PRAGMA database_list').get() as { file: string }
       const orch = new ExportOrchestrator({
@@ -304,7 +322,7 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         filesRoot: join(dir, 'files-root'),
         knowledgeRoot: join(dir, 'kb-root'),
         // Real stripper — runs step 2.5 against the copy.
-        stripper: new SqliteExcludedDomainStripper(contributorManager.getRegistry())
+        stripper: new SqliteBackupStripper()
       })
       const out = join(dir, 'lite.cbu')
       const { manifest } = await orch.exportBackup({
@@ -345,6 +363,10 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
           // cross-domain junction referrers cascade-pruned (schema CASCADE under foreign_keys=ON)
           expect(count('chat_message_file_ref')).toBe(0)
           expect(count('assistant_knowledge_base')).toBe(0)
+          // ALWAYS_STRIP tables stripped on every preset (incl. lite): app_state
+          // (seeded above) + job (present in schema, 0 rows) → both empty.
+          expect(count('app_state'), 'app_state stripped (ALWAYS_STRIP)').toBe(0)
+          expect(count('job'), 'job stripped (ALWAYS_STRIP)').toBe(0)
           // included aggregate roots + members preserved
           expect(count('topic')).toBe(1)
           expect(count('message')).toBe(1)

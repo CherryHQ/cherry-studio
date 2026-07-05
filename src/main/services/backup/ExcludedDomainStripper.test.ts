@@ -1,16 +1,18 @@
-// Unit tests for SqliteExcludedDomainStripper — lite preset step 2.5.
+// Unit tests for SqliteBackupStripper — export step 2.5 (runs on EVERY preset).
 //
-// Seeds the 4 excluded domains' tables + their junction referrers (in included
-// domains) + a few included rows, snapshots the live test DB to a copy, strips
-// the copy, and asserts: excluded tables → 0 rows, cross-domain junction
-// referrers cascade-pruned, included rows preserved. A control test proves
-// `PRAGMA foreign_keys = ON` is load-bearing — without it cascade never fires
-// and junction referrers are left dangling.
+// Seeds the lite-excluded tables + ALWAYS_STRIP tables (app_state) + their junction
+// referrers (in included domains) + a few included rows, snapshots the live test DB
+// to a copy, strips the copy, and asserts: stripped tables → 0 rows, cross-domain
+// junction referrers cascade-pruned, included rows preserved. A control test proves
+// `PRAGMA foreign_keys = ON` is load-bearing — without it cascade never fires and
+// junction referrers are left dangling.
 import Database from 'better-sqlite3'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import type { DbTableName } from '@main/data/db/backup/dbSchemaRefs'
+import { appStateTable } from '@main/data/db/schemas/appState'
 import { assistantKnowledgeBaseTable } from '@main/data/db/schemas/assistantRelations'
 import { assistantTable } from '@main/data/db/schemas/assistant'
 import { chatMessageFileRefTable, paintingFileRefTable } from '@main/data/db/schemas/fileRelations'
@@ -24,9 +26,7 @@ import { translateHistoryTable } from '@main/data/db/schemas/translateHistory'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
-import { contributorManager } from './contributors/ContributorManager'
-import { SqliteExcludedDomainStripper } from './ExcludedDomainStripper'
-import { LITE_EXCLUDED } from './presets'
+import { SqliteBackupStripper } from './ExcludedDomainStripper'
 
 /**
  * assistant.settings minimal valid shape (NOT NULL JSON column — must satisfy
@@ -50,9 +50,8 @@ const ASSISTANT_SETTINGS = {
 }
 
 /**
- * Seed every excluded-domain table + its junction referrers + included anchors.
- * Uses explicit ids (drizzle uuidPrimaryKey allows overriding the $defaultFn) so
- * FK references are stable and readable.
+ * Seed every lite-excluded table + ALWAYS_STRIP app_state + its junction referrers
+ * + included anchors. Uses explicit ids so FK references are stable and readable.
  */
 async function seedAll(dbh: ReturnType<typeof setupTestDatabase>): Promise<void> {
   // Included anchors (MUST survive strip).
@@ -82,6 +81,8 @@ async function seedAll(dbh: ReturnType<typeof setupTestDatabase>): Promise<void>
   // TRANSLATE_HISTORY (excluded) + member (zero external referrers).
   await dbh.db.insert(translateLanguageTable).values([{ langCode: 'en', value: 'English', emoji: '🇺🇸' }])
   await dbh.db.insert(translateHistoryTable).values([{ id: 'th1', sourceText: 'hi', targetText: '你好', star: false }])
+  // app_state (ALWAYS_STRIP) — runtime process state, not user data; stripped on every export.
+  await dbh.db.insert(appStateTable).values([{ key: 'migration_v2_status', value: 'completed' }])
 }
 
 /** Open a readonly counter on a copy; caller MUST close() when done. */
@@ -93,7 +94,7 @@ function openCounter(copyPath: string): { count: (table: string) => number; clos
   }
 }
 
-/** The 7 excluded-domain owned tables (FILE_STORAGE + KNOWLEDGE + PAINTINGS + TRANSLATE_HISTORY). */
+/** The 7 lite-excluded tables (FILE_STORAGE + KNOWLEDGE + PAINTINGS + TRANSLATE_HISTORY owned). */
 const EXCLUDED_TABLES = [
   'file_entry',
   'knowledge_base',
@@ -104,31 +105,45 @@ const EXCLUDED_TABLES = [
   'translate_history'
 ] as const
 
+/** Global ALWAYS_STRIP physical tables (in DB_TABLES; FTS5 virtuals are NOT stripped). */
+const ALWAYS_STRIP_PHYSICAL = ['app_state', 'job'] as const
+
+/**
+ * Combined strip set the orchestrator hands the stripper on lite (excluded +
+ * ALWAYS_STRIP physical). Mirrors ExportOrchestrator.resolveStripTables('lite') —
+ * kept here as a literal so this stripper unit test does not depend on the registry.
+ * FTS5 virtual tables are absent: external-content index binds to the content table
+ * (cannot be stripped independently); restore rebuilds.
+ */
+const STRIP_TABLES: readonly DbTableName[] = [...EXCLUDED_TABLES, ...ALWAYS_STRIP_PHYSICAL]
+
 /** Cross-domain junction referrers living in INCLUDED domains — cascade-pruned. */
 const JUNCTION_REFERRERS = ['chat_message_file_ref', 'assistant_knowledge_base'] as const
 
 /** Included-domain rows that must survive strip. */
 const INCLUDED_TABLES = ['topic', 'message', 'assistant'] as const
 
-describe('SqliteExcludedDomainStripper', () => {
+describe('SqliteBackupStripper', () => {
   const dbh = setupTestDatabase()
 
-  it('deletes every excluded-domain table to 0 rows', async () => {
+  it('deletes every stripped table to 0 rows (lite excluded + ALWAYS_STRIP)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'cs-strip-'))
     try {
       await seedAll(dbh)
       const copy = join(dir, 'backup.sqlite')
       await dbh.sqlite.backup(copy) // simulate SqliteBackupCopier producing backup.sqlite
 
-      const stripper = new SqliteExcludedDomainStripper(contributorManager.getRegistry())
-      const stripped = await stripper.strip(copy, LITE_EXCLUDED)
+      const stripper = new SqliteBackupStripper()
+      const stripped = await stripper.strip(copy, STRIP_TABLES)
 
-      // The strip report covers exactly the 7 excluded tables.
-      expect(new Set(stripped.map((s) => s.table))).toEqual(new Set(EXCLUDED_TABLES))
-      // Each excluded table is empty after strip.
+      // The strip report covers exactly the combined strip set (9 tables: 7 excluded
+      // + app_state/job physical). FTS5 virtuals are NOT in the set (external-content
+      // index binds to content; restore rebuilds — see exclusions.ts).
+      expect(new Set(stripped.map((s) => s.table))).toEqual(new Set(STRIP_TABLES))
+      // Each stripped table is empty after strip.
       const counter = openCounter(copy)
       try {
-        for (const t of EXCLUDED_TABLES) {
+        for (const t of STRIP_TABLES) {
           expect(counter.count(t), `${t} should be empty after strip`).toBe(0)
         }
       } finally {
@@ -146,8 +161,8 @@ describe('SqliteExcludedDomainStripper', () => {
       const copy = join(dir, 'backup.sqlite')
       await dbh.sqlite.backup(copy)
 
-      const stripper = new SqliteExcludedDomainStripper(contributorManager.getRegistry())
-      await stripper.strip(copy, LITE_EXCLUDED)
+      const stripper = new SqliteBackupStripper()
+      await stripper.strip(copy, STRIP_TABLES)
 
       // Junction referrers in INCLUDED domains are pruned by schema CASCADE when
       // their excluded target (file_entry / knowledge_base) is deleted.
@@ -171,8 +186,8 @@ describe('SqliteExcludedDomainStripper', () => {
       const copy = join(dir, 'backup.sqlite')
       await dbh.sqlite.backup(copy)
 
-      const stripper = new SqliteExcludedDomainStripper(contributorManager.getRegistry())
-      await stripper.strip(copy, LITE_EXCLUDED)
+      const stripper = new SqliteBackupStripper()
+      await stripper.strip(copy, STRIP_TABLES)
 
       // Included aggregate roots + members survive — junction prune only removes
       // the referrer row, never the included aggregate.
@@ -190,8 +205,8 @@ describe('SqliteExcludedDomainStripper', () => {
   })
 
   it('control: without PRAGMA foreign_keys=ON, cascade does NOT fire (junction referrers dangle)', async () => {
-    // Proves the `pragma('foreign_keys = ON')` call in SqliteExcludedDomainStripper
-    // is load-bearing. A raw DELETE with foreign_keys OFF (the copy's default state
+    // Proves the `pragma('foreign_keys = ON')` call in SqliteBackupStripper is
+    // load-bearing. A raw DELETE with foreign_keys OFF (the copy's default state
     // after online backup) removes the excluded rows but leaves junction referrers
     // pointing at now-deleted ids — exactly the dangling state the stripper avoids.
     const dir = await mkdtemp(join(tmpdir(), 'cs-strip-control-'))
@@ -208,6 +223,9 @@ describe('SqliteExcludedDomainStripper', () => {
       try {
         db.pragma('foreign_keys = OFF')
         db.transaction(() => {
+          // The cascade chain lives on the excluded tables (file_entry / knowledge_base);
+          // ALWAYS_STRIP tables (app_state / job) have no cross-domain referrers, so the
+          // control only DELETEs the excluded set to demonstrate the dangle.
           for (const t of EXCLUDED_TABLES) db.exec(`DELETE FROM "${t}"`)
         })()
       } finally {
