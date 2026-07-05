@@ -119,6 +119,7 @@ const AgentPage = () => {
   // re-entry, without bleeding into the assistant surface.
   const [sessionPaneOpen, setSessionPaneOpen] = useClassicLayoutRightPaneOpen('agent', isClassicSessionLayout)
   const hasAutoOpenedClassicSessionPaneRef = useRef(false)
+  const isCreatingClassicEmptySessionRef = useRef(false)
 
   useEffect(() => {
     if (!isClassicSessionLayout) {
@@ -466,6 +467,8 @@ const AgentPage = () => {
 
   const handleAgentConversationSelect = useCallback(
     async (agentId: string) => {
+      if (isCreatingClassicEmptySessionRef.current) return
+      isCreatingClassicEmptySessionRef.current = true
       // Close the picker first so the session/state churn below doesn't refresh the dialog while it's
       // still visible (which reads as a black/white flash + the dialog reopening).
       setAgentPickerOpen(false)
@@ -513,6 +516,8 @@ const AgentPage = () => {
       } catch (err) {
         logger.error('Failed to create agent session from classic-layout picker', err as Error, { agentId })
         window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+      } finally {
+        isCreatingClassicEmptySessionRef.current = false
       }
     },
     [
@@ -892,19 +897,22 @@ const AgentPage = () => {
         }
       : undefined
   const createAndActivateEmptySession = useCallback(async () => {
-    closeResourceView()
-    const agentId = activeResourceAgentId
-    if (!agentId) return
-
-    const workspaceSource: AgentSessionWorkspaceSource = visibleDraftSession
-      ? visibleDraftSession.workspaceSource
-      : visibleSession?.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM
-        ? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-        : visibleSession?.workspaceId
-          ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: visibleSession.workspaceId }
-          : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+    if (isCreatingClassicEmptySessionRef.current) return
+    isCreatingClassicEmptySessionRef.current = true
 
     try {
+      closeResourceView()
+      const agentId = activeResourceAgentId
+      if (!agentId) return
+
+      const workspaceSource: AgentSessionWorkspaceSource = visibleDraftSession
+        ? visibleDraftSession.workspaceSource
+        : visibleSession?.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM
+          ? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+          : visibleSession?.workspaceId
+            ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: visibleSession.workspaceId }
+            : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+
       // Composer "new session" stays in the current workspace, so only reuse a placeholder that
       // matches it. See findReusableEmptySession.
       const reusableSession = findReusableEmptySession(
@@ -933,8 +941,12 @@ const AgentPage = () => {
         })
       }
     } catch (err) {
-      logger.error('Failed to create empty agent session from classic-layout composer', err as Error, { agentId })
+      logger.error('Failed to create empty agent session from classic-layout composer', err as Error, {
+        agentId: activeResourceAgentId
+      })
       window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+    } finally {
+      isCreatingClassicEmptySessionRef.current = false
     }
   }, [
     activeResourceAgentId,

@@ -738,6 +738,48 @@ describe('AgentPage', () => {
     expect(screen.queryByTestId('resource-catalog-agent')).not.toBeInTheDocument()
   })
 
+  it('prevents duplicate empty session creation from rapid classic-layout picker selection', async () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.agents = [
+      { id: 'agent-a', model: 'model-a', name: 'Agent A' },
+      { id: 'agent-b', model: 'model-b', name: 'Agent B' }
+    ]
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+    let resolveSession!: (session: unknown) => void
+    agentPageMocks.dataApiPost.mockReturnValue(
+      new Promise<unknown>((resolve) => {
+        resolveSession = resolve
+      })
+    )
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
+    const selectAgentButton = screen.getByRole('button', { name: 'Select resource agent' })
+    fireEvent.click(selectAgentButton)
+    fireEvent.click(selectAgentButton)
+
+    await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      resolveSession({
+        ...agentPageMocks.persistedSession,
+        id: 'session-picker',
+        agentId: 'agent-b',
+        workspaceId: undefined,
+        workspace: {
+          type: 'system',
+          name: 'No project',
+          path: ''
+        }
+      })
+      await Promise.resolve()
+    })
+  })
+
   it('keeps a sidebar toggle beside agent resource search so a collapsed pane can be reopened', async () => {
     agentPageMocks.showSidebar = true
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
@@ -1071,6 +1113,44 @@ describe('AgentPage', () => {
       })
     )
     expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-composer-empty')
+  })
+
+  it('prevents duplicate empty session creation from rapid classic-layout composer clicks', async () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    activeSessionMocks.session = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-active',
+      agentId: 'agent-a',
+      workspaceId: 'workspace-a',
+      workspace: agentPageMocks.workspace
+    }
+    activeSessionMocks.sessionSource = 'query'
+    let resolveSession!: (session: unknown) => void
+    agentPageMocks.dataApiPost.mockReturnValue(
+      new Promise<unknown>((resolve) => {
+        resolveSession = resolve
+      })
+    )
+
+    render(<AgentPage />)
+
+    const createSessionButton = screen.getByRole('button', { name: 'Create empty session from composer' })
+    fireEvent.click(createSessionButton)
+    fireEvent.click(createSessionButton)
+
+    await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      resolveSession({
+        ...agentPageMocks.persistedSession,
+        id: 'session-composer-empty',
+        agentId: 'agent-a',
+        name: '',
+        workspaceId: 'workspace-a',
+        workspace: agentPageMocks.workspace
+      })
+      await Promise.resolve()
+    })
   })
 
   it('creates a fresh session from the classic-layout composer button when the latest is chatted-in with a blank name (auto-naming off)', async () => {
