@@ -78,7 +78,13 @@ export async function cancelActiveKnowledgeJobs(
 
     await Promise.all([...jobIds, ...fileProcessingJobIds].map(cancelOne))
 
-    if (activeJobs.length < KNOWLEDGE_ACTIVE_JOB_LIMIT) break
+    // Stop when the page came back short (nothing more to drain) or when a full page
+    // yielded nothing cancellable this round. The short-page check alone is not enough:
+    // a scoped cancel whose entire full page misses the subtree cancels nothing, so the
+    // active set never shrinks and the same page would be re-queried forever.
+    if (activeJobs.length < KNOWLEDGE_ACTIVE_JOB_LIMIT || jobIds.length + fileProcessingJobIds.length === 0) {
+      break
+    }
   }
 }
 
