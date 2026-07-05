@@ -109,7 +109,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               size="sm"
               onClick={running ? onStop : onLaunch}
               disabled={running ? stopping : !canLaunch || launching}
-              className="shrink-0 text-muted-foreground hover:text-foreground">
+              className={running ? 'shrink-0 text-destructive hover:text-destructive' : 'shrink-0 text-foreground'}>
               {running && stopping ? (
                 <>
                   <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
