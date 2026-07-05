@@ -1371,7 +1371,7 @@ This checklist is the canonical addition procedure. A PR introducing a new origi
 | Location | Change required |
 |---|---|
 | `src/main/services/file/utils/pathResolver.ts` → `resolvePhysicalPath` | Add the new `entry.origin` branch; decide storage layout |
-| `src/shared/utils/file/canonicalize.ts` → `canonicalizeAbsolutePath` (via `FilePathSchema`'s transform) | If the new variant is path-based and distinct from `'external'`, decide whether it shares the canonical form or needs its own normalization + brand |
+| `src/shared/utils/file/canonicalize.ts` → `canonicalizeAbsolutePath` (via the `canonicalizeFilePath()` factory) | If the new variant is path-based and distinct from `'external'`, decide whether it shares the canonical form or needs its own normalization + brand |
 
 ### 13.4 Behavior Policy Matrix
 
