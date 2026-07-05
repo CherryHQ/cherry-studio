@@ -1,5 +1,6 @@
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { buildFilePartsForAttachments } from '../buildFileParts'
@@ -66,5 +67,29 @@ describe('buildFilePartsForAttachments', () => {
 
     expect(part.mediaType).toBe('application/pdf')
     expect(part.url).toBe('file:///p/fe-3.pdf')
+  })
+
+  it('isolates a non-absolute path: skips the bad attachment, logs a warning, and still returns the rest', async () => {
+    const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
+
+    const goodAttachment = attachment()
+    const badAttachment = attachment({ path: 'not-absolute.png', name: 'bad.png' })
+
+    const parts = await buildFilePartsForAttachments([goodAttachment, badAttachment])
+
+    expect(parts).toHaveLength(1)
+    expect(parts[0]).toEqual({
+      type: 'file',
+      url: 'file:///p/fe-1.png',
+      mediaType: 'image/png',
+      filename: 'image.png',
+      providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+    })
+    expect(warnSpy).toHaveBeenCalledWith(
+      'failed to build file part for attachment, skipping it',
+      expect.objectContaining({ path: 'not-absolute.png', name: 'bad.png' })
+    )
+
+    warnSpy.mockRestore()
   })
 })
