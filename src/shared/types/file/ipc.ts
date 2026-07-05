@@ -121,19 +121,19 @@ export type CreateInternalEntryIpcParams =
  *
  * ## Canonicalization
  *
- * `externalPath` is typed as `FilePath`, which can only be produced by
- * `FilePathSchema.parse()` / `.safeParse()` — the schema's `.transform`
- * (NFC normalize, resolve segments, strip trailing separator, reject null
- * bytes) runs in pure shared JS, so both renderer and main can construct one
- * directly; production code MUST NEVER `as`-cast a raw `string` into `FilePath`.
+ * `externalPath` is typed as `FilePath` at this IPC boundary — shape-validated
+ * only (absolute form, no null bytes; see `FilePathSchema`), NOT canonicalized.
+ * Canonicalization into the stored `CanonicalFilePath` form (NFC normalize,
+ * resolve segments, strip trailing separator, drive-letter upcase) happens
+ * inside `ensureExternalEntry`, via `canonicalizeFilePath()`
+ * (`@shared/utils/file/canonicalize`) — not at IPC parse time.
  *
- * What stays main-only is the **disambiguation** step beyond schema-level
- * canonicalization: `ensureExternalEntry` additionally runs `fs.realpath` to
- * resolve case-insensitive-filesystem collisions (see
- * `src/main/services/file/utils/pathResolver.ts` and
- * `internal/entry/create.ts`), which depends on main-only FS APIs. Skipping
- * that disambiguation silently misses entries on case-insensitive filesystems
- * and after symlink resolution — which is why it stays a main-side concern.
+ * What stays main-only is the **disambiguation** step beyond canonicalization:
+ * `ensureExternalEntry` additionally runs `fs.realpath` to resolve
+ * case-insensitive-filesystem collisions (see `internal/entry/create.ts`),
+ * which depends on main-only FS APIs. Skipping that disambiguation silently
+ * misses entries on case-insensitive filesystems and after symlink
+ * resolution — which is why it stays a main-side concern.
  */
 export type EnsureExternalEntryIpcParams = {
   externalPath: FilePath

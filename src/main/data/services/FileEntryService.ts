@@ -611,11 +611,17 @@ class FileEntryServiceImpl implements FileEntryService {
   setExternalPathAndNameTx(tx: DbOrTx, id: FileEntryId, externalPath: CanonicalFilePath, name: string): FileEntry {
     // Same pre-SQL validation rationale as `update` above; an unsafe `name`
     // would corrupt the row past `rowToFileEntry` parse. `externalPath` needs
-    // no re-parse here: the `CanonicalFilePath` brand can only be produced by
-    // `canonicalizeFilePath()`, so callers already proved canonicalization at
-    // construction time — re-running it would just re-verify a fact the type
-    // system already guarantees.
+    // no full re-canonicalization here: the `CanonicalFilePath` brand can only
+    // be produced by `canonicalizeFilePath()`, so callers already proved
+    // canonicalization at construction time. The null-byte check below is
+    // cheap defense-in-depth against a forged `as CanonicalFilePath` cast
+    // (e.g. from the lint-exempt `watcher/**` / `tree/**` regimes) that would
+    // otherwise persist a poison value SQLite happily stores but that later
+    // makes the row unreadable once `canonicalizeAbsolutePath` throws on it.
     SafeNameSchema.parse(name)
+    if (externalPath.includes('\0')) {
+      throw new Error('setExternalPathAndNameTx: externalPath contains a null byte')
+    }
     const rows = tx
       .update(fileEntryTable)
       .set({ externalPath, name, updatedAt: Date.now() })

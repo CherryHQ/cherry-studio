@@ -38,4 +38,8 @@ describe('getPathStatus', () => {
   it('short-circuits a blank path to missing without touching the filesystem', async () => {
     await expect(getPathStatus('   ')).resolves.toEqual({ ok: false, reason: 'missing' })
   })
+
+  it('reports missing for a non-absolute path (fails FilePathSchema, not inaccessible)', async () => {
+    await expect(getPathStatus('relative/path')).resolves.toEqual({ ok: false, reason: 'missing' })
+  })
 })

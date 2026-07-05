@@ -237,12 +237,12 @@ export default defineConfig([
               type: 'problem',
               docs: {
                 description:
-                  'Disallow `as FilePath` casts. FilePath is a Zod brand asserting a canonicalized path; forging it bypasses the canonicalization guarantee. Construct via FilePathSchema.parse().',
+                  'Disallow `as FilePath` casts. FilePath is a Zod brand asserting shape validation (absolute path, no null bytes); forging it bypasses that validation. Construct via FilePathSchema.parse().',
                 recommended: true
               },
               messages: {
                 noAsFilePath:
-                  '`as FilePath` forges the brand and skips canonicalization. Build it with FilePathSchema.parse(value) instead. If this is a deliberate raw-path regime, move it under an exempted path or justify with an eslint-disable + reason.'
+                  '`as FilePath` forges the brand, skipping FilePathSchema\'s absolute-path validation. Build it with FilePathSchema.parse(value) instead. If this is a deliberate raw-path regime, move it under an exempted path or justify with an eslint-disable + reason.'
               }
             },
             create(context) {

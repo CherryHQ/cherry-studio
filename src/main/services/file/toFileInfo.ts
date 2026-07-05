@@ -37,10 +37,9 @@ export async function toFileInfo(entry: FileEntry): Promise<FileInfo> {
   const s = await fsStat(physicalPath)
   const ext = entry.ext
   const inferredMime = ext ? (mime.getType(ext) ?? 'application/octet-stream') : 'application/octet-stream'
-  // `FileInfoSchema.parse` rehydrates the `FileInfo` brand. Casting back to
-  // `FileInfo` lets the `path` field carry the `FilePath` template-literal
-  // type at the API surface (Zod can't express template literals); the
-  // runtime shape check is otherwise identical.
+  // `FileInfoSchema.parse` validates the shape and returns the exact `FileInfo`
+  // type (including the branded `FilePath` on `path`) — no `as FileInfo` cast
+  // needed.
   return FileInfoSchema.parse({
     path: physicalPath,
     name: entry.name,

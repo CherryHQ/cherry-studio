@@ -76,7 +76,11 @@ function canonicalizePosix(raw: string): string {
 function canonicalizeWindows(raw: string): string {
   // Drive letter is uppercased so `C:\Foo` and `c:\Foo` canonicalize to the
   // same string at the byte layer — case folding the path itself is
-  // deliberately deferred (see pathResolver.ts JSDoc for the rationale).
+  // deliberately deferred: case-insensitive dedup is handled by the DB
+  // `lower(externalPath)` unique index plus an `fs.realpath` collision probe
+  // (see docs/references/file/file-manager-architecture.md §1.2
+  // "Duplicate-entry detection on insert"), so no per-segment case-fold is
+  // needed here.
   const drive = raw.slice(0, 2).toUpperCase()
   const segments = raw.slice(3).split(/[/\\]/)
   const stack: string[] = []

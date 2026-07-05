@@ -73,7 +73,7 @@ import { FilePathSchema, FileTypeSchema } from './common'
 export const FileInfoSchema = z
   .strictObject({
     /**
-     * Absolute filesystem path. Canonicalized and branded `FilePath` by
+     * Absolute filesystem path. Shape-validated and branded `FilePath` by
      * `FilePathSchema` — anything that survives is safe to feed to `fs` APIs.
      */
     path: FilePathSchema,

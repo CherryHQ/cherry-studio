@@ -163,7 +163,7 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
    *
    * The cache feed is keyed by canonical (NFC) path because `DanglingCache`'s
    * reverse index is populated by `ensureExternalEntry`, whose `externalPath`
-   * is already NFC-canonical via `FilePathSchema`. chokidar emits whatever the
+   * is already NFC-canonical via `canonicalizeFilePath`. chokidar emits whatever the
    * OS hands it; on macOS APFS that is NFD
    * for CJK / accented filenames migrated from HFS+ (or written by tools like
    * `rsync -E` that preserve the source encoding). Without normalizing here

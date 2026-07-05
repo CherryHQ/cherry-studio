@@ -47,6 +47,10 @@ export type FileType = z.infer<typeof FileTypeSchema>
  *
  * Accepts POSIX (`/…`) and Windows (`X:\…` or `X:/…`) absolute forms.
  * Rejects `file://` URLs.
+ *
+ * Known limitation (pre-existing): UNC paths (`\\server\share`) are rejected
+ * by the absolute-shape refine above — they match neither the POSIX `/` form
+ * nor the Windows `X:[/\\]` drive-letter form.
  */
 export const FilePathSchema = z
   .string()
