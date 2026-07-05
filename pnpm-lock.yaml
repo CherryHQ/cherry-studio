@@ -67,6 +67,9 @@ importers:
       '@expo/sudo-prompt':
         specifier: ^9.3.2
         version: 9.3.2
+      '@hono/node-server':
+        specifier: 1.19.10
+        version: 1.19.10(hono@4.12.2)
       '@larksuiteoapi/node-sdk':
         specifier: ^1.59.0
         version: 1.60.0
@@ -2958,8 +2961,8 @@ packages:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
 
-  '@hono/node-server@1.19.9':
-    resolution: {integrity: sha512-vHL6w3ecZsky+8P5MD+eFfaGTyCeOHUIFYMGpQGbrBTSmNNoxv0if69rEZ5giu36weC5saFuznL411gRX7bJDw==}
+  '@hono/node-server@1.19.10':
+    resolution: {integrity: sha512-hZ7nOssGqRgyV3FVVQdfi+U4q02uB23bpnYpdvNXkYTRRyWx84b7yf1ans+dnJ/7h41sGL3CeQTfO+ZGxuO+Iw==}
     engines: {node: '>=18.14.1'}
     peerDependencies:
       hono: ^4
@@ -14135,7 +14138,7 @@ snapshots:
   '@ai-sdk/devtools@0.0.17':
     dependencies:
       '@ai-sdk/provider': 3.0.10
-      '@hono/node-server': 1.19.9(hono@4.12.2)
+      '@hono/node-server': 1.19.10(hono@4.12.2)
       hono: 4.12.2
 
   '@ai-sdk/gateway@3.0.104(zod@4.3.4)':
@@ -16031,7 +16034,7 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
 
-  '@hono/node-server@1.19.9(hono@4.12.2)':
+  '@hono/node-server@1.19.10(hono@4.12.2)':
     dependencies:
       hono: 4.12.2
 
@@ -16561,7 +16564,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4)':
     dependencies:
-      '@hono/node-server': 1.19.9(hono@4.12.2)
+      '@hono/node-server': 1.19.10(hono@4.12.2)
       ajv: 8.17.1
       ajv-formats: 3.0.1(ajv@8.17.1)
       content-type: 1.0.5
@@ -19874,7 +19877,7 @@ snapshots:
   '@typescript-eslint/project-service@8.51.0(typescript@5.8.3)':
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.51.0(typescript@5.8.3)
-      '@typescript-eslint/types': 8.51.0
+      '@typescript-eslint/types': 8.62.1
       debug: 4.4.3
       typescript: 5.8.3
     transitivePeerDependencies:
@@ -19883,7 +19886,7 @@ snapshots:
   '@typescript-eslint/project-service@8.51.0(typescript@5.9.3)':
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.51.0(typescript@5.9.3)
-      '@typescript-eslint/types': 8.51.0
+      '@typescript-eslint/types': 8.62.1
       debug: 4.4.3
       typescript: 5.9.3
     transitivePeerDependencies:
