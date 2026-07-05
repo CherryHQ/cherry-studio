@@ -13,7 +13,7 @@
 // which surfaces as a BackupService.onInit failure → the lifecycle container
 // refuses to start, preserving the startup-time validation semantics.
 
-import type { BackupContributor, ReadonlyBackupRegistry } from '@main/data/db/backup/contributor-types'
+import type { BackupContributor, ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import { BACKUP_REFS_META } from '@main/data/db/backup/dbSchemaRefs'
 
 import { CONTRIBUTORS } from './CONTRIBUTORS'

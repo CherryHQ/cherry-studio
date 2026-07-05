@@ -22,6 +22,7 @@
 import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
 import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
+import { chatMessageFileRefTable } from '@main/data/db/schemas/fileRelations'
 
 /**
  * TOPICS domain. topic (uuid-v4) is the aggregate root; message (uuid-v7) is an
@@ -38,6 +39,17 @@ import { deepFreeze } from '@main/data/db/backup/freeze'
  * not an EntityReference (#24 requires a FK); instead cloneAggregate rewrites it to
  * the cloned message's new id (§5.3) on RENAME.
  */
+/**
+ * Collect fileEntryIds referenced by chat_message_file_ref (deduped). These ids
+ * point at file_entry rows (owned by FILE_STORAGE); the junction has no deletedAt
+ * (deletion cascades from message/file_entry), so no filter here — staging
+ * resolves each id against file_entry and skips soft-deleted / missing sources.
+ */
+export async function collectChatMessageFileIds(liveDb: BackupReadonlyDb): Promise<Set<string>> {
+  const rows = await liveDb.select().from(chatMessageFileRefTable)
+  return new Set(rows.map((r) => r.fileEntryId))
+}
+
 export const TOPICS_CONTRIBUTOR = deepFreeze<BackupContributor>({
   domain: 'TOPICS',
   schema: {
@@ -122,6 +134,10 @@ export const TOPICS_CONTRIBUTOR = deepFreeze<BackupContributor>({
   },
   backupPolicy: {},
   operations: {
+    // Export blob set = chat_message_file_ref.fileEntryId (deduped). Staging
+    // resolves each id + skips soft-deleted / missing sources (chat attachments
+    // follow their owning message in full backups, §5.1 / spec L44).
+    collectFileResources: (ctx) => collectChatMessageFileIds(ctx.liveDb),
     // Renamable aggregate (RENAME on conflict) → cloneAggregate is required (#16).
     // Pure: no db on the context. The root PK column is read from the registry
     // (#26 guarantees a single-column root PK). The importer remaps member rows

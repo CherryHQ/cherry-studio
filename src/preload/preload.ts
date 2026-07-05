@@ -124,6 +124,13 @@ const api = {
     deleteLanTransferBackup: (filePath: string): Promise<boolean> =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteLanTransferBackup, filePath)
   },
+  // V2 modular backup (contributor stack). Export-only this slice; the v2 backup
+  // settings page (a new V2 surface, not mixed into legacy v1 LocalBackupSettings)
+  // binds via renderer/src/hooks/useBackupV2.ts.
+  backupV2: {
+    startBackup: (opts: { preset: 'full'; outputPath: string }) =>
+      ipcRenderer.invoke(IpcChannel.BackupV2_StartBackup, opts)
+  },
   file: {
     select: (options?: OpenDialogOptions): Promise<FileMetadata[] | null> =>
       ipcRenderer.invoke(IpcChannel.File_Select, options),

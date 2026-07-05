@@ -120,6 +120,11 @@ export enum IpcChannel {
   Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
   Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 
+  // V2 backup (modular contributor stack). Export-only this slice; restore channels
+  // (StartRestore / CancelRestore / UndoRestore / ListRestores / GetRestoreProgress)
+  // land with the C-import / D-model restore slice.
+  BackupV2_StartBackup = 'backupV2:startBackup',
+
   // zip
   Zip_Decompress = 'zip:decompress',
 

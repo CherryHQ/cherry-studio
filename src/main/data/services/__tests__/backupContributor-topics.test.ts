@@ -1,9 +1,14 @@
 // Unit tests for the TOPICS contributor — pure declaration assertions (no DB).
 import type { CloneAggregateContext } from '@main/data/db/backup/contributorTypes'
 import { table } from '@main/data/db/backup/dbSchemaRefs'
+import { fileEntryTable } from '@main/data/db/schemas/file'
+import { chatMessageFileRefTable } from '@main/data/db/schemas/fileRelations'
+import { messageTable } from '@main/data/db/schemas/message'
+import { topicTable } from '@main/data/db/schemas/topic'
+import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
-import { TOPICS_CONTRIBUTOR } from '../backupContributor-topics'
+import { collectChatMessageFileIds, TOPICS_CONTRIBUTOR } from '../backupContributor-topics'
 
 describe('TOPICS contributor', () => {
   it('owns topic + message + chat_message_file_ref', () => {
@@ -181,5 +186,36 @@ describe('TOPICS contributor', () => {
     expect(() => {
       ;(TOPICS_CONTRIBUTOR.schema.tables as unknown as string[]).push('x')
     }).toThrow()
+  })
+})
+
+// DB-backed tests for collectFileResources — returns chat_message_file_ref.fileEntryId (deduped).
+describe('TOPICS collectFileResources (collectChatMessageFileIds)', () => {
+  const dbh = setupTestDatabase()
+
+  it('returns deduped fileEntryIds (a file attached twice to one message counts once)', async () => {
+    // FK chain: topic → message(root, parentId null) → file_entry → chat_message_file_ref.
+    await dbh.db.insert(topicTable).values([{ id: 't1', orderKey: 'a' }])
+    await dbh.db.insert(messageTable).values([
+      { id: 'm1', topicId: 't1', role: 'root', data: {}, status: 'success' },
+      { id: 'm2', topicId: 't1', role: 'assistant', parentId: 'm1', data: {}, status: 'success' }
+    ])
+    await dbh.db.insert(fileEntryTable).values([
+      { id: 'cf1', origin: 'internal', name: 'a', size: 10 },
+      { id: 'cf2', origin: 'internal', name: 'b', size: 20 }
+    ])
+    await dbh.db.insert(chatMessageFileRefTable).values([
+      { fileEntryId: 'cf1', sourceId: 'm1', role: 'attachment' },
+      { fileEntryId: 'cf2', sourceId: 'm1', role: 'attachment' },
+      // cf1 also attached to m2 — a different (sourceId) row, but collect dedups by fileEntryId.
+      { fileEntryId: 'cf1', sourceId: 'm2', role: 'attachment' }
+    ])
+    const ids = await collectChatMessageFileIds(new BackupReadonlyDb(dbh.db))
+    expect(ids).toEqual(new Set(['cf1', 'cf2']))
+  })
+
+  it('returns empty set when no chat_message_file_ref rows exist', async () => {
+    const ids = await collectChatMessageFileIds(new BackupReadonlyDb(dbh.db))
+    expect(ids).toEqual(new Set())
   })
 })

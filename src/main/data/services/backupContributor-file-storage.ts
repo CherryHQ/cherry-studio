@@ -21,6 +21,23 @@
 import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
 import { columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaRefs'
 import { deepFreeze } from '@main/data/db/backup/freeze'
+import { fileEntryTable } from '@main/data/db/schemas/file'
+import { isNull } from 'drizzle-orm'
+
+/**
+ * Collect ids of non-soft-deleted file_entry rows — the export blob set. Both
+ * internal (origin='internal', stored under feature.files.data) and external
+ * (origin='external', absolute externalPath) entries are returned; staging
+ * (ExportOrchestrator step 4) resolves each source path and skips any that are
+ * missing/unreadable rather than failing the whole export.
+ */
+export async function collectFileEntryIds(liveDb: BackupReadonlyDb): Promise<Set<string>> {
+  const rows = await liveDb
+    .select()
+    .from(fileEntryTable)
+    .where(isNull(fileEntryTable.deletedAt))
+  return new Set(rows.map((r) => r.id))
+}
 
 /**
  * FILE_STORAGE domain: user file entries. Single table, uuid-v7 PK, no FKs, no
@@ -57,5 +74,10 @@ export const FILE_STORAGE_CONTRIBUTOR = deepFreeze<BackupContributor>({
   //     different ids) when wiring restore.
   //  The temp_session/chat_message/painting FileRefSourceType coverage (#11) lands with
   //  their source domains (TOPICS/PAINTINGS) + a temp_session runtime-owner, not here.
-  operations: undefined
+  operations: {
+    // Export blob set = non-deleted file_entry ids (internal + external). Staging
+    // resolves each id to its source path and copies the blob into files/<id>;
+    // a missing external source is skipped, not fatal.
+    collectFileResources: (ctx) => collectFileEntryIds(ctx.liveDb)
+  }
 })

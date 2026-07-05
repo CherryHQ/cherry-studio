@@ -14,7 +14,7 @@ import type {
   FileRefSourcePolicy,
   JsonSoftReferencePolicy,
   RowScope
-} from '@main/data/db/backup/contributor-types'
+} from '@main/data/db/backup/contributorTypes'
 import {
   BACKUP_REFS_META,
   DB_JSON_COLUMNS,

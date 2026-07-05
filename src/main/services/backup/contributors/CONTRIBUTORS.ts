@@ -12,7 +12,7 @@
 // (registry.length === 14) is satisfied.
 
 import { PREFERENCES_CONTRIBUTOR } from '@main/data/backupContributor-preferences'
-import type { BackupContributor } from '@main/data/db/backup/contributor-types'
+import type { BackupContributor } from '@main/data/db/backup/contributorTypes'
 import { AGENTS_CONTRIBUTOR } from '@main/data/services/backupContributor-agents'
 import { ASSISTANTS_CONTRIBUTOR } from '@main/data/services/backupContributor-assistants'
 import { FILE_STORAGE_CONTRIBUTOR } from '@main/data/services/backupContributor-file-storage'

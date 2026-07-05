@@ -13,7 +13,7 @@ import type {
   BackupContributor,
   EntityReference,
   ReadonlyBackupRegistry
-} from '@main/data/db/backup/contributor-types'
+} from '@main/data/db/backup/contributorTypes'
 import {
   DB_COLUMNS_BY_TABLE,
   DB_FOREIGN_KEYS,
