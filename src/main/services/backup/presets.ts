@@ -37,7 +37,15 @@ export function resolvePreset(preset: BackupPreset): readonly BackupDomain[] {
   if (preset === 'full') {
     return [...BACKUP_DOMAINS]
   }
-  return BACKUP_DOMAINS.filter((d) => !LITE_EXCLUDED_SET.has(d))
+  if (preset === 'lite') {
+    return BACKUP_DOMAINS.filter((d) => !LITE_EXCLUDED_SET.has(d))
+  }
+  // Fail closed: the static type is 'full' | 'lite', but the IPC payload is
+  // unvalidated at runtime (TODO(ipc-boundary) in BackupService). A typo MUST NOT
+  // silently fall through to lite — that would resolve 10 domains yet skip the
+  // step-2.5 strip (which matches on exactly 'lite'), leaking excluded-domain rows
+  // into a lite-labelled archive.
+  throw new Error(`resolvePreset: invalid preset '${preset}' (must be 'full' or 'lite')`)
 }
 
 /** Whether the preset includes file blobs (Data/Files) — full only. */

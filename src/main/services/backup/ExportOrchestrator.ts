@@ -3,6 +3,8 @@
 // Pipeline (export-orchestrator.md §"ExportOrchestrator 5 步流程"):
 //   1. resolvePreset → topo-sorted domain set
 //   2. copier.copyTo(temp) — online `db.backup()` of live DB → backup.sqlite
+//   2.5. (lite only) stripper.strip — delete excluded-domain rows + CASCADE-prune
+//        junction referrers, so the copy never carries rows the manifest omits
 //   3. (TODO) beforeArchive per domain on the copy — redaction (no contributor
 //      implements it yet; the loop is wired when the first hook lands)
 //   4. collectFileResources per domain + stage file/knowledge blobs →
@@ -19,9 +21,10 @@
 // overlapping exports (or a crashed prior run) can never mix stale blobs into a
 // fresh archive or delete another export's staging mid-archive.
 //
-// CURRENT SLICE: FULL preset, DB + file-blob archive. 'lite' needs a contributor
-// strip step (FK-aware delete of excluded domains' rows from the copy). beforeArchive
-// (step 3) stays a no-op until the first redaction contributor.
+// CURRENT SLICE: FULL + LITE presets. lite runs step 2.5 (ExcludedDomainStripper
+// physically deletes excluded-domain rows + schema CASCADE prunes junction
+// referrers) before the readonly snapshot opens. beforeArchive (step 3) stays a
+// no-op until the first redaction contributor.
 
 import { rm, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -36,9 +39,10 @@ import type { ConflictStrategy } from '@main/data/db/backup/domains'
 
 import { assembleArchive } from './archive'
 import type { BackupDbCopier } from './BackupDbCopier'
+import type { BackupStripper } from './ExcludedDomainStripper'
 import { SqliteFileStager } from './FileStager'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from './manifest'
-import { resolvePreset } from './presets'
+import { LITE_EXCLUDED, resolvePreset } from './presets'
 
 /** User-facing export options (renderer passes preset; BackupService fills the rest). */
 export interface ExportBackupOptions {
@@ -87,6 +91,8 @@ export interface ExportOrchestratorDeps {
   readonly filesRoot: string
   /** Live filesystem root for knowledge base dirs (<baseId>/). */
   readonly knowledgeRoot: string
+  /** Strips excluded-domain rows from the copy on lite preset (step 2.5). */
+  readonly stripper: BackupStripper
 }
 
 /** Default conflict strategy stamped on collect contexts (full export = SKIP by id). */
@@ -111,16 +117,7 @@ export class ExportOrchestrator {
       )
     }
 
-    // Gate: only 'full' is supported. 'lite' needs a contributor strip step (FK-aware
-    // delete of excluded domains' rows from the copy) — without it a lite .cbu would
-    // carry excluded-domain rows despite the manifest claiming they're absent.
-    if (options.preset !== 'full') {
-      throw new Error(
-        `ExportOrchestrator: preset '${options.preset}' is not supported yet (requires contributor strip step; only 'full' is supported in this slice)`
-      )
-    }
-
-    const { copier, registry, tempDir, filesRoot, knowledgeRoot } = this.deps
+    const { copier, registry, tempDir, filesRoot, knowledgeRoot, stripper } = this.deps
 
     // 1. preset → topo-sorted domains (consumers rely on dependency order)
     const domains = registry.topoSort(resolvePreset(options.preset))
@@ -135,6 +132,16 @@ export class ExportOrchestrator {
     let snapshotDb: Database.Database | undefined
     try {
       await copier.copyTo(backupDbPath)
+
+      // 2.5 lite: physically strip excluded-domain rows from the copy BEFORE opening
+      // the readonly snapshot. The stripper enables `PRAGMA foreign_keys = ON` and
+      // DELETEs the excluded tables — schema CASCADE prunes cross-domain junction
+      // referrers (chat_message_file_ref / assistant_knowledge_base), so a lite
+      // archive never carries rows the manifest claims are absent (spec
+      // export-orchestrator.md "Excluded-domain row strip"). Full preset skips this.
+      if (options.preset === 'lite') {
+        await stripper.strip(backupDbPath, LITE_EXCLUDED)
+      }
 
       // Open a READ-ONLY handle on the SNAPSHOT so collect + stage agree exactly
       // with backup.sqlite (the archive's DB). Rows deleted on live between copyTo()

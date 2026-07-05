@@ -15,11 +15,11 @@
 // applied and the wired application paths resolve. Export can therefore never
 // snapshot a pre-migration DB.
 //
-// SLICE SCOPE: export-only, FULL preset, DB + file-blob archive. The renderer
-// triggers export via the BackupV2_StartBackup IPC channel (filled defaults:
-// restoreId / producerAppVersion / schemaMigrationId). preflightDisk guards the
-// entry. The lite preset (FK-aware contributor strip), cancel/progress/validate
-// channels, and the restore side land in follow-up slices.
+// SLICE SCOPE: export-only, FULL + LITE presets, DB + file-blob archive. The
+// renderer triggers export via the BackupV2_StartBackup IPC channel (filled
+// defaults: restoreId / producerAppVersion / schemaMigrationId). preflightDisk
+// guards the entry. lite runs step 2.5 (ExcludedDomainStripper). cancel/progress/
+// validate channels and the restore side land in follow-up slices.
 
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
@@ -32,6 +32,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { app } from 'electron'
 
 import { SqliteBackupCopier } from './BackupDbCopier'
+import { SqliteExcludedDomainStripper } from './ExcludedDomainStripper'
 import type { ExportBackupResult } from './ExportOrchestrator'
 import { ExportOrchestrator } from './ExportOrchestrator'
 import { contributorManager } from './contributors/ContributorManager'
@@ -39,8 +40,8 @@ import { InsufficientDiskSpaceError } from './errors'
 
 /** Renderer-facing export request (renderer passes preset + path; service fills the rest). */
 export interface BackupV2StartOptions {
-  /** 'full' only — 'lite' is gated off in the orchestrator (needs the contributor strip). */
-  readonly preset: 'full'
+  /** 'full' = all 14 domains + blobs; 'lite' = 10 domains (excludes KNOWLEDGE / PAINTINGS / FILE_STORAGE / TRANSLATE_HISTORY), no blobs. */
+  readonly preset: 'full' | 'lite'
   readonly outputPath: string
 }
 
@@ -71,7 +72,8 @@ export class BackupService extends BaseService {
       registry,
       tempDir: application.getPath('feature.backup.temp'),
       filesRoot: application.getPath('feature.files.data'),
-      knowledgeRoot: application.getPath('feature.knowledgebase.data')
+      knowledgeRoot: application.getPath('feature.knowledgebase.data'),
+      stripper: new SqliteExcludedDomainStripper(registry)
     })
 
     this.registerIpcHandlers()
@@ -92,8 +94,9 @@ export class BackupService extends BaseService {
   }
 
   /**
-   * Export a .cbu archive (renderer-facing). Full preset only this slice — lite
-   * is gated off in the orchestrator (needs the contributor strip step).
+   * Export a .cbu archive (renderer-facing). Full = all domains + blobs; lite
+   * runs step 2.5 (ExcludedDomainStripper strips excluded-domain rows + cascade-
+   * prunes junction referrers) so the lite archive carries no excluded rows.
    */
   async startBackup({ preset, outputPath }: BackupV2StartOptions): Promise<ExportBackupResult> {
     if (!this.orchestrator || !this.schemaMigrationId) {
