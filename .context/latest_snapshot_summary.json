@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-07-04",
+  "generated_at": "2026-07-05",
   "data_source": "GitHub API via MCP (mcp__github__*); search API for totals; 100-item pages for detail analysis",
   "repository": "CherryHQ/cherry-studio",
   "open_issues": {
-    "total": 953,
-    "delta_from_yesterday": 2,
-    "no_label_count": 98,
+    "total": 942,
+    "delta_from_yesterday": -11,
+    "no_label_count": 93,
     "needs_repro_count": 17,
     "needs_more_info_count": 3,
     "needs_triage_count": 5,
@@ -16,20 +16,20 @@
         "title": "[Feature]: Unified Notification Center",
         "labels": ["Planned", "P1", "feature", "UI/UX"],
         "milestone": "v2.4.0",
-        "age_days": 58
+        "age_days": 59
       },
       {
         "number": 13608,
         "title": "[Bug]: xiaomi mimo response only displays the last line",
         "labels": ["P1", "Models"],
-        "age_days": 108
+        "age_days": 109
       },
       {
         "number": 13193,
         "title": "[Bug]: AI_APICallError: Resource not found, default use responses API (Azure OpenAI)",
         "labels": ["P1", "Models"],
         "assignee": "DeJeune",
-        "age_days": 122
+        "age_days": 123
       }
     ],
     "high_severity_unlabeled_or_misclassified": [
@@ -37,13 +37,13 @@
         "number": 16742,
         "title": "[Bug]: Error invoking remote method 'backup:backupToWebdav': FetchError socket hang up",
         "labels": [],
-        "note": "Filed today — WebDAV backup fails when using system proxy"
+        "note": "WebDAV backup fails when using system proxy — filed 2026-07-04, still unlabeled"
       },
       {
         "number": 16719,
         "title": "Windows tool installs fail via bundled mise for gh, hermes-agent, and claude",
         "labels": [],
-        "note": "Filed recently — binary install failures on Windows"
+        "note": "Binary install failures on Windows"
       },
       {
         "number": 16677,
@@ -88,44 +88,41 @@
     },
     "top_authors": [
       {"author": "DeJeune",       "count": 16},
-      {"author": "zhangjiadi225", "count": 7},
-      {"author": "eeee0717",      "count": 6},
-      {"author": "kangfenmao",    "count": 6},
-      {"author": "ousugo",        "count": 5},
-      {"author": "vaayne",        "count": 5}
+      {"author": "zhangjiadi225", "count": 16},
+      {"author": "eeee0717",      "count": 15},
+      {"author": "ousugo",        "count": 10},
+      {"author": "vaayne",        "count": 10}
     ],
     "oldest_non_draft": [
-      {"number": 14493, "age_days": 74, "base": "main", "title": "chore: version packages"},
-      {"number": 14988, "age_days": 55, "base": "main", "title": "feat: Add 'embedding' endpoint type for NEWAPI"},
-      {"number": 15239, "age_days": 45, "base": "main", "title": "Feature/expand branch chat v2"},
-      {"number": 15507, "age_days": 34, "base": "main", "title": "feat(library): add 6 official vendor preset assistants"},
-      {"number": 15621, "age_days": 31, "base": "main", "title": "feat(tabs): close tabs with middle and double click"}
+      {"number": 12659, "age_days": 156, "base": "main", "title": "feat(backup): add v2 backup system refactor plan document"},
+      {"number": 14493, "age_days": 74,  "base": "main", "title": "chore: version packages"},
+      {"number": 14988, "age_days": 55,  "base": "main", "title": "feat: Add 'embedding' endpoint type for NEWAPI"},
+      {"number": 15239, "age_days": 45,  "base": "main", "title": "Feature/expand branch chat v2"},
+      {"number": 15507, "age_days": 34,  "base": "main", "title": "feat(library): add 6 official vendor preset assistants"}
     ],
-    "new_last_7d": 74
+    "new_last_7d": 59
   },
   "v2_branch": {
     "open_prs": 0,
     "note": "v2 branch merged into main. v1 and v2 code coexist. No open PRs targeting v2 branch."
   },
   "issue_health": {
-    "active_30d": 505,
-    "aging_31_90d": 298,
-    "stale_91_180d": 147,
+    "active_30d": 501,
+    "aging_31_90d": 294,
+    "stale_91_180d": 144,
     "zombie_180d_plus": 3,
-    "note": "Buckets based on last-updated date. Active=updated in last 30d. Zombie issues unchanged from yesterday."
+    "note": "Buckets based on last-updated date. Active=updated in last 30d. -11 net closed issues vs yesterday."
   },
   "merged_prs_30d": {
-    "total": 324,
-    "last_7d": 94,
+    "total": 310,
+    "last_7d": 70,
     "avg_time_to_merge_days": 1.8,
     "top_contributors": [
       {"author": "zhangjiadi225", "merges": 16},
       {"author": "DeJeune",       "merges": 16},
       {"author": "eeee0717",      "merges": 15},
       {"author": "ousugo",        "merges": 10},
-      {"author": "vaayne",        "merges": 10},
-      {"author": "AtomsH4",       "merges": 9},
-      {"author": "kangfenmao",    "merges": 6}
+      {"author": "vaayne",        "merges": 10}
     ],
     "merges_per_day": {
       "2026-06-27": 5,
@@ -135,12 +132,34 @@
       "2026-07-01": 3,
       "2026-07-02": 28,
       "2026-07-03": 19,
-      "2026-07-04": 6
+      "2026-07-04": 6,
+      "2026-07-05": "partial"
+    },
+    "recently_merged": [
+      "fix(resource): improve assistant tag selector dialog behavior (#16724)",
+      "fix(dialog): close dialogs on overlay click by default (#16725)",
+      "fix(provider-registry): restore login-based providers lost in catalog regeneration (#16723)",
+      "fix(composer): preserve pasted scoped shell commands (#16709)",
+      "fix(composer): autofocus cursor end, prevent paste DOM pollution, and handle resend errors (#16732)"
+    ],
+    "type_breakdown": {
+      "fix": 57,
+      "feat": 24,
+      "refactor": 13,
+      "perf": 2,
+      "chore": 1,
+      "docs": 1,
+      "other": 2
     }
   },
   "closed_issues_30d": {
-    "total": 369,
-    "avg_time_to_close_days": 43.8,
+    "total": 376,
+    "avg_time_to_close_days": 43.3,
+    "close_reasons_sample": {
+      "not_planned": 64,
+      "completed": 34,
+      "none": 2
+    },
     "top_label_on_closed": "inactive (majority auto-closed for inactivity)",
     "top_closers_sampled": [
       {"author": "DeJeune", "count": 12},
@@ -150,24 +169,24 @@
     ]
   },
   "label_distribution_sample": {
-    "source": "200 most-recently-updated open issues (2026-07-04)",
+    "source": "100 most-recently-updated open issues (2026-07-05)",
     "top_labels": [
-      {"label": "inactive",      "count": 82},
-      {"label": "UI/UX",         "count": 59},
-      {"label": "Models",        "count": 37},
-      {"label": "internal_team", "count": 37},
-      {"label": "feature",       "count": 35},
-      {"label": "Assistant",     "count": 30},
-      {"label": "needs-repro",   "count": 17},
-      {"label": "MCP",           "count": 14},
-      {"label": "Performance",   "count": 10},
-      {"label": "discussion",    "count": 9},
-      {"label": "help wanted",   "count": 8},
-      {"label": "Data",          "count": 8},
-      {"label": "RAG",           "count": 8},
-      {"label": "Connectivity",  "count": 6},
-      {"label": "BUG",           "count": 100}
+      {"label": "inactive",      "count": 44},
+      {"label": "UI/UX",         "count": 28},
+      {"label": "internal_team", "count": 23},
+      {"label": "feature",       "count": 22},
+      {"label": "Models",        "count": 20},
+      {"label": "Assistant",     "count": 15},
+      {"label": "discussion",    "count": 7},
+      {"label": "RAG",           "count": 6},
+      {"label": "help wanted",   "count": 6},
+      {"label": "MCP",           "count": 5},
+      {"label": "Data",          "count": 4},
+      {"label": "needs-repro",   "count": 3},
+      {"label": "Connectivity",  "count": 3},
+      {"label": "BUG",           "count": 1},
+      {"label": "Performance",   "count": 1}
     ],
-    "no_label_in_sample": 18
+    "no_label_in_sample": 10
   }
 }

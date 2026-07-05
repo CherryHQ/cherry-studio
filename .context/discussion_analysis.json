@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-04",
+  "generated_at": "2026-07-05",
   "data_source": "GitHub GraphQL Discussions API",
   "fetch_status": "UNAVAILABLE",
   "note": "The GitHub MCP server does not expose a GraphQL endpoint for Discussions. The 'gh api graphql' CLI is not available in this remote execution environment. Data unchanged from prior run.",
@@ -22,27 +22,44 @@
   },
   "activity_summary": {
     "issues_opened_last_7d": 68,
-    "issues_closed_last_30d": 369,
-    "prs_merged_last_30d": 324,
-    "prs_merged_last_7d": 94,
-    "velocity_note": "Strong merge velocity: 94 PRs merged in the last 7 days (Jun 28 – Jul 4). Peak day was Jul 2 with 28 merges."
+    "issues_closed_last_30d": 376,
+    "prs_merged_last_30d": 310,
+    "prs_merged_last_7d": 70,
+    "velocity_note": "Strong merge velocity continuing: ~70 PRs merged in the last 7 days (Jun 29 – Jul 5). Spike week was Jun 29–Jul 2 (74 PRs merged). Fix-heavy phase: 57% of merges are fix/* commits — stabilization ahead of expected release.",
+    "merge_type_breakdown": {
+      "fix": "57%",
+      "feat": "24%",
+      "refactor": "13%",
+      "other": "6%"
+    }
   },
   "closed_issues_30d_label_breakdown": {
-    "total": 369,
+    "total": 376,
     "top_closed_labels": [
-      {"name": "inactive",       "count": 65},
-      {"name": "UI/UX",         "count": 29},
-      {"name": "Assistant",     "count": 18},
-      {"name": "Models",        "count": 17},
+      {"name": "inactive",       "count": 63},
+      {"name": "UI/UX",         "count": 30},
+      {"name": "Models",        "count": 21},
+      {"name": "Assistant",     "count": 17},
       {"name": "internal_team", "count": 11},
-      {"name": "Performance",   "count": 8},
+      {"name": "Performance",   "count": 7},
       {"name": "MCP",           "count": 7},
-      {"name": "help wanted",   "count": 6},
-      {"name": "discussion",    "count": 6},
-      {"name": "needs-repro",   "count": 4},
+      {"name": "help wanted",   "count": 5},
+      {"name": "discussion",    "count": 5},
+      {"name": "needs-repro",   "count": 5},
       {"name": "BUG",           "count": 4}
     ],
-    "avg_time_to_close_days": 43.8,
-    "fast_close_within_1d": 13
+    "close_reasons_sample": {
+      "not_planned": 64,
+      "completed": 34,
+      "none": 2,
+      "note": "64% of closed issues were not_planned — majority auto-closed for inactivity"
+    },
+    "avg_time_to_close_days": 43.3,
+    "type_distribution": {
+      "Bug": 48,
+      "Feature": 37,
+      "Other": 15,
+      "note": "From 100-issue sample; Bug issues close slower than average"
+    }
   }
 }

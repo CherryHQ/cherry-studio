@@ -1,19 +1,19 @@
 {
-  "generated_at": "2026-07-04",
+  "generated_at": "2026-07-05",
   "summary": {
-    "total_open": 953,
-    "active": 505,
-    "aging": 298,
-    "stale": 147,
+    "total_open": 942,
+    "active": 501,
+    "aging": 294,
+    "stale": 144,
     "zombie": 3,
     "health_score": "FAIR",
-    "health_note": "47% of open issues untouched in 30+ days. Active base 53% improving slightly from yesterday (51.4%). 100 BUG-labeled issues — most dormant 30+ days. 3 P1-labeled issues remain open aged 58–122 days."
+    "health_note": "47% of open issues untouched in 30+ days. Active base 53.2% — flat vs yesterday (53.0%). 11 net closures today, mostly inactive/not_planned. 3 P1 issues still open aged 59–123 days."
   },
   "health_buckets": {
-    "Active":  {"count": 505, "pct": 53.0, "definition": "updated within last 30 days (since 2026-06-04)"},
-    "Aging":   {"count": 298, "pct": 31.3, "definition": "last updated 31–90 days ago (2026-04-05 to 2026-06-04)"},
-    "Stale":   {"count": 147, "pct": 15.4, "definition": "not updated in 91–180 days (2026-01-04 to 2026-04-04)"},
-    "Zombie":  {"count": 3,   "pct": 0.3,  "definition": "not updated in 180+ days (before 2026-01-04)",
+    "Active":  {"count": 501, "pct": 53.2, "definition": "updated within last 30 days (since 2026-06-05)"},
+    "Aging":   {"count": 294, "pct": 31.2, "definition": "last updated 31–90 days ago (2026-04-06 to 2026-06-05)"},
+    "Stale":   {"count": 144, "pct": 15.3, "definition": "not updated in 91–180 days (2026-01-05 to 2026-04-05)"},
+    "Zombie":  {"count": 3,   "pct": 0.3,  "definition": "not updated in 180+ days (before 2026-01-05)",
       "list": [
         {"number": 5712,  "title": "【需求汇总】Agents with Workflows / 工作流&协同",      "last_updated": "2025-10-23", "created": "2025-05-07"},
         {"number": 10844, "title": "[Feature]: Backup feature enhance",                  "last_updated": "2025-11-01", "created": "2025-10-20"},
@@ -22,27 +22,27 @@
     }
   },
   "p1_issues": [
-    {"number": 14899, "title": "[Feature]: Unified Notification Center",                            "labels": ["Planned", "P1", "feature", "UI/UX"], "milestone": "v2.4.0", "age_days": 58, "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"},
-    {"number": 13608, "title": "[Bug]: xiaomi mimo response only displays the last line",           "labels": ["P1", "Models"],                       "age_days": 108, "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"},
-    {"number": 13193, "title": "[Bug]: AI_APICallError: Resource not found (Azure OpenAI responses API)", "labels": ["P1", "Models"], "assignee": "DeJeune", "age_days": 122, "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"}
+    {"number": 14899, "title": "[Feature]: Unified Notification Center",                            "labels": ["Planned", "P1", "feature", "UI/UX"], "milestone": "v2.4.0", "age_days": 59, "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"},
+    {"number": 13608, "title": "[Bug]: xiaomi mimo response only displays the last line",           "labels": ["P1", "Models"],                       "age_days": 109, "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"},
+    {"number": 13193, "title": "[Bug]: AI_APICallError: Resource not found (Azure OpenAI responses API)", "labels": ["P1", "Models"], "assignee": "DeJeune", "age_days": 123, "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"}
   ],
   "bug_analysis": {
     "total_open_bug_label": 100,
     "stale_30d_plus": 97,
     "fresh_last_7d": 3,
     "top_by_reactions": [
-      {"number": 10241, "title": "Tool calling results dropped in subsequent conversation",      "reactions_plus1": 5, "days_stale": 81},
-      {"number": 11765, "title": "Provider cannot overwrite User-Agent header",                  "reactions_plus1": 4, "days_stale": 46},
-      {"number": 13082, "title": "Frequent lag during normal operations",                        "reactions_plus1": 3, "days_stale": 76},
-      {"number": 12890, "title": "Image-based PDF cannot be properly read (active today)",       "reactions_plus1": 3, "days_stale": 1},
-      {"number": 12534, "title": "No allowed providers available for selected model",            "reactions_plus1": 3, "days_stale": 80}
+      {"number": 10241, "title": "Tool calling results dropped in subsequent conversation",      "reactions_plus1": 5, "days_stale": 82},
+      {"number": 11765, "title": "Provider cannot overwrite User-Agent header",                  "reactions_plus1": 4, "days_stale": 47},
+      {"number": 13082, "title": "Frequent lag during normal operations",                        "reactions_plus1": 3, "days_stale": 77},
+      {"number": 12890, "title": "Image-based PDF cannot be properly read",                      "reactions_plus1": 3, "days_stale": 2},
+      {"number": 12534, "title": "No allowed providers available for selected model",            "reactions_plus1": 3, "days_stale": 81}
     ],
     "top_by_comments": [
       {"number": 12618, "title": "Unable to configure Azure/Anthropic API",                      "comments": 14},
       {"number": 12612, "title": "Azure OpenAI gpt-5.2 Unsupported parameter 'messages'",       "comments": 13},
       {"number": 12268, "title": "Agent Error",                                                   "comments": 10},
       {"number": 12230, "title": "Reasoning effort not set",                                      "comments": 8},
-      {"number": 12890, "title": "Image-based PDF file cannot be read (active today)",           "comments": 7}
+      {"number": 12890, "title": "Image-based PDF file cannot be read",                          "comments": 7}
     ],
     "oldest_bugs": [
       {"number": 5825,  "title": "[错误]: 使用第三方claude api，输出有问题",              "created": "2025-05-10", "updated": "2026-03-11"},
@@ -52,12 +52,11 @@
     "note": "The 'BUG' label is applied conservatively. Many bug-titled issues carry other labels (UI/UX, Models, inactive, MCP). True bug count is much higher than 100."
   },
   "unlabeled_issues": {
-    "count": 98,
-    "pct": 10.3,
+    "count": 93,
+    "pct": 9.9,
     "new_unlabeled_today": [
       {"number": 16742, "title": "[Bug]: WebDAV backup fails with proxy (socket hang up)"},
-      {"number": 16737, "title": "[Other]: (empty title)"},
-      {"number": 16736, "title": "[Bug]: (empty title)"}
+      {"number": 15692, "title": "[Bug]: Builtin skills sync creates garbage directories with backslash paths in ~/Downloads", "note": "labeled 'inactive' but root cause unresolved"}
     ],
     "action": "Triage needed. Available labels: BUG, feature, UI/UX, Models, RAG, MCP, Performance, Assistant, Data, Connectivity, needs-repro, needs-more-info, help wanted, discussion, internal_team, Planned, P1, inactive"
   },
@@ -70,7 +69,8 @@
     {"number": 15423, "title": "[CRITICAL/Data Loss]: Total Wipe of All Chat Sessions due to IndexedDB & Full Disk", "labels": ["Data", "inactive"], "note": "Unresolved data-loss despite inactive label"}
   ],
   "inactive_label_analysis": {
-    "total": 109,
+    "total_open": 128,
+    "note": "128 open issues carry the 'inactive' label (confirmed via label search today). Co-label breakdown from yesterday's sample:",
     "co_labels_top": {"UI/UX": 31, "Assistant": 21, "Models": 17, "needs-repro": 14, "MCP": 10, "BUG": 8}
   },
   "oldest_open_issue": {
@@ -79,14 +79,14 @@
     "created": "2025-05-07",
     "last_updated": "2025-10-23",
     "labels": ["invalid", "inactive"],
-    "age_days": 423
+    "age_days": 424
   },
   "recommendations": [
-    "BUG #10241 (MCP tool dropping) has most upvotes (5) and is 81d stale — assign owner.",
-    "3 P1 issues open 58–122 days: #13193 (Azure API, assigned DeJeune), #13608 (xiaomi mimo), #14899 (Notification Center). Check milestones.",
-    "98 issues lack any label — schedule triage pass.",
-    "Security: #16677 (RAG auth header drop) and #15409 (OAuth cross-renderer) both open and unlabeled or inactive — escalate.",
-    "3 zombie issues: #5712 (Workflows aggregator) may be relevant as agent system matures — re-evaluate or close.",
-    "Stale BUG backlog: 97/100 BUG issues dormant 30+ days. Bulk triage/close recommended."
+    "BUG #10241 (MCP tool dropping) has most upvotes (5) and is 82d stale — assign owner.",
+    "3 P1 issues open 59–123 days: #13193 (Azure API, assigned DeJeune, 123d), #13608 (xiaomi mimo, 109d), #14899 (Notification Center, 59d, v2.4.0 milestone).",
+    "93 issues lack any label — schedule triage pass (down 5 from yesterday).",
+    "Security: #16677 (RAG auth header drop) and #15409 (OAuth cross-renderer) both open and inactive/unlabeled — escalate.",
+    "128 inactive-labeled open issues: bulk-close or re-evaluate scope.",
+    "Oldest PR #12659 is 156 days old (feat(backup) — likely superseded by v2 backup work)."
   ]
 }

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-04",
+  "generated_at": "2026-07-05",
   "v2_status": {
     "branch": "merged_into_main",
     "summary": "v2 refactor branch has been merged into main. main is now the active development branch with v1 and v2 code coexisting. Large, frequent, breaking changes expected.",
@@ -14,50 +14,56 @@
     "dexie_status": "in_progress — PR #16440 removes last v2 Dexie settings table dependencies (avatar→Preference, provider logos→DataApi, MCP cache→persist-cache)"
   },
   "recent_v2_pr_activity": {
-    "merged_prs_last_30d": 324,
-    "merged_prs_last_7d": 94,
+    "merged_prs_last_30d": 310,
+    "merged_prs_last_7d": 70,
     "avg_merge_time_days": 1.8,
     "top_contributors": [
       {"author": "zhangjiadi225", "merges": 16},
       {"author": "DeJeune",       "merges": 16},
       {"author": "eeee0717",      "merges": 15},
       {"author": "ousugo",        "merges": 10},
-      {"author": "vaayne",        "merges": 10},
-      {"author": "AtomsH4",       "merges": 9},
-      {"author": "kangfenmao",    "merges": 6}
+      {"author": "vaayne",        "merges": 10}
     ],
+    "merge_type_breakdown": {
+      "fix": 57,
+      "feat": 24,
+      "refactor": 13,
+      "perf": 2,
+      "chore": 1,
+      "docs": 1,
+      "other": 2
+    },
     "notable_open_prs": [
       {
         "number": 16440,
         "title": "refactor(dexie): retire the settings table from v2 storage paths",
-        "age_days": 9,
+        "age_days": 10,
         "author": "DeJeune",
         "significance": "Removes last v2 Dexie settings table dependencies. Adds migration 0015."
       },
       {
-        "number": 16743,
-        "title": "fix(knowledge-tools): scope kb_* tools to composer-selected KB only",
-        "age_days": 1,
-        "author": "unknown"
+        "number": 15239,
+        "title": "Feature/expand branch chat v2",
+        "age_days": 45,
+        "author": "unknown",
+        "significance": "Long-standing feature PR, 45 days open"
       },
       {
-        "number": 16713,
-        "title": "feat(agent-file-preview): show previews in files overlay",
-        "age_days": 2,
-        "author": "unknown"
-      },
-      {
-        "number": 16704,
-        "title": "fix(preboot): complete user data relocation flow",
-        "age_days": 3,
-        "author": "unknown"
+        "number": 12659,
+        "title": "feat(backup): add v2 backup system refactor plan document",
+        "age_days": 156,
+        "author": "unknown",
+        "significance": "Oldest open PR — likely superseded by v2 backup implementation"
       }
     ],
     "notable_merged_recently": [
-      "fix(custom-fetch): apply provider custom User-Agent request header (#16527)",
-      "fix(anthropic): strip unsupported JSON Schema keywords from tool schemas (#16480)",
-      "refactor(db): replace libsql with better-sqlite3 + sqlite-vec (#16626)",
-      "feat(provider): login-based providers — Claude Code, OpenAI Codex & Grok CLI (#16283)"
+      "fix(resource): improve assistant tag selector dialog behavior (#16724) — 2026-07-04",
+      "fix(dialog): close dialogs on overlay click by default (#16725) — 2026-07-04",
+      "fix(provider-registry): restore login-based providers lost in catalog regeneration (#16723) — 2026-07-04",
+      "fix(composer): preserve pasted scoped shell commands (#16709) — 2026-07-04",
+      "fix(mcp-migration): fallback unnamed servers to id (#16717) — 2026-07-03",
+      "fix(translate): preserve stopped output and polish history drawer (#16679) — 2026-07-03",
+      "fix(agent-artifacts): enable deliverable context actions (#16694) — 2026-07-03"
     ]
   },
   "open_issues_v2_labeled": 1,
@@ -66,7 +72,7 @@
       "number": 13082,
       "title": "[Bug]: Frequent lag during normal operations",
       "labels": ["BUG", "Planned", "Performance", "v2"],
-      "days_since_update": 76,
+      "days_since_update": 77,
       "upvotes": 3,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13082"
     },
@@ -74,7 +80,7 @@
       "number": 11571,
       "title": "[Bug]: There is a Minor Issue with MessageContentLoading",
       "labels": ["BUG", "v2"],
-      "days_since_update": 88,
+      "days_since_update": 89,
       "url": "https://github.com/CherryHQ/cherry-studio/issues/11571"
     }
   ],
@@ -94,6 +100,14 @@
   },
   "schema_migration_status": {
     "note": "Drizzle schemas in src/main/data/db/schemas/; migrations in migrations/sqlite-drizzle/. Dev-only artifacts — will be regenerated as clean initial migration before release.",
-    "latest_migration": "0015_tranquil_terrax.sql (adds logo column to user_provider — from PR #16440)"
+    "latest_known_migration": "0015_tranquil_terrax.sql (adds logo column to user_provider — from PR #16440)"
+  },
+  "milestone_v2_4_0": {
+    "open_issues": 37,
+    "closed_issues": 5,
+    "p1_in_milestone": [
+      {"number": 14899, "title": "[Feature]: Unified Notification Center", "age_days": 59}
+    ],
+    "note": "Milestone v2.4.0 has 37 open issues and 5 closed. P1 Notification Center (#14899) is active."
   }
 }
