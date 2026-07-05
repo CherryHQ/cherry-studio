@@ -98,8 +98,8 @@
  *   unmanaged `@main/utils/file/fs.remove(path)` separately.
  */
 
-import { type CanonicalFilePath, FilePathSchema, SafeExtSchema } from '@shared/types/file/common'
-import { canonicalizeAbsolutePath } from '@shared/utils/file/canonicalize'
+import { SafeExtSchema } from '@shared/types/file/common'
+import { CanonicalFilePathSchema } from '@shared/utils/file/canonicalize'
 import * as z from 'zod'
 
 import { SafeNameSchema, TimestampSchema } from './essential'
@@ -213,31 +213,17 @@ export const ExternalEntrySchema = z.strictObject({
    * Absolute filesystem path to the user-provided file, as a
    * `CanonicalFilePath` — the byte-faithful lexical form produced by
    * `canonicalizeFilePath` (segment-resolve + trailing-strip + drive-upcase,
-   * NOT Unicode-normalized). This byte-faithful form is guaranteed at WRITE
-   * time (external-entry insert / rename); this field does NOT re-canonicalize
-   * on read. A stored value that is not already in that lexical form (a raw
-   * `./` / `..` / trailing-slash path) is REJECTED at parse (surfaced via
-   * `rowToFileEntrySafe`'s warn-skip); a byte-faithful path — including one
-   * carrying NFD Unicode — is accepted as-is. Reads never silently rewrite the
-   * value: rejecting rather than repairing keeps the lookup/dedup key stable,
+   * NOT Unicode-normalized). Validated by `CanonicalFilePathSchema`, which is
+   * assert-only: this byte-faithful form is guaranteed at WRITE time
+   * (external-entry insert / rename), and on READ a stored value not already in
+   * that lexical form (a raw `./` / `..` / trailing-slash path) is REJECTED
+   * (surfaced via `rowToFileEntrySafe`'s warn-skip), never silently repaired —
+   * a byte-faithful path, including one carrying NFD Unicode, is accepted
+   * as-is. Rejecting rather than repairing keeps the lookup/dedup key stable,
    * so a re-canonicalization migration is the only sanctioned way to fix
    * historically non-canonical rows.
    */
-  externalPath: FilePathSchema.refine((s) => {
-    // Validate the stored value is already in the byte-faithful lexical form
-    // produced by `canonicalizeFilePath` (segment-resolve + trailing-strip +
-    // drive-upcase, NOT Unicode-normalized) — no silent repair. A raw `./` /
-    // `..` / trailing-slash path is rejected; a byte-faithful path (including
-    // NFD Unicode) is accepted unchanged. canonicalizeAbsolutePath throws on
-    // structural failure, absorbed here.
-    try {
-      return s === canonicalizeAbsolutePath(s)
-    } catch {
-      return false
-    }
-  }, 'externalPath must be in byte-faithful canonical form (produced via canonicalizeFilePath) before persistence').transform(
-    (s): CanonicalFilePath => s as CanonicalFilePath
-  )
+  externalPath: CanonicalFilePathSchema
 })
 
 /**

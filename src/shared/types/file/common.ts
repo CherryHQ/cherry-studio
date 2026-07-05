@@ -62,22 +62,11 @@ export const FilePathSchema = z
 export type FilePath = z.infer<typeof FilePathSchema>
 
 /**
- * A `FilePath` additionally proven to be in canonical form — the
- * byte-faithful, lexically-resolved output of `canonicalizeAbsolutePath`
- * (segment-resolve + trailing-separator strip + drive-letter upcase), NOT
- * Unicode-normalized. This is the form persisted in `file_entry.externalPath`
- * and used as the dedup / lookup key.
- *
- * TS-only phantom brand with a STRING-LITERAL key (not a `unique symbol`):
- * `FileEntry.externalPath` flows into preload's inferred `WindowApiType`
- * aggregate, where a transitively-embedded `unique symbol` brand triggers
- * TS2527/TS4023. The ONLY sanctioned producer is `canonicalizeFilePath()`
- * in `@shared/utils/file/canonicalize`; production code obtains it from that
- * factory (directly or transitively), never via a bare `as` cast. A
- * `CanonicalFilePath` IS a `FilePath`, so it is accepted anywhere a
- * `FilePath` is.
+ * `CanonicalFilePath` — a `FilePath` additionally proven canonical — is defined
+ * in `@shared/utils/file/canonicalize` (co-located with its schema and the
+ * `canonicalizeFilePath()` factory, which is the only place that can build both
+ * the value and its brand). It is not re-exported here.
  */
-export type CanonicalFilePath = FilePath & { readonly __canonical: 'CanonicalFilePath' }
 export type Base64String = `data:${string};base64,${string}`
 export type UrlString = `http://${string}` | `https://${string}`
 

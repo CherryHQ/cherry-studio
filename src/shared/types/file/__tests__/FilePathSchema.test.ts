@@ -7,7 +7,7 @@ describe('FilePathSchema', () => {
   // `parse(x)` returns `x` byte-for-byte. Canonicalization (byte-faithful
   // lexical cleanup: segment-resolve + trailing-strip + drive-letter upcase,
   // NOT Unicode-normalized) is a separate concern owned by `canonicalizeFilePath`
-  // / `canonicalizeAbsolutePath` — its behavior is pinned in
+  // / `CanonicalFilePathSchema` — its behavior is pinned in
   // `@shared/utils/file/__tests__/canonicalize.test.ts`.
 
   it('returns a POSIX absolute path unchanged', () => {

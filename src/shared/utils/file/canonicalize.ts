@@ -1,13 +1,16 @@
 /**
  * Pure-JS canonicalization for absolute filesystem paths.
  *
- * Lives in shared (no `node:*` imports). This module owns two things: the
- * canonicalization algorithm (`canonicalizeAbsolutePath`) and the branding
- * factory (`canonicalizeFilePath`). `FilePath` (`@shared/types/file/common`)
- * is shape-validated only — it does NOT canonicalize on parse. Canonicalization
- * is applied explicitly via `canonicalizeFilePath`, which produces the
- * `CanonicalFilePath` sub-brand, at the external-path persistence / lookup
- * boundary.
+ * Lives in shared (no `node:*` imports). This module owns the whole canonical
+ * layer: the (module-private) canonicalization algorithm, the
+ * `CanonicalFilePath` brand + `CanonicalFilePathSchema`, the
+ * `isCanonicalFilePath` predicate, and the `canonicalizeFilePath` factory. The
+ * schema is defined HERE, not in `types/file/common`, because it needs both
+ * `FilePathSchema` and the algorithm — and only `utils → types` avoids an
+ * import cycle. `FilePath` (`@shared/types/file/common`) is shape-validated
+ * only — it does NOT canonicalize on parse. Canonicalization is applied
+ * explicitly via `canonicalizeFilePath`, which produces the `CanonicalFilePath`
+ * sub-brand, at the external-path persistence / lookup boundary.
  *
  * ## Scope (this function's contract)
  *
@@ -40,9 +43,10 @@
  * "Residual normalization discipline"`.
  */
 
-import type { CanonicalFilePath } from '@shared/types/file/common'
+import { FilePathSchema } from '@shared/types/file/common'
+import type * as z from 'zod'
 
-export function canonicalizeAbsolutePath(raw: string): string {
+function canonicalizeAbsolutePath(raw: string): string {
   if (raw.includes('\0')) {
     throw new Error('canonicalizeAbsolutePath: input contains null byte')
   }
@@ -52,18 +56,60 @@ export function canonicalizeAbsolutePath(raw: string): string {
 }
 
 /**
- * The sole sanctioned producer of `CanonicalFilePath`: run the pure-JS
- * canonicalization and brand the result. Callers needing a canonical
- * lookup/persistence key (external-entry write + `findByExternalPath`) go
- * through here instead of `as`-casting into the brand. The produced value is
- * the byte-faithful, lexically-resolved form (segment-resolve + trailing-strip
- * + Windows drive-upcase) — NOT Unicode-normalized.
+ * True iff `p` is already in byte-faithful canonical form — i.e. canonicalizing
+ * it is a no-op. Returns `false` (rather than throwing) for structurally
+ * invalid input (non-absolute, null byte), so it is safe as a Zod refine
+ * predicate. Backs both `CanonicalFilePathSchema` and the FileEntry
+ * `externalPath` read-path assertion.
+ */
+export function isCanonicalFilePath(p: string): boolean {
+  try {
+    return p === canonicalizeAbsolutePath(p)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Zod schema + brand for `CanonicalFilePath`, mirroring how `FilePathSchema`
+ * defines `FilePath` (both are `z.infer`-derived from their schema). Reuses
+ * `FilePathSchema` for the absolute-shape refine, then ASSERTS byte-faithful
+ * canonical form (via `isCanonicalFilePath`) and brands.
  *
- * @throws if `input` is not absolute / contains a null byte (delegated to
- *   `canonicalizeAbsolutePath`).
+ * `parse()` is assert-only, NOT repairing: it returns an already-canonical
+ * input unchanged and REJECTS (ZodError) a non-canonical one. This is the "no
+ * silent repair" contract the FileEntry `externalPath` read path depends on.
+ * To canonicalize a raw path, use `canonicalizeFilePath` (which repairs, then
+ * brands through this schema).
+ */
+export const CanonicalFilePathSchema = FilePathSchema.refine(
+  isCanonicalFilePath,
+  'must be in byte-faithful canonical form (produce it via canonicalizeFilePath)'
+).brand<'CanonicalFilePath'>()
+
+/**
+ * A `FilePath` additionally proven canonical — the byte-faithful, lexically
+ * resolved form (segment-resolve + trailing-strip + Windows drive-upcase), NOT
+ * Unicode-normalized. This is the form persisted in `file_entry.externalPath`
+ * and used as the dedup / lookup key. Inferred from `CanonicalFilePathSchema`,
+ * so its definition style matches `FilePath`. A `CanonicalFilePath` IS a
+ * `FilePath`, accepted anywhere a `FilePath` is.
+ */
+export type CanonicalFilePath = z.infer<typeof CanonicalFilePathSchema>
+
+/**
+ * The sole sanctioned producer of `CanonicalFilePath`: canonicalize a raw
+ * absolute path (byte-faithful lexical resolve — segment-resolve +
+ * trailing-strip + Windows drive-upcase, NOT Unicode-normalized) and brand the
+ * result through `CanonicalFilePathSchema`. Callers needing a canonical
+ * lookup/persistence key (external-entry write + `findByExternalPath`) go
+ * through here.
+ *
+ * @throws if `input` is not absolute / contains a null byte (delegated to the
+ *   canonicalization algorithm, before branding).
  */
 export function canonicalizeFilePath(input: string): CanonicalFilePath {
-  return canonicalizeAbsolutePath(input) as CanonicalFilePath
+  return CanonicalFilePathSchema.parse(canonicalizeAbsolutePath(input))
 }
 
 function canonicalizePosix(raw: string): string {

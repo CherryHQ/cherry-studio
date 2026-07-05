@@ -32,7 +32,7 @@ import type { FileEntryListResponse, FileEntryStats } from '@shared/data/api/sch
 import type { FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
 import { ExternalEntrySchema, FileEntrySchema, InternalEntrySchema, SafeNameSchema } from '@shared/data/types/file'
 import { chatMessageSourceType, paintingSourceType } from '@shared/data/types/file/ref'
-import type { CanonicalFilePath } from '@shared/types/file'
+import type { CanonicalFilePath } from '@shared/utils/file'
 import { and, asc, count, eq, isNotNull, isNull, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'

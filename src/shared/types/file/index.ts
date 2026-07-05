@@ -1,6 +1,5 @@
 export {
   type Base64String,
-  type CanonicalFilePath,
   type DirectoryEntry,
   type DirectoryListOptions,
   FILE_TYPE,
