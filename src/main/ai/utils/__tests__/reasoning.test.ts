@@ -11,7 +11,7 @@ describe('getXAIReasoningParams', () => {
     providerId: 'xai',
     apiModelId: 'grok-4.3',
     name: 'grok-4.3'
-  } as Model
+  } as unknown as Model
 
   it('sends none for Grok 4.3 (reasoning disabled — the xAI enum supports it, added by #15137)', () => {
     const assistant = {
@@ -57,7 +57,7 @@ describe('getReasoningEffort', () => {
         },
         supportedEfforts: ['none', 'low', 'medium', 'high']
       }
-    } as Model
+    } as unknown as Model
 
     const provider = {
       id: 'relay',
@@ -72,7 +72,7 @@ describe('getReasoningEffort', () => {
           reasoningFormatType: 'self-hosted'
         }
       }
-    } as Provider
+    } as unknown as Provider
 
     expect(getReasoningEffort(assistant, model, provider)).toEqual({
       chat_template_kwargs: {
@@ -102,7 +102,7 @@ describe('getReasoningEffort', () => {
         },
         supportedEfforts: ['none', 'low', 'medium', 'high']
       }
-    } as Model
+    } as unknown as Model
 
     const provider = {
       id: 'relay',
@@ -114,7 +114,7 @@ describe('getReasoningEffort', () => {
           reasoningFormatType: 'self-hosted'
         }
       }
-    } as Provider
+    } as unknown as Provider
 
     expect(getReasoningEffort(assistant, model, provider)).toEqual({
       chat_template_kwargs: {
