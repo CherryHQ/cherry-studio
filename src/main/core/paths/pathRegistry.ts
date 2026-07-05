@@ -159,6 +159,14 @@ export function buildPathRegistry() {
 
     // Feature-owned temp dirs (all under app.temp)
     'feature.backup.temp': path.join(appTemp, 'backup'),
+    // Backup recovery — persistent restore journal / pre-restore snapshot / runtime
+    // staging. Under appUserDataData (NOT app.temp) so they share the live DB's
+    // volume (app.database.file) — the preboot promotion gate's atomic rename
+    // (work→live, live→aside) would fail with POSIX EXDEV across filesystems. They
+    // persist across relaunch (runtime writes → preboot reads).
+    'feature.backup.recovery.journal': path.join(appUserDataData, 'BackupRecovery', 'journal'),
+    'feature.backup.recovery.snapshot': path.join(appUserDataData, 'BackupRecovery', 'snapshot'),
+    'feature.backup.recovery.staging': path.join(appUserDataData, 'BackupRecovery', 'staging'),
     'feature.cli.temp': path.join(appTemp, 'cli'),
     'feature.dxt.uploads.temp': path.join(appTemp, 'dxt_uploads'),
     'feature.file_processing.temp': path.join(appTemp, 'file-processing'),
