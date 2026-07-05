@@ -756,6 +756,32 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'false')
   })
 
+  it('clears the standalone preview overlay when the watcher reports the selected file was removed', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    mocks.fsReadText.mockResolvedValue('# Overlay')
+    let pushMutation: ((payload: { treeId: string; event: { type: 'removed'; path: string } }) => void) | undefined
+    mocks.treeOnMutation.mockImplementation((cb) => {
+      pushMutation = cb as typeof pushMutation
+      return () => {
+        pushMutation = undefined
+      }
+    })
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" fileTreeOpen enableFileSearch previewMode="overlay" />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    await waitFor(() => expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md'))
+
+    await waitFor(() => expect(pushMutation).toBeDefined())
+    act(() => {
+      pushMutation?.({ treeId: 'tree-1', event: { type: 'removed', path: '/tmp/workspace/README.md' } })
+    })
+
+    await waitFor(() => expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument())
+    expect(screen.queryByTestId('markdown')).not.toBeInTheDocument()
+  })
+
   it('focuses the preview overlay after file-tree selection and closes it with Escape', async () => {
     const user = userEvent.setup()
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
@@ -791,7 +817,10 @@ describe('ArtifactPane', () => {
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
     mocks.listDirectoryEntries
       .mockResolvedValueOnce([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
-      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/new.md', isDirectory: false }])
+      .mockResolvedValueOnce([
+        { path: '/tmp/workspace/src/old.md', isDirectory: false },
+        { path: '/tmp/workspace/src/new.md', isDirectory: false }
+      ])
     mocks.fsReadText.mockResolvedValue('# Old')
 
     render(<ArtifactPane workspacePath="/tmp/workspace" fileTreeOpen enableFileSearch previewMode="overlay" />)
@@ -808,7 +837,7 @@ describe('ArtifactPane', () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
 
     await waitFor(() => expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument())
-    expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
+    expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument()
     expect(mocks.fsReadText).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Old'))
   })

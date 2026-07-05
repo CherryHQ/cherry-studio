@@ -1048,10 +1048,6 @@ const ArtifactPane = ({
     },
     [onSelectedFileChange, previewFileSelectionControlled, previewMode, selectedFileControlled, workspacePath]
   )
-  const clearSelectedFileOnly = useCallback(() => {
-    if (!selectedFileControlled) setInternalSelectedFile(null)
-    onSelectedFileChange?.(null)
-  }, [onSelectedFileChange, selectedFileControlled])
   const setTreeOpen = useCallback(
     (open: boolean) => {
       if (!fileTreeOpenControlled) setInternalFileTreeOpen(open)
@@ -1115,8 +1111,8 @@ const ArtifactPane = ({
   useEffect(() => {
     if (!selectedFile || !model.hasLoaded) return
     if (isSelectableFileNode(model.nodeById, selectedFile)) return
-    clearSelectedFileOnly()
-  }, [clearSelectedFileOnly, model.hasLoaded, model.nodeById, selectedFile])
+    setSelectedFile(null)
+  }, [model.hasLoaded, model.nodeById, selectedFile, setSelectedFile])
 
   return (
     <ArtifactPaneView
