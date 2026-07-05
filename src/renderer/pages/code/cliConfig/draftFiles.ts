@@ -1,6 +1,5 @@
 import { parseDotenv } from './dotenv'
 import { parseJsonOrThrow, parseTomlOrThrow, readExternal, resolveAbs } from './file'
-import { redactSecretsInMessage } from './redact'
 import { CLI_CONFIG_FILE_SPECS } from './targets'
 import type { CliConfigFileDraft, CliConfigTarget } from './types'
 
@@ -39,10 +38,11 @@ export async function readAndParseDraftFile<T>(
   try {
     return parseFn(content)
   } catch (err) {
+    // parseFn (parseJsonOrThrow/parseTomlOrThrow) already redacts its own message at the source.
     const spec = CLI_CONFIG_FILE_SPECS[target]
     const path = getDraftFile(files, target)?.path ?? (await resolveAbs(spec.path))
     const rawMessage = err instanceof Error ? err.message : String(err)
-    throw new Error(`Failed to parse ${spec.label} at ${path}: ${redactSecretsInMessage(rawMessage)}`)
+    throw new Error(`Failed to parse ${spec.label} at ${path}: ${rawMessage}`)
   }
 }
 

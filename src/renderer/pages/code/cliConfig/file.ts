@@ -50,8 +50,10 @@ function parseOrThrow<T>(content: string, label: string, absPath: string, parseF
   try {
     return parseFn(content)
   } catch (err) {
+    // parseFn (parseJsonOrThrow/parseTomlOrThrow) already redacts its own message at the source, so
+    // every caller — this wrapper, validateCliConfigDraftForWrite, draftUpdater.ts — is covered.
     const rawMessage = err instanceof Error ? err.message : String(err)
-    throw new Error(`Failed to parse ${label} at ${absPath}: ${redactSecretsInMessage(rawMessage)}`)
+    throw new Error(`Failed to parse ${label} at ${absPath}: ${rawMessage}`)
   }
 }
 
@@ -79,7 +81,14 @@ export async function readValidatedTomlOrNull(absPath: string, label: string): P
 
 export function parseTomlOrThrow(content: string): Record<string, any> {
   if (!content) return {}
-  return parseToml(content) as Record<string, any>
+  try {
+    return parseToml(content) as Record<string, any>
+  } catch (err) {
+    // smol-toml embeds a source codeblock (the offending line +/- 1) straight into its own message,
+    // so this must be redacted right here — every call site (direct or through parseOrThrow) inherits it.
+    const rawMessage = err instanceof Error ? err.message : String(err)
+    throw new Error(redactSecretsInMessage(rawMessage))
+  }
 }
 
 export function parseJsonOrThrow(content: string): Record<string, any> {

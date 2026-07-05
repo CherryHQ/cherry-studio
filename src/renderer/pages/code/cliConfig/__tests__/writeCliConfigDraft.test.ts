@@ -962,6 +962,43 @@ describe('writeCliConfigDraft', () => {
       ).rejects.toThrow(/missing the API key/)
       expect(writes).toEqual([])
     })
+
+    it('rejects opencode with an API key but no resolvable endpoint base URL, and writes nothing', async () => {
+      const noEndpointProvider = { id: 'noendpoint', name: 'NoEndpoint', endpointConfigs: {} } as unknown as Provider
+      mockGet({
+        '/providers/noendpoint': () => noEndpointProvider,
+        '/providers/noendpoint/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ id: 'some-model', contextWindow: 65536 })
+      })
+      await expect(
+        writeCliConfigDraft({ cliTool: CodeCli.OPEN_CODE, modelId: 'noendpoint::some-model' })
+      ).rejects.toThrow(/missing required fields/)
+      expect(writes).toEqual([])
+    })
+
+    it('rejects qwen-code with an API key but no OpenAI-compatible endpoint base URL, and writes nothing', async () => {
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5' })
+      })
+      await expect(
+        writeCliConfigDraft({ cliTool: CodeCli.QWEN_CODE, modelId: 'anthropic::claude-sonnet-4-5' })
+      ).rejects.toThrow(/missing the OpenAI endpoint base URL/)
+      expect(writes).toEqual([])
+    })
+
+    it('rejects kimi-code with an API key but no OpenAI-compatible endpoint base URL, and writes nothing', async () => {
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => ({ id: 'claude-sonnet-4-5', contextWindow: 200000 })
+      })
+      await expect(
+        writeCliConfigDraft({ cliTool: CodeCli.KIMI_CODE, modelId: 'anthropic::claude-sonnet-4-5' })
+      ).rejects.toThrow(/missing the OpenAI endpoint base URL/)
+      expect(writes).toEqual([])
+    })
   })
 
   describe('read-error safety (a real read failure must not be treated as "file missing")', () => {

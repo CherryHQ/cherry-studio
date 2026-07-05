@@ -1,6 +1,18 @@
+import { parse as parseToml } from 'smol-toml'
 import { describe, expect, it } from 'vitest'
 
 import { redactSecretsInMessage } from '../redact'
+
+/** Parse malformed TOML and return smol-toml's own thrown message (which embeds a raw source
+ * codeblock), so redaction is tested against a real error shape rather than a hand-crafted string. */
+function realTomlParseErrorMessage(malformedToml: string): string {
+  try {
+    parseToml(malformedToml)
+    throw new Error('expected malformed TOML to throw')
+  } catch (err) {
+    return err instanceof Error ? err.message : String(err)
+  }
+}
 
 describe('redactSecretsInMessage', () => {
   it('redacts a quoted TOML-style api_key assignment', () => {
@@ -41,5 +53,23 @@ describe('redactSecretsInMessage', () => {
     const message = 'request failed: Authorization: Bearer sk-ant-real-secret'
     const result = redactSecretsInMessage(message)
     expect(result).not.toContain('sk-ant-real-secret')
+  })
+
+  it('redacts a secret stranded after a broken/empty quoted value on a real smol-toml error', () => {
+    // A missing separator splits the value into an empty quoted pair followed by the real secret as
+    // a bare trailing token — smol-toml's own message embeds the raw source line verbatim.
+    const message = realTomlParseErrorMessage('api_key = "" sk-ant-REALSECRET')
+    expect(message).toContain('sk-ant-REALSECRET') // sanity: the real message does leak it pre-redaction
+    expect(redactSecretsInMessage(message)).not.toContain('sk-ant-REALSECRET')
+  })
+
+  it('redacts a double-quoted secret containing an apostrophe on a real smol-toml error', () => {
+    // smol-toml's codeblock includes the line before the actual error line too, so a perfectly valid
+    // secret line can still end up embedded in the message when a later line is what fails to parse.
+    // A naive ["'][^"']*["'] value match stops at the embedded apostrophe, leaking the tail (the part
+    // of the secret after it) even though the quoted value read as a whole is fully redacted.
+    const message = realTomlParseErrorMessage(`api_key = "sk-ant-don't-SECRET"\nbroken=====`)
+    expect(message).toContain('SECRET') // sanity: the real message does leak it pre-redaction
+    expect(redactSecretsInMessage(message)).not.toContain('SECRET')
   })
 })

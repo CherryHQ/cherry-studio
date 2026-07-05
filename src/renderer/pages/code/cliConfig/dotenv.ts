@@ -25,8 +25,14 @@ function needsDotenvQuoting(value: string): boolean {
   return value === '' || /^\s|\s$|["'#\\]/.test(value)
 }
 
+// The real `dotenv` package (used by the CLI tools that read these files back) only re-expands
+// literal `\n`/`\r` sequences inside a double-quoted value on read — it does NOT unescape `\\` or
+// `\"`, so injecting those escapes here would corrupt the value on read-back instead of preserving
+// it. A single-quoted value, by contrast, is taken back 100% literally with no escape processing at
+// all, so prefer it whenever the value has no embedded single quote to conflict with the wrapper.
 function quoteDotenvValue(value: string): string {
-  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+  if (!value.includes("'")) return `'${value}'`
+  return `"${value.replace(/\r/g, '\\r').replace(/\n/g, '\\n')}"`
 }
 
 export function renderDotenvFile(envMap: Map<string, string>): string {
