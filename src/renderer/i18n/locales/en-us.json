@@ -8,7 +8,7 @@
       },
       "model": {
         "supported_providers": "Supported Providers",
-        "tooltip": "Currently, only models that support Anthropic endpoints are available for the Agent feature.",
+        "tooltip": "Most chat models are available for Agents. Gemini providers are not supported yet.",
         "view_providers": "View supported providers"
       },
       "title": "Add Agent",
@@ -1460,6 +1460,7 @@
       "pause": "Pause",
       "placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions.",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
+      "resize_height": "Resize input height",
       "resource_panel": {
         "categories": {
           "agents": "Agents",
@@ -1478,16 +1479,16 @@
         },
         "title": "Resources"
       },
+      "restore": "Restore",
       "send": "Send",
       "send_failed": "Failed to send message",
       "settings": "Settings",
       "slash_commands": {
         "commands": {
-          "clear": "Clear conversation history",
-          "compact": "Compact conversation with optional focus instructions",
+          "clear": "Start a new conversation with empty context",
+          "compact": "Free up context by summarizing the conversation so far",
           "context": "Visualize current context usage as a colored grid",
-          "cost": "Show token usage statistics (see cost tracking guide for subscription-specific details)",
-          "todos": "List current todo items"
+          "usage": "Show session cost, plan usage limits, and activity stats"
         },
         "description": "Agent session slash commands",
         "title": "Slash Commands"
@@ -2793,15 +2794,11 @@
         "chunk_size": "Target token count for each document chunk. This affects retrieval granularity and context length.",
         "document_count": "Maximum number of document chunks returned for each retrieval. Higher values cover more content but use more context.",
         "embedding_model": "Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
-        "hybrid_alpha": "Vector score weight in hybrid retrieval. Higher values favor semantic matching.",
         "processor": "Parser used when importing files to extract body text, tables, and related content.",
         "rerank_model": "Model used to rerank initial retrieval results and improve final chunk relevance.",
-        "search_mode": "Choose a retrieval mode: vector search for semantic matching, full-text search for keywords, or hybrid search for both.",
         "smart_chunking": "Automatically split along Markdown structure (headings, code blocks, paragraphs) and never split inside a code block. Turn off to split purely by the separator.",
-        "threshold": "Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter.",
-        "threshold_disabled": "This retrieval mode returns ordered results and does not use a similarity threshold."
+        "threshold": "Similarity threshold for filtering low-relevance reranked chunks. Higher values make retrieval stricter."
       },
-      "hybrid_alpha": "Hybrid Alpha",
       "processor": "Processing Provider",
       "rerank_disabled": "Disabled",
       "rerank_model": "Rerank Model",
@@ -2810,12 +2807,6 @@
       "retrieval": "Retrieval",
       "save_action": "Save",
       "saved": "Saved",
-      "search_mode": {
-        "bm25": "Full-text Search",
-        "hybrid": "Hybrid Search (recommended)",
-        "title": "Search Mode",
-        "vector": "Vector Search"
-      },
       "separator_rule": "Separator Rule",
       "smart_chunking": "Smart Chunking",
       "threshold": "Similarity Threshold",
@@ -4439,7 +4430,7 @@
     },
     "generate_failed": "Failed to generate image",
     "generated_image": "Generated Image",
-    "generating": "Generating...",
+    "generating": "Drawing in progress. Please do not leave this page.",
     "go_to_settings": "Go to Settings",
     "guidance_scale": "Guidance Scale",
     "guidance_scale_tip": "Classifier Free Guidance ({{min}}-{{max}}). How close you want the model to stick to your prompt when looking for a related image to show you",
@@ -6222,6 +6213,9 @@
         "button": "Fetch Servers",
         "success": "Successfully fetched MCP servers"
       },
+      "filter": {
+        "label": "Filter"
+      },
       "findMore": "Find More MCP",
       "headers": "Headers",
       "headersTooltip": "Custom headers for HTTP requests",
@@ -6262,6 +6256,7 @@
       "noDescriptionAvailable": "No description available",
       "noLogs": "No logs yet",
       "noServers": "No servers configured",
+      "notInstalled": "Not installed",
       "not_support": "Model not supported",
       "npx_list": {
         "actions": "Actions",
@@ -6291,6 +6286,7 @@
         "title": "Run external MCP?"
       },
       "provider": "Provider",
+      "providerNotFound": "MCP provider not found",
       "providerPlaceholder": "Provider name",
       "providerUrl": "Provider URL",
       "providers": "Providers",
@@ -6337,13 +6333,6 @@
         "getToken": "Get API Token",
         "getTokenDescription": "Retrieve your personal API token from your account",
         "noServersAvailable": "No MCP servers available",
-        "providerDescriptions": {
-          "302ai": "302.AI Platform MCP Service",
-          "bailian": "Alibaba Cloud Bailian Platform MCP Service",
-          "lanyun": "Lanyun Technology Cloud Platform MCP Service",
-          "mcprouter": "MCP Router Platform MCP Service",
-          "modelscope": "ModelScope Platform MCP Service"
-        },
         "selectProvider": "Select Provider:",
         "setToken": "Enter Your Token",
         "success": "Sync MCP Servers successful",
@@ -6389,7 +6378,7 @@
       },
       "type": "Type",
       "types": {
-        "inMemory": "In Memory",
+        "inMemory": "Built-in",
         "sse": "SSE",
         "stdio": "STDIO",
         "streamableHttp": "Streamable HTTP"

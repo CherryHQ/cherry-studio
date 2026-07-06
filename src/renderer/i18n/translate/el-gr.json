@@ -1296,12 +1296,14 @@
       "add": "Προσθήκη ετικέτας",
       "delete": "Διαγραφή ετικέτας",
       "deleteConfirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτήν την ετικέτα;",
+      "group_by": "[to be translated]:Group by tag",
       "manage": "Διαχείριση ετικετών",
       "modify": "Επεξεργασία ετικέτας",
       "none": "Δεν υπάρχουν προς το παρόν ετικέτες",
       "settings": {
         "title": "Ρυθμίσεις Ετικέτας"
       },
+      "ungroup": "[to be translated]:Turn off tag grouping",
       "untagged": "Αχαρακτήριστο"
     },
     "title": "Βοηθός",
@@ -4717,6 +4719,7 @@
     "ollama": "Ollama",
     "open-mineru": "Ανοιχτό MinerU",
     "openai": "OpenAI",
+    "opencode": "[to be translated]:OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -6197,6 +6200,9 @@
         "button": "Λήψη Διακομιστών",
         "success": "Επιτυχής ανάκτηση διακομιστών MCP"
       },
+      "filter": {
+        "label": "[to be translated]:Filter"
+      },
       "findMore": "Περισσότεροι διακομιστές MCP",
       "headers": "Κεφαλίδες",
       "headersTooltip": "Προσαρμοσμένες κεφαλίδες HTTP αιτήσεων",
@@ -6237,6 +6243,7 @@
       "noDescriptionAvailable": "Δεν υπάρχει διαθέσιμη περιγραφή",
       "noLogs": "Δεν υπάρχουν αρχεία καταγραφής ακόμα",
       "noServers": "Δεν έχουν ρυθμιστεί διακομιστές",
+      "notInstalled": "[to be translated]:Not installed",
       "not_support": "Το μοντέλο δεν υποστηρίζεται",
       "npx_list": {
         "actions": "Ενέργειες",
@@ -6266,6 +6273,7 @@
         "title": "Εκτέλεση εξωτερικού MCP;"
       },
       "provider": "Πάροχος",
+      "providerNotFound": "[to be translated]:MCP provider not found",
       "providerPlaceholder": "Όνομα παρόχου",
       "providerUrl": "URL Παρόχου",
       "providers": "Πάροχοι",
@@ -6312,13 +6320,6 @@
         "getToken": "Λήψη API Τοκεν",
         "getTokenDescription": "Λήψη ενός προσωπικού API τοκεν από τον λογαριασμό σας",
         "noServersAvailable": "Δεν υπάρχουν διαθέσιμοι MCP διακομιστές",
-        "providerDescriptions": {
-          "302ai": "302.Υπηρεσία MCP Πλατφόρμας AI",
-          "bailian": "Υπηρεσία MCP Πλατφόρμας Bailian της Alibaba Cloud",
-          "lanyun": "Υπηρεσία MCP της Πλατφόρμας Cloud Τεχνολογίας Lanyun",
-          "mcprouter": "Πλατφόρμα Δρομολογητή MCP Υπηρεσία MCP",
-          "modelscope": "Υπηρεσία MCP Πλατφόρμας ModelScope"
-        },
         "selectProvider": "Επιλέξτε Πάροχο:",
         "setToken": "Εισαγάγετε το τοκεν σας",
         "success": "Ο συγχρονισμός MCP διακομιστή ολοκληρώθηκε επιτυχώς",

@@ -6,6 +6,7 @@ import { cherryinRequestSchemas } from './cherryin'
 import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
+import { navigationRequestSchemas } from './navigation'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
 import { printRequestSchemas } from './print'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
@@ -27,6 +28,7 @@ export const ipcRequestSchemas = {
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
+  ...navigationRequestSchemas,
   ...oauthRequestSchemas,
   ...printRequestSchemas,
   ...selectionRequestSchemas,
