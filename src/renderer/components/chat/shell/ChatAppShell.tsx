@@ -125,6 +125,15 @@ export function ChatAppShell({
     }
   }, [])
 
+  useEffect(() => {
+    return () => {
+      const reasons = autoCollapseReasonsRef.current
+      if (reasons.center || reasons.shell) {
+        onPaneAutoCollapseChangeRef.current?.(false)
+      }
+    }
+  }, [])
+
   // Merge the forwarded centerRef with our own ref so we can measure the center element's width.
   const assignCenterRef = useCallback(
     (node: HTMLDivElement | null) => {

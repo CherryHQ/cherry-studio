@@ -439,6 +439,27 @@ describe('ChatAppShell', () => {
     expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(2, false)
   })
 
+  it('clears a reported responsive auto-collapse when the shell unmounts', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    const requiredShellWidth = getRequiredShellWidth()
+
+    const { unmount } = render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+
+    notifyObservedShellWidth(requiredShellWidth)
+    notifyObservedShellWidth(requiredShellWidth - 1)
+    unmount()
+
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(1, true)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(2, false)
+  })
+
   it('uses the current left pane width when deciding whether the shell can restore it', () => {
     const onPaneAutoCollapseChange = vi.fn()
     const requiredShellWidth = getRequiredShellWidth(RESOURCE_LIST_PANE_MAX_WIDTH)
