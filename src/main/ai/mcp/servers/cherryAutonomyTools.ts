@@ -647,6 +647,8 @@ export class CherryAutonomyTools {
 
     const existing = channelService.getChannel(channelId)
     if (!existing) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+    if (existing.agentId !== this.agentId)
+      throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     const updates: Record<string, unknown> = {}
     if (args.name !== undefined) updates.name = args.name as string
@@ -669,6 +671,8 @@ export class CherryAutonomyTools {
 
     const channel = channelService.getChannel(channelId)
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+    if (channel.agentId !== this.agentId)
+      throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     await agentChannelWorkflowService.deleteChannel(channelId)
 
@@ -684,6 +688,8 @@ export class CherryAutonomyTools {
 
     const channel = channelService.getChannel(channelId)
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+    if (channel.agentId !== this.agentId)
+      throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     const needsQr = channel.type === 'wechat' || (channel.type === 'feishu' && !channel.config.app_id)
 

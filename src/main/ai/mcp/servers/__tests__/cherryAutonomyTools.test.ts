@@ -496,6 +496,7 @@ describe('CherryAutonomyTools', () => {
       id: 'ch_1',
       type: 'telegram',
       name: 'My Telegram',
+      agentId: 'agent_1',
       isActive: true,
       config: { type: 'telegram', bot_token: 'tok_123', allowed_chat_ids: ['100'] }
     }
@@ -714,6 +715,21 @@ describe('CherryAutonomyTools', () => {
         expect(result.isError).toBe(true)
         expect(result.content[0].text).toContain('not found')
       })
+
+      it('should hide channels owned by another agent', async () => {
+        mockGetChannel.mockReturnValue({ ...telegramChannel, agentId: 'agent_2' })
+
+        const server = createServer('agent_1')
+        const result = await callTool(
+          server,
+          { action: 'update_channel', channel_id: 'ch_1', enabled: false },
+          'config'
+        )
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('Channel "ch_1" not found')
+        expect(mockUpdateChannel).not.toHaveBeenCalled()
+      })
     })
 
     describe('remove_channel action', () => {
@@ -744,6 +760,58 @@ describe('CherryAutonomyTools', () => {
 
         expect(result.isError).toBe(true)
         expect(result.content[0].text).toContain('not found')
+      })
+
+      it('should hide channels owned by another agent', async () => {
+        mockGetChannel.mockReturnValue({ ...telegramChannel, agentId: 'agent_2' })
+
+        const server = createServer('agent_1')
+        const result = await callTool(server, { action: 'remove_channel', channel_id: 'ch_1' }, 'config')
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('Channel "ch_1" not found')
+        expect(mockDeleteChannel).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('reconnect_channel action', () => {
+      it('should reconnect an existing non-QR channel', async () => {
+        mockGetChannel.mockReturnValue(telegramChannel)
+
+        const server = createServer('agent_1')
+        const result = await callTool(server, { action: 'reconnect_channel', channel_id: 'ch_1' }, 'config')
+
+        expect(result.content[0].text).toContain('reconnected')
+        expect(mockSyncChannel).toHaveBeenCalledWith('ch_1')
+      })
+
+      it('should error when channel_id is missing', async () => {
+        const server = createServer('agent_1')
+        const result = await callTool(server, { action: 'reconnect_channel' }, 'config')
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain("'channel_id' is required")
+      })
+
+      it('should error when channel not found', async () => {
+        mockGetChannel.mockReturnValue(null)
+
+        const server = createServer('agent_1')
+        const result = await callTool(server, { action: 'reconnect_channel', channel_id: 'ch_999' }, 'config')
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('not found')
+      })
+
+      it('should hide channels owned by another agent', async () => {
+        mockGetChannel.mockReturnValue({ ...telegramChannel, agentId: 'agent_2' })
+
+        const server = createServer('agent_1')
+        const result = await callTool(server, { action: 'reconnect_channel', channel_id: 'ch_1' }, 'config')
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('Channel "ch_1" not found')
+        expect(mockSyncChannel).not.toHaveBeenCalled()
       })
     })
 
