@@ -7281,6 +7281,9 @@
     },
     "skills": {
       "author": "Author",
+      "batchInstallComplete": "Installed {{count}} skills",
+      "batchInstallPartialFailed": "Installed {{success}}/{{total}} skills, {{failed}} failed",
+      "batchInstallQueued": "Queued",
       "batchUninstallSuccess": "{{count}} skills uninstalled",
       "builtin": "Built-in",
       "confirmBatchUninstall": "Are you sure you want to uninstall {{count}} selected skills?",

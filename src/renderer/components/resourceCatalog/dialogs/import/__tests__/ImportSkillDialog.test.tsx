@@ -15,7 +15,15 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, opts?: { name?: string }) => (opts?.name ? `${key}:${opts.name}` : key)
+    t: (key: string, opts?: Record<string, string | number>) => {
+      if (!opts) return key
+      if ('name' in opts) return `${key}:${opts.name}`
+      if ('count' in opts) return `${key}:${opts.count}`
+      if ('success' in opts && 'total' in opts && 'failed' in opts) {
+        return `${key}:${opts.success}:${opts.total}:${opts.failed}`
+      }
+      return key
+    }
   })
 }))
 
@@ -52,7 +60,7 @@ beforeEach(() => {
       ...window.api,
       file: {
         ...window.api?.file,
-        select: vi.fn(async () => [{ path: '/tmp/broken.zip' }])
+        select: vi.fn(async () => [{ name: 'broken.zip', path: '/tmp/broken.zip' }])
       }
     }
   })
@@ -108,5 +116,33 @@ describe('ImportSkillDialog', () => {
     await waitFor(() => expect(screen.getByText('corrupt archive')).toBeInTheDocument())
     // ...and does NOT add its own toast on top of the hook's `reportAndRethrowSkillMutationError`.
     expect(toastError).not.toHaveBeenCalled()
+  })
+
+  it('installs every selected ZIP and keeps batch results visible', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    vi.mocked(window.api.file.select).mockResolvedValue([
+      { name: 'one.zip', path: '/tmp/one.zip' },
+      { name: 'two.zip', path: '/tmp/two.zip' }
+    ] as any)
+    installFromZip
+      .mockResolvedValueOnce({ id: 'skill-one', name: 'Skill One' })
+      .mockResolvedValueOnce({ id: 'skill-two', name: 'Skill Two' })
+
+    render(<ImportSkillDialog open onOpenChange={onOpenChange} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
+
+    await waitFor(() => expect(installFromZip).toHaveBeenCalledTimes(2))
+    expect(window.api.file.select).toHaveBeenCalledWith(
+      expect.objectContaining({ properties: ['openFile', 'multiSelections'] })
+    )
+    expect(installFromZip).toHaveBeenNthCalledWith(1, '/tmp/one.zip')
+    expect(installFromZip).toHaveBeenNthCalledWith(2, '/tmp/two.zip')
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Skill One')
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Skill Two')
+    expect(screen.getByText('settings.skills.batchInstallComplete:2')).toBeInTheDocument()
+    expect(document.querySelectorAll('[data-slot="dialog-overlay"]')).toHaveLength(1)
+    expect(onOpenChange).not.toHaveBeenCalled()
   })
 })

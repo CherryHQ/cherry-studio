@@ -7281,6 +7281,9 @@
     },
     "skills": {
       "author": "作者",
+      "batchInstallComplete": "已安裝 {{count}} 個技能",
+      "batchInstallPartialFailed": "已安裝 {{success}}/{{total}} 個技能，{{failed}} 個失敗",
+      "batchInstallQueued": "等待安裝",
       "batchUninstallSuccess": "{{count}} 個技能已解除安裝",
       "builtin": "內建",
       "confirmBatchUninstall": "您確定要解除安裝所選的 {{count}} 項技能嗎？",
