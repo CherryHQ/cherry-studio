@@ -1,15 +1,4 @@
-import {
-  Badge,
-  Button,
-  CodeEditor,
-  Combobox,
-  type ComboboxOption,
-  Flex,
-  RowFlex,
-  SegmentedControl,
-  Switch,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Badge, Button, CodeEditor, Combobox, type ComboboxOption, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPreferenceSections'
@@ -20,13 +9,10 @@ import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
-import i18n from '@renderer/i18n'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
-import type { LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { defaultLanguage } from '@shared/utils/languages'
-import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
+import { Monitor, Moon, Sun } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -43,81 +29,8 @@ import {
 } from '..'
 import ThemeColorPicker from './components/ThemeColorPicker'
 
-type SpellCheckOption = { readonly value: string; readonly label: string; readonly flag: string }
-type TFunction = (key: string) => string
-type MenuPresentationModeChangeOptions = {
-  currentMode: MenuPresentationMode
-  mode: MenuPresentationMode
-  setMenuPresentationMode: (mode: MenuPresentationMode) => Promise<unknown> | unknown
-  setTimeoutTimer: (key: string, callback: () => void, delay: number) => void
-  t: TFunction
-}
-
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
 const logger = loggerService.withContext('AppearanceSettings')
-
-const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
-  { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
-  { value: 'es', label: 'Español', flag: '🇪🇸' },
-  { value: 'fr', label: 'Français', flag: '🇫🇷' },
-  { value: 'de', label: 'Deutsch', flag: '🇩🇪' },
-  { value: 'it', label: 'Italiano', flag: '🇮🇹' },
-  { value: 'pt', label: 'Português', flag: '🇵🇹' },
-  { value: 'ru', label: 'Русский', flag: '🇷🇺' },
-  { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
-  { value: 'pl', label: 'Polski', flag: '🇵🇱' },
-  { value: 'sk', label: 'Slovenčina', flag: '🇸🇰' },
-  { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
-]
-
-const languagesOptions: { value: LanguageVarious; label: string; flag: string }[] = [
-  { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
-  { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
-  { value: 'en-US', label: 'English', flag: '🇺🇸' },
-  { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
-  { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
-  { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
-  { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
-  { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
-  { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
-  { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
-  { value: 'ro-RO', label: 'Română', flag: '🇷🇴' },
-  { value: 'vi-VN', label: 'Tiếng Việt', flag: '🇻🇳' }
-]
-
-export function confirmMenuPresentationModeChange({
-  currentMode,
-  mode,
-  setMenuPresentationMode,
-  setTimeoutTimer,
-  t
-}: MenuPresentationModeChangeOptions): void {
-  if (mode === currentMode) return
-
-  void window.modal.confirm({
-    title: t('settings.general.common.menu.presentation_mode.restart.title'),
-    content: t('settings.general.common.menu.presentation_mode.restart.content'),
-    okText: t('common.confirm'),
-    cancelText: t('common.cancel'),
-    centered: true,
-    async onOk() {
-      try {
-        await setMenuPresentationMode(mode)
-      } catch (error) {
-        window.toast.error(formatErrorMessage(error))
-        throw error
-      }
-
-      setTimeoutTimer(
-        'handleMenuPresentationModeChange',
-        () => {
-          void window.api.application.relaunch()
-        },
-        500
-      )
-    }
-  })
-}
 
 const AppearanceSettings: FC = () => {
   const { t } = useTranslation()
@@ -126,30 +39,14 @@ const AppearanceSettings: FC = () => {
   const { userTheme, setUserTheme } = useUserTheme()
   const { activeCmTheme } = useCodeStyle()
 
-  const [language, setLanguage] = usePreference('app.language')
-  const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
-  const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
-  const [menuPresentationMode, setMenuPresentationMode] = usePreference('menu.presentation_mode')
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
-  const [fontSize] = usePreference('chat.message.font_size')
+  const [fontSize, setFontSize] = usePreference('chat.message.font_size')
+  const [messageFont, setMessageFont] = usePreference('chat.message.font')
   const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
 
-  const [currentZoom, setCurrentZoom] = useState(1.0)
   const [fontList, setFontList] = useState<string[]>([])
-
-  const displayLanguage = useMemo(() => {
-    if (language && languagesOptions.some((opt) => opt.value === language)) {
-      return language
-    }
-
-    const resolved = i18n.resolvedLanguage ?? i18n.language
-    if (resolved && languagesOptions.some((opt) => opt.value === resolved)) {
-      return resolved as LanguageVarious
-    }
-
-    return defaultLanguage
-  }, [language, i18n.resolvedLanguage, i18n.language])
+  const [fontSizeValue, setFontSizeValue] = useState(fontSize)
 
   const themeOptions = useMemo(
     () => [
@@ -194,69 +91,18 @@ const AppearanceSettings: FC = () => {
       }
     }
 
-    const updateCurrentZoom = async () => {
-      try {
-        const factor = await window.api.handleZoomFactor(0)
-        setCurrentZoom(factor)
-      } catch (error) {
-        logger.error('Failed to get current zoom factor', error as Error)
-      }
-    }
-
     void loadSystemFonts()
-    void updateCurrentZoom()
-
-    const handleResize = () => {
-      void updateCurrentZoom()
-    }
-
-    window.addEventListener('resize', handleResize)
-
-    return () => {
-      window.removeEventListener('resize', handleResize)
-    }
   }, [])
 
-  const onSelectLanguage = (value: LanguageVarious) => {
-    void i18n.changeLanguage(value)
-    void setLanguage(value)
-  }
-
-  const handleSpellCheckChange = (checked: boolean) => {
-    void setEnableSpellCheck(checked)
-    void window.api.setEnableSpellCheck(checked)
-  }
-
-  const handleSpellCheckLanguagesChange = (selectedLanguages: string[]) => {
-    void setSpellCheckLanguages(selectedLanguages)
-  }
+  useEffect(() => {
+    setFontSizeValue(fontSize)
+  }, [fontSize])
 
   const handleWindowStyleChange = useCallback(
     (checked: boolean) => {
       void setWindowStyle(checked ? 'transparent' : 'opaque')
     },
     [setWindowStyle]
-  )
-
-  const menuPresentationModeOptions = useMemo(
-    () => [
-      { value: 'cherry' as const, label: t('settings.general.common.menu.presentation_mode.cherry') },
-      { value: 'native' as const, label: t('settings.general.common.menu.presentation_mode.native') }
-    ],
-    [t]
-  )
-
-  const handleMenuPresentationModeChange = useCallback(
-    (mode: MenuPresentationMode) => {
-      confirmMenuPresentationModeChange({
-        currentMode: menuPresentationMode,
-        mode,
-        setMenuPresentationMode,
-        setTimeoutTimer,
-        t
-      })
-    },
-    [menuPresentationMode, setMenuPresentationMode, setTimeoutTimer, t]
   )
 
   const handleUseSystemTitleBarChange = (checked: boolean) => {
@@ -283,11 +129,6 @@ const AppearanceSettings: FC = () => {
         )
       }
     })
-  }
-
-  const handleZoomFactor = async (delta: number, reset: boolean = false) => {
-    const zoomFactor = await window.api.handleZoomFactor(delta, reset)
-    setCurrentZoom(zoomFactor)
   }
 
   const handleColorPrimaryChange = useCallback(
@@ -364,57 +205,7 @@ const AppearanceSettings: FC = () => {
   return (
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.general.common.sections.display_language')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('common.language')}</SettingRowTitle>
-          <SelectorRow>
-            <Selector
-              size={14}
-              style={{ width: '100%' }}
-              value={displayLanguage}
-              onChange={onSelectLanguage}
-              options={languagesOptions.map((lang) => ({
-                label: (
-                  <Flex className="items-center gap-2">
-                    <span role="img" aria-label={lang.flag}>
-                      {lang.flag}
-                    </span>
-                    {lang.label}
-                  </Flex>
-                ),
-                value: lang.value
-              }))}
-            />
-          </SelectorRow>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <RowFlex className="mr-4 flex-1 items-center justify-between">
-            <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
-            {enableSpellCheck && !isMac && (
-              <Selector<string>
-                size={14}
-                multiple
-                value={spellCheckLanguages}
-                placeholder={t('settings.general.spell_check.languages')}
-                onChange={handleSpellCheckLanguagesChange}
-                options={spellCheckLanguageOptions.map((lang) => ({
-                  value: lang.value,
-                  label: (
-                    <Flex className="items-center gap-2">
-                      <span role="img" aria-label={lang.flag}>
-                        {lang.flag}
-                      </span>
-                      {lang.label}
-                    </Flex>
-                  )
-                }))}
-              />
-            )}
-          </RowFlex>
-          <Switch checked={enableSpellCheck} onCheckedChange={handleSpellCheckChange} />
-        </SettingRow>
+        <SettingTitle>{t('settings.theme.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
@@ -459,32 +250,6 @@ const AppearanceSettings: FC = () => {
             </SettingRow>
           </>
         )}
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
-          <ZoomButtonGroup>
-            <Button onClick={() => handleZoomFactor(-0.1)} variant="ghost" size="icon">
-              <Minus size="14" />
-            </Button>
-            <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
-            <Button onClick={() => handleZoomFactor(0.1)} variant="ghost" size="icon">
-              <Plus size="14" />
-            </Button>
-            <Button onClick={() => handleZoomFactor(0, true)} className="ml-2" variant="ghost" size="icon">
-              <ResetIcon size="14" />
-            </Button>
-          </ZoomButtonGroup>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.common.menu.presentation_mode.title')}</SettingRowTitle>
-          <SegmentedControl<MenuPresentationMode>
-            value={menuPresentationMode}
-            onValueChange={handleMenuPresentationModeChange}
-            options={menuPresentationModeOptions}
-            size="sm"
-          />
-        </SettingRow>
       </SettingGroup>
 
       <SettingGroup theme={theme}>
@@ -535,9 +300,36 @@ const AppearanceSettings: FC = () => {
             </Button>
           </SelectRow>
         </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.messages.use_serif_font')}</SettingRowTitle>
+          <Switch
+            checked={messageFont === 'serif'}
+            onCheckedChange={(checked) => setMessageFont(checked ? 'serif' : 'system')}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.font_size.title')}</SettingRowTitle>
+        </SettingRow>
+        <div className="w-full pt-(--cs-size-3xs)">
+          <Slider
+            value={[fontSizeValue]}
+            onValueChange={(values) => setFontSizeValue(values[0])}
+            onValueCommit={(values) => setFontSize(values[0])}
+            min={12}
+            max={22}
+            step={1}
+            marks={[
+              { value: 12, label: <span className="text-xs">A</span> },
+              { value: 14, label: <span className="text-xs">{t('common.default')}</span> },
+              { value: 22, label: <span className="text-xs">A</span> }
+            ]}
+          />
+        </div>
       </SettingGroup>
 
-      <ChatPreferenceSections />
+      <ChatPreferenceSections variant="display" />
 
       <SettingGroup theme={theme}>
         <SettingTitle>
@@ -575,20 +367,12 @@ const TitleExtra = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
   <div className={cn('cursor-pointer text-xs underline opacity-70', className)} {...props} />
 )
 
-const ZoomButtonGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-52.5 items-center justify-end', className)} {...props} />
-)
-
 const SelectorRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('flex w-full min-w-0 max-w-55 items-center justify-end', className)} {...props} />
 )
 
 const WideControlRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('flex w-full min-w-0 max-w-95 items-center justify-end', className)} {...props} />
-)
-
-const ZoomValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('mx-1.25 w-10 text-center', className)} {...props} />
 )
 
 const SelectRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

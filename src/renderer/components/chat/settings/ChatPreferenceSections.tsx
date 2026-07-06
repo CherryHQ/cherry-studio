@@ -1,5 +1,6 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider } from '@cherrystudio/ui'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
+import EditableNumber from '@renderer/components/EditableNumber'
 import { SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -8,7 +9,7 @@ import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -24,11 +25,16 @@ type SelectOption<T extends string = string> = {
   label: string
 }
 
-const ChatPreferenceSections: FC = () => {
+// Chat preference sections are split across two settings pages:
+// - variant="display": message + code-block *visual* settings → Appearance
+// - variant="general": input/editor + code-tool *behavior* settings → General
+type ChatPreferenceSectionsProps = {
+  variant: 'general' | 'display'
+}
+
+const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ variant }) => {
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
-  const [fontSize, setFontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [messageFont, setMessageFont] = usePreference('chat.message.font')
   const [confirmDeleteMessage, setConfirmDeleteMessage] = usePreference('chat.message.confirm_delete')
   const [messageNavigation, setMessageNavigation] = usePreference('chat.message.navigation_mode')
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
@@ -57,17 +63,17 @@ const ChatPreferenceSections: FC = () => {
     themeDark: 'chat.code.viewer.theme_dark'
   })
   const [codeFancyBlock, setCodeFancyBlock] = usePreference('chat.code.fancy_block')
+  const [codeExecution, setCodeExecution] = useMultiplePreferences({
+    enabled: 'chat.code.execution.enabled',
+    timeoutMinutes: 'chat.code.execution.timeout_minutes'
+  })
+  const [codeImageTools, setCodeImageTools] = usePreference('chat.code.image_tools')
   const wideMode = !narrowMode
   const setWideMode = (checked: boolean) => setNarrowMode(!checked)
 
   const { theme } = useTheme()
   const { themeNames } = useCodeStyle()
-  const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const { t } = useTranslation()
-
-  useEffect(() => {
-    setFontSizeValue(fontSize)
-  }, [fontSize])
 
   const messageStyleItems = useMemo<SelectOption<'plain' | 'bubble'>[]>(
     () => [
@@ -136,10 +142,171 @@ const ChatPreferenceSections: FC = () => {
     </PageSettingGroup>
   )
 
+  if (variant === 'display') {
+    return (
+      <>
+        {renderSection(
+          t('settings.messages.title'),
+          <>
+            <SettingRow>
+              <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
+              <Select value={messageStyle} onValueChange={setMessageStyle}>
+                <SelectTrigger size="sm" className="w-[220px] text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="text-sm">
+                  {messageStyleItems.map((item) => (
+                    <SelectItem className="text-sm" key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall>
+              <Select value={multiModelMessageStyle} onValueChange={setMultiModelMessageStyle}>
+                <SelectTrigger size="sm" className="w-[220px] text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="text-sm">
+                  <SelectItem className="text-sm" key="fold" value="fold">
+                    {t('message.message.multi_model_style.fold.label')}
+                  </SelectItem>
+                  <SelectItem className="text-sm" key="vertical" value="vertical">
+                    {t('message.message.multi_model_style.vertical')}
+                  </SelectItem>
+                  <SelectItem className="text-sm" key="horizontal" value="horizontal">
+                    {t('message.message.multi_model_style.horizontal')}
+                  </SelectItem>
+                  <SelectItem className="text-sm" key="grid" value="grid">
+                    {t('message.message.multi_model_style.grid')}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
+              <Select value={messageNavigation} onValueChange={setMessageNavigation}>
+                <SelectTrigger size="sm" className="w-[220px] text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="text-sm">
+                  {messageNavigationItems.map((item) => (
+                    <SelectItem className="text-sm" key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingSwitch
+                checked={wideMode}
+                onCheckedChange={setWideMode}
+                label={t('settings.messages.wide_mode')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingSwitch
+                checked={showMessageOutline}
+                onCheckedChange={(checked) => setShowMessageOutline(checked)}
+                label={t('settings.messages.show_message_outline')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingSwitch
+                checked={thoughtAutoCollapse}
+                onCheckedChange={setThoughtAutoCollapse}
+                label={t('chat.settings.thought_auto_collapse.label')}
+                hint={t('chat.settings.thought_auto_collapse.tip')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingSwitch
+                checked={confirmDeleteMessage}
+                onCheckedChange={setConfirmDeleteMessage}
+                label={t('settings.messages.input.confirm_delete_message')}
+              />
+            </SettingRow>
+          </>
+        )}
+        {renderSection(
+          t('chat.settings.code.title'),
+          <>
+            <SettingRow>
+              <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
+              <Select value={codeStyle} onValueChange={onCodeStyleChange}>
+                <SelectTrigger size="sm" className="w-[220px] text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="text-sm">
+                  {codeStyleItems.map((item) => (
+                    <SelectItem className="text-sm" key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingSwitch
+                checked={codeFancyBlock}
+                onCheckedChange={setCodeFancyBlock}
+                label={t('chat.settings.code_fancy_block.label')}
+                hint={t('chat.settings.code_fancy_block.tip')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingSwitch
+                checked={codeShowLineNumbers}
+                onCheckedChange={setCodeShowLineNumbers}
+                label={t('chat.settings.show_line_numbers')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingSwitch
+                checked={codeCollapsible}
+                onCheckedChange={setCodeCollapsible}
+                label={t('chat.settings.code_collapsible')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingSwitch
+                checked={codeWrappable}
+                onCheckedChange={setCodeWrappable}
+                label={t('chat.settings.code_wrappable')}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingSwitch
+                checked={mathEnableSingleDollar}
+                onCheckedChange={setMathEnableSingleDollar}
+                label={t('settings.math.single_dollar.label')}
+                hint={t('settings.math.single_dollar.tip')}
+              />
+            </SettingRow>
+          </>
+        )}
+      </>
+    )
+  }
+
   return (
     <>
       {renderSection(
-        t('settings.messages.input.title'),
+        t('chat.settings.input_editor.title'),
         <>
           <SettingRow>
             <SettingSwitch
@@ -154,13 +321,6 @@ const ChatPreferenceSections: FC = () => {
               checked={renderInputMessageAsMarkdown}
               onCheckedChange={setRenderInputMessageAsMarkdown}
               label={t('settings.messages.markdown_rendering_input_message')}
-            />
-          </SettingRow>
-          <SettingRow>
-            <SettingSwitch
-              checked={confirmDeleteMessage}
-              onCheckedChange={setConfirmDeleteMessage}
-              label={t('settings.messages.input.confirm_delete_message')}
             />
           </SettingRow>
           <SettingDivider />
@@ -178,155 +338,6 @@ const ChatPreferenceSections: FC = () => {
                 ))}
               </SelectContent>
             </Select>
-          </SettingRow>
-        </>
-      )}
-      {renderSection(
-        t('settings.messages.title'),
-        <>
-          <SettingRow>
-            <SettingSwitch checked={wideMode} onCheckedChange={setWideMode} label={t('settings.messages.wide_mode')} />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingSwitch
-              checked={messageFont === 'serif'}
-              onCheckedChange={(checked) => setMessageFont(checked ? 'serif' : 'system')}
-              label={t('settings.messages.use_serif_font')}
-            />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingSwitch
-              checked={thoughtAutoCollapse}
-              onCheckedChange={setThoughtAutoCollapse}
-              label={t('chat.settings.thought_auto_collapse.label')}
-              hint={t('chat.settings.thought_auto_collapse.tip')}
-            />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingSwitch
-              checked={showMessageOutline}
-              onCheckedChange={(checked) => setShowMessageOutline(checked)}
-              label={t('settings.messages.show_message_outline')}
-            />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
-            <Select value={messageStyle} onValueChange={setMessageStyle}>
-              <SelectTrigger size="sm" className="w-[220px] text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="text-sm">
-                {messageStyleItems.map((item) => (
-                  <SelectItem className="text-sm" key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall>
-            <Select value={multiModelMessageStyle} onValueChange={setMultiModelMessageStyle}>
-              <SelectTrigger size="sm" className="w-[220px] text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="text-sm">
-                <SelectItem className="text-sm" key="fold" value="fold">
-                  {t('message.message.multi_model_style.fold.label')}
-                </SelectItem>
-                <SelectItem className="text-sm" key="vertical" value="vertical">
-                  {t('message.message.multi_model_style.vertical')}
-                </SelectItem>
-                <SelectItem className="text-sm" key="horizontal" value="horizontal">
-                  {t('message.message.multi_model_style.horizontal')}
-                </SelectItem>
-                <SelectItem className="text-sm" key="grid" value="grid">
-                  {t('message.message.multi_model_style.grid')}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
-            <Select value={messageNavigation} onValueChange={setMessageNavigation}>
-              <SelectTrigger size="sm" className="w-[220px] text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="text-sm">
-                {messageNavigationItems.map((item) => (
-                  <SelectItem className="text-sm" key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitleSmall>{t('settings.font_size.title')}</SettingRowTitleSmall>
-          </SettingRow>
-          <div className="w-full pt-(--cs-size-3xs)">
-            <Slider
-              value={[fontSizeValue]}
-              onValueChange={(values) => setFontSizeValue(values[0])}
-              onValueCommit={(values) => setFontSize(values[0])}
-              min={12}
-              max={22}
-              step={1}
-              marks={[
-                { value: 12, label: <span className="text-xs">A</span> },
-                { value: 14, label: <span className="text-xs">{t('common.default')}</span> },
-                { value: 22, label: <span className="text-xs">A</span> }
-              ]}
-            />
-          </div>
-        </>
-      )}
-      {renderSection(
-        t('settings.math.title'),
-        <>
-          <SettingRow>
-            <SettingSwitch
-              checked={mathEnableSingleDollar}
-              onCheckedChange={setMathEnableSingleDollar}
-              label={t('settings.math.single_dollar.label')}
-              hint={t('settings.math.single_dollar.tip')}
-            />
-          </SettingRow>
-        </>
-      )}
-      {renderSection(
-        t('chat.settings.code.title'),
-        <>
-          <SettingRow>
-            <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
-            <Select value={codeStyle} onValueChange={onCodeStyleChange}>
-              <SelectTrigger size="sm" className="w-[220px] text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="text-sm">
-                {codeStyleItems.map((item) => (
-                  <SelectItem className="text-sm" key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingSwitch
-              checked={codeFancyBlock}
-              onCheckedChange={setCodeFancyBlock}
-              label={t('chat.settings.code_fancy_block.label')}
-              hint={t('chat.settings.code_fancy_block.tip')}
-            />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
@@ -372,28 +383,45 @@ const ChatPreferenceSections: FC = () => {
               </SettingRow>
             </>
           )}
-          <SettingDivider />
+        </>
+      )}
+      {renderSection(
+        t('chat.settings.code_tools.title'),
+        <>
           <SettingRow>
             <SettingSwitch
-              checked={codeShowLineNumbers}
-              onCheckedChange={setCodeShowLineNumbers}
-              label={t('chat.settings.show_line_numbers')}
+              checked={codeExecution.enabled}
+              onCheckedChange={(checked) => setCodeExecution({ enabled: checked })}
+              label={t('chat.settings.code_execution.title')}
+              hint={t('chat.settings.code_execution.tip')}
             />
           </SettingRow>
+          {codeExecution.enabled && (
+            <>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitleSmall hint={t('chat.settings.code_execution.timeout_minutes.tip')}>
+                  {t('chat.settings.code_execution.timeout_minutes.label')}
+                </SettingRowTitleSmall>
+                <EditableNumber
+                  size="small"
+                  className="w-20 text-sm"
+                  min={1}
+                  max={60}
+                  step={1}
+                  value={codeExecution.timeoutMinutes}
+                  onChange={(value) => setCodeExecution({ timeoutMinutes: value ?? 1 })}
+                />
+              </SettingRow>
+            </>
+          )}
           <SettingDivider />
           <SettingRow>
             <SettingSwitch
-              checked={codeCollapsible}
-              onCheckedChange={setCodeCollapsible}
-              label={t('chat.settings.code_collapsible')}
-            />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingSwitch
-              checked={codeWrappable}
-              onCheckedChange={setCodeWrappable}
-              label={t('chat.settings.code_wrappable')}
+              checked={codeImageTools}
+              onCheckedChange={setCodeImageTools}
+              label={t('chat.settings.code_image_tools.label')}
+              hint={t('chat.settings.code_image_tools.tip')}
             />
           </SettingRow>
         </>

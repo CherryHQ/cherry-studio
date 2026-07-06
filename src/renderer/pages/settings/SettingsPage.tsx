@@ -5,7 +5,6 @@ import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn } from '@renderer/utils/style'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
-  Bell,
   CalendarClock,
   Cloud,
   Command,
@@ -19,8 +18,7 @@ import {
   Radio,
   Search,
   Server,
-  Settings2,
-  SquareTerminal,
+  SlidersHorizontal,
   TextCursorInput
 } from 'lucide-react'
 import type { FC } from 'react'
@@ -106,16 +104,16 @@ const SettingsPage: FC = () => {
                 active={isActive('/settings/file-processing')}
                 onClick={() => go('/settings/file-processing')}
               />
+              <MenuDivider className={settingsSubmenuDividerClassName} />
+              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.personal')}</div>
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<SquareTerminal />}
-                label={t('chat.settings.code_execution.title')}
-                active={isActive('/settings/code-execution')}
-                onClick={() => go('/settings/code-execution')}
+                icon={<SlidersHorizontal />}
+                label={t('settings.general.common.title')}
+                active={isActive('/settings/general')}
+                onClick={() => go('/settings/general')}
               />
-              <MenuDivider className={settingsSubmenuDividerClassName} />
-              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.personal')}</div>
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
@@ -123,14 +121,6 @@ const SettingsPage: FC = () => {
                 label={t('settings.appearance.title')}
                 active={isActive('/settings/appearance')}
                 onClick={() => go('/settings/appearance')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Bell />}
-                label={t('settings.notification.title')}
-                active={isActive('/settings/notifications')}
-                onClick={() => go('/settings/notifications')}
               />
               <MenuItem
                 className={settingsSubmenuItemClassName}
@@ -186,14 +176,6 @@ const SettingsPage: FC = () => {
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.system')}</div>
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Settings2 />}
-                label={t('settings.system.title')}
-                active={isActive('/settings/system')}
-                onClick={() => go('/settings/system')}
-              />
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}

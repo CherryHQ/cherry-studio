@@ -1757,10 +1757,16 @@
         "label": "啟用預覽工具",
         "tip": "為 mermaid 等程式碼區塊渲染後的影像啟用預覽工具"
       },
+      "code_tools": {
+        "title": "程式碼工具"
+      },
       "code_wrappable": "程式碼區塊可自動換行",
       "context_count": {
         "label": "上下文",
         "tip": "在上下文中保留的前幾則訊息"
+      },
+      "input_editor": {
+        "title": "輸入與編輯器"
       },
       "max": "不限",
       "max_tokens": {
@@ -6108,7 +6114,7 @@
           "privacy_advanced": "隱私與進階",
           "system_startup": "系統與啟動"
         },
-        "title": "通用"
+        "title": "一般"
       },
       "display": {
         "title": "顯示"
@@ -6459,7 +6465,7 @@
     },
     "menuGroups": {
       "automation": "自動化",
-      "capabilities": "能力與工具",
+      "capabilities": "工具",
       "models": "模型",
       "personal": "個人",
       "quickAccess": "快捷入口",
@@ -6773,7 +6779,7 @@
       "assistant": "助手訊息",
       "backup": "備份訊息",
       "knowledge_embed": "知識庫訊息",
-      "title": "通知設定"
+      "title": "通知"
     },
     "openai": {
       "service_tier": {
@@ -7159,7 +7165,8 @@
         "system": "系統代理伺服器",
         "title": "代理伺服器模式"
       },
-      "tip": "支援模糊比對（*.test.com，192.168.0.0/16）"
+      "tip": "支援模糊比對（*.test.com，192.168.0.0/16）",
+      "title": "網路代理"
     },
     "quickAssistant": {
       "click_tray_to_show": "點選工具列圖示啟動",
@@ -7215,13 +7222,6 @@
       "all_disable": "全部停用",
       "all_enable": "全部啟用",
       "bind_first_to_enable": "請先綁定快捷鍵，再調整啟用狀態",
-      "categories": {
-        "assistant": "AI 助手工具",
-        "chat": "訊息互動",
-        "general": "全域與視窗",
-        "title": "快捷鍵分組",
-        "topic": "會話與話題"
-      },
       "clear_shortcut": "清除快捷鍵",
       "clear_topic": "清除所有訊息",
       "close_tab": "關閉分頁",

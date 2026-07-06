@@ -1757,10 +1757,16 @@
         "label": "Habilitar herramienta de vista previa",
         "tip": "Habilitar herramientas de vista previa para imágenes renderizadas de bloques de código como mermaid"
       },
+      "code_tools": {
+        "title": "[to be translated]:Code Tools"
+      },
       "code_wrappable": "Bloques de código reemplazables",
       "context_count": {
         "label": "Número de contextos",
         "tip": "Número de mensajes que se deben mantener en el contexto. Cuanto mayor sea el valor, más largo será el contexto y más tokens se consumirán. Para una conversación normal, se sugiere un valor entre 5-10"
+      },
+      "input_editor": {
+        "title": "[to be translated]:Input & Editor"
       },
       "max": "Sin límite",
       "max_tokens": {
@@ -7159,7 +7165,8 @@
         "system": "Proxy del sistema",
         "title": "Modo de proxy"
       },
-      "tip": "Admite coincidencia parcial (*.test.com, 192.168.0.0/16)"
+      "tip": "Admite coincidencia parcial (*.test.com, 192.168.0.0/16)",
+      "title": "[to be translated]:Network Proxy"
     },
     "quickAssistant": {
       "click_tray_to_show": "Haz clic en el icono de la bandeja para iniciar",
@@ -7215,13 +7222,6 @@
       "all_disable": "Desactivar todo",
       "all_enable": "Habilitar todo",
       "bind_first_to_enable": "Primero vincula un atajo para cambiar su estado de activación",
-      "categories": {
-        "assistant": "Herramientas de asistente de IA",
-        "chat": "Interacción de mensajes",
-        "general": "Global y Ventana",
-        "title": "Grupos de acceso directo",
-        "topic": "Conversación y Temas"
-      },
       "clear_shortcut": "Borrar atajo",
       "clear_topic": "Vaciar mensaje",
       "close_tab": "Cerrar pestaña",

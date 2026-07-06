@@ -1757,10 +1757,16 @@
         "label": "Bật công cụ xem trước",
         "tip": "Bật công cụ xem trước cho hình ảnh được kết xuất từ các khối mã như mermaid"
       },
+      "code_tools": {
+        "title": "[to be translated]:Code Tools"
+      },
       "code_wrappable": "Khối mã có thể ngắt dòng",
       "context_count": {
         "label": "Ngữ cảnh",
         "tip": "Số lượng tin nhắn trước đó cần giữ trong ngữ cảnh."
+      },
+      "input_editor": {
+        "title": "[to be translated]:Input & Editor"
       },
       "max": "Không giới hạn",
       "max_tokens": {
@@ -7159,7 +7165,8 @@
         "system": "Proxy Hệ Thống",
         "title": "Chế độ Proxy"
       },
-      "tip": "Hỗ trợ khớp ký tự đại diện (*.test.com, 192.168.0.0/16)"
+      "tip": "Hỗ trợ khớp ký tự đại diện (*.test.com, 192.168.0.0/16)",
+      "title": "[to be translated]:Network Proxy"
     },
     "quickAssistant": {
       "click_tray_to_show": "Nhấp vào biểu tượng khay để bắt đầu",
@@ -7215,13 +7222,6 @@
       "all_disable": "Tắt Tất Cả",
       "all_enable": "Kích hoạt Tất cả",
       "bind_first_to_enable": "Trước tiên hãy gán một phím tắt để thay đổi trạng thái kích hoạt của nó",
-      "categories": {
-        "assistant": "Công cụ Trợ lý AI",
-        "chat": "Tương tác tin nhắn",
-        "general": "Toàn cầu và Cửa sổ",
-        "title": "Nhóm Phím Tắt",
-        "topic": "Cuộc trò chuyện và Chủ đề"
-      },
       "clear_shortcut": "Phím tắt rõ ràng",
       "clear_topic": "Tin nhắn rõ ràng",
       "close_tab": "Đóng Tab",

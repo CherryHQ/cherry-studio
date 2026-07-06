@@ -1757,10 +1757,16 @@
         "label": "Activează instrumentele de previzualizare",
         "tip": "Activează instrumentele de previzualizare pentru imaginile randate din blocuri de cod, cum ar fi mermaid"
       },
+      "code_tools": {
+        "title": "[to be translated]:Code Tools"
+      },
       "code_wrappable": "Încadrare text în blocul de cod",
       "context_count": {
         "label": "Context",
         "tip": "Numărul de mesaje anterioare de păstrat în context."
+      },
+      "input_editor": {
+        "title": "[to be translated]:Input & Editor"
       },
       "max": "Nelimitat",
       "max_tokens": {
@@ -7159,7 +7165,8 @@
         "system": "Proxy sistem",
         "title": "Mod proxy"
       },
-      "tip": "Acceptă potrivirea cu wildcard (*.test.com, 192.168.0.0/16)"
+      "tip": "Acceptă potrivirea cu wildcard (*.test.com, 192.168.0.0/16)",
+      "title": "[to be translated]:Network Proxy"
     },
     "quickAssistant": {
       "click_tray_to_show": "Fă clic pe pictograma din zona de notificare pentru a începe",
@@ -7215,13 +7222,6 @@
       "all_disable": "Dezactivați tot",
       "all_enable": "Activează tot",
       "bind_first_to_enable": "Asociază mai întâi o comandă rapidă pentru a-i schimba starea de activare",
-      "categories": {
-        "assistant": "Instrumente AI Assistant",
-        "chat": "Interacțiune cu mesajul",
-        "general": "Global și Fereastră",
-        "title": "Grupuri de comenzi rapide",
-        "topic": "Conversație și Subiecte"
-      },
       "clear_shortcut": "Șterge comanda rapidă",
       "clear_topic": "Șterge mesajele",
       "close_tab": "Închide fila",

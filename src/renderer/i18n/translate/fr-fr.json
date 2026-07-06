@@ -1757,10 +1757,16 @@
         "label": "Activer l'outil d'aperçu",
         "tip": "Activer les outils de prévisualisation pour les images rendues des blocs de code tels que mermaid"
       },
+      "code_tools": {
+        "title": "[to be translated]:Code Tools"
+      },
       "code_wrappable": "Blocs de code avec retours à la ligne",
       "context_count": {
         "label": "Nombre de contextes",
         "tip": "Nombre de messages à conserver dans le contexte. Plus la valeur est élevée, plus le contexte est long et plus les tokens consommés sont nombreux. Pour une conversation normale, il est recommandé de choisir entre 5 et 10"
+      },
+      "input_editor": {
+        "title": "[to be translated]:Input & Editor"
       },
       "max": "Illimité",
       "max_tokens": {
@@ -7159,7 +7165,8 @@
         "system": "Proxy système",
         "title": "Mode de proxy"
       },
-      "tip": "Prise en charge de la correspondance floue (*.test.com, 192.168.0.0/16)"
+      "tip": "Prise en charge de la correspondance floue (*.test.com, 192.168.0.0/16)",
+      "title": "[to be translated]:Network Proxy"
     },
     "quickAssistant": {
       "click_tray_to_show": "Cliquez sur l'icône dans la barre d'état système pour démarrer",
@@ -7215,13 +7222,6 @@
       "all_disable": "Désactiver tout",
       "all_enable": "Tout activer",
       "bind_first_to_enable": "Liez d'abord un raccourci pour modifier son état activé",
-      "categories": {
-        "assistant": "Outils d'assistance IA",
-        "chat": "Interaction des messages",
-        "general": "Global et Fenêtre",
-        "title": "Groupes de raccourcis",
-        "topic": "Conversation et Sujets"
-      },
       "clear_shortcut": "Effacer raccourci clavier",
       "clear_topic": "Vider les messages",
       "close_tab": "Fermer l'onglet",

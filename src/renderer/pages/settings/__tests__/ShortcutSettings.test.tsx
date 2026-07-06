@@ -79,29 +79,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     Flex: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     Kbd: ({ children, ...props }: React.HTMLAttributes<HTMLElement>) => <kbd {...props}>{children}</kbd>,
-    MenuItem: ({
-      active,
-      icon,
-      label,
-      suffix,
-      ...props
-    }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-      active?: boolean
-      icon?: React.ReactNode
-      label: string
-      suffix?: React.ReactNode
-    }) => {
-      void active
-      void icon
-      return (
-        <button type="button" {...props}>
-          {label}
-          {suffix}
-        </button>
-      )
-    },
-    MenuList: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
-    PageHeader: ({ title }: { title: string }) => <h2>{title}</h2>,
     RowFlex: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
     Switch: ({
       checked,
@@ -128,7 +105,6 @@ const makeShortcut = (binding: ShortcutBinding = []): ShortcutListItem => {
     command,
     key,
     label: 'Search everywhere',
-    group: 'general',
     keybinding: {
       command,
       scope: 'renderer',

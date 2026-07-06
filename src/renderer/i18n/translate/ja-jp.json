@@ -1757,10 +1757,16 @@
         "label": "プレビューツールを有効にする",
         "tip": "mermaid などのコードブロックから生成された画像に対してプレビューツールを有効にする"
       },
+      "code_tools": {
+        "title": "[to be translated]:Code Tools"
+      },
       "code_wrappable": "コードブロック折り返し",
       "context_count": {
         "label": "コンテキスト",
         "tip": "コンテキストに保持する以前のメッセージの数"
+      },
+      "input_editor": {
+        "title": "[to be translated]:Input & Editor"
       },
       "max": "制限なし",
       "max_tokens": {
@@ -7159,7 +7165,8 @@
         "system": "システムプロキシ",
         "title": "プロキシモード"
       },
-      "tip": "ワイルドカード一致をサポート (*.test.com, 192.168.0.0/16)"
+      "tip": "ワイルドカード一致をサポート (*.test.com, 192.168.0.0/16)",
+      "title": "[to be translated]:Network Proxy"
     },
     "quickAssistant": {
       "click_tray_to_show": "トレイアイコンをクリックして起動",
@@ -7215,13 +7222,6 @@
       "all_disable": "すべて無効にする",
       "all_enable": "すべて有効にする",
       "bind_first_to_enable": "ショートカットを最初に割り当てて、その有効状態を変更してください",
-      "categories": {
-        "assistant": "AIアシスタントツール",
-        "chat": "メッセージインタラクション",
-        "general": "グローバルとウィンドウ",
-        "title": "ショートカットグループ",
-        "topic": "会話と話題"
-      },
       "clear_shortcut": "ショートカットをクリア",
       "clear_topic": "メッセージを消去",
       "close_tab": "タブを閉じる",

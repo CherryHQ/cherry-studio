@@ -1,4 +1,14 @@
-import { Badge, Button, CircularProgress, Divider, SegmentedControl, Switch, Tooltip } from '@cherrystudio/ui'
+import {
+  Badge,
+  Button,
+  CircularProgress,
+  Divider,
+  Flex,
+  InfoTooltip,
+  SegmentedControl,
+  Switch,
+  Tooltip
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import LogoAvatar from '@renderer/components/Icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
@@ -11,7 +21,7 @@ import i18n from '@renderer/i18n'
 import { ipcApi } from '@renderer/ipc'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { debounce } from 'lodash'
-import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
+import { BadgeQuestionMark, Briefcase, Bug, Building2, Code, Github, Globe, Mail, Rss } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,6 +33,7 @@ const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
   const [testPlan, setTestPlan] = usePreference('app.dist.test_plan.enabled')
   const [testChannel, setTestChannel] = usePreference('app.dist.test_plan.channel')
+  const [enableDeveloperMode, setEnableDeveloperMode] = usePreference('app.developer_mode.enabled')
 
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
@@ -347,6 +358,17 @@ const AboutSettings: FC = () => {
           actionLabel={t('settings.about.debug.open')}
           onAction={debug}
         />
+        <Divider className="my-3" />
+        <SettingRow className="gap-3">
+          <SettingRowTitle className="gap-2.5">
+            <Code className="size-4.5" />
+            <Flex className="items-center gap-1">
+              {t('settings.developer.enable_developer_mode')}
+              <InfoTooltip content={t('settings.developer.help')} />
+            </Flex>
+          </SettingRowTitle>
+          <Switch checked={enableDeveloperMode} onCheckedChange={setEnableDeveloperMode} />
+        </SettingRow>
       </SettingGroup>
     </SettingsContentColumn>
   )

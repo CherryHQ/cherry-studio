@@ -1757,10 +1757,16 @@
         "label": "Vorschau-Tools aktivieren",
         "tip": "Aktivieren Sie Vorschau-Tools für gerenderte Bilder aus Codeblöcken wie Mermaid"
       },
+      "code_tools": {
+        "title": "[to be translated]:Code Tools"
+      },
       "code_wrappable": "Codeblöcke können umbrechen",
       "context_count": {
         "label": "Kontextanzahl",
         "tip": "Anzahl der im Kontext zu behaltenden Nachrichten. Je größer der Wert, desto länger der Kontext und desto mehr Token werden verbraucht. Für normales Chatten wird 5-10 empfohlen"
+      },
+      "input_editor": {
+        "title": "[to be translated]:Input & Editor"
       },
       "max": "Unbegrenzt",
       "max_tokens": {
@@ -7159,7 +7165,8 @@
         "system": "System-Proxy",
         "title": "Proxy-Modus"
       },
-      "tip": "Unterstützt Fuzzy-Matching (*.test.com, 192.168.0.0/16)"
+      "tip": "Unterstützt Fuzzy-Matching (*.test.com, 192.168.0.0/16)",
+      "title": "[to be translated]:Network Proxy"
     },
     "quickAssistant": {
       "click_tray_to_show": "Klicken auf Tray-Symbol zum Starten",
@@ -7215,13 +7222,6 @@
       "all_disable": "Alle deaktivieren",
       "all_enable": "Alle aktivieren",
       "bind_first_to_enable": "Weisen Sie zunächst eine Tastenkombination zu, um ihren aktivierten Zustand zu ändern.",
-      "categories": {
-        "assistant": "KI-Assistenten-Tools",
-        "chat": "Nachrichteninteraktion",
-        "general": "Global und Fenster",
-        "title": "Tastenkürzelgruppen",
-        "topic": "Gespräch und Themen"
-      },
       "clear_shortcut": "Shortcut löschen",
       "clear_topic": "Nachricht leeren",
       "close_tab": "Tab schließen",

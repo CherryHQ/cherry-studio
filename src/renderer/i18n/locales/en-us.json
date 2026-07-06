@@ -1757,10 +1757,16 @@
         "label": "Enable preview tools",
         "tip": "Enable preview tools for images rendered from code blocks such as mermaid"
       },
+      "code_tools": {
+        "title": "Code Tools"
+      },
       "code_wrappable": "Code block wrappable",
       "context_count": {
         "label": "Context",
         "tip": "The number of previous messages to keep in the context."
+      },
+      "input_editor": {
+        "title": "Input & Editor"
       },
       "max": "Unlimited",
       "max_tokens": {
@@ -6459,7 +6465,7 @@
     },
     "menuGroups": {
       "automation": "Automation",
-      "capabilities": "Capabilities & Tools",
+      "capabilities": "Tools",
       "models": "Models",
       "personal": "Personal",
       "quickAccess": "Quick Access",
@@ -6773,7 +6779,7 @@
       "assistant": "Assistant Message",
       "backup": "Backup Message",
       "knowledge_embed": "KnowledgeBase Message",
-      "title": "Notification Settings"
+      "title": "Notifications"
     },
     "openai": {
       "service_tier": {
@@ -7159,7 +7165,8 @@
         "system": "System Proxy",
         "title": "Proxy Mode"
       },
-      "tip": "Supports wildcard matching (*.test.com, 192.168.0.0/16)"
+      "tip": "Supports wildcard matching (*.test.com, 192.168.0.0/16)",
+      "title": "Network Proxy"
     },
     "quickAssistant": {
       "click_tray_to_show": "Click the tray icon to start",
@@ -7215,13 +7222,6 @@
       "all_disable": "Disable All",
       "all_enable": "Enable All",
       "bind_first_to_enable": "Bind a shortcut first to change its enabled state",
-      "categories": {
-        "assistant": "AI Tools",
-        "chat": "Messages",
-        "general": "General",
-        "title": "Shortcut Groups",
-        "topic": "Conversations"
-      },
       "clear_shortcut": "Clear Shortcut",
       "clear_topic": "Clear Messages",
       "close_tab": "Close Tab",

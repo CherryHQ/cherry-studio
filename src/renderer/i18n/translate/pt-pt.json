@@ -1757,10 +1757,16 @@
         "label": "Habilitar ferramenta de visualização",
         "tip": "Ativar ferramentas de visualização para imagens renderizadas de blocos de código como mermaid"
       },
+      "code_tools": {
+        "title": "[to be translated]:Code Tools"
+      },
       "code_wrappable": "Bloco de código com quebra de linha",
       "context_count": {
         "label": "Número de contexto",
         "tip": "Número de mensagens a serem mantidas no contexto. Quanto maior o número, mais longo será o contexto e mais tokens serão consumidos. Para conversas normais, é recomendado um valor entre 5-10"
+      },
+      "input_editor": {
+        "title": "[to be translated]:Input & Editor"
       },
       "max": "Sem limite",
       "max_tokens": {
@@ -7159,7 +7165,8 @@
         "system": "Proxy do Sistema",
         "title": "Modo de Proxy"
       },
-      "tip": "suporte a correspondência fuzzy (*.test.com, 192.168.0.0/16)"
+      "tip": "suporte a correspondência fuzzy (*.test.com, 192.168.0.0/16)",
+      "title": "[to be translated]:Network Proxy"
     },
     "quickAssistant": {
       "click_tray_to_show": "Clique no ícone da bandeja para iniciar",
@@ -7215,13 +7222,6 @@
       "all_disable": "Desativar Todos",
       "all_enable": "Ativar Todos",
       "bind_first_to_enable": "Primeiro, vincule um atalho para alterar o seu estado ativado",
-      "categories": {
-        "assistant": "Ferramentas de Assistente de IA",
-        "chat": "Interação de Mensagem",
-        "general": "Global e Janela",
-        "title": "Grupos de Atalhos",
-        "topic": "Conversa e Tópicos"
-      },
       "clear_shortcut": "Limpar atalho",
       "clear_topic": "Limpar mensagem",
       "close_tab": "Fechar Aba",

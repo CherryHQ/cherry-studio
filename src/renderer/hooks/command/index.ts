@@ -21,11 +21,6 @@ export {
   useCommandRuntime,
   useCommandShortcutPreferences
 } from './useCommandRuntime'
-export {
-  getAllShortcutDefaultPreferences,
-  type ShortcutListItem,
-  type ShortcutSettingsGroup,
-  useCommandShortcuts
-} from './useCommandShortcuts'
+export { getAllShortcutDefaultPreferences, type ShortcutListItem, useCommandShortcuts } from './useCommandShortcuts'
 export { useResolvedCommand } from './useResolvedCommand'
 export { useResolvedCommandMenu } from './useResolvedCommandMenu'
