@@ -10,7 +10,7 @@ import {
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
-import { canManageProvider, isAnthropicSupportedProvider } from '@shared/utils/provider'
+import { canManageProvider, isAgentSupportedProvider } from '@shared/utils/provider'
 import { Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -114,7 +114,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       if (filterMode === 'disabled' && provider.isEnabled) {
         return false
       }
-      if (filterMode === 'agent' && !isAnthropicSupportedProvider(provider)) {
+      if (filterMode === 'agent' && !isAgentSupportedProvider(provider)) {
         return false
       }
       const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)

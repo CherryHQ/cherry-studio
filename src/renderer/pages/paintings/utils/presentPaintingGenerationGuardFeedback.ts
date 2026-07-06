@@ -1,18 +1,13 @@
-import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import { popup } from '@renderer/services/popup'
-import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
+import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import { toast } from '@renderer/services/toast'
 
 import { createPaintingGenerateError, presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import type { PaintingGenerationGuardReason } from '../hooks/usePaintingGenerationGuard'
 
-const logger = loggerService.withContext('paintings')
-
 function openProviderSettings(providerId: string) {
-  openSettingsWindow(`/settings/provider?id=${encodeURIComponent(providerId)}`).catch((error) => {
-    logger.error('Failed to open provider settings window', error)
-  })
+  openSettingsTab(`/settings/provider?id=${encodeURIComponent(providerId)}`)
 }
 
 export function presentPaintingGenerationGuardFeedback(

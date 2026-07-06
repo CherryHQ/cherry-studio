@@ -34,6 +34,8 @@ const WebviewContainer = memo(
       (element: WebviewTag | null) => {
         onSetRefCallback(appid, element)
         if (element) {
+          // React omits unknown boolean attributes; Electron enables popups by attribute presence.
+          element.setAttribute('allowpopups', 'true')
           webviewRef.current = element
         } else {
           webviewRef.current = null
@@ -182,7 +184,6 @@ const WebviewContainer = memo(
         ref={handleRef}
         data-mini-app-id={appid}
         style={WebviewStyle}
-        allowpopups={true}
         partition="persist:webview"
         useragent={
           appid === 'google'

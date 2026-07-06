@@ -20,44 +20,48 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
   const { t } = useTranslation()
   const [selecting, setSelecting] = useState<boolean>(false)
 
-  const openFileSelectDialog = useCallback(async () => {
-    if (selecting) {
-      return
-    }
-    // when the number of extensions is greater than 20, use *.* to avoid selecting window lag
-    const useAllFiles = extensions.length > 20
-
-    setSelecting(true)
-    const _files = await window.api.file.select({
-      properties: ['openFile', 'multiSelections'],
-      filters: [
-        {
-          name: 'Files',
-          extensions: useAllFiles ? ['*'] : extensions.map((i) => i.replace('.', ''))
-        }
-      ]
-    })
-    setSelecting(false)
-
-    if (_files) {
-      if (!useAllFiles) {
-        setFiles((currentFiles) => [...currentFiles, ...toComposerAttachments(_files)])
+  const openFileSelectDialog = useCallback(
+    async (restoreFocus?: () => void) => {
+      if (selecting) {
         return
       }
-      const supportedFiles = await filterSupportedFiles(_files, extensions)
-      if (supportedFiles.length > 0) {
-        setFiles((currentFiles) => [...currentFiles, ...toComposerAttachments(supportedFiles)])
-      }
+      // when the number of extensions is greater than 20, use *.* to avoid selecting window lag
+      const useAllFiles = extensions.length > 20
 
-      if (supportedFiles.length !== _files.length) {
-        toast.info(
-          t('chat.input.file_not_supported_count', {
-            count: _files.length - supportedFiles.length
-          })
-        )
+      setSelecting(true)
+      const _files = await window.api.file.select({
+        properties: ['openFile', 'multiSelections'],
+        filters: [
+          {
+            name: 'Files',
+            extensions: useAllFiles ? ['*'] : extensions.map((i) => i.replace('.', ''))
+          }
+        ]
+      })
+      setSelecting(false)
+      window.requestAnimationFrame(() => restoreFocus?.())
+
+      if (_files) {
+        if (!useAllFiles) {
+          setFiles((currentFiles) => [...currentFiles, ...toComposerAttachments(_files)])
+          return
+        }
+        const supportedFiles = await filterSupportedFiles(_files, extensions)
+        if (supportedFiles.length > 0) {
+          setFiles((currentFiles) => [...currentFiles, ...toComposerAttachments(supportedFiles)])
+        }
+
+        if (supportedFiles.length !== _files.length) {
+          toast.info(
+            t('chat.input.file_not_supported_count', {
+              count: _files.length - supportedFiles.length
+            })
+          )
+        }
       }
-    }
-  }, [extensions, selecting, setFiles, t])
+    },
+    [extensions, selecting, setFiles, t]
+  )
 
   useEffect(() => {
     const isDocumentOnly = !couldAddImageFile
@@ -73,8 +77,8 @@ const useAttachmentToolController = ({ launcher, couldAddImageFile, extensions, 
         icon: <Paperclip />,
         suffix: isDocumentOnly ? t('chat.input.upload.document_only') : undefined,
         disabled,
-        action: () => {
-          void openFileSelectDialog()
+        action: ({ inputAdapter }) => {
+          void openFileSelectDialog(inputAdapter?.focus)
         }
       }
     ])

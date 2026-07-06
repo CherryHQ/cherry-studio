@@ -314,17 +314,33 @@ describe('ProviderList', () => {
     })
   })
 
-  it('applies an external filter hint without making the page own list filter state', () => {
+  it('applies the agent filter hint without hiding gateway-routable providers', () => {
     const onSelectProvider = vi.fn()
+    useProvidersMock.mockReturnValue({
+      providers: [
+        ...providers,
+        {
+          id: 'gemini',
+          name: 'Gemini',
+          presetProviderId: 'gemini',
+          defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+          authType: 'api-key',
+          isEnabled: true
+        }
+      ],
+      createProvider: vi.fn()
+    })
     const { rerender } = render(<ProviderList selectedProviderId="openai" onSelectProvider={onSelectProvider} />)
 
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
+    expect(screen.getByText('Gemini')).toBeInTheDocument()
 
     rerender(<ProviderList selectedProviderId="openai" filterModeHint="agent" onSelectProvider={onSelectProvider} />)
 
-    expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
+    expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
+    expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
     const filterButton = screen.getByRole('button', { name: '筛选服务商' })
     expect(filterButton).not.toHaveClass('bg-primary/10')
     expect(filterButton.querySelector('svg')).toHaveClass('text-primary!')

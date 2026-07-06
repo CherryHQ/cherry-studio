@@ -109,7 +109,7 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
   const [executionResult, setExecutionResult] = useState<{ text: string; image?: string } | null>(null)
 
   const [tools, setTools] = useState<ActionTool[]>([])
-  const codeEditorEnabled = codeEditor.enabled && editable
+  const codeEditorEnabled = codeEditor.enabled && editable && !isStreaming
 
   const isExecutable = useMemo(() => {
     return codeExecutionEnabled && language === 'python'
@@ -304,6 +304,9 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
           maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
           onRequestExpand={codeCollapsible ? () => setExpandOverride(true) : undefined}
           autoScrollToBottom={isStreaming && !shouldExpand}
+          options={{
+            highlight: !isStreaming
+          }}
         />
       ),
     [

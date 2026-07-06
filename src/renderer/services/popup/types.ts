@@ -47,8 +47,9 @@ type ConfirmButtonProps = {
 
 /**
  * The prefab-dialog config for confirm/error/info/warning. Mirrors the antd-era
- * modal surface minus its throwaway parts: no `afterClose` (no call site consumes
- * it), no `destroyAll`/`update`/`destroy` handle (prefabs return a plain
+ * modal surface minus its throwaway parts: no generic `afterClose` hook (the one
+ * real post-close need — returning focus — is served by the narrower `focusOnClose`
+ * below), no `destroyAll`/`update`/`destroy` handle (prefabs return a plain
  * `Promise<boolean>`), no `warn`/`success`.
  */
 export interface ConfirmPopupProps {
@@ -69,6 +70,21 @@ export interface ConfirmPopupProps {
   rootClassName?: string
   style?: React.CSSProperties
   okCancel?: boolean
+  /**
+   * Place focus when the dialog closes, overriding Radix's default focus-return.
+   *
+   * Radix's default: on close its `FocusScope` returns focus to whatever element was
+   * focused right before the dialog opened. That is correct for a button-triggered
+   * dialog, but wrong for an imperatively-opened popup whose opener is gone by close
+   * time (e.g. a popover / command-menu item that has since unmounted) — Radix then
+   * lands focus on a stale element or the document body.
+   *
+   * Provide `focusOnClose` to take over: the host suppresses that default (Radix
+   * `onCloseAutoFocus` + `preventDefault`) and calls this instead, so focus lands
+   * exactly where you put it with no race and no `requestAnimationFrame` — e.g.
+   * `() => triggerButton.focus()`. Omit to keep Radix's default.
+   */
+  focusOnClose?: () => void
 }
 
 interface PopupEntryBase {

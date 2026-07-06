@@ -1,8 +1,8 @@
 import { popup } from '@renderer/services/popup'
+import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import { isEmpty } from 'es-toolkit/compat'
 import i18next from 'i18next'
 
-import { openSettingsWindow } from '../../../services/SettingsWindowService'
 import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
 
 /**
@@ -14,7 +14,7 @@ import type { PaintingProviderRuntime } from '../model/types/paintingProviderRun
 export const NO_AUTH_PROVIDER_IDS: ReadonlySet<string> = new Set(['ovms'])
 
 function navigateToProviderSettings(providerId: string) {
-  void openSettingsWindow(`/settings/provider?id=${encodeURIComponent(providerId)}`)
+  openSettingsTab(`/settings/provider?id=${encodeURIComponent(providerId)}`)
 }
 
 export async function checkProviderEnabled(provider: PaintingProviderRuntime): Promise<string> {

@@ -127,6 +127,16 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
         overlayClassName="z-[90]"
         className={cn('confirm-popup z-[90] gap-5 sm:max-w-lg', props.rootClassName, props.className)}
         style={getContentStyle(props)}
+        onCloseAutoFocus={
+          props.focusOnClose
+            ? (event) => {
+                // Take over close focus so Radix's default focus-return can't
+                // clobber it: suppress the default, then place focus ourselves.
+                event.preventDefault()
+                props.focusOnClose?.()
+              }
+            : undefined
+        }
         onInteractOutside={(event) => {
           if (props.maskClosable === false) {
             event.preventDefault()

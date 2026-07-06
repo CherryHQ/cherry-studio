@@ -14,7 +14,7 @@ import { isGemini3Model, isGeminiModel, isGPT5SeriesReasoningModel, isOpenAIWebS
 import { isGeminiWebSearchProvider } from '@shared/utils/provider'
 import { useNavigate } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, MouseEventHandler } from 'react'
 import { memo, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -78,44 +78,62 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
       : undefined
   const isDisabled = Boolean(disabledReason)
 
-  const onClick = useCallback(() => {
-    if (!assistant || !model) {
-      toast.error(t('error.model.not_exists'))
-      return
-    }
-    if (enableWebSearch) {
-      void updateAssistant({ settings: { enableWebSearch: false } })
-      return
-    }
+  const onClick = useCallback(
+    (restoreFocus?: () => void) => {
+      if (!assistant || !model) {
+        toast.error(t('error.model.not_exists'))
+        return
+      }
+      if (enableWebSearch) {
+        void updateAssistant({ settings: { enableWebSearch: false } })
+        return
+      }
 
-    // Built-in web search bypasses the external-provider requirement; the
-    // toggle simply flips the assistant flag and the model handles search.
-    if (!hasBuiltinWebSearch && !activeProviderId) {
-      popup.confirm({
-        centered: true,
-        title: t('settings.tool.websearch.search_provider'),
-        content: t('settings.tool.websearch.search_provider_placeholder'),
-        onOk: () => navigate({ to: '/settings/websearch' })
-      })
-      return
-    }
+      // Built-in web search bypasses the external-provider requirement; the
+      // toggle simply flips the assistant flag and the model handles search.
+      if (!hasBuiltinWebSearch && !activeProviderId) {
+        let navigatedAway = false
 
-    if (disabledReason) {
-      return
-    }
+        void popup.confirm({
+          centered: true,
+          title: t('settings.tool.websearch.search_provider'),
+          content: t('settings.tool.websearch.search_provider_placeholder'),
+          // Return focus to the trigger (button or composer input) once the dialog
+          // closes, unless the user navigated to settings. focusOnClose overrides
+          // Radix's default focus-return, so there is no race and no rAF needed.
+          focusOnClose: restoreFocus
+            ? () => {
+                if (!navigatedAway) {
+                  restoreFocus()
+                }
+              }
+            : undefined,
+          onOk: () => {
+            navigatedAway = true
+            return navigate({ to: '/settings/websearch' })
+          }
+        })
+        return
+      }
 
-    void updateAssistant({ settings: { enableWebSearch: true } })
-  }, [
-    activeProviderId,
-    assistant,
-    disabledReason,
-    enableWebSearch,
-    hasBuiltinWebSearch,
-    navigate,
-    t,
-    updateAssistant,
-    model
-  ])
+      if (disabledReason) {
+        return
+      }
+
+      void updateAssistant({ settings: { enableWebSearch: true } })
+    },
+    [
+      activeProviderId,
+      assistant,
+      disabledReason,
+      enableWebSearch,
+      hasBuiltinWebSearch,
+      navigate,
+      t,
+      updateAssistant,
+      model
+    ]
+  )
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')
   const tooltipTitle = disabledReason ?? ariaLabel
@@ -136,7 +154,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         active: enableWebSearch,
         disabled: isDisabled,
         disabledReason,
-        action: onClick
+        action: ({ inputAdapter }) => onClick(inputAdapter?.focus)
       }
     ])
   }, [disabledReason, enableWebSearch, icon, isDisabled, launcher, onClick, t])
@@ -151,11 +169,18 @@ export const WebSearchToolRuntime: FC<Props> = (props) => {
 
 const WebSearchButton: FC<Props> = (props) => {
   const { ariaLabel, enableWebSearch, icon, isDisabled, onClick, tooltipTitle } = useWebSearchToolController(props)
+  const handleClick = useCallback<MouseEventHandler<HTMLButtonElement>>(
+    (event) => {
+      const trigger = event.currentTarget
+      onClick(() => trigger.focus())
+    },
+    [onClick]
+  )
 
   return (
     <Tooltip placement="top" content={tooltipTitle}>
       <ActionIconButton
-        onClick={onClick}
+        onClick={handleClick}
         active={enableWebSearch}
         aria-label={ariaLabel}
         aria-pressed={enableWebSearch}

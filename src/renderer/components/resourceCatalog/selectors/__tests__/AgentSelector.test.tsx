@@ -453,6 +453,23 @@ describe('AgentSelector', () => {
     expect(screen.getByPlaceholderText('Describe this resource')).toBeInTheDocument()
   })
 
+  it('calls the dialog-close autofocus callback when the create dialog closes', async () => {
+    const onDialogCloseAutoFocus = vi.fn()
+    render(
+      <AgentSelector
+        trigger={<button type="button">Open</button>}
+        value={null}
+        onChange={vi.fn()}
+        onDialogCloseAutoFocus={onDialogCloseAutoFocus}
+      />
+    )
+    await openCreateDialog()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
+  })
+
   it('creates an agent, refreshes, reopens the selector, and does not auto-select by default', async () => {
     const { onChange } = renderSelector()
     await openCreateDialog()
@@ -543,6 +560,46 @@ describe('AgentSelector', () => {
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
     expect(screen.queryByPlaceholderText('Search agents')).not.toBeInTheDocument()
+  })
+
+  it('calls the dialog-close autofocus callback when the edit dialog closes', async () => {
+    const onDialogCloseAutoFocus = vi.fn()
+    render(
+      <AgentSelector
+        trigger={<button type="button">Open</button>}
+        value={null}
+        onChange={vi.fn()}
+        onDialogCloseAutoFocus={onDialogCloseAutoFocus}
+      />
+    )
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
+    expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
+  })
+  it('calls the dialog-close autofocus callback once when saving the edit dialog', async () => {
+    const onDialogCloseAutoFocus = vi.fn()
+    render(
+      <AgentSelector
+        trigger={<button type="button">Open</button>}
+        value={null}
+        onChange={vi.fn()}
+        onDialogCloseAutoFocus={onDialogCloseAutoFocus}
+      />
+    )
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
+    expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Saved Agent' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
+    await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
+    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
   })
 
   it('does not show the empty state while the agents query is loading', () => {

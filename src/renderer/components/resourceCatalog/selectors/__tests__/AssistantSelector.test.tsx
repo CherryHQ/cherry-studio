@@ -365,6 +365,24 @@ describe('AssistantSelector', () => {
     expect(screen.getByPlaceholderText('Describe this resource')).toBeInTheDocument()
   })
 
+  it('calls the dialog-close autofocus callback when the create dialog closes', async () => {
+    const onDialogCloseAutoFocus = vi.fn()
+    render(
+      <AssistantSelector
+        trigger={<button type="button">Open</button>}
+        multi={false}
+        value={null}
+        onChange={vi.fn()}
+        onDialogCloseAutoFocus={onDialogCloseAutoFocus}
+      />
+    )
+    await openCreateDialog()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
+  })
+
   it('creates an assistant, refreshes, reopens the selector, and does not auto-select by default', async () => {
     const onChange = vi.fn()
     render(
@@ -435,6 +453,48 @@ describe('AssistantSelector', () => {
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
     expect(screen.queryByPlaceholderText('Search assistants')).not.toBeInTheDocument()
+  })
+
+  it('calls the dialog-close autofocus callback when the edit dialog closes', async () => {
+    const onDialogCloseAutoFocus = vi.fn()
+    render(
+      <AssistantSelector
+        trigger={<button type="button">Open</button>}
+        multi={false}
+        value={null}
+        onChange={vi.fn()}
+        onDialogCloseAutoFocus={onDialogCloseAutoFocus}
+      />
+    )
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit assistant' })[0])
+    expect(await screen.findByRole('heading', { name: 'Edit Assistant' }, { timeout: 5000 })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
+  })
+  it('calls the dialog-close autofocus callback once when saving the edit dialog', async () => {
+    const onDialogCloseAutoFocus = vi.fn()
+    render(
+      <AssistantSelector
+        trigger={<button type="button">Open</button>}
+        multi={false}
+        value={null}
+        onChange={vi.fn()}
+        onDialogCloseAutoFocus={onDialogCloseAutoFocus}
+      />
+    )
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit assistant' })[0])
+    expect(await screen.findByRole('heading', { name: 'Edit Assistant' }, { timeout: 5000 })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Saved Assistant' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
+    await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
+    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
   })
 
   it('notifies when created assistant cannot be refreshed into the selector', async () => {

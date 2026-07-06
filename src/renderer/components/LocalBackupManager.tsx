@@ -192,12 +192,12 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
     {
       accessorKey: 'fileName',
       header: t('settings.data.local.backup.manager.columns.fileName'),
-      meta: { width: 'calc(100% - 460px)', className: 'min-w-0' },
+      meta: { width: 'calc(100% - 504px)', className: 'min-w-0' },
       cell: ({ getValue }) => {
         const fileName = getValue() as string
         return (
-          <Tooltip content={fileName} placement="top-start">
-            <span className="block truncate">{fileName}</span>
+          <Tooltip content={fileName} placement="top-start" fullWidthTrigger>
+            <span className="block w-full min-w-0 truncate">{fileName}</span>
           </Tooltip>
         )
       }

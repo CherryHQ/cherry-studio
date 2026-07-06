@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
 const launcherApi: ToolLauncherApi = {
   registerLaunchers: vi.fn(() => vi.fn())
 }
-
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18next>()
 
@@ -146,10 +145,12 @@ describe('WebSearchButton', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_fetch_urls_provider', null)
   })
 
-  it('opens web search settings and does not update the assistant when external providers are missing', () => {
+  it('opens web search settings and restores trigger focus when external providers are missing', () => {
+    vi.mocked(popup.confirm).mockResolvedValue(false)
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
+    const button = screen.getByRole('button', { name: 'chat.input.web_search.label' })
+    fireEvent.click(button)
 
     expect(popup.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -157,7 +158,26 @@ describe('WebSearchButton', () => {
         content: 'settings.tool.websearch.search_provider_placeholder'
       })
     )
+    const confirmOptions = vi.mocked(popup.confirm).mock.calls[0][0]
+    confirmOptions.focusOnClose?.()
+
+    expect(button).toHaveFocus()
     expect(mocks.updateAssistant).not.toHaveBeenCalled()
+  })
+
+  it('does not restore trigger focus after confirming the missing-provider navigation', async () => {
+    vi.mocked(popup.confirm).mockResolvedValue(false)
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    const button = screen.getByRole('button', { name: 'chat.input.web_search.label' })
+    fireEvent.click(button)
+
+    const confirmOptions = vi.mocked(popup.confirm).mock.calls[0][0]
+    await confirmOptions.onOk?.()
+    confirmOptions.focusOnClose?.()
+
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/websearch' })
+    expect(button).not.toHaveFocus()
   })
 
   it('disables web search when the configured provider cannot be consumed by the current model', async () => {
@@ -205,5 +225,31 @@ describe('WebSearchButton', () => {
       id: 'web-search',
       sources: ['popover']
     })
+  })
+
+  it('restores composer focus after the missing-provider confirmation closes from the tool menu', async () => {
+    vi.mocked(popup.confirm).mockResolvedValue(false)
+    const inputAdapter = {
+      getText: vi.fn(() => ''),
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    await waitFor(() => expect(launcherApi.registerLaunchers).toHaveBeenCalled())
+    const [webSearchLauncher] = vi.mocked(launcherApi.registerLaunchers).mock.calls[0][0]
+
+    webSearchLauncher.action?.({
+      inputAdapter,
+      quickPanel: {} as never,
+      source: 'popover'
+    })
+
+    const confirmOptions = vi.mocked(popup.confirm).mock.calls[0][0]
+    confirmOptions.focusOnClose?.()
+
+    expect(inputAdapter.focus).toHaveBeenCalledTimes(1)
   })
 })
