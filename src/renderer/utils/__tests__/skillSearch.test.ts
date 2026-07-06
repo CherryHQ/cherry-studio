@@ -6,7 +6,7 @@ import {
 } from '@shared/types/skill'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { normalizeClaudePlugins, searchSkills } from '../skillSearch'
+import { normalizeClaudePlugins, searchSkills, SKILL_SEARCH_FAILED_ERROR } from '../skillSearch'
 import claudePluginsFixture from './fixtures/claude-plugins-search.json'
 import clawhubDetailFixture from './fixtures/clawhub-detail.json'
 import clawhubSearchFixture from './fixtures/clawhub-search.json'
@@ -292,7 +292,24 @@ describe('searchSkills', () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error('network down'))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(searchSkills('vercel')).rejects.toThrow('Search failed')
+    await expect(searchSkills('vercel')).rejects.toThrow(SKILL_SEARCH_FAILED_ERROR)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('should reject when one registry returns malformed data and all others fail', async () => {
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      if (url.toString().startsWith('https://skills.sh/')) {
+        return {
+          ok: true,
+          json: async () => ({ skills: [{ id: 'missing-required-fields' }] })
+        } as Response
+      }
+
+      throw new Error('network down')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(searchSkills('vercel')).rejects.toThrow(SKILL_SEARCH_FAILED_ERROR)
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })

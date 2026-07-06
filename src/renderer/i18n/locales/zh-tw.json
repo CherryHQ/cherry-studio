@@ -3371,6 +3371,7 @@
       "empty_title": "搜尋技能",
       "no_results_description": "請嘗試其他關鍵字,或本機匯入 ZIP 檔案/目錄。",
       "no_results_title": "未找到技能",
+      "search_failed_description": "搜尋失敗,請稍後再試。",
       "search_placeholder": "搜尋技能...",
       "subtitle": "搜尋線上技能源,並將技能安裝到全域資源庫。",
       "title": "線上搜尋技能"

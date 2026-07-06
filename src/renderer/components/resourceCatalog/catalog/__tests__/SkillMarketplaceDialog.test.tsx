@@ -238,6 +238,19 @@ describe('SkillMarketplaceDialog', () => {
     expect(screen.getByRole('radio', { name: /claude-plugins.dev/ })).toBeDisabled()
   })
 
+  it('shows a localized marketplace error message when search fails', async () => {
+    const user = userEvent.setup()
+    skillSearchState.results = []
+    skillSearchState.error = 'Search failed'
+    renderDialog()
+
+    await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'react')
+
+    expect(screen.getByText('common.error')).toBeInTheDocument()
+    expect(screen.getByText('library.skill_marketplace.search_failed_description')).toBeInTheDocument()
+    expect(screen.queryByText('Search failed')).not.toBeInTheDocument()
+  })
+
   it('installs a marketplace skill, keeps the dialog open, and notifies the parent', async () => {
     const user = userEvent.setup()
     const onInstalled = vi.fn()

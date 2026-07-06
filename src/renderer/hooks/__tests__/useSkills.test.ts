@@ -18,6 +18,7 @@ vi.mock('@data/hooks/useDataApi', () => ({
 
 import type { InstalledSkill } from '@shared/types/skill'
 
+import { SKILL_SEARCH_FAILED_ERROR } from '../../utils/skillSearch'
 import { useAvailableSkills, useInstalledSkills, useSkillInstall, useSkillSearch } from '../useSkills'
 
 function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
@@ -361,6 +362,6 @@ describe('useSkillSearch', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3)
     expect(result.current.results).toEqual([])
     expect(result.current.searching).toBe(false)
-    expect(result.current.error).toBe('Search failed')
+    expect(result.current.error).toBe(SKILL_SEARCH_FAILED_ERROR)
   })
 })

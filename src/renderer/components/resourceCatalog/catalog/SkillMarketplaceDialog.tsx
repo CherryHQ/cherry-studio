@@ -229,7 +229,14 @@ function SkillSearchBody({
   }
 
   if (error) {
-    return <EmptyState preset="no-result" title={t('common.error')} description={error} className="min-h-0 flex-1" />
+    return (
+      <EmptyState
+        preset="no-result"
+        title={t('common.error')}
+        description={t('library.skill_marketplace.search_failed_description')}
+        className="min-h-0 flex-1"
+      />
+    )
   }
 
   if (results.length === 0) {

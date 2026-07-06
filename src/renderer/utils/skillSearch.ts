@@ -14,6 +14,7 @@ const SKILLS_SH_API = 'https://skills.sh/api/search'
 const CLAWHUB_API = 'https://clawhub.ai/api/v1/search'
 
 const REQUEST_TIMEOUT_MS = 15_000
+export const SKILL_SEARCH_FAILED_ERROR = 'skill_search_failed'
 
 // ===========================================================================
 // Normalizers: source-specific response → unified SkillSearchResult[]
@@ -21,7 +22,7 @@ const REQUEST_TIMEOUT_MS = 15_000
 
 export function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
   const parsed = ClaudePluginsSearchResponseSchema.safeParse(raw)
-  if (!parsed.success) return []
+  if (!parsed.success) throw new Error('Invalid claude-plugins.dev search response')
 
   return parsed.data.skills.flatMap((s) => {
     const repoOwner = s.metadata?.repoOwner ?? ''
@@ -48,7 +49,7 @@ export function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
 
 function normalizeSkillsSh(raw: unknown): SkillSearchResult[] {
   const parsed = SkillsShSearchResponseSchema.safeParse(raw)
-  if (!parsed.success) return []
+  if (!parsed.success) throw new Error('Invalid skills.sh search response')
 
   return parsed.data.skills.map((s) => ({
     slug: s.id,
@@ -65,7 +66,7 @@ function normalizeSkillsSh(raw: unknown): SkillSearchResult[] {
 
 function normalizeClawhub(raw: unknown): SkillSearchResult[] {
   const parsed = ClawhubSearchResponseSchema.safeParse(raw)
-  if (!parsed.success) return []
+  if (!parsed.success) throw new Error('Invalid clawhub.ai search response')
 
   return parsed.data.results.map((s) => ({
     slug: s.slug,
@@ -161,7 +162,7 @@ export async function searchSkills(query: string): Promise<SkillSearchResult[]> 
   }
 
   if (failedSourceCount === sources.length) {
-    throw new Error('Search failed')
+    throw new Error(SKILL_SEARCH_FAILED_ERROR)
   }
 
   // Deduplicate by name (keep first occurrence = fastest source)

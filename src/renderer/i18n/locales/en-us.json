@@ -3371,6 +3371,7 @@
       "empty_title": "Search for skills",
       "no_results_description": "Try another keyword or import a local ZIP or directory.",
       "no_results_title": "No skills found",
+      "search_failed_description": "Search failed. Please try again later.",
       "search_placeholder": "Search skills...",
       "subtitle": "Search online skill registries and install skills into the global library.",
       "title": "Online skill search"
