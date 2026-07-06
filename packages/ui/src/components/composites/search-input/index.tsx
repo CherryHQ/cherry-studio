@@ -48,7 +48,13 @@ function SearchInput({ className, value, disabled, onClear, clearLabel, ...props
       />
       {showClear && (
         <InputGroupAddon align="inline-end">
-          <InputGroupButton type="button" size="icon-xs" aria-label={clearLabel} disabled={disabled} onClick={onClear}>
+          <InputGroupButton
+            type="button"
+            size="icon-xs"
+            aria-label={clearLabel}
+            disabled={disabled}
+            onClick={onClear}
+            className="rounded-full text-foreground-muted hover:bg-transparent hover:text-foreground">
             <X className="size-3.5" />
           </InputGroupButton>
         </InputGroupAddon>
