@@ -460,7 +460,10 @@ export function AssistantResourceList({
         }
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAssistantClick?.()}
-        onReorder={handleReorder}
+        // Reorder persists the global assistant `orderKey`; tag grouping only scopes drops
+        // visually, so dragging within a tag would still move the assistant in the global
+        // order. Disable reorder while grouping by tag until a tag-scoped ordering exists.
+        onReorder={isTagGrouping ? undefined : handleReorder}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
       />

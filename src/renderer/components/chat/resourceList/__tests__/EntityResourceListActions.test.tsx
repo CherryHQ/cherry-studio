@@ -117,20 +117,27 @@ vi.mock('@renderer/components/chat/resourceList/useResourceEntityRail', () => ({
 vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
   ResourceEntityRail: ({
     getContextMenuActions,
+    groupByTag,
     headerActions,
     items,
-    onContextMenuAction
+    onContextMenuAction,
+    onReorder
   }: {
     getContextMenuActions?: (item: ResourceEntityRailItem) => readonly ResolvedAction[]
+    groupByTag?: boolean
     headerActions?: ReactNode
     items: readonly ResourceEntityRailItem[]
     onContextMenuAction?: (item: ResourceEntityRailItem, action: ResolvedAction) => void | Promise<void>
+    onReorder?: unknown
   }) => {
     const flattenActions = (actions: readonly ResolvedAction[]): readonly ResolvedAction[] =>
       actions.flatMap((action) => [action, ...flattenActions(action.children)])
 
     return (
-      <div>
+      <div
+        data-testid="resource-entity-rail"
+        data-group-by-tag={String(!!groupByTag)}
+        data-reorder={onReorder ? 'enabled' : 'disabled'}>
         {headerActions}
         {items.map((item) => {
           const actions = getContextMenuActions?.(item) ?? []
@@ -467,6 +474,24 @@ describe('classic layout entity resource list actions', () => {
     await waitFor(() => expect(assistantDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
     expect(onCreateTopicAfterClear).toHaveBeenCalledWith('assistant-2')
     expect(window.toast.error).not.toHaveBeenCalled()
+  })
+
+  it('disables classic assistant rail reorder while grouping by tag', () => {
+    const props = { activeAssistantId: 'assistant-1', onSelectTopic: vi.fn(), onStartDraftAssistant: vi.fn() }
+
+    preferenceMocks.sortType = 'list'
+    const { rerender } = render(<AssistantResourceList {...props} />)
+    const railInList = screen.getByTestId('resource-entity-rail')
+    expect(railInList).toHaveAttribute('data-group-by-tag', 'false')
+    expect(railInList).toHaveAttribute('data-reorder', 'enabled')
+
+    // Reorder persists the global assistant orderKey, so it must be disabled under tag
+    // grouping to avoid moving assistants across unrelated tags in the global order.
+    preferenceMocks.sortType = 'tags'
+    rerender(<AssistantResourceList {...props} />)
+    const railInTags = screen.getByTestId('resource-entity-rail')
+    expect(railInTags).toHaveAttribute('data-group-by-tag', 'true')
+    expect(railInTags).toHaveAttribute('data-reorder', 'disabled')
   })
 
   it('toggles assistant tag grouping from the context menu (list → tags)', () => {
