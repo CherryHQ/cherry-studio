@@ -34,7 +34,7 @@ import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import {
   settingsContentScrollClassName,
   settingsSubmenuItemClassName,
