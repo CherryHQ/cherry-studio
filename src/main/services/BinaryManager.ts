@@ -662,15 +662,16 @@ export class BinaryManager extends BaseService {
     })
     await Promise.all(workers)
 
-    await this.stateMutex.runExclusive(async () => {
+    return this.stateMutex.runExclusive(async () => {
       const current = Object.entries(this.loadState().tools)
         .map(([name, { tool }]) => `${name}@${tool}`)
         .join('|')
-      if (current === snapshot) {
-        application.get('CacheService').setShared('feature.binary.latest_versions', result)
+      if (current !== snapshot) {
+        return {}
       }
+      application.get('CacheService').setShared('feature.binary.latest_versions', result)
+      return result
     })
-    return result
   }
 
   private broadcastReconcileFailures(failed: ReconcileResult['failed']) {

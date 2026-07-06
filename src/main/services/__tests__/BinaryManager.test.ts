@@ -666,8 +666,9 @@ describe('BinaryManager', () => {
         return { stdout: '10.1.0\n', stderr: '' }
       })
 
-      await service.getLatestVersions(true)
+      const result = await service.getLatestVersions(true)
 
+      expect(result).toEqual({})
       expect(MockMainCacheServiceUtils.getMockCallCounts().setShared).toBe(setSharedAfterFirst)
     })
   })
