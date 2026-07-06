@@ -314,11 +314,12 @@ describe('finalize invariants', () => {
     expectInvariant(list, 12)
   })
 
-  it('#12 (B) rejects an uncovered JSON column when the contributor has opted in', () => {
+  it('#12 (B) rejects an uncovered JSON column on an owned table', () => {
     // PROMPTS owns 'prompt' which has NO JSON columns, so declaring a jsonSoftReference
     // elsewhere is fine. Instead use MCP_SERVERS (owns mcp_server, which has 7 JSON
     // columns). Declare ONE jsonSoftReference (mcp_server.args) + one exemptJsonCol
-    // (mcp_server.env) → opts in. The remaining 5 JSON columns are uncovered → #12.
+    // (mcp_server.env). The remaining 5 JSON columns are uncovered → #12 (no opt-in
+    // gate: exhaustiveness is unconditional on every owned JSON column).
     const list = patchSchema(buildFixture(), 'MCP_SERVERS', {
       jsonSoftReferences: [
         {
