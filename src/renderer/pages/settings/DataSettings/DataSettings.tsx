@@ -1,22 +1,22 @@
 import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
-import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
+import { NutstoreIcon } from '@renderer/components/icons/NutstoreIcons'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import ImportMenuOptions from '@renderer/pages/settings/DataSettings/ImportMenuSettings'
-import { CloudUpload, FileText, FolderCog, FolderInput, FolderOpen, Server } from 'lucide-react'
-import type { FC } from 'react'
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
 import {
-  SettingsContentColumn,
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
   settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
-} from '..'
+} from '@renderer/pages/settings/settingsStyles'
+import { CloudUpload, FileText, FolderCog, FolderInput, FolderOpen, Server } from 'lucide-react'
+import type { FC } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
 import BasicDataSettings from './BasicDataSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import LocalBackupSettings from './LocalBackupSettings'

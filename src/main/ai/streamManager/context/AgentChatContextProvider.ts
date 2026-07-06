@@ -52,13 +52,13 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const sessionId = extractAgentSessionId(req.topicId)
 
-    const session = await agentSessionService.getById(sessionId)
+    const session = agentSessionService.getById(sessionId)
     if (!session.agentId) {
       throw new Error(`Cannot dispatch on orphan session ${sessionId} — its agent was deleted`)
     }
 
     const agentId = session.agentId
-    const agent = await agentService.getAgent(agentId)
+    const agent = agentService.getAgent(agentId)
     if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${agentId}`)
     if (!agent.model) throw new Error(`Agent ${agent.id} has no model configured`)
 
@@ -99,7 +99,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       // Follow-up to an in-flight session: persist the user row, hand the message to the
       // runtime so it opens the next turn (interrupt → re-dispatch), and attach
       // the new subscriber. No new placeholder/model — that would orphan a row.
-      const savedUserMessage = await agentSessionMessageService.saveMessage({
+      const savedUserMessage = agentSessionMessageService.saveMessage({
         sessionId,
         message: {
           id: userMessageId,
@@ -109,7 +109,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         }
       })
       // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
-      void topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedUserMessage.data)
+      topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedUserMessage.data)
 
       application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage)
 
@@ -127,7 +127,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     // Container trace: one trace tree per session. The turn's `ai.turn` span is a
     // child under it; Claude Code child spans join via the connection's TRACEPARENT.
-    const traceId = await agentSessionService.ensureTraceId(sessionId)
+    const traceId = agentSessionService.ensureTraceId(sessionId)
     const turnTrace = startAiChildTurnSpan(
       'ai.turn',
       {
@@ -145,7 +145,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     )
 
     // Atomic user + pending-assistant write so `useAgentSessionParts` observes both at once.
-    const savedMessages = await agentSessionMessageService.saveMessages({
+    const savedMessages = agentSessionMessageService.saveMessages({
       sessionId,
       messages: [
         {
@@ -165,7 +165,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       ]
     })
     // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
-    void topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedMessages[0]?.data)
+    topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedMessages[0]?.data)
 
     // Author the turn span's input/identity here (where the agent + user message live).
     applyTurnInputAttributes(turnTrace.rootSpan, {

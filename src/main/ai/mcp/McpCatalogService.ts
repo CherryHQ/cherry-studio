@@ -91,8 +91,8 @@ export class McpCatalogService extends BaseService {
     this.prewarmCancelled = true
   }
 
-  private async getServerById(serverId: string): Promise<McpServer> {
-    return await mcpServerService.getById(serverId)
+  private getServerById(serverId: string): McpServer {
+    return mcpServerService.getById(serverId)
   }
 
   private writeToolsCache(serverId: string, tools: McpTool[]): void {
@@ -112,8 +112,13 @@ export class McpCatalogService extends BaseService {
     return application.get('McpRuntimeService')
   }
 
-  private async filterEnabledTools(server: McpServer, tools: McpTool[]): Promise<McpTool[]> {
-    const latestServer = await this.getServerById(server.id).catch(() => server)
+  private filterEnabledTools(server: McpServer, tools: McpTool[]): McpTool[] {
+    let latestServer: McpServer
+    try {
+      latestServer = this.getServerById(server.id)
+    } catch {
+      latestServer = server
+    }
     return tools.filter((tool) => !isMcpToolDisabledBySource(latestServer, tool))
   }
 
@@ -169,7 +174,7 @@ export class McpCatalogService extends BaseService {
       const tools = await withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [server])
       this.writeToolsCache(server.id, tools)
       this.runtimeService().setServerStatus(server.id, 'connected')
-      return options.includeDisabled ? tools : await this.filterEnabledTools(server, tools)
+      return options.includeDisabled ? tools : this.filterEnabledTools(server, tools)
     } catch (error) {
       this.writeToolsCache(server.id, [])
       this.runtimeService().setServerStatus(server.id, 'error', error)
@@ -186,7 +191,7 @@ export class McpCatalogService extends BaseService {
    * on-demand `refreshTools`). Cold cache → `[]`; the server's tools appear on a later
    * session once a warmer fills it (the SDK snapshots tools per session).
    */
-  public async listTools(serverId: string, options: ListToolsOptions = {}): Promise<McpTool[]> {
+  public listTools(serverId: string, options: ListToolsOptions = {}): McpTool[] {
     const cached = application.get('CacheService').getShared(mcpToolsCacheKey(serverId)) as McpTool[] | undefined
     // `undefined` = never warmed (distinct from a warmed-but-empty/dead server that holds `[]`).
     // Kick a one-shot, non-blocking refresh so the next read is populated; dead servers keep
@@ -194,7 +199,12 @@ export class McpCatalogService extends BaseService {
     if (cached === undefined) void this.refreshTools(serverId).catch(() => {})
     const tools = cached ?? []
     if (options.includeDisabled || tools.length === 0) return tools
-    const server = await this.getServerById(serverId).catch(() => undefined)
+    let server: McpServer | undefined
+    try {
+      server = this.getServerById(serverId)
+    } catch {
+      server = undefined
+    }
     return server ? tools.filter((tool) => !isMcpToolDisabledBySource(server, tool)) : tools
   }
 
@@ -209,14 +219,14 @@ export class McpCatalogService extends BaseService {
   }
 
   public async refreshTools(serverId: string): Promise<void> {
-    const server = await this.getServerById(serverId)
+    const server = this.getServerById(serverId)
     this.clearToolsCache(server)
     await this.listToolsForServer(server, { includeDisabled: true })
   }
 
   private async prewarmActiveServerTools(): Promise<void> {
     try {
-      const { items: servers } = await mcpServerService.list({ isActive: true })
+      const { items: servers } = mcpServerService.list({ isActive: true })
       for (let index = 0; index < servers.length; index += PREWARM_CONCURRENCY) {
         if (this.prewarmCancelled || this.isStopped || this.isDestroyed) return
         const batch = servers.slice(index, index + PREWARM_CONCURRENCY)

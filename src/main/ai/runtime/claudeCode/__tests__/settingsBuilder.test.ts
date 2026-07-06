@@ -1,4 +1,5 @@
 import type * as NodeModule from 'node:module'
+import path from 'node:path'
 
 import {
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
@@ -9,20 +10,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
-  reconcileAgentSkills: vi.fn(),
+  listSkills: vi.fn(),
+  listLocalSkills: vi.fn(),
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
   listChannels: vi.fn(),
   applicationGet: vi.fn(),
   applicationGetPath: vi.fn(),
-  getLoginShellEnvironment: vi.fn(),
+  getShellEnv: vi.fn(),
   getBinaryPath: vi.fn(),
   getProxyEnvironment: vi.fn(),
   getPathStatus: vi.fn(),
   getAppLanguage: vi.fn(),
   resolveRequire: vi.fn(),
-  loggerWarn: vi.fn()
+  loggerWarn: vi.fn(),
+  platform: { isMac: false },
+  isWin: false
 }))
 
 vi.mock('node:module', async (importOriginal) => {
@@ -72,7 +76,7 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
-  skillService: { reconcileAgentSkills: mocks.reconcileAgentSkills }
+  skillService: { list: mocks.listSkills, listLocal: mocks.listLocalSkills }
 }))
 
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
@@ -109,7 +113,12 @@ vi.mock('@main/core/application', () => ({
 
 vi.mock('@main/core/platform', () => ({
   isLinux: false,
-  isWin: false
+  get isWin() {
+    return mocks.isWin
+  },
+  get isMac() {
+    return mocks.platform.isMac
+  }
 }))
 
 vi.mock('@main/services/proxy/proxyEnv', () => ({
@@ -120,11 +129,11 @@ vi.mock('@main/utils/asar', () => ({
   toAsarUnpackedPath: (input: string) => input
 }))
 
-vi.mock('@main/utils/file/pathStatus', () => ({
+vi.mock('@main/utils/file', () => ({
   getPathStatus: mocks.getPathStatus
 }))
 
-vi.mock('@main/utils/language', () => ({
+vi.mock('@main/i18n', () => ({
   getAppLanguage: mocks.getAppLanguage,
   t: (key: string, params?: Record<string, unknown>) => {
     if (params?.path) return `${key}:${params.path}`
@@ -132,17 +141,20 @@ vi.mock('@main/utils/language', () => ({
   }
 }))
 
-vi.mock('@main/utils/process', () => ({
-  autoDiscoverGitBash: vi.fn(() => null),
+vi.mock('@main/utils/binaryResolver', () => ({
   getBinaryPath: mocks.getBinaryPath
+}))
+
+vi.mock('@main/utils/commandResolver', () => ({
+  autoDiscoverGitBash: vi.fn(() => null)
 }))
 
 vi.mock('@main/utils/rtk', () => ({
   rtkRewrite: vi.fn()
 }))
 
-vi.mock('@main/utils/shell-env', () => ({
-  default: mocks.getLoginShellEnvironment
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: mocks.getShellEnv
 }))
 
 vi.mock('../ToolApprovalRegistry', () => ({
@@ -164,7 +176,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       if (specifier === '@anthropic-ai/claude-agent-sdk') return '/sdk/index.js'
       return `/native/${specifier}/claude`
     })
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       instructions: 'Follow instructions.',
@@ -175,15 +187,15 @@ describe('buildClaudeCodeSessionSettings', () => {
       allowedTools: [],
       configuration: {}
     })
-    mocks.modelGetByKey.mockResolvedValue({ apiModelId: 'claude-api' })
-    mocks.findBySessionId.mockResolvedValue(null)
+    mocks.modelGetByKey.mockReturnValue({ apiModelId: 'claude-api' })
+    mocks.findBySessionId.mockReturnValue(null)
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(),
       isDisabled: vi.fn(() => false),
       update: vi.fn(),
       setPermissionMode: vi.fn()
     })
-    mocks.listChannels.mockResolvedValue([])
+    mocks.listChannels.mockReturnValue([])
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
@@ -194,15 +206,18 @@ describe('buildClaudeCodeSessionSettings', () => {
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.applicationGetPath.mockImplementation((key: string) => `/app/${key}`)
-    mocks.getLoginShellEnvironment.mockResolvedValue({})
+    mocks.platform.isMac = false
+    mocks.getShellEnv.mockResolvedValue({})
     mocks.getBinaryPath.mockResolvedValue('/usr/local/bin/bun')
     mocks.getProxyEnvironment.mockReturnValue({})
     mocks.getPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     mocks.getAppLanguage.mockReturnValue('en-US')
-    mocks.reconcileAgentSkills.mockResolvedValue(undefined)
+    mocks.isWin = false
+    mocks.listSkills.mockResolvedValue([])
+    mocks.listLocalSkills.mockResolvedValue([])
   })
 
-  it('reconciles enabled skills into the session workspace before returning settings', async () => {
+  it('builds the SDK skill whitelist from the DB and workspace before returning settings', async () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -211,14 +226,40 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
-    expect(mocks.reconcileAgentSkills).toHaveBeenCalledWith('agent-1', '/workspace/project')
+    expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
+    expect(mocks.listLocalSkills).toHaveBeenCalledWith('/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
   })
 
+  it('whitelists by directory name only, excludes disabled, never lets a shared SKILL.md name leak through', async () => {
+    mocks.listSkills.mockResolvedValue([
+      // Enabled and disabled skills deliberately share a SKILL.md `name` ('pdf').
+      // The whitelist must key on the unique folderName so the disabled skill
+      // is not un-hidden by the enabled one's name.
+      { id: 'skill-1', folderName: 'pdf-tools', name: 'pdf', isEnabled: true },
+      { id: 'skill-2', folderName: 'pdf-legacy', name: 'pdf', isEnabled: false }
+    ])
+    // Workspace project skill under cwd/.claude/skills — must be in the whitelist or the
+    // SDK filters the user's own project skill out. Keyed by its directory name (filename).
+    mocks.listLocalSkills.mockResolvedValue([{ name: 'Project Skill', filename: 'my-project-skill' }])
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.skills).toEqual(['pdf-tools', 'my-project-skill'])
+    expect(settings.skills).not.toContain('pdf') // shared SKILL.md name never whitelisted
+    expect(settings.skills).not.toContain('pdf-legacy') // disabled skill excluded
+    expect(settings.skills?.some((skill) => path.isAbsolute(skill))).toBe(false)
+  })
+
   it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {
     // Each of the three model lookups must resolve independently from its own key/provider.
-    mocks.modelGetByKey.mockImplementation(async (providerId: string, modelId: string) => {
+    mocks.modelGetByKey.mockImplementation((providerId: string, modelId: string) => {
       if (modelId === 'claude-sonnet') return { apiModelId: 'sonnet-api' }
       if (modelId === 'claude-haiku') return { apiModelId: 'haiku-api' }
       throw new Error(`model ${providerId}::${modelId} not in table`)
@@ -243,7 +284,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   it('falls back each model env key to its own raw id when that model is absent from the table', async () => {
     // Only the small (haiku) model is missing — the others must NOT be forced to fall back, and the
     // haiku key must fall back to its OWN raw id (not the main model's).
-    mocks.modelGetByKey.mockImplementation(async (_providerId: string, modelId: string) => {
+    mocks.modelGetByKey.mockImplementation((_providerId: string, modelId: string) => {
       if (modelId === 'claude-haiku') throw new Error('haiku not in table')
       return { apiModelId: `${modelId}-api` }
     })
@@ -305,7 +346,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('passes agent disabledTools through to SDK disallowedTools', async () => {
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
@@ -327,7 +368,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup, no AskUserQuestion for a plain agent', async () => {
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
@@ -354,7 +395,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('soul mode adds SOUL_MODE_DISALLOWED_TOOLS to disallowedTools', async () => {
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
@@ -379,7 +420,7 @@ describe('buildClaudeCodeSessionSettings', () => {
   })
 
   it('assistant role adds AskUserQuestion to disallowedTools', async () => {
-    mocks.getAgent.mockResolvedValue({
+    mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
@@ -489,7 +530,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       agentId: 'agent-1',
       workspace: { type: 'user', path: '/workspace/project' }
     }
-    mocks.listChannels.mockRejectedValueOnce(new Error('channel db down'))
+    mocks.listChannels.mockImplementationOnce(() => {
+      throw new Error('channel db down')
+    })
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
@@ -600,6 +643,115 @@ describe('buildClaudeCodeSessionSettings', () => {
       disposeToolPolicySnapshot('warm-d')
       await buildClaudeCodeSessionSettings(sessionWith('warm-d'), {} as never)
       expect(mocks.createToolPolicySnapshot).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  // The claude-code login provider must NOT inject an API key — it relies on the Claude Agent SDK
+  // falling back to the Claude Code CLI subscription credential, which only happens when no
+  // ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN is present in the environment.
+  describe('claude-code login provider env', () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    it('strips every inherited Anthropic credential channel and points CLAUDE_CONFIG_DIR at the shell config dir', async () => {
+      mocks.getShellEnv.mockResolvedValue({
+        ANTHROPIC_API_KEY: 'sk-shell',
+        ANTHROPIC_AUTH_TOKEN: 'tok-shell',
+        ANTHROPIC_BASE_URL: 'https://shell.example',
+        ANTHROPIC_CUSTOM_HEADERS: 'Authorization: Bearer sk-shell',
+        CLAUDE_CODE_OAUTH_TOKEN: 'oauth-shell',
+        CLAUDE_CONFIG_DIR: '/home/me/.claude'
+      })
+
+      const settings = await buildClaudeCodeSessionSettings(
+        session as never,
+        { id: 'claude-code', authMethods: ['external-cli'] } as never
+      )
+
+      expect(settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
+      expect(settings.env).not.toHaveProperty('ANTHROPIC_AUTH_TOKEN')
+      expect(settings.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
+      // Any of these could silently override the subscription OAuth fallback, so they must be stripped too.
+      expect(settings.env).not.toHaveProperty('ANTHROPIC_CUSTOM_HEADERS')
+      expect(settings.env).not.toHaveProperty('CLAUDE_CODE_OAUTH_TOKEN')
+      expect(settings.env!.CLAUDE_CODE_USE_VERTEX).toBe('0')
+      // Non-mac (platform mock has no isMac): reuse the user's real config dir from the login shell.
+      expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/home/me/.claude')
+    })
+
+    it('falls back CLAUDE_CONFIG_DIR to ~/.claude when the shell does not set it', async () => {
+      mocks.getShellEnv.mockResolvedValue({ ANTHROPIC_API_KEY: 'sk-shell' })
+
+      const settings = await buildClaudeCodeSessionSettings(
+        session as never,
+        { id: 'claude-code', authMethods: ['external-cli'] } as never
+      )
+
+      expect(settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
+      // application.getPath('sys.home') is mocked to '/app/sys.home'.
+      expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/app/sys.home/.claude')
+    })
+
+    it('falls back CLAUDE_CONFIG_DIR to ~/.claude when the shell exports it empty', async () => {
+      // An empty CLAUDE_CONFIG_DIR must not pass through (it would point the SDK at /.credentials.json);
+      // the fallback uses || so it matches CodeCliService's login probe rather than diverging from it.
+      mocks.getShellEnv.mockResolvedValue({ CLAUDE_CONFIG_DIR: '' })
+
+      const settings = await buildClaudeCodeSessionSettings(
+        session as never,
+        { id: 'claude-code', authMethods: ['external-cli'] } as never
+      )
+
+      expect(settings.env!.CLAUDE_CONFIG_DIR).toBe('/app/sys.home/.claude')
+    })
+
+    it('leaves CLAUDE_CONFIG_DIR unset on macOS so the Agent SDK can read the Keychain login', async () => {
+      mocks.platform.isMac = true
+      mocks.getShellEnv.mockResolvedValue({ CLAUDE_CONFIG_DIR: '/Users/me/.claude' })
+
+      const settings = await buildClaudeCodeSessionSettings(
+        session as never,
+        { id: 'claude-code', authMethods: ['external-cli'] } as never
+      )
+
+      expect(settings.env).not.toHaveProperty('CLAUDE_CONFIG_DIR')
+    })
+
+    it('blocks a reserved agent env_var override but passes through non-reserved keys', async () => {
+      // env_vars come from the *agent* config, not the provider. CLAUDE_CODE_USE_VERTEX
+      // is a runtime-forced routing flag (like CLAUDE_CODE_USE_BEDROCK) an agent must not
+      // flip on; a non-reserved key must still pass through.
+      mocks.getShellEnv.mockResolvedValue({})
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'claude-code',
+        instructions: 'Follow instructions.',
+        model: 'anthropic::claude-sonnet',
+        planModel: 'anthropic::claude-sonnet',
+        smallModel: 'anthropic::claude-haiku',
+        mcps: [],
+        allowedTools: [],
+        configuration: { env_vars: { CLAUDE_CODE_USE_VERTEX: '1', CHERRY_CUSTOM_VAR: 'passthrough' } }
+      })
+
+      const settings = await buildClaudeCodeSessionSettings(
+        session as never,
+        { id: 'claude-code', authMethods: ['external-cli'] } as never
+      )
+
+      expect(settings.env!.CLAUDE_CODE_USE_VERTEX).toBe('0')
+      expect(settings.env!.CHERRY_CUSTOM_VAR).toBe('passthrough')
+    })
+
+    it('leaves inherited Anthropic credentials intact for a non-login provider', async () => {
+      mocks.getShellEnv.mockResolvedValue({ ANTHROPIC_API_KEY: 'sk-shell' })
+
+      const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'anthropic' } as never)
+
+      expect(settings.env!.ANTHROPIC_API_KEY).toBe('sk-shell')
     })
   })
 })

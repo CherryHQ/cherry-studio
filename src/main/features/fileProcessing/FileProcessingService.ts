@@ -4,8 +4,8 @@ import type { EnqueueOptions } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
+import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
-import type { FileHandle } from '@shared/types/file'
 
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { ocrImageToText } from './ocrImageToText'
@@ -70,7 +70,7 @@ export class FileProcessingService extends BaseService {
 
     const type = handler.mode === 'background' ? 'file-processing.background' : 'file-processing.remote-poll'
     const jobManager = application.get('JobManager')
-    const handle = await jobManager.enqueue(type, payload, options.parentId ? { parentId: options.parentId } : {})
+    const handle = jobManager.enqueue(type, payload, options.parentId ? { parentId: options.parentId } : {})
 
     logger.debug('Enqueued file processing job', {
       jobId: handle.id,

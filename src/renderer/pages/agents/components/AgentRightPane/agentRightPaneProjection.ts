@@ -4,8 +4,8 @@ import {
   getTaskTitle,
   isTaskRecord,
   normalizeTaskStatus
-} from '@renderer/components/chat/messages/tools/agent/taskData'
-import { AgentToolsType } from '@renderer/components/chat/messages/tools/agent/types'
+} from '@renderer/components/chat/messages/tools/agent'
+import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   getPartParentToolCallId,
   stripPartParentToolMetadata

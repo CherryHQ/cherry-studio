@@ -1,11 +1,11 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const knowledgeServiceListBases = vi.fn<() => Promise<KnowledgeBase[]>>()
-const knowledgeServiceListRootItems = vi.fn<(baseId: string) => Promise<KnowledgeItem[]>>()
+const knowledgeServiceListBases = vi.fn<() => KnowledgeBase[]>()
+const knowledgeServiceListRootItems = vi.fn<(baseId: string) => KnowledgeItem[]>()
 // Outline mode (kb_list with a baseId) routes to getOrganizationTree.
 const knowledgeServiceGetOrganizationTree = vi.fn()
 
@@ -186,11 +186,11 @@ describe('kb_list', () => {
   })
 
   it('returns only bases in the assistant scope when knowledgeBaseIds is non-empty', async () => {
-    knowledgeServiceListBases.mockResolvedValue([
+    knowledgeServiceListBases.mockReturnValue([
       makeBase({ id: 'kb-1', name: 'Allowed' }),
       makeBase({ id: 'kb-other', name: 'Other' })
     ])
-    knowledgeServiceListRootItems.mockResolvedValue([])
+    knowledgeServiceListRootItems.mockReturnValue([])
 
     const result = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
       id: string
@@ -201,8 +201,8 @@ describe('kb_list', () => {
   })
 
   it('returns all bases when assistant scope is empty (future toggle path)', async () => {
-    knowledgeServiceListBases.mockResolvedValue([makeBase({ id: 'kb-1' }), makeBase({ id: 'kb-2' })])
-    knowledgeServiceListRootItems.mockResolvedValue([])
+    knowledgeServiceListBases.mockReturnValue([makeBase({ id: 'kb-1' }), makeBase({ id: 'kb-2' })])
+    knowledgeServiceListRootItems.mockReturnValue([])
 
     const result = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: [] }) })) as Array<{
       id: string
@@ -211,11 +211,11 @@ describe('kb_list', () => {
   })
 
   it('filters by groupId', async () => {
-    knowledgeServiceListBases.mockResolvedValue([
+    knowledgeServiceListBases.mockReturnValue([
       makeBase({ id: 'kb-1', groupId: 'g1' }),
       makeBase({ id: 'kb-2', groupId: 'g2' })
     ])
-    knowledgeServiceListRootItems.mockResolvedValue([])
+    knowledgeServiceListRootItems.mockReturnValue([])
 
     const result = (await callExecute(
       { groupId: 'g1' },
@@ -225,11 +225,11 @@ describe('kb_list', () => {
   })
 
   it('treats explicit null filters as no filter (kb_list passes null, not undefined, under strict schema)', async () => {
-    knowledgeServiceListBases.mockResolvedValue([
+    knowledgeServiceListBases.mockReturnValue([
       makeBase({ id: 'kb-1', groupId: 'g1' }),
       makeBase({ id: 'kb-2', groupId: null })
     ])
-    knowledgeServiceListRootItems.mockResolvedValue([])
+    knowledgeServiceListRootItems.mockReturnValue([])
 
     const result = (await callExecute(
       { query: null, groupId: null },
@@ -240,12 +240,12 @@ describe('kb_list', () => {
   })
 
   it('filters by case-insensitive query against name and sampleSources', async () => {
-    knowledgeServiceListBases.mockResolvedValue([
+    knowledgeServiceListBases.mockReturnValue([
       makeBase({ id: 'kb-1', name: 'Rust Notes' }),
       makeBase({ id: 'kb-2', name: 'Recipes' }),
       makeBase({ id: 'kb-3', name: 'Other' })
     ])
-    knowledgeServiceListRootItems.mockImplementation(async (baseId) => {
+    knowledgeServiceListRootItems.mockImplementation((baseId) => {
       if (baseId === 'kb-3') return [makeNoteItem('n1', 'Some rust tutorial intro')]
       return []
     })
@@ -258,8 +258,8 @@ describe('kb_list', () => {
   })
 
   it('derives sampleSources per item type and skips non-completed items', async () => {
-    knowledgeServiceListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
-    knowledgeServiceListRootItems.mockResolvedValue([
+    knowledgeServiceListBases.mockReturnValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListRootItems.mockReturnValue([
       makeFileItem('i1', 'design-doc.pdf'),
       makeUrlItem('i2', 'https://example.com/post'),
       makeNoteItem('i3', '\n\nFirst real line of the note\nsecond line'),
@@ -281,8 +281,8 @@ describe('kb_list', () => {
   })
 
   it('truncates long note first lines to fit the snippet limit', async () => {
-    knowledgeServiceListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
-    knowledgeServiceListRootItems.mockResolvedValue([makeNoteItem('n1', 'a'.repeat(200))])
+    knowledgeServiceListBases.mockReturnValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListRootItems.mockReturnValue([makeNoteItem('n1', 'a'.repeat(200))])
 
     const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
       sampleSources: string[]
@@ -294,9 +294,9 @@ describe('kb_list', () => {
   })
 
   it('caps sampleSources at 8 entries', async () => {
-    knowledgeServiceListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListBases.mockReturnValue([makeBase({ id: 'kb-1' })])
     const items = Array.from({ length: 12 }, (_, idx) => makeFileItem(`i${idx}`, `file-${idx}.md`))
-    knowledgeServiceListRootItems.mockResolvedValue(items)
+    knowledgeServiceListRootItems.mockReturnValue(items)
 
     const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
       sampleSources: string[]
@@ -305,7 +305,7 @@ describe('kb_list', () => {
   })
 
   it('lists failed bases with empty sampleSources and does not call listRootItems', async () => {
-    knowledgeServiceListBases.mockResolvedValue([
+    knowledgeServiceListBases.mockReturnValue([
       makeBase({ id: 'kb-1', status: 'failed', error: 'missing_embedding_model' })
     ])
 
@@ -323,8 +323,10 @@ describe('kb_list', () => {
   })
 
   it('flags itemsUnavailable (not a fabricated empty) when listRootItems throws for a completed base', async () => {
-    knowledgeServiceListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
-    knowledgeServiceListRootItems.mockRejectedValue(new Error('boom'))
+    knowledgeServiceListBases.mockReturnValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListRootItems.mockImplementation(() => {
+      throw new Error('boom')
+    })
 
     const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
       id: string
@@ -340,8 +342,8 @@ describe('kb_list', () => {
   })
 
   it('reports a real itemCount and no itemsUnavailable flag on a successful (empty) read', async () => {
-    knowledgeServiceListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
-    knowledgeServiceListRootItems.mockResolvedValue([])
+    knowledgeServiceListBases.mockReturnValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListRootItems.mockReturnValue([])
 
     const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
       itemCount?: number
@@ -366,7 +368,7 @@ describe('kb_list', () => {
     }
 
     it('outlines an in-scope base, forwarding maxDepth and mapping itemType → type', async () => {
-      knowledgeServiceGetOrganizationTree.mockResolvedValue(orgTree())
+      knowledgeServiceGetOrganizationTree.mockReturnValue(orgTree())
 
       const result = await callExecute(
         { baseId: 'kb-1', maxDepth: 2 },
@@ -398,7 +400,9 @@ describe('kb_list', () => {
     })
 
     it('maps a NOT_FOUND base to a steer toward listing the bases', async () => {
-      knowledgeServiceGetOrganizationTree.mockRejectedValue(DataApiErrorFactory.notFound('Knowledge base', 'kb-gone'))
+      knowledgeServiceGetOrganizationTree.mockImplementation(() => {
+        throw DataApiErrorFactory.notFound('Knowledge base', 'kb-gone')
+      })
 
       const result = (await callExecute(
         { baseId: 'kb-gone' },

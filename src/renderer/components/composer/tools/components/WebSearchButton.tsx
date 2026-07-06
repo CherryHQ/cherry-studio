@@ -1,5 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { ActionIconButton } from '@renderer/components/Buttons'
+import ActionIconButton from '@renderer/components/ActionIconButton'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -21,11 +21,8 @@ interface Props {
   launcher: ToolLauncherApi
 }
 
-// Mirrors WebSearchProviderSetting.tsx: api-type providers (except fetch /
-// searxng / exa-mcp) authenticate via API key. searxng uses basic auth and
-// fetch / exa-mcp need neither.
-const webSearchProviderRequiresApiKey = (id: WebSearchProviderId): boolean =>
-  id !== 'fetch' && id !== 'searxng' && id !== 'exa-mcp'
+const KEYLESS_PROVIDERS: ReadonlySet<WebSearchProviderId> = new Set(['fetch', 'searxng', 'exa-mcp', 'firecrawl'])
+const webSearchProviderRequiresApiKey = (id: WebSearchProviderId): boolean => !KEYLESS_PROVIDERS.has(id)
 
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()

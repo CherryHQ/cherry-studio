@@ -8,16 +8,21 @@ import { Client } from '@notionhq/client'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import { getProviderLabelKey } from '@renderer/i18n/label'
-import { getMessageTitle } from '@renderer/services/MessagesService'
 import { addNote } from '@renderer/services/NotesService'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
-import { messagesToPlainText, processCitations } from '@renderer/utils/export'
+import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
+import { getTitleFromString, messagesToPlainText, processCitations } from '@renderer/utils/export'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
+import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
 import { getComposerTextFromMessage } from '@renderer/utils/message/composerTokens'
-import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/message/find'
+import {
+  getCitationContent,
+  getMainTextContent,
+  getNamingTextContent,
+  getThinkingContent
+} from '@renderer/utils/message/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 import DOMPurify from 'dompurify'
@@ -226,6 +231,38 @@ const createBaseMarkdown = async (
   }
 
   return { titleSection, reasoningSection, contentSection: processedContent, citation }
+}
+
+export async function getMessageTitle(message: ExportableMessage, length = 30): Promise<string> {
+  const content = getNamingTextContent(message)
+
+  // Read from v2 Preference (`data.export.markdown.use_topic_naming_for_message_title`)
+  // — the v1 Redux key was migrated; the renderer settings page reads the same
+  // Preference key, so a stale read here would diverge from the settings UI value.
+  const useTopicNaming = await preferenceService.get('data.export.markdown.use_topic_naming_for_message_title')
+  if (useTopicNaming) {
+    try {
+      const titlePromise = fetchMessagesSummary({ messages: [message] })
+      window.toast.loading({ title: i18n.t('chat.topics.export.wait_for_title_naming'), promise: titlePromise })
+      const { text: title } = await titlePromise
+
+      if (title) {
+        window.toast.success(i18n.t('chat.topics.export.title_naming_success'))
+        return title
+      }
+    } catch (e) {
+      window.toast.error(i18n.t('chat.topics.export.title_naming_failed'))
+      logger.error('Failed to generate title using topic naming, downgraded to default logic', e as Error)
+    }
+  }
+
+  let title = getTitleFromString(content, length)
+
+  if (!title) {
+    title = dayjs(message.createdAt).format('YYYYMMDDHHmm')
+  }
+
+  return title
 }
 
 export const messageToMarkdown = async (message: ExportableMessage, excludeCitations?: boolean): Promise<string> => {
@@ -974,41 +1011,54 @@ async function createSiyuanDoc(
   return data.data
 }
 
+const saveContentToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
+  await addNote(title, content, folderPath)
+
+  window.toast.success(i18n.t('message.success.notes.export'))
+}
+
+const handleNotesExportError = (error: unknown): void => {
+  logger.error('导出到笔记失败:', error as Error)
+  window.toast.error(i18n.t('message.error.notes.export'))
+}
+
+/**
+ * 导出任意文本内容到笔记工作区
+ * @param title 笔记标题
+ * @param content 笔记内容
+ * @param folderPath 目标笔记文件夹
+ */
+export const exportContentToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
+  try {
+    await saveContentToNotes(title, content, folderPath)
+  } catch (error) {
+    handleNotesExportError(error)
+    throw error
+  }
+}
+
 /**
  * 导出消息到笔记工作区
- * @returns 创建的笔记节点
  * @param title
  * @param content
  * @param folderPath
  */
 export const exportMessageToNotes = async (title: string, content: string, folderPath: string): Promise<void> => {
-  try {
-    const cleanedContent = content.replace(/^## 🤖 Assistant(\n|$)/m, '')
-    await addNote(title, cleanedContent, folderPath)
-
-    window.toast.success(i18n.t('message.success.notes.export'))
-  } catch (error) {
-    logger.error('导出到笔记失败:', error as Error)
-    window.toast.error(i18n.t('message.error.notes.export'))
-    throw error
-  }
+  const cleanedContent = content.replace(/^## 🤖 Assistant(\n|$)/m, '')
+  await exportContentToNotes(title, cleanedContent, folderPath)
 }
 
 /**
  * 导出话题到笔记工作区
  * @param topic 要导出的话题
  * @param folderPath
- * @returns 创建的笔记节点
  */
 export const exportTopicToNotes = async (topic: Topic, folderPath: string): Promise<void> => {
   try {
     const content = await topicToMarkdown(topic)
-    await addNote(topic.name, content, folderPath)
-
-    window.toast.success(i18n.t('message.success.notes.export'))
+    await saveContentToNotes(topic.name, content, folderPath)
   } catch (error) {
-    logger.error('导出到笔记失败:', error as Error)
-    window.toast.error(i18n.t('message.error.notes.export'))
+    handleNotesExportError(error)
     throw error
   }
 }
@@ -1071,7 +1121,7 @@ const exportNoteAsImageFile = async (noteName: string): Promise<void> => {
   const scrollableRef = getScrollableRef()
   if (!scrollableRef) return
 
-  const dataUrl = await captureScrollableAsDataURL(scrollableRef)
+  const dataUrl = await captureScrollableAsDataUrl(scrollableRef)
   if (dataUrl) {
     const fileName = removeSpecialCharactersForFileName(noteName)
     await window.api.file.saveImage(fileName, dataUrl)

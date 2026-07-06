@@ -1,7 +1,7 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Tooltip } from '@cherrystudio/ui'
-import { EditIcon } from '@renderer/components/Icons'
+import EditIcon from '@renderer/components/icons/EditIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { TopView } from '@renderer/components/TopView'
+import { TopView } from '@renderer/components/TopView/TopView'
 import { maskApiKey } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
@@ -239,7 +239,7 @@ const PopupContainer: FC<PopupProps> = ({ providerId, title, resolve }) => {
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? setOpen(true) : closePopup())}>
-      <DialogContent className="sm:max-w-150">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-150">
         <DialogHeader>
           <DialogTitle className="text-sm">{title || t('settings.provider.api.key.list.title')}</DialogTitle>
         </DialogHeader>

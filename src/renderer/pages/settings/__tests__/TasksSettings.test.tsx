@@ -71,6 +71,14 @@ vi.mock('@renderer/hooks/agent/useChannels', () => ({
   useChannels: () => ({ channels: [] })
 }))
 
+vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useQuery: () => ({ data: [] })
+}))
+
+vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
+  WorkspaceSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
+}))
+
 vi.mock('@renderer/hooks/agent/useTasks', () => ({
   useCreateTask: () => ({ createTask: taskMutationMocks.createTask }),
   useDeleteTask: () => ({ deleteTask: taskMutationMocks.deleteTask }),
@@ -131,8 +139,10 @@ vi.mock('@cherrystudio/ui', () => {
 
   const passthrough =
     (tag: keyof React.JSX.IntrinsicElements) =>
-    ({ children, ...props }: { children?: React.ReactNode }) =>
-      React.createElement(tag, props, children)
+    ({ children, closeOnOverlayClick, ...props }: { children?: React.ReactNode; closeOnOverlayClick?: boolean }) => {
+      void closeOnOverlayClick
+      return React.createElement(tag, props, children)
+    }
 
   return {
     Badge: passthrough('span'),
@@ -270,6 +280,7 @@ vi.mock('@cherrystudio/ui', () => {
       const context = React.use(PopoverContext)
 
       if (React.isValidElement<{ onClick?: React.MouseEventHandler }>(children)) {
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, {
           onClick: (event: React.MouseEvent) => {
             children.props.onClick?.(event)
@@ -441,10 +452,14 @@ describe('TasksSettings task logs', () => {
     expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.cron' }))
+    act(() => {
+      fireEvent.click(screen.getByRole('radio', { name: 'agent.cherryClaw.tasks.scheduleType.cron' }))
+    })
 
-    expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.cronPlaceholder')).toBeInTheDocument()
+      expect(screen.queryByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).not.toBeInTheDocument()
+    })
   })
 
   it('moves run and delete into the task detail more menu', async () => {

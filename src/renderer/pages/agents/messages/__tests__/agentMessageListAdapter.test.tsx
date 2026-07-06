@@ -1,6 +1,7 @@
 import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { ExternalAppInfo } from '@shared/types/externalApp'
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -270,7 +271,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.previewFile).toBe(leafCapabilitiesMock.previewFile)
     expect(value?.actions.subscribeToolProgress).toBe(leafCapabilitiesMock.subscribeToolProgress)
     expect(value?.actions.openExternalUrl).toBe(leafCapabilitiesMock.openExternalUrl)
-    expect(value?.actions.openInExternalApp).toBe(leafCapabilitiesMock.openInExternalApp)
+    expect(value?.actions.openInExternalApp).toEqual(expect.any(Function))
     expect(value?.actions.navigateToRoute).toEqual(expect.any(Function))
     expect(value?.actions.openUserProfile).toBe(headerCapabilitiesMock.openUserProfile)
     expect(value?.actions.copyText).toBe(leafCapabilitiesMock.copyText)
@@ -297,6 +298,19 @@ describe('useAgentMessageListProviderValue', () => {
 
     void value?.actions.openPath?.('dist/report.md')
     expect(window.api.file.openPath).toHaveBeenCalledWith('/tmp/workspace/dist/report.md')
+
+    const editor: ExternalAppInfo = {
+      id: 'vscode',
+      name: 'VS Code',
+      protocol: 'vscode://',
+      tags: ['code-editor'],
+      path: '/Applications/Visual Studio Code.app'
+    }
+    void value?.actions.openInExternalApp?.(editor, 'dist/report.md')
+    expect(leafCapabilitiesMock.openInExternalApp).toHaveBeenCalledWith(editor, '/tmp/workspace/dist/report.md')
+
+    void value?.actions.openInExternalApp?.(editor, '/Users/me/report.md')
+    expect(leafCapabilitiesMock.openInExternalApp).toHaveBeenCalledWith(editor, '/Users/me/report.md')
 
     void value?.actions.showInFolder?.('/Users/me/report.md')
     expect(window.api.file.showInFolder).toHaveBeenCalledWith('/Users/me/report.md')

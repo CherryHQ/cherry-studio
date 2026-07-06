@@ -8,6 +8,7 @@
 
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
+import { parseAgentConfiguration } from '@renderer/utils/agent/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentEntity, CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
@@ -17,7 +18,6 @@ import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAgentTools } from './useAgentTools'
-import { parseAgentConfiguration } from './utils'
 
 type Result<T> = { success: true; data: T } | { success: false; error: Error }
 
@@ -59,8 +59,8 @@ export const useAgent = (id: string | null) => {
 }
 
 /**
- * List + mutate all agents. Deleting an agent cascades to its sessions at
- * the DB layer (FK ON DELETE cascade).
+ * List + mutate all agents. Plain deletion removes the agent only; sessions are
+ * preserved as orphaned history unless a caller explicitly requests session deletion.
  */
 export const useAgents = () => {
   const { t } = useTranslation()
@@ -84,7 +84,7 @@ export const useAgents = () => {
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions']
+    refresh: ['/agents', '/agent-sessions', '/pins']
   })
   const deleteAgent = useCallback(
     async (id: string) => {

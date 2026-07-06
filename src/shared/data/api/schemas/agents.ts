@@ -9,7 +9,7 @@
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
-import type { OffsetPaginationResponse } from '../apiTypes'
+import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from './jobs'
@@ -240,6 +240,15 @@ export const ListAgentsQuerySchema = z.strictObject({
 export type ListAgentsQueryParams = z.input<typeof ListAgentsQuerySchema>
 export type ListAgentsQuery = z.output<typeof ListAgentsQuerySchema>
 
+export const DeleteAgentQuerySchema = z.strictObject({
+  /**
+   * Delete the agent's sessions in the same main-process transaction.
+   * Omitted/false preserves the historical "delete agent only" behavior.
+   */
+  deleteSessions: z.boolean().optional()
+})
+export type DeleteAgentQueryParams = z.input<typeof DeleteAgentQuerySchema>
+
 // ============================================================================
 // API Schema definitions
 // ============================================================================
@@ -270,6 +279,7 @@ export type AgentSchemas = {
     }
     DELETE: {
       params: { agentId: string }
+      query?: DeleteAgentQueryParams
       response: void
     }
   }

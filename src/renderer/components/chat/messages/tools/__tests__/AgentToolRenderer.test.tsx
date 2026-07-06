@@ -28,7 +28,7 @@ const mockUseTranslation = vi.fn()
 const mockPartsMap = vi.hoisted(() => vi.fn((): Record<string, unknown[]> | null => null))
 const mockMessageListActions = vi.hoisted(() => vi.fn(() => ({})))
 
-vi.mock('@renderer/components/chat/messages/blocks', () => ({
+vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
   usePartsMap: () => mockPartsMap()
 }))
 
@@ -95,8 +95,8 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 
 // Mock LoadingIcon
-vi.mock('@renderer/components/Icons', () => ({
-  LoadingIcon: () => <span data-testid="loading-icon" />
+vi.mock('@renderer/components/icons/LoadingIcon', () => ({
+  default: () => <span data-testid="loading-icon" />
 }))
 
 describe('AgentToolRenderer', () => {

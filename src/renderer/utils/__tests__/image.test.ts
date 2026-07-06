@@ -6,7 +6,7 @@ import {
   captureElement,
   captureScrollable,
   captureScrollableAsBlob,
-  captureScrollableAsDataURL,
+  captureScrollableAsDataUrl,
   compressImage,
   convertToBase64,
   fileToAvatarDataUrl,
@@ -227,19 +227,19 @@ describe('utils/image', () => {
     })
   })
 
-  describe('captureScrollableAsDataURL', () => {
+  describe('captureScrollableAsDataUrl', () => {
     it('should return data url when canvas exists', async () => {
       const div = document.createElement('div')
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
       Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
-      const result = await captureScrollableAsDataURL(ref)
+      const result = await captureScrollableAsDataUrl(ref)
       expect(result).toMatch(/^data:image\/png;base64/)
     })
 
     it('should return undefined when canvas is undefined', async () => {
       const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
-      const result = await captureScrollableAsDataURL(ref)
+      const result = await captureScrollableAsDataUrl(ref)
       expect(result).toBeUndefined()
     })
   })

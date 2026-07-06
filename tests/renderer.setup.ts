@@ -1,13 +1,28 @@
 import '@testing-library/jest-dom/vitest'
 
 import { createRequire } from 'node:module'
-import { expect, vi } from 'vitest'
+import { beforeAll, expect, vi } from 'vitest'
 
 const require = createRequire(import.meta.url)
 const bufferModule = require('buffer')
 if (!bufferModule.SlowBuffer) {
   bufferModule.SlowBuffer = bufferModule.Buffer
 }
+
+// i18n now initializes lazily via initI18n() instead of a module-level side effect,
+// so seed it once per test file for components that render real translations.
+// The whole body is guarded: files that vi.mock('@renderer/i18n') make the dynamic
+// import invoke their mock factory (which may throw), and files that
+// vi.mock('react-i18next') without initReactI18next make initI18n() reject. Neither
+// needs real initialization, so swallow both the import error and the init rejection.
+beforeAll(async () => {
+  try {
+    const mod = await import('@renderer/i18n')
+    await mod.initI18n?.()
+  } catch {
+    // Intentionally ignored — mocked-i18n test files don't need real init.
+  }
+})
 
 // Mock LoggerService globally for renderer tests
 vi.mock('@logger', async () => {
@@ -175,6 +190,16 @@ vi.mock('@cherrystudio/ui', () => {
           React.createElement('div', { key: getId(item) }, renderItem(item, index, { dragging: false }))
         )
       ),
+    Sortable: ({ items, itemKey, renderItem, className }) => {
+      const getKey = typeof itemKey === 'function' ? itemKey : (item) => item[itemKey]
+      return React.createElement(
+        'div',
+        { className },
+        items.map((item) =>
+          React.createElement('div', { key: getKey(item) }, renderItem(item, { dragging: false, overlay: false }))
+        )
+      )
+    },
     NormalTooltip: ({ children }) => children,
     Button: ({ children, onPress, disabled, isDisabled, loading, startContent, asChild, ...props }) => {
       const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled || loading }
@@ -417,7 +442,7 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
     Dialog: ({ children, onOpenChange: _onOpenChange, open, ...props }) =>
       open ? React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children) : null,
-    DialogContent: ({ children, ...props }) =>
+    DialogContent: ({ children, closeOnOverlayClick: _closeOnOverlayClick, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-content' }, children),
     DialogHeader: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-header' }, children),

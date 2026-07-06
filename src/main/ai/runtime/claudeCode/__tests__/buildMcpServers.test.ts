@@ -43,11 +43,11 @@ vi.mock('@main/core/application', () => ({
   }
 }))
 
-vi.mock('@main/utils/file/pathStatus', () => ({
+vi.mock('@main/utils/file', () => ({
   getPathStatus: mockGetPathStatus
 }))
 
-vi.mock('@main/utils/language', () => ({
+vi.mock('@main/i18n', () => ({
   getAppLanguage: vi.fn(() => 'en-US'),
   t: vi.fn((key: string, vars?: { path?: string }) => `${key}:${vars?.path ?? ''}`)
 }))
@@ -131,17 +131,17 @@ describe('adjustAllowedToolsForMcp', () => {
 
 describe('buildMcpServers', () => {
   it('injects the agent-memory server in Soul Mode (REGRESSION agents-jobs-3)', async () => {
-    const result = await buildMcpServers(session, agent, true, false)
+    const result = buildMcpServers(session, agent, true, false)
     expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['claw', 'agent-memory']))
   })
 
   it('does not inject agent-memory when Soul Mode is off', async () => {
-    const result = await buildMcpServers(session, agent, false, false)
+    const result = buildMcpServers(session, agent, false, false)
     expect(result?.['agent-memory']).toBeUndefined()
   })
 
   it('injects cherry-tools for every session and no longer injects exa', async () => {
-    const result = await buildMcpServers(session, agent, false, false)
+    const result = buildMcpServers(session, agent, false, false)
     expect(result?.['cherry-tools']).toBeDefined()
     expect(result?.exa).toBeUndefined()
   })

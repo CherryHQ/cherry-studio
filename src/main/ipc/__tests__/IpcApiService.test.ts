@@ -1,6 +1,6 @@
 import { BaseService, Phase } from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
-import { IpcError } from '@shared/ipc/errors'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { IpcChannel } from '@shared/IpcChannel'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { ipcMain } from 'electron'

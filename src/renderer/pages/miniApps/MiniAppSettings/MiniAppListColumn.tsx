@@ -1,6 +1,6 @@
 import { Scrollbar, Sortable, Tooltip } from '@cherrystudio/ui'
-import { LogoAvatar } from '@renderer/components/Icons'
-import { getMiniAppsLogo } from '@renderer/components/Icons/miniAppsLogo'
+import LogoAvatar from '@renderer/components/icons/LogoAvatar'
+import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { ArrowLeftToLine, ArrowRightToLine } from 'lucide-react'
 import type { FC } from 'react'

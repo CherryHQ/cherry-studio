@@ -1,4 +1,4 @@
-import { LoadingIcon } from '@renderer/components/Icons'
+import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import { useEffect, useState } from 'react'
 
 export const MESSAGE_LIST_INITIAL_LOADING_DELAY_MS = 1000

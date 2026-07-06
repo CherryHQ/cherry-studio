@@ -1,6 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
-import { DataApiError, ErrorCode } from '@shared/data/api'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Tag } from '@shared/data/types/tag'
 import { useCallback } from 'react'
 

@@ -5,7 +5,7 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions, ChatTransport, UIMessageChunk } from 'ai'
 
-import { streamDispatchCoordinator } from './streamDispatchCoordinator'
+import { streamDispatchService } from './StreamDispatchService'
 
 const logger = loggerService.withContext('IpcChatTransport')
 
@@ -52,7 +52,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             mentionedModelIds: mergedBody.mentionedModels
           }
 
-    streamDispatchCoordinator.dispatch(topicId, ipcRequest)
+    streamDispatchService.dispatch(topicId, ipcRequest)
 
     return Promise.resolve(stream)
   }
@@ -157,7 +157,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
         }
 
         unsubscribers.push(
-          streamDispatchCoordinator.subscribe(topicId, (result) => {
+          streamDispatchService.subscribe(topicId, (result) => {
             if (result.ok) {
               if (result.ack.mode === 'blocked') closeStream()
               return

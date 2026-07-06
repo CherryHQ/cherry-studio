@@ -307,6 +307,7 @@ export type RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.file_tree.width': number
   'ui.chat.last_used_assistant_id': string | null
   'ui.chat.last_used_topic_id': string | null
+  'ui.chat.right_pane_open': boolean
   // Sidebar section/group collapse — one fixed key per display mode so toggling a group in one
   // mode never re-writes the others (avoids the whole-blob cross-mode/cross-window clobber).
   // Stores the flat list of collapsed section/group ids; empty = everything expanded.
@@ -315,6 +316,9 @@ export type RendererPersistCacheSchema = {
   'ui.agent.last_used_session_id': string | null
   'ui.agent.last_used_agent_id': string | null
   'ui.agent.last_used_workspace_id': string | null
+  // Per-surface classic-layout right-pane open state (the agent counterpart of
+  // 'ui.chat.right_pane_open'); kept separate so the assistant and agent surfaces don't bleed.
+  'ui.agent.right_pane_open': boolean
   'ui.agent.session.expansion.time': string[]
   'ui.agent.session.expansion.agent': string[]
   'ui.agent.session.expansion.workdir': string[]
@@ -337,11 +341,13 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.artifact_pane.file_tree.width': 160,
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
+  'ui.chat.right_pane_open': false,
   'ui.topic.expansion.time': [],
   'ui.topic.expansion.assistant': [],
   'ui.agent.last_used_session_id': null,
   'ui.agent.last_used_agent_id': null,
   'ui.agent.last_used_workspace_id': null,
+  'ui.agent.right_pane_open': false,
   'ui.agent.session.expansion.time': [],
   'ui.agent.session.expansion.agent': [],
   'ui.agent.session.expansion.workdir': [],

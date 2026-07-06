@@ -2,6 +2,7 @@ import { Button, Input, Kbd, MenuItem, MenuList, PageHeader, RowFlex, Switch, To
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { SettingsContentBody } from '@renderer/components/SettingsPrimitives'
 import {
   getAllShortcutDefaultPreferences,
   type ShortcutSettingsGroup,
@@ -9,6 +10,14 @@ import {
 } from '@renderer/hooks/command/useCommandShortcuts'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import {
+  settingsContentHeaderClassName,
+  settingsContentHeaderTitleClassName,
+  settingsContentScrollClassName,
+  settingsSubmenuItemClassName,
+  settingsSubmenuListClassName,
+  settingsSubmenuScrollClassName
+} from '@renderer/pages/settings/settingsStyles'
 import { isMac, platform } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
@@ -29,16 +38,6 @@ import { Keyboard, MessageSquareText, Search, Sparkles, Tags, Undo2 } from 'luci
 import type { FC, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import {
-  SettingsContentBody,
-  settingsContentHeaderClassName,
-  settingsContentHeaderTitleClassName,
-  settingsContentScrollClassName,
-  settingsSubmenuItemClassName,
-  settingsSubmenuListClassName,
-  settingsSubmenuScrollClassName
-} from '.'
 
 const logger = loggerService.withContext('ShortcutSettings')
 
