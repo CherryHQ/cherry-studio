@@ -175,4 +175,60 @@ describe('KnowledgeVectorSourceReader', () => {
       dbPath
     })
   })
+
+  describe('loadBaseLoaderSources', () => {
+    it('reads only the uniqueLoaderId/source columns and never the pageContent or vector', async () => {
+      const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
+      const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
+
+      await createLegacyVectorDb(dbPath, [
+        { id: 'r1', pageContent: 'a', uniqueLoaderId: 'loader-a', source: '/docs/a.md', vector: [1, 2] },
+        { id: 'r2', pageContent: 'b', uniqueLoaderId: 'loader-b', source: '/docs/b.md', vector: [3, 4] }
+      ])
+
+      await expect(reader.loadBaseLoaderSources('kb-1')).resolves.toEqual({
+        status: 'ok',
+        dbPath,
+        rows: [
+          { uniqueLoaderId: 'loader-a', source: '/docs/a.md' },
+          { uniqueLoaderId: 'loader-b', source: '/docs/b.md' }
+        ]
+      })
+    })
+
+    it('does not decode the vector column, so an unreadable vector blob is irrelevant', async () => {
+      // A garbage TEXT vector would decode to `unsupported_encoding` in loadBase; the lighter read
+      // must never touch that column, so this base still loads its loader/source pair cleanly. This
+      // is the regression guard that the vector BLOB is not read or float32-decoded here.
+      const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
+      const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
+
+      await createLegacyVectorDbWithRawVector(dbPath, 'TEXT', 'not-a-vector')
+
+      await expect(reader.loadBaseLoaderSources('kb-1')).resolves.toEqual({
+        status: 'ok',
+        dbPath,
+        rows: [{ uniqueLoaderId: 'loader-1', source: '/tmp/file.md' }]
+      })
+    })
+
+    it('shares the missing / directory / not_embedjs outcomes with loadBase', async () => {
+      const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
+
+      await expect(reader.loadBaseLoaderSources('kb-absent')).resolves.toEqual({
+        status: 'missing',
+        dbPath: path.join(tempRoot, 'KnowledgeBase', 'kb-absent')
+      })
+
+      const notEmbedjsPath = path.join(tempRoot, 'KnowledgeBase', 'kb-other')
+      const db = new Database(notEmbedjsPath)
+      db.exec(`CREATE TABLE something_else (id TEXT PRIMARY KEY)`)
+      db.close()
+
+      await expect(reader.loadBaseLoaderSources('kb-other')).resolves.toEqual({
+        status: 'not_embedjs',
+        dbPath: notEmbedjsPath
+      })
+    })
+  })
 })
