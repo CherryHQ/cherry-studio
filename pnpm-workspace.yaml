@@ -38,6 +38,7 @@ overrides:
   # @ai-sdk/google-vertex — resolves to the single patched build. 3.0.87 backports
   # sanitizeJsonSchema; the patch wires it into tool input_schema (see the patch).
   '@ai-sdk/anthropic': '3.0.87'
+  '@hono/node-server': '>=1.19.10'
 
 patchedDependencies:
   '@napi-rs/system-ocr@1.0.2': patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch
