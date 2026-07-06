@@ -2794,15 +2794,11 @@
         "chunk_size": "Target token count for each document chunk. This affects retrieval granularity and context length.",
         "document_count": "Maximum number of document chunks returned for each retrieval. Higher values cover more content but use more context.",
         "embedding_model": "Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
-        "hybrid_alpha": "Vector score weight in hybrid retrieval. Higher values favor semantic matching.",
         "processor": "Parser used when importing files to extract body text, tables, and related content.",
         "rerank_model": "Model used to rerank initial retrieval results and improve final chunk relevance.",
-        "search_mode": "Choose a retrieval mode: vector search for semantic matching, full-text search for keywords, or hybrid search for both.",
         "smart_chunking": "Automatically split along Markdown structure (headings, code blocks, paragraphs) and never split inside a code block. Turn off to split purely by the separator.",
-        "threshold": "Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter.",
-        "threshold_disabled": "This retrieval mode returns ordered results and does not use a similarity threshold."
+        "threshold": "Similarity threshold for filtering low-relevance reranked chunks. Higher values make retrieval stricter."
       },
-      "hybrid_alpha": "Hybrid Alpha",
       "processor": "Processing Provider",
       "rerank_disabled": "Disabled",
       "rerank_model": "Rerank Model",
@@ -2811,12 +2807,6 @@
       "retrieval": "Retrieval",
       "save_action": "Save",
       "saved": "Saved",
-      "search_mode": {
-        "bm25": "Full-text Search",
-        "hybrid": "Hybrid Search (recommended)",
-        "title": "Search Mode",
-        "vector": "Vector Search"
-      },
       "separator_rule": "Separator Rule",
       "smart_chunking": "Smart Chunking",
       "threshold": "Similarity Threshold",
