@@ -47,7 +47,8 @@ const mocks = vi.hoisted(() => ({
   ipcOn: vi.fn(),
   chatWrite: undefined as any,
   files: undefined as any[] | undefined,
-  topicLayout: undefined as string | undefined
+  topicLayout: undefined as string | undefined,
+  inputAdapterFocus: vi.fn()
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -117,11 +118,19 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
       })
     }, [props])
 
+    const inputAdapter = {
+      focus: mocks.inputAdapterFocus,
+      getText: () => props.text,
+      insertText: vi.fn(),
+      insertToken: vi.fn(),
+      deleteTriggerRange: vi.fn()
+    }
+
     mocks.surfaceProps = props
     return (
       <div>
-        <div data-testid="composer-left-controls">{props.renderLeftControls?.(undefined)}</div>
-        <div data-testid="composer-below-controls">{props.renderBelowControls?.(undefined)}</div>
+        <div data-testid="composer-left-controls">{props.renderLeftControls?.(inputAdapter)}</div>
+        <div data-testid="composer-below-controls">{props.renderBelowControls?.(inputAdapter)}</div>
       </div>
     )
   }
