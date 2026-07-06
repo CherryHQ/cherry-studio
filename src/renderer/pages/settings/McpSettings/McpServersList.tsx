@@ -13,6 +13,7 @@ import {
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
 import { matchKeywordsInString } from '@renderer/utils/match'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -23,7 +24,6 @@ import { startTransition, useCallback, useEffect, useMemo, useRef, useState } fr
 import { useTranslation } from 'react-i18next'
 
 import AddMcpServerModal from './AddMcpServerModal'
-import EnvironmentDependencies from './EnvironmentDependencies'
 import McpServerCard from './McpServerCard'
 
 type ImportMethod = 'json' | 'dxt' | 'mcpb'
