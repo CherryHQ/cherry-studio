@@ -6252,6 +6252,9 @@
         "button": "Получить серверы",
         "success": "Успешно получены MCP-серверы"
       },
+      "filter": {
+        "label": "[to be translated]:Filter"
+      },
       "findMore": "Найти больше MCP",
       "headers": "Заголовки",
       "headersTooltip": "Пользовательские заголовки для HTTP-запросов",
@@ -6292,6 +6295,7 @@
       "noDescriptionAvailable": "Описание отсутствует",
       "noLogs": "Логов пока нет",
       "noServers": "Серверы не настроены",
+      "notInstalled": "[to be translated]:Not installed",
       "not_support": "Модель не поддерживается",
       "npx_list": {
         "actions": "Действия",
@@ -6321,6 +6325,7 @@
         "title": "Запускать внешний MCP?"
       },
       "provider": "Провайдер",
+      "providerNotFound": "[to be translated]:MCP provider not found",
       "providerPlaceholder": "Имя провайдера",
       "providerUrl": "URL провайдера",
       "providers": "Поставщики",
@@ -6367,13 +6372,6 @@
         "getToken": "Получить API токен",
         "getTokenDescription": "Получите персональный API токен из вашей учетной записи",
         "noServersAvailable": "Нет доступных серверов MCP",
-        "providerDescriptions": {
-          "302ai": "302.Сервис MCP Платформы AI",
-          "bailian": "Сервис MCP платформы Alibaba Cloud Bailian",
-          "lanyun": "Lanyun Technology Cloud Platform MCP Service",
-          "mcprouter": "Платформа маршрутизатора MCP Сервис MCP",
-          "modelscope": "Служба MCP платформы ModelScope"
-        },
         "selectProvider": "Выберите провайдера:",
         "setToken": "Введите ваш токен",
         "success": "Синхронизация серверов MCP успешна",
