@@ -170,17 +170,6 @@ exports[`Skill search normalizers > normalizeClaudePlugins > should normalize fi
     "stars": 42,
   },
   {
-    "author": "community",
-    "description": null,
-    "downloads": 300,
-    "installSource": "claude-plugins://",
-    "name": "test-generator",
-    "slug": "cp-002",
-    "sourceRegistry": "claude-plugins.dev",
-    "sourceUrl": null,
-    "stars": 10,
-  },
-  {
     "author": "devtools-org",
     "description": "Generate technical documentation",
     "downloads": 0,

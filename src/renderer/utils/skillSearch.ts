@@ -19,14 +19,18 @@ const REQUEST_TIMEOUT_MS = 15_000
 // Normalizers: source-specific response → unified SkillSearchResult[]
 // ===========================================================================
 
-function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
+export function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
   const parsed = ClaudePluginsSearchResponseSchema.safeParse(raw)
   if (!parsed.success) return []
 
-  return parsed.data.skills.map((s) => {
+  return parsed.data.skills.flatMap((s) => {
     const repoOwner = s.metadata?.repoOwner ?? ''
     const repoName = s.metadata?.repoName ?? ''
     const directoryPath = s.metadata?.directoryPath ?? ''
+    // Skip entries without a resolvable install source (repo owner/name are
+    // required to clone) — otherwise the marketplace shows non-installable
+    // results whose install click always fails.
+    if (!repoOwner || !repoName) return []
     return {
       slug: s.id,
       name: s.name,
@@ -35,7 +39,7 @@ function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
       stars: s.stars ?? 0,
       downloads: s.installs ?? 0,
       sourceRegistry: 'claude-plugins.dev' as SkillSearchSource,
-      sourceUrl: s.sourceUrl ?? (repoOwner && repoName ? `https://github.com/${repoOwner}/${repoName}` : null),
+      sourceUrl: s.sourceUrl ?? `https://github.com/${repoOwner}/${repoName}`,
       // Encode sourceUrl directly so install can clone + resolve without the resolve API
       installSource: `claude-plugins:${repoOwner}/${repoName}/${directoryPath}`
     }
