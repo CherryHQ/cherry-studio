@@ -585,6 +585,25 @@ describe('writeCliConfigDraft', () => {
       expect(model.options.thinking).toEqual({ budgetTokens: 10000, type: 'enabled' })
     })
 
+    it('injects a placeholder auth token for Ollama, which needs no real API key', async () => {
+      mockGet({
+        '/providers/ollama': () => ollamaProvider,
+        '/providers/ollama/api-keys': () => ({ keys: [] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'ollama::llama3'
+      })
+
+      const parsed = JSON.parse(opencodeWrite().content)
+      const provider = parsed.provider['cherry-Ollama']
+      expect(provider.npm).toBe('@ai-sdk/anthropic')
+      expect(provider.options.apiKey).toBe('ollama')
+      expect(provider.options.baseURL).toBe('http://localhost:11434/v1')
+    })
+
     it('uses reasoningEffort for openai-compatible models that support it', async () => {
       mockGet({
         '/providers/deepseek': () => openaiCompatProvider,

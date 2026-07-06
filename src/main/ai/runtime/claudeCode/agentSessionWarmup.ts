@@ -14,7 +14,7 @@ import {
   isExternalCliProvider,
   isGeminiProvider,
   isOllamaProvider,
-  OLLAMA_CLAUDE_CODE_AUTH_TOKEN
+  OLLAMA_PLACEHOLDER_AUTH_TOKEN
 } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
@@ -152,7 +152,7 @@ async function resolveClaudeCodeRuntimeRoute(
 
   const anthropicBaseUrl = resolveAnthropicBaseUrl(primaryProvider, primaryBaseUrl)
   const providerApiKey = providerService.getRotatedApiKey(primaryProvider.id)
-  const runtimeApiKey = providerApiKey || (isOllamaProvider(primaryProvider) ? OLLAMA_CLAUDE_CODE_AUTH_TOKEN : '')
+  const runtimeApiKey = providerApiKey || (isOllamaProvider(primaryProvider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
   return {
     baseUrl: anthropicBaseUrl,
     apiKey: runtimeApiKey,

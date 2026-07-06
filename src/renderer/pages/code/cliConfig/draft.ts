@@ -5,7 +5,7 @@ import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { formatApiHost } from '@shared/utils/api'
-import { isOllamaProvider, OLLAMA_CLAUDE_CODE_AUTH_TOKEN } from '@shared/utils/provider'
+import { isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
 import { stringify as stringifyToml } from 'smol-toml'
 
 import {
@@ -83,6 +83,13 @@ interface ResolvedCliConfigContext {
   configBlob: Record<string, any>
 }
 
+/**
+ * File-configured tools Ollama can actually be selected for — it only exposes
+ * an anthropic-messages endpoint (see CLI_TOOL_PROVIDER_MAP), so Codex/Gemini
+ * CLI/Qwen Code/Kimi CLI never offer it as a provider option.
+ */
+const OLLAMA_FALLBACK_TOOLS: string[] = [CodeCli.CLAUDE_CODE, CodeCli.OPEN_CODE]
+
 async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConfigContext | null> {
   if (!FILE_CONFIGURED_CLI_TOOLS.has(args.cliTool)) return null
   if (!isUniqueModelId(args.modelId)) {
@@ -101,11 +108,12 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
   }
 
   const apiKey = firstApiKey(apiKeysRes?.keys)
-  // Ollama's local server needs no real credential, but Claude Code's SDK
-  // still requires a non-empty auth token — mirrors the same fallback used
-  // for the in-app agent runtime (agentSessionWarmup.ts).
+  // Ollama's local server needs no real credential, but the Claude Code and
+  // OpenCode SDKs still require a non-empty auth token — mirrors the same
+  // fallback used for the in-app agent runtime (agentSessionWarmup.ts).
   const effectiveApiKey =
-    apiKey || (args.cliTool === CodeCli.CLAUDE_CODE && isOllamaProvider(provider) ? OLLAMA_CLAUDE_CODE_AUTH_TOKEN : '')
+    apiKey ||
+    (OLLAMA_FALLBACK_TOOLS.includes(args.cliTool) && isOllamaProvider(provider) ? OLLAMA_PLACEHOLDER_AUTH_TOKEN : '')
 
   return {
     provider,
