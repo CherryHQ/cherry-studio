@@ -1,4 +1,4 @@
-import type { FilePath } from '@shared/types/file'
+import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock, getMetadataByPathMock, safeOpenMock, showPathInFolderMock } = vi.hoisted(() => ({
@@ -8,11 +8,21 @@ const { appGetMock, getMetadataByPathMock, safeOpenMock, showPathInFolderMock } 
   showPathInFolderMock: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
-vi.mock('@main/services/file', () => ({
-  safeOpen: safeOpenMock,
-  showInFolder: showPathInFolderMock
-}))
-vi.mock('@main/services/file/utils/metadata', () => ({ getMetadataByPath: getMetadataByPathMock }))
+vi.mock('@main/services/file', async () => {
+  // The handler now reaches dispatchHandle / getMetadataByPath through the file
+  // facade (previously deep-imported). dispatchHandle is exercised for real —
+  // the tests assert its routing — while the other facade exports it uses are
+  // stubbed.
+  const { dispatchHandle } = await vi.importActual<typeof FileDispatchModule>('@main/services/file/internal/dispatch')
+  return {
+    dispatchHandle,
+    getMetadataByPath: getMetadataByPathMock,
+    safeOpen: safeOpenMock,
+    showInFolder: showPathInFolderMock
+  }
+})
+
+import type { FilePath } from '@shared/types/file'
 
 import { fileHandlers } from '../file'
 

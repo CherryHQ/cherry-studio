@@ -3,7 +3,7 @@ import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/
 import { messageTable } from '@data/db/schemas/message'
 import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
-import { DataApiError, ErrorCode } from '@shared/data/api'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 import type { CanonicalFilePath } from '@shared/utils/file'

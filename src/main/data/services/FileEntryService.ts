@@ -27,11 +27,17 @@ import {
 } from '@data/db/schemas/fileRelations'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileEntryListResponse, FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
-import { ExternalEntrySchema, FileEntrySchema, InternalEntrySchema, SafeNameSchema } from '@shared/data/types/file'
-import { chatMessageSourceType, paintingSourceType } from '@shared/data/types/file/ref'
+import {
+  chatMessageSourceType,
+  ExternalEntrySchema,
+  FileEntrySchema,
+  InternalEntrySchema,
+  paintingSourceType,
+  SafeNameSchema
+} from '@shared/data/types/file'
 import type { CanonicalFilePath } from '@shared/utils/file'
 import { and, asc, count, eq, isNotNull, isNull, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'

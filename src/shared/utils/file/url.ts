@@ -33,7 +33,7 @@
  * access, or main-process singletons belongs in File IPC.
  */
 
-import { type FilePath, FilePathSchema, type FileUrlString, SafeExtSchema } from '@shared/types/file/common'
+import { type FilePath, FilePathSchema, type FileUrlString, SafeExtSchema } from '@shared/types/file'
 
 // ─── Danger extension policy ───
 

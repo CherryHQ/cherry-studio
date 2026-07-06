@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { joinPath } from '@renderer/utils/path'
-import { FilePathSchema } from '@shared/types/file/common'
-import { createFilePathHandle } from '@shared/utils/file/handle'
+import { FilePathSchema } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 import { useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('useFileSize')

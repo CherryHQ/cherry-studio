@@ -1,10 +1,10 @@
 import { useOptionalMessageListActions } from '../../MessageListProvider'
+import { AgentToolsType, type ToolInput, type ToolOutput } from '../shared/agentToolTypes'
+import { type ToolStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
-import { type ToolStatus, ToolStatusIndicator } from './GenericTools'
 import { isValidAgentToolsType, renderTool } from './toolRendererRegistry'
-import { AgentToolsType, type ToolInput, type ToolOutput } from './types'
 import { UnknownToolRenderer } from './UnknownToolRenderer'
 
 function shouldShowHeaderErrorText(toolName: string | undefined, renderedItem: ToolDisclosureItem) {

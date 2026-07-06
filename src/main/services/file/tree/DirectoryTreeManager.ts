@@ -27,8 +27,8 @@ import { randomUUID } from 'node:crypto'
 
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { FilePathSchema } from '@shared/data/types/file'
 import { IpcChannel } from '@shared/IpcChannel'
+import { FilePathSchema } from '@shared/types/file'
 import {
   type CreateTreeIpcResult,
   type DirectoryTreeOptions,

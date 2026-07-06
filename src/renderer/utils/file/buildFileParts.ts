@@ -15,7 +15,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { FileUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 import { FilePathSchema } from '@shared/types/file'
-import { createFilePathHandle } from '@shared/utils/file/handle'
+import { createFilePathHandle } from '@shared/utils/file'
 
 /**
  * For each `ComposerAttachment` (with an absolute `path`), create a v2 internal

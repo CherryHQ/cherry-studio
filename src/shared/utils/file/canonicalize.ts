@@ -43,7 +43,7 @@
  * "Residual normalization discipline"`.
  */
 
-import { FilePathSchema } from '@shared/types/file/common'
+import { FilePathSchema } from '@shared/types/file'
 import type * as z from 'zod'
 
 function canonicalizeAbsolutePath(raw: string): string {

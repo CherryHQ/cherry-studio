@@ -3,8 +3,7 @@ import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/fil
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { type CherryFileMeta, type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
 import { type FileUrlString } from '@shared/types/file'
-import { getFileTypeByExt } from '@shared/utils/file/fileType'
-import { fileUrlToPath } from '@shared/utils/file/url'
+import { fileUrlToPath, getFileTypeByExt } from '@shared/utils/file'
 
 import { type ComposerAttachment, toComposerAttachment } from './composerAttachment'
 import {

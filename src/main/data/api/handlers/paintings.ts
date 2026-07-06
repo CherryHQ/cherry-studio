@@ -1,5 +1,4 @@
 import { paintingService } from '@data/services/PaintingService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { PaintingsSchemas } from '@shared/data/api/schemas/paintings'
 import {
@@ -7,6 +6,7 @@ import {
   ListPaintingsQuerySchema,
   UpdatePaintingSchema
 } from '@shared/data/api/schemas/paintings'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const paintingHandlers: HandlersFor<PaintingsSchemas> = {
   '/paintings': {

@@ -1,6 +1,6 @@
+import { FilePathSchema } from '@shared/types/file'
 import * as z from 'zod'
 
-import { FilePathSchema } from './file'
 import { GroupIdSchema } from './group'
 
 /**

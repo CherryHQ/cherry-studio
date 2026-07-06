@@ -55,24 +55,36 @@ const defaultMigrationPaths = {
 const defaultResolveResult = { paths: defaultMigrationPaths, userDataChanged: false, inaccessibleLegacyPath: null }
 
 function stubMigrationV2() {
-  vi.doMock('@data/migration/v2', () => ({
-    migrationEngine: {
-      initialize: initializeMock,
-      registerMigrators: registerMigratorsMock,
-      needsMigration: needsMigrationMock,
-      close: closeMock,
-      paths: { versionLogFile: '/fake/version.log', userData: '/fake/userData' }
-    },
-    getAllMigrators: getAllMigratorsMock,
-    migrationWindowManager: {
-      create: migrationWindowCreateMock,
-      waitForReady: migrationWindowWaitForReadyMock
-    },
-    registerMigrationIpcHandlers: registerMigrationIpcHandlersMock,
-    unregisterMigrationIpcHandlers: unregisterMigrationIpcHandlersMock,
-    resolveMigrationPaths: resolveMigrationPathsMock,
-    setVersionIncompatible: setVersionIncompatibleMock
-  }))
+  vi.doMock('@data/migration/v2', async () => {
+    // The gate now imports the version-policy fns and isSchemaOutOfSyncError through
+    // the barrel, so they live on this mock. isSchemaOutOfSyncError is a pure predicate —
+    // keep the real implementation so schemaOutOfSyncError() fixtures are still detected.
+    const { isSchemaOutOfSyncError } = (await vi.importActual('@data/migration/v2/core/migrationErrors')) as {
+      isSchemaOutOfSyncError: (error: unknown) => boolean
+    }
+    return {
+      migrationEngine: {
+        initialize: initializeMock,
+        registerMigrators: registerMigratorsMock,
+        needsMigration: needsMigrationMock,
+        close: closeMock,
+        paths: { versionLogFile: '/fake/version.log', userData: '/fake/userData' }
+      },
+      getAllMigrators: getAllMigratorsMock,
+      migrationWindowManager: {
+        create: migrationWindowCreateMock,
+        waitForReady: migrationWindowWaitForReadyMock
+      },
+      registerMigrationIpcHandlers: registerMigrationIpcHandlersMock,
+      unregisterMigrationIpcHandlers: unregisterMigrationIpcHandlersMock,
+      resolveMigrationPaths: resolveMigrationPathsMock,
+      setVersionIncompatible: setVersionIncompatibleMock,
+      checkUpgradePathCompatibility: checkUpgradePathMock,
+      readPreviousVersion: readPreviousVersionMock,
+      getBlockMessage: getBlockMessageMock,
+      isSchemaOutOfSyncError
+    }
+  })
 }
 
 function stubElectron() {
@@ -96,14 +108,6 @@ function stubApplication() {
     application: {
       quit: appQuitMock
     }
-  }))
-}
-
-function stubVersionPolicy() {
-  vi.doMock('@data/migration/v2/core/versionPolicy', () => ({
-    checkUpgradePathCompatibility: checkUpgradePathMock,
-    readPreviousVersion: readPreviousVersionMock,
-    getBlockMessage: getBlockMessageMock
   }))
 }
 
@@ -206,7 +210,6 @@ describe('runV2MigrationGate', () => {
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubVersionPolicy()
       stubFs()
 
       const { runV2MigrationGate } = await loadModule()
@@ -350,7 +353,6 @@ describe('runV2MigrationGate', () => {
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubVersionPolicy()
       stubFs()
 
       const { runV2MigrationGate } = await loadModule()
@@ -375,7 +377,6 @@ describe('runV2MigrationGate', () => {
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubVersionPolicy()
       stubFs()
 
       const { runV2MigrationGate } = await loadModule()
@@ -401,7 +402,6 @@ describe('runV2MigrationGate', () => {
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubVersionPolicy()
       stubFs()
 
       const { runV2MigrationGate } = await loadModule()
@@ -438,7 +438,6 @@ describe('runV2MigrationGate', () => {
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubVersionPolicy()
       stubFs()
 
       const { runV2MigrationGate } = await loadModule()
@@ -463,7 +462,6 @@ describe('runV2MigrationGate', () => {
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubVersionPolicy()
       stubFs()
 
       const { runV2MigrationGate } = await loadModule()

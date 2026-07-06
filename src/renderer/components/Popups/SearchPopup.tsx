@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/
 import { lazy, Suspense, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { TopView } from '../TopView'
+import { TopView } from '../TopView/TopView'
 
 // Deferred so the popup's imperative shell (this module, statically imported by
 // AppShell / ShellTabBarActions / AgentChatNavbar / MessagesService) no longer

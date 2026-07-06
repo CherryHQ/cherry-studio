@@ -1,6 +1,6 @@
 import type { FileMetadata } from '@renderer/types/file'
-import { FilePathSchema } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
+import { FilePathSchema } from '@shared/types/file'
 
 export interface KnowledgeFileItemData {
   source: string

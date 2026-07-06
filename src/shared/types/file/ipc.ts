@@ -33,10 +33,9 @@
  * enrichment queries, etc.) take `FileEntryId` directly.
  */
 
-import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
+import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
 
 import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, UrlString } from './common'
-import type { FileHandle } from './handle'
 import type { OrphanReport } from './sweep'
 
 export type { DirectoryListOptions, FilePath } from './common'

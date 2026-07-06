@@ -142,7 +142,7 @@ describe('internal/entry/rename', () => {
     // under test always reaches `fsMove` before it ever calls fs.rename, so
     // asserting on `move` is the appropriate granularity for "did the rename
     // path actually execute".
-    const fsModule = await import('@main/utils/file/fs')
+    const fsModule = await import('@main/utils/file')
     const moveSpy = vi.spyOn(fsModule, 'move')
 
     // Rename to the NFD spelling — same logical name, byte-distinct target.
@@ -170,7 +170,7 @@ describe('internal/entry/rename', () => {
 
     // Force the "target exists" path: pretend the lowercased path exists,
     // and resolves to the same inode as the original.
-    const fsModule = await import('@main/utils/file/fs')
+    const fsModule = await import('@main/utils/file')
     vi.spyOn(fsModule, 'exists').mockResolvedValue(true)
     vi.spyOn(fsModule, 'isSameFile').mockResolvedValue(true)
 

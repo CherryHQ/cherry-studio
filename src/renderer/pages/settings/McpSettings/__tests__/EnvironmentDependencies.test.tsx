@@ -34,11 +34,8 @@ vi.mock('@renderer/ipc', () => ({
           throw new Error(`unexpected route: ${route}`)
       }
     }
-  }
-}))
-
-// Event subscriptions are inert in these tests — refreshState drives all UI state.
-vi.mock('@renderer/ipc/useIpcOn', () => ({
+  },
+  // Event subscriptions are inert in these tests — refreshState drives all UI state.
   useIpcOn: vi.fn()
 }))
 

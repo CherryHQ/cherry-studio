@@ -1,7 +1,7 @@
+import { FilePathSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import { FILE_PROCESSOR_IDS } from '../preference/preferenceTypes'
-import { FilePathSchema } from './file'
 
 export const FileProcessingTextArtifactSchema = z
   .object({

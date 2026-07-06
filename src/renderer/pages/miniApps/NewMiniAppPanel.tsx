@@ -11,7 +11,7 @@ import {
   Input
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { LogoAvatar } from '@renderer/components/icons'
+import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { compressImage, convertToBase64 } from '@renderer/utils/image'
