@@ -1,6 +1,6 @@
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel/symbols'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
-import { defineTool, registerTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
+import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { type QuickPanelInputAdapter, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
@@ -218,7 +218,5 @@ const mcpStatusTool = defineTool({
     runtime: ({ context }) => <McpStatusComposerRuntime context={context} />
   }
 })
-
-registerTool(mcpStatusTool)
 
 export default mcpStatusTool

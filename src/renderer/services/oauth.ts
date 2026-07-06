@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import i18n, { getLanguageCode } from '@renderer/i18n'
+import i18n, { getLanguageCode } from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 

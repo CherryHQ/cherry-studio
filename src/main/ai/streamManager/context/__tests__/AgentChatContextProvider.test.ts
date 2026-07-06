@@ -45,7 +45,7 @@ vi.mock('@main/core/application', () => ({
 }))
 
 const { AgentChatContextProvider } = await import('../AgentChatContextProvider')
-const { runtimeDriverRegistry } = await import('../../../runtime')
+const { runtimeDriverRegistry } = await import('../../../runtime/registry')
 
 function makeSubscriber(id = 'wc:1:agent-session:session-1'): StreamListener {
   return {

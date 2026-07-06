@@ -9,7 +9,7 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { AlertCircle, CheckCircle2, Info, Loader2, TriangleAlert, XCircle } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'

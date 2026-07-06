@@ -1,4 +1,4 @@
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import { openSettingsTab } from '@renderer/services/settingsNavigation'
 
 import { createPaintingGenerateError, presentPaintingGenerateError } from '../errors/paintingGenerateError'
