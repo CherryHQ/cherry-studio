@@ -4,6 +4,19 @@ import type { CherryMessagePart, CherryUIMessage } from '../../data/types/messag
 import type { UniqueModelId } from '../../data/types/model'
 import type { SerializedError } from '../../types/error'
 
+export interface AiChatRequestBody {
+  /** Topic ID for message routing and persistence. */
+  topicId: string
+  /** Explicit parent node — message id at the current branch tip, or null for first message. */
+  parentAnchorId?: string
+  /** Models selected by the composer model selector (multi-model fan-out). */
+  mentionedModels?: UniqueModelId[]
+  /** User message parts to persist/display for submit-message turns. */
+  userMessageParts?: CherryMessagePart[]
+  /** Uploaded file metadata. */
+  files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
+}
+
 // ── Push payloads (Main → Renderer) ─────────────────────────────────
 
 /** A single chunk of a running stream. */

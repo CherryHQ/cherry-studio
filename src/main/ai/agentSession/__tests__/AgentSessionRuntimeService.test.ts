@@ -34,7 +34,7 @@ vi.mock('@main/core/application', () => ({
 }))
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
-const { runtimeDriverRegistry } = await import('../../runtime')
+const { runtimeDriverRegistry } = await import('../../runtime/registry')
 const baseTurnInput = {
   sessionId: 'session-1',
   topicId: 'agent-session:session-1',

@@ -31,6 +31,7 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 ├── ApiGatewayService.ts             ← lifecycle owner (start/stop, IPC, auto-start, running-state)
 ├── proxyStream.ts                   ← `processMessage()` — the core request → stream → response engine
 ├── reasoningCache.ts                ← google / openrouter reasoning-signature caches
+├── openrouter.ts                    ← OpenRouter `reasoning_details` type contract (used by reasoningCache)
 ├── middleware/
 │   └── auth.ts                      ← `authorizeApiRequest` (x-api-key | Bearer, timing-safe)
 ├── routes/
