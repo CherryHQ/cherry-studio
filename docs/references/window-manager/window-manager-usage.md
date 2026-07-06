@@ -199,6 +199,19 @@ WindowManager exposes four lifecycle methods, arranged in two layers:
 
 **Why `destroy()` is not a consumer API.** On non-pooled windows (default and singleton) `close()` falls through to the same `destroyWindow()` call — there is no behavioral difference. On pooled windows, `destroy()` bypasses the pool, which is almost never what a consumer actually wants; the correct API for "stop the whole pool" is `suspendPool(type)`, which destroys idle windows and prevents further recycling without touching in-use windows.
 
+### Consumer-loaded windows (`htmlPath: ''`)
+
+A registry entry with `htmlPath: ''` is **consumer-loaded**: WM wires the window (preload, behavior, bounds, lifecycle) but loads no content — the domain service loads it after `open()`. For hidden, one-shot surfaces rendering *generated* content (print / PDF, offscreen render).
+
+```typescript
+const id = wm.open(WindowType.MyPrintSurface)          // WM wires; loads nothing
+const win = wm.getWindow(id)                           // the sanctioned handle to load into
+await win?.webContents.loadURL(generatedHtmlDataUrl)   // consumer owns content + show + close()
+// ... await 'did-finish-load', e.g. webContents.printToPDF(), then wm.close(id)
+```
+
+`getWindow(id)` is the one exception to "consumers only call `open()` / `close()`" — use it only for `webContents` loading (payload encoding is the consumer's call). Main-initiated `loadURL` / `loadFile` is not blocked by WM's navigation guards (those only intercept renderer-initiated navigation).
+
 ### Domain-Key-to-WindowId Mapping
 
 For window types that are keyed by domain data (e.g., a topic-specific window), the domain service maintains its own mapping:
