@@ -4,6 +4,7 @@ import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/action
 import {
   type ConversationResourceMenuItem,
   remapResourceListCollapsedGroupIds,
+  renderAgentEntityIcon,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
   type ResourceListGroup,
@@ -14,7 +15,6 @@ import {
   SESSION_DISPLAY_LABEL_KEYS,
   SessionListOptionsMenu
 } from '@renderer/components/chat/resourceList/base'
-import { renderAgentEntityIcon } from '@renderer/components/chat/resourceList/base/resourceEntityIcon'
 import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'

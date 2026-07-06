@@ -1,13 +1,11 @@
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import {
-  buildResourceEntityIconTypeActionDescriptor,
-  buildResourceEntityMenuActionDescriptor
-} from '@renderer/components/chat/resourceList/base/resourceEntityActions'
-import {
   buildIconTypeActionDescriptors,
+  buildResourceEntityIconTypeActionDescriptor,
+  buildResourceEntityMenuActionDescriptor,
   RESOURCE_ICON_TYPE_OPTIONS
-} from '@renderer/components/chat/resourceList/base/resourceEntityIcon'
+} from '@renderer/components/chat/resourceList/base'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
 import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Smile, Tags, Trash2 } from 'lucide-react'

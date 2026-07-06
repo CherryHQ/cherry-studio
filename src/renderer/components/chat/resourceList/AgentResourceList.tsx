@@ -16,10 +16,13 @@ import { Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ConversationResourceMenuItem } from './base'
-import { buildResolvedResourceEntityMenuAction } from './base/resourceEntityActions'
-import { buildResolvedIconTypeMenuAction, renderAgentEntityIcon } from './base/resourceEntityIcon'
-import { SessionListOptionsMenu } from './base/SessionListOptionsMenu'
+import {
+  buildResolvedIconTypeMenuAction,
+  buildResolvedResourceEntityMenuAction,
+  type ConversationResourceMenuItem,
+  renderAgentEntityIcon,
+  SessionListOptionsMenu
+} from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
 import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'

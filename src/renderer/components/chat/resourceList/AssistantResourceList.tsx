@@ -18,10 +18,13 @@ import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ConversationResourceMenuItem } from './base'
-import { buildResolvedResourceEntityMenuAction } from './base/resourceEntityActions'
-import { buildResolvedIconTypeMenuAction, renderAssistantEntityIcon } from './base/resourceEntityIcon'
-import { TopicListOptionsMenu } from './base/TopicListOptionsMenu'
+import {
+  buildResolvedIconTypeMenuAction,
+  buildResolvedResourceEntityMenuAction,
+  type ConversationResourceMenuItem,
+  renderAssistantEntityIcon,
+  TopicListOptionsMenu
+} from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
 import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'

@@ -2,6 +2,19 @@ export {
   ConversationResourceMenu,
   type ConversationResourceMenuItem
 } from './ConversationResourceMenu'
+export {
+  buildResolvedResourceEntityMenuAction,
+  buildResourceEntityIconTypeActionDescriptor,
+  buildResourceEntityMenuActionDescriptor
+} from './resourceEntityActions'
+export {
+  buildIconTypeActionDescriptors,
+  buildResolvedIconTypeActions,
+  buildResolvedIconTypeMenuAction,
+  renderAgentEntityIcon,
+  renderAssistantEntityIcon,
+  RESOURCE_ICON_TYPE_OPTIONS
+} from './resourceEntityIcon'
 export type {
   ResourceListActionMap,
   ResourceListContextValue,

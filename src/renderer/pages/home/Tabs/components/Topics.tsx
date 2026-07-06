@@ -9,6 +9,7 @@ import { ResourceListActionContextMenu } from '@renderer/components/chat/actions
 import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
 import {
   type ConversationResourceMenuItem,
+  renderAssistantEntityIcon,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
   type ResourceListItemReorderPayload,
@@ -20,7 +21,6 @@ import {
   useResourceListPinnedState,
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
-import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base/resourceEntityIcon'
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
