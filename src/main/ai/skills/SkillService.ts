@@ -333,7 +333,7 @@ export class SkillService {
   }
 
   private async installFromClawhub(slug: string): Promise<InstalledSkill> {
-    const detailUrl = `https://api.clawhub.ai/api/v1/skills/${slug}`
+    const detailUrl = `https://clawhub.ai/api/v1/skills/${slug}`
     const detailResp = await net.fetch(detailUrl, {
       headers: { 'User-Agent': 'CherryStudio' }
     })
@@ -342,7 +342,16 @@ export class SkillService {
       throw new Error(`clawhub detail failed: HTTP ${detailResp.status}`)
     }
 
-    const downloadUrl = `https://api.clawhub.ai/api/v1/skills/${slug}/download`
+    const detailData = await detailResp.json()
+    const ownerHandle: string | undefined = (detailData as Record<string, unknown>)?.owner
+      ? (((detailData as Record<string, unknown>).owner as Record<string, unknown>)?.handle as string | undefined)
+      : undefined
+
+    const sourceUrl = ownerHandle
+      ? `https://clawhub.ai/${ownerHandle}/skills/${slug}`
+      : `https://clawhub.ai/skills/${slug}`
+
+    const downloadUrl = `https://clawhub.ai/api/v1/download?slug=${encodeURIComponent(slug)}`
     const downloadResp = await net.fetch(downloadUrl, {
       headers: { 'User-Agent': 'CherryStudio' }
     })
@@ -361,7 +370,7 @@ export class SkillService {
       await fs.promises.mkdir(extractDir, { recursive: true })
       await this.extractZip(zipPath, extractDir)
       const skillDir = await this.locateSkillDir(extractDir)
-      return await this.installSkillDir(skillDir, 'marketplace', `https://clawhub.ai/skills/${slug}`)
+      return await this.installSkillDir(skillDir, 'marketplace', sourceUrl)
     } finally {
       await this.safeRemoveDirectory(tempDir)
     }

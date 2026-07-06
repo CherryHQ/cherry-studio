@@ -71,11 +71,13 @@ function normalizeClawhub(raw: unknown): SkillSearchResult[] {
     slug: s.slug,
     name: s.displayName,
     description: s.summary ?? null,
-    author: null,
+    author: s.ownerHandle ?? null,
     stars: 0,
     downloads: 0,
     sourceRegistry: 'clawhub.ai' as SkillSearchSource,
-    sourceUrl: `https://clawhub.ai/skills/${s.slug}`,
+    sourceUrl: s.ownerHandle
+      ? `https://clawhub.ai/${s.ownerHandle}/skills/${s.slug}`
+      : `https://clawhub.ai/skills/${s.slug}`,
     installSource: `clawhub:${s.slug}`
   }))
 }

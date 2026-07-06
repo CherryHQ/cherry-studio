@@ -238,10 +238,13 @@ describe('Skill search normalizers', () => {
         slug: s.slug,
         name: s.displayName,
         description: s.summary ?? null,
-        author: null,
+        author: s.ownerHandle ?? null,
         stars: 0,
         downloads: 0,
         sourceRegistry: 'clawhub.ai' as const,
+        sourceUrl: s.ownerHandle
+          ? `https://clawhub.ai/${s.ownerHandle}/skills/${s.slug}`
+          : `https://clawhub.ai/skills/${s.slug}`,
         installSource: `clawhub:${s.slug}`
       }))
 
@@ -250,7 +253,8 @@ describe('Skill search normalizers', () => {
 
       expect(results[0].name).toBe('Code Reviewer Pro')
       expect(results[0].installSource).toBe('clawhub:code-reviewer-pro')
-      expect(results[1].author).toBeNull()
+      expect(results[0].author).toBe('devmaster')
+      expect(results[0].sourceUrl).toBe('https://clawhub.ai/devmaster/skills/code-reviewer-pro')
     })
   })
 })
