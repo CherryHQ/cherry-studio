@@ -2,18 +2,22 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import type { PathKey, PathMap } from '@main/core/paths'
-import { buildPathRegistry, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
+import {
+  type Disposable,
+  LifecycleManager,
+  Phase,
+  type ServiceConstructor,
+  ServiceContainer,
+  ServiceInitError,
+  SHUTDOWN_TIMEOUT_MS
+} from '@main/core/lifecycle'
+import { buildPathRegistry, type PathKey, type PathMap, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
 import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, ipcMain } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
-import type { Disposable } from '../lifecycle/event'
-import { LifecycleManager } from '../lifecycle/LifecycleManager'
-import { ServiceContainer } from '../lifecycle/ServiceContainer'
-import { Phase, type ServiceConstructor, ServiceInitError } from '../lifecycle/types'
 import type { ServiceRegistry } from './serviceRegistry'
 
 const logger = loggerService.withContext('Lifecycle')
@@ -29,8 +33,6 @@ interface QuitPreventionHold extends Disposable {
  * Manages services, windows, and Electron app events
  */
 export class Application {
-  public static readonly SHUTDOWN_TIMEOUT_MS = 5000
-
   private static instance: Application | null = null
   private container: ServiceContainer
   private lifecycleManager: LifecycleManager
@@ -392,7 +394,7 @@ export class Application {
     }
 
     process.on('SIGINT', async () => {
-      const timer = setTimeout(forceExit, Application.SHUTDOWN_TIMEOUT_MS)
+      const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
       } catch (error) {
@@ -404,7 +406,7 @@ export class Application {
     })
 
     process.on('SIGTERM', async () => {
-      const timer = setTimeout(forceExit, Application.SHUTDOWN_TIMEOUT_MS)
+      const timer = setTimeout(forceExit, SHUTDOWN_TIMEOUT_MS)
       try {
         await this.shutdown()
       } catch (error) {
@@ -443,7 +445,7 @@ export class Application {
       const timer = setTimeout(() => {
         logger.warn('Forced exit after shutdown timeout (will-quit)')
         process.exit(1)
-      }, Application.SHUTDOWN_TIMEOUT_MS)
+      }, SHUTDOWN_TIMEOUT_MS)
 
       this.shutdown()
         .catch((err) => logger.error('Error during shutdown:', err as Error))

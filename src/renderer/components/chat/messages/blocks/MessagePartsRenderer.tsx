@@ -21,10 +21,12 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
+import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
+import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
-import type { CherryProviderMetadata, ErrorPartData } from '@shared/data/types/uiParts'
+import type { CherryProviderMetadata, ComposerMessageToken, ErrorPartData } from '@shared/data/types/uiParts'
 import { isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { X } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
@@ -45,7 +47,7 @@ import CompactBlock from './CompactBlock'
 import CompactionAnchorBlock from './CompactionAnchorBlock'
 import ErrorBlock from './ErrorBlock'
 import ImageBlock from './ImageBlock'
-import MainTextBlock from './MainTextBlock'
+import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
 import { useMessageParts, useTranslationOverlayEntry } from './MessagePartsContext'
 import PlaceholderBlock, {
   formatPlaceholderElapsed,
@@ -170,6 +172,11 @@ function getVideoFilePath(part: CherryMessagePart): string | undefined {
 
 type PartEntry = { part: CherryMessagePart; index: number }
 type GroupedEntry = PartEntry | PartEntry[]
+
+interface RenderGroupedEntryOptions {
+  expandedTextPartIds: ReadonlySet<string>
+  onTextPartExpandedChange: (partId: string, expanded: boolean) => void
+}
 
 function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
   return entries.reduce<GroupedEntry[]>((acc, entry) => {
@@ -350,6 +357,126 @@ function isResultPart(part: CherryMessagePart): boolean {
   return isSummaryMessagePart(part) || partType === 'data-error' || partType === 'file' || partType === 'data-video'
 }
 
+interface VisibleComposerFileToken {
+  sourceId?: string
+  names: Set<string>
+}
+
+function isComposerTokenVisibleInText(token: ComposerMessageToken, text: string): boolean {
+  if (!token.promptText) return true
+  const offset = Math.max(0, Math.min(text.length, token.textOffset))
+  return text.slice(offset, offset + token.promptText.length) === token.promptText
+}
+
+function getComposerFileTokenNames(token: ComposerMessageToken): Set<string> {
+  const names = [token.payload?.origin_name, token.payload?.name, token.label].filter((name): name is string => !!name)
+  return new Set(names)
+}
+
+function getComposerTokenDisplayText(
+  part: CherryMessagePart,
+  message: MessageListItem,
+  partId: string,
+  expandedTextPartIds: ReadonlySet<string>
+): string {
+  const text = (part as { text?: string }).text ?? ''
+  if (message.role !== 'user' || expandedTextPartIds.has(partId)) return text
+
+  return buildUserMessagePreview(text).content
+}
+
+function getVisibleComposerFileTokens(
+  parts: readonly CherryMessagePart[],
+  message: MessageListItem,
+  expandedTextPartIds: ReadonlySet<string>
+): VisibleComposerFileToken[] {
+  return parts.flatMap((part, index) => {
+    if ((part.type as string) !== 'text') return []
+    const composer = getCherryMeta(part)?.composer
+    if (!composer) return []
+    const partId = `${message.id}-part-${index}`
+    const text = getComposerTokenDisplayText(part, message, partId, expandedTextPartIds)
+
+    return getDisplayComposerTokens(composer).flatMap((token) => {
+      if (token.kind !== 'file' || !isComposerTokenVisibleInText(token, text)) return []
+      return [{ sourceId: readComposerFileTokenIdSuffix(token.id), names: getComposerFileTokenNames(token) }]
+    })
+  })
+}
+
+function getFileEntrySourceId(entry: PartEntry): string | undefined {
+  return getCherryMeta(entry.part)?.fileTokenSourceId
+}
+
+function getFileEntryName(entry: PartEntry): string {
+  const filePart = entry.part as { filename?: string; url?: string }
+  return (
+    filePart.filename ||
+    filePart.url
+      ?.split(/[\\/]/)
+      .pop()
+      ?.replace(/^file:\/\//, '') ||
+    ''
+  )
+}
+
+function findUniqueVisibleFileTokenIndex(
+  tokens: readonly VisibleComposerFileToken[],
+  usedTokenIndexes: ReadonlySet<number>,
+  matches: (token: VisibleComposerFileToken) => boolean
+): number | undefined {
+  const matchingIndexes = tokens.flatMap((token, index) =>
+    !usedTokenIndexes.has(index) && matches(token) ? [index] : []
+  )
+  return matchingIndexes.length === 1 ? matchingIndexes[0] : undefined
+}
+
+function getDisplayEntries(
+  entries: readonly PartEntry[],
+  message: MessageListItem,
+  visibleComposerFileTokens: readonly VisibleComposerFileToken[]
+): PartEntry[] {
+  if (message.role !== 'user' || visibleComposerFileTokens.length === 0) return [...entries]
+
+  const fileEntryNameCounts = new Map<string, number>()
+  for (const entry of entries) {
+    if ((entry.part.type as string) !== 'file' || isImageFilePart(entry.part)) continue
+
+    const name = getFileEntryName(entry)
+    if (name) fileEntryNameCounts.set(name, (fileEntryNameCounts.get(name) ?? 0) + 1)
+  }
+
+  const usedTokenIndexes = new Set<number>()
+  return entries.filter((entry) => {
+    if ((entry.part.type as string) !== 'file' || isImageFilePart(entry.part)) return true
+
+    const sourceId = getFileEntrySourceId(entry)
+    const sourceMatchIndex = sourceId
+      ? findUniqueVisibleFileTokenIndex(
+          visibleComposerFileTokens,
+          usedTokenIndexes,
+          (token) => token.sourceId === sourceId
+        )
+      : undefined
+    if (sourceMatchIndex !== undefined) {
+      usedTokenIndexes.add(sourceMatchIndex)
+      return false
+    }
+
+    const name = getFileEntryName(entry)
+    const nameMatchIndex =
+      name && fileEntryNameCounts.get(name) === 1
+        ? findUniqueVisibleFileTokenIndex(visibleComposerFileTokens, usedTokenIndexes, (token) => token.names.has(name))
+        : undefined
+    if (nameMatchIndex !== undefined) {
+      usedTokenIndexes.add(nameMatchIndex)
+      return false
+    }
+
+    return true
+  })
+}
+
 /**
  * "Process" parts are the low-value steps of an agentic turn — tool calls,
  * reasoning, and hidden markers — that get tucked into a collapsed fold so the
@@ -436,7 +563,8 @@ function renderPart(
   partId: string,
   message: MessageListItem,
   isStreaming: boolean,
-  isTranslationOverlayActive: boolean
+  isTranslationOverlayActive: boolean,
+  options?: RenderGroupedEntryOptions
 ): React.ReactNode {
   const partType = part.type
 
@@ -498,6 +626,10 @@ function renderPart(
           citationReferences={citationReferences}
           role={message.role}
           composer={cherryMeta?.composer}
+          userContentExpanded={message.role === 'user' ? options?.expandedTextPartIds.has(partId) : undefined}
+          onUserContentExpandedChange={
+            message.role === 'user' ? (expanded) => options?.onTextPartExpandedChange(partId, expanded) : undefined
+          }
         />
       )
     }
@@ -599,7 +731,8 @@ function renderGroupedEntry(
   entry: GroupedEntry,
   message: MessageListItem,
   isStreaming: boolean,
-  isTranslationOverlayActive: boolean
+  isTranslationOverlayActive: boolean,
+  options?: RenderGroupedEntryOptions
 ): React.ReactNode {
   if (Array.isArray(entry)) {
     const groupKey = entry.map((e) => `${message.id}-part-${e.index}`).join('-')
@@ -653,7 +786,7 @@ function renderGroupedEntry(
   }
 
   const partId = `${message.id}-part-${entry.index}`
-  const rendered = renderPart(entry.part, partId, message, isStreaming, isTranslationOverlayActive)
+  const rendered = renderPart(entry.part, partId, message, isStreaming, isTranslationOverlayActive, options)
   if (!rendered) return null
 
   return (
@@ -976,6 +1109,21 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   const isStreaming = isTopicStreaming && message.status === 'pending'
   const isTranslationOverlayActive = useTranslationOverlayEntry(message.id) !== undefined
   const renderConfig = useMessageRenderConfig()
+  const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
+  const handleTextPartExpandedChange = React.useCallback((partId: string, expanded: boolean) => {
+    setExpandedTextPartIds((current) => {
+      const hasPartId = current.has(partId)
+      if (hasPartId === expanded) return current
+
+      const next = new Set(current)
+      if (expanded) {
+        next.add(partId)
+      } else {
+        next.delete(partId)
+      }
+      return next
+    })
+  }, [])
 
   // Beat loader visible only when THIS specific message is the active turn
   // target. The identity predicate lives in `useIsActiveTurnTarget` so
@@ -1026,10 +1174,28 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
   // Everything not folded into the history group renders flat: the answer after
   // the fold, or all parts when there's no fold (no tools / collapse disabled).
   const visibleEntries = toolHistoryGroup?.resultEntries ?? partEntries
-  const grouped = useMemo(() => (visibleEntries.length === 0 ? [] : groupPartEntries(visibleEntries)), [visibleEntries])
+  const visibleComposerFileTokens = useMemo(
+    () => getVisibleComposerFileTokens(messageParts, message, expandedTextPartIds),
+    [expandedTextPartIds, message, messageParts]
+  )
+  const displayEntries = useMemo(
+    () => getDisplayEntries(visibleEntries, message, visibleComposerFileTokens),
+    [message, visibleComposerFileTokens, visibleEntries]
+  )
+  const grouped = useMemo(() => (displayEntries.length === 0 ? [] : groupPartEntries(displayEntries)), [displayEntries])
+  const renderOptions = useMemo(
+    () => ({
+      expandedTextPartIds,
+      onTextPartExpandedChange: handleTextPartExpandedChange
+    }),
+    [expandedTextPartIds, handleTextPartExpandedChange]
+  )
   const renderedEntries = useMemo(
-    () => grouped.map((entry) => renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive)),
-    [grouped, isStreaming, isTranslationOverlayActive, message]
+    () =>
+      grouped.map((entry) =>
+        renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive, renderOptions)
+      ),
+    [grouped, isStreaming, isTranslationOverlayActive, message, renderOptions]
   )
   const hasRenderedEntries = renderedEntries.some(Boolean)
 
