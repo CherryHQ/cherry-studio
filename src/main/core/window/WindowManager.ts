@@ -1435,8 +1435,10 @@ export class WindowManager extends BaseService {
       this.setInitData(windowId, args.initData)
     }
 
-    // 6. Load content (skip if htmlPath is empty — domain service handles loading)
-    if (metadata.htmlPath) {
+    // 6. Load content. Empty htmlPath means the domain service owns loading.
+    if (metadata.htmlPath === '') {
+      logger.debug('Skipping registry content loading', { windowId, type })
+    } else {
       this.loadWindowContent(windowId, window, metadata.htmlPath)
     }
 

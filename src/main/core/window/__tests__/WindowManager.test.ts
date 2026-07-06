@@ -249,6 +249,14 @@ vi.mock('../windowRegistry', () => {
       htmlPath: 'windows/default/index.html',
       windowOptions: {}
     },
+    domainLoaded: {
+      type: 'domainLoaded',
+      lifecycle: 'default',
+      htmlPath: '',
+      preload: '',
+      showMode: 'manual',
+      windowOptions: {}
+    },
     singleton: {
       type: 'singleton',
       lifecycle: 'singleton',
@@ -400,6 +408,14 @@ describe('WindowManager', () => {
       wm.close(id)
 
       expect(win.destroy).toHaveBeenCalled()
+    })
+
+    it('skips registry content loading when htmlPath is empty', () => {
+      const id = wm.open('domainLoaded' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+
+      expect(win.loadURL).not.toHaveBeenCalled()
+      expect(win.loadFile).not.toHaveBeenCalled()
     })
   })
 

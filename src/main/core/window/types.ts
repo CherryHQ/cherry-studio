@@ -7,6 +7,7 @@ import type { BrowserWindow, BrowserWindowConstructorOptions, VisibleOnAllWorksp
  */
 export enum WindowType {
   Main = 'main',
+  Print = 'print',
   QuickAssistant = 'quickAssistant',
   SubWindow = 'subWindow',
   SelectionToolbar = 'selectionToolbar',
@@ -272,14 +273,18 @@ export interface WindowQuirks {
 interface WindowTypeMetadataBase {
   /** Window type identifier */
   type: WindowType
-  /** Path to the HTML file for this window (relative to renderer root) */
+  /**
+   * Path to the HTML file for this window (relative to renderer root).
+   * Empty string means WindowManager skips content loading and the domain
+   * service must load content itself.
+   */
   htmlPath: string
   /**
    * Preload script filename (basename with extension) in `src/preload/`.
    * - Omitted → defaults to `'preload.js'`
    * - Empty string → no preload (for windows with `nodeIntegration: true`)
    * - Otherwise → WM prefixes `'../preload/'` and loads that file
-   * Mirrors `htmlPath`'s three-state encoding (omitted / non-empty / empty).
+   * Mirrors `htmlPath`'s empty-string convention.
    */
   preload?: string
   /**
