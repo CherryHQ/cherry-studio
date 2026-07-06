@@ -31,8 +31,8 @@ vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
   useChatLayoutMode: () => ({ setForceWideLayout: vi.fn() })
 }))
 
-vi.mock('@renderer/components/icons', () => ({
-  LoadingIcon: () => <div data-testid="loading-icon" />
+vi.mock('@renderer/components/icons/LoadingIcon', () => ({
+  default: () => <div data-testid="loading-icon" />
 }))
 
 vi.mock('@renderer/components/Popups/MultiSelectionPopup', () => ({

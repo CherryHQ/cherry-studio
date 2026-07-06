@@ -29,7 +29,7 @@ const mockPartsMap = vi.hoisted(() => vi.fn((): Record<string, unknown[]> | null
 const mockMessageListActions = vi.hoisted(() => vi.fn(() => ({})))
 const mockThemeState = vi.hoisted(() => ({ theme: 'light' }))
 
-vi.mock('@renderer/components/chat/messages/blocks', () => ({
+vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
   usePartsMap: () => mockPartsMap()
 }))
 
@@ -100,8 +100,8 @@ vi.mock('@renderer/components/CodeViewer', () => ({
 }))
 
 // Mock LoadingIcon
-vi.mock('@renderer/components/icons', () => ({
-  LoadingIcon: () => <span data-testid="loading-icon" />
+vi.mock('@renderer/components/icons/LoadingIcon', () => ({
+  default: () => <span data-testid="loading-icon" />
 }))
 
 describe('AgentToolRenderer', () => {

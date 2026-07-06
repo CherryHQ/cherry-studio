@@ -1,12 +1,12 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { DragDropContext } from '@hello-pangea/dnd'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
+import { SettingDivider, SettingGroup } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 
-import { SettingDivider, SettingGroup } from '../..'
 import { useActionItems } from '../hooks/useSettingsActionsList'
 import ActionsList from './ActionsList'
 import ActionsListDivider from './ActionsListDivider'

@@ -7,7 +7,6 @@
  */
 
 import { providerService } from '@data/services/ProviderService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AddProviderApiKeySchema,
@@ -19,6 +18,7 @@ import {
   UpdateApiKeySchema,
   UpdateProviderSchema
 } from '@shared/data/api/schemas/providers'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const providerHandlers: HandlersFor<ProviderSchemas> = {
   '/providers': {

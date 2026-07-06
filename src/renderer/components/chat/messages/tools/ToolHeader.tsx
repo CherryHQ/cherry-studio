@@ -1,17 +1,35 @@
-import { Flex } from '@cherrystudio/ui'
+import { Flex, Tooltip } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { McpTool } from '@renderer/types/tool'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import Ansi from 'ansi-to-react'
+import {
+  Bot,
+  DoorOpen,
+  FileEdit,
+  FileSearch,
+  FileText,
+  FolderSearch,
+  Globe,
+  ListTodo,
+  NotebookPen,
+  PencilRuler,
+  Search,
+  Send,
+  ShieldCheck,
+  Terminal,
+  Wrench
+} from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC, ReactNode } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PlaceholderShimmerText } from '../blocks/PlaceholderShimmerText'
-import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './agent/GenericTools'
+import { useOptionalMessageListUi } from '../MessageListProvider'
 import { colorizeShellOutput, shellColorPalettes, TERMINAL_SURFACE_CLASS } from './agent/TerminalOutput'
-import { AgentToolsType } from './agent/types'
+import { AgentToolsType } from './shared/agentToolTypes'
+import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './shared/GenericTools'
 
 type Translate = (key: string, options?: Record<string, string>) => string
 export interface ToolActivity {
@@ -25,6 +43,7 @@ export interface ToolHeaderProps {
   label?: string
   toolName?: string
   args?: unknown
+  icon?: ReactNode
   params?: ReactNode
   stats?: ReactNode
 
@@ -38,33 +57,41 @@ export interface ToolHeaderProps {
   variant?: 'standalone' | 'collapse-label'
 }
 
-const TOOL_LABEL_KEYS: Record<string, string | undefined> = {
-  [AgentToolsType.Read]: 'message.tools.labels.readFile',
-  [AgentToolsType.Task]: 'message.tools.labels.task',
-  [AgentToolsType.TaskCreate]: 'message.tools.labels.taskCreate',
-  [AgentToolsType.TaskGet]: 'message.tools.labels.taskGet',
-  [AgentToolsType.TaskUpdate]: 'message.tools.labels.taskUpdate',
-  [AgentToolsType.TaskList]: 'message.tools.labels.taskList',
-  [AgentToolsType.TaskOutput]: 'message.tools.labels.taskOutput',
-  [AgentToolsType.TaskStop]: 'message.tools.labels.taskStop',
-  [AgentToolsType.Bash]: 'message.tools.labels.bash',
-  [AgentToolsType.BashOutput]: 'message.tools.labels.bashOutput',
-  [AgentToolsType.Search]: 'message.tools.labels.search',
-  [AgentToolsType.Glob]: 'message.tools.labels.glob',
-  [AgentToolsType.Grep]: 'message.tools.labels.grep',
-  [AgentToolsType.Write]: 'message.tools.labels.write',
-  [AgentToolsType.Edit]: 'message.tools.labels.edit',
-  [AgentToolsType.MultiEdit]: 'message.tools.labels.multiEdit',
-  [AgentToolsType.WebSearch]: 'message.tools.labels.webSearch',
-  [AgentToolsType.WebFetch]: 'message.tools.labels.webFetch',
-  [AgentToolsType.NotebookEdit]: 'message.tools.labels.notebookEdit',
-  [AgentToolsType.TodoWrite]: 'message.tools.labels.todoWrite',
-  [AgentToolsType.ExitPlanMode]: 'message.tools.labels.exitPlanMode',
-  [AgentToolsType.Skill]: 'message.tools.labels.skill'
+export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string }> = {
+  [AgentToolsType.Agent]: { icon: <Bot size={14} /> },
+  [AgentToolsType.Read]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.readFile' },
+  [AgentToolsType.Task]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.task' },
+  [AgentToolsType.TaskCreate]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskCreate' },
+  [AgentToolsType.TaskGet]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskGet' },
+  [AgentToolsType.TaskUpdate]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskUpdate' },
+  [AgentToolsType.TaskList]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskList' },
+  [AgentToolsType.TaskOutput]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskOutput' },
+  [AgentToolsType.TaskStop]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskStop' },
+  [AgentToolsType.Bash]: { icon: <Terminal size={14} />, labelKey: 'message.tools.labels.bash' },
+  [AgentToolsType.BashOutput]: { icon: <Terminal size={14} />, labelKey: 'message.tools.labels.bashOutput' },
+  [AgentToolsType.Search]: { icon: <Search size={14} />, labelKey: 'message.tools.labels.search' },
+  [AgentToolsType.Glob]: { icon: <FolderSearch size={14} />, labelKey: 'message.tools.labels.glob' },
+  [AgentToolsType.Grep]: { icon: <FileSearch size={14} />, labelKey: 'message.tools.labels.grep' },
+  [AgentToolsType.Write]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.write' },
+  [AgentToolsType.Edit]: { icon: <FileEdit size={14} />, labelKey: 'message.tools.labels.edit' },
+  [AgentToolsType.MultiEdit]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.multiEdit' },
+  [AgentToolsType.WebSearch]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webSearch' },
+  [AgentToolsType.WebFetch]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webFetch' },
+  [AgentToolsType.NotebookEdit]: { icon: <NotebookPen size={14} />, labelKey: 'message.tools.labels.notebookEdit' },
+  [AgentToolsType.TodoWrite]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.todoWrite' },
+  [AgentToolsType.ExitPlanMode]: { icon: <DoorOpen size={14} />, labelKey: 'message.tools.labels.exitPlanMode' },
+  [AgentToolsType.SendMessage]: { icon: <Send size={14} /> },
+  [AgentToolsType.TeamCreate]: { icon: <Bot size={14} /> },
+  [AgentToolsType.TeamDelete]: { icon: <Bot size={14} /> },
+  [AgentToolsType.EnterWorktree]: { icon: <DoorOpen size={14} /> },
+  [AgentToolsType.ExitWorktree]: { icon: <DoorOpen size={14} /> },
+  [AgentToolsType.Skill]: { icon: <PencilRuler size={14} />, labelKey: 'message.tools.labels.skill' }
 }
 
+const getAgentToolIcon = (toolName: string): ReactNode => TOOL_HEADER_UI[toolName]?.icon ?? <Wrench size={14} />
+
 const getAgentToolLabel = (toolName: string, t: Translate): string => {
-  const labelKey = TOOL_LABEL_KEYS[toolName]
+  const labelKey = TOOL_HEADER_UI[toolName]?.labelKey
   return labelKey ? t(labelKey) : toolName
 }
 
@@ -541,17 +568,21 @@ const CommandPreview = ({ fullText, text }: { fullText: string; text: string }) 
 }
 
 const StatusWrapper = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['flex shrink-0 items-center', className].filter(Boolean).join(' ')} {...props} />
+  <div className={['ml-auto flex shrink-0 items-center', className].filter(Boolean).join(' ')} {...props} />
 )
 
 function getToolNameClassName(variant: ToolHeaderProps['variant']): string {
   return [
     'items-center gap-1.5',
-    variant === 'collapse-label' && 'font-normal text-foreground-secondary',
-    variant === 'standalone' && 'font-medium text-foreground'
+    variant === 'collapse-label' && 'font-normal text-foreground-secondary [&_.tool-icon]:text-foreground-muted',
+    variant === 'standalone' && 'font-medium text-foreground [&_.tool-icon]:text-(--color-primary)'
   ]
     .filter(Boolean)
     .join(' ')
+}
+
+function getToolIconClassName(isIconBreathing: boolean): string {
+  return ['tool-icon inline-flex shrink-0 items-center', isIconBreathing && 'animate-pulse'].filter(Boolean).join(' ')
 }
 
 // ============ MCP Tool sub-renderer ============
@@ -579,9 +610,17 @@ const McpToolHeader: FC<McpToolHeaderProps> = ({
   Container,
   variant
 }) => {
+  const { t } = useTranslation()
+  const { isToolAutoApproved } = useOptionalMessageListUi() ?? {}
+  const autoApproved = isToolAutoApproved?.(tool) ?? false
+  const isIconBreathing = variant === 'collapse-label' && isActiveStatus(status)
+
   return (
     <Container>
       <ToolName className={getToolNameClassName(variant)}>
+        <span className={getToolIconClassName(isIconBreathing)}>
+          <Wrench size={14} />
+        </span>
         {shimmer ? (
           <PlaceholderShimmerText className="name min-w-0 max-w-full truncate">
             {tool.serverName} : {tool.name}
@@ -590,6 +629,11 @@ const McpToolHeader: FC<McpToolHeaderProps> = ({
           <span className="name min-w-0 max-w-full truncate">
             {tool.serverName} : {tool.name}
           </span>
+        )}
+        {autoApproved && (
+          <Tooltip content={t('message.tools.autoApproveEnabled')}>
+            <ShieldCheck size={14} color="var(--color-primary)" />
+          </Tooltip>
         )}
       </ToolName>
       {description && <Description>{description}</Description>}
@@ -610,6 +654,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
   label: propLabel,
   toolName: propToolName,
   args: propArgs,
+  icon: propIcon,
   params,
   stats,
   status: propStatus,
@@ -632,6 +677,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
   const displayLabel = propLabel ?? activity?.label ?? getAgentToolLabel(toolName, t)
   const description = params ?? activity?.description ?? getToolDescription(toolName, args, t)
   const commandPreview = getCommandPreview(toolName, args)
+  const isIconBreathing = variant === 'collapse-label' && isActiveStatus(status)
 
   const Container = variant === 'standalone' ? HeaderContainer : LabelContainer
 
@@ -654,6 +700,9 @@ const ToolHeader: FC<ToolHeaderProps> = ({
   return (
     <Container>
       <ToolName className={getToolNameClassName(variant)}>
+        {variant !== 'collapse-label' && (
+          <span className={getToolIconClassName(isIconBreathing)}>{propIcon || getAgentToolIcon(toolName)}</span>
+        )}
         {shimmer ? (
           <PlaceholderShimmerText className="name min-w-0 max-w-full truncate">{displayLabel}</PlaceholderShimmerText>
         ) : (

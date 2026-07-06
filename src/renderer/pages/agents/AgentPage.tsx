@@ -1,11 +1,12 @@
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { type ChatPanePosition, ConversationPageShell } from '@renderer/components/chat'
 import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import { AgentResourceList } from '@renderer/components/chat/resources/variants/AgentResourceList'
+import { AgentResourceList } from '@renderer/components/chat/resourceList/AgentResourceList'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import ConversationPageShell from '@renderer/components/chat/shell/ConversationPageShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
+import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import {
   createRecentSessionEntryFromSession,
   upsertGlobalSearchRecentEntry
@@ -14,7 +15,7 @@ import {
   ConversationResourceView,
   type ConversationResourceViewDefinition,
   useConversationResourceView
-} from '@renderer/components/resource/conversation'
+} from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgent, useAgents } from '@renderer/hooks/agent/useAgent'

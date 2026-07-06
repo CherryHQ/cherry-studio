@@ -8,8 +8,7 @@
 
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
-import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
+import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   type AgentSchemas,
@@ -22,6 +21,7 @@ import {
   UpdateAgentSchema,
   UpdateTaskSchema
 } from '@shared/data/api/schemas/agents'
+import type { HandlersFor } from '@shared/data/api/types'
 
 function paginationFromQuery(query: ListQuery) {
   const page = query.page ?? 1

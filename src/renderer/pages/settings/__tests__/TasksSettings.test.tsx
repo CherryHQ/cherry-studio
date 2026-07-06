@@ -75,7 +75,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: () => ({ data: [] })
 }))
 
-vi.mock('@renderer/components/resource', () => ({
+vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   WorkspaceSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
 }))
 

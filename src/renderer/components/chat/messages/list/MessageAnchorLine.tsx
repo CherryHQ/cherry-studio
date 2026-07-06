@@ -9,7 +9,7 @@ import { CircleChevronDown } from 'lucide-react'
 import { type FC, type Ref, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { usePartsMap } from '../blocks'
+import { usePartsMap } from '../blocks/MessagePartsContext'
 import { useMessageListActions, useMessageListMeta, useMessageRenderConfig } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel, getMessageListItemModelName } from '../utils/messageListItem'

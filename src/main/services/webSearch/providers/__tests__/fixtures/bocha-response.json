@@ -1,6 +1,5 @@
 {
   "code": 200,
-  "msg": "ok",
   "data": {
     "queryContext": {
       "originalQuery": "hello"
@@ -14,5 +13,6 @@
         }
       ]
     }
-  }
+  },
+  "msg": "ok"
 }

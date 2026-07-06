@@ -25,8 +25,8 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   })
 }))
 
-vi.mock('@renderer/components/icons', () => ({
-  LogoAvatar: ({ logo }: { logo: unknown }) => <img alt="miniapp-logo-preview" data-logo={String(logo)} />
+vi.mock('@renderer/components/icons/LogoAvatar', () => ({
+  default: ({ logo }: { logo: unknown }) => <img alt="miniapp-logo-preview" data-logo={String(logo)} />
 }))
 
 vi.mock('@renderer/components/icons/miniAppsLogo', () => ({

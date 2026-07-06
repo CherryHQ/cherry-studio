@@ -1,7 +1,7 @@
 import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
-} from '@renderer/components/chat/messages/tools/agent/types'
+} from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'

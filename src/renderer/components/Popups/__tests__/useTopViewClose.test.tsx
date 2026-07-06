@@ -8,7 +8,7 @@ const { hideMock } = vi.hoisted(() => ({
   hideMock: vi.fn()
 }))
 
-vi.mock('../../TopView', () => ({
+vi.mock('../../TopView/TopView', () => ({
   TopView: {
     hide: hideMock
   }

@@ -19,13 +19,13 @@ Exactly these, each with a single charter:
 | `utils` | **Stateless helpers** | Cross-domain stateless, domain-agnostic functions with no single owner. "Stateless" is the bar, not "pure": a helper may reach infra through the ambient `@application` / `@logger` (§3); it just owns no state and performs no outward side effects (§2). |
 | `i18n` | **Main-process localization** | Main's own locale catalog (`locales/` human + `translate/` machine) and its `t()` / `getI18n()` resolver. A deliberate, governed expansion of the closed set (§4), mirroring `src/renderer/i18n/` so each process owns an independent catalog; the `utils/i18n/` alternative was rejected for that cross-process symmetry. |
 
-Entry files: `index.ts` (process entry — runs preboot, then `application.bootstrap()`) and `ipc.ts` (legacy IPC registration, being retired into `ipc/`).
+Entry files: `main.ts` (process entry — runs preboot, then `application.bootstrap()`; a named file, since `index` is reserved for barrels per [Naming §6.4](./naming-conventions.md)) and `ipc.ts` (legacy IPC registration, being retired into `ipc/`).
 
 Naming follows [Naming Conventions §4.9](./naming-conventions.md): `core` / `data` / `ai` / `ipc` / `i18n` are singular namespaces; `features` / `services` / `utils` are plural buckets.
 
 ```text
 src/main/
-├── index.ts     # process entry: preboot → application.bootstrap()
+├── main.ts      # process entry: preboot → application.bootstrap()
 ├── ipc.ts       # legacy IPC registration (being retired into ipc/)
 ├── core/        # business-agnostic app runtime (lifecycle/DI, paths, logger, window, scheduler/job, preboot)
 ├── ipc/         # IpcApi — the typed main↔renderer boundary
@@ -46,7 +46,7 @@ src/main/
 
 ### 2.1 Subdirectories and Barrels
 
-A single `.ts` file is the default; promote a topic to a subdirectory only when it actually owns multiple files. Barrels then follow the same rule as [Shared Layer Architecture §3.1](./shared-layer-architecture.md), applied to both `services/` and `utils/`:
+A single `.ts` file is the default; promote a topic to a subdirectory only when it actually owns multiple files. Barrels follow [Naming §6.4](./naming-conventions.md) (the cross-process authority), applied here to `services/` and `utils/`:
 
 - **The bucket roots `services/` and `utils/` have no `index.ts`.** A bucket is a category, not a module — import the specific file or topic, never the whole bucket.
 - **A `services/<topic>/` subdirectory has exactly one `index.ts`** as its public API (explicit named exports, no `export *`); its other files stay private behind it.

@@ -18,7 +18,7 @@
 import { fileEntryTable } from '@data/db/schemas/file'
 import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
-import { paintingFileRefSchema, paintingSourceType } from '@shared/data/types/file/ref'
+import { paintingFileRefSchema, paintingSourceType } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
