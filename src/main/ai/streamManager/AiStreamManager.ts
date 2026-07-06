@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { serializeError } from '@main/ai/utils/serializeError'
-import { application } from '@main/core/application'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'

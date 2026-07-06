@@ -1,4 +1,4 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
