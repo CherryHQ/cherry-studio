@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import type { Options as ImageCompressionOptions } from 'browser-image-compression'
 import type * as HtmlToImage from 'html-to-image'
 

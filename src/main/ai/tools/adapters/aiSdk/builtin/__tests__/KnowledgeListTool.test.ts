@@ -9,7 +9,7 @@ const knowledgeServiceListRootItems = vi.fn<(baseId: string) => KnowledgeItem[]>
 // Outline mode (kb_list with a baseId) routes to getOrganizationTree.
 const knowledgeServiceGetOrganizationTree = vi.fn()
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'KnowledgeService') {

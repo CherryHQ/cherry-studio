@@ -2,20 +2,18 @@ import fs from 'node:fs'
 
 import { application } from '@application'
 import {
+  checkUpgradePathCompatibility,
   getAllMigrators,
+  getBlockMessage,
+  isSchemaOutOfSyncError,
   migrationEngine,
   migrationWindowManager,
+  readPreviousVersion,
   registerMigrationIpcHandlers,
   resolveMigrationPaths,
   setVersionIncompatible,
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
-import { isSchemaOutOfSyncError } from '@data/migration/v2/core/migrationErrors'
-import {
-  checkUpgradePathCompatibility,
-  getBlockMessage,
-  readPreviousVersion
-} from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
 import { isDev } from '@main/core/platform'
 import { app, dialog } from 'electron'
