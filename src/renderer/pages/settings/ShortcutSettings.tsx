@@ -1,4 +1,16 @@
-import { Button, Input, Kbd, MenuItem, MenuList, PageHeader, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  Input,
+  Kbd,
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  RowFlex,
+  Switch,
+  Tooltip
+} from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -13,10 +25,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import {
   settingsContentHeaderClassName,
   settingsContentHeaderTitleClassName,
-  settingsContentScrollClassName,
-  settingsSubmenuItemClassName,
-  settingsSubmenuListClassName,
-  settingsSubmenuScrollClassName
+  settingsContentScrollClassName
 } from '@renderer/pages/settings/settingsStyles'
 import { isMac, platform } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
@@ -34,7 +43,7 @@ import {
   type ShortcutToken
 } from '@shared/utils/shortcut'
 import { isEmpty } from 'es-toolkit/compat'
-import { Keyboard, MessageSquareText, Search, Sparkles, Tags, Undo2 } from 'lucide-react'
+import { Check, ChevronDown, Filter, Keyboard, MessageSquareText, Search, Sparkles, Tags, Undo2 } from 'lucide-react'
 import type { FC, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -74,6 +83,64 @@ const groupIconMap: Record<ShortcutSettingsGroup, ReactNode> = {
   assistant: <Sparkles size={16} />
 }
 
+type ShortcutSettingsFilterGroup = 'all' | ShortcutSettingsGroup
+
+interface ShortcutGroupOption {
+  key: ShortcutSettingsFilterGroup
+  label: string
+  count: number
+}
+
+interface ShortcutGroupFilterMenuProps {
+  groups: ShortcutGroupOption[]
+  activeGroup: ShortcutSettingsFilterGroup
+  onSelect: (group: ShortcutSettingsFilterGroup) => void
+}
+
+const ShortcutGroupFilterMenu: FC<ShortcutGroupFilterMenuProps> = ({ groups, activeGroup, onSelect }) => {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-lg px-2.5 text-xs shadow-none">
+          <Filter size={14} />
+          {t('settings.shortcuts.filter')}
+          <ChevronDown size={14} className="text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-52 rounded-xl p-1.5">
+        <MenuList className="gap-0.5">
+          {groups.map((group) => {
+            const active = activeGroup === group.key
+
+            return (
+              <MenuItem
+                key={group.key}
+                className="h-8 rounded-lg px-2.5 text-sm"
+                icon={group.key === 'all' ? <Keyboard size={16} /> : groupIconMap[group.key]}
+                active={active}
+                label={group.label}
+                suffix={
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-muted-foreground">{group.count}</span>
+                    <Check className={cn('size-3.5', active ? 'opacity-100' : 'opacity-0')} />
+                  </span>
+                }
+                onClick={() => {
+                  onSelect(group.key)
+                  setOpen(false)
+                }}
+              />
+            )
+          })}
+        </MenuList>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 const ShortcutSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -84,7 +151,7 @@ const ShortcutSettings: FC = () => {
   const [conflictLabel, setConflictLabel] = useState<string | null>(null)
   const [systemConflictKey, setSystemConflictKey] = useState<ShortcutPreferenceKey | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [activeGroup, setActiveGroup] = useState<ShortcutSettingsGroup>('general')
+  const [activeGroup, setActiveGroup] = useState<ShortcutSettingsFilterGroup>('all')
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
 
   const groupMeta = useMemo(
@@ -107,7 +174,22 @@ const ShortcutSettings: FC = () => {
     )
   }, [shortcuts])
 
-  const currentGroupShortcuts = shortcutsByGroup[activeGroup]
+  const groupOptions = useMemo(
+    () => [
+      {
+        key: 'all' as const,
+        label: t('settings.shortcuts.categories.all'),
+        count: shortcuts.length
+      },
+      ...groupMeta.map((group) => ({
+        ...group,
+        count: shortcutsByGroup[group.key].length
+      }))
+    ],
+    [groupMeta, shortcuts.length, shortcutsByGroup, t]
+  )
+
+  const currentGroupShortcuts = activeGroup === 'all' ? shortcuts : shortcutsByGroup[activeGroup]
 
   const visibleShortcuts = useMemo(() => {
     const query = searchQuery.toLowerCase().trim()
@@ -162,6 +244,10 @@ const ShortcutSettings: FC = () => {
   }, [t])
 
   useEffect(() => {
+    if (activeGroup === 'all') {
+      return
+    }
+
     if (currentGroupShortcuts.length === 0) {
       const firstAvailable = groupMeta.find((group) => shortcutsByGroup[group.key].length > 0)
       if (firstAvailable && firstAvailable.key !== activeGroup) {
@@ -510,39 +596,14 @@ const ShortcutSettings: FC = () => {
 
   return (
     <div className="flex flex-1" data-theme-mode={theme}>
-      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
-        <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
-          <PageHeader title={t('settings.shortcuts.title')} />
-          <Scrollbar className="min-h-0 flex-1">
-            <MenuList className={settingsSubmenuListClassName}>
-              {groupMeta.map((group) => {
-                const count = shortcutsByGroup[group.key].length
-                const isActive = activeGroup === group.key
-
-                return (
-                  <MenuItem
-                    key={group.key}
-                    className={settingsSubmenuItemClassName}
-                    icon={groupIconMap[group.key]}
-                    active={isActive}
-                    label={group.label}
-                    suffix={<span className="shrink-0 text-[11px] text-muted-foreground">{count}</span>}
-                    onClick={() => {
-                      setActiveGroup(group.key)
-                      setSearchQuery('')
-                    }}
-                  />
-                )
-              })}
-            </MenuList>
-          </Scrollbar>
-        </div>
-
+      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 overflow-hidden">
         <Scrollbar className={settingsContentScrollClassName}>
           <SettingsContentBody>
             <div className={cn(settingsContentHeaderClassName, 'mb-3 flex items-center justify-between gap-2')}>
               <h1 className={settingsContentHeaderTitleClassName}>
-                {groupMeta.find((item) => item.key === activeGroup)?.label}
+                {activeGroup === 'all'
+                  ? t('settings.shortcuts.title')
+                  : groupOptions.find((item) => item.key === activeGroup)?.label}
               </h1>
               <div className="flex items-center gap-1">
                 <Button
@@ -570,8 +631,8 @@ const ShortcutSettings: FC = () => {
               </div>
             </div>
 
-            <div className="mb-3">
-              <div className="relative w-full">
+            <div className="mb-3 flex items-center gap-2">
+              <div className="relative min-w-0 flex-1">
                 <Search className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 size-4 text-muted-foreground" />
                 <Input
                   className="h-9 w-full rounded-lg border-border/60 bg-background pr-3 pl-9"
@@ -580,6 +641,14 @@ const ShortcutSettings: FC = () => {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
+              <ShortcutGroupFilterMenu
+                groups={groupOptions}
+                activeGroup={activeGroup}
+                onSelect={(group) => {
+                  setActiveGroup(group)
+                  setSearchQuery('')
+                }}
+              />
             </div>
 
             {visibleShortcuts.length > 0 ? (
