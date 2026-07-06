@@ -13,7 +13,7 @@ const logger = loggerService.withContext('ImportService')
 /**
  * Main import service that manages all conversation importers
  */
-class ImportServiceClass {
+class ImportService {
   private importers: Map<string, ConversationImporter> = new Map()
 
   constructor() {
@@ -196,7 +196,7 @@ class ImportServiceClass {
 }
 
 // Export singleton instance
-export const ImportService = new ImportServiceClass()
+export const importService = new ImportService()
 
 // Export for backward compatibility
-export const importChatGPTConversations = (fileContent: string) => ImportService.importChatGPTConversations(fileContent)
+export const importChatGPTConversations = (fileContent: string) => importService.importChatGPTConversations(fileContent)

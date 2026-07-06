@@ -17,7 +17,7 @@ import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model
 
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
-import type { AiStreamRequest } from '../../types/requests'
+import type { AiStreamRequest } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'

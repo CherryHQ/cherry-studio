@@ -13,7 +13,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { copy as fsCopy, removeDir as fsRemoveDir } from '@main/utils/file/fs'
+import { copy as fsCopy, removeDir as fsRemoveDir } from '@main/utils/file'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 

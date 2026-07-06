@@ -19,7 +19,7 @@ vi.mock('@data/CacheService', () => ({
   }
 }))
 
-vi.mock('@renderer/services/ErrorDiagnosisService', () => ({
+vi.mock('@renderer/utils/errorDiagnosis', () => ({
   classifyErrorByAI: mocks.classifyErrorByAI
 }))
 

@@ -5,6 +5,7 @@ import { McpServerMigrator } from '../McpServerMigrator'
 
 function createMockContext(reduxData: Record<string, unknown> = {}) {
   const reduxState = new ReduxStateReader(reduxData)
+  const insertedRows: Array<Record<string, unknown>> = []
 
   return {
     sources: {
@@ -17,7 +18,10 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
       transaction: vi.fn((fn: (tx: any) => void) => {
         const tx = {
           insert: vi.fn().mockReturnValue({
-            values: vi.fn().mockReturnValue({ run: vi.fn() })
+            values: vi.fn((rows: Record<string, unknown> | Array<Record<string, unknown>>) => {
+              insertedRows.push(...(Array.isArray(rows) ? rows : [rows]))
+              return { run: vi.fn() }
+            })
           })
         }
         return fn(tx)
@@ -34,7 +38,8 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
       warn: vi.fn(),
       error: vi.fn(),
       debug: vi.fn()
-    }
+    },
+    insertedRows
   }
 }
 
@@ -166,6 +171,29 @@ describe('McpServerMigrator', () => {
       const result = await migrator.execute(ctx as any)
       expect(result).toStrictEqual({ success: true, processedCount: 3 })
       expect(ctx.db.transaction).toHaveBeenCalled()
+    })
+
+    it('uses the generated id as the name when a server has no valid name', async () => {
+      const ctx = createMockContext({
+        mcp: {
+          servers: [
+            { id: 'srv-no-name', type: 'stdio' },
+            { id: 'srv-empty-name', name: '', type: 'sse' },
+            { id: 'srv-whitespace-name', name: '   ', type: 'stdio' },
+            { id: 'srv-null-name', name: null, type: 'streamableHttp' }
+          ]
+        }
+      })
+      await migrator.prepare(ctx as any)
+      const result = await migrator.execute(ctx as any)
+      expect(result).toStrictEqual({ success: true, processedCount: 4 })
+      expect(ctx.insertedRows.map((row) => row.name)).toEqual(ctx.insertedRows.map((row) => row.id))
+      expect(ctx.insertedRows.map((row) => row.name)).not.toEqual([
+        'srv-no-name',
+        'srv-empty-name',
+        'srv-whitespace-name',
+        'srv-null-name'
+      ])
     })
 
     it('should handle empty servers gracefully', async () => {

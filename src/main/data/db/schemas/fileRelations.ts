@@ -1,11 +1,11 @@
-import type { tempSessionSourceType } from '@shared/data/types/file/ref'
+import type { tempSessionSourceType } from '@shared/data/types/file'
 import {
   chatMessageRoles,
   chatMessageSourceType,
   type FileRefSourceType,
   paintingRoles,
   paintingSourceType
-} from '@shared/data/types/file/ref'
+} from '@shared/data/types/file'
 import { sql, type SQLWrapper } from 'drizzle-orm'
 import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 

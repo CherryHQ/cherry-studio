@@ -2,7 +2,7 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CodeBlockView } from '../view'
+import { CodeBlockView } from '../CodeBlockView'
 
 const mocks = vi.hoisted(() => ({
   useCopyTool: vi.fn(),

@@ -24,7 +24,7 @@ import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/prov
 import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE, REASONING_EFFORT } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
-import { ErrorCode, isDataApiError } from '@shared/data/api/apiErrors'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { EndpointConfig, ProviderWebsites, ReasoningFormatType } from '@shared/data/types/provider'
@@ -36,6 +36,10 @@ const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 export interface ProviderDisplayMetadata {
   description?: string
   websites?: ProviderWebsites
+  /** Registry capability: where the model list comes from (default `'api'`). */
+  modelListSource?: 'api' | 'registry'
+  /** Registry capability: accepted credential kinds (default `['api-key']`). */
+  authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
 }
 
 export interface ListProviderRegistryModelsOptions {
@@ -437,7 +441,9 @@ class ProviderRegistryService {
 
       return {
         description: provider?.description,
-        websites: provider?.metadata?.website
+        websites: provider?.metadata?.website,
+        modelListSource: provider?.modelListSource,
+        authMethods: provider?.authMethods
       }
     } catch (error) {
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })

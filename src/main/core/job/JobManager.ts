@@ -1,5 +1,6 @@
 import { application } from '@application'
 import type { InsertJobRow, JobRow } from '@data/db/schemas/job'
+import type { DbOrTx } from '@data/db/types'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
@@ -387,20 +388,16 @@ export class JobManager extends BaseService {
   // ---------------- enqueue / cancel / list / get ----------------
 
   /**
-   * Persist a new job row and (if status is `pending`) dispatch it. If
-   * `opts.idempotencyKey` matches an existing non-terminal job, returns the
-   * existing handle without creating a new row. If `opts.scheduledAt` is in
-   * the future the row is stored in `delayed` state and a `once` schedule
-   * arms its promotion at the target time.
-   *
-   * @param type - JobRegistry key (compile-time validated via declaration merging)
-   * @param input - Strongly-typed payload bound to `type` via JobRegistry
-   * @param opts - Optional queue / priority / idempotency / scheduling overrides
-   * @returns Handle with `id`, initial `snapshot`, and a `finished` promise
-   * @throws Error with code `JOB_UNKNOWN_TYPE` if no handler is registered for `type`
-   * @throws Error with code `JOB_PAYLOAD_TOO_LARGE` if input JSON exceeds 1MB
+   * Validation + row construction shared by `enqueue` and `enqueueTx`. Pure —
+   * no queue registration, no DB access, no side effects. `ensureQueue` stays
+   * at the call sites AFTER their idempotency check, so an idempotency hit
+   * does not register a stray in-memory queue entry.
    */
-  enqueue<K extends JobType>(type: K, input: JobPayloadOf<K>, opts: EnqueueOptions = {}): JobHandle {
+  private prepareEnqueue<K extends JobType>(
+    type: K,
+    input: JobPayloadOf<K>,
+    opts: EnqueueOptions
+  ): { handler: JobHandler; queueName: string; insertRow: InsertJobRow } {
     const handler = this.handlers.get(type)
     if (!handler) {
       throw this.makeError(JOB_ERROR_CODES.UNKNOWN_TYPE, `No handler registered for type "${type}"`, {
@@ -437,22 +434,7 @@ export class JobManager extends BaseService {
       })
     }
 
-    if (opts.idempotencyKey) {
-      const existing = jobService.findActiveByIdempotencyKey(opts.idempotencyKey)
-      if (existing) {
-        logger.info('idempotencyKey match — returning existing handle', {
-          type,
-          key: opts.idempotencyKey,
-          existingId: existing.id
-        })
-        return this.handleFor(existing)
-      }
-    }
-
     const queueName = opts.queue ?? handler.defaultQueue?.(input as never) ?? type
-    const concurrency = handler.defaultConcurrency ?? 1
-    this.ensureQueue(queueName, concurrency)
-
     const now = Date.now()
     const scheduledAt = opts.scheduledAt ?? now
     const status = scheduledAt > now ? 'delayed' : 'pending'
@@ -475,6 +457,40 @@ export class JobManager extends BaseService {
       timeoutMs: opts.timeoutMs ?? handler.defaultTimeoutMs ?? null
     }
 
+    return { handler, queueName, insertRow }
+  }
+
+  /**
+   * Persist a new job row and (if status is `pending`) dispatch it. If
+   * `opts.idempotencyKey` matches an existing non-terminal job, returns the
+   * existing handle without creating a new row. If `opts.scheduledAt` is in
+   * the future the row is stored in `delayed` state and a `once` schedule
+   * arms its promotion at the target time.
+   *
+   * @param type - JobRegistry key (compile-time validated via declaration merging)
+   * @param input - Strongly-typed payload bound to `type` via JobRegistry
+   * @param opts - Optional queue / priority / idempotency / scheduling overrides
+   * @returns Handle with `id`, initial `snapshot`, and a `finished` promise
+   * @throws Error with code `JOB_UNKNOWN_TYPE` if no handler is registered for `type`
+   * @throws Error with code `JOB_PAYLOAD_TOO_LARGE` if input JSON exceeds 1MB
+   */
+  enqueue<K extends JobType>(type: K, input: JobPayloadOf<K>, opts: EnqueueOptions = {}): JobHandle {
+    const { handler, queueName, insertRow } = this.prepareEnqueue(type, input, opts)
+
+    if (opts.idempotencyKey) {
+      const existing = jobService.findActiveByIdempotencyKey(opts.idempotencyKey)
+      if (existing) {
+        logger.info('idempotencyKey match — returning existing handle', {
+          type,
+          key: opts.idempotencyKey,
+          existingId: existing.id
+        })
+        return this.handleFor(existing)
+      }
+    }
+
+    this.ensureQueue(queueName, handler.defaultConcurrency ?? 1)
+
     const snapshot = jobService.create(insertRow)
     this.publishState(snapshot)
     const handle = this.handleFor(snapshot)
@@ -490,8 +506,91 @@ export class JobManager extends BaseService {
       type,
       queue: queueName,
       status: snapshot.status,
-      scheduledAt
+      scheduledAt: insertRow.scheduledAt
     })
+    return handle
+  }
+
+  /**
+   * Transactional variant of `enqueue`: the job INSERT goes through the
+   * caller's transaction, so a business-state write and its job enqueue
+   * commit (or roll back) atomically.
+   *
+   * Contract:
+   *   - Call inside a `DbService.withWriteTx` callback and pass its `tx`.
+   *     (A bare db handle also works but is pointless — use `enqueue`.)
+   *   - Post-commit side effects (publishState, dispatch / delayed arming)
+   *     are deferred by one microtask. better-sqlite3 transactions are fully
+   *     synchronous, so the microtask runs strictly after COMMIT / ROLLBACK.
+   *   - If the caller's tx rolls back, the returned handle's `finished` never
+   *     resolves — the resolver is discarded, no `failed` snapshot is
+   *     synthesized (same policy as onStop). Normally the rollback's throw
+   *     propagates through `withWriteTx` to the caller, so the handle never
+   *     escapes anyway.
+   *   - If `opts.idempotencyKey` collides with the partial unique index at
+   *     INSERT time, the typed error aborts the WHOLE caller transaction —
+   *     business writes roll back too. That is what atomicity demands, but
+   *     callers must expect it.
+   */
+  enqueueTx<K extends JobType>(tx: DbOrTx, type: K, input: JobPayloadOf<K>, opts: EnqueueOptions = {}): JobHandle {
+    const { handler, queueName, insertRow } = this.prepareEnqueue(type, input, opts)
+
+    if (opts.idempotencyKey) {
+      const existing = jobService.findActiveByIdempotencyKeyTx(tx, opts.idempotencyKey)
+      if (existing) {
+        logger.info('idempotencyKey match — returning existing handle (tx)', {
+          type,
+          key: opts.idempotencyKey,
+          existingId: existing.id
+        })
+        // The existing row's dispatch already happened — no microtask needed.
+        return this.handleFor(existing)
+      }
+    }
+
+    this.ensureQueue(queueName, handler.defaultConcurrency ?? 1)
+
+    const snapshot = jobService.createTx(tx, insertRow)
+    const handle = this.handleFor(snapshot)
+
+    // Post-commit side effects, deferred one microtask past the synchronous
+    // transaction. Re-read the row instead of trusting the insert-time
+    // snapshot: a rollback leaves no row (clean up and stop), and the caller's
+    // synchronous code may have already moved the job on (publish the truth,
+    // and never dispatch a row that is no longer pending). A crash between
+    // COMMIT and this microtask leaves a pending row for startup recovery.
+    queueMicrotask(() => {
+      try {
+        const persisted = jobService.getById(snapshot.id)
+        if (!persisted) {
+          this.finishedResolvers.delete(snapshot.id)
+          logger.warn('enqueueTx: row absent after tx — rolled back, resolver discarded', {
+            id: snapshot.id,
+            type
+          })
+          return
+        }
+        this.publishState(persisted)
+        logger.info('Job enqueued (tx)', {
+          id: persisted.id,
+          type,
+          queue: persisted.queue,
+          status: persisted.status,
+          scheduledAt: insertRow.scheduledAt
+        })
+        if (this._isShuttingDown) return // no new dispatch in the shutdown window; recovery resurrects the row
+        if (persisted.status === 'pending') {
+          void this.dispatch(persisted.queue)
+        } else if (persisted.status === 'delayed') {
+          this.armDelayedJob(persisted)
+        }
+      } catch (err) {
+        // A microtask has no caller — an uncaught throw here would surface as
+        // a process-level uncaughtException.
+        logger.error('enqueueTx: post-commit side effects failed', { id: snapshot.id, type, err })
+      }
+    })
+
     return handle
   }
 
@@ -1073,6 +1172,7 @@ export class JobManager extends BaseService {
       jobId: row.id,
       input: row.input,
       attempt: row.attempt,
+      parentId: row.parentId,
       signal: controller.signal,
       metadata: initialMetadata,
       patchMetadata: async (patch) => {
@@ -1233,10 +1333,13 @@ export class JobManager extends BaseService {
           jobId,
           type: snapshot.type,
           scheduleId: snapshot.scheduleId,
+          parentId: snapshot.parentId,
           status: snapshot.status as 'completed' | 'failed' | 'cancelled',
+          input: snapshot.input,
           output: snapshot.output,
           error: snapshot.error,
-          attempt: snapshot.attempt
+          attempt: snapshot.attempt,
+          metadata: snapshot.metadata
         })
       } catch (settledErr) {
         logger.warn('handler.onSettled threw — ignoring', {

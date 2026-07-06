@@ -24,7 +24,7 @@ const { fileRefService } = await import('@data/services/FileRefService')
 const { batchPermanentDelete, batchRestore, batchTrash, emptyTrash, permanentDelete, restore, trash } = await import(
   '../lifecycle'
 )
-const { exists } = await import('@main/utils/file/fs')
+const { exists } = await import('@main/utils/file')
 const { createInternal, ensureExternal } = await import('../create')
 
 import type { FileManagerDeps } from '../../deps'

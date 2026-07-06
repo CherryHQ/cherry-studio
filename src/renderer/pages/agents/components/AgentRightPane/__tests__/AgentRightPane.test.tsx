@@ -1,3 +1,4 @@
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes, CSSProperties, PropsWithChildren, ReactElement, ReactNode } from 'react'
 import { cloneElement, isValidElement, useEffect } from 'react'
@@ -14,6 +15,7 @@ vi.mock('@cherrystudio/ui', () => ({
   HoverCardContent: ({ children }: PropsWithChildren) => <div data-testid="status-shortcut-preview">{children}</div>,
   HoverCardTrigger: ({ children }: PropsWithChildren) =>
     isValidElement(children) ? (
+      // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
       cloneElement(children as ReactElement<Record<string, unknown>>, { 'data-hover-card-trigger': 'true' })
     ) : (
       <>{children}</>
@@ -53,7 +55,8 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
+vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
+  ...(await importActual<typeof ChatPrimitives>()),
   EmptyState: () => <div data-testid="empty-state" />
 }))
 
@@ -70,7 +73,7 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   MessageListProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
-vi.mock('@renderer/components/chat/messages/utils/filePath', () => ({
+vi.mock('@renderer/utils/filePath', () => ({
   resolveInlineFilePath: (path: string) => path
 }))
 

@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { isDataApiError, toDataApiError } from '@shared/data/api'
+import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'

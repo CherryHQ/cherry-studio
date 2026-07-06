@@ -7,14 +7,14 @@
 import { application } from '@application'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
-import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   KnowledgeBaseListItem,
   ListKnowledgeBasesQuery,
   UpdateKnowledgeBaseDto
 } from '@shared/data/api/schemas/knowledges'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
+import type { OffsetPaginationResponse } from '@shared/data/api/types'
 import {
   type CreateKnowledgeBaseDto,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,

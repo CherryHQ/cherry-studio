@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { sanitizeFilename } from '@main/utils/file'
+import { sanitizeFilename } from '@main/utils/legacyFile'
 import Database from 'better-sqlite3'
 
 const LEGACY_VECTOR_TABLE_NAME = 'vectors'
