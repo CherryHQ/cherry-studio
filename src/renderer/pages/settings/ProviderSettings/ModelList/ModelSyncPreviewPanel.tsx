@@ -1,5 +1,5 @@
 import { Alert, Button, Checkbox } from '@cherrystudio/ui'
-import { getModelLogo } from '@renderer/config/models'
+import { getModelLogo } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { CheckCircle2, Plus, Trash2 } from 'lucide-react'
@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 
 import ModelTagsWithLabel, { type ModelTagsWithLabelModel } from '../components/ModelTagsWithLabel'
 import { modelSyncClasses } from '../primitives/ProviderSettingsPrimitives'
-import type { ModelSyncPreviewResponse } from './modelSyncPreviewTypes'
+import type { ModelSyncPreviewResponse } from '../types/modelSyncPreviewTypes'
 import type { useModelListSyncSelections } from './useModelListSyncSelections'
 
 export type ModelSyncPreviewSelections = ReturnType<typeof useModelListSyncSelections>

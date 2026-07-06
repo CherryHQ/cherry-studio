@@ -64,10 +64,6 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: (...args: unknown[]) => mockUseExecutionOverlay(...args)
 }))
 
-vi.mock('@renderer/services/ApiService', () => ({
-  fetchMcpTools: vi.fn(async () => [])
-}))
-
 vi.mock('@renderer/utils/assistant', () => ({
   isSupportedToolUse: vi.fn(() => false)
 }))
@@ -120,18 +116,18 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     )
   },
   ChatPlacementComposer: ({
-    isHome,
+    placement,
     onSend,
     sendDisabled,
     onDraftAssistantChange
   }: {
-    isHome: boolean
+    placement: 'home' | 'docked'
     onSend: (text: string, options?: { userMessageParts?: CherryMessagePart[] }) => Promise<void> | void
     sendDisabled?: boolean
     onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
   }) => {
     capturedOnSend = onSend
-    if (isHome) {
+    if (placement === 'home') {
       return (
         <button type="button" data-testid="chat-home-composer" onClick={() => onDraftAssistantChange?.('assistant-2')}>
           home composer
@@ -174,7 +170,7 @@ vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
   )
 }))
 
-vi.mock('@renderer/components/chat/messages/blocks', () => ({
+vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => ({
   PartsProvider: ({ children }: { children: ReactNode }) => children,
   RefreshProvider: ({ children }: { children: ReactNode }) => children,
   TranslationOverlayProvider: ({ children }: { children: ReactNode }) => children,

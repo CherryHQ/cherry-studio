@@ -1,12 +1,12 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { cn } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { debounce } from 'lodash'
+import { debounce } from 'es-toolkit/compat'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import type { ThemedToken } from 'shiki/core'
 
@@ -66,6 +66,10 @@ interface CodeViewerProps {
    * Callback to request expansion when multi-line selection is detected.
    */
   onRequestExpand?: () => void
+  /**
+   * Keep the internal viewer scroller pinned to the bottom while content grows.
+   */
+  autoScrollToBottom?: boolean
 }
 
 /**
@@ -85,7 +89,8 @@ const CodeViewer = ({
   className,
   expanded = true,
   wrapped = true,
-  onRequestExpand
+  onRequestExpand,
+  autoScrollToBottom = false
 }: CodeViewerProps) => {
   const [_lineNumbers] = usePreference('chat.code.show_line_numbers')
   const [_fontSize] = usePreference('chat.message.font_size')
@@ -94,6 +99,7 @@ const CodeViewer = ({
   const scrollerRef = useRef<HTMLDivElement>(null)
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
   const savedSelectionRef = useRef<SavedSelection | null>(null)
+  const shouldStickToBottomRef = useRef(true)
   // Ensure the active selection actually belongs to this CodeViewer instance
   const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
     const scroller = scrollerRef.current
@@ -108,6 +114,12 @@ const CodeViewer = ({
   const lineNumbers = useMemo(() => options?.lineNumbers ?? _lineNumbers, [options?.lineNumbers, _lineNumbers])
 
   const rawLines = useMemo(() => (typeof value === 'string' ? value.trimEnd().split('\n') : []), [value])
+
+  useEffect(() => {
+    if (!autoScrollToBottom || expanded) {
+      shouldStickToBottomRef.current = true
+    }
+  }, [autoScrollToBottom, expanded])
 
   // 计算行号数字位数
   const gutterDigits = useMemo(
@@ -242,6 +254,12 @@ const CodeViewer = ({
 
   // 滚动事件处理：保存选择用于复制，但不恢复（避免选择高亮问题）
   const handleScroll = useCallback(() => {
+    const scroller = scrollerRef.current
+    if (scroller && autoScrollToBottom && !expanded) {
+      const distanceToBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
+      shouldStickToBottomRef.current = distanceToBottom <= 8
+    }
+
     // 只保存选择状态用于复制，不在滚动时恢复选择
     const saved = saveSelection()
     if (saved) {
@@ -251,7 +269,7 @@ const CodeViewer = ({
         endLine: saved.endLine
       })
     }
-  }, [saveSelection])
+  }, [autoScrollToBottom, expanded, saveSelection])
 
   // 处理复制事件，确保跨虚拟滚动的复制能获取完整内容
   const handleCopy = useCallback(
@@ -352,6 +370,7 @@ const CodeViewer = ({
   })
 
   const virtualItems = virtualizer.getVirtualItems()
+  const totalSize = virtualizer.getTotalSize()
 
   // 使用代码高亮 Hook
   const { tokenLines, highlightLines } = useCodeHighlight({
@@ -428,6 +447,13 @@ const CodeViewer = ({
     onHeightChange?.(scrollerRef.current?.scrollHeight ?? 0)
   }, [rawLines.length, onHeightChange])
 
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current
+    if (!scroller || !autoScrollToBottom || expanded || !shouldStickToBottomRef.current) return
+
+    scroller.scrollTop = scroller.scrollHeight
+  }, [autoScrollToBottom, expanded, rawLines.length, totalSize])
+
   return (
     <div ref={shikiThemeRef} style={expanded ? undefined : { height }}>
       <div
@@ -447,7 +473,7 @@ const CodeViewer = ({
         <div
           className="shiki-list"
           style={{
-            height: `${virtualizer.getTotalSize()}px`,
+            height: `${totalSize}px`,
             width: '100%',
             position: 'relative'
           }}>

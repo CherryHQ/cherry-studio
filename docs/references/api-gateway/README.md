@@ -31,6 +31,7 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 ├── ApiGatewayService.ts             ← lifecycle owner (start/stop, IPC, auto-start, running-state)
 ├── proxyStream.ts                   ← `processMessage()` — the core request → stream → response engine
 ├── reasoningCache.ts                ← google / openrouter reasoning-signature caches
+├── openrouter.ts                    ← OpenRouter `reasoning_details` type contract (used by reasoningCache)
 ├── middleware/
 │   └── auth.ts                      ← `authorizeApiRequest` (x-api-key | Bearer, timing-safe)
 ├── routes/
@@ -49,7 +50,7 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
     ├── formatters/                  ← output event → SSE wire string
     └── factory/                     ← `MessageConverterFactory`, `StreamAdapterFactory`
 
-src/preload/index.ts                      ← `window.api.apiGateway.{start,stop,restart}`
+src/preload/preload.ts                    ← `window.api.apiGateway.{start,stop,restart}`
 src/renderer/hooks/useApiGateway.ts       ← renderer state (config + running + loading) and actions
 src/renderer/pages/settings/ToolSettings/ApiGatewaySettings/   ← settings UI
 ```

@@ -1,8 +1,8 @@
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks'
-import { useMessageEditing } from '@renderer/components/chat/messages/editing/MessageEditingContext'
+import { useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
+import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import { useMessageActivityState } from '@renderer/components/chat/messages/hooks/useMessageActivityState'
 import { useMessageErrorActions } from '@renderer/components/chat/messages/hooks/useMessageErrorActions'
 import { useMessageExportActions } from '@renderer/components/chat/messages/hooks/useMessageExportActions'
@@ -32,8 +32,7 @@ import {
   modelToSnapshot,
   toMessageListItem
 } from '@renderer/components/chat/messages/utils/messageListItem'
-import { ModelSelector } from '@renderer/components/Selector'
-import { isVisionModel } from '@renderer/config/models'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
@@ -45,6 +44,7 @@ import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/erro
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
+import { isVisionModel } from '@renderer/utils/model'
 import { translateText } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
@@ -56,7 +56,7 @@ import {
 } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
 import { useNavigate } from '@tanstack/react-router'
-import { last } from 'lodash'
+import { last } from 'es-toolkit/compat'
 import { use, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 

@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next'
 import { Streamdown } from 'streamdown'
 
+import type { ExitPlanModeToolInput, ExitPlanModeToolOutput } from '../shared/agentToolTypes'
+import { AgentToolsType } from '../shared/agentToolTypes'
+import { ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
-import { ToolHeader, TruncatedIndicator } from './GenericTools'
-import type { ExitPlanModeToolInput, ExitPlanModeToolOutput } from './types'
-import { AgentToolsType } from './types'
 
 export function ExitPlanModeTool({
   input,

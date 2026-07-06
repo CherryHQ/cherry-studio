@@ -1,5 +1,5 @@
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
-import { render, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { QuickPhrasesToolRuntime } from '../QuickPhrasesButton'
@@ -26,8 +26,12 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/components/resource/dialogs/PromptEditDialog', () => ({
-  default: ({ open }: { open: boolean }) => (open ? <div data-testid="prompt-edit-dialog" /> : null)
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
+  PromptEditDialog: ({ open }: { open: boolean }) => (open ? <div data-testid="prompt-edit-dialog" /> : null)
+}))
+vi.mock('@renderer/components/resourceCatalog/dialogs/manage', () => ({
+  PromptManagementDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="prompt-management-dialog" /> : null
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
@@ -51,6 +55,7 @@ vi.mock('@renderer/utils/error', () => ({
 }))
 
 vi.mock('lucide-react', () => ({
+  Pencil: () => <span data-testid="pencil-icon" />,
   Plus: () => <span data-testid="plus-icon" />,
   Zap: () => <span data-testid="zap-icon" />
 }))
@@ -120,5 +125,37 @@ describe('QuickPhrasesToolRuntime', () => {
         triggerInfo
       })
     )
+  })
+
+  it('adds a prompt management action without replacing the add prompt action', async () => {
+    const launcher = createLauncherApi()
+
+    render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} />)
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+
+    const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    quickPhrasesLauncher.action?.({
+      parentPanel: { list: [], symbol: '/' },
+      queryAnchor: 0,
+      quickPanel: {} as never,
+      source: 'root-panel',
+      triggerInfo: { type: 'button' }
+    })
+
+    const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
+    expect(panelOptions.list.map((item: { label: string }) => item.label)).toEqual([
+      'Prompt 1',
+      'settings.prompts.manage',
+      'settings.prompts.add...'
+    ])
+
+    const manageItem = panelOptions.list.find((item: { label: string }) => item.label === 'settings.prompts.manage')
+    act(() => {
+      manageItem.action({} as never)
+    })
+
+    expect(await screen.findByTestId('prompt-management-dialog')).toBeInTheDocument()
+    expect(screen.queryByTestId('prompt-edit-dialog')).not.toBeInTheDocument()
   })
 })

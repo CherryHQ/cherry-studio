@@ -3,26 +3,19 @@ import path from 'node:path'
 
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
-import { DOCUMENT_SEPARATOR } from '@main/features/knowledge/utils/indexing/chunk'
-import {
-  type MaterialFieldSource,
-  toMaterialRelativePath
-} from '@main/features/knowledge/utils/indexing/materialFields'
-import { deriveNoteSnapshotSlug } from '@main/features/knowledge/utils/sources/noteSnapshot'
-import { serializeOkfFrontmatter } from '@main/features/knowledge/utils/sources/okfFrontmatter'
-import { deriveUrlSnapshotSlug, deriveUrlSnapshotTitle } from '@main/features/knowledge/utils/sources/urlSnapshot'
 import {
   assertSafeKnowledgeRelativePath,
+  buildNoteSnapshotFile,
+  buildUrlSnapshotFile,
   collectKnowledgeReservedRelativePaths,
-  reserveImportedFileRelativePath
-} from '@main/features/knowledge/utils/storage/pathStorage'
-import { hashEmbeddingText } from '@main/features/knowledge/vectorstore/indexStore/hashing'
-import { ensureIndexMeta } from '@main/features/knowledge/vectorstore/indexStore/indexMeta'
-import { KnowledgeIndexStore } from '@main/features/knowledge/vectorstore/indexStore/KnowledgeIndexStore'
-import { type LibsqlDriver, openLibsqlIndexDriver } from '@main/features/knowledge/vectorstore/indexStore/LibsqlDriver'
-import { libsqlVectorIndex } from '@main/features/knowledge/vectorstore/indexStore/LibsqlVectorIndex'
-import type { RebuildMaterialInput } from '@main/features/knowledge/vectorstore/indexStore/model'
-import { createKnowledgeIndexSchema } from '@main/features/knowledge/vectorstore/indexStore/schema'
+  createKnowledgeIndexStoreAtPath,
+  DOCUMENT_SEPARATOR,
+  hashEmbeddingText,
+  type MaterialFieldSource,
+  type RebuildMaterialInput,
+  reserveImportedFileRelativePath,
+  toMaterialRelativePath
+} from '@main/features/knowledge'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
@@ -55,7 +48,7 @@ const KNOWLEDGE_VECTOR_STORE_FILE = 'index.sqlite'
 const KNOWLEDGE_MATERIAL_ROOT_DIR = 'raw'
 const INDEXABLE_KNOWLEDGE_ITEM_TYPES = new Set<KnowledgeItemType>(['file', 'url', 'note'])
 const SKIP_WARNING_SAMPLE_LIMIT = 3
-// fs.rm options that survive a transient Windows lock (libsql handle / AV / indexer)
+// fs.rm options that survive a transient Windows lock (an open index.sqlite handle / AV / indexer)
 // on the index.sqlite family; `recursive` is required for fs.rm to honor the retries.
 const REMOVE_RETRY_OPTIONS = { recursive: true, force: true, maxRetries: 5, retryDelay: 100 } as const
 
@@ -75,8 +68,7 @@ const FS_RETRY_MAX_DELAY_MS = 1500
 
 // inArray() binds one SQL variable per id; a single UPDATE over the whole degrade set would
 // overflow SQLite's bound-variable cap once a corpus accumulates enough orphaned directory items.
-// Chunk well under the cap, matching the repo convention (FileRefService / orphanCheckerRegistry /
-// ChatMigrator all use 500 on this same knowledge_item id column).
+// Chunk well under the cap, matching the repo convention (FileRefService / ChatMigrator use 500).
 const DEGRADE_UPDATE_CHUNK = 500
 
 async function retryOnTransientFsLock<T>(operation: () => Promise<T>): Promise<T> {
@@ -238,6 +230,8 @@ function buildMigratedRebuildInput(
       text: joinMigratedChunkText(chunks)
     },
     units,
+    // v1 bases always carried embeddings, so a migrated base is a vector base.
+    usesEmbeddings: true,
     embeddings: [...embeddingByHash.entries()].map(([embeddingTextHash, vector]) => ({ embeddingTextHash, vector }))
   }
 
@@ -767,40 +761,27 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           let relativePath: string
           if (item.type === 'url') {
             const contentText = joinMigratedChunkText(chunks)
+            // buildUrlSnapshotFile is the same OKF-frontmatter + slug derivation the runtime's
+            // captureUrlSnapshotFile uses, so a migrated url snapshot is byte-identical to a natively
+            // captured one (the snapshot reader strips the frontmatter to round-trip the body).
+            const snapshot = buildUrlSnapshotFile(item.data.url, contentText, capturedAt)
             relativePath =
-              item.data.relativePath ??
-              reserveImportedFileRelativePath(
-                `${deriveUrlSnapshotSlug(contentText, item.data.url)}.md`,
-                false,
-                reservedPaths
-              )
+              item.data.relativePath ?? reserveImportedFileRelativePath(`${snapshot.slug}.md`, false, reservedPaths)
             materialSnapshots.push({
               itemId: item.id,
               relativePath,
-              fileText:
-                serializeOkfFrontmatter({
-                  type: 'URL',
-                  title: deriveUrlSnapshotTitle(contentText, item.data.url),
-                  resource: item.data.url,
-                  timestamp: capturedAt
-                }) + contentText,
+              fileText: snapshot.fileText,
               data: { ...item.data, relativePath }
             })
           } else if (item.type === 'note') {
             const contentText = joinMigratedChunkText(chunks)
+            const snapshot = buildNoteSnapshotFile(item.data.source, contentText, capturedAt)
             relativePath =
-              item.data.relativePath ??
-              reserveImportedFileRelativePath(`${deriveNoteSnapshotSlug(item.data.source)}.md`, false, reservedPaths)
+              item.data.relativePath ?? reserveImportedFileRelativePath(`${snapshot.slug}.md`, false, reservedPaths)
             materialSnapshots.push({
               itemId: item.id,
               relativePath,
-              // OKF frontmatter + content; the note reader strips it to round-trip the body.
-              fileText:
-                serializeOkfFrontmatter({
-                  type: 'Note',
-                  title: item.data.source,
-                  timestamp: capturedAt
-                }) + contentText,
+              fileText: snapshot.fileText,
               data: { ...item.data, relativePath }
             })
           } else {
@@ -958,14 +939,14 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // v1 embedjs DB is untouched and a failed migration leaves v1 fully usable.
         await this.removeIndexStoreFiles(plan.targetDbPath)
 
-        // Build the store DIRECTLY at its runtime index.sqlite — no temp file, no rename. The rebuild
-        // runs the exact runtime open sequence (driver → schema → ensureIndexMeta →
-        // KnowledgeIndexStore.rebuildMaterial), so the result is byte-for-byte a store the runtime
-        // would produce.
+        // Build the store DIRECTLY at its runtime index.sqlite — no temp file, no rename. The store is
+        // opened through createKnowledgeIndexStoreAtPath — the exact factory the runtime
+        // (KnowledgeVectorStoreService) uses — so the result is byte-for-byte a store the runtime would
+        // produce.
         //
         // Why not build a temp store and rename it on? The rename was the migration's single most
-        // fragile step on Windows. libsql opens index.sqlite in WAL mode, and WAL mode on Windows is
-        // known to keep a lock on the MAIN db file past close() — wal_checkpoint(TRUNCATE), PERSIST_WAL
+        // fragile step on Windows. The index store opens index.sqlite in WAL mode, and WAL mode on Windows
+        // is known to keep a lock on the MAIN db file past close() — wal_checkpoint(TRUNCATE), PERSIST_WAL
         // and multi-second waits do NOT release it (oven-sh/bun#25964) — on top of the AV/Search-
         // Indexer scan that opens the just-written file without DELETE share. MoveFileEx needs DELETE
         // access on the source, so the rename threw EBUSY/EPERM and the base lost its store. A retry
@@ -980,17 +961,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // fresh uuid dir, the runtime never opens a store mid-migration, and the catch below wipes a
         // partial on a caught failure. A crash-orphaned dir is never referenced by a knowledge_base row
         // so it is never mounted (it is dead disk, the same as the rename path produced).
-        //
-        // serializedSingleConnection: the per-material rebuild loop runs one transaction per material.
-        // With libsql's client.transaction('write') each would orphan a still-open handle (released
-        // only by GC); manual BEGIN keeps every write on the single connection so driver.close()
-        // releases it. Safe here because migration is the sole writer and nothing reads it concurrently.
-        const driver = await openLibsqlIndexDriver(plan.targetDbPath, { serializedSingleConnection: true })
+        const store = createKnowledgeIndexStoreAtPath(plan.targetDbPath, { baseId: plan.baseId })
         try {
-          await createKnowledgeIndexSchema(driver)
-          await ensureIndexMeta(driver, { baseId: plan.baseId })
-          const store = new KnowledgeIndexStore(driver, libsqlVectorIndex)
-
           for (const material of plan.materials) {
             await store.rebuildMaterial(material.itemId, material.input)
             processedWork += 1
@@ -999,13 +971,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           }
 
           // Fold the WAL back into the main db file so the committed pages are durable in index.sqlite
-          // itself (libsql does not reliably checkpoint on close); the runtime then opens a
+          // itself (the WAL is not guaranteed to be checkpointed on close); the runtime then opens a
           // self-contained store.
-          await driver.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+          store.checkpoint()
         } finally {
           // Close so the file handle is released (a leaked handle would block a re-run's
           // removeIndexStoreFiles and the later base-dir deletion on Windows).
-          await driver.close()
+          await store.close()
         }
         // Build + close succeeded: the complete store sits at its runtime path. A later failure
         // (snapshot-pin) leaves it present and searchable, so it must NOT be wiped or marked failed.
@@ -1165,40 +1137,38 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           })
         }
 
-        // Reopen through openLibsqlIndexDriver, not a bare createClient: the driver sets
-        // busy_timeout=5000, so this re-read of the just-built store waits out a transient Windows lock
-        // (Defender / indexer scanning the freshly-written file) instead of throwing SQLITE_BUSY /
-        // EACCES and failing validation for an already-correct store.
-        const driver = await openLibsqlIndexDriver(plan.targetDbPath)
+        // Reopen through createKnowledgeIndexStoreAtPath — the same factory the runtime and the build
+        // phase use — not a bare new Database: its driver sets busy_timeout=5000, so this re-read of the
+        // just-built store waits out a transient Windows lock (Defender / indexer scanning the
+        // freshly-written file) instead of throwing SQLITE_BUSY / EACCES and failing validation for an
+        // already-correct store. The factory's schema/meta steps are idempotent on this just-built store
+        // (create is IF NOT EXISTS, ensureIndexMeta is INSERT OR IGNORE at the current version), so the
+        // counts read below are unchanged. Only difference from a bare read: a store corrupted between
+        // build and this reopen (base_id no longer matches) makes ensureIndexMeta throw and fail
+        // validation rather than reading stale counts — a stricter, safe outcome, unreachable in this
+        // single-threaded in-process migration with no external writer.
+        const store = createKnowledgeIndexStoreAtPath(plan.targetDbPath, { baseId: plan.baseId })
         try {
-          const materialCount = await this.tableCount(driver, 'material')
-          const unitCount = await this.tableCount(driver, 'search_unit')
-          const embeddingCount = await this.tableCount(driver, 'embedding')
-          targetCount += unitCount
+          const counts = store.describeIndexCounts()
+          targetCount += counts.units
 
-          this.pushCountMismatch(errors, plan.baseId, 'material', plan.materials.length, materialCount)
-          this.pushCountMismatch(errors, plan.baseId, 'search_unit', plan.expectedUnitCount, unitCount)
-          this.pushCountMismatch(errors, plan.baseId, 'embedding', plan.expectedEmbeddingCount, embeddingCount)
+          this.pushCountMismatch(errors, plan.baseId, 'material', plan.materials.length, counts.materials)
+          this.pushCountMismatch(errors, plan.baseId, 'search_unit', plan.expectedUnitCount, counts.units)
+          this.pushCountMismatch(errors, plan.baseId, 'embedding', plan.expectedEmbeddingCount, counts.embeddings)
 
           // Every unit's body search_text must resolve to a stored embedding, or that
           // unit is silently absent from vector search. This is the migration-time
           // form of the rebuild self-heal invariant (knowledge-technical-design.md §10).
-          const uncovered = await driver.execute(
-            `SELECT count(*) AS count FROM search_text st
-                  LEFT JOIN embedding e ON e.embedding_text_hash = st.embedding_text_hash
-                  WHERE e.embedding_text_hash IS NULL`
-          )
-          const uncoveredCount = Number(uncovered.rows[0]?.count ?? 0)
-          if (uncoveredCount > 0) {
+          if (counts.unitsMissingEmbedding > 0) {
             errors.push({
               key: `knowledge_vector_uncovered_units_${plan.baseId}`,
               expected: 0,
-              actual: uncoveredCount,
-              message: `Found ${uncoveredCount} knowledge search_text rows without a stored embedding in base ${plan.baseId}`
+              actual: counts.unitsMissingEmbedding,
+              message: `Found ${counts.unitsMissingEmbedding} knowledge search_text rows without a stored embedding in base ${plan.baseId}`
             })
           }
         } finally {
-          await driver.close()
+          await store.close()
         }
       }
 
@@ -1235,11 +1205,6 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         }
       }
     }
-  }
-
-  private async tableCount(driver: LibsqlDriver, table: string): Promise<number> {
-    const result = await driver.execute(`SELECT count(*) AS count FROM ${table}`)
-    return Number(result.rows[0]?.count ?? 0)
   }
 
   private pushCountMismatch(

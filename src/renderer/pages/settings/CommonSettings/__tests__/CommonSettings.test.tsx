@@ -3,14 +3,14 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import CommonSettings, { confirmMenuPresentationModeChange } from '../index'
+import CommonSettings, { confirmMenuPresentationModeChange } from '../CommonSettings'
 
 const i18nMock = vi.hoisted(() => ({
   language: 'zh-CN',
   resolvedLanguage: 'zh-CN'
 }))
 
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: i18nMock
 }))
 vi.mock('@cherrystudio/ui', async () => {
@@ -106,7 +106,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({
     settedTheme: 'light',
     setTheme: vi.fn(),
@@ -114,7 +114,7 @@ vi.mock('@renderer/context/ThemeProvider', () => ({
   })
 }))
 
-vi.mock('@renderer/context/CodeStyleProvider', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
     activeCmTheme: 'light'
   })
@@ -159,8 +159,8 @@ vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children, ...props }: { children?: React.ReactNode }) => <div {...props}>{children}</div>
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
-  ResetIcon: (props: any) => <span data-testid="reset-icon" {...props} />
+vi.mock('@renderer/components/icons/ResetIcon', () => ({
+  default: (props: any) => <span data-testid="reset-icon" {...props} />
 }))
 
 vi.mock('../components/ThemeColorPicker', () => ({

@@ -19,7 +19,7 @@ import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { safeValidateMcpConfig } from '@renderer/types/mcp'
 import { formatZodError } from '@renderer/utils/error'
@@ -357,7 +357,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
 
   return (
     <Dialog open={visible} onOpenChange={(next) => !next && handleClose()}>
-      <DialogContent className="sm:max-w-150">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-150">
         <DialogHeader>
           <DialogTitle>
             {importMethod === 'mcpb'

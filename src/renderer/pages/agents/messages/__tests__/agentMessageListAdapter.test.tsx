@@ -1,6 +1,7 @@
 import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { ExternalAppInfo } from '@shared/types/externalApp'
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -143,7 +144,7 @@ vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: eventMocks
 }))
 
-vi.mock('@renderer/utils/export', () => ({
+vi.mock('@renderer/services/ExportService', () => ({
   messagesToMarkdown: vi.fn(async () => 'markdown')
 }))
 
@@ -163,6 +164,7 @@ describe('useAgentMessageListProviderValue', () => {
     })
     window.api.file.openPath = vi.fn()
     window.api.file.showInFolder = vi.fn()
+    window.api.file.isDirectory = vi.fn().mockResolvedValue(false)
   })
 
   it('adapts CherryUIMessage input and injects supported agent capabilities', () => {
@@ -269,7 +271,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.previewFile).toBe(leafCapabilitiesMock.previewFile)
     expect(value?.actions.subscribeToolProgress).toBe(leafCapabilitiesMock.subscribeToolProgress)
     expect(value?.actions.openExternalUrl).toBe(leafCapabilitiesMock.openExternalUrl)
-    expect(value?.actions.openInExternalApp).toBe(leafCapabilitiesMock.openInExternalApp)
+    expect(value?.actions.openInExternalApp).toEqual(expect.any(Function))
     expect(value?.actions.navigateToRoute).toEqual(expect.any(Function))
     expect(value?.actions.openUserProfile).toBe(headerCapabilitiesMock.openUserProfile)
     expect(value?.actions.copyText).toBe(leafCapabilitiesMock.copyText)
@@ -287,6 +289,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.openArtifactFile).toBe(openArtifactFile)
     expect(value?.actions.openPath).toEqual(expect.any(Function))
     expect(value?.actions.showInFolder).toEqual(expect.any(Function))
+    expect(value?.actions.isDirectory).toEqual(expect.any(Function))
     expect(value?.actions.abortTool).toEqual(expect.any(Function))
     expect(value?.actions.bindRuntime).toEqual(expect.any(Function))
     expect(value?.actions.bindMessageRuntime).toEqual(expect.any(Function))
@@ -296,8 +299,24 @@ describe('useAgentMessageListProviderValue', () => {
     void value?.actions.openPath?.('dist/report.md')
     expect(window.api.file.openPath).toHaveBeenCalledWith('/tmp/workspace/dist/report.md')
 
+    const editor: ExternalAppInfo = {
+      id: 'vscode',
+      name: 'VS Code',
+      protocol: 'vscode://',
+      tags: ['code-editor'],
+      path: '/Applications/Visual Studio Code.app'
+    }
+    void value?.actions.openInExternalApp?.(editor, 'dist/report.md')
+    expect(leafCapabilitiesMock.openInExternalApp).toHaveBeenCalledWith(editor, '/tmp/workspace/dist/report.md')
+
+    void value?.actions.openInExternalApp?.(editor, '/Users/me/report.md')
+    expect(leafCapabilitiesMock.openInExternalApp).toHaveBeenCalledWith(editor, '/Users/me/report.md')
+
     void value?.actions.showInFolder?.('/Users/me/report.md')
     expect(window.api.file.showInFolder).toHaveBeenCalledWith('/Users/me/report.md')
+
+    void value?.actions.isDirectory?.('dist/assets')
+    expect(window.api.file.isDirectory).toHaveBeenCalledWith('/tmp/workspace/dist/assets')
 
     void value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
     expect(navigateMock).toHaveBeenCalledWith({

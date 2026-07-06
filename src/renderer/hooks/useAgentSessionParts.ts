@@ -11,7 +11,7 @@
  */
 
 import { useInfiniteFlatItems, useInfiniteQuery, useMutation } from '@renderer/data/hooks/useDataApi'
-import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useCallback, useMemo } from 'react'

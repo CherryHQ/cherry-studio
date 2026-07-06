@@ -224,7 +224,12 @@
           "runFailed": "Échec de l'exécution de la tâche",
           "updateFailed": "Échec de la mise à jour de la tâche"
         },
-        "intervalPlaceholder": "Intervalle en minutes",
+        "frequency": {
+          "everyPrefix": "Toutes les",
+          "everySuffix": "minutes",
+          "label": "Fréquence d’exécution"
+        },
+        "intervalPlaceholder": "Au moins 1",
         "intervalUnit": "minutes",
         "lastRun": "Dernière exécution",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Intervalle",
-          "label": "Type de planification",
           "once": "Une fois"
         },
-        "scheduleValue": "Valeur de planification",
         "status": {
           "active": "Actif",
           "completed": "Terminé",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}m il y a"
         },
         "timeout": {
-          "label": "Délai d'attente dépassé",
+          "label": "Temps d’exécution maximal",
           "placeholder": "Aucune limite"
         },
         "title": "Tâches planifiées"
@@ -553,6 +556,7 @@
       "list": {
         "title": "Tâches"
       },
+      "new": "Nouvelle tâche",
       "pin": {
         "title": "Épingler la tâche"
       },
@@ -562,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Tâches de recherche"
+        "placeholder": "Tâches de recherche",
+        "title": "Rechercher des tâches"
       },
       "unpin": {
         "title": "Détacher la tâche"
@@ -599,9 +604,7 @@
         "select_failed": "Échec de la sélection du dossier."
       },
       "workspace_status": {
-        "inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}",
-        "missing": "Le chemin de l'espace de travail n'existe pas : {{path}}",
-        "not_directory": "Le chemin de l’espace de travail n’est pas un répertoire : {{path}}"
+        "inaccessible": "Le chemin de l'espace de travail n'est pas accessible : {{path}}"
       }
     },
     "settings": {
@@ -932,6 +935,10 @@
           "description": "Exécute des commandes shell dans votre environnement",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "Ajoute, supprime ou actualise des documents dans vos bases de connaissances",
+          "label": "Gérer les connaissances"
+        },
         "CherryKbSearch": {
           "description": "Recherche dans vos bases de connaissances",
           "label": "Recherche de connaissances"
@@ -1074,41 +1081,6 @@
       "stopped": "Arrêté"
     },
     "title": "Serveur API"
-  },
-  "appMenu": {
-    "about": "À propos",
-    "close": "Fermer la fenêtre",
-    "copy": "Copier",
-    "cut": "Couper",
-    "delete": "Supprimer",
-    "documentation": "Documentation",
-    "edit": "Modifier",
-    "feedback": "Retour d'information",
-    "file": "Fichier",
-    "forceReload": "Rechargement forcé",
-    "front": "Tout ramener au premier plan",
-    "help": "Aide",
-    "hide": "Cacher",
-    "hideOthers": "Masquer les autres",
-    "minimize": "Minimiser",
-    "paste": "Coller",
-    "quit": "Quitter",
-    "redo": "Refaire",
-    "releases": "Sorties",
-    "reload": "Recharger",
-    "resetZoom": "Taille réelle",
-    "selectAll": "Tout sélectionner",
-    "services": "Services",
-    "toggleDevTools": "Basculer les outils de développement",
-    "toggleFullscreen": "Basculer en plein écran",
-    "undo": "Annuler",
-    "unhide": "Tout afficher",
-    "view": "Vue",
-    "website": "Site web",
-    "window": "Fenêtre",
-    "zoom": "Zoom",
-    "zoomIn": "Zoom Avant",
-    "zoomOut": "Dézoomer"
   },
   "assistants": {
     "abbr": "Aide",
@@ -1590,6 +1562,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "[to be translated]:Cache {{hit_rate}}%",
+        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "Ce message est en cours de modification dans le compositeur",
       "flow": {
         "branches": "branches",
@@ -2052,7 +2028,6 @@
     "copy_failed": "Échec de la copie",
     "create_success": "Créé avec succès",
     "current": "Actuel",
-    "cut": "Couper",
     "default": "Défaut",
     "delete": "Supprimer",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ?",
@@ -2090,7 +2065,6 @@
     "image_preview": "Aperçu de l'image",
     "image_url": "URL de l'image",
     "image_url_or_upload": "Entrez l'URL de l'image ou téléchargez un fichier",
-    "inspect": "Vérifier",
     "invalid_value": "valeur invalide",
     "knowledge_base": "Base de connaissances",
     "language": "Langue",
@@ -2111,7 +2085,6 @@
     "open_in": "Ouvrir dans {{name}}",
     "open_in_new_tab": "Ouvrir dans un nouvel onglet",
     "open_sidebar": "Ouvrir la barre latérale",
-    "paste": "Coller",
     "placeholders": {
       "select": {
         "model": "Choisir le modèle"
@@ -2166,18 +2139,6 @@
     "warning": "Avertissement",
     "yesterday": "Hier",
     "you": "Vous"
-  },
-  "dialog": {
-    "all_files": "Tous les fichiers",
-    "html_files": "Fichiers HTML",
-    "open_file": "Ouvrir le fichier",
-    "pdf_files": "Fichiers PDF",
-    "png_image": "Image PNG",
-    "save_as_html": "Enregistrer au format HTML",
-    "save_as_pdf": "Enregistrer au format PDF",
-    "save_file": "Enregistrer le fichier",
-    "select_folder": "Sélectionner un dossier",
-    "word_document": "Document Word"
   },
   "docs": {
     "title": "Documentation d'aide"
@@ -3159,12 +3120,22 @@
           "agent_title": "Nouvel agent",
           "assistant_title": "Nouvel Assistant",
           "avatar_aria": "Choisir un avatar",
+          "back": "Retour",
+          "capability": {
+            "import": "Importer une compétence",
+            "no_skills": "Aucune compétence installée",
+            "search": "Compétences de recherche"
+          },
           "description_placeholder": "Décrire à quoi cela sert...",
-          "dialog_description": "Créer un assistant ou agent léger.",
-          "model_placeholder": "Sélectionner un modèle",
-          "model_required": "Veuillez sélectionner un modèle",
+          "guided_progress": "Configuration guidée · Étape {{current}} sur {{total}}",
           "name_placeholder": "Entrez un nom",
-          "name_required": "Veuillez entrer un nom",
+          "next": "Suivant",
+          "step": {
+            "basic": "Informations de base",
+            "capability": "Compétences",
+            "knowledge": "Connaissance",
+            "persona": "Persona"
+          },
           "submit": "Créer",
           "submit_failed": "Échec de la création"
         },
@@ -3873,64 +3844,6 @@
       "partial_failure": "{{count}} résultats de recherche, certaines recherches ont échoué"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Ajouter à Launchpad",
-    "add_to_sidebar": "Ajouter à la barre latérale",
-    "popup": {
-      "close": "Fermer MinApp",
-      "devtools": "Outils de développement",
-      "goBack": "Retour",
-      "goForward": "Avancer",
-      "minimize": "Réduire MinApp",
-      "openExternal": "Ouvrir dans le navigateur",
-      "open_link_external_off": "Actuel : Ouvrir les liens dans la fenêtre par défaut",
-      "open_link_external_on": "Actuel : Ouvrir les liens dans le navigateur",
-      "refresh": "Actualiser",
-      "rightclick_copyurl": "Clic droit pour copier l'URL"
-    },
-    "remove_from_launchpad": "Supprimer de Launchpad",
-    "remove_from_sidebar": "Supprimer de la barre latérale",
-    "sidebar": {
-      "close": {
-        "title": "Fermer"
-      },
-      "closeall": {
-        "title": "Tout fermer"
-      },
-      "hide": {
-        "title": "Cacher"
-      },
-      "remove_custom": {
-        "title": "Supprimer l'application personnalisée"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Fourmi Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Recherche IA Baidu",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Agent Minimax CN",
-    "minimax-global": "Agent Minimax",
-    "nami-ai": "Nami IA",
-    "nami-ai-search": "Recherche Nami AI",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "miniApp": {
     "add_to_launchpad": "Ajouter au tableau de bord",
     "add_to_sidebar": "Ajouter à la barre latérale",
@@ -3941,15 +3854,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Échec de l'épinglage de la mini-application",
     "popup": {
-      "close": "Закрыть мини-программу",
       "devtools": "Инструменты разработчика",
       "goBack": "Reculer",
       "goForward": "Avancer",
       "openExternal": "Открыть в браузере",
       "open_link_external_off": "Текущий: открывать ссылки в окне по умолчанию",
       "open_link_external_on": "Текущий: открывать ссылки в браузере",
-      "refresh": "Обновить",
-      "rightclick_copyurl": "Скопировать URL через правую кнопку мыши"
+      "refresh": "Обновить"
     },
     "remove_from_launchpad": "Supprimer du tableau de bord",
     "remove_from_sidebar": "Supprimer de la barre latérale",
@@ -3961,17 +3872,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Fermer"
-      },
-      "closeall": {
-        "title": "Закрыть все"
-      },
       "hide": {
         "title": "Cacher"
-      },
-      "remove_custom": {
-        "title": "Supprimer l'application personnalisée"
       }
     },
     "title": "Mini-programme",
@@ -3991,7 +3893,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -4777,10 +4678,10 @@
     "baichuan": "BaiChuan",
     "baidu-cloud": "Baidu Cloud Qianfan",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copilote",
     "dashscope": "AliCloud BaiLian",
     "deepseek": "DeepSeek",
@@ -4833,7 +4734,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Tesseract",
     "together": "Ensemble",
-    "tokenflux": "TokenFlux",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "CTyun XiRang",
@@ -5325,6 +5226,7 @@
     "assistant": {
       "create_new": "Nouvel Assistant",
       "empty_text": "Pas encore d'assistants",
+      "filter": "Filtrer les assistants",
       "multi_hint": "(mutuellement exclusif avec multi-modèle)",
       "multi_label": "Multi-assistant parallèle",
       "search_placeholder": "Assistant de recherche…"
@@ -6349,12 +6251,6 @@
         "usage": "Utilisation",
         "version": "Version"
       },
-      "oauth": {
-        "callback": {
-          "message": "Vous pouvez fermer cette page et retourner à Cherry Studio",
-          "title": "Authentification Réussie"
-        }
-      },
       "prompts": {
         "arguments": "Arguments",
         "availablePrompts": "Invites disponibles",
@@ -6504,6 +6400,12 @@
         "show_estimated_tokens": "Afficher le nombre estimatif de tokens",
         "title": "Paramètres d'entrée"
       },
+      "layout": {
+        "classic": "Classique",
+        "conversation": "Vue conversation",
+        "modern": "Moderne",
+        "work": "Vue du travail"
+      },
       "markdown_rendering_input_message": "Rendu Markdown des messages d'entrée",
       "metrics": "Latence initiale {{time_first_token_millsec}}ms | Vitesse de tokenisation {{token_speed}} tokens/s",
       "model": {
@@ -6523,37 +6425,24 @@
     "miniApps": {
       "cache_change_notice": "Les modifications prendront effet après l'ajout ou la suppression d'applications ouvertes jusqu'à atteindre la valeur définie",
       "cache_description": "Définir le nombre maximum d'applications pouvant rester actives simultanément",
-      "cache_settings": "Paramètres du cache",
       "cache_title": "Nombre de caches d'applications",
       "custom": {
-        "conflicting_ids": "Конфликтующие ID с ID по умолчанию: {{ids}}",
-        "duplicate_ids": "Обнаружены повторяющиеся ID: {{ids}}",
-        "edit_description": "Здесь вы можете отредактировать конфигурацию пользовательского приложения. Каждое приложение должно содержать поля id, name, url и logo.",
+        "create_title": "Créer une mini-application personnalisée",
         "edit_title": "Редактировать пользовательское приложение",
-        "id": "ID",
-        "id_error": "Поле ID обязательно для заполнения.",
-        "id_placeholder": "Введите ID",
-        "logo": "Логотип",
         "logo_file": "Загрузить файл логотипа",
-        "logo_upload_button": "Загрузить",
         "logo_upload_error": "Не удалось загрузить логотип.",
         "logo_upload_label": "Загрузить логотип",
-        "logo_upload_success": "Логотип успешно загружен.",
-        "logo_url": "URL логотипа",
-        "logo_url_label": "URL логотипа",
-        "logo_url_placeholder": "Введите URL логотипа",
         "name": "Имя",
-        "name_error": "Поле Имя обязательно для заполнения.",
         "name_placeholder": "Введите имя",
-        "placeholder": "Введите конфигурацию пользовательского приложения (в формате JSON)",
+        "remove_confirm_description": "Supprimer le mini-app personnalisé \"{{name}}\" ? Cette action ne peut pas être annulée.",
+        "remove_confirm_title": "Supprimer le mini-app personnalisé ?",
         "remove_error": "Не удалось удалить пользовательское приложение.",
         "remove_success": "Пользовательское приложение успешно удалено.",
-        "save": "Сохранить",
         "save_error": "Не удалось сохранить пользовательское приложение.",
         "save_success": "Пользовательское приложение успешно сохранено.",
         "title": "Пользовательское приложение",
         "url": "URL",
-        "url_error": "Поле URL обязательно для заполнения.",
+        "url_invalid": "Saisissez une URL http, https ou file valide.",
         "url_placeholder": "Введите URL"
       },
       "disabled": "Applications masquées",
@@ -6575,65 +6464,8 @@
         "title": "Filtrage par zone de la mini-application"
       },
       "reset_tooltip": "Réinitialiser aux valeurs par défaut",
-      "title": "Paramètres de l'application",
-      "visible": "Applications visibles"
-    },
-    "miniapps": {
-      "cache_change_notice": "Les changements prendront effet lorsque le nombre d’applications mini ouvertes atteindra la valeur définie",
-      "cache_description": "Définir le nombre maximal de mini-applications actives à conserver en mémoire",
-      "cache_settings": "Paramètres du cache",
-      "cache_title": "Limite du cache de la mini-application",
-      "custom": {
-        "conflicting_ids": "IDs en conflit avec les applications par défaut : {{ids}}",
-        "duplicate_ids": "IDs en double trouvés : {{ids}}",
-        "edit_description": "Modifiez ici la configuration de la mini-application personnalisée. Chaque application doit inclure les champs id, name, url et logo.",
-        "edit_title": "Modifier la mini-application personnalisée",
-        "id": "ID",
-        "id_error": "L'ID est requis.",
-        "id_placeholder": "Entrez l'ID",
-        "logo": "Logo",
-        "logo_file": "Télécharger le fichier du logo",
-        "logo_upload_button": "Télécharger",
-        "logo_upload_error": "Échec du téléchargement du logo.",
-        "logo_upload_label": "Télécharger le logo",
-        "logo_upload_success": "Logo téléchargé avec succès.",
-        "logo_url": "URL du logo",
-        "logo_url_label": "URL du logo",
-        "logo_url_placeholder": "Entrer l'URL du logo",
-        "name": "Nom",
-        "name_error": "Le nom est requis.",
-        "name_placeholder": "Entrez le nom",
-        "placeholder": "Entrez la configuration personnalisée de la mini-application (format JSON)",
-        "remove_error": "Échec de la suppression de la mini-application personnalisée.",
-        "remove_success": "Mini application personnalisée supprimée avec succès.",
-        "save": "Enregistrer",
-        "save_error": "Échec de l'enregistrement de la mini-application personnalisée.",
-        "save_success": "Mini-app personnalisée enregistrée avec succès.",
-        "title": "Personnalisé",
-        "url": "URL",
-        "url_error": "L'URL est requise.",
-        "url_placeholder": "Entrez l'URL"
-      },
-      "disabled": "Mini-applications cachées",
-      "display_title": "Paramètres d'affichage de la mini-application",
-      "empty": "Cliquez sur l’icône de masquage d’une application à gauche et elle se déplacera ici.",
-      "hide_app": "Masquer {{name}}",
-      "open_link_external": {
-        "title": "Ouvrir les liens dans une nouvelle fenêtre du navigateur"
-      },
-      "region": {
-        "auto": "Détection automatique",
-        "cn": "Chine",
-        "description": "Filtrage des mini-programmes non pris en charge en fonction de la région",
-        "global": "Mondial",
-        "title": "Filtre Mini Programme"
-      },
-      "reset_tooltip": "Rétablir les paramètres par défaut",
-      "show_app": "Afficher {{name}}",
-      "sidebar_description": "Afficher les mini-applications actives dans la barre latérale",
-      "sidebar_title": "Affichage des Mini Apps actives dans la barre latérale",
       "title": "Paramètres des Mini Apps",
-      "visible": "Mini Applications Visibles"
+      "visible": "Applications visibles"
     },
     "model": "Modèle par défaut",
     "models": {
@@ -6784,6 +6616,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Certains modèles sont utilisés comme modèles par défaut et ne peuvent pas être supprimés.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -7105,9 +6938,19 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Domaine d'accélération",
-          "backup": "Domaine de sauvegarde",
           "international": "Domaine international"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7578,6 +7421,7 @@
           "exa": "API de recherche neuronale pour applications IA, optimisée pour la récupération sémantique sur le web.",
           "exa_mcp": "Exposez la recherche Exa aux agents via le serveur MCP Exa.",
           "fetch": "Fournisseur d’extraction d’URL intégré. Récupère le contenu des pages web à partir d’une URL pour enrichir les résultats de recherche.",
+          "firecrawl": "Service d'exploration et de recherche Firecrawl, optimisé pour transformer les sites web en Markdown.",
           "jina": "APIs de recherche et de lecture Jina Reader pour récupérer du contenu web propre.",
           "querit": "Service de recherche pour applications IA avec résultats de récupération web.",
           "searxng": "Moteur de méta-recherche internet gratuit auto-hébergeable couvrant de nombreuses sources.",
@@ -7897,11 +7741,6 @@
     "tooltip": {
       "newline": "saut de ligne"
     }
-  },
-  "tray": {
-    "quit": "Quitter",
-    "show_quick_assistant": "Assistant Rapide",
-    "show_window": "Afficher la fenêtre"
   },
   "update": {
     "install": "Installer",

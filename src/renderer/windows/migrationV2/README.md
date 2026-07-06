@@ -18,11 +18,11 @@ src/renderer/windows/migrationV2/
 ## Flow Overview
 
 1. `index.html` declares the logger window source (`MigrationV2`) via a `<meta name="logger-window-source">` tag; `entryPoint.tsx` then initializes styles and i18n before mounting `MigrationApp`.
-2. `MigrationApp.tsx` renders the staged wizard: introduction → backup choice/progress/confirmation → migration → completion/error. It calls action hooks to trigger IPC and exporter routines, and listens for progress updates to drive the steps/progress bars.
+2. `MigrationApp.tsx` renders the staged wizard: introduction → migration → completion/error. It calls action hooks to trigger IPC and exporter routines, and listens for progress updates to drive the steps/progress bars.
 3. Hooks:
-   - `useMigrationProgress` subscribes to `MigrationIpcChannels.Progress`, queries last error/initial progress on load, and provides IPC-backed back-navigation helpers.
+   - `useMigrationProgress` subscribes to `MigrationIpcChannels.Progress` and queries last error/initial progress on load.
    - The completion `Migration time` is measured in this window from the first visible `migration` stage update to the received `completed` update.
-   - `useMigrationActions` wraps IPC invokes for backup, start, retry, cancel, restart, and skip.
+   - `useMigrationActions` wraps IPC invokes for start, retry, cancel, restart, and skip.
 4. Exporters:
    - `ReduxExporter` pulls Redux Persist payload from `localStorage` (`persist:cherry-studio`), parses slices, and returns clean JS objects for main.
    - `DexieExporter` snapshots Dexie tables from IndexedDB to JSON via IPC (`migration:write-export-file`), so main can read from disk without direct browser access.

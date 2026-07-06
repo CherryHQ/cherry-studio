@@ -1,4 +1,4 @@
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel/symbols'
+import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
   type QuickPanelCallBackOptions,
@@ -68,7 +68,7 @@ const useKnowledgeBaseToolController = ({
     const configuredIds = new Set(
       configuredKnowledgeBaseIdsKey ? configuredKnowledgeBaseIdsKey.split(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR) : []
     )
-    if (configuredIds.size === 0) return []
+    if (configuredIds.size === 0) return knowledgeBases
     return knowledgeBases.filter((base) => configuredIds.has(base.id))
   }, [configuredKnowledgeBaseIdsKey, knowledgeBases])
   onSelectRef.current = onSelect

@@ -21,7 +21,7 @@ const OPENAI_COMPAT_IMAGE_PROVIDER_IDS = new Set(['new-api', 'cherryin', 'aionly
  * Defaults only when `endpointConfigs` cannot supply a base — painting-local, not shared with global provider presets.
  */
 const OPENAI_COMPAT_DEFAULT_BASE_URLS: Readonly<Record<string, string>> = {
-  cherryin: 'https://open.cherryin.cc',
+  cherryin: 'https://open.cherryin.net',
   'new-api': 'http://localhost:3000',
   aionly: 'https://api.aiionly.com'
 }

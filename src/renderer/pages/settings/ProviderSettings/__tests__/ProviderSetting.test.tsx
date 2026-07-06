@@ -9,7 +9,7 @@ const useProviderOnboardingAutoEnableMock = vi.fn()
 const openHealthCheckMock = vi.fn()
 const authenticationSectionPropsSpy = vi.fn()
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({
     theme: 'light'
   })
@@ -39,10 +39,7 @@ vi.mock('../ConnectionSettings/AuthenticationSection', () => ({
 }))
 
 vi.mock('../ModelList', () => ({
-  ModelList: ({ providerId }: any) => <div>{`model-list-${providerId}`}</div>
-}))
-
-vi.mock('../ModelList/modelListHealthContext', () => ({
+  ModelList: ({ providerId }: any) => <div>{`model-list-${providerId}`}</div>,
   ModelListHealthProvider: ({ children }: any) => <>{children}</>,
   useModelListHealth: () => ({
     openHealthCheck: openHealthCheckMock

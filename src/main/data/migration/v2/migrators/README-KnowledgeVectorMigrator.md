@@ -17,10 +17,11 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 
 - Per-base 7-table index store at the migrated base's runtime path:
   `{knowledgeBaseDir}/{migratedBaseId}/.cherry/index.sqlite`
-- Built through the exact runtime open sequence — `openLibsqlIndexDriver` →
-  `createKnowledgeIndexSchema` → `ensureIndexMeta` → `KnowledgeIndexStore.rebuildMaterial` —
-  so the migrated store is byte-for-byte one the runtime would produce. One `material`
-  per migrated item; its legacy chunks become that material's `search_unit`s.
+- Built through `createKnowledgeIndexStoreAtPath` — the same factory the runtime
+  (`KnowledgeVectorStoreService`) opens its stores with (driver → schema → `ensureIndexMeta` →
+  `KnowledgeIndexStore`) — then `KnowledgeIndexStore.rebuildMaterial` per item, so the migrated
+  store is byte-for-byte one the runtime would produce. One `material` per migrated item; its
+  legacy chunks become that material's `search_unit`s.
 
 ## Key Transformations
 
@@ -78,10 +79,10 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 
 - The migrator builds each rebuilt store **directly** at its runtime path
   (`{migratedBaseId}/.cherry/index.sqlite`) — no temp file, no rename. The rename
-  was the migration's most fragile step on Windows: libsql opens the store in WAL
-  mode, which is known to keep the **main** db file locked past `close()`
-  (`wal_checkpoint(TRUNCATE)`, `PERSIST_WAL` and multi-second waits do not release
-  it — oven-sh/bun#25964), on top of an AV/Search-Indexer scan opening the
+  was the migration's most fragile step on Windows: a SQLite store opened in WAL
+  mode can keep the file locked past `close()`
+  (`wal_checkpoint(TRUNCATE)`, `PERSIST_WAL` and multi-second waits do not reliably
+  release it), on top of an AV/Search-Indexer scan opening the
   just-written file without `DELETE` share. `MoveFileEx` needs `DELETE` access on
   the source, so the rename threw `EBUSY`/`EPERM` and the base lost its store. A
   retry only waits out a transient AV scan; it cannot wait out a handle `close()`

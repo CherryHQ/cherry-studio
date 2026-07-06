@@ -71,7 +71,7 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   )
 }))
 
-vi.mock('@renderer/components/Tags/Model', () => ({
+vi.mock('@renderer/components/tags/Model', () => ({
   getModelDisplayTags: (model: Model) =>
     model.capabilities.filter((capability) =>
       [MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.FUNCTION_CALL].includes(capability as any)

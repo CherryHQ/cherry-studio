@@ -1,12 +1,11 @@
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 
-import { createClient } from '@libsql/client'
+import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@main/utils/file', () => ({
+vi.mock('@main/utils/legacyFile', () => ({
   sanitizeFilename: (value: string) => value
 }))
 
@@ -30,36 +29,42 @@ async function createLegacyVectorDb(
     vector: number[]
   }>
 ) {
-  const client = createClient({ url: pathToFileURL(dbPath).toString() })
+  const db = new Database(dbPath)
 
-  await client.execute(`
+  // The legacy embedjs `vector` column stored raw little-endian float32 bytes (libsql's
+  // F32_BLOB / vector32() is just a typed view over those bytes), so a plain BLOB holding
+  // the same bytes reproduces an on-disk-identical fixture.
+  db.exec(`
     CREATE TABLE vectors (
       id TEXT PRIMARY KEY,
       pageContent TEXT UNIQUE,
       uniqueLoaderId TEXT NOT NULL,
       source TEXT NOT NULL,
-      vector F32_BLOB(2),
+      vector BLOB,
       metadata TEXT
     )
   `)
 
+  const insert = db.prepare(
+    `INSERT INTO vectors (id, pageContent, uniqueLoaderId, source, vector, metadata) VALUES (?, ?, ?, ?, ?, '{}')`
+  )
   for (const row of rows) {
-    await client.execute({
-      sql: `
-        INSERT INTO vectors (id, pageContent, uniqueLoaderId, source, vector, metadata)
-        VALUES (?, ?, ?, ?, vector32(?), '{}')
-      `,
-      args: [row.id, row.pageContent, row.uniqueLoaderId, row.source, `[${row.vector.join(',')}]`]
-    })
+    insert.run(
+      row.id,
+      row.pageContent,
+      row.uniqueLoaderId,
+      row.source,
+      Buffer.from(Float32Array.from(row.vector).buffer)
+    )
   }
 
-  client.close()
+  db.close()
 }
 
 async function createLegacyVectorDbWithRawVector(dbPath: string, vectorColumnType: string, vectorValue: unknown) {
-  const client = createClient({ url: pathToFileURL(dbPath).toString() })
+  const db = new Database(dbPath)
 
-  await client.execute(`
+  db.exec(`
     CREATE TABLE vectors (
       id TEXT PRIMARY KEY,
       pageContent TEXT UNIQUE,
@@ -70,12 +75,12 @@ async function createLegacyVectorDbWithRawVector(dbPath: string, vectorColumnTyp
     )
   `)
   const encodedValue = vectorValue == null ? 'NULL' : `'${String(vectorValue).replaceAll("'", "''")}'`
-  await client.execute(`
+  db.exec(`
     INSERT INTO vectors (id, pageContent, uniqueLoaderId, source, vector, metadata)
     VALUES ('legacy-row-1', 'hello vector', 'loader-1', '/tmp/file.md', ${encodedValue}, '{}')
   `)
 
-  client.close()
+  db.close()
 }
 
 describe('KnowledgeVectorSourceReader', () => {
@@ -161,10 +166,9 @@ describe('KnowledgeVectorSourceReader', () => {
   it('returns not_embedjs for non-embedjs sqlite files', async () => {
     const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
     const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
-    const client = createClient({ url: pathToFileURL(dbPath).toString() })
-
-    await client.execute(`CREATE TABLE something_else (id TEXT PRIMARY KEY)`)
-    client.close()
+    const db = new Database(dbPath)
+    db.exec(`CREATE TABLE something_else (id TEXT PRIMARY KEY)`)
+    db.close()
 
     await expect(reader.loadBase('kb-1')).resolves.toEqual({
       status: 'not_embedjs',

@@ -1,13 +1,10 @@
 import { Tooltip } from '@cherrystudio/ui'
-import {
-  emitResourceListReveal,
-  type ResourceListRevealSource
-} from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { OpenInNewWindowIcon } from '@renderer/components/Icons'
-import { isMac } from '@renderer/config/constant'
+import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
+import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import type { OpenTabOptions, Tab } from '@renderer/hooks/useTabs'
+import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
+import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { ChevronsLeft, Pin, PinOff, Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'

@@ -23,45 +23,39 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
     },
     db: {
       // assertOwnedForeignKeys() runs PRAGMA foreign_key_check via db.all; empty => no violations.
-      all: vi.fn().mockResolvedValue([]),
-      transaction: vi.fn(async (fn: (tx: any) => Promise<void>) => {
+      all: vi.fn().mockReturnValue([]),
+      // better-sqlite3 transactions run the callback synchronously.
+      transaction: vi.fn((fn: (tx: any) => unknown) => {
         const tx = {
           insert: vi.fn().mockReturnValue({
-            values: vi.fn().mockImplementation(() => {
-              const returningResult = Promise.resolve([])
-              const onConflictResult = {
-                returning: vi.fn().mockResolvedValue([]),
-                then: (resolve: (v: unknown) => unknown) => returningResult.then(resolve)
-              }
-              return {
-                onConflictDoNothing: vi.fn().mockReturnValue(onConflictResult),
-                returning: vi.fn().mockResolvedValue([]),
-                then: (resolve: (v: unknown) => unknown) => Promise.resolve(undefined).then(resolve)
-              }
+            values: vi.fn().mockReturnValue({
+              run: vi.fn(),
+              returning: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) }),
+              onConflictDoNothing: vi.fn().mockReturnValue({
+                run: vi.fn(),
+                returning: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
+              })
             })
           }),
           select: vi.fn().mockReturnValue({
-            from: vi.fn().mockReturnValue(
-              // Returns empty array for tag queries (tag IDs lookup)
-              Object.assign([], { then: (r: (v: unknown) => unknown) => Promise.resolve([]).then(r) })
-            )
+            // Returns empty array for tag/knowledge-base ID lookups
+            from: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
           })
         }
-        await fn(tx)
-        return tx
+        return fn(tx)
       }),
       select: vi.fn().mockImplementation((arg) => {
         if (arg && typeof arg === 'object' && 'id' in arg) {
           return {
-            from: vi.fn().mockResolvedValue([{ id: 'openai::gpt-4' }])
+            from: vi.fn().mockReturnValue([{ id: 'openai::gpt-4' }])
           }
         }
 
         return {
           from: vi.fn().mockReturnValue({
-            get: vi.fn().mockResolvedValue({ count: 0 }),
+            get: vi.fn().mockReturnValue({ count: 0 }),
             limit: vi.fn().mockReturnValue({
-              all: vi.fn().mockResolvedValue([])
+              all: vi.fn().mockReturnValue([])
             })
           })
         }
@@ -443,28 +437,26 @@ describe('AssistantMigrator', () => {
       const ctx = createMockContext({ assistants: { assistants: SAMPLE_ASSISTANTS, presets: [] } })
       ctx.sharedData.set('mcpServerIdMapping', new Map([['srv-1', 'new-srv-uuid']]))
       const inserted: unknown[][] = []
-      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
+      ctx.db.transaction = vi.fn((fn: (tx: any) => unknown) => {
         const tx = {
           insert: vi.fn().mockReturnValue({
             values: vi.fn().mockImplementation((vals: unknown[]) => {
               inserted.push(Array.isArray(vals) ? vals : [vals])
               return {
+                run: vi.fn(),
+                returning: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) }),
                 onConflictDoNothing: vi.fn().mockReturnValue({
-                  returning: vi.fn().mockResolvedValue([]),
-                  then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
-                }),
-                returning: vi.fn().mockResolvedValue([]),
-                then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+                  run: vi.fn(),
+                  returning: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
+                })
               }
             })
           }),
           select: vi.fn().mockReturnValue({
-            from: vi
-              .fn()
-              .mockReturnValue(Object.assign([], { then: (r: (v: unknown) => unknown) => Promise.resolve([]).then(r) }))
+            from: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
           })
         }
-        await fn(tx)
+        return fn(tx)
       }) as any
 
       await migrator.prepare(ctx as any)
@@ -509,28 +501,26 @@ describe('AssistantMigrator', () => {
       })
 
       const inserted: unknown[][] = []
-      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
+      ctx.db.transaction = vi.fn((fn: (tx: any) => unknown) => {
         const tx = {
           insert: vi.fn().mockReturnValue({
             values: vi.fn().mockImplementation((vals: unknown) => {
               inserted.push(Array.isArray(vals) ? vals : [vals])
               return {
+                run: vi.fn(),
+                returning: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) }),
                 onConflictDoNothing: vi.fn().mockReturnValue({
-                  returning: vi.fn().mockResolvedValue([]),
-                  then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
-                }),
-                returning: vi.fn().mockResolvedValue([]),
-                then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+                  run: vi.fn(),
+                  returning: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
+                })
               }
             })
           }),
           select: vi.fn().mockReturnValue({
-            from: vi
-              .fn()
-              .mockReturnValue(Object.assign([], { then: (r: (v: unknown) => unknown) => Promise.resolve([]).then(r) }))
+            from: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
           })
         }
-        await fn(tx)
+        return fn(tx)
       }) as any
 
       await migrator.prepare(ctx as any)
@@ -553,28 +543,26 @@ describe('AssistantMigrator', () => {
       const ctx = createMockContext({ assistants: { assistants: [], presets: [] } })
 
       const inserted: unknown[][] = []
-      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
+      ctx.db.transaction = vi.fn((fn: (tx: any) => unknown) => {
         const tx = {
           insert: vi.fn().mockReturnValue({
             values: vi.fn().mockImplementation((vals: unknown) => {
               inserted.push(Array.isArray(vals) ? vals : [vals])
               return {
+                run: vi.fn(),
+                returning: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) }),
                 onConflictDoNothing: vi.fn().mockReturnValue({
-                  returning: vi.fn().mockResolvedValue([]),
-                  then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
-                }),
-                returning: vi.fn().mockResolvedValue([]),
-                then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+                  run: vi.fn(),
+                  returning: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
+                })
               }
             })
           }),
           select: vi.fn().mockReturnValue({
-            from: vi
-              .fn()
-              .mockReturnValue(Object.assign([], { then: (r: (v: unknown) => unknown) => Promise.resolve([]).then(r) }))
+            from: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
           })
         }
-        await fn(tx)
+        return fn(tx)
       }) as any
 
       await migrator.prepare(ctx as any)
@@ -589,7 +577,10 @@ describe('AssistantMigrator', () => {
 
     it('should return failure when transaction throws', async () => {
       const ctx = createMockContext({ assistants: { assistants: SAMPLE_ASSISTANTS, presets: [] } })
-      ctx.db.transaction = vi.fn().mockRejectedValue(new Error('SQLITE_CONSTRAINT'))
+      // better-sqlite3 transactions throw synchronously when the callback fails.
+      ctx.db.transaction = vi.fn(() => {
+        throw new Error('SQLITE_CONSTRAINT')
+      })
       await migrator.prepare(ctx as any)
       const result = await migrator.execute(ctx as any)
       expect(result.success).toBe(false)
@@ -623,26 +614,28 @@ describe('AssistantMigrator', () => {
         { id: 'tag-2', name: 'coding' },
         { id: 'tag-3', name: 'personal' }
       ]
-      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
+      ctx.db.transaction = vi.fn((fn: (tx: any) => unknown) => {
         const tx = {
           insert: vi.fn().mockImplementation(() => ({
             values: vi.fn().mockImplementation((vals: unknown[]) => {
               allInsertedValues.push(vals)
               const rows = Array.isArray(vals) ? vals : [vals]
               return {
+                run: vi.fn(),
                 onConflictDoNothing: vi.fn().mockReturnValue({
-                  returning: vi.fn().mockResolvedValue(rows.map((_: unknown, index) => ({ id: `inserted-${index}` }))),
-                  then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
-                }),
-                then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+                  run: vi.fn(),
+                  returning: vi.fn().mockReturnValue({
+                    all: vi.fn().mockReturnValue(rows.map((_: unknown, index) => ({ id: `inserted-${index}` })))
+                  })
+                })
               }
             })
           })),
           select: vi.fn().mockReturnValue({
-            from: vi.fn().mockResolvedValue(mockTagRows)
+            from: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue(mockTagRows) })
           })
         }
-        await fn(tx)
+        return fn(tx)
       }) as any
 
       await migrator.prepare(ctx as any)
@@ -684,33 +677,35 @@ describe('AssistantMigrator', () => {
         { id: 'tag-2', name: 'coding' }
       ]
 
-      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
+      ctx.db.transaction = vi.fn((fn: (tx: any) => unknown) => {
         const tx = {
           insert: vi.fn().mockImplementation((table) => ({
             values: vi.fn().mockImplementation((vals: unknown[]) => {
               allInsertedValues.push(vals)
               const rows = Array.isArray(vals) ? vals : [vals]
               return {
+                run: vi.fn(),
                 onConflictDoNothing: vi.fn().mockImplementation(() => {
                   onConflictDoNothingCalls.push(table === entityTagTable ? 'entity_tag' : 'tag')
                   return {
-                    returning: vi
-                      .fn()
-                      .mockResolvedValue(
-                        rows.map((_: unknown, index) => ({ id: `inserted-${index}`, tagId: `tag-${index}` }))
-                      ),
-                    then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+                    run: vi.fn(),
+                    returning: vi.fn().mockReturnValue({
+                      all: vi
+                        .fn()
+                        .mockReturnValue(
+                          rows.map((_: unknown, index) => ({ id: `inserted-${index}`, tagId: `tag-${index}` }))
+                        )
+                    })
                   }
-                }),
-                then: (r: (v: unknown) => unknown) => Promise.resolve(undefined).then(r)
+                })
               }
             })
           })),
           select: vi.fn().mockReturnValue({
-            from: vi.fn().mockResolvedValue(mockTagRows)
+            from: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue(mockTagRows) })
           })
         }
-        await fn(tx)
+        return fn(tx)
       }) as any
 
       await migrator.prepare(ctx as any)
@@ -751,22 +746,26 @@ describe('AssistantMigrator', () => {
       const ctx = createMockContext({ assistants: { assistants: assistantsWithDanglingModel, presets: [] } })
       const insertedBatches: any[] = []
 
-      ctx.db.transaction = vi.fn(async (fn: (tx: any) => Promise<void>) => {
+      ctx.db.transaction = vi.fn((fn: (tx: any) => unknown) => {
         const tx = {
           insert: vi.fn().mockReturnValue({
             values: vi.fn().mockImplementation((vals: unknown[]) => {
               insertedBatches.push(vals)
               return {
-                onConflictDoNothing: vi.fn().mockResolvedValue(undefined),
-                then: (resolve: (v: unknown) => unknown) => Promise.resolve(undefined).then(resolve)
+                run: vi.fn(),
+                returning: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) }),
+                onConflictDoNothing: vi.fn().mockReturnValue({
+                  run: vi.fn(),
+                  returning: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
+                })
               }
             })
           }),
           select: vi.fn().mockReturnValue({
-            from: vi.fn().mockResolvedValue([])
+            from: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
           })
         }
-        await fn(tx)
+        return fn(tx)
       }) as any
 
       await migrator.prepare(ctx as any)
@@ -783,14 +782,14 @@ describe('AssistantMigrator', () => {
         if (arg) {
           return {
             from: vi.fn().mockReturnValue({
-              get: vi.fn().mockResolvedValue({ count })
+              get: vi.fn().mockReturnValue({ count })
             })
           }
         }
         return {
           from: vi.fn().mockReturnValue({
             limit: vi.fn().mockReturnValue({
-              all: vi.fn().mockResolvedValue(sample)
+              all: vi.fn().mockReturnValue(sample)
             })
           })
         }

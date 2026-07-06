@@ -122,6 +122,66 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
+// Each row's actions live behind a whole-row right-click menu (CommandContextMenu). Stub it as a
+// wrapper that opens on contextMenu and renders the `extraItems` as plain buttons so tests can
+// right-click a row and click an action.
+type StubExtraItem = {
+  type: 'item' | 'submenu' | 'separator'
+  id?: string
+  label?: string
+  destructive?: boolean
+  onSelect?: () => void
+}
+
+vi.mock('@renderer/components/command', async () => {
+  const React = await import('react')
+
+  return {
+    CommandContextMenu: ({
+      children,
+      extraItems = [],
+      onOpenChange
+    }: {
+      children: ReactNode
+      extraItems?: StubExtraItem[]
+      onOpenChange?: (open: boolean) => void
+    }) => {
+      const [open, setOpen] = React.useState(false)
+
+      return (
+        <>
+          <div
+            onContextMenu={(event) => {
+              event.preventDefault()
+              setOpen(true)
+              onOpenChange?.(true)
+            }}>
+            {children}
+          </div>
+          {open ? (
+            <div role="menu">
+              {extraItems
+                .filter((item) => item.type === 'item')
+                .map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      item.onSelect?.()
+                      setOpen(false)
+                      onOpenChange?.(false)
+                    }}>
+                    {item.label}
+                  </button>
+                ))}
+            </div>
+          ) : null}
+        </>
+      )
+    }
+  }
+})
+
 vi.mock('@renderer/utils/time', () => ({
   formatRelativeTime: () => '刚刚'
 }))
@@ -541,7 +601,7 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByText('季度报告.pdf'))
     fireEvent.click(screen.getByRole('button', { name: '查看 Chunks' }))
 
     expect(onItemClick).toHaveBeenCalledWith('file-1')
@@ -561,7 +621,7 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByText('季度报告.pdf'))
     fireEvent.click(screen.getByRole('button', { name: '删除' }))
 
     expect(screen.getByRole('dialog')).toHaveTextContent('确认删除数据源')
@@ -588,7 +648,7 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByText('季度报告.pdf'))
     fireEvent.click(screen.getByRole('button', { name: '删除' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
 
@@ -612,7 +672,7 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByText('季度报告.pdf'))
     fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
 
     await waitFor(() => {
@@ -876,7 +936,7 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.contextMenu(screen.getByText('季度报告.pdf'))
     fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
 
     await waitFor(() => {

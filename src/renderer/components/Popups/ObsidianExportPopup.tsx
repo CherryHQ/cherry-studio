@@ -1,6 +1,6 @@
 import type { ObsidianProcessingMethod } from '@renderer/components/ObsidianExportDialog'
 import { PopupContainer } from '@renderer/components/ObsidianExportDialog'
-import { TopView } from '@renderer/components/TopView'
+import { TopView } from '@renderer/components/TopView/TopView'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 
