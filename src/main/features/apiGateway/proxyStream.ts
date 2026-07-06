@@ -16,11 +16,11 @@
  * `Response`. The Elysia route handlers return this `Response` directly.
  */
 
+import { application } from '@application'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
-import { application } from '@main/core/application'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
