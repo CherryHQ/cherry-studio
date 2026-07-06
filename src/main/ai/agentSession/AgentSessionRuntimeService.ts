@@ -57,6 +57,7 @@ export interface BeginAgentSessionTurnInput {
   modelId: UniqueModelId
   assistantMessageId?: string
   userMessage?: AgentSessionMessageEntity
+  headless?: boolean
   /** Container-level OTel trace id (one trace per session); cached on the entry. */
   traceId?: string
 }
@@ -102,6 +103,7 @@ type AgentSessionRuntimeEntry = {
   agentId: string
   agentType: string
   modelId: UniqueModelId
+  headless?: boolean
   status: AgentSessionRuntimeStatus
   pendingTurns: AgentSessionMessageEntity[]
   connection?: AgentRuntimeConnection
@@ -217,6 +219,7 @@ export class AgentSessionRuntimeService extends BaseService {
       existing.agentId = input.agentId
       existing.agentType = input.agentType
       existing.modelId = input.modelId
+      existing.headless = input.headless === true
       existing.status = 'active'
       existing.currentTurn = turn
 
@@ -239,6 +242,7 @@ export class AgentSessionRuntimeService extends BaseService {
       agentId: input.agentId,
       agentType: input.agentType,
       modelId: input.modelId,
+      headless: input.headless === true,
       status: 'active',
       pendingTurns: [],
       currentTurn: turn
@@ -528,6 +532,7 @@ export class AgentSessionRuntimeService extends BaseService {
       agentId: entry.agentId,
       modelId: entry.modelId,
       resumeToken: entry.lastResumeToken,
+      headless: entry.headless === true,
       trace: this.sessionTraceContext(entry)
     })
     if (!this.isCurrentEntry(entry)) {

@@ -1002,6 +1002,7 @@ describe('AgentSessionRuntimeService', () => {
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
         resumeToken: undefined,
+        headless: false,
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),
@@ -1054,6 +1055,7 @@ describe('AgentSessionRuntimeService', () => {
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
         resumeToken: 'resume-db',
+        headless: false,
         trace: {
           topicId: 'agent-session:session-1',
           traceId: 'a'.repeat(32),

@@ -148,7 +148,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       resumeToken: 'resume-1'
     })
 
-    expect(mocks.buildRequest).toHaveBeenCalledWith('session-1', 'resume-1')
+    expect(mocks.buildRequest).toHaveBeenCalledWith('session-1', 'resume-1', { headless: false })
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
 

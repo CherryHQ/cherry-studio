@@ -232,6 +232,7 @@ async function probeHost(host: string): Promise<{ host: string; ok: boolean }> {
 
 export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
+  headless?: boolean
   thinkingOptions?: {
     effort?: 'low' | 'medium' | 'high' | 'max'
     thinking?: { type: 'adaptive' } | { type: 'enabled'; budgetTokens?: number } | { type: 'disabled' }
@@ -278,7 +279,9 @@ export async function buildClaudeCodeSessionSettings(
   const steerHolder = getSteerHolder(session.id)
   // The hooks resolve the approval emitter / steer holder by session id at fire-time, so they are
   // not passed in; the holders above are created here only to expose them on `settings`.
-  const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(session, agent)
+  const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(session, agent, {
+    headless: options?.headless === true
+  })
 
   // 5. System prompt
   const systemPrompt = await buildSystemPrompt(session, agent, cwd)
@@ -624,7 +627,8 @@ async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginC
 
 async function buildToolPermissions(
   session: AgentSessionEntity,
-  agent: AgentEntity
+  agent: AgentEntity,
+  options: { headless?: boolean } = {}
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -633,6 +637,7 @@ async function buildToolPermissions(
 }> {
   const agentConfig = agent.configuration
   const isAssistant = agentConfig?.builtin_role === 'assistant'
+  const isHeadless = options.headless === true || Boolean(channelService.findBySessionId(session.id))
 
   // Raw session context for tool enable-predicates (worktree needs .git; cherry-tools notify needs a
   // connected channel). Channels are fetched once here so the predicates stay synchronous.
@@ -816,7 +821,7 @@ async function buildToolPermissions(
     disallowedTools: [
       ...new Set([
         ...resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext),
-        ...(isAssistant ? ['AskUserQuestion'] : [])
+        ...(isAssistant || isHeadless ? ['AskUserQuestion'] : [])
       ])
     ],
     toolPolicySnapshot

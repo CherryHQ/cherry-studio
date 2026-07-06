@@ -217,7 +217,8 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     await startAgentSessionRun({
       sessionId: session.id,
       userParts: [{ type: 'text', text: effectivePrompt }],
-      listeners: [sentinel, ...channelListeners]
+      listeners: [sentinel, ...channelListeners],
+      headless: true
     })
 
     resultText = await executionDone

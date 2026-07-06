@@ -41,7 +41,10 @@ autonomy tools can restrict individual tools via the agent's tool settings.
   regain `AskUserQuestion`, the plan-mode tools, and the worktree tools.
   `Cron*` / `TodoWrite` / `NotebookEdit` remain blocked by their registry
   `exposure: 'disabled'` classification; the assistant-only `AskUserQuestion`
-  disable is kept.
+  disable is kept, and headless runs (channel-triggered and scheduled-task
+  dispatches) still disallow `AskUserQuestion` — they have no responder, so the
+  run would stall. The final autonomy tools `cron`, `notify`, and `config`
+  are user-disableable via the agent's tool settings.
 - Related earlier entry: `2026-06-18-agent-create-defaults-bypass-soul.md` —
   the create-flow default it describes is superseded for the soul half
   (`soul_enabled` no longer exists); merge when aggregating.

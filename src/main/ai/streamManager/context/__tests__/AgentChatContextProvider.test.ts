@@ -185,6 +185,7 @@ describe('AgentChatContextProvider', () => {
       modelId: 'anthropic::claude-sonnet',
       assistantMessageId: prepared.models[0].request.messageId,
       userMessage: expect.objectContaining({ id: prepared.userMessageId, role: 'user', sessionId: 'session-1' }),
+      headless: false,
       traceId: 'a'.repeat(32)
     })
     expect(prepared.listeners).toEqual([

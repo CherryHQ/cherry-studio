@@ -184,6 +184,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       modelId: uniqueModelId,
       assistantMessageId,
       userMessage,
+      headless: req.headless === true,
       traceId
     })
 

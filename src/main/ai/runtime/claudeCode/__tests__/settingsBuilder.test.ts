@@ -416,6 +416,19 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(new Set(disallowed).size).toBe(disallowed.length)
   })
 
+  it('adds AskUserQuestion to disallowedTools for channel-linked headless sessions', async () => {
+    mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.disallowedTools ?? []).toContain('AskUserQuestion')
+  })
+
   it('assistant role adds AskUserQuestion to disallowedTools', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

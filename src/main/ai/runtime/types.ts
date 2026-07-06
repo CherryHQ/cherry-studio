@@ -27,6 +27,7 @@ export interface AgentRuntimeConnectInput {
   agentId: string
   modelId: UniqueModelId
   resumeToken?: string
+  headless?: boolean
   trace?: AgentRuntimeTraceContext
 }
 
