@@ -4,9 +4,15 @@ import type { DbOrTx } from '@data/db/types'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
-import { Application } from '@main/core/application/Application'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { Disposable } from '@main/core/lifecycle/event'
+import {
+  BaseService,
+  DependsOn,
+  type Disposable,
+  Injectable,
+  Phase,
+  ServicePhase,
+  SHUTDOWN_TIMEOUT_MS
+} from '@main/core/lifecycle'
 import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
@@ -325,15 +331,13 @@ export class JobManager extends BaseService {
         .map((id) => this.finishedResolvers.get(id)?.promise)
         .filter((p): p is Promise<JobSnapshot> => p !== undefined)
 
-      const timeout = new Promise<'timeout'>((resolve) =>
-        setTimeout(() => resolve('timeout'), Application.SHUTDOWN_TIMEOUT_MS)
-      )
+      const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), SHUTDOWN_TIMEOUT_MS))
       const winner = await Promise.race([Promise.allSettled(pendingPromises).then(() => 'done' as const), timeout])
 
       if (winner === 'timeout') {
         logger.warn('JobManager.onStop timed out — pending jobs will be recovered on next start', {
           inFlight: inFlight.length,
-          timeoutMs: Application.SHUTDOWN_TIMEOUT_MS
+          timeoutMs: SHUTDOWN_TIMEOUT_MS
         })
       } else {
         logger.info('JobManager.onStop: all in-flight jobs settled')

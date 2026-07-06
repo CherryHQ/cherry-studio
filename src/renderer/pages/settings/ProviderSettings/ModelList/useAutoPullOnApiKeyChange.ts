@@ -3,7 +3,7 @@ import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { useEffect, useMemo, useRef } from 'react'
 
-import { providerNeedsApiKeyForModelSync } from './providerModelSyncRequirements'
+import { providerNeedsApiKeyForModelSync } from '../utils/providerModelSyncRequirements'
 
 /**
  * Fires `onTrigger` once whenever the provider's enabled API-key fingerprint OR
