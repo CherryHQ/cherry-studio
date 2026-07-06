@@ -19,7 +19,7 @@ import {
   getAllShortcutDefaultPreferences,
   type ShortcutSettingsGroup,
   useCommandShortcuts
-} from '@renderer/hooks/command/useCommandShortcuts'
+} from '@renderer/hooks/command'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import {
