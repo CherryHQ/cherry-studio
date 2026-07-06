@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import db from '@renderer/databases'
+import db from '@renderer/databases/db'
 import { convertToBase64 } from '@renderer/utils/image'
 
 const logger = loggerService.withContext('ImageStorage')

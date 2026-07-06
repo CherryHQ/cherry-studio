@@ -35,7 +35,7 @@ vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useReindexKnowledgeItem: (baseId: string) => mockUseReindexKnowledgeItem(baseId)
 }))
 
-vi.mock('../hooks', () => ({
+vi.mock('../hooks/useKnowledgeGroups', () => ({
   useKnowledgeGroups: () => mockUseKnowledgeGroups(),
   useCreateKnowledgeGroup: () => mockUseCreateKnowledgeGroup(),
   useUpdateKnowledgeGroup: () => mockUseUpdateKnowledgeGroup(),
