@@ -6,7 +6,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
-import { sanitizeFilename } from '@shared/utils/file/filename'
+import { sanitizeFilename } from '@shared/utils/file'
 import { type BrowserWindow, dialog } from 'electron'
 import MarkdownIt from 'markdown-it'
 
