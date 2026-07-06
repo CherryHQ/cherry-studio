@@ -10,6 +10,18 @@
  * macOS/Linux clean `app.temp`-style locations on a periodic schedule;
  * the boot-time sweep here is for Windows where they don't.
  *
+ * On the apparent duplication — the same tool output also lives in the
+ * message history: the DB row (`message.data`) is cherry's permanent
+ * record; this temp copy is the model-facing read-back target and is
+ * deliberately separate, not incidental. chef's `truncate.storage` is a
+ * storage-agnostic `(bytes) → path` adapter — it never sees the DB
+ * identity of the bytes it is handed, and a tool result truncated
+ * mid-loop may not be persisted yet — so the read-back cannot cheaply
+ * point at the existing row without a DB-backed adapter that would store
+ * a second copy in a blob table anyway (the exact bloat rejected above).
+ * This copy is transient (OS-reclaimed + swept); the permanent copy is
+ * the DB one, and trimming *that* is tracked separately in #16786.
+ *
  * Responsibilities:
  * - Own one shared `FileSystemAdapter` pointed at
  *   `application.getPath('feature.context_build.vfs.temp')`. Wired into
