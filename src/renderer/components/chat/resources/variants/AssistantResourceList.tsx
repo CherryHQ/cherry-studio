@@ -1,8 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
@@ -12,12 +10,14 @@ import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/u
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import { Bot, BrushCleaning, Check, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
+import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
+import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ConversationResourceMenuItem } from '../ConversationResourceMenu'
+import { buildResolvedResourceEntityMenuAction } from '../resourceEntityActions'
+import { buildResolvedIconTypeMenuAction, renderAssistantEntityIcon } from '../resourceEntityIcon'
 import { TopicListOptionsMenu } from '../TopicListOptionsMenu'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
 import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
@@ -31,23 +31,7 @@ const ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID = 'assistant-entity.clear-topics'
 const ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID = 'assistant-entity.toggle-tag-grouping'
 const ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID = 'assistant-entity.icon-type'
 const ASSISTANT_ENTITY_DELETE_ACTION_ID = 'assistant-entity.delete'
-const ASSISTANT_ICON_TYPE_OPTIONS: AssistantIconType[] = ['emoji', 'model', 'none']
-const ASSISTANT_ICON_TYPE_LABEL_KEYS: Record<AssistantIconType, string> = {
-  emoji: 'settings.assistant.icon.type.emoji',
-  model: 'settings.assistant.icon.type.model',
-  none: 'settings.assistant.icon.type.none'
-}
-
-function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null | undefined) {
-  if (!isUniqueModelId(uniqueModelId)) return undefined
-
-  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  return {
-    id: modelId,
-    name: modelName || modelId,
-    providerId
-  }
-}
+const DEFAULT_ASSISTANT_ENTITY_ID = 'assistant-entity:default'
 
 type AssistantResourceListProps = {
   activeAssistantId?: string | null
@@ -121,23 +105,36 @@ export function AssistantResourceList({
     [apiTopics, topicPinnedIdSet]
   )
 
-  const entities = useMemo<ResourceEntityRailItem[]>(
-    () =>
-      assistants.map((assistant) => {
-        const modelAvatarModel = buildModelAvatarModel(
-          assistant.modelId ?? defaultModelId,
-          assistant.modelName ?? undefined
+  const entities = useMemo<ResourceEntityRailItem[]>(() => {
+    const hasDefaultAssistantTopics = topics.some((topic) => !topic.assistantId)
+    const defaultAssistantEntity: ResourceEntityRailItem[] = hasDefaultAssistantTopics
+      ? [
+          {
+            id: DEFAULT_ASSISTANT_ENTITY_ID,
+            name: t('chat.default.name'),
+            icon: renderAssistantEntityIcon(
+              assistantIconType,
+              {
+                emoji: DEFAULT_ASSISTANT_EMOJI
+              },
+              defaultModelId
+            ),
+            reorderable: false
+          }
+        ]
+      : []
+
+    return [
+      ...assistants.map((assistant) => {
+        const icon = renderAssistantEntityIcon(
+          assistantIconType,
+          {
+            emoji: assistant.emoji,
+            modelId: assistant.modelId,
+            modelName: assistant.modelName
+          },
+          defaultModelId
         )
-        const icon =
-          assistantIconType === 'none' ? undefined : assistantIconType === 'model' && modelAvatarModel ? (
-            <ModelAvatar model={modelAvatarModel} size={24} />
-          ) : assistant.emoji ? (
-            <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
-          ) : (
-            <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
-              <Bot size={14} />
-            </span>
-          )
 
         return {
           id: assistant.id,
@@ -148,17 +145,20 @@ export function AssistantResourceList({
           icon
         }
       }),
-    [assistantIconType, assistants, assistantPinnedIdSet, defaultModelId]
-  )
+      ...defaultAssistantEntity
+    ]
+  }, [assistantIconType, assistants, assistantPinnedIdSet, defaultModelId, t, topics])
 
   const sortTopicsForEntity = useCallback(
     (entityTopics: Topic[]) => sortResourceItemsByPinnedTime(entityTopics, new Date()),
     []
   )
-  const getTopicAssistantId = useCallback((topic: Topic) => topic.assistantId, [])
+  const getTopicAssistantId = useCallback((topic: Topic) => topic.assistantId ?? DEFAULT_ASSISTANT_ENTITY_ID, [])
   const { trigger: reorderAssistantOrder } = useMutation('PATCH', '/assistants/:id/order', { refresh: ['/assistants'] })
   const reorderAssistant = useCallback(
     async (assistantId: string, anchor: ResourceEntityRailReorderAnchor) => {
+      if (assistantId === DEFAULT_ASSISTANT_ENTITY_ID) return
+
       await reorderAssistantOrder({ params: { id: assistantId }, body: anchor })
     },
     [reorderAssistantOrder]
@@ -171,16 +171,20 @@ export function AssistantResourceList({
     [t]
   )
 
+  const handleStartDraftAssistant = useCallback(
+    (assistantId: string) => onStartDraftAssistant(assistantId === DEFAULT_ASSISTANT_ENTITY_ID ? null : assistantId),
+    [onStartDraftAssistant]
+  )
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
     resources: topics,
     getResourceParentId: getTopicAssistantId,
-    activeEntityId: activeAssistantId,
+    activeEntityId: activeAssistantId ?? DEFAULT_ASSISTANT_ENTITY_ID,
     isLoading: isAssistantsLoading || isTopicsLoadingAll || !isTopicsFullyLoaded || isTopicPinsLoading,
     isError: !!(assistantsError || topicsError),
     sortResourcesForEntity: sortTopicsForEntity,
     onPickResource: onSelectTopic,
-    onStartDraft: onStartDraftAssistant,
+    onStartDraft: handleStartDraftAssistant,
     reorder: reorderAssistant,
     refetchEntities: refreshAssistants,
     onReorderError: handleReorderError
@@ -295,72 +299,71 @@ export function AssistantResourceList({
 
   const getContextMenuActions = useCallback(
     (item: ResourceEntityRailItem): ResolvedAction[] => {
+      if (item.id === DEFAULT_ASSISTANT_ENTITY_ID) {
+        return [
+          buildResolvedIconTypeMenuAction(
+            ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID,
+            t('assistants.icon.type'),
+            <Smile size={14} />,
+            30,
+            assistantIconType,
+            t
+          ),
+          buildResolvedResourceEntityMenuAction({
+            id: ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID,
+            label: isTagGrouping ? t('assistants.tags.ungroup') : t('assistants.tags.group_by'),
+            icon: <Tags size={14} />,
+            order: 35
+          })
+        ]
+      }
+
       const pinned = assistantPinnedIdSet.has(item.id)
 
       return [
-        {
+        buildResolvedResourceEntityMenuAction({
           id: ASSISTANT_ENTITY_EDIT_ACTION_ID,
           label: t('assistants.edit.title'),
           icon: <Edit3 size={14} />,
-          order: 10,
-          danger: false,
-          availability: { visible: true, enabled: true },
-          children: []
-        },
-        {
+          order: 10
+        }),
+        buildResolvedResourceEntityMenuAction({
           id: ASSISTANT_ENTITY_TOGGLE_PIN_ACTION_ID,
           label: pinned ? t('assistants.unpin.title') : t('assistants.pin.title'),
           icon: pinned ? <PinOffIcon size={14} /> : <PinIcon size={14} />,
           order: 20,
-          danger: false,
-          availability: { visible: true, enabled: !isAssistantPinActionDisabled },
-          children: []
-        },
-        {
+          availability: { visible: true, enabled: !isAssistantPinActionDisabled }
+        }),
+        buildResolvedResourceEntityMenuAction({
           id: ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID,
           label: t('assistants.clear.menu_title'),
           icon: <BrushCleaning size={14} />,
           order: 25,
-          danger: false,
-          availability: { visible: true, enabled: !clearingTopicsAssistantId && !deletingAssistantId },
-          children: []
-        },
-        {
-          id: ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID,
-          label: t('assistants.icon.type'),
-          icon: <Smile size={14} />,
-          order: 30,
-          danger: false,
-          availability: { visible: true, enabled: true },
-          children: ASSISTANT_ICON_TYPE_OPTIONS.map((type) => ({
-            id: `${ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID}.${type}`,
-            label: t(ASSISTANT_ICON_TYPE_LABEL_KEYS[type]),
-            icon: assistantIconType === type ? <Check size={14} /> : <span className="block size-4" />,
-            order: 0,
-            danger: false,
-            availability: { visible: true, enabled: true },
-            children: []
-          }))
-        },
-        {
+          availability: { visible: true, enabled: !clearingTopicsAssistantId && !deletingAssistantId }
+        }),
+        buildResolvedIconTypeMenuAction(
+          ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID,
+          t('assistants.icon.type'),
+          <Smile size={14} />,
+          30,
+          assistantIconType,
+          t
+        ),
+        buildResolvedResourceEntityMenuAction({
           id: ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID,
           label: isTagGrouping ? t('assistants.tags.ungroup') : t('assistants.tags.group_by'),
           icon: <Tags size={14} />,
-          order: 35,
-          danger: false,
-          availability: { visible: true, enabled: true },
-          children: []
-        },
-        {
+          order: 35
+        }),
+        buildResolvedResourceEntityMenuAction({
           id: ASSISTANT_ENTITY_DELETE_ACTION_ID,
           label: t('assistants.delete.title'),
           icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
           group: 'danger',
           order: 30,
           danger: true,
-          availability: { visible: true, enabled: deletingAssistantId === null },
-          children: []
-        }
+          availability: { visible: true, enabled: deletingAssistantId === null }
+        })
       ]
     },
     [
@@ -376,6 +379,13 @@ export function AssistantResourceList({
 
   const handleContextMenuAction = useCallback(
     (item: ResourceEntityRailItem, action: ResolvedAction) => {
+      if (item.id === DEFAULT_ASSISTANT_ENTITY_ID && !action.id.startsWith(ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID)) {
+        if (action.id === ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID) {
+          void setAssistantSortType(isTagGrouping ? 'list' : 'tags')
+        }
+        return
+      }
+
       if (action.id === ASSISTANT_ENTITY_EDIT_ACTION_ID) {
         openAssistantEditor(item.id)
         return
@@ -417,7 +427,7 @@ export function AssistantResourceList({
         variant="assistant"
         items={items}
         selectedId={selectedId}
-        selectedClickId={activeAssistantId}
+        selectedClickId={activeAssistantId ?? DEFAULT_ASSISTANT_ENTITY_ID}
         status={listStatus}
         ariaLabel={t('assistants.abbr')}
         defaultGroupLabel={t('assistants.abbr')}

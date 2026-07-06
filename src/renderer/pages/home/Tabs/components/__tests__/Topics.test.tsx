@@ -873,6 +873,46 @@ describe('Topics', () => {
     expect(screen.getByRole('textbox', { name: 'Search conversations' })).toBeInTheDocument()
   })
 
+  it('shows default assistant topics in right panel mode', () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({
+              id: 'topic-default',
+              name: 'Default topic',
+              assistantId: undefined,
+              orderKey: 'a'
+            }),
+            createApiTopic({
+              id: 'topic-alpha',
+              name: 'Alpha topic',
+              assistantId: 'assistant-1',
+              orderKey: 'b'
+            })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
+    })
+
+    renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-default', name: 'Default topic', assistantId: undefined }),
+      assistantIdFilter: null,
+      presentation: 'right-panel'
+    })
+
+    expect(screen.getByText('Default topic')).toBeInTheDocument()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
+  })
+
   it('keeps right panel groups fully expanded without collapse controls', () => {
     mockUseInfiniteQuery.mockReturnValue({
       pages: [{ items: createTopicPageItems(6) }],
@@ -1723,7 +1763,7 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('renders the topic header display mode and history actions in the shared menu', () => {
+  it('renders the topic header display mode and history actions in the shared menu', async () => {
     const { onOpenHistoryRecords } = renderTopicList()
 
     expect(screen.getByTestId('resource-list-topic')).toBeInTheDocument()
@@ -1739,17 +1779,41 @@ describe('Topics', () => {
     expect(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'History' })).toBeInTheDocument()
 
     fireEvent.click(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Time' }))
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
+    await vi.waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('time')
+    })
 
-    fireEvent.click(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'History' }))
+    fireEvent.click(screen.getByLabelText('Display mode'))
+    const reopenedDisplayModeMenu = screen.getByText('Display mode').closest('[data-testid="menu-list"]')
+    expect(reopenedDisplayModeMenu).not.toBeNull()
+    fireEvent.click(within(reopenedDisplayModeMenu as HTMLElement).getByRole('button', { name: 'History' }))
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
   })
 
-  it('expands assistant topic groups when switching to assistant display mode from the menu', () => {
+  it('only expands the active assistant topic group when switching to assistant display mode from the menu', async () => {
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'time')
     setTopicGroupExpansionCache({
       time: ['topic:time:yesterday'],
       assistant: ['topic:assistant:assistant-1']
+    })
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [
+        {
+          items: [
+            createApiTopic({ id: 'topic-a', name: 'Alpha topic', assistantId: 'assistant-1', orderKey: 'a' }),
+            createApiTopic({ id: 'topic-beta', name: 'Beta topic', assistantId: 'assistant-2', orderKey: 'b' }),
+            createApiTopic({ id: 'topic-default', name: 'Default topic', assistantId: undefined, orderKey: 'c' })
+          ]
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn(),
+      reset: vi.fn(),
+      mutate: vi.fn()
     })
 
     renderTopicList()
@@ -1760,8 +1824,13 @@ describe('Topics', () => {
 
     fireEvent.click(within(displayModeMenu as HTMLElement).getByRole('button', { name: 'Assistant' }))
 
-    expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('assistant')
-    expect(getTopicGroupExpansionCache().assistant).toEqual([])
+    await vi.waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('topic.tab.display_mode' as never)).toBe('assistant')
+      expect(getTopicGroupExpansionCache().assistant).toHaveLength(2)
+      expect(getTopicGroupExpansionCache().assistant).toEqual(
+        expect.arrayContaining(['topic:assistant:unknown', 'topic:assistant:assistant-2'])
+      )
+    })
     expect(getTopicGroupExpansionCache().time).toEqual(['topic:time:yesterday'])
   })
 
@@ -2010,6 +2079,18 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Default Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
+    expect(
+      screen
+        .getByRole('button', { name: 'Alpha Assistant' })
+        .compareDocumentPosition(screen.getByRole('button', { name: 'Default Assistant' })) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(
+      screen
+        .getByRole('button', { name: 'Beta Assistant' })
+        .compareDocumentPosition(screen.getByRole('button', { name: 'Default Assistant' })) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
     expect(
       screen.getByRole('button', { name: 'Alpha Assistant' }).querySelector('[data-resource-list-leading-slot="true"]')
         ?.firstElementChild

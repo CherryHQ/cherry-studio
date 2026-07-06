@@ -1,23 +1,21 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { usePins } from '@renderer/hooks/usePins'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import { Check, Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
+import { Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ConversationResourceMenuItem } from '../ConversationResourceMenu'
+import { buildResolvedResourceEntityMenuAction } from '../resourceEntityActions'
+import { buildResolvedIconTypeMenuAction, renderAgentEntityIcon } from '../resourceEntityIcon'
 import { SessionListOptionsMenu } from '../SessionListOptionsMenu'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
 import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
@@ -29,23 +27,6 @@ const AGENT_ENTITY_EDIT_ACTION_ID = 'agent-entity.edit'
 const AGENT_ENTITY_TOGGLE_PIN_ACTION_ID = 'agent-entity.toggle-pin'
 const AGENT_ENTITY_ICON_TYPE_ACTION_ID = 'agent-entity.icon-type'
 const AGENT_ENTITY_DELETE_ACTION_ID = 'agent-entity.delete'
-const ASSISTANT_ICON_TYPE_OPTIONS: AssistantIconType[] = ['emoji', 'model', 'none']
-const ASSISTANT_ICON_TYPE_LABEL_KEYS: Record<AssistantIconType, string> = {
-  emoji: 'settings.assistant.icon.type.emoji',
-  model: 'settings.assistant.icon.type.model',
-  none: 'settings.assistant.icon.type.none'
-}
-
-function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null | undefined) {
-  if (!isUniqueModelId(uniqueModelId)) return undefined
-
-  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  return {
-    id: modelId,
-    name: modelName || modelId,
-    providerId
-  }
-}
 
 type SessionListItem = AgentSessionEntity & {
   pinned?: boolean
@@ -119,18 +100,7 @@ export function AgentResourceList({
   const entities = useMemo<ResourceEntityRailItem[]>(
     () =>
       agents.map((agent) => {
-        const modelAvatarModel = buildModelAvatarModel(agent.model ?? defaultModelId, agent.modelName ?? undefined)
-        const icon =
-          assistantIconType === 'none' ? undefined : assistantIconType === 'model' && modelAvatarModel ? (
-            <ModelAvatar model={modelAvatarModel} size={24} />
-          ) : (
-            <EmojiIcon
-              emoji={getAgentAvatarFromConfiguration(agent.configuration)}
-              size={24}
-              fontSize={14}
-              className="mr-0"
-            />
-          )
+        const icon = renderAgentEntityIcon(assistantIconType, agent, defaultModelId)
 
         return {
           id: agent.id,
@@ -241,51 +211,36 @@ export function AgentResourceList({
       const pinned = agentPinnedIdSet.has(item.id)
 
       return [
-        {
+        buildResolvedResourceEntityMenuAction({
           id: AGENT_ENTITY_EDIT_ACTION_ID,
           label: t('agent.edit.title'),
           icon: <SquarePen size={14} />,
-          order: 10,
-          danger: false,
-          availability: { visible: true, enabled: true },
-          children: []
-        },
-        {
+          order: 10
+        }),
+        buildResolvedResourceEntityMenuAction({
           id: AGENT_ENTITY_TOGGLE_PIN_ACTION_ID,
           label: pinned ? t('agent.unpin.title') : t('agent.pin.title'),
           icon: pinned ? <PinOff size={14} /> : <Pin size={14} />,
           order: 20,
-          danger: false,
-          availability: { visible: true, enabled: !isAgentPinActionDisabled },
-          children: []
-        },
-        {
-          id: AGENT_ENTITY_ICON_TYPE_ACTION_ID,
-          label: t('agent.icon.type'),
-          icon: <Smile size={14} />,
-          order: 25,
-          danger: false,
-          availability: { visible: true, enabled: true },
-          children: ASSISTANT_ICON_TYPE_OPTIONS.map((type) => ({
-            id: `${AGENT_ENTITY_ICON_TYPE_ACTION_ID}.${type}`,
-            label: t(ASSISTANT_ICON_TYPE_LABEL_KEYS[type]),
-            icon: assistantIconType === type ? <Check size={14} /> : <span className="block size-4" />,
-            order: 0,
-            danger: false,
-            availability: { visible: true, enabled: true },
-            children: []
-          }))
-        },
-        {
+          availability: { visible: true, enabled: !isAgentPinActionDisabled }
+        }),
+        buildResolvedIconTypeMenuAction(
+          AGENT_ENTITY_ICON_TYPE_ACTION_ID,
+          t('agent.icon.type'),
+          <Smile size={14} />,
+          25,
+          assistantIconType,
+          t
+        ),
+        buildResolvedResourceEntityMenuAction({
           id: AGENT_ENTITY_DELETE_ACTION_ID,
           label: t('agent.delete.title'),
           icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
           group: 'danger',
           order: 30,
           danger: true,
-          availability: { visible: true, enabled: deletingAgentId === null },
-          children: []
-        }
+          availability: { visible: true, enabled: deletingAgentId === null }
+        })
       ]
     },
     [agentPinnedIdSet, assistantIconType, deletingAgentId, isAgentPinActionDisabled, t]

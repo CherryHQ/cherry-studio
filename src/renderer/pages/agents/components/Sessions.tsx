@@ -1,6 +1,5 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import {
   type ConversationResourceMenuItem,
@@ -16,9 +15,9 @@ import {
   SessionListOptionsMenu,
   SessionResourceList
 } from '@renderer/components/chat/resources'
+import { renderAgentEntityIcon } from '@renderer/components/chat/resources/resourceEntityIcon'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
@@ -29,10 +28,8 @@ import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { usePins } from '@renderer/hooks/usePins'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
-import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -40,7 +37,6 @@ import {
   type AgentWorkspaceEntity
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { Folder, FolderOpen, MoreHorizontal, Plus, SquarePen } from 'lucide-react'
 import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -106,32 +102,6 @@ const logger = loggerService.withContext('AgentSessions')
 const EMPTY_WORKSPACE_ROWS: AgentWorkspaceEntity[] = []
 const DEFAULT_SESSION_GROUP_VISIBLE_COUNT = 5
 const LEFT_PANEL_TIME_SESSION_GROUP_VISIBLE_COUNT = 50
-
-function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null | undefined) {
-  if (!isUniqueModelId(uniqueModelId)) return undefined
-
-  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  return {
-    id: modelId,
-    name: modelName || modelId,
-    providerId
-  }
-}
-
-function renderAgentIcon(
-  iconType: AssistantIconType,
-  agent: { configuration?: AgentConfiguration; model?: string | null; modelName?: string | null } | undefined,
-  defaultModelId: string | null | undefined
-) {
-  const modelAvatarModel = buildModelAvatarModel(agent?.model ?? defaultModelId, agent?.modelName)
-
-  if (iconType === 'none') return undefined
-  if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
-
-  return (
-    <EmojiIcon emoji={getAgentAvatarFromConfiguration(agent?.configuration)} size={24} fontSize={14} className="mr-0" />
-  )
-}
 
 type CreateSessionSeed = {
   agentId: string
@@ -1299,7 +1269,7 @@ const Sessions = ({
 
       const agentId = getAgentIdFromSessionGroupId(group.id)
       const agent = agentId ? agentById.get(agentId) : undefined
-      return renderAgentIcon(assistantIconType, agent, defaultModelId)
+      return renderAgentEntityIcon(assistantIconType, agent, defaultModelId)
     },
     [agentById, assistantIconType, defaultModelId, displayMode]
   )
@@ -1476,7 +1446,7 @@ const Sessions = ({
           <>
             <ResourceList.HeaderItem
               type="button"
-              command="topic.create"
+              command={displayMode === 'agent' ? undefined : 'topic.create'}
               aria-label={headerCreateLabel}
               disabled={headerCreateDisabled}
               icon={displayMode === 'agent' ? <Plus /> : <SquarePen />}

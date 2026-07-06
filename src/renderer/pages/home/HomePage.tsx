@@ -68,7 +68,7 @@ import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
 import HomeTabs from './Tabs'
 import { Topics } from './Tabs/components/Topics'
-import { getTopicAssistantGroupId } from './Tabs/components/topicsHelpers'
+import { getTopicAssistantDisplayGroupId } from './Tabs/components/topicsHelpers'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
@@ -146,7 +146,7 @@ const HomePage: FC = () => {
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
   useEffect(() => {
-    if (!isClassicTopicLayout) {
+    if (!isClassicTopicLayout || panePosition !== 'right') {
       hasAutoOpenedClassicTopicPaneRef.current = false
       return
     }
@@ -154,7 +154,7 @@ const HomePage: FC = () => {
     if (hasAutoOpenedClassicTopicPaneRef.current) return
     hasAutoOpenedClassicTopicPaneRef.current = true
     setTopicPaneOpen(true)
-  }, [isClassicTopicLayout, setTopicPaneOpen])
+  }, [isClassicTopicLayout, panePosition, setTopicPaneOpen])
 
   const location = useLocation()
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
@@ -760,13 +760,12 @@ const HomePage: FC = () => {
     async (position: ChatPanePosition) => {
       await setTopicDisplayMode('assistant')
       if (position === 'left') {
-        const activeAssistantId = visibleTopic?.assistantId
+        const activeAssistantGroupId = visibleTopic ? getTopicAssistantDisplayGroupId(visibleTopic) : undefined
         const collapsedAssistantGroupIds = Array.from(
           new Set(
             classicLayoutTopics
-              .map((topic) => topic.assistantId)
-              .filter((assistantId): assistantId is string => !!assistantId && assistantId !== activeAssistantId)
-              .map(getTopicAssistantGroupId)
+              .map(getTopicAssistantDisplayGroupId)
+              .filter((groupId) => groupId !== activeAssistantGroupId)
           )
         )
         setTopicExpansionAssistant(collapsedAssistantGroupIds)
@@ -782,7 +781,7 @@ const HomePage: FC = () => {
       setTopicDisplayMode,
       setTopicExpansionAssistant,
       setTopicPaneOpen,
-      visibleTopic?.assistantId
+      visibleTopic
     ]
   )
   const topicListPosition: ChatPanePosition = isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'

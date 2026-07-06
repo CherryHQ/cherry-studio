@@ -124,7 +124,7 @@ const AgentPage = () => {
   const isCreatingClassicEmptySessionRef = useRef(false)
 
   useEffect(() => {
-    if (!isClassicSessionLayout) {
+    if (!isClassicSessionLayout || panePosition !== 'right') {
       hasAutoOpenedClassicSessionPaneRef.current = false
       return
     }
@@ -132,7 +132,7 @@ const AgentPage = () => {
     if (hasAutoOpenedClassicSessionPaneRef.current) return
     hasAutoOpenedClassicSessionPaneRef.current = true
     setSessionPaneOpen(true)
-  }, [isClassicSessionLayout, setSessionPaneOpen])
+  }, [isClassicSessionLayout, panePosition, setSessionPaneOpen])
 
   useEffect(() => {
     pendingSelectedSessionRef.current = null

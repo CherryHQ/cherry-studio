@@ -35,6 +35,10 @@ export function TopicListOptionsMenu({
 }: TopicListOptionsMenuProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const runAfterMenuClose = (action: () => void) => {
+    setOpen(false)
+    window.setTimeout(action, 0)
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -54,8 +58,7 @@ export function TopicListOptionsMenu({
               label={t(TOPIC_DISPLAY_LABEL_KEYS[option])}
               active={mode === option}
               onClick={() => {
-                onChange(option)
-                setOpen(false)
+                runAfterMenuClose(() => onChange(option))
               }}
             />
           ))}
@@ -82,8 +85,8 @@ export function TopicListOptionsMenu({
               icon={<History size={16} />}
               label={t('history.records.shortTitle')}
               onClick={() => {
-                onOpenHistoryRecords()
                 setOpen(false)
+                onOpenHistoryRecords()
               }}
             />
           )}
@@ -95,8 +98,8 @@ export function TopicListOptionsMenu({
               label={t('assistants.presets.manage.title')}
               active={manageAssistantsActive}
               onClick={() => {
-                void onManageAssistants()
                 setOpen(false)
+                void onManageAssistants()
               }}
             />
           )}

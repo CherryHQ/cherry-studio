@@ -225,7 +225,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
         )}
         {groupHeaderAction && (
           <div
-            className="pointer-events-none ml-auto hidden shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:flex focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:flex group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:flex group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:flex has-data-[state=open]:opacity-100"
+            className="pointer-events-none ml-auto flex shrink-0 items-center opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-focus-within/resource-list-group:pointer-events-auto group-focus-within/resource-list-group:opacity-100 group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100"
             onClick={stopEventPropagation}
             onContextMenu={stopEventPropagation}
             onPointerDown={stopEventPropagation}

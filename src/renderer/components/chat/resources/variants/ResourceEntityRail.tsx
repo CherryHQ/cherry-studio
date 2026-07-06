@@ -23,6 +23,7 @@ export type ResourceEntityRailItem = {
   name: string
   icon?: ReactNode
   orderKey?: string
+  reorderable?: boolean
   /**
    * When true, a *visible* entity floats into the "已固定" section at the top and cannot be dragged.
    * It does not affect visibility — an entity with no resources stays hidden whether pinned or not.
@@ -284,9 +285,10 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         itemSameGroup: reorderEnabled,
         itemCrossGroup: false
       }}
-      canDragItem={({ item }) => reorderEnabled && !item.pinned}
+      canDragItem={({ item }) => reorderEnabled && item.reorderable !== false && !item.pinned}
       canDropItem={({ activeItem, sourceGroupId, targetGroupId }) =>
         reorderEnabled &&
+        activeItem.reorderable !== false &&
         !activeItem.pinned &&
         targetGroupId !== ENTITY_RAIL_PINNED_GROUP_ID &&
         sourceGroupId === targetGroupId

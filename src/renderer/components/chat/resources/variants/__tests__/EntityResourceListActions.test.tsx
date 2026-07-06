@@ -15,7 +15,7 @@ const assistantDataMocks = vi.hoisted(() => ({
   topics: [
     { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' },
     { id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }
-  ]
+  ] as Array<{ id: string; assistantId?: string; name: string }>
 }))
 
 const agentDataMocks = vi.hoisted(() => ({
@@ -376,6 +376,29 @@ describe('classic layout entity resource list actions', () => {
     expect(window.modal.success).not.toHaveBeenCalled()
   })
 
+  it('keeps the default assistant visible in the classic assistant rail', () => {
+    assistantDataMocks.topics = [
+      { id: 'topic-default', name: 'Default topic' },
+      { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }
+    ]
+
+    render(<AssistantResourceList activeAssistantId={null} onSelectTopic={vi.fn()} onStartDraftAssistant={vi.fn()} />)
+
+    const defaultAssistantRegion = screen.getByRole('region', { name: 'chat.default.name' })
+    const assistantRegion = screen.getByRole('region', { name: 'Assistant 1' })
+
+    expect(defaultAssistantRegion).toBeInTheDocument()
+    expect(assistantRegion).toBeInTheDocument()
+    expect(
+      assistantRegion.compareDocumentPosition(defaultAssistantRegion) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent('assistants.edit.title')
+    expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent('assistants.delete.title')
+    expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent(
+      'assistants.clear.menu_title'
+    )
+  })
+
   it('creates a fresh topic after clearing the only classic assistant topics', async () => {
     assistantDataMocks.topics = [{ id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }]
     assistantDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({ deletedIds: ['topic-2'], deletedCount: 1 })
@@ -442,14 +465,16 @@ describe('classic layout entity resource list actions', () => {
     expect(preferenceMocks.setSortType).toHaveBeenCalledWith('list')
   })
 
-  it('lets the classic assistant rail switch back to the time topic view', () => {
+  it('lets the classic assistant rail switch back to the time topic view', async () => {
     render(
       <AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onStartDraftAssistant={vi.fn()} />
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.topics.display.time' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.display_mode', 'time')
+    await waitFor(() => {
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.display_mode', 'time')
+    })
   })
 
   it('keeps classic assistant rail history in the shared display menu', () => {
@@ -521,7 +546,7 @@ describe('classic layout entity resource list actions', () => {
     expect(preferenceMocks.setPreference).toHaveBeenCalledWith('assistant.icon_type', 'none')
   })
 
-  it('lets the classic agent rail switch back to the workdir session view', () => {
+  it('lets the classic agent rail switch back to the workdir session view', async () => {
     render(
       <AgentResourceList
         activeAgentId="agent-1"
@@ -533,7 +558,9 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.session.display.workdir' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
+    await waitFor(() => {
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
+    })
   })
 
   it('passes skill management entries into the classic agent rail display menu', () => {

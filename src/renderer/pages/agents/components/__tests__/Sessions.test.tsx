@@ -1887,7 +1887,7 @@ describe('Sessions', () => {
     expect(screen.getByTestId('agent-session-stream-indicator').firstElementChild).toHaveClass('animation-pulse')
   })
 
-  it('persists display mode selection from the header menu', () => {
+  it('persists display mode selection from the header menu', async () => {
     render(<SessionsForTest />)
 
     const displayModeContent = openSessionListOptions()
@@ -1897,7 +1897,9 @@ describe('Sessions', () => {
     ).toBeInTheDocument()
     fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Agent' }))
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'agent')
+    await vi.waitFor(() => {
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'agent')
+    })
   })
 
   it('blocks cross-workspace groups from drag start while preserving same-workspace reorder', async () => {

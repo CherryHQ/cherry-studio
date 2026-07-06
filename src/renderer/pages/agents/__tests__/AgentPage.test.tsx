@@ -682,6 +682,19 @@ describe('AgentPage', () => {
     expect(screen.queryByTestId('resource-pane-count')).not.toBeInTheDocument()
   })
 
+  it('does not auto-open the session right pane when switching to agent display mode with left session position', () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.topicTabPosition = 'left'
+    agentPageMocks.classicLayoutRightPaneOpen = false
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('session-pane-open')).toHaveTextContent('false')
+    expect(agentPageMocks.setClassicLayoutRightPaneOpen).not.toHaveBeenCalledWith(true)
+  })
+
   it('toggles the classic session pane when the selected agent is clicked again', () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.classicLayoutRightPaneOpen = true

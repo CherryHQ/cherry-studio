@@ -44,6 +44,10 @@ export function SessionListOptionsMenu({
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const hasManagementItems = !!(onManageAgents || onManageSkills)
+  const runAfterMenuClose = (action: () => void) => {
+    setOpen(false)
+    window.setTimeout(action, 0)
+  }
   const manageSkillsMenuIcon = manageSkillsIcon ? (
     <span className="inline-flex size-4 items-center justify-center [&_svg]:size-4">{manageSkillsIcon}</span>
   ) : undefined
@@ -68,8 +72,7 @@ export function SessionListOptionsMenu({
               label={t(SESSION_DISPLAY_LABEL_KEYS[option])}
               active={mode === option}
               onClick={() => {
-                onChange(option)
-                setOpen(false)
+                runAfterMenuClose(() => onChange(option))
               }}
             />
           ))}
@@ -96,8 +99,8 @@ export function SessionListOptionsMenu({
               icon={<History size={16} />}
               label={t('history.records.shortTitle')}
               onClick={() => {
-                onOpenHistoryRecords()
                 setOpen(false)
+                onOpenHistoryRecords()
               }}
             />
           )}
@@ -109,8 +112,8 @@ export function SessionListOptionsMenu({
               label={t('agent.manage.title')}
               active={manageAgentsActive}
               onClick={() => {
-                void onManageAgents()
                 setOpen(false)
+                void onManageAgents()
               }}
             />
           )}
@@ -121,8 +124,8 @@ export function SessionListOptionsMenu({
               label={t('agent.skill.manage.title')}
               active={manageSkillsActive}
               onClick={() => {
-                void onManageSkills()
                 setOpen(false)
+                void onManageSkills()
               }}
             />
           )}

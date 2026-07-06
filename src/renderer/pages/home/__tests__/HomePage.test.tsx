@@ -714,6 +714,17 @@ describe('HomePage', () => {
     expect(screen.queryByTestId('resource-pane-count')).not.toBeInTheDocument()
   })
 
+  it('does not auto-open the topic right pane when switching to assistant display mode with left topic position', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.preferenceValues.set('topic.tab.position', 'left')
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open', false)
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'false')
+    expect(homeMocks.cacheSetPersist).not.toHaveBeenCalledWith('ui.chat.right_pane_open', true)
+  })
+
   it('toggles the classic topic pane when the selected assistant is clicked again', () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
 
@@ -754,7 +765,8 @@ describe('HomePage', () => {
     homeMocks.classicLayoutTopics = [
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-1' },
       { ...historyTopic, id: 'topic-b', assistantId: 'assistant-2' },
-      { ...historyTopic, id: 'topic-c', assistantId: 'assistant-3' }
+      { ...historyTopic, id: 'topic-c', assistantId: 'assistant-3' },
+      { ...historyTopic, id: 'topic-default', assistantId: undefined }
     ]
 
     render(<HomePage />)
@@ -764,7 +776,8 @@ describe('HomePage', () => {
     await waitFor(() => expect(homeMocks.preferenceValues.get('topic.tab.position')).toBe('left'))
     expect(homeMocks.persistCacheValues.get('ui.topic.expansion.assistant')).toEqual([
       'topic:assistant:assistant-2',
-      'topic:assistant:assistant-3'
+      'topic:assistant:assistant-3',
+      'topic:assistant:unknown'
     ])
   })
 

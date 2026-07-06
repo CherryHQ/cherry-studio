@@ -4,7 +4,6 @@ import { dataApiService } from '@data/DataApiService'
 import { useCache, usePersistCache } from '@data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
@@ -22,9 +21,9 @@ import {
   useResourceListPinnedState,
   useResourceListRowState
 } from '@renderer/components/chat/resources'
+import { renderAssistantEntityIcon } from '@renderer/components/chat/resources/resourceEntityIcon'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
@@ -47,10 +46,9 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import dayjs from 'dayjs'
 import { findIndex } from 'es-toolkit/compat'
-import { Bot, MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
+import { MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -74,6 +72,7 @@ import {
   buildTopicDropAnchor,
   createTopicDisplayGroupResolver,
   getAssistantIdFromTopicGroupId,
+  getTopicAssistantDisplayGroupId,
   moveAssistantGroupAfterDrop,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
@@ -87,34 +86,6 @@ import { useTopicMenuActions } from './useTopicMenuActions'
 
 const logger = loggerService.withContext('Topics')
 
-function buildModelAvatarModel(uniqueModelId: unknown, modelName: string | null | undefined) {
-  if (!isUniqueModelId(uniqueModelId)) return undefined
-
-  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  return {
-    id: modelId,
-    name: modelName || modelId,
-    providerId
-  }
-}
-
-function renderAssistantIcon(
-  iconType: AssistantIconType,
-  assistant: { emoji?: string | null; modelId?: string | null; modelName?: string | null }
-) {
-  const modelAvatarModel = buildModelAvatarModel(assistant.modelId, assistant.modelName)
-
-  if (iconType === 'none') return undefined
-  if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
-
-  return assistant.emoji ? (
-    <EmojiIcon emoji={assistant.emoji} size={24} fontSize={14} className="mr-0" />
-  ) : (
-    <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent">
-      <Bot size={14} />
-    </span>
-  )
-}
 const EMPTY_COLLAPSED_TOPIC_STATE: readonly string[] = []
 const DEFAULT_TOPIC_GROUP_VISIBLE_COUNT = 5
 const LEFT_PANEL_TIME_TOPIC_GROUP_VISIBLE_COUNT = 50
@@ -165,6 +136,12 @@ function findLatestCreateTopicPayload(
   }
 
   return buildCreateTopicPayload(latestTopic, assistantById)
+}
+
+function matchesAssistantFilter(topic: Topic, assistantIdFilter: string | null | undefined) {
+  if (assistantIdFilter === undefined) return false
+  if (assistantIdFilter === null) return !topic.assistantId
+  return topic.assistantId === assistantIdFilter
 }
 
 function resolveAssistantIdForTopicGroup(
@@ -525,7 +502,7 @@ export function Topics({
       // The classic-layout right panel is scoped to a single assistant, so select that assistant's
       // neighbouring topic instead of the global next one (which could belong to another assistant).
       const selectionList = isRightPanel
-        ? topics.filter((candidate) => candidate.assistantId === assistantIdFilter)
+        ? topics.filter((candidate) => matchesAssistantFilter(candidate, assistantIdFilter))
         : topics
       if (selectionList.length <= 1) {
         if (isRightPanel) {
@@ -671,8 +648,7 @@ export function Topics({
 
   const filteredTopics = useMemo(() => {
     if (!isRightPanel) return groupedTopics
-    if (!assistantIdFilter) return []
-    return groupedTopics.filter((topic) => topic.assistantId === assistantIdFilter)
+    return groupedTopics.filter((topic) => matchesAssistantFilter(topic, assistantIdFilter))
   }, [assistantIdFilter, groupedTopics, isRightPanel])
   const headerCreateTopicPayload = useMemo(
     () =>
@@ -967,7 +943,7 @@ export function Topics({
       if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) {
         if (group.label !== defaultAssistant.name) return null
 
-        return renderAssistantIcon(assistantIconType, {
+        return renderAssistantEntityIcon(assistantIconType, {
           emoji: defaultAssistant.emoji,
           modelId: defaultModelId
         })
@@ -977,7 +953,7 @@ export function Topics({
       const assistant = assistantId ? assistantById.get(assistantId) : undefined
       if (!assistant) return undefined
 
-      return renderAssistantIcon(assistantIconType, {
+      return renderAssistantEntityIcon(assistantIconType, {
         emoji: assistant.emoji,
         modelId: assistant.modelId ?? defaultModelId,
         modelName: assistant.modelName
@@ -1006,11 +982,20 @@ export function Topics({
   const handleTopicDisplayModeChange = useCallback(
     (nextMode: TopicDisplayMode) => {
       if (nextMode === 'assistant') {
-        setTopicExpansionAssistant([])
+        const activeAssistantGroupId = activeTopic ? getTopicAssistantDisplayGroupId(activeTopic) : undefined
+        const collapsedAssistantGroupIds = Array.from(
+          new Set(
+            filteredTopics
+              .filter((topic) => !topic.pinned)
+              .map(getTopicAssistantDisplayGroupId)
+              .filter((groupId) => groupId !== activeAssistantGroupId)
+          )
+        )
+        setTopicExpansionAssistant(collapsedAssistantGroupIds)
       }
       void setTopicDisplayMode(nextMode)
     },
-    [setTopicDisplayMode, setTopicExpansionAssistant]
+    [activeTopic, filteredTopics, setTopicDisplayMode, setTopicExpansionAssistant]
   )
   const canDragTopicItem = useCallback(
     ({ item }: { item: Topic }) => isAssistantDisplayMode && !item.pinned,
@@ -1198,7 +1183,7 @@ export function Topics({
             <>
               <ResourceList.HeaderItem
                 type="button"
-                command="topic.create"
+                command={isAssistantDisplayMode ? undefined : 'topic.create'}
                 aria-label={headerCreateLabel}
                 disabled={isAssistantDisplayMode && !onAddAssistant}
                 icon={isAssistantDisplayMode ? <Plus /> : <SquarePen />}

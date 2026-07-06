@@ -69,6 +69,7 @@ export const TOPIC_ASSISTANT_SECTION_ID = 'topic:section:assistant'
 export const TOPIC_UNLINKED_ASSISTANT_GROUP_ID = 'topic:assistant:unknown'
 
 const TOPIC_ASSISTANT_GROUP_ID_PREFIX = 'topic:assistant:'
+const TOPIC_DEFAULT_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER - 1
 const TOPIC_UNLINKED_ASSISTANT_RANK = Number.MAX_SAFE_INTEGER
 
 export function moveTopicAfterDrop<T extends { id: string }>(
@@ -184,6 +185,10 @@ export function getTopicAssistantGroupId(assistantId: string): string {
   return `${TOPIC_ASSISTANT_GROUP_ID_PREFIX}${assistantId}`
 }
 
+export function getTopicAssistantDisplayGroupId(topic: { assistantId?: string | null }): string {
+  return topic.assistantId ? getTopicAssistantGroupId(topic.assistantId) : TOPIC_UNLINKED_ASSISTANT_GROUP_ID
+}
+
 export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistantId' | 'pinned' | 'updatedAt'>>({
   assistantById,
   defaultAssistant,
@@ -239,6 +244,10 @@ function getAssistantGroupRank<T extends Pick<Topic, 'assistantId' | 'pinned'>>(
   const assistantRank = topic.assistantId ? assistantRankById?.get(topic.assistantId) : undefined
   if (assistantRank !== undefined) {
     return assistantRank + 1
+  }
+
+  if (!topic.assistantId) {
+    return TOPIC_DEFAULT_ASSISTANT_RANK
   }
 
   return TOPIC_UNLINKED_ASSISTANT_RANK
