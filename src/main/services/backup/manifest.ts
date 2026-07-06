@@ -8,8 +8,8 @@
 
 import { readFile, writeFile } from 'node:fs/promises'
 
-import { deepFreeze } from '@main/data/db/backup/freeze'
 import type { BackupDomain } from '@main/data/db/backup/domains'
+import { deepFreeze } from '@main/data/db/backup/freeze'
 
 import type { BackupPreset } from './presets'
 
@@ -60,6 +60,12 @@ export interface BackupManifest {
     readonly totalBytes: number
   }
   readonly knowledge: { readonly bases: readonly string[] }
+  /**
+   * Staged Notes markdown relative paths (full mode; lite excludes file resources
+   * → empty). Not DB-gated: missing notes don't prune any DB row (the `note` table
+   * holds only overlays); the manifest lists only what was actually staged.
+   */
+  readonly notes: { readonly paths: readonly string[] }
 }
 
 /** Serialize the manifest as UTF-8 JSON (2-space indent for readability). */

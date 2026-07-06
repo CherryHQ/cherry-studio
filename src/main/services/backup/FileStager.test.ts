@@ -107,9 +107,39 @@ describe('SqliteFileStager', () => {
     }
   })
 
+  it('stageNotes copies .md bodies preserving sub-dir structure and lists staged vs missing', async () => {
+    const notesRoot = await mkdtemp(join(tmpdir(), 'cs-stager-notes-'))
+    const dest = await mkdtemp(join(tmpdir(), 'cs-stager-notes-dest-'))
+    try {
+      // Arrange — a root note + a nested note under sub/. The stager must mkdir the
+      // nested dest subdir (relPath preserves the relative structure).
+      await writeFile(join(notesRoot, 'note1.md'), '# 1')
+      await mkdir(join(notesRoot, 'sub', 'deep'), { recursive: true })
+      await writeFile(join(notesRoot, 'sub', 'deep', 'note2.md'), '# 2')
+      // note3.md is collected but the source file is missing on disk → missing.
+
+      const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', '/unused')
+      const r = await stager.stageNotes(
+        notesRoot,
+        new Set(['note1.md', 'sub/deep/note2.md', 'note3.md']),
+        dest
+      )
+
+      // Assert — staged relpaths in input order minus missing; bodies preserved.
+      expect(r.paths).toEqual(['note1.md', 'sub/deep/note2.md'])
+      expect(r.missing).toEqual(['note3.md'])
+      expect((await readFile(join(dest, 'note1.md'))).toString()).toBe('# 1')
+      expect((await readFile(join(dest, 'sub', 'deep', 'note2.md'))).toString()).toBe('# 2')
+    } finally {
+      await rm(notesRoot, { recursive: true, force: true })
+      await rm(dest, { recursive: true, force: true })
+    }
+  })
+
   it('returns empty results for empty input sets (no IO)', async () => {
     const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', '/unused')
     expect(await stager.stageFiles(new Set(), '/whatever')).toEqual({ total: 0, totalBytes: 0, missing: [] })
     expect(await stager.stageKnowledge(new Set(), '/whatever')).toEqual({ bases: [], missing: [] })
+    expect(await stager.stageNotes('/whatever', new Set(), '/whatever')).toEqual({ paths: [], missing: [] })
   })
 })

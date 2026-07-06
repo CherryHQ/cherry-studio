@@ -1,14 +1,14 @@
 // Unit tests for assembleArchive — zip layout round-trip (no DB; dummy blob bytes).
-import StreamZip from 'node-stream-zip'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import StreamZip from 'node-stream-zip'
 import { describe, expect, it } from 'vitest'
 
-import { BACKUP_FORMAT_VERSION, type BackupManifest } from './manifest'
 import { assembleArchive } from './archive'
+import { BACKUP_FORMAT_VERSION, type BackupManifest } from './manifest'
 
 const MANIFEST_FULL: BackupManifest = {
   backupFormatVersion: BACKUP_FORMAT_VERSION,
@@ -21,7 +21,8 @@ const MANIFEST_FULL: BackupManifest = {
   schemaMigrationId: '0001_abc.sql',
   producerAppVersion: '1.0.0',
   files: { ids: ['f1'], total: 1, totalBytes: 6 },
-  knowledge: { bases: ['base-1'] }
+  knowledge: { bases: ['base-1'] },
+  notes: { paths: [] }
 }
 
 const openZip = async (p: string) => {

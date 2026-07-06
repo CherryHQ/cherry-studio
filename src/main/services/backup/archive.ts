@@ -6,7 +6,8 @@
 //   ├── manifest.json     (at root)
 //   ├── backup.sqlite     (online db.backup() copy of live)
 //   ├── files/<fileId>    (file blobs, includeFiles=true / full preset only)
-//   └── knowledge/<baseId>/ (knowledge folders, includeKnowledgeFiles=true only)
+//   ├── knowledge/<baseId>/ (knowledge folders, includeKnowledgeFiles=true only)
+//   └── notes/<relPath>   (Notes markdown bodies, full preset only)
 //
 // Lite mode omits files/ and knowledge/ (caller passes neither dir). Follows the
 // archiver pattern established by LegacyBackupManager.ts (zlib level 1 + zip64)
@@ -14,12 +15,13 @@
 // a sibling temp file → rename on success) and FAIL-LOUD on any archiver warning
 // (backup archives have no optional entries).
 
-import { ZipArchive } from 'archiver'
 import { randomBytes } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
 import { rename, stat, unlink } from 'node:fs/promises'
-import { finished } from 'node:stream/promises'
 import { basename, dirname, join } from 'node:path'
+import { finished } from 'node:stream/promises'
+
+import { ZipArchive } from 'archiver'
 
 import { BackupCancelledError, DiskFullError } from './errors'
 import type { BackupManifest } from './manifest'
@@ -33,6 +35,8 @@ export interface ArchiveInputs {
   readonly filesDir?: string
   /** Optional staged dir of knowledge folders (`<baseId>/...`) → stored under `knowledge/`. */
   readonly knowledgeDir?: string
+  /** Optional staged dir of Notes markdown (`<relPath>...`) → stored under `notes/`. */
+  readonly notesDir?: string
 }
 
 /**
@@ -95,9 +99,10 @@ export async function assembleArchive(
       })
       // backup.sqlite
       archive.file(inputs.dbCopyPath, { name: 'backup.sqlite' })
-      // Optional file-blob + knowledge trees
+      // Optional file-blob + knowledge + notes trees
       if (inputs.filesDir) archive.directory(inputs.filesDir, 'files')
       if (inputs.knowledgeDir) archive.directory(inputs.knowledgeDir, 'knowledge')
+      if (inputs.notesDir) archive.directory(inputs.notesDir, 'notes')
 
       // finalize() returns a Promise that can reject (zlib / source-stream error).
       // Route its rejection to the same reject so it doesn't surface as an

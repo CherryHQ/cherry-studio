@@ -29,20 +29,19 @@
 import { rm, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import Database from 'better-sqlite3'
-import { drizzle } from 'drizzle-orm/better-sqlite3'
-
 import { loggerService } from '@logger'
 import { BackupReadonlyDb, type FileResourceContext } from '@main/data/db/backup/contexts'
 import type { ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import type { ConflictStrategy } from '@main/data/db/backup/domains'
 import { ALWAYS_STRIP_PHYSICAL_TABLES } from '@main/data/db/backup/exclusions'
 import type { BackupProgressUpdate } from '@shared/types/backup'
+import Database from 'better-sqlite3'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
 
 import { assembleArchive } from './archive'
 import type { BackupDbCopier } from './BackupDbCopier'
-import type { BackupStripper } from './ExcludedDomainStripper'
 import { BackupCancelledError } from './errors'
+import type { BackupStripper } from './ExcludedDomainStripper'
 import { SqliteFileStager } from './FileStager'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from './manifest'
 import { LITE_EXCLUDED, resolvePreset } from './presets'
@@ -104,6 +103,14 @@ export interface ExportOrchestratorDeps {
   readonly filesRoot: string
   /** Live filesystem root for knowledge base dirs (<baseId>/). */
   readonly knowledgeRoot: string
+  /**
+   * Resolves the live Notes markdown root, evaluated fresh per export. Unlike the
+   * static roots above, Notes is preference-driven — feature.notes.path may point
+   * outside the managed data dir — so a boot-time snapshot would go stale when the
+   * user changes their Notes dir mid-session. The resolver lets BackupService read
+   * the current preference on each backup instead. See BackupService.resolveNotesRoot.
+   */
+  readonly notesRoot: () => string
   /** Strips ALWAYS_STRIP + (lite only) excluded-domain rows from the copy (step 2.5). */
   readonly stripper: BackupStripper
 }
@@ -166,6 +173,8 @@ export class ExportOrchestrator {
     }
 
     const { copier, registry, tempDir, filesRoot, knowledgeRoot, stripper } = this.deps
+    // Resolve the Notes root fresh per export (preference-driven, see deps.notesRoot).
+    const notesRoot = this.deps.notesRoot()
 
     // 1. preset → topo-sorted domains (consumers rely on dependency order)
     this.emitProgress(options, 'collect', 0, 0, 'Resolving domains')
@@ -179,6 +188,7 @@ export class ExportOrchestrator {
     const stagingRoot = join(tempDir, `${options.restoreId}-stage`)
     let filesDir: string | undefined
     let knowledgeDir: string | undefined
+    let notesDir: string | undefined
     let manifest: BackupManifest
     let snapshotDb: Database.Database | undefined
     try {
@@ -213,23 +223,46 @@ export class ExportOrchestrator {
 
       // 4. collectFileResources per domain (transaction-free, spec §flow step 4).
       //    KNOWLEDGE ids are baseIds (directory-shaped → knowledge/<baseId>/);
+      //    PREFERENCES ids are Notes markdown relpaths (→ notes/<relPath>);
       //    every other domain's ids are file_entry ids (→ files/<id>).
       const fileIds = new Set<string>()
       const baseIds = new Set<string>()
+      const notesRelPaths = new Set<string>()
       const ctx: FileResourceContext = {
         liveDb: snapshotReadonly,
         registry,
         restoreId: options.restoreId,
         domains,
         strategy: EXPORT_STRATEGY,
-        logger: this.logger
+        logger: this.logger,
+        // notesRoot on the context is optional (undefined in unit tests); deps.notesRoot
+        // is a resolver BackupService evaluates per export (feature.notes.path preference,
+        // falling back to feature.notes.data). PREFERENCES' collectFileResources scans it.
+        notesRoot
       }
       let collected = 0
       for (const d of domains) {
         this.assertNotCancelled(options)
+        // PREFERENCES' file resource (Notes markdown bodies) is full-preset only. lite
+        // keeps the `note` overlay rows (they travel in backup.sqlite) but must NOT
+        // archive note bodies (spec simple-domains.md "精简模式一致性"). Skip collection
+        // so lite never stages notes — even when the contributor hook would return paths
+        // (and so an unreadable Notes root can't fail a lite export that excludes notes).
+        if (d === 'PREFERENCES' && options.preset !== 'full') {
+          collected += 1
+          this.emitProgress(options, 'collect', collected, domains.length, 'Collecting file resources')
+          continue
+        }
         const ids = (await registry.getOperations(d)?.collectFileResources?.(ctx)) ?? new Set<string>()
-        const target = d === 'KNOWLEDGE' ? baseIds : fileIds
-        for (const id of ids) target.add(id)
+        // Route by domain shape: KNOWLEDGE → baseIds, PREFERENCES → notes relpaths,
+        // everything else → file_entry ids.
+        if (d === 'KNOWLEDGE') {
+          for (const id of ids) baseIds.add(id)
+        } else if (d === 'PREFERENCES') {
+          for (const id of ids) notesRelPaths.add(id)
+        } else {
+          for (const id of ids) fileIds.add(id)
+        }
         collected += 1
         this.emitProgress(options, 'collect', collected, domains.length, 'Collecting file resources')
       }
@@ -243,6 +276,7 @@ export class ExportOrchestrator {
       let knowledgeBases: readonly string[] = []
       let filesMissing: readonly string[] = []
       let knowledgeMissing: readonly string[] = []
+      let notesPaths: readonly string[] = []
       if (fileIds.size > 0) {
         filesDir = join(stagingRoot, 'files')
         const r = await fileStager.stageFiles(fileIds, filesDir)
@@ -255,6 +289,13 @@ export class ExportOrchestrator {
         const r = await fileStager.stageKnowledge(baseIds, knowledgeDir)
         knowledgeBases = r.bases
         knowledgeMissing = r.missing
+      }
+      if (notesRelPaths.size > 0) {
+        notesDir = join(stagingRoot, 'notes')
+        const r = await fileStager.stageNotes(notesRoot, notesRelPaths, notesDir)
+        // notes are NOT DB-gated (the note table holds overlays, not bodies) → missing
+        // notes never prune a DB row. manifest.notes lists only what was actually staged.
+        notesPaths = r.paths
       }
 
       // 4.5 DB↔staged alignment (spec export-orchestrator.md "Staged blob set 驱动
@@ -285,14 +326,15 @@ export class ExportOrchestrator {
         schemaMigrationId: options.schemaMigrationId,
         producerAppVersion: options.producerAppVersion,
         files: { ids: stagedFileIds, total: filesTotal, totalBytes: filesBytes },
-        knowledge: { bases: [...knowledgeBases] }
+        knowledge: { bases: [...knowledgeBases] },
+        notes: { paths: [...notesPaths] }
       }
 
       this.assertNotCancelled(options)
       this.emitProgress(options, 'archive', 0, 1, 'Archiving')
       await assembleArchive(
         options.outputPath,
-        { manifest, dbCopyPath: backupDbPath, filesDir, knowledgeDir },
+        { manifest, dbCopyPath: backupDbPath, filesDir, knowledgeDir, notesDir },
         options.signal
       )
     } finally {
