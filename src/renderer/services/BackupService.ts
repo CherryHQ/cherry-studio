@@ -10,7 +10,7 @@
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import db from '@renderer/databases'
+import db from '@renderer/databases/db'
 import { upgradeToV7, upgradeToV8 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n/resolver'
 import { uuid } from '@renderer/utils/uuid'
