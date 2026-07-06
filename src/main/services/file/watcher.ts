@@ -37,7 +37,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { Emitter } from '@main/core/lifecycle'
-import type { FilePath } from '@shared/types/file'
+import { type FilePath, FilePathSchema } from '@shared/types/file'
 import { type FSWatcher, watch as chokidarWatch } from 'chokidar'
 
 import { danglingCache } from './danglingCache'
@@ -65,6 +65,12 @@ export type WatcherEvent =
   | { readonly kind: 'error'; readonly error: Error }
 
 export type WatcherListener = (event: WatcherEvent) => void
+
+/** Internal shape before FilePath validation. */
+type RawWatcherPathEvent = {
+  readonly kind: 'add' | 'addDir' | 'unlink' | 'unlinkDir' | 'change'
+  readonly path: string
+}
 
 export interface DirectoryWatcher {
   /**
@@ -116,18 +122,26 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
     const depth = recursive ? this.opts.maxDepth : 0
 
     const fsw = chokidarWatch(this.root, {
-      ignored: userIgnore ? [builtinIgnore, (p) => userIgnore(p as FilePath)] : [builtinIgnore],
+      ignored: userIgnore
+        ? [
+            builtinIgnore,
+            (p) => {
+              const parsed = this.parseChokidarPath(p)
+              return !parsed || userIgnore(parsed)
+            }
+          ]
+        : [builtinIgnore],
       ignoreInitial: true,
       depth,
       awaitWriteFinish: stability > 0 ? { stabilityThreshold: stability, pollInterval: 100 } : false,
       usePolling
     })
 
-    fsw.on('add', (p) => this.handle({ kind: 'add', path: p as FilePath }))
-    fsw.on('addDir', (p) => this.handle({ kind: 'addDir', path: p as FilePath }))
-    fsw.on('change', (p) => this.handle({ kind: 'change', path: p as FilePath }))
-    fsw.on('unlink', (p) => this.handle({ kind: 'unlink', path: p as FilePath }))
-    fsw.on('unlinkDir', (p) => this.handle({ kind: 'unlinkDir', path: p as FilePath }))
+    fsw.on('add', (p) => this.handle({ kind: 'add', path: p }))
+    fsw.on('addDir', (p) => this.handle({ kind: 'addDir', path: p }))
+    fsw.on('change', (p) => this.handle({ kind: 'change', path: p }))
+    fsw.on('unlink', (p) => this.handle({ kind: 'unlink', path: p }))
+    fsw.on('unlinkDir', (p) => this.handle({ kind: 'unlinkDir', path: p }))
     fsw.on('ready', () => this.emitter.fire({ kind: 'ready' }))
     fsw.on('error', (err) => this.handleError(err as Error))
 
@@ -156,10 +170,26 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
   }
 
   /**
+   * Validate a path emitted by chokidar. chokidar's public types only promise
+   * `string`, but in our configuration (absolute root, no `cwd`) the emitted
+   * paths should always satisfy `FilePathSchema`. This helper turns that
+   * assumption into a checked invariant and returns `null` for any unexpected
+   * value so callers can drop or ignore it safely.
+   */
+  private parseChokidarPath(raw: string): FilePath | null {
+    const result = FilePathSchema.safeParse(raw)
+    return result.success ? result.data : null
+  }
+
+  /**
    * Forward chokidar's `add` / `unlink` / `change` events to subscribers AND
    * mirror presence transitions into DanglingCache. `change` is intentionally
    * not mirrored — the file is still present; only mtime drift, which the
    * cache doesn't track.
+   *
+   * FilePath validation happens here, at the boundary between chokidar's
+   * `string` events and the FilePath-typed consumers (`DanglingCache`,
+   * `WatcherEvent` subscribers). Invalid paths are logged and dropped.
    *
    * DanglingCache's reverse index is keyed **byte-faithful**: it is populated
    * by `ensureExternalEntry`, whose `externalPath` is stored exactly as the OS
@@ -177,13 +207,18 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
    * `docs/references/file/file-manager-architecture.md §11.3 "Watcher
    * Auto-Wiring"`.
    */
-  private handle(ev: Extract<WatcherEvent, { path: FilePath }>): void {
+  private handle(ev: RawWatcherPathEvent): void {
     if (this.closed) return
+    const path = this.parseChokidarPath(ev.path)
+    if (!path) {
+      logger.warn('chokidar emitted a path that does not satisfy FilePathSchema', { path: ev.path })
+      return
+    }
     if (ev.kind === 'add' || ev.kind === 'unlink') {
       const presence = ev.kind === 'add' ? 'present' : 'missing'
-      danglingCache.onFsEvent(ev.path, presence, 'watcher')
+      danglingCache.onFsEvent(path, presence, 'watcher')
     }
-    this.emitter.fire(ev)
+    this.emitter.fire({ kind: ev.kind, path })
   }
 
   onEvent(listener: WatcherListener): () => void {
