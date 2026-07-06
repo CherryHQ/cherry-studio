@@ -245,6 +245,24 @@ export function readRangeFromValueTable(
   return result
 }
 
+/**
+ * Cumulative pixel offset of a 1-based grid line: the summed size of every track before `index`. Drawing anchor
+ * coordinates are untrusted, so this must not loop up to `index` — a crafted anchor with a huge <xdr:col>/<xdr:row>
+ * would otherwise pin the worker. Instead it assumes the default size for all preceding tracks and corrects only the
+ * custom-sized ones, so the cost is bounded by the sheet's actual custom-track count, independent of `index`.
+ */
+export function axisOffsetPx(index: number, sizesByIndex: Record<number, number>, defaultSize: number): number {
+  const before = Math.max(index, 1) - 1
+  let offset = before * defaultSize
+  for (const key of Object.keys(sizesByIndex)) {
+    const i = Number(key)
+    if (i >= 1 && i < index) {
+      offset += sizesByIndex[i] - defaultSize
+    }
+  }
+  return offset
+}
+
 /** Map ExcelJS style font/fill/border/alignment to CellStyle, resolving colors through the theme. */
 function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<string>): CellStyle | undefined {
   const style: CellStyle = {}
@@ -787,18 +805,10 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
 
     const layout: SheetLayoutAccessor = {
       colX(col: number) {
-        let x = 0
-        for (let c = 1; c < col; c++) {
-          x += sheetModel.colWidthsPx[c] ?? sheetModel.defaultColWidthPx
-        }
-        return x
+        return axisOffsetPx(col, sheetModel.colWidthsPx, sheetModel.defaultColWidthPx)
       },
       rowY(row: number) {
-        let y = 0
-        for (let r = 1; r < row; r++) {
-          y += sheetModel.rowHeightsPx[r] ?? sheetModel.defaultRowHeightPx
-        }
-        return y
+        return axisOffsetPx(row, sheetModel.rowHeightsPx, sheetModel.defaultRowHeightPx)
       }
     }
 
