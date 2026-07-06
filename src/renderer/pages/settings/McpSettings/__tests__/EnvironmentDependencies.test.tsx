@@ -34,11 +34,8 @@ vi.mock('@renderer/ipc', () => ({
           throw new Error(`unexpected route: ${route}`)
       }
     }
-  }
-}))
-
-// Event subscriptions are inert in these tests — refreshState drives all UI state.
-vi.mock('@renderer/ipc/useIpcOn', () => ({
+  },
+  // Event subscriptions are inert in these tests — refreshState drives all UI state.
   useIpcOn: vi.fn()
 }))
 
@@ -142,7 +139,23 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.probeBundled.mockResolvedValue({ uv: '1.0.0', bun: '1.0.0' })
     const { container } = render(<EnvironmentDependencies mini />)
 
+    expect(container).toBeEmptyDOMElement()
     await waitFor(() => expect(ipcMocks.probeBundled).toHaveBeenCalled())
     await waitFor(() => expect(container).toBeEmptyDOMElement())
+  })
+
+  it('waits for dependency checks before showing the mini warning', async () => {
+    const { container } = render(<EnvironmentDependencies mini />)
+
+    expect(container).toBeEmptyDOMElement()
+    await waitFor(() => expect(screen.getByRole('button')).toBeInTheDocument())
+  })
+
+  it('keeps the mini warning hidden when dependency checks fail', async () => {
+    ipcMocks.getState.mockRejectedValue(new Error('not ready'))
+    const { container } = render(<EnvironmentDependencies mini />)
+
+    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    expect(container).toBeEmptyDOMElement()
   })
 })

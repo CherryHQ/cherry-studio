@@ -1,7 +1,7 @@
 import '@renderer/assets/styles/index.css'
 import '@renderer/assets/styles/tailwind.css'
 
-import { initI18n } from '@renderer/i18n'
+import { initI18n } from '@renderer/i18n/resolver'
 import { createRoot } from 'react-dom/client'
 
 import QuickAssistantApp from './QuickAssistantApp'

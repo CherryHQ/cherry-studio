@@ -31,7 +31,7 @@ beforeEach(() => {
 })
 
 // Mock i18n at the top level using vi.mock
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: {
     t: vi.fn((k: string) => k) // Pass-through mock using vi.fn
   }

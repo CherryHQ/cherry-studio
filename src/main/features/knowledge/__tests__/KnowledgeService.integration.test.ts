@@ -7,7 +7,6 @@ import { BaseService } from '@main/core/lifecycle'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
-  DEFAULT_KNOWLEDGE_SEARCH_MODE,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
 } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -106,9 +105,7 @@ describe('KnowledgeService integration', () => {
       fileProcessorId: null,
       chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
       chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
-      threshold: null,
-      documentCount: null,
-      searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE
+      documentCount: null
     })
     await dbh.db.insert(knowledgeItemTable).values([
       {
@@ -224,9 +221,7 @@ describe('KnowledgeService integration', () => {
         fileProcessorId: null,
         chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
         chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
-        threshold: null,
-        documentCount: null,
-        searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE
+        documentCount: null
       })
       await dbh.db.insert(knowledgeItemTable).values({
         id: EXISTING_NOTE_ID,

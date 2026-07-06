@@ -10,8 +10,9 @@
  * Both modes live in the shared `knowledgeLookup` core so the Claude Code MCP bridge runs identical
  * logic; this file is just the AI-SDK `tool()` wrapper.
  *
- * Scope: when `assistant.knowledgeBaseIds` is non-empty, only those bases are reachable; when empty,
- * all user bases are.
+ * Scope: when the effective scope (the assistant's static binding when non-empty, else the composer's
+ * per-turn selection — see `resolveKnowledgeBaseIds`) is non-empty, only those bases are reachable;
+ * when empty, all user bases are.
  */
 
 import {
@@ -45,7 +46,7 @@ const kbListTool = tool({
   strict: true,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
-    return listOrOutlineKnowledge(input, request.assistant?.knowledgeBaseIds ?? [])
+    return listOrOutlineKnowledge(input, request.knowledgeBaseIds ?? [])
   },
   toModelOutput: ({ input, output }) => knowledgeListModelOutput(output, input)
 })
@@ -58,9 +59,9 @@ export function createKbListToolEntry(): ToolEntry {
     defer: 'never',
     tool: kbListTool,
     // Discovery entry point, always inlined (defer: 'never') — but gated identically to kb_search /
-    // kb_read / kb_manage: a base must exist AND be bound to this assistant. Listing every base while
-    // none are bound (no kb_read / kb_search to act on them) is a discovery dead-end and widens the
-    // per-assistant scope, so kb_list shares the siblings' gate.
-    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
+    // kb_read / kb_manage: a base must exist AND be in scope (bound to this assistant, or selected
+    // this turn). Listing every base while none are in scope (no kb_read / kb_search to act on them)
+    // is a discovery dead-end and widens the scope, so kb_list shares the siblings' gate.
+    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.knowledgeBaseIds?.length ?? 0) > 0
   }
 }

@@ -1,7 +1,7 @@
 import '@renderer/assets/styles/tailwind.css'
 
 import { preferenceService } from '@data/PreferenceService'
-import { initI18n } from '@renderer/i18n'
+import { initI18n } from '@renderer/i18n/resolver'
 import { createRoot } from 'react-dom/client'
 
 import SelectionToolbarApp from './SelectionToolbarApp'

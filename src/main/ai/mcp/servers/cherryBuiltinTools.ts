@@ -36,7 +36,7 @@ import {
   WEB_SEARCH_DESCRIPTION,
   webLookupModelOutput
 } from '@main/ai/tools/webLookup'
-import { isAbortError } from '@main/services/webSearch/utils/errors'
+import { isAbortError } from '@main/utils/error'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,

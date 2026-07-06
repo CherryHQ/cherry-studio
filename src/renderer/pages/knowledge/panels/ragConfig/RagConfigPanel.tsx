@@ -8,16 +8,16 @@ import {
   Scrollbar
 } from '@cherrystudio/ui'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { DEFAULT_KNOWLEDGE_SEARCH_MODE, type KnowledgeBase } from '@shared/data/types/knowledge'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { KnowledgeDialogFooter } from '../../components/KnowledgeDialogLayout'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
-import { useEmbeddingDimensions, useKnowledgeRagConfig } from '../../hooks'
+import { useEmbeddingDimensions } from '../../hooks/useEmbeddingDimensions'
+import { useKnowledgeRagConfig } from '../../hooks/useKnowledgeRagConfig'
 import { getKnowledgeBaseFailureReason } from '../../utils/error'
-import { buildKnowledgeSearchModeOptions } from '../../utils/rag'
 import { getKnowledgeRagConfigFormState } from '../../utils/validate'
 import ChunkingSection from './ChunkingSection'
 import EmbeddingSection from './EmbeddingSection'
@@ -70,13 +70,6 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
     setValues(initialValues)
   }, [initialValues])
 
-  // Keyed on the pending form value (not the persisted base) so picking a model and a
-  // search mode in the same edit works instead of only offering bm25 until the restore
-  // this triggers completes.
-  const searchModeOptions = useMemo(
-    () => buildKnowledgeSearchModeOptions(values.embeddingModelId, t),
-    [t, values.embeddingModelId]
-  )
   const formState = useMemo(() => getKnowledgeRagConfigFormState(initialValues, values), [initialValues, values])
   const { validationErrorCodes, isDirty, canSave } = formState
   const embeddingModelChanged = values.embeddingModelId !== initialValues.embeddingModelId
@@ -116,14 +109,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
       }
 
       try {
-        const saveValues =
-          initialValues.embeddingModelId === null &&
-          values.embeddingModelId !== null &&
-          values.searchMode === initialValues.searchMode
-            ? { ...values, searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE, hybridAlpha: null }
-            : values
-
-        await save(saveValues, { embeddingModelId: values.embeddingModelId, dimensions })
+        await save(values, { embeddingModelId: values.embeddingModelId, dimensions })
         window.toast.success(t('knowledge.rag.saved'))
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
@@ -166,18 +152,13 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
           />
 
           <RetrievalSection
-            searchModeOptions={searchModeOptions}
             documentCount={values.documentCount}
             threshold={values.threshold}
-            searchMode={values.searchMode}
-            hybridAlpha={values.hybridAlpha}
             rerankModelId={values.rerankModelId}
             onDocumentCountChange={(documentCount) =>
               setValues((currentValues) => ({ ...currentValues, documentCount }))
             }
             onThresholdChange={(threshold) => setValues((currentValues) => ({ ...currentValues, threshold }))}
-            onSearchModeChange={(searchMode) => setValues((currentValues) => ({ ...currentValues, searchMode }))}
-            onHybridAlphaChange={(hybridAlpha) => setValues((currentValues) => ({ ...currentValues, hybridAlpha }))}
           />
 
           {/* Chunking knobs are set-and-forget internals, so they live under a

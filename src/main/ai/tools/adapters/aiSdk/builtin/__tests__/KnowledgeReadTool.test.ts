@@ -8,7 +8,7 @@ const readConcept = vi.fn()
 const grepConcept = vi.fn()
 const loggerWarn = vi.hoisted(() => vi.fn())
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'KnowledgeService') return { readConcept, grepConcept }
@@ -41,14 +41,14 @@ type ReadArgs = {
   maxMatches?: number
 }
 
-function callExecute(args: ReadArgs, ctx: { assistant?: Assistant } = {}): Promise<unknown> {
+function callExecute(args: ReadArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
   const execute = entry.tool.execute as (args: ReadArgs, options: ToolExecutionOptions) => Promise<unknown>
   return execute(args, {
     toolCallId: 'tc-1',
     messages: [],
     experimental_context: {
       requestId: 'req-1',
-      assistant: ctx.assistant,
+      knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
       abortSignal: new AbortController().signal
     }
   } as ToolExecutionOptions)
@@ -86,7 +86,7 @@ describe('kb_read', () => {
   it('returns an error and does not read when the base is outside the assistant scope', async () => {
     const result = (await callExecute(
       { baseId: 'kb-other', conceptId: 'docs/intro.md' },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      { knowledgeBaseIds: ['kb-1'] }
     )) as { error: string }
 
     expect(result.error).toContain('kb-other')
@@ -99,7 +99,7 @@ describe('kb_read', () => {
 
     const result = await callExecute(
       { baseId: 'kb-1', conceptId: 'docs/intro.md', charStart: 0, charEnd: 11 },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      { knowledgeBaseIds: ['kb-1'] }
     )
 
     expect(readConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', { charStart: 0, charEnd: 11 })
@@ -118,10 +118,7 @@ describe('kb_read', () => {
   it('reads unscoped when the assistant has no knowledge scope', async () => {
     readConcept.mockResolvedValue(conceptContent())
 
-    await callExecute(
-      { baseId: 'kb-1', conceptId: 'docs/intro.md' },
-      { assistant: makeAssistant({ knowledgeBaseIds: [] }) }
-    )
+    await callExecute({ baseId: 'kb-1', conceptId: 'docs/intro.md' }, { knowledgeBaseIds: [] })
 
     expect(readConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', { charStart: undefined, charEnd: undefined })
   })
@@ -131,7 +128,7 @@ describe('kb_read', () => {
 
     const result = (await callExecute(
       { baseId: 'kb-1', conceptId: 'docs/gone.md' },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      { knowledgeBaseIds: ['kb-1'] }
     )) as { error: string }
 
     expect(result.error).toContain('docs/gone.md')
@@ -145,7 +142,7 @@ describe('kb_read', () => {
 
     const result = (await callExecute(
       { baseId: 'kb-1', conceptId: 'docs/intro.md' },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      { knowledgeBaseIds: ['kb-1'] }
     )) as { error: string }
 
     expect(result.error).toContain('docs/intro.md')
@@ -158,10 +155,9 @@ describe('kb_read', () => {
     // NOT_FOUND — it must not be reported as a bad conceptId (it would send the model re-checking ids).
     readConcept.mockRejectedValue(DataApiErrorFactory.notFound('KnowledgeBase', 'kb-gone'))
 
-    const result = (await callExecute(
-      { baseId: 'kb-gone', conceptId: 'docs/intro.md' },
-      { assistant: makeAssistant({ knowledgeBaseIds: [] }) }
-    )) as { error: string }
+    const result = (await callExecute({ baseId: 'kb-gone', conceptId: 'docs/intro.md' }, { knowledgeBaseIds: [] })) as {
+      error: string
+    }
 
     expect(result.error).toContain('kb-gone')
     expect(result.error).toContain('kb_list')
@@ -173,7 +169,7 @@ describe('kb_read', () => {
 
     const result = (await callExecute(
       { baseId: 'kb-1', conceptId: 'docs/intro.md' },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      { knowledgeBaseIds: ['kb-1'] }
     )) as { error: string }
 
     expect(result.error).toBe('vector store down')
@@ -191,7 +187,7 @@ describe('kb_read', () => {
 
       const result = await callExecute(
         { baseId: 'kb-1', conceptId: 'docs/intro.md', pattern: 'match', ignoreCase: false, maxMatches: 10 },
-        { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+        { knowledgeBaseIds: ['kb-1'] }
       )
 
       expect(grepConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', {
@@ -220,7 +216,7 @@ describe('kb_read', () => {
 
       const result = (await callExecute(
         { baseId: 'kb-1', conceptId: 'docs/intro.md', pattern: '(' },
-        { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+        { knowledgeBaseIds: ['kb-1'] }
       )) as { error: string }
 
       expect(result.error).toContain('Invalid kb_read regular expression')
@@ -277,31 +273,45 @@ describe('kb_read', () => {
   })
 
   describe('applies', () => {
-    it('returns true only when a base exists AND at least one is bound to the assistant', () => {
+    it('returns true only when a base exists AND at least one is in the effective scope', () => {
       const applies = entry.applies!
       // No base in the system → never applies, even with bound ids.
       expect(
         applies({
           assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
           mcpToolIds: new Set(),
-          hasAnyKnowledgeBase: false
+          hasAnyKnowledgeBase: false,
+          knowledgeBaseIds: ['kb-1']
         })
       ).toBe(false)
-      // A base exists but none bound to this assistant → does not apply.
-      expect(applies({ assistant: undefined, mcpToolIds: new Set(), hasAnyKnowledgeBase: true })).toBe(false)
+      // A base exists but the effective scope is empty → does not apply.
+      expect(
+        applies({ assistant: undefined, mcpToolIds: new Set(), hasAnyKnowledgeBase: true, knowledgeBaseIds: [] })
+      ).toBe(false)
       expect(
         applies({
           assistant: makeAssistant({ knowledgeBaseIds: [] }),
           mcpToolIds: new Set(),
-          hasAnyKnowledgeBase: true
+          hasAnyKnowledgeBase: true,
+          knowledgeBaseIds: []
         })
       ).toBe(false)
-      // A base exists AND is bound → applies.
+      // A base exists AND is bound to the assistant → applies.
       expect(
         applies({
           assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
           mcpToolIds: new Set(),
-          hasAnyKnowledgeBase: true
+          hasAnyKnowledgeBase: true,
+          knowledgeBaseIds: ['kb-1']
+        })
+      ).toBe(true)
+      // Assistant has no static binding, but the composer selected one for this turn → applies.
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: [] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: true,
+          knowledgeBaseIds: ['kb-selected-this-turn']
         })
       ).toBe(true)
     })

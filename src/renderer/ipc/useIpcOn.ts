@@ -2,7 +2,7 @@ import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
 import { useEffect, useEffectEvent } from 'react'
 
-import { ipcApi } from '.'
+import { ipcApi } from './ipcApi'
 
 /**
  * React hook version of `ipcApi.on`: subscribes to a typed IpcApi event and
