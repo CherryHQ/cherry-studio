@@ -32,6 +32,7 @@ import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { usePins } from '@renderer/hooks/usePins'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import {
@@ -588,52 +589,50 @@ const Sessions = ({
       const success = await deleteSession(id)
       if (!success || activeSessionId !== id) return
 
-      if (isRightPanel) {
-        // Classic layout is scoped to a single agent: select that agent's neighbouring session rather than
-        // the first remaining session, which could belong to another agent.
-        const index = filteredGroupedSessions.findIndex((s) => s.id === id)
-        const next =
-          index !== -1 && filteredGroupedSessions.length > 1
-            ? filteredGroupedSessions[index + 1 === filteredGroupedSessions.length ? index - 1 : index + 1]
-            : undefined
-        if (next) {
-          setActiveSessionId(next.id)
-          return
-        }
-
-        const deletedSession =
-          (index !== -1 ? filteredGroupedSessions[index] : undefined) ??
-          sessionItemsRef.current.find((session) => session.id === id)
-        const seed = deletedSession
-          ? buildCreateSessionSeed({
-              agentId: agentIdFilter ?? deletedSession.agentId,
-              workspace: deletedSession.workspace,
-              workspaceId: deletedSession.workspaceId
-            })
-          : agentIdFilter
-            ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
-            : null
-        // Mirror the sibling create paths (createSessionFromSeed / handleRenameSession): if the
-        // draft start rejects (e.g. the user-workspace refetch fails) surface a toast and still
-        // clear the active id in `finally`, so we never strand the view on the just-deleted session.
-        try {
-          if (seed?.agentId && onStartDraftSession) {
-            await onStartDraftSession({
-              agentId: seed.agentId,
-              workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-            })
-          }
-        } catch (err) {
-          logger.error('Failed to start draft session after deleting last session', { err, sessionId: id })
-          window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
-        } finally {
-          setActiveSessionId(null)
-        }
+      // Select the neighbouring session in the visible display order. Classic layout is agent-scoped
+      // via filteredGroupedSessions; modern uses the full grouped list (filteredGroupedSessions ===
+      // groupedSessions there). This keeps agent-session deletion consistent with topic deletion
+      // instead of falling back to the raw API/orderKey head.
+      const next = pickNeighbourAfterRemoval(filteredGroupedSessions, id)
+      if (next) {
+        setActiveSessionId(next.id)
         return
       }
 
-      const remaining = sessionItems.find((s) => s.id !== id)
-      setActiveSessionId(remaining?.id ?? null)
+      if (!isRightPanel) {
+        setActiveSessionId(null)
+        return
+      }
+
+      // Classic layout scoped to a single agent and now empty: start a fresh draft session for it.
+      const deletedSession =
+        filteredGroupedSessions.find((session) => session.id === id) ??
+        sessionItemsRef.current.find((session) => session.id === id)
+      const seed = deletedSession
+        ? buildCreateSessionSeed({
+            agentId: agentIdFilter ?? deletedSession.agentId,
+            workspace: deletedSession.workspace,
+            workspaceId: deletedSession.workspaceId
+          })
+        : agentIdFilter
+          ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
+          : null
+      // Mirror the sibling create paths (createSessionFromSeed / handleRenameSession): if the
+      // draft start rejects (e.g. the user-workspace refetch fails) surface a toast and still
+      // clear the active id in `finally`, so we never strand the view on the just-deleted session.
+      try {
+        if (seed?.agentId && onStartDraftSession) {
+          await onStartDraftSession({
+            agentId: seed.agentId,
+            workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+          })
+        }
+      } catch (err) {
+        logger.error('Failed to start draft session after deleting last session', { err, sessionId: id })
+        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+      } finally {
+        setActiveSessionId(null)
+      }
     },
     [
       activeSessionId,
@@ -642,7 +641,6 @@ const Sessions = ({
       filteredGroupedSessions,
       isRightPanel,
       onStartDraftSession,
-      sessionItems,
       setActiveSessionId,
       t
     ]

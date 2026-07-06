@@ -46,11 +46,11 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
-import { findIndex } from 'es-toolkit/compat'
 import { MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
@@ -510,17 +510,16 @@ export function Topics({
       const selectionList = isRightPanel
         ? topics.filter((candidate) => matchesAssistantFilter(candidate, assistantIdFilter))
         : topics
-      if (selectionList.length <= 1) {
-        if (isRightPanel) {
-          await onNewTopic?.({ assistantId: assistantIdFilter ?? topic.assistantId ?? null })
-        }
+      const next = pickNeighbourAfterRemoval(selectionList, topic.id)
+      if (next) {
+        setActiveTopic(next)
         return
       }
 
-      const index = findIndex(selectionList, (candidate) => candidate.id === topic.id)
-      if (index === -1) return
-
-      setActiveTopic(selectionList[index + 1 === selectionList.length ? index - 1 : index + 1])
+      // No neighbour left: only the classic panel auto-creates a fresh topic for the scoped assistant.
+      if (isRightPanel && selectionList.length <= 1) {
+        await onNewTopic?.({ assistantId: assistantIdFilter ?? topic.assistantId ?? null })
+      }
     },
     [activeTopic?.id, assistantIdFilter, isRightPanel, onNewTopic, removeTopic, setActiveTopic, t, topics]
   )

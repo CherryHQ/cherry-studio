@@ -1746,6 +1746,42 @@ describe('Sessions', () => {
     expect(setActiveSessionId).not.toHaveBeenCalledWith('session-a2-first', expect.anything())
   })
 
+  it('selects the display-order neighbour (not the raw API head) after deleting the active sidebar session', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'A session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'B session', agentId: 'agent-a', orderKey: 'b' }),
+        createSession({ id: 'session-c', name: 'C session', agentId: 'agent-a', orderKey: 'c' })
+      ]
+    })
+    const setActiveSessionId = vi.fn()
+
+    // Modern sidebar (default presentation), deleting the middle session in display order.
+    render(<SessionsForTest activeSessionId="session-b" setActiveSessionId={setActiveSessionId} />)
+
+    const sessionRow = screen.getByText('B session').closest('[role="option"]')
+    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-b'))
+    // Neighbour in the visible display order, not the raw API/orderKey head (session-a).
+    await vi.waitFor(() =>
+      expect(setActiveSessionId).toHaveBeenCalledWith('session-c', expect.objectContaining({ id: 'session-c' }))
+    )
+    expect(setActiveSessionId).not.toHaveBeenCalledWith('session-a', expect.anything())
+  })
+
   it('starts an agent-scoped draft after deleting the active agent last session in the right panel', async () => {
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
