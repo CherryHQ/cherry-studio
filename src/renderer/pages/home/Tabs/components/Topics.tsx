@@ -677,6 +677,7 @@ export function Topics({
   const handleHeaderCreate = isAssistantDisplayMode
     ? () => void onAddAssistant?.()
     : () => void onNewTopic?.(headerCreateTopicPayload)
+  const showHeaderCreateItem = !(isAssistantDisplayMode && resolvedPanePosition === 'right')
   const getCreateTopicPayloadForGroup = useCallback(
     (groupId: string) =>
       findLatestCreateTopicPayload(filteredTopics, (topic) => topicGroupBy(topic)?.id === groupId, assistantById),
@@ -1201,7 +1202,7 @@ export function Topics({
               placeholder={t('chat.topics.search.placeholder')}
               wrapperClassName="pt-1"
             />
-          ) : (
+          ) : showHeaderCreateItem ? (
             <>
               <ResourceList.HeaderItem
                 type="button"
@@ -1225,6 +1226,15 @@ export function Topics({
                 }
               />
             </>
+          ) : (
+            <TopicListOptionsMenu
+              manageAssistantsActive={manageAssistantsMenuItem?.active}
+              mode={displayMode}
+              onChange={handleTopicDisplayModeChange}
+              onManageAssistants={manageAssistantsMenuItem?.onSelect}
+              onOpenHistoryRecords={onOpenHistoryRecords}
+              sectionId={TOPIC_ASSISTANT_SECTION_ID}
+            />
           )}
         </ResourceList.Header>
 

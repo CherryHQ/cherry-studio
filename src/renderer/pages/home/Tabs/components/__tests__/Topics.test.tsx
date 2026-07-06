@@ -873,6 +873,13 @@ describe('Topics', () => {
     expect(onNewTopic).not.toHaveBeenCalled()
   })
 
+  it('hides the add assistant header action when topics are on the right', () => {
+    renderTopicList({ panePosition: 'right' })
+
+    expect(screen.queryByRole('button', { name: 'Add Assistant' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Display mode')).toBeInTheDocument()
+  })
+
   it('uses only the redesigned search control in right panel mode', () => {
     renderTopicList({ assistantIdFilter: 'assistant-1', presentation: 'right-panel' })
 
