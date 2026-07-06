@@ -39,7 +39,7 @@ import { app } from 'electron'
 import { SqliteBackupCopier } from './BackupDbCopier'
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
-import { contributorManager } from './contributors/ContributorManager'
+import { contributorManager } from './contributors'
 import { InsufficientDiskSpaceError } from './errors'
 
 /** Renderer-facing export request (renderer passes preset + path; service fills the rest). */
