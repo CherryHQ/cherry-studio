@@ -15,8 +15,8 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isPermanentWebSearchConfigError } from '@main/services/webSearch/utils/config'
-import { isAbortError } from '@main/services/webSearch/utils/errors'
+import { isPermanentWebSearchConfigError } from '@main/services/webSearch'
+import { isAbortError } from '@main/utils/error'
 import type { WebSearchOutput } from '@shared/ai/builtinTools'
 import type { WebSearchResponse } from '@shared/data/types/webSearch'
 import * as z from 'zod'
