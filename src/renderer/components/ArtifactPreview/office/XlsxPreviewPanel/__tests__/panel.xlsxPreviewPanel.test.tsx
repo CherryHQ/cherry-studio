@@ -90,7 +90,7 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' ')
 }))
 
-vi.mock('@renderer/components/chat', () => ({
+vi.mock('@renderer/components/chat/primitives', () => ({
   EmptyState: ({ title, description, actions }: { title: string; description?: string; actions?: React.ReactNode }) => (
     <div data-testid="empty-state">
       <span>{title}</span>

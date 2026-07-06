@@ -115,19 +115,19 @@ describe('XlsxGrid — mock model rendering', () => {
 
   it('renders the expected text within the visible range', () => {
     render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
-    expect(screen.getByText('季度')).toBeInTheDocument()
-    expect(screen.getByText('销量')).toBeInTheDocument()
+    expect(screen.getByText('Quarter')).toBeInTheDocument()
+    expect(screen.getByText('Sales')).toBeInTheDocument()
     expect(screen.getByText('Q1')).toBeInTheDocument()
   })
 
   it('does not render a far cell that is outside the current virtual range', () => {
     render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
-    expect(screen.queryByText('滚动到我')).not.toBeInTheDocument()
+    expect(screen.queryByText('Scroll to me')).not.toBeInTheDocument()
   })
 
   it('renders a far cell once the virtual range is scrolled to include it', () => {
     const { rerender } = render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
-    expect(screen.queryByText('滚动到我')).not.toBeInTheDocument()
+    expect(screen.queryByText('Scroll to me')).not.toBeInTheDocument()
 
     // Simulate the virtualizer reporting row 60 / col 10 (0-based 59 / 9) as visible.
     setRangeFromCounts(
@@ -140,7 +140,7 @@ describe('XlsxGrid — mock model rendering', () => {
     )
     rerender(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
 
-    expect(screen.getByText('滚动到我')).toBeInTheDocument()
+    expect(screen.getByText('Scroll to me')).toBeInTheDocument()
   })
 
   it('passes precise estimateSize functions backed by the sheet layout (no measureElement reliance)', () => {
@@ -183,7 +183,7 @@ describe('XlsxGrid — style mapping', () => {
 
   it('applies bold, background, and center alignment from the header style (styleId 1)', () => {
     render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
-    const header = screen.getByText('季度')
+    const header = screen.getByText('Quarter')
     const cellDiv = header.closest('div')
     expect(cellDiv).toHaveStyle({ fontWeight: 'bold', backgroundColor: '#d9e1f2', justifyContent: 'center' })
   })
@@ -199,7 +199,9 @@ describe('XlsxGrid — style mapping', () => {
       () => 0
     )
     render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
-    const wrapped = screen.getByText('春节档期拉动,环比增长明显,渠道补货集中在一月下旬。')
+    const wrapped = screen.getByText(
+      'Holiday campaign boosted demand, with channel restocking concentrated in late January.'
+    )
     expect(wrapped.closest('div')).toHaveStyle({ whiteSpace: 'normal' })
   })
 
@@ -244,7 +246,7 @@ describe('XlsxGrid — merged cells', () => {
     const { container } = render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
     setScrollViewport(container)
 
-    const titleMatches = screen.getAllByText('2026 年度销售汇总')
+    const titleMatches = screen.getAllByText('2026 Sales Summary')
     expect(titleMatches).toHaveLength(1)
 
     const mergeCell = screen.getByTestId('xlsx-grid-merge-cell')
@@ -253,7 +255,7 @@ describe('XlsxGrid — merged cells', () => {
   })
 
   it('keeps the merge layer visible when the master row has scrolled out of the virtual row range', () => {
-    // Only row index 5 (row 6, "合计") is in the virtual range — row 0 (the merge's master row) is not.
+    // Only row index 5 (row 6, "Total") is in the virtual range — row 0 (the merge's master row) is not.
     setRangeFromCounts(
       [5],
       [0, 1, 2, 3],
@@ -269,7 +271,7 @@ describe('XlsxGrid — merged cells', () => {
 
     // The per-cell layer has no row-0 item, but the merge layer computes visibility from the
     // scroll viewport independently of the row virtualizer's current range.
-    expect(screen.getByText('2026 年度销售汇总')).toBeInTheDocument()
+    expect(screen.getByText('2026 Sales Summary')).toBeInTheDocument()
     expect(screen.getByTestId('xlsx-grid-merge-cell')).toBeInTheDocument()
   })
 })
@@ -297,7 +299,7 @@ describe('XlsxGrid — zoom', () => {
     rerender(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={2} />)
 
     // Cell 2:1 keeps its zoom=1 geometry (row 1 override 36 → top, col A 110 wide, row 2 default 20 tall)
-    const cell = screen.getByText('季度')
+    const cell = screen.getByText('Quarter')
     const cellDiv = cell.closest('div') as HTMLElement
     expect(cellDiv).toHaveStyle({ top: '36px', left: '0px', width: '110px', height: '20px' })
     // The whole content layer is scaled as one image instead
@@ -330,11 +332,11 @@ describe('XlsxGrid — cell selection', () => {
     const onSelectCell = vi.fn()
     render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
 
-    fireEvent.click(screen.getByText('季度'))
+    fireEvent.click(screen.getByText('Quarter'))
 
     expect(onSelectCell).toHaveBeenCalledWith<[SelectedCellInfo]>({
       address: 'A2',
-      cell: expect.objectContaining({ text: '季度' })
+      cell: expect.objectContaining({ text: 'Quarter' })
     })
   })
 
@@ -350,7 +352,7 @@ describe('XlsxGrid — cell selection', () => {
 
     expect(onSelectCell).toHaveBeenCalledWith<[SelectedCellInfo]>({
       address: 'A1',
-      cell: expect.objectContaining({ text: '2026 年度销售汇总' })
+      cell: expect.objectContaining({ text: '2026 Sales Summary' })
     })
   })
 
@@ -358,7 +360,7 @@ describe('XlsxGrid — cell selection', () => {
     const onSelectCell = vi.fn()
     render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
 
-    fireEvent.click(screen.getByText('季度'))
+    fireEvent.click(screen.getByText('Quarter'))
     onSelectCell.mockClear()
 
     fireEvent.keyDown(screen.getByTestId('xlsx-grid-scroll'), { key: 'Escape' })
@@ -375,10 +377,10 @@ describe('XlsxGrid — selected cell overlay', () => {
     render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
 
     expect(screen.queryByTestId('xlsx-grid-selected-overlay')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByText('季度'))
+    fireEvent.click(screen.getByText('Quarter'))
 
     const overlay = screen.getByTestId('xlsx-grid-selected-overlay')
-    expect(overlay).toHaveTextContent('季度')
+    expect(overlay).toHaveTextContent('Quarter')
     // A2 rect: col A at x=0 (110px wide), row 2 at y=36 (20px tall). The overlay is at least the
     // cell rect and absolutely positioned — it overlays neighbours instead of pushing the layout.
     expect(overlay).toHaveStyle({
@@ -398,14 +400,14 @@ describe('XlsxGrid — selected cell overlay', () => {
     fireEvent.click(screen.getByTestId('xlsx-grid-merge-cell'))
 
     const overlay = screen.getByTestId('xlsx-grid-selected-overlay')
-    expect(overlay).toHaveTextContent('2026 年度销售汇总')
+    expect(overlay).toHaveTextContent('2026 Sales Summary')
     expect(overlay).toHaveStyle({ minWidth: '302px', minHeight: '36px' })
   })
 
   it('removes the overlay when the selection is cleared with Escape', () => {
     render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
 
-    fireEvent.click(screen.getByText('季度'))
+    fireEvent.click(screen.getByText('Quarter'))
     expect(screen.getByTestId('xlsx-grid-selected-overlay')).toBeInTheDocument()
 
     fireEvent.keyDown(screen.getByTestId('xlsx-grid-scroll'), { key: 'Escape' })

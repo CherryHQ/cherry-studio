@@ -49,29 +49,29 @@ export const createMockWorkbookModel = (): WorkbookRenderModel => ({
       colWidthsPx: { 1: 110, 5: 0 }, // 列 E 隐藏
       merges: [{ top: 1, left: 1, bottom: 1, right: 4 }],
       cells: {
-        '1:1': { text: '2026 年度销售汇总', raw: '2026 年度销售汇总', styleId: 0 },
-        '2:1': { text: '季度', raw: '季度', styleId: 1 },
-        '2:2': { text: '销量', raw: '销量', styleId: 1 },
-        '2:3': { text: '日期', raw: '日期', styleId: 1 },
-        '2:4': { text: '备注', raw: '备注', styleId: 1 },
+        '1:1': { text: '2026 Sales Summary', raw: '2026 Sales Summary', styleId: 0 },
+        '2:1': { text: 'Quarter', raw: 'Quarter', styleId: 1 },
+        '2:2': { text: 'Sales', raw: 'Sales', styleId: 1 },
+        '2:3': { text: 'Date', raw: 'Date', styleId: 1 },
+        '2:4': { text: 'Notes', raw: 'Notes', styleId: 1 },
         '3:1': { text: 'Q1', raw: 'Q1' },
         '3:2': { text: '1,250.00', raw: 1250, styleId: 2 },
         '3:3': { text: '2026-01-15', raw: 45672, styleId: 4 },
         '3:4': {
-          text: '春节档期拉动,环比增长明显,渠道补货集中在一月下旬。',
-          raw: '春节档期拉动,环比增长明显,渠道补货集中在一月下旬。',
+          text: 'Holiday campaign boosted demand, with channel restocking concentrated in late January.',
+          raw: 'Holiday campaign boosted demand, with channel restocking concentrated in late January.',
           styleId: 3
         },
         '4:1': { text: 'Q2', raw: 'Q2' },
         '4:2': { text: '980.50', raw: 980.5, styleId: 2 },
         '5:1': { text: 'Q3', raw: 'Q3' },
         '5:2': { text: '1,530.25', raw: 1530.25, styleId: 2 },
-        '6:1': { text: '合计', raw: '合计', styleId: 1 },
+        '6:1': { text: 'Total', raw: 'Total', styleId: 1 },
         // 三种公式态
         '6:2': { text: '3,760.75', raw: 3760.75, formula: 'SUM(B3:B5)', formulaState: 'cached', styleId: 2 },
-        '8:1': { text: '均值', raw: '均值' },
+        '8:1': { text: 'Average', raw: 'Average' },
         '8:2': { text: '1,253.58', raw: 1253.583, formula: 'AVERAGE(B3:B5)', formulaState: 'evaluated', styleId: 2 },
-        '9:1': { text: '预测', raw: '预测' },
+        '9:1': { text: 'Forecast', raw: 'Forecast' },
         '9:2': { text: '=FOOBAR(B3:B5)', formula: 'FOOBAR(B3:B5)', formulaState: 'unevaluated' },
         '10:1': {
           text: 'Cherry Studio',
@@ -79,16 +79,16 @@ export const createMockWorkbookModel = (): WorkbookRenderModel => ({
           hyperlink: 'https://github.com/CherryHQ/cherry-studio'
         },
         // 远端单元格:验证虚拟滚动
-        '60:10': { text: '滚动到我', raw: '滚动到我' }
+        '60:10': { text: 'Scroll to me', raw: 'Scroll to me' }
       },
       floatingImages: [{ rect: { x: 340, y: 44, width: 160, height: 90 }, imageId: 1 }],
       charts: [
         {
           rect: { x: 24, y: 240, width: 360, height: 220 },
           type: 'bar',
-          title: '季度销量',
+          title: 'Quarterly Sales',
           barDirection: 'col',
-          series: [{ name: '销量', categories: ['Q1', 'Q2', 'Q3'], values: [1250, 980.5, 1530.25] }]
+          series: [{ name: 'Sales', categories: ['Q1', 'Q2', 'Q3'], values: [1250, 980.5, 1530.25] }]
         },
         {
           rect: { x: 420, y: 240, width: 300, height: 220 },
@@ -109,7 +109,7 @@ export const createMockWorkbookModel = (): WorkbookRenderModel => ({
       colWidthsPx: {},
       merges: [],
       cells: {
-        '1:1': { text: '普通表', raw: '普通表' },
+        '1:1': { text: 'Plain sheet', raw: 'Plain sheet' },
         '3:2': { text: 'TRUE', raw: true }
       },
       floatingImages: [],
@@ -126,7 +126,7 @@ export const createMockWorkbookModel = (): WorkbookRenderModel => ({
       rowHeightsPx: {},
       colWidthsPx: {},
       merges: [],
-      cells: { '1:1': { text: '不应显示', raw: '不应显示' } },
+      cells: { '1:1': { text: 'Should not display', raw: 'Should not display' } },
       floatingImages: [],
       charts: []
     }
