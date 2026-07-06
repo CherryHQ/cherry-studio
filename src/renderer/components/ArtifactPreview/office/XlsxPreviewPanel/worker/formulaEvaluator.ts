@@ -43,6 +43,12 @@ export interface FormulaEvaluator {
 /** 递归深度上限:防深链公式爆栈 */
 const MAX_DEPTH = 64
 
+/** onRange 物化上限(格数):超过即放弃求值,防 SUM(A1:XFD1048576) 之类的区间把 worker 撑爆 */
+const MAX_RANGE_CELLS = 100_000
+
+/** onRange 循环内 deadline 检查步长(格数) */
+const RANGE_DEADLINE_CHECK_INTERVAL = 1024
+
 /** parse() 返回的合法 Excel 错误码中,视为"求值器不支持/无法解析"而非合法结果的一类 */
 const UNEVALUATED_ERROR_CODES = new Set(['#NAME?'])
 
@@ -126,10 +132,20 @@ export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): Form
           return ctx.getCellValue({ sheet: ref.sheet, row: ref.row, col: ref.col })
         },
         onRange: (ref: ParserRangeRef) => {
+          // 面积超限/超时直接抛出:外层 catch 统一转 unevaluated,绝不物化巨型区间
+          const rangeRows = ref.to.row - ref.from.row + 1
+          const rangeCols = ref.to.col - ref.from.col + 1
+          if (rangeRows * rangeCols > MAX_RANGE_CELLS) {
+            throw new Error(`range exceeds ${MAX_RANGE_CELLS} cells`)
+          }
+          let visited = 0
           const rows: unknown[][] = []
           for (let row = ref.from.row; row <= ref.to.row; row++) {
             const cols: unknown[] = []
             for (let col = ref.from.col; col <= ref.to.col; col++) {
+              if (++visited % RANGE_DEADLINE_CHECK_INTERVAL === 0 && Date.now() >= deadline) {
+                throw new Error('formula budget exhausted while reading range')
+              }
               cols.push(ctx.getCellValue({ sheet: ref.sheet, row, col }))
             }
             rows.push(cols)

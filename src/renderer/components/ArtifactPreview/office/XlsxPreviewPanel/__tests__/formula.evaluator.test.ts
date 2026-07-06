@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   createFormulaEvaluator,
@@ -403,6 +403,49 @@ describe('createFormulaEvaluator — malformed / adversarial input', () => {
     const evaluator = createFormulaEvaluator(ctx, 5000)
     expect(() => evaluator.evaluate('A1+1', POS)).not.toThrow()
     expect(evaluator.evaluate('A1+1', POS)).toEqual({ state: 'unevaluated' })
+  })
+})
+
+describe('createFormulaEvaluator — oversized range guard', () => {
+  it('returns unevaluated for a whole-sheet range without materializing any cell', () => {
+    const { evaluator, callCount } = setup({})
+    const start = Date.now()
+    // A1:XFD1048576 ≈ 172 亿格:面积检查必须在读第一个格子之前拒绝
+    expect(evaluator.evaluate('SUM(A1:XFD1048576)', { sheet: 'Sheet1', row: 1, col: 20000 })).toEqual({
+      state: 'unevaluated'
+    })
+    expect(Date.now() - start).toBeLessThan(1000)
+    expect(callCount({ sheet: 'Sheet1', row: 500, col: 5 })).toBe(0)
+  })
+
+  it('still evaluates a large-but-bounded range', () => {
+    const sheets = {
+      Sheet1: {
+        '1:1': { value: 2 },
+        '5000:1': { value: 3 }
+      }
+    }
+    const { evaluator } = setup(sheets)
+    expect(evaluator.evaluate('SUM(A1:A5000)', { sheet: 'Sheet1', row: 1, col: 4 })).toEqual({
+      state: 'evaluated',
+      value: 5
+    })
+  })
+
+  it('aborts range materialization when the deadline expires mid-loop', () => {
+    // Date.now 调用序:createFormulaEvaluator 取 deadline → evaluate 入口检查 → onRange 循环内检查。
+    // 前两次返回 0(deadline=1000,入口放行),之后返回 5000 → 循环内命中超时。
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(5000)
+    try {
+      const { evaluator, callCount } = setup({}, 1000)
+      // 2000 格 > 检查步长 1024,保证循环内至少检查一次
+      expect(evaluator.evaluate('SUM(A1:B1000)', { sheet: 'Sheet1', row: 1, col: 4 })).toEqual({
+        state: 'unevaluated'
+      })
+      expect(callCount({ sheet: 'Sheet1', row: 999, col: 2 })).toBe(0)
+    } finally {
+      nowSpy.mockRestore()
+    }
   })
 })
 
