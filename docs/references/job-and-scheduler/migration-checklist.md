@@ -18,7 +18,7 @@ Use this checklist when migrating an existing service (KnowledgeRuntime / FilePr
   - Use `ctx.reportProgress(percent, detail)` for renderer-visible progress
   - Do NOT use `while (true)` — always `while (!ctx.signal.aborted)`
 - [ ] Implement `onMissed` if business needs catch-up observability or breaker
-- [ ] Implement `onSettled` if business needs failure-rate breaker — query
+- [ ] Implement `onSettled` if business needs terminal-state reactions — the event carries typed `input`, `parentId`, and final `metadata` (no `getById` reverse lookup needed); for a failure-rate breaker query
       `jobService.listRecentTerminalByScheduleId(scheduleId, N)` for the truth, do NOT build a separate counter table
 - [ ] Add JobRegistry type binding via TypeScript declaration merging
 - [ ] Register handler in the owning service's `onInit`
@@ -42,7 +42,7 @@ Use this checklist when migrating an existing service (KnowledgeRuntime / FilePr
 ## Cross-cutting verification (each phase)
 
 - [ ] `pnpm lint` + `pnpm test` + `pnpm format` clean
-- [ ] DataApi paths (if added) registered in `apiPaths.ts` / `apiTypes.ts`
+- [ ] DataApi paths (if added) registered in `paths.ts` / `types.ts`
 - [ ] cacheSchemas entries (if any new cache keys) registered
 - [ ] No commits to legacy services unless they're being deleted/refactored
 - [ ] Phase summary added to PR description (what migrated, what stayed)

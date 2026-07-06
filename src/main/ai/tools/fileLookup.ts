@@ -15,11 +15,11 @@
  */
 
 import { isAbortError, type ToolResultOutput } from '@ai-sdk/provider-utils'
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { extractDocumentText, noExtractableTextNote } from '@main/ai/messages/attachmentTextExtraction'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
-import { application } from '@main/core/application'
 import {
   READ_FILE_PAGE_SIZE,
   type ReadFileError,

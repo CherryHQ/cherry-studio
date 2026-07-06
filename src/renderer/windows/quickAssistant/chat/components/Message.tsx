@@ -1,5 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { MessageContent, MessageErrorBoundary, type MessageListItem } from '@renderer/components/chat/messages'
+import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
+import MessageErrorBoundary from '@renderer/components/chat/messages/frame/MessageErrorBoundary'
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
 // import { LegacyMessage } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
 import type { FC } from 'react'

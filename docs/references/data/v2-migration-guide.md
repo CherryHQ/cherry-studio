@@ -86,7 +86,7 @@ src/main/data/migration/v2/
   - `prepare(ctx)`: dry-run checks, counts, and staging data; return `PrepareResult`
   - `execute(ctx)`: perform inserts/updates; manage your own transactions; report progress via `reportProgress`; self-check FK integrity of owned tables via `assertOwnedForeignKeys` (see Conventions → Foreign keys)
   - `validate(ctx)`: verify counts and integrity; return `ValidateResult` with stats (`sourceCount`, `targetCount`, `skippedCount`) and any `errors`
-- Registration: list migrators (in order) in `migrators/index.ts` so the engine can sort and run them.
+- Registration: list migrators (in order) in `migrators/migratorRegistry.ts` so the engine can sort and run them.
 - Current migrators (see `migrators/README-<name>.md` for detailed documentation):
   - `PreferencesMigrator` (implemented): maps ElectronStore + Redux settings to the `preference` table using `mappings/PreferencesMappings.ts`.
   - `ChatMigrator` (implemented): migrates topics and messages from Dexie to SQLite. See [`README-ChatMigrator.md`](../../../src/main/data/migration/v2/migrators/README-ChatMigrator.md).
@@ -114,7 +114,7 @@ src/main/data/migration/v2/
 
 - `window/MigrationIpcHandler.ts` exposes IPC channels for the migration UI:
   - Receives Redux data and Dexie export path, starts the engine, and streams progress back to renderer.
-  - Manages backup flow (dialogs via `BackupManager`) and retry/cancel/restart actions.
+  - Manages retry/cancel/restart/skip actions.
 - `window/MigrationWindowManager.ts` creates the frameless migration window, handles lifecycle, and relaunch instructions after completion in production.
 
 ## Implementation Checklist for New Migrators
@@ -122,7 +122,7 @@ src/main/data/migration/v2/
 - [ ] Add mapping definitions (if needed) under `migrators/mappings/`.
 - [ ] Implement `prepare/execute/validate` with explicit counts, batch inserts, and integrity checks.
 - [ ] Wire progress updates through `reportProgress` so UI shows per-migrator progress.
-- [ ] Register the migrator in `migrators/index.ts` with the correct `order`.
+- [ ] Register the migrator in `migrators/migratorRegistry.ts` with the correct `order`.
 - [ ] Add any new target tables to `MigrationEngine.verifyAndClearNewTables` once those tables exist.
 - [ ] Self-check FK integrity at the end of `execute()` via `this.assertOwnedForeignKeys(ctx.db, [...ownedTables])`, excluding cross-domain-deferred refs and shared polymorphic tables (see Conventions → Foreign keys). Do NOT toggle `PRAGMA foreign_keys` yourself — the engine keeps it OFF for the whole migration.
 - [ ] Include detailed comments for maintainability (file-level, function-level, logic blocks).

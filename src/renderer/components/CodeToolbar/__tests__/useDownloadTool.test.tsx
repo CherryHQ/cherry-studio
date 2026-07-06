@@ -1,5 +1,5 @@
 import { useDownloadTool } from '@renderer/components/CodeToolbar/hooks/useDownloadTool'
-import type { BasicPreviewHandles } from '@renderer/components/Preview'
+import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -34,7 +34,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
+vi.mock('@renderer/components/icons/FileIcons', () => ({
   FilePngIcon: () => <div data-testid="file-png-icon" />,
   FileSvgIcon: () => <div data-testid="file-svg-icon" />
 }))

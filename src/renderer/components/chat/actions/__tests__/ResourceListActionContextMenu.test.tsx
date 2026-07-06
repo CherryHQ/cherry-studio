@@ -7,16 +7,15 @@ import { ResourceListActionContextMenu } from '../ResourceListActionContextMenu'
 const openContextMenu = vi.fn()
 
 // The native/cherry presentation-mode branching lives in CommandMenus and is its own concern; the
-// point of this test is the *mode-independent* fix — the wrapper onContextMenu that this component
-// puts around the trigger children — so the mock just renders the children inside a span (like the
-// native branch's wrapper) and we assert the right-click bubbles through it.
+// point of this test is the *mode-independent* wrapper onContextMenu that identifies the clicked row.
+// The mock just renders the children inside a span and we assert the right-click bubbles through it.
 vi.mock('@renderer/components/command', () => ({
   CommandContextMenu: ({ children }: { children: ReactNode }) => (
     <span data-testid="command-context-menu">{children}</span>
   )
 }))
 
-vi.mock('../../resources/ResourceListContext', () => ({
+vi.mock('../../resourceList/base', () => ({
   useResourceListActions: () => ({ openContextMenu }),
   useResourceListItemAccessors: () => ({ getItemId: (item: { id: string }) => item.id })
 }))
@@ -35,9 +34,7 @@ describe('ResourceListActionContextMenu', () => {
       </ResourceListActionContextMenu>
     )
 
-    // The native menu path opens through onContextMenu and never fires onOpenChange, so relying on
-    // onOpenChange would skip native-mode right-clicks. The wrapper onContextMenu fires on the
-    // right-click for both modes — verify it bubbles up from the row and sets the active item.
+    // The wrapper onContextMenu fires on the right-click for both modes and carries the row identity.
     fireEvent.contextMenu(screen.getByText('Row'))
 
     expect(openContextMenu).toHaveBeenCalledWith('topic-7')

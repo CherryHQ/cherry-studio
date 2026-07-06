@@ -40,7 +40,7 @@ interface RequestFeature {
 result feeds `plugins` and `hookParts` in `BuiltAgentParams`.
 
 Order matters because AI SDK plugin order is significant. The list lives
-in `src/main/ai/runtime/aiSdk/params/features/index.ts`:
+in `src/main/ai/runtime/aiSdk/params/features/internalFeatures.ts`:
 
 ```ts
 export const INTERNAL_FEATURES = [

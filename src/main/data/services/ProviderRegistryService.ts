@@ -24,7 +24,7 @@ import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/prov
 import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE, REASONING_EFFORT } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
-import { ErrorCode, isDataApiError } from '@shared/data/api/apiErrors'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { EndpointConfig, ProviderWebsites, ReasoningFormatType } from '@shared/data/types/provider'
@@ -36,6 +36,10 @@ const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 export interface ProviderDisplayMetadata {
   description?: string
   websites?: ProviderWebsites
+  /** Registry capability: where the model list comes from (default `'api'`). */
+  modelListSource?: 'api' | 'registry'
+  /** Registry capability: accepted credential kinds (default `['api-key']`). */
+  authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
 }
 
 export interface ListProviderRegistryModelsOptions {
@@ -437,7 +441,9 @@ class ProviderRegistryService {
 
       return {
         description: provider?.description,
-        websites: provider?.metadata?.website
+        websites: provider?.metadata?.website,
+        modelListSource: provider?.modelListSource,
+        authMethods: provider?.authMethods
       }
     } catch (error) {
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })
@@ -577,9 +583,25 @@ class ProviderRegistryService {
       const presetModel = loader.findModel(registryOverride?.modelId ?? modelId)
 
       if (presetModel) {
-        results.push(
-          mergePresetModel(presetModel, registryOverride, providerId, reasoningFormatTypes, defaultChatEndpoint)
+        const model = mergePresetModel(
+          presetModel,
+          registryOverride,
+          providerId,
+          reasoningFormatTypes,
+          defaultChatEndpoint
         )
+        // `mergePresetModel` keys `id` off the canonical `presetModel.id`, which collapses providers that
+        // serve one canonical model under several apiModelIds (e.g. tokenhub's dated 原厂直供 variants both
+        // resolve to `deepseek-v4-flash`). Mirror `listProviderRegistryModels`: rebuild the unique id from
+        // the exact apiModelId and keep the canonical `presetModelId`, so sync/reconcile (which key on
+        // `model.id`) don't drop or mis-diff the dated variant against the undated row.
+        const apiModelId = model.apiModelId ?? registryOverride?.apiModelId ?? modelId
+        results.push({
+          ...model,
+          id: createUniqueModelId(providerId, apiModelId),
+          apiModelId,
+          presetModelId: presetModel.id
+        })
       } else {
         results.push(createCustomModel(providerId, modelId))
       }

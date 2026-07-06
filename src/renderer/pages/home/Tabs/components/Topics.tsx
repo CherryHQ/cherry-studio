@@ -7,21 +7,26 @@ import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import {
+  ConversationResourceMenu,
+  type ConversationResourceMenuItem,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
   type ResourceListItemReorderPayload,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
-  TopicResourceList,
   useResourceListActions,
   useResourceListPinnedState,
   useResourceListRowState
-} from '@renderer/components/chat/resources'
+} from '@renderer/components/chat/resourceList/base'
+import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
+import {
+  ResourceEditDialogHost,
+  type ResourceEditDialogTarget
+} from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
@@ -36,9 +41,9 @@ import {
   useTopicMutations
 } from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
+import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
@@ -88,6 +93,7 @@ interface Props {
   onOpenHistoryRecords?: () => void
   presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
+  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   setActiveTopic: (topic: Topic) => void
 }
 
@@ -204,6 +210,7 @@ export function Topics({
   onOpenHistoryRecords,
   presentation = 'sidebar',
   revealRequest,
+  resourceMenuItems,
   setActiveTopic
 }: Props) {
   const { t } = useTranslation()
@@ -655,6 +662,7 @@ export function Topics({
     (isAssistantDisplayMode && (isAssistantsLoading || isAssistantPinsLoading))
   const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
+  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
   }, [])
@@ -1040,7 +1048,7 @@ export function Topics({
         className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
         items={visibleFilteredTopics}
         status={listStatus}
-        selectedId={activeTopic?.id}
+        selectedId={hasActiveResourceMenuItem ? null : activeTopic?.id}
         groupBy={topicGroupBy}
         sectionBy={topicSectionBy}
         collapsedState={collapsedTopicState}
@@ -1076,15 +1084,18 @@ export function Topics({
               wrapperClassName="pt-1"
             />
           ) : (
-            <ResourceList.HeaderItem
-              type="button"
-              command="topic.create"
-              aria-label={t('chat.conversation.new')}
-              icon={<SquarePen />}
-              label={t('chat.conversation.new')}
-              onClick={() => void onNewTopic?.(headerCreateTopicPayload)}
-              actions={<TopicHistoryButton onOpenHistoryRecords={onOpenHistoryRecords} />}
-            />
+            <>
+              <ResourceList.HeaderItem
+                type="button"
+                command="topic.create"
+                aria-label={t('chat.conversation.new')}
+                icon={<SquarePen />}
+                label={t('chat.conversation.new')}
+                onClick={() => void onNewTopic?.(headerCreateTopicPayload)}
+                actions={<TopicHistoryButton onOpenHistoryRecords={onOpenHistoryRecords} />}
+              />
+              <ConversationResourceMenu items={resourceMenuItems} />
+            </>
           )}
         </ResourceList.Header>
 

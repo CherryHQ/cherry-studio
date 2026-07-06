@@ -1,6 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import type * as RendererConstantModule from '@renderer/utils/platform'
-import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import React from 'react'
@@ -26,7 +26,10 @@ import {
   __testing,
   useInfiniteFlatItems,
   useInfiniteQuery,
+  useInvalidateCache,
+  useMutation,
   usePaginatedQuery,
+  useQuery,
   useReadCache,
   useWriteCache
 } from '../useDataApi'
@@ -851,5 +854,250 @@ describe('usePaginatedQuery reset-on-query-change', () => {
     rerender()
     rerender()
     expect(result.current.page).toBe(2)
+  })
+})
+
+describe('useMutation trigger identity & option freshness', () => {
+  // Stable trigger identity is an official contract of the data-hook layer
+  // (issue 16696): consumers routinely place `trigger` in dependency arrays,
+  // and identity churn cascades into re-render loops downstream. Options are
+  // read through a ref, so memoization must NOT stale the option callbacks.
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  function spyPost() {
+    return vi.spyOn(dataApiService, 'post').mockResolvedValue({ id: 'created' } as never)
+  }
+
+  it('returns a trigger with stable identity across rerenders despite inline options', () => {
+    const { Wrapper } = makeWrapper()
+    // Options object is written inline — a fresh identity every render, the
+    // exact consumer shape that drove the issue-16696 composer crash.
+    const { result, rerender } = renderHook(
+      () => useMutation('POST', '/topics', { refresh: ['/topics'], onSuccess: () => {} }),
+      { wrapper: Wrapper }
+    )
+    const first = result.current.trigger
+    rerender()
+    rerender()
+    expect(result.current.trigger).toBe(first)
+  })
+
+  it('keeps trigger identity when options content changes across rerenders', () => {
+    const { Wrapper } = makeWrapper()
+    const firstCb = vi.fn()
+    const secondCb = vi.fn()
+    const { result, rerender } = renderHook(({ cb }) => useMutation('POST', '/topics', { onSuccess: cb }), {
+      wrapper: Wrapper,
+      initialProps: { cb: firstCb }
+    })
+    const first = result.current.trigger
+    rerender({ cb: secondCb })
+    expect(result.current.trigger).toBe(first)
+  })
+
+  it('a trigger captured before a rerender still sees the latest onSuccess', async () => {
+    spyPost()
+    const { Wrapper } = makeWrapper()
+    const firstCb = vi.fn()
+    const secondCb = vi.fn()
+    const { result, rerender } = renderHook(({ cb }) => useMutation('POST', '/topics', { onSuccess: cb }), {
+      wrapper: Wrapper,
+      initialProps: { cb: firstCb }
+    })
+    const captured = result.current.trigger
+    rerender({ cb: secondCb })
+
+    await act(async () => {
+      await captured({ body: { name: 't' } as never })
+    })
+
+    expect(secondCb).toHaveBeenCalledTimes(1)
+    expect(secondCb).toHaveBeenCalledWith({ id: 'created' })
+    expect(firstCb).not.toHaveBeenCalled()
+    expect(dataApiService.post).toHaveBeenCalledTimes(1)
+  })
+
+  it('a trigger captured before a rerender still uses the latest refresh option', async () => {
+    spyPost()
+    const { Wrapper } = makeWrapper()
+    // Returning [] keeps the test surgical: the callback identity is observed
+    // without kicking off actual cache invalidation.
+    const firstRefresh = vi.fn(() => [])
+    const secondRefresh = vi.fn(() => [])
+    const { result, rerender } = renderHook(({ refresh }) => useMutation('POST', '/topics', { refresh }), {
+      wrapper: Wrapper,
+      initialProps: { refresh: firstRefresh }
+    })
+    const captured = result.current.trigger
+    rerender({ refresh: secondRefresh })
+
+    await act(async () => {
+      await captured({ body: { name: 't' } as never })
+    })
+
+    expect(secondRefresh).toHaveBeenCalledTimes(1)
+    expect(firstRefresh).not.toHaveBeenCalled()
+  })
+
+  it('keeps trigger identity on template paths with function-form refresh (crash-site shape)', () => {
+    const { Wrapper } = makeWrapper()
+    // Mirrors useUpdateAgent (useAgent.ts), the consumer that crashed in
+    // classic layout: template path + inline function-form refresh.
+    const { result, rerender } = renderHook(
+      () =>
+        useMutation('PATCH', '/agents/:agentId', {
+          refresh: ({ args }) => ['/agents', `/agents/${args?.params?.agentId}`]
+        }),
+      { wrapper: Wrapper }
+    )
+    const first = result.current.trigger
+    rerender()
+    rerender()
+    expect(result.current.trigger).toBe(first)
+  })
+})
+
+describe('useInvalidateCache identity', () => {
+  it('returns an invalidate function with stable identity across rerenders', () => {
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(() => useInvalidateCache(), { wrapper: Wrapper })
+    const first = result.current
+    rerender()
+    expect(result.current).toBe(first)
+  })
+})
+
+describe('useQuery refetch identity', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('returns a refetch with stable identity across rerenders', async () => {
+    vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [], total: 0, page: 1 } as never)
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(() => useQuery('/assistants'), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const first = result.current.refetch
+    rerender()
+    expect(result.current.refetch).toBe(first)
+  })
+})
+
+describe('useInfiniteQuery function identity', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('keeps loadNext/refresh/reset identity across plain rerenders', async () => {
+    vi.spyOn(dataApiService, 'get').mockResolvedValue({
+      items: [],
+      nextCursor: 'c1',
+      activeNodeId: null
+    } as never)
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(
+      () => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const firstLoad = result.current.loadNext
+    const firstRefresh = result.current.refresh
+    const firstReset = result.current.reset
+    rerender()
+    rerender()
+    expect(result.current.loadNext).toBe(firstLoad)
+    expect(result.current.refresh).toBe(firstRefresh)
+    expect(result.current.reset).toBe(firstReset)
+  })
+})
+
+describe('usePaginatedQuery identity', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // total=30 + default limit=10 → 3 pages.
+  function spyOffsetGet() {
+    return vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [], total: 30, page: 1 } as never)
+  }
+
+  it('keeps nextPage/prevPage/reset identity across plain rerenders', async () => {
+    spyOffsetGet()
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(() => usePaginatedQuery('/assistants'), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const firstNext = result.current.nextPage
+    const firstPrev = result.current.prevPage
+    const firstReset = result.current.reset
+    rerender()
+    rerender()
+    expect(result.current.nextPage).toBe(firstNext)
+    expect(result.current.prevPage).toBe(firstPrev)
+    expect(result.current.reset).toBe(firstReset)
+  })
+
+  it('still clamps navigation at both boundaries after memoization', async () => {
+    // Guards the moved-bug hazard of memoizing the navigators: the
+    // hasNext/hasPrev closures must stay fresh, or clamping breaks.
+    spyOffsetGet()
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => usePaginatedQuery('/assistants'), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    // prevPage at the first page must not go below 1
+    await act(async () => {
+      result.current.prevPage()
+    })
+    expect(result.current.page).toBe(1)
+
+    await act(async () => {
+      result.current.nextPage()
+    })
+    await waitFor(() => expect(result.current.page).toBe(2))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    // prevPage off-boundary must actually decrement — pins the guard's
+    // liveness (a frozen hasPrev closure would leave this a permanent no-op)
+    await act(async () => {
+      result.current.prevPage()
+    })
+    await waitFor(() => expect(result.current.page).toBe(1))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    await act(async () => {
+      result.current.nextPage()
+    })
+    await waitFor(() => expect(result.current.page).toBe(2))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    await act(async () => {
+      result.current.nextPage()
+    })
+    await waitFor(() => expect(result.current.page).toBe(3))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    // nextPage at the last page must clamp
+    await act(async () => {
+      result.current.nextPage()
+    })
+    await new Promise((r) => setTimeout(r, 30))
+    expect(result.current.page).toBe(3)
+  })
+
+  it('returns a stable empty items array while data is undefined', () => {
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(() => usePaginatedQuery('/assistants', { enabled: false }), {
+      wrapper: Wrapper
+    })
+    const first = result.current.items
+    rerender()
+    expect(result.current.items).toBe(first)
+    expect(first).toEqual([])
   })
 })

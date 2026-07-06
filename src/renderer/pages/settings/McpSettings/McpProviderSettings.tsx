@@ -1,7 +1,8 @@
 import { Button, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import db from '@renderer/databases'
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import db from '@renderer/databases/db'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { cn } from '@renderer/utils/style'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -10,7 +11,6 @@ import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingsContentColumn } from '..'
 import { getProviderDisplayName, type ProviderConfig } from './providers/config'
 import { isSameMcpServerCandidate, toCreateMcpServerDto } from './utils'
 

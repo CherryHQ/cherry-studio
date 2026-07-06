@@ -1,3 +1,4 @@
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -36,22 +37,21 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
-  ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH: 540,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
-  ConversationCenterState: ({ state }: { state: string }) => (
-    <div data-testid="conversation-center-state" data-state={state} />
-  ),
-  ConversationShell: ({
+vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
+  default: ({ state }: { state: string }) => <div data-testid="conversation-center-state" data-state={state} />
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
+  default: ({
     topBar,
+    topRightTool,
     sidePanel,
     center,
     rightPane,
     overlay
   }: {
     topBar?: ReactNode
+    topRightTool?: ReactNode
     sidePanel?: ReactNode
     center?: ReactNode
     rightPane?: ReactNode
@@ -59,18 +59,18 @@ vi.mock('@renderer/components/chat', () => ({
   }) => (
     <div>
       <div data-testid="agent-top-bar">{topBar}</div>
+      <div data-testid="agent-top-right-tool">{topRightTool}</div>
       <div data-testid="agent-side-panel">{sidePanel}</div>
       <div>{center}</div>
       <div>{overlay}</div>
       {rightPane}
     </div>
-  ),
-  LoadingState: () => <div data-testid="loading-state" />,
-  RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
-    <div data-testid="right-pane-host" data-open={String(Boolean(open))}>
-      {open ? children : null}
-    </div>
   )
+}))
+
+vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
+  ...(await importActual<typeof ChatPrimitives>()),
+  LoadingState: () => <div data-testid="loading-state" />
 }))
 
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
@@ -210,7 +210,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
-  default: () => <div data-testid="agent-navbar" />
+  AgentChatNavbar: () => <div data-testid="agent-navbar" />
 }))
 
 vi.mock('../components/AgentRightPane', () => {
@@ -227,9 +227,9 @@ vi.mock('../components/AgentRightPane', () => {
           Files
         </button>
       ),
-      InfoCard: ({ disabled }: { disabled?: boolean }) => (
+      Shortcuts: ({ disabled }: { disabled?: boolean }) => (
         <button type="button" disabled={disabled}>
-          Info
+          Shortcuts
         </button>
       )
     }
@@ -324,6 +324,13 @@ describe('AgentChat settings panel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'close citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
+  })
+
+  it('keeps the right-pane expand button next to the tab shortcuts', () => {
+    renderAgentChat()
+
+    expect(screen.getByRole('button', { name: 'Shortcuts' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Files' })).toBeInTheDocument()
   })
 
   it('normalizes blank agent avatars before passing them to the right pane', () => {

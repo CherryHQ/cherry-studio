@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { Disposable } from '@main/core/lifecycle/event'
+import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { Cron } from 'croner'
 

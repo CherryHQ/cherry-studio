@@ -5,6 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMessageLeafCapabilities } from '../useMessageLeafCapabilities'
 
+// Keep t() returning raw keys: the renderer setup now initializes real i18n, but
+// these assertions embed key strings in the expected display names.
+vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
+  useTranslation: () => ({ t: (key: string) => key })
+}))
+
 const { mockUseExternalApps, mockPreview, mockSafeOpen } = vi.hoisted(() => ({
   mockUseExternalApps: vi.fn(() => ({ data: [] })),
   mockPreview: vi.fn(),
@@ -30,24 +37,14 @@ describe('useMessageLeafCapabilities', () => {
     mockSafeOpen.mockResolvedValue(undefined)
   })
 
-  it('loads external apps for ordinary text parts that mention inline absolute paths', () => {
-    const partsByMessageId: Record<string, CherryMessagePart[]> = {
-      message: [{ type: 'text', text: 'Open `/Users/example/project/App.tsx`.' } as CherryMessagePart]
-    }
-
-    renderHook(() => useMessageLeafCapabilities({ partsByMessageId }))
-
-    expect(mockUseExternalApps).toHaveBeenCalledWith({ enabled: true })
-  })
-
-  it('does not load external apps for text parts without local path hints', () => {
+  it('loads external apps for the message list regardless of inline path hints', () => {
     const partsByMessageId: Record<string, CherryMessagePart[]> = {
       message: [{ type: 'text', text: 'plain response' } as CherryMessagePart]
     }
 
     renderHook(() => useMessageLeafCapabilities({ partsByMessageId }))
 
-    expect(mockUseExternalApps).toHaveBeenCalledWith({ enabled: false })
+    expect(mockUseExternalApps).toHaveBeenCalledWith()
   })
 
   it('opens shared attachment files through safeOpen', async () => {

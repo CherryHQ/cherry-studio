@@ -635,7 +635,10 @@ describe('ClaudeCodeStreamAdapter', () => {
           modelId: 'sonnet',
           totalTokens: 26,
           promptTokens: 21,
-          completionTokens: 5
+          completionTokens: 5,
+          noCacheTokens: 3,
+          cacheReadTokens: 11,
+          cacheWriteTokens: 7
         })
       })
     ])

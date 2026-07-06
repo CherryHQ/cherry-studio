@@ -6,6 +6,7 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import { loadKnowledgeItemDocuments } from '../readers/KnowledgeReader'
@@ -20,7 +21,7 @@ import { fetchKnowledgeWebPage } from '../utils/sources/url'
 import { captureUrlSnapshotFile } from '../utils/sources/urlSnapshot'
 import { collectKnowledgeReservedRelativePaths } from '../utils/storage/pathStorage'
 import { hashEmbeddingText } from '../vectorstore/indexStore/hashing'
-import type { RebuildMaterialInput } from '../vectorstore/indexStore/model'
+import type { RebuildMaterialEmbeddingInput, RebuildMaterialInput } from '../vectorstore/indexStore/model'
 import type { KnowledgeIndexDocumentsPayload } from './jobTypes'
 import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
 
@@ -59,10 +60,11 @@ export function createIndexDocumentsJobHandler(
       const { base, item } = input
 
       // Mark reading before file/network IO so the UI reflects the current long-running phase.
+      // No base mutation lock: this only writes the main app DB (knowledge_item), not the
+      // per-base index.sqlite the lock protects, and updateStatus's own 'deleting' guard
+      // (KnowledgeItemService.updateStatus) already covers the race the lock would.
       reportKnowledgeProgress(ctx, 0, { stage: 'reading', currentFile: 0, totalFiles: 1 })
-      await knowledgeLockManager.withBaseMutationLock(ctx.input.baseId, () => {
-        knowledgeItemService.updateStatus(ctx.input.itemId, 'reading')
-      })
+      knowledgeItemService.updateStatus(ctx.input.itemId, 'reading')
 
       // Capture a url's or note's snapshot on first index (a url fetches outside
       // the lock, a note writes its in-hand content; both persist a relativePath
@@ -83,10 +85,9 @@ export function createIndexDocumentsJobHandler(
       }
 
       // Mark embedding separately so the UI reflects the current long-running phase.
+      // No base mutation lock here either — same reasoning as the 'reading' status above.
       reportKnowledgeProgress(ctx, 40, { stage: 'embedding', currentFile: 0, totalFiles: 1 })
-      await knowledgeLockManager.withBaseMutationLock(ctx.input.baseId, () =>
-        knowledgeItemService.updateStatus(ctx.input.itemId, 'embedding')
-      )
+      knowledgeItemService.updateStatus(ctx.input.itemId, 'embedding')
 
       // Use readableItem, not item: for a freshly captured url it carries the snapshot
       // relativePath, so the material's relative_path is the real `raw/` snapshot path
@@ -259,19 +260,25 @@ async function buildRebuildMaterialInput(
     bodyByHash.set(hashEmbeddingText(chunk.text), chunk.text)
   }
 
-  // Decision A4: reuse vectors already stored for unchanged chunks — only embed
-  // the hashes the index does not have yet, so reindexing unchanged content does
-  // not re-spend the paid embedding API. Existing hashes resolve to their stored
-  // vector at query time; rebuildMaterial keeps them.
-  const vectorStoreService = application.get('KnowledgeVectorStoreService')
-  const store = await vectorStoreService.getIndexStore(base)
-  const existingHashes = await store.listExistingEmbeddingHashes([...bodyByHash.keys()])
-  const missing = [...bodyByHash.entries()].filter(([hash]) => !existingHashes.has(hash))
-  const vectors = await embedKnowledgeTexts(
-    base,
-    missing.map(([, body]) => body),
-    ctx.signal
-  )
+  // A BM25-only base (no embedding model) indexes lexically: store the FTS text
+  // and skip embedding entirely. A vector base embeds only the chunk bodies the
+  // index does not already have (decision A4: reuse vectors stored for unchanged
+  // chunks so reindexing does not re-spend the paid embedding API; existing hashes
+  // resolve to their stored vector at query time and rebuildMaterial keeps them).
+  const usesEmbeddings = isCompletedVectorKnowledgeBase(base)
+  let embeddings: RebuildMaterialEmbeddingInput[] = []
+  if (usesEmbeddings) {
+    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    const store = await vectorStoreService.getIndexStore(base)
+    const existingHashes = await store.listExistingEmbeddingHashes([...bodyByHash.keys()])
+    const missing = [...bodyByHash.entries()].filter(([hash]) => !existingHashes.has(hash))
+    const vectors = await embedKnowledgeTexts(
+      base,
+      missing.map(([, body]) => body),
+      ctx.signal
+    )
+    embeddings = missing.map(([embeddingTextHash], index) => ({ embeddingTextHash, vector: vectors[index] }))
+  }
 
   return {
     material: {
@@ -286,7 +293,8 @@ async function buildRebuildMaterialInput(
       charStart: chunk.charStart,
       charEnd: chunk.charEnd
     })),
-    embeddings: missing.map(([embeddingTextHash], index) => ({ embeddingTextHash, vector: vectors[index] }))
+    usesEmbeddings,
+    embeddings
   }
 }
 

@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
 
-import { TopView } from '../TopView'
+import { TopView } from '../TopView/TopView'
 
 export const TOP_VIEW_CLOSE_ANIMATION_MS = 200
 

@@ -3,13 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // i18n is only used for display strings (assistant name, error text); return
 // the defaultValue so assertions stay independent of the translation catalog.
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: {
     t: vi.fn((_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key)
   }
 }))
 
-import { ImportService } from '../ImportService'
+import { importService } from '../ImportService'
 
 /**
  * Minimal ChatGPT export shape — enough to pass `validate()` and exercise the
@@ -49,7 +49,7 @@ function chatgptExport() {
   ])
 }
 
-describe('ImportService.importConversations', () => {
+describe('importService.importConversations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -65,7 +65,7 @@ describe('ImportService.importConversations', () => {
       return { id: returnedId }
     })
 
-    const response = await ImportService.importConversations(chatgptExport())
+    const response = await importService.importConversations(chatgptExport())
 
     expect(response.success).toBe(true)
     expect(response.assistant?.id).toBe('asst_1')
@@ -107,7 +107,7 @@ describe('ImportService.importConversations', () => {
   })
 
   it('returns a failure response without creating an assistant for an unsupported format', async () => {
-    const response = await ImportService.importConversations('definitely not json')
+    const response = await importService.importConversations('definitely not json')
 
     expect(response.success).toBe(false)
     expect(vi.mocked(dataApiService.post)).not.toHaveBeenCalled()

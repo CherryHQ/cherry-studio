@@ -1,4 +1,4 @@
-import { ActionIconButton } from '@renderer/components/Buttons'
+import ActionIconButton from '@renderer/components/ActionIconButton'
 import { classNames } from '@renderer/utils/style'
 import type { ComponentProps, ReactNode } from 'react'
 

@@ -3,15 +3,7 @@
  */
 
 // Migration stages for UI flow
-export type MigrationStage =
-  | 'version_incompatible'
-  | 'introduction'
-  | 'backup_required'
-  | 'backup_progress'
-  | 'backup_confirmed'
-  | 'migration'
-  | 'completed'
-  | 'error'
+export type MigrationStage = 'version_incompatible' | 'introduction' | 'migration' | 'completed' | 'error'
 
 // Individual migrator status
 export type MigratorStatus = 'pending' | 'running' | 'completed' | 'failed'
@@ -39,12 +31,6 @@ export interface MigrationSummary {
   durationMs: number
 }
 
-// Metadata for a newly created V1 backup. Beyond display, its *presence* is control state —
-// see the `backupInfo` field doc on MigrationProgress.
-export interface MigrationBackupInfo {
-  createdBackupPath: string
-}
-
 // Overall migration progress
 export interface MigrationProgress {
   stage: MigrationStage
@@ -58,15 +44,6 @@ export interface MigrationProgress {
   warnings?: string[]
   /** Completion-screen summary stats; written only on successful completion */
   summary?: MigrationSummary
-  /**
-   * Set only when a *new* V1 backup was created. Beyond display, its presence is control
-   * state: main gates the forward-only back-nav guard on it (a created backup can't be
-   * un-chosen) and the renderer hides the Back button when present — so it must not be
-   * dropped or regenerated as if it were purely cosmetic.
-   */
-  backupInfo?: MigrationBackupInfo
-  /** True only while the V1 backup is in its compressing stage; held by the backup_progress UI */
-  isCompressing?: boolean
 }
 
 // Prepare phase result
@@ -160,11 +137,6 @@ export const MigrationIpcChannels = {
 
   // Flow control
   Start: 'migration:start',
-  ProceedToBackup: 'migration:proceed-to-backup',
-  ReturnToIntroduction: 'migration:return-to-introduction',
-  ReturnToBackupChoice: 'migration:return-to-backup-choice',
-  ShowBackupDialog: 'migration:show-backup-dialog',
-  BackupCompleted: 'migration:backup-completed',
   StartMigration: 'migration:start-migration',
   // Renderer-local failure mirrored to main's terminal error stage.
   ReportError: 'migration:report-error',

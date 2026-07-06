@@ -87,7 +87,7 @@ vi.mock('../../../shell/RightPaneHost', () => ({
   }
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
+vi.mock('@renderer/components/icons/SidebarToggleIcons', () => ({
   RightSidebarCollapseIcon: () => <span data-testid="collapse-icon" />,
   RightSidebarExpandIcon: () => <span data-testid="expand-icon" />
 }))
@@ -395,6 +395,67 @@ describe('Shell.Toggle', () => {
   })
 })
 
+describe('Shell.TabShortcut', () => {
+  beforeEach(() => {
+    shortcutHandlers.clear()
+    rightPaneHostMock.notifyReservedSpaceUnavailableOnOpen = false
+  })
+
+  it('opens the requested tab and hides itself while the pane is open', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.TabShortcut tab="status" label="Status" icon={<span data-testid="status-icon" />} />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByRole('button', { name: 'Status' })).toBeInTheDocument()
+    expect(screen.getByTestId('status-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Status' }))
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:status:false')
+    expect(screen.queryByRole('button', { name: 'Status' })).toBeNull()
+  })
+
+  it('forwards button props for composed triggers', () => {
+    const onPointerEnter = vi.fn()
+
+    render(
+      <Shell defaultTab="files">
+        <Shell.TabShortcut
+          tab="status"
+          label="Status"
+          icon={<span data-testid="status-icon" />}
+          data-hover-card-trigger="true"
+          onPointerEnter={onPointerEnter}
+        />
+      </Shell>
+    )
+
+    const shortcut = screen.getByRole('button', { name: 'Status' })
+
+    expect(shortcut).toHaveAttribute('data-hover-card-trigger', 'true')
+
+    fireEvent.pointerEnter(shortcut)
+
+    expect(onPointerEnter).toHaveBeenCalled()
+  })
+
+  it('stays hidden when the pane mounts open', () => {
+    render(
+      <Shell defaultTab="files" defaultOpen>
+        <Shell.TabShortcut tab="files" label="Files" icon={<span data-testid="files-icon" />} />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+    expect(screen.queryByRole('button', { name: 'Files' })).toBeNull()
+  })
+})
+
 describe('Shell.Host', () => {
   it('caps the docked right pane width so the conversation center keeps its minimum usable width', () => {
     render(
@@ -475,9 +536,9 @@ describe('Shell.TabList', () => {
     const scrollContainer = screen.getByTestId('shell-tab-scroll-container')
     const tabsList = screen.getByTestId('shell-tabs-list')
 
-    // pr resolves to pr-3 in the main window / macOS (--window-controls-width defaults to 0px);
-    // it only widens in a frameless Win/Linux sub-window to clear the OS window controls corner.
-    expect(tabList).toHaveClass('pr-[calc(0.75rem+var(--window-controls-width,0px))]', 'pl-3')
+    // The opened-pane header uses ConversationShell's edge inset so the tab row is balanced
+    // while the right side still reserves frameless window controls when present.
+    expect(tabList).toHaveClass('pr-[calc(0.5rem+var(--window-controls-width,0px))]', 'pl-2')
     expect(tabList).not.toHaveClass('pr-11')
     expect(scrollContainer).toHaveClass('min-w-0', 'flex-1')
     expect(tabsList).not.toHaveClass('overflow-x-auto')
@@ -490,9 +551,9 @@ describe('Shell.TabList', () => {
     expect(minimizeButton).toHaveAttribute('aria-pressed', 'true')
     expect(minimizeButton).not.toHaveAttribute('data-active')
     expect(minimizeButton.querySelector('svg')).not.toHaveAttribute('width', '15')
-    // embedded mode (no WindowFrameProvider) stays no-drag and uses the symmetric pl-3 inset
+    // embedded mode (no WindowFrameProvider) stays no-drag and uses the symmetric pl-2 inset
     // even when maximized — the traffic-light inset is sub-window-only.
-    expect(tabList).toHaveClass('pl-3')
+    expect(tabList).toHaveClass('pl-2')
     expect(tabList).not.toHaveClass('pl-[env(titlebar-area-x)]')
   })
 

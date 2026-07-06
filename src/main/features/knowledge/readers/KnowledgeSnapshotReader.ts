@@ -1,4 +1,4 @@
-import { read } from '@main/utils/file/fs'
+import { read } from '@main/utils/file'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
 import { Document } from '@vectorstores/core'
 

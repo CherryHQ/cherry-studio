@@ -1,4 +1,4 @@
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
+import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import {
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
@@ -10,11 +10,11 @@ import {
   useResourcePane,
   useShellState
 } from '@renderer/components/chat/panes/Shell'
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useIsActiveTab } from '@renderer/hooks/tab'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import { createContext, use, useCallback, useRef, useSyncExternalStore } from 'react'
@@ -153,7 +153,7 @@ function TopicRightPaneSurface({
 
   // The TabList absorbs the navbar's right cluster while the pane is open: pin/back-to-main
   // when we're in a sub-window, plus the pane toggle (closes the open pane). Navbar suppresses
-  // its own copy via useOptionalShellState — see ConversationShellTopRightTool.
+  // its own copy via useOptionalShellState — see ConversationShell's topbar cluster.
   const tabListTrailing = (
     <>
       {isWindow ? chrome?.titleTrailing : null}
@@ -229,8 +229,30 @@ function TopicRightPaneToggle() {
   )
 }
 
+function TopicRightPaneShortcuts({ topicId }: { topicId?: string }) {
+  const { t } = useTranslation()
+  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const hasBranchPanel = !!topicId
+
+  return (
+    <>
+      {hasBranchPanel && (
+        <Shell.TabShortcut
+          tab="branch"
+          label={t('chat.message.flow.title')}
+          icon={<GitBranch className="size-3.5" />}
+        />
+      )}
+      {hasBranchPanel && enableDeveloperMode && (
+        <Shell.TabShortcut tab="trace" label={t('trace.label')} icon={<Activity className="size-3.5" />} />
+      )}
+    </>
+  )
+}
+
 export const TopicRightPane = Object.assign(TopicRightPaneProvider, {
   Host: TopicRightPaneHost,
   MaximizedOverlay: TopicRightPaneMaximizedOverlay,
-  Toggle: TopicRightPaneToggle
+  Toggle: TopicRightPaneToggle,
+  Shortcuts: TopicRightPaneShortcuts
 })

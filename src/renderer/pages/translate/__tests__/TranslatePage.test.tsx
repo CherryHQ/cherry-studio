@@ -70,12 +70,12 @@ vi.mock('@cherrystudio/ui/icons', () => ({
   resolveIcon: () => undefined
 }))
 
-vi.mock('@renderer/components/app/Navbar', () => ({
+vi.mock('@renderer/components/Navbar', () => ({
   Navbar: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   NavbarCenter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
 }))
 
-vi.mock('@renderer/components/Selector/model', () => ({
+vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: (props: { trigger: React.ReactNode }) => {
     modelSelectorMock(props)
     return <>{props.trigger}</>
@@ -139,6 +139,13 @@ vi.mock('@renderer/hooks/useTemporaryValue', () => ({
 
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: translateCoreMock.setTimeoutTimer })
+}))
+
+vi.mock('@renderer/hooks/useSmoothStream', () => ({
+  useSmoothStream: ({ onUpdate }: { onUpdate: (text: string) => void }) => ({
+    reset: (text = '') => onUpdate(text),
+    update: (text: string) => onUpdate(text)
+  })
 }))
 
 vi.mock('@renderer/services/ExportService', () => ({
@@ -258,13 +265,16 @@ vi.mock('../components/TranslateLanguageBar', () => ({
 vi.mock('../components/TranslateOutputPane', () => ({
   default: ({
     translating,
+    translatedContent,
     onExportToNotes
   }: {
     translating: boolean
+    translatedContent: string
     onExportToNotes?: () => void | Promise<void>
   }) => (
     <div data-testid="translate-output-pane">
       {translating && <span>translate.processing</span>}
+      <span data-testid="translate-output-content">{translatedContent}</span>
       <button type="button" aria-label="notes.save" onClick={() => void onExportToNotes?.()} />
     </div>
   )
@@ -1017,6 +1027,49 @@ describe('TranslatePage', () => {
 
     expect(signal?.aborted).toBe(true)
     expect((window as any).toast.info).toHaveBeenCalledWith('translate.info.aborted')
+  })
+
+  it('keeps streamed translation text when stop is clicked', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn',
+      'feature.translate.page.auto_copy': true
+    })
+    const abortError = new Error('aborted')
+    let signal: AbortSignal | undefined
+    translateCoreMock.translateText.mockImplementationOnce(
+      (
+        _text: string,
+        _targetLanguage: string,
+        onResponse?: (text: string, isComplete: boolean) => void,
+        abortSignal?: AbortSignal
+      ) => {
+        signal = abortSignal
+        onResponse?.('partial text', false)
+
+        return new Promise<string>((_resolve, reject) => {
+          abortSignal?.addEventListener('abort', () => reject(abortError), { once: true })
+        })
+      }
+    )
+    translateCoreMock.isAbortError.mockImplementation((error: unknown) => error === abortError)
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('partial text'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.stop' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'common.stop' }))
+
+    expect(signal?.aborted).toBe(true)
+    await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('partial text'))
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('partial text')
+    expect((window as any).toast.info).toHaveBeenCalledWith('translate.info.aborted')
+    expect((window as any).toast.success).not.toHaveBeenCalled()
+    expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
+    expect(translateCoreMock.setTimeoutTimer).not.toHaveBeenCalledWith('auto-copy', expect.any(Function), 100)
   })
 
   it('schedules auto-copy after successful translation when auto-copy is enabled', async () => {

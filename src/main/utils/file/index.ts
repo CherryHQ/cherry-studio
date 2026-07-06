@@ -1,33 +1,33 @@
 /**
- * `@main/utils/file` — file-related utilities for the main process.
+ * `@main/utils/file` — entry-agnostic filesystem primitives for the main process.
  *
  * ## Layout
  *
- * - `./legacyFile` — shared helpers (`getFileType(ext)`, `getFileExt`,
- *   `sanitizeFilename`, `readTextFileWithAutoEncoding`, `getAllFiles`,
- *   `pathExists`, `directoryExists`, `isPathInside`, `untildify`,
- *   `hasWritePermission`, `resolveAndValidatePath`, …). Re-exported through
- *   this barrel; callers import with `from '@main/utils/file'`.
- * - `./{fs,metadata,path,pathStatus,shell}` — pure FS primitives. Access via
- *   **explicit subpath imports**, e.g.
- *   `import { atomicWriteFile } from '@main/utils/file/fs'`. Not re-exported
- *   through the barrel to avoid symbol collisions with legacy helpers
- *   (notably `getFileType`, which has different signatures in the two
- *   modules: legacy takes an extension, primitive takes a path).
- * - Directory-listing (`listDirectory`) and `.gitignore` parsing live next
- *   to the consumer that owns them: `@main/services/file/tree/{search,gitignore}`.
- *   See `src/main/services/file/tree/` for that surface.
+ * This topic holds the main-process FS/path primitives, each reached through
+ * this single barrel (naming-conventions.md §6.4 / main-process-architecture.md
+ * §2.1) — consumers import `from '@main/utils/file'`, never a sub-path:
  *
- * These modules will consolidate over time — `legacyFile.ts` and the sibling
- * `../fileOperations.ts` are expected to be split into the primitive modules
- * above (fs/metadata/path/…), after which this barrel can expose the
- * primitive surface directly.
+ * - `./fs` — raw file IO (`read`, `write`, `atomicWriteFile`, `stat`, `copy`,
+ *   `move`, `remove`, `hash`, `download`, …).
+ * - `./metadata` — content-derived classification (`getFileType(path)`,
+ *   `isTextFile`, `mimeToExt`).
+ * - `./path` — path predicates (`isPathInside`, `isUnderInternalStorage`,
+ *   `canWrite`, …).
+ * - `./pathStatus` — `getPathStatus` + its result types.
+ * - `./shell` — OS open / reveal (`open`, `showInFolder`).
  *
- * ## Access policy for the FS primitives (fs/metadata/path/shell)
+ * Related surfaces that live elsewhere (not here):
+ * - Legacy v1 file helpers (`getFileExt`, `readTextFileWithAutoEncoding`,
+ *   `getAllFiles`, …) → `@main/utils/legacyFile` — being dissolved into the
+ *   primitives above as the v1 file stack retires.
+ * - Directory-listing (`listDirectory`) and `.gitignore` parsing → next to
+ *   their owner, `@main/services/file/tree`.
+ *
+ * ## Access policy for the FS primitives
  *
  * These are the **sole FS owners** for the main process — callers like
  * `BootConfigService`, the MCP OAuth flow, and any service that truly needs
- * raw `atomicWriteFile` / `stat` / `listDirectory` import them directly. The
+ * raw `atomicWriteFile` / `stat` / `read` import them through this barrel. The
  * intent is "give everyone access to the **entry-agnostic** FS primitives",
  * not "offer a back door around FileManager". Concretely:
  *
@@ -48,4 +48,32 @@
  * here.
  */
 
-export * from './legacyFile'
+export {
+  atomicWriteFile,
+  atomicWriteIfUnchanged,
+  type AtomicWriteStream,
+  compressImage,
+  copy,
+  createAtomicWriteStream,
+  download,
+  ensureDir,
+  exists,
+  hash,
+  isSameFile,
+  mkdir,
+  move,
+  type PathReadability,
+  PathStaleVersionError,
+  type PathVersion,
+  probeReadable,
+  read,
+  remove,
+  removeDir,
+  shouldSilenceFsyncDirError,
+  stat,
+  write
+} from './fs'
+export { getFileType, isTextFile, mimeToExt } from './metadata'
+export { canWrite, isNotEmptyDir, isPathInside, isUnderInternalStorage, resolvePath } from './path'
+export { getPathStatus, type PathStatus, type PathStatusKind } from './pathStatus'
+export { open, showInFolder } from './shell'
