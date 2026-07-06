@@ -90,12 +90,23 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
       // Built-in web search bypasses the external-provider requirement; the
       // toggle simply flips the assistant flag and the model handles search.
       if (!hasBuiltinWebSearch && !activeProviderId) {
+        let skipFocusRestore = false
+
         window.modal.confirm({
           centered: true,
           title: t('settings.tool.websearch.search_provider'),
           content: t('settings.tool.websearch.search_provider_placeholder'),
-          afterClose: restoreFocus ? () => window.requestAnimationFrame(restoreFocus) : undefined,
-          onOk: () => navigate({ to: '/settings/websearch' })
+          afterClose: restoreFocus
+            ? () => {
+                if (!skipFocusRestore) {
+                  window.requestAnimationFrame(restoreFocus)
+                }
+              }
+            : undefined,
+          onOk: () => {
+            skipFocusRestore = true
+            return navigate({ to: '/settings/websearch' })
+          }
         })
         return
       }

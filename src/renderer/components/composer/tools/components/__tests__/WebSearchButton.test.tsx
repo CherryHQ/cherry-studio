@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { installSyncRafMock } from '@test-mocks/requestAnimationFrame'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -180,6 +181,20 @@ describe('WebSearchButton', () => {
 
     expect(button).toHaveFocus()
     expect(mocks.updateAssistant).not.toHaveBeenCalled()
+  })
+
+  it('does not restore trigger focus after confirming the missing-provider navigation', async () => {
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    const button = screen.getByRole('button', { name: 'chat.input.web_search.label' })
+    fireEvent.click(button)
+
+    const confirmOptions = mocks.confirm.mock.calls[0][0]
+    await confirmOptions.onOk()
+    confirmOptions.afterClose()
+
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/websearch' })
+    expect(button).not.toHaveFocus()
   })
 
   it('disables web search when the configured provider cannot be consumed by the current model', async () => {
