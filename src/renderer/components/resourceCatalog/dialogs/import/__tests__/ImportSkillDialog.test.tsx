@@ -246,4 +246,24 @@ describe('ImportSkillDialog', () => {
     expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.invalidFormat')
     expect(screen.getByText('settings.skills.batchInstallPartialFailed:2:3:1')).toBeInTheDocument()
   })
+
+  it('shows invalid format status for invalid-only dropped files without installing', async () => {
+    const files = [
+      new File(['one'], 'one.txt', { type: 'text/plain' }),
+      new File(['two'], 'two.txt', { type: 'text/plain' }),
+      new File(['three'], 'three.txt', { type: 'text/plain' })
+    ]
+
+    render(<ImportSkillDialog open onOpenChange={vi.fn()} />)
+
+    await dropSkillFiles(files)
+
+    await waitFor(() => expect(screen.getByTestId('skill-import-results')).toHaveTextContent('one.txt'))
+    expect(installFromZip).not.toHaveBeenCalled()
+    expect(installFromDirectory).not.toHaveBeenCalled()
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('two.txt')
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('three.txt')
+    expect(screen.getAllByText('settings.skills.invalidFormat')).toHaveLength(4)
+    expect(screen.queryByText('settings.skills.batchInstallPartialFailed:0:3:3')).not.toBeInTheDocument()
+  })
 })

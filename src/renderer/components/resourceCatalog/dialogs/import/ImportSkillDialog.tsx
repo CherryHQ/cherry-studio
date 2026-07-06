@@ -79,7 +79,8 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
       setItems(nextItems)
 
       let successCount = 0
-      let failedCount = nextItems.filter((item) => item.status === 'error').length
+      const preErrorCount = nextItems.filter((item) => item.status === 'error').length
+      let failedCount = preErrorCount
       let lastSkill: InstalledSkill | null = null
 
       try {
@@ -104,7 +105,9 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
 
         if (successCount > 0) onInstalled?.()
 
-        if (failedCount > 0) {
+        if (preErrorCount === nextItems.length) {
+          setStatus({ kind: 'error', message: t('settings.skills.invalidFormat') })
+        } else if (failedCount > 0) {
           setStatus({
             kind: 'error',
             message: t('settings.skills.batchInstallPartialFailed', {
