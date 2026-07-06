@@ -5,6 +5,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import type { AgentSession, AgentSessionEvent, CompactionResult, ContextUsage } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
+import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { application } from '@main/core/application'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -26,6 +27,10 @@ import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
 const PI_BUILTIN_TOOL_NAMES = ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write'] as const
+
+interface PendingSteer {
+  input: AgentRuntimeUserInput
+}
 
 /** Bridges pi's callback-based `subscribe` onto the `AsyncIterable` event contract. */
 class AsyncEventQueue<T> implements AsyncIterable<T> {
@@ -79,6 +84,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   /** Live tool policy read by the approval extension at fire-time (plan D4). */
   private permissionMode: AgentPermissionMode = 'default'
   private disabledTools = new Set<string>()
+  /** Steers accepted by pi but not yet observed as delivered. pi emits the delivery boundary as a
+   *  user `message_start`; default steering mode is one-at-a-time, so the delivery drain is mode-aware. */
+  private readonly pendingSteers: PendingSteer[] = []
 
   readonly events = this.eventQueue
 
@@ -195,15 +203,32 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.eventQueue.push({ type: 'error', error: new Error('pi session is not started') })
       return
     }
-    // No native steer in v1 (plan D6): the host only calls send() to start a
-    // turn. `followUp` is a defensive guard in case a message arrives while a
-    // turn is still winding down.
+    // Native steer lives in redirect() (plan D6); send() starts normal turns.
+    // `followUp` is a defensive guard in case a message arrives while a turn is still winding down.
     const options = session.isStreaming ? ({ streamingBehavior: 'followUp' } as const) : undefined
     void session.prompt(content, options).catch((error) => {
       if (this.closed) return
       logger.error('pi prompt failed', error as Error)
       this.eventQueue.push({ type: 'error', error })
     })
+  }
+
+  redirect(input: AgentRuntimeUserInput): boolean {
+    const session = this.session
+    if (!session?.isStreaming) return false
+
+    // buildAgentUserContent intentionally flattens attachments to absolute paths for filesystem agents;
+    // pi's native image channel stays unused until Cherry models multimodal agent attachments end-to-end.
+    const wrappedText = wrapSteerReminder(buildAgentUserContent(input.message))
+    const pending: PendingSteer = { input }
+    this.pendingSteers.push(pending)
+    void session.steer(wrappedText).catch((error) => {
+      this.removePendingSteer(pending)
+      if (this.closed) return
+      logger.error('pi steer failed', error as Error)
+      this.eventQueue.push({ type: 'error', error })
+    })
+    return true
   }
 
   /**
@@ -258,6 +283,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
   private handlePiEvent(event: AgentSessionEvent): void {
     if (this.closed) return
+
+    if (isUserMessageStart(event) && this.pendingSteers.length > 0) {
+      const delivered = this.takeDeliveredSteers()
+      if (delivered.length > 0) this.eventQueue.push({ type: 'steer-boundary', inputs: delivered })
+    }
+
     this.adapter.handleEvent(event)
 
     if (event.type === 'turn_end') {
@@ -285,6 +316,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         return
       }
       this.maybeEmitResumeToken()
+      const undelivered = this.pendingSteers.splice(0).map((pending) => pending.input)
+      if (undelivered.length > 0) this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
       if (this.lastStopReason === 'error') {
         const message = lastErrorMessage(event.messages)
         this.eventQueue.push({ type: 'error', error: new Error(message ?? 'pi agent turn failed') })
@@ -304,6 +337,17 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       return
     }
     this.eventQueue.push({ type: 'compaction-complete', anchor: buildCompactionAnchor(event.reason, event.result) })
+  }
+
+  private takeDeliveredSteers(): AgentRuntimeUserInput[] {
+    const mode = this.session?.steeringMode ?? 'one-at-a-time'
+    const count = mode === 'all' ? this.pendingSteers.length : 1
+    return this.pendingSteers.splice(0, count).map((pending) => pending.input)
+  }
+
+  private removePendingSteer(pending: PendingSteer): void {
+    const index = this.pendingSteers.indexOf(pending)
+    if (index !== -1) this.pendingSteers.splice(index, 1)
   }
 
   private emitContextUsage(): void {
@@ -369,6 +413,10 @@ function buildCompactionAnchor(
   if (typeof result?.tokensBefore === 'number') anchor.preTokens = result.tokensBefore
   if (typeof result?.estimatedTokensAfter === 'number') anchor.postTokens = result.estimatedTokensAfter
   return anchor
+}
+
+function isUserMessageStart(event: AgentSessionEvent): boolean {
+  return event.type === 'message_start' && (event.message as { role?: string }).role === 'user'
 }
 
 function lastErrorMessage(messages: unknown): string | undefined {

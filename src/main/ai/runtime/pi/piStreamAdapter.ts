@@ -58,6 +58,8 @@ export class PiStreamAdapter {
         this.turnUsage = emptyTurnUsage()
         return
       case 'message_start':
+        // User-role starts also bump this. Harmless: ids only need to be unique, and skipping a
+        // sequence avoids reusing ids after a delivered steer's user message.
         this.messageSeq += 1
         return
       case 'message_update':

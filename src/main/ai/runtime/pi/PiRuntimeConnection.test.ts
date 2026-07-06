@@ -1,7 +1,7 @@
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { AgentRuntimeConnectInput, AgentRuntimeEvent } from '../types'
+import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
 
 const PI_ROOT = '/cherry/.pi/agent'
 const PI_SESSIONS = '/cherry/.pi/sessions'
@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   reload: vi.fn(),
   createAgentSession: vi.fn(),
   prompt: vi.fn(),
+  steer: vi.fn(),
   abort: vi.fn(),
   dispose: vi.fn(),
   getContextUsage: vi.fn(),
@@ -31,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   loaderOpts: undefined as Record<string, unknown> | undefined,
   settingsArgs: undefined as unknown[] | undefined,
   isStreaming: false,
+  steeringMode: 'one-at-a-time' as 'all' | 'one-at-a-time',
   sessionFile: '/cherry/.pi/sessions/s.jsonl' as string | undefined
 }))
 
@@ -58,7 +60,11 @@ const fakeSession = {
     mocks.subscribeCb = cb
     return mocks.unsubscribe
   },
+  get steeringMode() {
+    return mocks.steeringMode
+  },
   prompt: mocks.prompt,
+  steer: mocks.steer,
   abort: mocks.abort,
   dispose: mocks.dispose,
   getContextUsage: mocks.getContextUsage
@@ -91,6 +97,16 @@ const input: AgentRuntimeConnectInput = {
   modelId: 'p::m'
 }
 
+function userInput(text: string): AgentRuntimeUserInput {
+  return {
+    message: {
+      id: `msg-${text}`,
+      data: { parts: [{ type: 'text' as const, text }] }
+    } as AgentRuntimeUserInput['message'],
+    systemReminder: true
+  }
+}
+
 async function collectUntilTerminal(events: AsyncIterable<AgentRuntimeEvent>): Promise<AgentRuntimeEvent[]> {
   const out: AgentRuntimeEvent[] = []
   const iter = events[Symbol.asyncIterator]()
@@ -111,6 +127,7 @@ beforeEach(() => {
   mocks.loaderOpts = undefined
   mocks.settingsArgs = undefined
   mocks.isStreaming = false
+  mocks.steeringMode = 'one-at-a-time'
   mocks.sessionFile = SESSION_FILE
   delete process.env.PI_CODING_AGENT_DIR
   delete process.env.PI_CODING_AGENT_SESSION_DIR
@@ -129,6 +146,7 @@ beforeEach(() => {
   mocks.sessionCreate.mockReturnValue({})
   mocks.sessionOpen.mockReturnValue({})
   mocks.prompt.mockResolvedValue(undefined)
+  mocks.steer.mockResolvedValue(undefined)
   mocks.abort.mockResolvedValue(undefined)
   mocks.getContextUsage.mockReturnValue(undefined)
   mocks.createAgentSession.mockImplementation(async (opts: Record<string, unknown>) => {
@@ -196,6 +214,87 @@ describe('PiRuntimeConnection', () => {
     expect(terminal).toHaveLength(1)
     expect(events.at(-1)?.type).toBe('turn-complete')
     expect(events.some((e) => e.type === 'resume-token' && e.token === SESSION_FILE)).toBe(true)
+  })
+
+  it('redirect returns false when no live turn', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    expect(conn.redirect(userInput('change course'))).toBe(false)
+    expect(mocks.steer).not.toHaveBeenCalled()
+  })
+
+  it('redirect stashes a live steer and sends system-reminder-wrapped text to pi', async () => {
+    mocks.isStreaming = true
+    const conn = await new PiRuntimeConnection(input).start()
+    const steer = userInput('change course')
+
+    expect(conn.redirect(steer)).toBe(true)
+
+    expect(mocks.steer).toHaveBeenCalledWith(
+      [
+        '<system-reminder>',
+        'The user sent the following message:',
+        'change course',
+        '',
+        'Please address this message and continue with your tasks.',
+        '</system-reminder>'
+      ].join('\n')
+    )
+  })
+
+  it('emits steer-boundary for a delivered steer before later assistant chunks', async () => {
+    mocks.isStreaming = true
+    const conn = await new PiRuntimeConnection(input).start()
+    const steer = userInput('new direction')
+    expect(conn.redirect(steer)).toBe(true)
+    const cb = mocks.subscribeCb!
+
+    cb({ type: 'message_start', message: { role: 'user' } } as unknown as AgentSessionEvent)
+    cb({ type: 'message_start', message: { role: 'assistant' } } as unknown as AgentSessionEvent)
+    cb({
+      type: 'message_update',
+      message: {} as never,
+      assistantMessageEvent: { type: 'text_start', contentIndex: 0 }
+    } as unknown as AgentSessionEvent)
+    cb({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+
+    const events = await collectUntilTerminal(conn.events)
+    const boundaryIndex = events.findIndex((e) => e.type === 'steer-boundary')
+    const chunkIndex = events.findIndex((e) => e.type === 'chunk')
+    expect(events[boundaryIndex]).toMatchObject({ type: 'steer-boundary', inputs: [steer] })
+    expect(boundaryIndex).toBeGreaterThanOrEqual(0)
+    expect(boundaryIndex).toBeLessThan(chunkIndex)
+  })
+
+  it('emits undelivered steers before turn-complete when the turn ends first', async () => {
+    mocks.isStreaming = true
+    const conn = await new PiRuntimeConnection(input).start()
+    const steer = userInput('too late')
+    expect(conn.redirect(steer)).toBe(true)
+
+    mocks.isStreaming = false
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+
+    const events = await collectUntilTerminal(conn.events)
+    const undeliveredIndex = events.findIndex((e) => e.type === 'steer-undelivered')
+    const completeIndex = events.findIndex((e) => e.type === 'turn-complete')
+    expect(events[undeliveredIndex]).toMatchObject({ type: 'steer-undelivered', inputs: [steer] })
+    expect(undeliveredIndex).toBeLessThan(completeIndex)
+  })
+
+  it('surfaces steer rejection as an error and un-stashes the input', async () => {
+    mocks.isStreaming = true
+    mocks.steer.mockRejectedValueOnce(new Error('steer rejected'))
+    const conn = await new PiRuntimeConnection(input).start()
+    const steer = userInput('bad steer')
+    expect(conn.redirect(steer)).toBe(true)
+
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.find((e) => e.type === 'error')).toMatchObject({ error: new Error('steer rejected') })
+
+    mocks.subscribeCb!({ type: 'agent_end', messages: [], willRetry: false } as unknown as AgentSessionEvent)
+    const iter = conn.events[Symbol.asyncIterator]()
+    const next = await iter.next()
+    expect(next.value?.type).not.toBe('steer-undelivered')
   })
 
   it('reports context usage projected from pi accounting', async () => {
