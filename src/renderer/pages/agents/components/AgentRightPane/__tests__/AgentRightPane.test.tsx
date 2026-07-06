@@ -117,6 +117,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
     </div>
   ),
   isOfficeDocumentFile: () => false,
+  isImageFile: () => false,
   resolveArtifactPaneFileSelection: () => null
 }))
 

@@ -1,6 +1,7 @@
 import { Button, Markdown, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
+import ImagePreviewPanel from '@renderer/components/ArtifactPreview/image/ImagePreviewPanel'
 import type { OfficePreviewPanelProps } from '@renderer/components/ArtifactPreview/office/OfficePreviewPanel'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import HtmlPreviewFrame from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
@@ -82,6 +83,8 @@ const MARKDOWN_EXT = new Set(['.md', '.mdx', '.markdown'])
 const HTML_EXT = new Set(['.html', '.htm'])
 const PDF_EXT = new Set(['.pdf'])
 const OFFICE_DOCUMENT_EXT = new Set(['.doc', '.docx', '.xls', '.xlsx', '.xlsm', '.ppt', '.pptx'])
+// Binary but renderable via `<img>` from a `file://` URL — no text read needed.
+const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.avif', '.svg'])
 
 const extOf = (name: string): string => {
   const dot = name.lastIndexOf('.')
@@ -92,6 +95,7 @@ const isMarkdownFile = (name: string) => MARKDOWN_EXT.has(extOf(name))
 const isHtmlFile = (name: string) => HTML_EXT.has(extOf(name))
 const isPdfFile = (name: string) => PDF_EXT.has(extOf(name))
 export const isOfficeDocumentFile = (name: string) => OFFICE_DOCUMENT_EXT.has(extOf(name))
+export const isImageFile = (name: string) => IMAGE_EXT.has(extOf(name))
 
 function getPreviewFileTitle(filePath: string): string {
   const segments = filePath
@@ -160,9 +164,11 @@ export function ArtifactFilePreview({
   const [loadingContent, setLoadingContent] = useState(false)
   const isPdfPreview = filePath ? isPdfFile(filePath) : false
   const isOfficeDocumentPreview = filePath ? isOfficeDocumentFile(filePath) : false
+  const isImagePreview = filePath ? isImageFile(filePath) : false
   const oversizedForPreview =
     !isPdfPreview &&
     !isOfficeDocumentPreview &&
+    !isImagePreview &&
     fileSize.status === 'ok' &&
     fileSize.size > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
 
@@ -175,7 +181,7 @@ export function ArtifactFilePreview({
     }
 
     // Binary previewers render straight from disk or external apps; no readText needed.
-    if (isPdfFile(filePath) || isOfficeDocumentFile(filePath)) {
+    if (isPdfFile(filePath) || isOfficeDocumentFile(filePath) || isImageFile(filePath)) {
       setFileContent(null)
       setReadError(null)
       setLoadingContent(false)
@@ -300,6 +306,17 @@ export function ArtifactFilePreview({
         filePath={joinPath(workspacePath, filePath)}
         fileName={filePath}
         refreshKey={pdfLayoutRefreshKey}
+      />
+    )
+  }
+
+  // Image: binary but renderable via `<img>`; bypass isText / size gating.
+  if (isImageFile(filePath)) {
+    return (
+      <ImagePreviewPanel
+        key={`image-${filePath}-${contentRefreshKey}`}
+        src={toFileUrl(joinPath(workspacePath, filePath) as FilePath)}
+        fileName={filePath}
       />
     )
   }
@@ -484,7 +501,8 @@ export function ArtifactPaneView({
 
   const isPdfSelection = previewFilePath ? isPdfFile(previewFilePath) : false
   const isOfficeDocumentSelection = previewFilePath ? isOfficeDocumentFile(previewFilePath) : false
-  const shouldSniffSelectedFile = !isPdfSelection && !isOfficeDocumentSelection
+  const isImageSelection = previewFilePath ? isImageFile(previewFilePath) : false
+  const shouldSniffSelectedFile = !isPdfSelection && !isOfficeDocumentSelection && !isImageSelection
   const sniffedIsText = useIsTextFile(previewWorkspacePath, previewFilePath, { enabled: shouldSniffSelectedFile })
   const isText = shouldSniffSelectedFile ? sniffedIsText : 'binary'
   const fileSize = useFileSize(previewWorkspacePath, previewFilePath)
@@ -503,10 +521,22 @@ export function ArtifactPaneView({
   const handleRefresh = useCallback(() => {
     refresh()
     reloadExpandedDirectories()
-    if (overlayWorkspacePath && overlayFilePath && (isText === 'text' || isOfficeDocumentSelection)) {
+    if (
+      overlayWorkspacePath &&
+      overlayFilePath &&
+      (isText === 'text' || isOfficeDocumentSelection || isImageSelection)
+    ) {
       setContentRefreshToken((value) => value + 1)
     }
-  }, [isOfficeDocumentSelection, isText, overlayFilePath, overlayWorkspacePath, refresh, reloadExpandedDirectories])
+  }, [
+    isImageSelection,
+    isOfficeDocumentSelection,
+    isText,
+    overlayFilePath,
+    overlayWorkspacePath,
+    refresh,
+    reloadExpandedDirectories
+  ])
 
   const handleClosePreview = useCallback(() => {
     onPreviewClose?.()
@@ -615,6 +645,7 @@ export function ArtifactPaneView({
   const isSelectedHtmlPreview = previewFilePath ? isHtmlFile(previewFilePath) : false
   const isSelectedPdfPreview = isPdfSelection
   const isSelectedOfficePreview = isOfficeDocumentSelection
+  const isSelectedImagePreview = isImageSelection
 
   const renderOverlay = () => {
     if (!overlaySelection) return null
@@ -627,7 +658,9 @@ export function ArtifactPaneView({
         onKeyDown={handleOverlayKeyDown}
         className={cn(
           'absolute inset-0 z-20 flex min-h-0 flex-col bg-card text-card-foreground',
-          isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview ? 'overflow-hidden' : 'overflow-auto'
+          isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
+            ? 'overflow-hidden'
+            : 'overflow-auto'
         )}>
         <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-3">
           <div className="min-w-0 truncate font-medium text-foreground text-sm">

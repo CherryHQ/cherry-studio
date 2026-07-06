@@ -230,6 +230,32 @@ vi.mock('@cherrystudio/ui', async () => {
       <div data-testid="markdown" data-md-id={id}>
         {children}
       </div>
+    ),
+    ImagePreviewTrigger: ({
+      item,
+      alt,
+      className,
+      onError
+    }: {
+      item: { id: string; src: string; alt?: string; title?: string }
+      alt?: string
+      className?: string
+      onError?: () => void
+    }) => (
+      <img
+        data-testid="image-preview"
+        data-src={item.src}
+        src={item.src}
+        alt={alt}
+        className={className}
+        onError={onError}
+      />
+    ),
+    EmptyState: ({ title, description }: { title: string; description?: string }) => (
+      <div data-testid="empty-state">
+        <span>{title}</span>
+        <span>{description}</span>
+      </div>
     )
   }
 })
@@ -1303,15 +1329,85 @@ describe('ArtifactPane', () => {
 
   it('does not read files the buffer sniff classifies as binary', async () => {
     mocks.isTextFile.mockResolvedValueOnce(false)
-    mockWorkspaceTree('/tmp/workspace', ['image.png'])
+    mockWorkspaceTree('/tmp/workspace', ['data.bin'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
-    await waitFor(() => expect(screen.getByTestId('tree-node-image.png')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId('tree-node-data.bin')).toBeInTheDocument())
 
-    fireEvent.click(screen.getByTestId('tree-node-image.png'))
+    fireEvent.click(screen.getByTestId('tree-node-data.bin'))
 
     await waitFor(() => expect(screen.getByText('agent.preview_pane.code_unavailable')).toBeInTheDocument())
     expect(mocks.fsReadText).not.toHaveBeenCalled()
+  })
+
+  it('renders image files with ImagePreviewPanel from a file:// URL without reading content', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['photo.png'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-photo.png')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-photo.png'))
+
+    await waitFor(() => expect(screen.getByTestId('image-preview')).toBeInTheDocument())
+    expect(screen.getByTestId('image-preview')).toHaveAttribute('data-src', 'file:///tmp/workspace/photo.png')
+    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.fsReadText).not.toHaveBeenCalled()
+    expect(mocks.isTextFile).not.toHaveBeenCalled()
+  })
+
+  it('remounts the selected image preview when refresh is clicked after a load error', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['photo.png'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-photo.png')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-photo.png'))
+
+    await waitFor(() => expect(screen.getByTestId('image-preview')).toBeInTheDocument())
+    const failedImage = screen.getByTestId('image-preview')
+    fireEvent.error(failedImage)
+
+    await waitFor(() => expect(screen.getByText('agent.preview_pane.unavailable.title')).toBeInTheDocument())
+    expect(screen.queryByTestId('image-preview')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('image-preview')).toHaveAttribute('data-src', 'file:///tmp/workspace/photo.png')
+    )
+    expect(screen.getByTestId('image-preview')).not.toBe(failedImage)
+    expect(mocks.fsReadText).not.toHaveBeenCalled()
+    expect(mocks.isTextFile).not.toHaveBeenCalled()
+  })
+
+  it('renders SVG files as an image preview', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['icon.svg'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-icon.svg')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-icon.svg'))
+
+    await waitFor(() => expect(screen.getByTestId('image-preview')).toBeInTheDocument())
+    expect(screen.getByTestId('image-preview')).toHaveAttribute('data-src', 'file:///tmp/workspace/icon.svg')
+    expect(mocks.fsReadText).not.toHaveBeenCalled()
+  })
+
+  it('still renders images above the 2 MB size cap', async () => {
+    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 20 * 1024 * 1024 })
+    mockWorkspaceTree('/tmp/workspace', ['huge.png'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-huge.png')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-huge.png'))
+
+    await waitFor(() => expect(screen.getByTestId('image-preview')).toBeInTheDocument())
+    expect(screen.queryByText('agent.preview_pane.too_large.title')).not.toBeInTheDocument()
   })
 
   it('does not read unknown extensions when the sniff says binary', async () => {

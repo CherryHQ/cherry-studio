@@ -300,6 +300,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     ARTIFACT_PANE_WIDTH: 460,
     ArtifactFilePreview: MockArtifactFilePreview,
     isOfficeDocumentFile: (filePath: string) => /\.(?:docx?|xlsx?|xlsm|pptx?)$/i.test(filePath),
+    isImageFile: (filePath: string) => /\.(?:png|jpe?g|gif|webp|bmp|ico|avif|svg)$/i.test(filePath),
     normalizeArtifactPaneFilePath: (workspacePath: string, rawPath: string) =>
       rawPath.startsWith(`${workspacePath}/`) ? rawPath.slice(workspacePath.length + 1) : rawPath,
     resolveArtifactPaneFileSelection: (workspacePath: string | undefined, rawPath: string) => {
