@@ -50,7 +50,6 @@ const agentPageMocks = vi.hoisted(() => ({
   lastUsedSessionId: null as string | null,
   lastUsedWorkspaceId: null as string | null,
   classicLayoutRightPaneOpen: true,
-  focusExistingTab: vi.fn(() => false),
   activeSessionOptions: null as {
     activeSessionId: string | null
     setActiveSessionId: (id: string | null) => void
@@ -234,13 +233,6 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   useSearch: () => agentPageMocks.routeSearch
-}))
-
-vi.mock('@renderer/hooks/useConversationNavigation', () => ({
-  useConversationNavigation: () => ({
-    focusExistingTab: agentPageMocks.focusExistingTab,
-    openConversationTab: vi.fn()
-  })
 }))
 
 vi.mock('@renderer/components/chat/shell/ConversationPageShell', () => ({
@@ -585,7 +577,6 @@ describe('AgentPage', () => {
     agentPageMocks.lastUsedWorkspaceId = null
     agentPageMocks.classicLayoutRightPaneOpen = true
     agentPageMocks.activeSessionOptions = null
-    agentPageMocks.focusExistingTab.mockReturnValue(false)
     agentPageMocks.sessionLayout = 'modern'
     agentPageMocks.showSidebar = false
     agentPageMocks.isActiveTab = false
@@ -1257,9 +1248,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull()
   })
 
-  it('does not mutate the current tab before focusing an already-open global-search session', () => {
-    agentPageMocks.focusExistingTab.mockReturnValue(true)
-
+  it('writes locate state into the current tab for a global-search session message', async () => {
     render(<AgentPage />)
 
     const sessionMessageHandler = vi
@@ -1272,15 +1261,13 @@ describe('AgentPage', () => {
       sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open' })
     })
 
-    expect(agentPageMocks.focusExistingTab).toHaveBeenCalledWith('session-open', { excludeTabId: 'agent-tab' })
-    expect(agentPageMocks.setShowSidebar).not.toHaveBeenCalled()
-    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-open'))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open')
   })
 
   it('opens the session pane when a global-search locate targets a session in the current tab', () => {
     agentPageMocks.sessionLayout = 'classic'
     agentPageMocks.classicLayoutRightPaneOpen = false
-    agentPageMocks.focusExistingTab.mockReturnValue(false)
 
     render(<AgentPage />)
 

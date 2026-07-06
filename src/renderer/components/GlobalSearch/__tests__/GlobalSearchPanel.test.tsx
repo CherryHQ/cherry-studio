@@ -316,10 +316,9 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 // Instance navigation goes through the conversation-nav boundary; route it to the same
-// openTab spy so the existing focus-or-open assertions keep verifying the target url.
+// openTab spy so assertions keep verifying the target url.
 vi.mock('@renderer/hooks/useConversationNavigation', () => ({
   useConversationNavigator: () => ({
-    focusExistingTab: () => false,
     openConversationTab: (appId: string, key: string, title?: string) => {
       const routePrefix = appId === 'agents' ? '/app/agents' : '/app/chat'
       const instanceAppId = appId === 'agents' ? 'agents' : 'assistants'
@@ -334,7 +333,6 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
     const routePrefix = appId === 'agents' ? '/app/agents' : '/app/chat'
     const instanceAppId = appId === 'agents' ? 'agents' : 'assistants'
     return {
-      focusExistingTab: () => false,
       openConversationTab: (key: string, title?: string) =>
         mocks.openTab(routePrefix, {
           forceNew: true,

@@ -70,7 +70,6 @@ const homeMocks = vi.hoisted(() => ({
   activeTopicOverride: undefined as Topic | undefined,
   activeTopicSource: 'query' as 'query' | 'pending' | 'none',
   forceActiveTopicUndefined: false,
-  focusExistingTab: vi.fn(() => false),
   locationState: undefined as { topic: Topic } | undefined,
   persistCacheValues: new Map<string, unknown>(),
   preferenceValues: new Map<string, unknown>(),
@@ -283,13 +282,6 @@ vi.mock('@renderer/hooks/tab', () => ({
   useCurrentTabId: () => 'chat-tab',
   useIsActiveTab: () => homeMocks.isActiveTab,
   useTabSelfMetadata: vi.fn()
-}))
-
-vi.mock('@renderer/hooks/useConversationNavigation', () => ({
-  useConversationNavigation: () => ({
-    focusExistingTab: homeMocks.focusExistingTab,
-    openConversationTab: vi.fn()
-  })
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -637,7 +629,6 @@ describe('HomePage', () => {
     homeMocks.routeTopicLoading = false
     homeMocks.activeTopicOptions = undefined
     homeMocks.persistCacheValues.clear()
-    homeMocks.focusExistingTab.mockReturnValue(false)
     homeMocks.addAssistant.mockResolvedValue({
       id: 'assistant-created',
       name: 'Catalog Preset'
@@ -1042,9 +1033,8 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).toHaveBeenCalledTimes(1)
   })
 
-  it('focuses the existing tab instead of duplicating a reused topic already open elsewhere', async () => {
+  it('selects a reused topic in the current tab even when another tab may already show it', async () => {
     homeMocks.preferenceValues.set('topic.layout', 'classic')
-    homeMocks.focusExistingTab.mockReturnValue(true)
     homeMocks.classicLayoutTopics = [
       {
         id: 'topic-empty-latest',
@@ -1060,13 +1050,8 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
     fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
 
-    // The reused topic is already open in another tab, so we focus it instead of navigating
-    // (and duplicating) the current tab.
-    await waitFor(() =>
-      expect(homeMocks.focusExistingTab).toHaveBeenCalledWith('topic-empty-latest', expect.anything())
-    )
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-empty-latest'))
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
-    expect(screen.queryByTestId('active-topic')?.textContent).not.toBe('topic-empty-latest')
   })
 
   it('toasts and leaves the active topic untouched when classic-layout picker topic creation fails', async () => {
@@ -1229,9 +1214,8 @@ describe('HomePage', () => {
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
-  it('does not write locate state into the current tab before focusing an already-open topic message', () => {
+  it('writes locate state into the current tab for a global-search topic message', async () => {
     homeMocks.locationState = undefined
-    homeMocks.focusExistingTab.mockReturnValue(true)
 
     render(<HomePage />)
 
@@ -1245,9 +1229,8 @@ describe('HomePage', () => {
       topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target' })
     })
 
-    expect(homeMocks.focusExistingTab).toHaveBeenCalledWith('topic-history', { excludeTabId: 'chat-tab' })
-    expect(screen.getByTestId('draft-composer')).toBeInTheDocument()
-    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-history'))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-target')
   })
 
   it('keeps the current topic visible while the active topic is reloading', async () => {
