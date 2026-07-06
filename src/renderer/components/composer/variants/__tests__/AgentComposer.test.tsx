@@ -104,7 +104,11 @@ const pdfSkillToken = {
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     getCasual: vi.fn(() => ''),
-    setCasual: vi.fn()
+    setCasual: vi.fn(),
+    // useAgentSessionSlashCommands subscribes to the shared slash-command catalog; no catalog here
+    // means the composer falls back to the builtin list.
+    getShared: vi.fn(() => undefined),
+    subscribe: vi.fn(() => () => {})
   }
 }))
 
@@ -322,7 +326,7 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   ModelAvatar: () => <span data-testid="model-avatar" />
 }))
 
-vi.mock('@renderer/components/Selector', () => ({
+vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({ onSelect, trigger, open, onOpenChange, shortcut }: any) => (
     <div data-testid="agent-model-selector" data-open={String(Boolean(open))} data-shortcut={shortcut ?? ''}>
       {trigger}
@@ -343,7 +347,7 @@ vi.mock('@renderer/components/Selector', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resource', () => ({
+vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   AgentSelector: ({ autoSelectOnCreate, onChange, trigger }: any) => (
     <div data-testid="agent-selector" data-auto-select-on-create={String(Boolean(autoSelectOnCreate))}>
       {trigger}
@@ -362,7 +366,10 @@ vi.mock('@renderer/components/resource', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resource/dialogs/ResourceEditDialogHost', () => ({
+// AgentComposer lazy-imports the `dialogs/edit` barrel (not the leaf), so the mock must
+// replace the barrel — otherwise the lazy import loads the real barrel's heavy sibling
+// dialogs, whose async resolution races findByTestId's timeout under full-suite load.
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
   ResourceEditDialogHost: ({ target, onOpenChange }: any) => (
     <div data-testid="resource-edit-dialog-host" data-kind={target?.kind ?? ''} data-id={target?.id ?? ''}>
       <button type="button" onClick={() => onOpenChange(false)}>

@@ -1,5 +1,5 @@
 import { Button, Scrollbar, Skeleton } from '@cherrystudio/ui'
-import Favicon from '@renderer/components/Icons/FallbackFavicon'
+import Favicon from '@renderer/components/icons/FallbackFavicon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import type { Citation } from '@renderer/types/message'

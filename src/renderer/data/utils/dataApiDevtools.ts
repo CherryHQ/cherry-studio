@@ -1,5 +1,5 @@
 import { isDev } from '@renderer/utils/platform'
-import type { DataResponse, HttpMethod } from '@shared/data/api/apiTypes'
+import type { DataResponse, HttpMethod } from '@shared/data/api/types'
 
 type DataApiDevtoolsRequestState = 'pending' | 'success' | 'error' | 'retry'
 

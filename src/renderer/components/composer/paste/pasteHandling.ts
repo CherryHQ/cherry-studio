@@ -155,19 +155,29 @@ export const init = () => {
  * 注册组件的粘贴处理函数
  */
 export const registerHandler = (component: ComponentType, handler: PasteHandler) => {
-  if (!component) return
+  if (!component) return () => undefined
 
   // Only log and update if the handler actually changes
   if (!handlers[component] || handlers[component] !== handler) {
     handlers[component] = handler
+  }
+
+  return () => {
+    if (handlers[component] === handler) {
+      delete handlers[component]
+    }
   }
 }
 
 /**
  * 移除组件的粘贴处理函数
  */
-export const unregisterHandler = (component: ComponentType) => {
+export const unregisterHandler = (component: ComponentType, handler?: PasteHandler) => {
   if (!component || !handlers[component]) return
+
+  if (handler && handlers[component] !== handler) {
+    return
+  }
 
   delete handlers[component]
 }

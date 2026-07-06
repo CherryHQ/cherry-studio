@@ -604,9 +604,7 @@
         "select_failed": "Не удалось выбрать папку."
       },
       "workspace_status": {
-        "inaccessible": "Путь к рабочей области недоступен: {{path}}",
-        "missing": "Путь к рабочей области не существует: {{path}}",
-        "not_directory": "Путь к рабочей области не является каталогом: {{path}}"
+        "inaccessible": "Путь к рабочей области недоступен: {{path}}"
       }
     },
     "settings": {
@@ -1084,41 +1082,6 @@
     },
     "title": "API Сервер"
   },
-  "appMenu": {
-    "about": "О",
-    "close": "Закрыть окно",
-    "copy": "Копировать",
-    "cut": "Резать",
-    "delete": "Удалить",
-    "documentation": "Документация",
-    "edit": "Редактировать",
-    "feedback": "Обратная связь",
-    "file": "Файл",
-    "forceReload": "Принудительная перезагрузка",
-    "front": "Показать все поверх других",
-    "help": "Помощь",
-    "hide": "Скрыть",
-    "hideOthers": "Скрыть остальные",
-    "minimize": "Минимизировать",
-    "paste": "Вставить",
-    "quit": "Выйти",
-    "redo": "Переделать",
-    "releases": "Релизы",
-    "reload": "Перезагрузка",
-    "resetZoom": "Настоящий размер",
-    "selectAll": "Выбрать все",
-    "services": "Услуги",
-    "toggleDevTools": "Переключить инструменты разработчика",
-    "toggleFullscreen": "Переключить полноэкранный режим",
-    "undo": "Отменить",
-    "unhide": "Показать все",
-    "view": "Вид",
-    "website": "Веб-сайт",
-    "window": "Окно",
-    "zoom": "Zoom",
-    "zoomIn": "Увеличить",
-    "zoomOut": "Отдалить"
-  },
   "assistants": {
     "abbr": "Ассистент",
     "clear": {
@@ -1333,12 +1296,14 @@
       "add": "Добавить тег",
       "delete": "Удалить тег",
       "deleteConfirm": "Вы уверены, что хотите удалить этот тег?",
+      "group_by": "[to be translated]:Group by tag",
       "manage": "Управление тегами",
       "modify": "Изменить тег",
       "none": "Нет тегов",
       "settings": {
         "title": "Настройки тегов"
       },
+      "ungroup": "[to be translated]:Turn off tag grouping",
       "untagged": "Несгруппированные метки"
     },
     "title": "Ассистенты",
@@ -2065,7 +2030,6 @@
     "copy_failed": "Не удалось скопировать",
     "create_success": "Успешно создано",
     "current": "Текущий",
-    "cut": "Вырезать",
     "default": "По умолчанию",
     "delete": "Удалить",
     "delete_confirm": "Вы уверены, что хотите удалить?",
@@ -2103,7 +2067,6 @@
     "image_preview": "Предпросмотр изображения",
     "image_url": "URL изображения",
     "image_url_or_upload": "Введите URL изображения или загрузите файл",
-    "inspect": "Осмотреть",
     "invalid_value": "недопустимое значение",
     "knowledge_base": "База знаний",
     "language": "Язык",
@@ -2124,7 +2087,6 @@
     "open_in": "Открыть в {{name}}",
     "open_in_new_tab": "Открыть в новой вкладке",
     "open_sidebar": "Открыть боковую панель",
-    "paste": "Вставить",
     "placeholders": {
       "select": {
         "model": "Выбор модели"
@@ -2179,18 +2141,6 @@
     "warning": "Предупреждение",
     "yesterday": "Вчера",
     "you": "Вы"
-  },
-  "dialog": {
-    "all_files": "Все файлы",
-    "html_files": "Файлы HTML",
-    "open_file": "Открыть файл",
-    "pdf_files": "Файлы PDF",
-    "png_image": "PNG-изображение",
-    "save_as_html": "Сохранить как HTML",
-    "save_as_pdf": "Сохранить как PDF",
-    "save_file": "Сохранить файл",
-    "select_folder": "Выбрать папку",
-    "word_document": "Документ Word"
   },
   "docs": {
     "title": "Документация"
@@ -4733,6 +4683,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -4768,6 +4719,7 @@
     "ollama": "Ollama",
     "open-mineru": "Открыть MinerU",
     "openai": "OpenAI",
+    "opencode": "[to be translated]:OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -6248,6 +6200,9 @@
         "button": "Получить серверы",
         "success": "Успешно получены MCP-серверы"
       },
+      "filter": {
+        "label": "[to be translated]:Filter"
+      },
       "findMore": "Найти больше MCP",
       "headers": "Заголовки",
       "headersTooltip": "Пользовательские заголовки для HTTP-запросов",
@@ -6288,6 +6243,7 @@
       "noDescriptionAvailable": "Описание отсутствует",
       "noLogs": "Логов пока нет",
       "noServers": "Серверы не настроены",
+      "notInstalled": "[to be translated]:Not installed",
       "not_support": "Модель не поддерживается",
       "npx_list": {
         "actions": "Действия",
@@ -6301,12 +6257,6 @@
         "search_error": "Ошибка поиска",
         "usage": "Использование",
         "version": "Версия"
-      },
-      "oauth": {
-        "callback": {
-          "message": "Вы можете закрыть эту страницу и вернуться в Cherry Studio",
-          "title": "Аутентификация Успешна"
-        }
       },
       "prompts": {
         "arguments": "Аргументы",
@@ -6323,6 +6273,7 @@
         "title": "Запускать внешний MCP?"
       },
       "provider": "Провайдер",
+      "providerNotFound": "[to be translated]:MCP provider not found",
       "providerPlaceholder": "Имя провайдера",
       "providerUrl": "URL провайдера",
       "providers": "Поставщики",
@@ -6369,13 +6320,6 @@
         "getToken": "Получить API токен",
         "getTokenDescription": "Получите персональный API токен из вашей учетной записи",
         "noServersAvailable": "Нет доступных серверов MCP",
-        "providerDescriptions": {
-          "302ai": "302.Сервис MCP Платформы AI",
-          "bailian": "Сервис MCP платформы Alibaba Cloud Bailian",
-          "lanyun": "Lanyun Technology Cloud Platform MCP Service",
-          "mcprouter": "Платформа маршрутизатора MCP Сервис MCP",
-          "modelscope": "Служба MCP платформы ModelScope"
-        },
         "selectProvider": "Выберите провайдера:",
         "setToken": "Введите ваш токен",
         "success": "Синхронизация серверов MCP успешна",
@@ -6997,6 +6941,17 @@
           "acceleration": "Домен ускорения",
           "international": "Международный домен"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7787,11 +7742,6 @@
     "tooltip": {
       "newline": "Перевести"
     }
-  },
-  "tray": {
-    "quit": "Выйти",
-    "show_quick_assistant": "Быстрый помощник",
-    "show_window": "Показать окно"
   },
   "update": {
     "install": "Установить",

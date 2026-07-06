@@ -604,9 +604,7 @@
         "select_failed": "Nu s-a reușit selectarea folderului."
       },
       "workspace_status": {
-        "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
-        "missing": "Calea către spațiul de lucru nu există: {{path}}",
-        "not_directory": "Calea spațiului de lucru nu este un director: {{path}}"
+        "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}"
       }
     },
     "settings": {
@@ -1084,41 +1082,6 @@
     },
     "title": "Server API"
   },
-  "appMenu": {
-    "about": "Despre",
-    "close": "Închide fereastra",
-    "copy": "Copiază",
-    "cut": "Decupează",
-    "delete": "Șterge",
-    "documentation": "Documentație",
-    "edit": "Editare",
-    "feedback": "Feedback",
-    "file": "Fișier",
-    "forceReload": "Reîncărcare forțată",
-    "front": "Adu toate în față",
-    "help": "Ajutor",
-    "hide": "Ascunde",
-    "hideOthers": "Ascunde celelalte",
-    "minimize": "Minimizează",
-    "paste": "Lipește",
-    "quit": "Ieșire",
-    "redo": "Refă",
-    "releases": "Lansări",
-    "reload": "Reîncarcă",
-    "resetZoom": "Dimensiune reală",
-    "selectAll": "Selectează tot",
-    "services": "Servicii",
-    "toggleDevTools": "Comută instrumentele pentru dezvoltatori",
-    "toggleFullscreen": "Comută ecranul complet",
-    "undo": "Anulează",
-    "unhide": "Afișează toate",
-    "view": "Vizualizare",
-    "website": "Site web",
-    "window": "Fereastră",
-    "zoom": "Zoom",
-    "zoomIn": "Mărește",
-    "zoomOut": "Micșorează"
-  },
   "assistants": {
     "abbr": "Asistenți",
     "clear": {
@@ -1333,12 +1296,14 @@
       "add": "Adaugă etichetă",
       "delete": "Șterge eticheta",
       "deleteConfirm": "Ești sigur că vrei să ștergi această etichetă?",
+      "group_by": "[to be translated]:Group by tag",
       "manage": "Gestionare etichete",
       "modify": "Modifică eticheta",
       "none": "Fără etichete",
       "settings": {
         "title": "Setări etichete"
       },
+      "ungroup": "[to be translated]:Turn off tag grouping",
       "untagged": "Neetichetat"
     },
     "title": "Asistenți",
@@ -2065,7 +2030,6 @@
     "copy_failed": "Copiere eșuată",
     "create_success": "Creat cu succes",
     "current": "Curent",
-    "cut": "Decupează",
     "default": "Implicit",
     "delete": "Șterge",
     "delete_confirm": "Ești sigur că vrei să ștergi?",
@@ -2103,7 +2067,6 @@
     "image_preview": "Previzualizare imagine",
     "image_url": "URL imagine",
     "image_url_or_upload": "Introdu URL-ul imaginii sau încarcă fișierul",
-    "inspect": "Inspectează",
     "invalid_value": "Valoare invalidă",
     "knowledge_base": "Bază de cunoștințe",
     "language": "Limbă",
@@ -2124,7 +2087,6 @@
     "open_in": "Deschide în {{name}}",
     "open_in_new_tab": "Deschide în filă nouă",
     "open_sidebar": "Deschide bara laterală",
-    "paste": "Lipește",
     "placeholders": {
       "select": {
         "model": "Selectează un model"
@@ -2179,18 +2141,6 @@
     "warning": "Avertisment",
     "yesterday": "Ieri",
     "you": "Tu"
-  },
-  "dialog": {
-    "all_files": "Toate fișierele",
-    "html_files": "Fișiere HTML",
-    "open_file": "Deschide fișier",
-    "pdf_files": "Fișiere PDF",
-    "png_image": "Imagine PNG",
-    "save_as_html": "Salvează ca HTML",
-    "save_as_pdf": "Salvează ca PDF",
-    "save_file": "Salvează fișier",
-    "select_folder": "Selectează folderul",
-    "word_document": "Document Word"
   },
   "docs": {
     "title": "Documentație"
@@ -4733,6 +4683,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -4768,6 +4719,7 @@
     "ollama": "Ollama",
     "open-mineru": "MinerU Deschis",
     "openai": "OpenAI",
+    "opencode": "[to be translated]:OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -6248,6 +6200,9 @@
         "button": "Preluare servere",
         "success": "Serverele MCP au fost preluate cu succes"
       },
+      "filter": {
+        "label": "[to be translated]:Filter"
+      },
       "findMore": "Găsește mai multe MCP",
       "headers": "Headere",
       "headersTooltip": "Headere personalizate pentru cereri HTTP",
@@ -6288,6 +6243,7 @@
       "noDescriptionAvailable": "Nicio descriere disponibilă",
       "noLogs": "Niciun jurnal încă",
       "noServers": "Niciun server configurat",
+      "notInstalled": "[to be translated]:Not installed",
       "not_support": "Model neacceptat",
       "npx_list": {
         "actions": "Acțiuni",
@@ -6301,12 +6257,6 @@
         "search_error": "Eroare căutare",
         "usage": "Utilizare",
         "version": "Versiune"
-      },
-      "oauth": {
-        "callback": {
-          "message": "Poți închide această pagină și te poți întoarce la Cherry Studio",
-          "title": "Autentificare reușită"
-        }
       },
       "prompts": {
         "arguments": "Argumente",
@@ -6323,6 +6273,7 @@
         "title": "Rulezi MCP extern?"
       },
       "provider": "Furnizor",
+      "providerNotFound": "[to be translated]:MCP provider not found",
       "providerPlaceholder": "Nume furnizor",
       "providerUrl": "URL furnizor",
       "providers": "Furnizori",
@@ -6369,13 +6320,6 @@
         "getToken": "Obține token API",
         "getTokenDescription": "Obține tokenul tău personal API din contul tău",
         "noServersAvailable": "Nu există servere MCP disponibile",
-        "providerDescriptions": {
-          "302ai": "Serviciul MCP al Platformei 302.AI",
-          "bailian": "Serviciul MCP al Platformei Bailian Alibaba Cloud",
-          "lanyun": "Platforma Cloud Lanyun Technology - Serviciul MCP",
-          "mcprouter": "Platformă Router MCP Serviciu MCP",
-          "modelscope": "Serviciul MCP al Platformei ModelScope"
-        },
         "selectProvider": "Selectează furnizor:",
         "setToken": "Introdu tokenul tău",
         "success": "Sincronizare servere MCP reușită",
@@ -6997,6 +6941,17 @@
           "acceleration": "Domeniu de accelerație",
           "international": "Domeniu internațional"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7787,11 +7742,6 @@
     "tooltip": {
       "newline": "Linie nouă"
     }
-  },
-  "tray": {
-    "quit": "Ieșire",
-    "show_quick_assistant": "Asistent rapid",
-    "show_window": "Afișează fereastra"
   },
   "update": {
     "install": "Instalează",

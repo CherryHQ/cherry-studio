@@ -1,8 +1,6 @@
 import { Button, Input, Slider, Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Selector from '@renderer/components/Selector'
-import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { useTheme } from '@renderer/hooks/useTheme'
 import {
   SettingContainer,
   SettingDivider,
@@ -11,7 +9,9 @@ import {
   SettingRow,
   SettingRowTitle,
   SettingTitle
-} from '@renderer/pages/settings'
+} from '@renderer/components/SettingsPrimitives'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { useTheme } from '@renderer/hooks/useTheme'
 import type { EditorView } from '@renderer/types/app'
 import { FolderOpen } from 'lucide-react'
 import type { FC } from 'react'

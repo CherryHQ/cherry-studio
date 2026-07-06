@@ -1,7 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils'
+import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
 import { Check, ChevronDown, ChevronUp, Copy, FileText } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'

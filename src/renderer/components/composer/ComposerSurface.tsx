@@ -1,7 +1,6 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel/symbols'
 import type {
   QuickPanelInputAdapter,
   QuickPanelInputEvent,
@@ -52,6 +51,8 @@ import {
   updateSelectedPromptVariableToken
 } from './promptVariables'
 import {
+  COMPOSER_SUPPRESS_SUGGESTION_META,
+  ComposerPanelSymbol,
   type ComposerSuggestionSource,
   type ComposerUnifiedPanelControl,
   type ComposerUnifiedPanelResourceProvider,
@@ -70,6 +71,11 @@ import {
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 import { FileComposerToken } from './tokenView'
 import type { ComposerToolLauncher } from './toolLauncher'
+import {
+  COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
+  COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS,
+  useComposerEditorFrameSizing
+} from './useComposerEditorFrameSizing'
 
 const COMPOSER_INPUT_MAX_LENGTH = 40000
 const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
@@ -91,7 +97,7 @@ interface ComposerClipboardCopyView {
 }
 
 export interface ComposerSurfaceActions {
-  focus: () => void
+  focus: (position?: 'start' | 'end' | 'all' | number | boolean | null) => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
@@ -316,6 +322,10 @@ function shouldDelegateLongTextPasteToFileHandler(text: string) {
   return Boolean(text && text.length > LONG_TEXT_PASTE_THRESHOLD)
 }
 
+function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
+  editor.chain().focus().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertContent(content).run()
+}
+
 function exceedsComposerInputMaxLength(currentText: string, nextText: string, replacedText = '') {
   return currentText.length - replacedText.length + nextText.length > COMPOSER_INPUT_MAX_LENGTH
 }
@@ -452,45 +462,8 @@ function createComposerEditorContent(text: string, draftTokens: readonly Compose
   return createPromptVariableContent(text)
 }
 
-const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT = 'max(220px, 40vh)'
-const COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT = 'max(220px, 50vh)'
-const COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS = 'max-h-[max(220px,40vh)]!'
-const COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS = 'max-h-[max(220px,50vh)]!'
-const COMPOSER_EDITOR_HEIGHT_TRANSITION_MS = 260
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_MS = 900
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY = 'composerEditingBorderHighlight'
-
-function getComposerEditorMinHeight(fontSize: number) {
-  return Math.ceil(fontSize * 1.4 * 2 + 6)
-}
-
-function getViewportRelativeHeightPx(minHeight: number, viewportRatio: number) {
-  return Math.max(minHeight, Math.round(window.innerHeight * viewportRatio))
-}
-
-function getCollapsedEditorFrameHeightPx(frame: HTMLDivElement, editorMinHeight: number) {
-  const editorElement = frame.querySelector('.composer-tiptap') as HTMLElement | null
-  const contentHeight = editorElement?.scrollHeight || frame.scrollHeight || editorMinHeight
-  const maxCollapsedHeight = getViewportRelativeHeightPx(220, 0.4)
-
-  return Math.max(editorMinHeight, Math.min(contentHeight, maxCollapsedHeight))
-}
-
-function getComposerEditorStyle(fontSize: number, isExpanded: boolean) {
-  const maxHeight = isExpanded ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT
-
-  return [
-    '--composer-editor-padding: 6px 44px 0 15px',
-    `--composer-editor-min-height: ${getComposerEditorMinHeight(fontSize)}px`,
-    `--composer-editor-font-size: ${fontSize}px`,
-    '--composer-editor-line-height: 1.4',
-    `max-height: ${maxHeight}`,
-    'overflow-y: auto',
-    isExpanded ? 'height: 100%' : undefined
-  ]
-    .filter(Boolean)
-    .join('; ')
-}
 
 export default function ComposerSurface({
   text,
@@ -540,11 +513,6 @@ export default function ComposerSurface({
   const quickPanelRef = useRef(quickPanel)
   quickPanelRef.current = quickPanel
   const { setTimeoutTimer } = useTimer()
-  const editorMinHeight = getComposerEditorMinHeight(fontSize)
-  const editorFrameRef = useRef<HTMLDivElement | null>(null)
-  const editorFrameAnimationRef = useRef<number | null>(null)
-  const pendingEditorFrameExpandedRef = useRef<boolean | null>(null)
-  const [editorFrameHeight, setEditorFrameHeight] = useState<string | null>(null)
   const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
   const editorRef = useRef<Editor | null>(null)
   const textRef = useRef(text)
@@ -653,65 +621,32 @@ export default function ComposerSurface({
     t
   })
 
-  const focusEditor = useCallback(() => {
-    editorRef.current?.commands.focus()
+  const focusEditor = useCallback((position?: 'start' | 'end' | 'all' | number | boolean | null) => {
+    editorRef.current?.commands.focus(position)
   }, [])
 
-  const clearEditorFrameAnimationFrame = useCallback(() => {
-    if (editorFrameAnimationRef.current === null) return
-    window.cancelAnimationFrame(editorFrameAnimationRef.current)
-    editorFrameAnimationRef.current = null
-  }, [])
-
-  const handleToggleExpanded = useCallback(
-    (nextState?: boolean) => {
-      const target = typeof nextState === 'boolean' ? nextState : !isExpanded
-      const editorFrame = editorFrameRef.current
-
-      if (editorFrame) {
-        clearEditorFrameAnimationFrame()
-        setEditorFrameHeight(`${editorFrame.offsetHeight || editorMinHeight}px`)
-        pendingEditorFrameExpandedRef.current = target
-      }
-
-      onExpandedChange(target)
-      focusEditor()
-    },
-    [clearEditorFrameAnimationFrame, editorMinHeight, focusEditor, isExpanded, onExpandedChange]
-  )
-
-  useEffect(() => {
-    const editorFrame = editorFrameRef.current
-    if (!editorFrame || pendingEditorFrameExpandedRef.current !== isExpanded) return
-
-    const targetHeight = isExpanded
-      ? getViewportRelativeHeightPx(220, 0.5)
-      : getCollapsedEditorFrameHeightPx(editorFrame, editorMinHeight)
-
-    clearEditorFrameAnimationFrame()
-    editorFrameAnimationRef.current = window.requestAnimationFrame(() => {
-      setEditorFrameHeight(`${targetHeight}px`)
-      editorFrameAnimationRef.current = null
-    })
-
-    setTimeoutTimer(
-      'composerEditorFrameHeightTransition',
-      () => {
-        setEditorFrameHeight(null)
-        pendingEditorFrameExpandedRef.current = null
-      },
-      COMPOSER_EDITOR_HEIGHT_TRANSITION_MS + 80
-    )
-  }, [clearEditorFrameAnimationFrame, editorMinHeight, isExpanded, setTimeoutTimer])
-
-  useEffect(() => clearEditorFrameAnimationFrame, [clearEditorFrameAnimationFrame])
-
-  const handleEditorFrameTransitionEnd = useCallback((event: React.TransitionEvent<HTMLDivElement>) => {
-    if (event.propertyName && event.propertyName !== 'height') return
-
-    setEditorFrameHeight(null)
-    pendingEditorFrameExpandedRef.current = null
-  }, [])
+  const {
+    editorContentStyle,
+    editorStyle,
+    frameRef,
+    frameStyle,
+    handleResizeKeyDown,
+    handleTransitionEnd,
+    hasCustomHeight,
+    isResizing: isEditorResizing,
+    maxHeight: editorMaxHeight,
+    minHeight: editorMinHeight,
+    resizeHandleValue,
+    restoreDefaultHeight,
+    startResize: startEditorResize,
+    toggleExpanded: toggleEditorExpanded
+  } = useComposerEditorFrameSizing({
+    fontSize,
+    isExpanded,
+    onExpandedChange,
+    focusEditor,
+    setTimeoutTimer
+  })
 
   const handleTextChangeFromTool = useCallback(
     (updater: string | ((prev: string) => string)) => {
@@ -792,12 +727,12 @@ export default function ComposerSurface({
     onActionsChange?.({
       focus: focusEditor,
       onTextChange: handleTextChangeFromTool,
-      toggleExpanded: handleToggleExpanded,
+      toggleExpanded: toggleEditorExpanded,
       removeToken,
       insertToken,
       getDraft
     })
-  }, [focusEditor, getDraft, handleTextChangeFromTool, handleToggleExpanded, insertToken, onActionsChange, removeToken])
+  }, [focusEditor, getDraft, handleTextChangeFromTool, insertToken, onActionsChange, removeToken, toggleEditorExpanded])
 
   const rootPanelOpenRefreshRequestedRef = useRef(false)
   const unifiedResourceRequestRef = useRef(0)
@@ -1188,7 +1123,7 @@ export default function ComposerSurface({
           token={fileToken}
           selected={selected}
           onRemove={() => removeToken(fileToken.id)}
-          removeLabel={t('appMenu.delete')}
+          removeLabel={t('common.delete')}
           tooltipActions={
             pastedTextToken ? (
               <Button
@@ -1234,10 +1169,10 @@ export default function ComposerSurface({
       attributes: {
         class: cn(
           'composer-tiptap after:hidden! box-border flex w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
-          isExpanded ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
-          isExpanded && 'h-full'
+          hasCustomHeight ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
+          hasCustomHeight && 'h-full'
         ),
-        style: getComposerEditorStyle(fontSize, isExpanded)
+        style: editorStyle
       },
       handleKeyDown: (_view, event) => {
         if (
@@ -1259,7 +1194,7 @@ export default function ComposerSurface({
 
         if (event.key === 'Escape' && isExpanded) {
           event.stopPropagation()
-          handleToggleExpanded(false)
+          toggleEditorExpanded(false)
           return true
         }
 
@@ -1449,7 +1384,7 @@ export default function ComposerSurface({
 
         if (clipboardPasteOverride !== null) {
           event.preventDefault()
-          editor.chain().focus().insertContent(clipboardPasteOverride.content).run()
+          insertComposerPastedContent(editor, clipboardPasteOverride.content)
           if (clipboardPasteOverride.files.length > 0) {
             setFiles((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
           }
@@ -1465,12 +1400,21 @@ export default function ComposerSurface({
 
       if (plainTextOverride !== null) {
         event.preventDefault()
-        editorRef.current?.chain().focus().insertContent(plainTextOverride).run()
+        const currentEditor = editorRef.current
+        if (currentEditor) {
+          insertComposerPastedContent(currentEditor, plainTextOverride)
+        }
         return true
       }
 
       if (!pastedText && pastedHtml.includes('data-composer-token')) {
         event.preventDefault()
+        return true
+      }
+
+      if (!pastedText && hasClipboardFiles(event.clipboardData)) {
+        event.preventDefault()
+        void handlePaste(event)
         return true
       }
 
@@ -1505,7 +1449,7 @@ export default function ComposerSurface({
         'composerSurfaceFocus',
         () => {
           if (!createdEditor || createdEditor.isDestroyed) return
-          createdEditor.commands.focus()
+          createdEditor.commands.focus('end')
         },
         0
       )
@@ -1680,10 +1624,7 @@ export default function ComposerSurface({
 
   useEffect(() => {
     pasteHandling.init()
-    pasteHandling.registerHandler('inputbar', handlePaste)
-    return () => {
-      pasteHandling.unregisterHandler('inputbar')
-    }
+    return pasteHandling.registerHandler('inputbar', handlePaste)
   }, [handlePaste])
 
   const sendDraft = useCallback(() => {
@@ -1695,6 +1636,15 @@ export default function ComposerSurface({
     const draft = serializeComposerDocument(editor)
     void Promise.resolve(onSendDraft(draft)).finally(focusEditor)
   }, [editor, focusEditor, onSendDraft, sendDisabled, showBlockedSendReason])
+
+  const handleExpandControlClick = useCallback(() => {
+    if (hasCustomHeight) {
+      restoreDefaultHeight()
+      return
+    }
+
+    toggleEditorExpanded()
+  }, [hasCustomHeight, restoreDefaultHeight, toggleEditorExpanded])
 
   const unifiedPanelAvailable = useMemo(() => {
     // Recompute when runtime launchers register or unregister.
@@ -1729,7 +1679,7 @@ export default function ComposerSurface({
   const quickPanelElement = quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
   const showPauseButton = isLoading && sendDisabled
   const belowControls = renderBelowControls?.(inputAdapter)
-  const ExpandIcon = isExpanded ? Minimize2 : Maximize2
+  const ExpandIcon = hasCustomHeight ? Minimize2 : Maximize2
   const editingModeBadge = editingState ? (
     <div
       role="status"
@@ -1777,46 +1727,47 @@ export default function ComposerSurface({
           "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
         isExpanded && 'expanded'
       )}>
+      <div
+        data-composer-resize-handle=""
+        data-resizing={isEditorResizing || undefined}
+        role="separator"
+        aria-orientation="horizontal"
+        aria-valuemin={editorMinHeight}
+        aria-valuemax={editorMaxHeight}
+        aria-valuenow={resizeHandleValue}
+        aria-label={t('chat.input.resize_height')}
+        tabIndex={0}
+        onMouseDown={startEditorResize}
+        onKeyDown={handleResizeKeyDown}
+        className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+        <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-primary/20 opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-primary/35 group-data-[resizing=true]/composer-resize-handle:opacity-100" />
+      </div>
       <div data-composer-expand-corner="" className="group/expand-corner absolute top-px right-px z-4 size-8">
         <span
           aria-hidden="true"
           data-composer-expand-corner-line=""
-          className={cn(
-            'pointer-events-none absolute top-1 right-1 size-3 origin-top-right scale-100 rounded-tr-[16px] border-black/60 border-t-[1.5px] border-r-[1.5px] opacity-70 transition-[opacity,scale] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0 dark:border-white/60',
-            isExpanded && 'scale-50 opacity-0'
-          )}
+          className="pointer-events-none absolute top-1 right-1 size-3 origin-top-right scale-100 rounded-tr-[16px] border-black/60 border-t-[1.5px] border-r-[1.5px] opacity-70 transition-[opacity,scale] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0 dark:border-white/60"
         />
         <Button
           type="button"
-          onClick={() => handleToggleExpanded()}
+          onClick={handleExpandControlClick}
           variant="ghost"
           size="icon-sm"
-          className={cn(
-            '-translate-y-2.5 [&_svg]:!size-3 pointer-events-none absolute top-1 right-1 size-5.5 translate-x-2.5 rotate-[-8deg] scale-80 rounded-full bg-transparent text-foreground-secondary/60 opacity-0 shadow-none transition-[opacity,translate,scale,rotate,color,background-color] duration-300 ease-out hover:bg-accent hover:text-foreground focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:rotate-0 focus-visible:scale-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:rotate-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:bg-accent/80 group-focus-within/expand-corner:text-foreground group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:rotate-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:bg-accent/80 group-hover/expand-corner:text-foreground group-hover/expand-corner:opacity-100',
-            isExpanded &&
-              'pointer-events-auto translate-x-0 translate-y-0 rotate-0 scale-100 bg-accent/80 text-foreground opacity-100'
-          )}
-          aria-pressed={isExpanded}
-          aria-label={isExpanded ? t('chat.input.collapse') : t('chat.input.expand')}>
+          className="-translate-y-2.5 [&_svg]:!size-3 pointer-events-none absolute top-1 right-1 size-5.5 translate-x-2.5 rotate-[-8deg] scale-80 rounded-full bg-transparent text-foreground-secondary/60 opacity-0 shadow-none transition-[opacity,translate,scale,rotate,color,background-color] duration-300 ease-out hover:bg-accent hover:text-foreground focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:rotate-0 focus-visible:scale-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:rotate-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:bg-accent/80 group-focus-within/expand-corner:text-foreground group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:rotate-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:bg-accent/80 group-hover/expand-corner:text-foreground group-hover/expand-corner:opacity-100"
+          aria-pressed={hasCustomHeight}
+          aria-label={hasCustomHeight ? t('chat.input.restore') : t('chat.input.expand')}>
           <ExpandIcon className="transition-[scale] duration-300 ease-out group-focus-within/expand-corner:scale-110 group-hover/expand-corner:scale-110" />
         </Button>
       </div>
       {editingModeBadge}
       <div
-        ref={editorFrameRef}
+        ref={frameRef}
         className="overflow-hidden transition-[height] ease-out"
-        onTransitionEnd={handleEditorFrameTransitionEnd}
-        style={
-          {
-            height: editorFrameHeight ?? (isExpanded ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT : undefined),
-            minHeight: editorMinHeight,
-            overflow: 'hidden',
-            transitionDuration: `${COMPOSER_EDITOR_HEIGHT_TRANSITION_MS}ms`
-          } as React.CSSProperties
-        }>
+        onTransitionEnd={handleTransitionEnd}
+        style={frameStyle}>
         <EditorContent
           editor={editor}
-          style={isExpanded ? { height: '100%', minHeight: editorMinHeight } : { minHeight: editorMinHeight }}
+          style={editorContentStyle}
           onFocus={() => {
             onFocus?.()
             pasteHandling.setLastFocusedComponent('inputbar')
@@ -1885,4 +1836,10 @@ export default function ComposerSurface({
       </div>
     </NarrowLayout>
   )
+}
+
+function hasClipboardFiles(data: DataTransfer | null | undefined) {
+  if (!data) return false
+  if (data.files?.length > 0) return true
+  return Array.from(data.items ?? []).some((item) => item.kind === 'file')
 }

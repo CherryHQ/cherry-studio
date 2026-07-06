@@ -8,7 +8,7 @@
       },
       "model": {
         "supported_providers": "支援的服務商",
-        "tooltip": "目前，僅支援 Anthropic 端點的模型可供 Agent 功能使用。",
+        "tooltip": "目前大多數聊天模型可供 Agent 使用，暫不支援 Gemini 服務商。",
         "view_providers": "檢視支援的服務商"
       },
       "title": "新增 Agent",
@@ -604,9 +604,7 @@
         "select_failed": "選擇資料夾失敗。"
       },
       "workspace_status": {
-        "inaccessible": "工作區路徑無法存取：{{path}}",
-        "missing": "工作區路徑不存在：{{path}}",
-        "not_directory": "工作區路徑不是目錄：{{path}}"
+        "inaccessible": "工作區路徑無法存取：{{path}}"
       }
     },
     "settings": {
@@ -1084,41 +1082,6 @@
     },
     "title": "API 閘道"
   },
-  "appMenu": {
-    "about": "關於",
-    "close": "關閉視窗",
-    "copy": "複製",
-    "cut": "剪下",
-    "delete": "刪除",
-    "documentation": "文件",
-    "edit": "編輯",
-    "feedback": "回饋",
-    "file": "檔案",
-    "forceReload": "強制重新載入",
-    "front": "全部置於頂層",
-    "help": "幫助",
-    "hide": "隱藏",
-    "hideOthers": "隱藏其他",
-    "minimize": "最小化",
-    "paste": "貼上",
-    "quit": "結束",
-    "redo": "重做",
-    "releases": "版本發布",
-    "reload": "重新載入",
-    "resetZoom": "實際大小",
-    "selectAll": "全選",
-    "services": "服務",
-    "toggleDevTools": "切換開發者工具",
-    "toggleFullscreen": "切換全螢幕",
-    "undo": "復原",
-    "unhide": "全部顯示",
-    "view": "檢視",
-    "website": "網站",
-    "window": "視窗",
-    "zoom": "縮放",
-    "zoomIn": "放大",
-    "zoomOut": "縮小"
-  },
   "assistants": {
     "abbr": "助手",
     "clear": {
@@ -1497,6 +1460,7 @@
       "pause": "暫停",
       "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 選擇工具或操作",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
+      "resize_height": "調整輸入框高度",
       "resource_panel": {
         "categories": {
           "agents": "智能體",
@@ -1515,16 +1479,16 @@
         },
         "title": "資源"
       },
+      "restore": "還原",
       "send": "傳送",
       "send_failed": "訊息傳送失敗",
       "settings": "設定",
       "slash_commands": {
         "commands": {
-          "clear": "清空對話歷史",
-          "compact": "壓縮對話（可附帶聚焦指令）",
+          "clear": "開啟全新對話，清空上下文",
+          "compact": "透過總結目前對話來釋放上下文",
           "context": "以彩色網格視覺化目前上下文使用情況",
-          "cost": "顯示 token 用量統計（訂閱相關詳情見成本追蹤指南）",
-          "todos": "列出目前待辦事項"
+          "usage": "顯示工作階段成本、方案用量上限與活動統計"
         },
         "description": "Agent 工作階段斜線指令",
         "title": "斜線指令"
@@ -1652,6 +1616,13 @@
       "top": "回到頂端"
     },
     "resend": "重新傳送",
+    "resource_view": {
+      "menu": {
+        "agent": "智能體",
+        "assistant": "助手",
+        "skill": "技能"
+      }
+    },
     "save": {
       "file": {
         "title": "儲存到本機檔案"
@@ -2067,7 +2038,6 @@
     "copy_failed": "複製失敗",
     "create_success": "已成功建立",
     "current": "目前",
-    "cut": "剪下",
     "default": "預設",
     "delete": "刪除",
     "delete_confirm": "確定要刪除嗎？",
@@ -2099,13 +2069,13 @@
     "generate_random_seed": "產生隨機種子",
     "get_embedding_dimension": "取得嵌入維度",
     "go_to_settings": "前往設定",
+    "help": "幫助",
     "html_preview": "HTML 預覽",
     "i_know": "我知道了",
     "ignore": "忽略",
     "image_preview": "圖片預覽",
     "image_url": "圖片網址",
     "image_url_or_upload": "輸入圖片網址或上傳檔案",
-    "inspect": "檢查",
     "invalid_value": "無效值",
     "knowledge_base": "知識庫",
     "language": "語言",
@@ -2126,7 +2096,6 @@
     "open_in": "在 {{name}} 中開啟",
     "open_in_new_tab": "在新分頁中開啟",
     "open_sidebar": "開啟側邊欄",
-    "paste": "貼上",
     "placeholders": {
       "select": {
         "model": "選擇模型"
@@ -2181,18 +2150,6 @@
     "warning": "警告",
     "yesterday": "昨天",
     "you": "您"
-  },
-  "dialog": {
-    "all_files": "所有檔案",
-    "html_files": "HTML 檔案",
-    "open_file": "開啟檔案",
-    "pdf_files": "PDF 檔案",
-    "png_image": "PNG 影像",
-    "save_as_html": "儲存為 HTML",
-    "save_as_pdf": "儲存為 PDF",
-    "save_file": "儲存檔案",
-    "select_folder": "選擇資料夾",
-    "word_document": "Word 文件"
   },
   "docs": {
     "title": "說明文件"
@@ -2968,7 +2925,8 @@
       "preview_description": "簡介",
       "preview_prompt": "提示詞",
       "scroll_left": "向左捲動分類",
-      "scroll_right": "向右捲動分類"
+      "scroll_right": "向右捲動分類",
+      "title": "助手庫"
     },
     "badge": {
       "update": "更新"
@@ -4477,7 +4435,7 @@
     },
     "generate_failed": "無法生成圖片",
     "generated_image": "產生的圖片",
-    "generating": "生成中...",
+    "generating": "繪圖進行中，請不要離開頁面",
     "go_to_settings": "前往設定",
     "guidance_scale": "引導比例",
     "guidance_scale_tip": "無分類器指導 ({{min}}-{{max}})。控制模型在尋找相關影像時對提示詞的遵循程度",
@@ -4741,6 +4699,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "阿里雲百鍊",
     "deepseek": "深度求索",
@@ -4753,6 +4712,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "騰訊混元",
@@ -4776,6 +4736,7 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
     "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
@@ -6257,6 +6218,9 @@
         "button": "取得伺服器",
         "success": "伺服器取得成功"
       },
+      "filter": {
+        "label": "篩選"
+      },
       "findMore": "更多 MCP",
       "headers": "請求標頭",
       "headersTooltip": "HTTP 請求的自定義標頭",
@@ -6297,6 +6261,7 @@
       "noDescriptionAvailable": "描述不存在",
       "noLogs": "暫無日誌",
       "noServers": "未設定伺服器",
+      "notInstalled": "未安裝",
       "not_support": "不支援此模型",
       "npx_list": {
         "actions": "操作",
@@ -6310,12 +6275,6 @@
         "search_error": "搜尋失敗",
         "usage": "用法",
         "version": "版本"
-      },
-      "oauth": {
-        "callback": {
-          "message": "關閉此頁面後即可回到 Cherry Studio",
-          "title": "認證成功"
-        }
       },
       "prompts": {
         "arguments": "參數",
@@ -6332,6 +6291,7 @@
         "title": "執行外部 MCP？"
       },
       "provider": "提供者",
+      "providerNotFound": "未找到 MCP 供應商",
       "providerPlaceholder": "提供者名稱",
       "providerUrl": "提供者網址",
       "providers": "供應商",
@@ -6378,13 +6338,6 @@
         "getToken": "取得 API 權杖",
         "getTokenDescription": "從帳戶取得個人 API 權杖",
         "noServersAvailable": "無可用的 MCP 伺服器",
-        "providerDescriptions": {
-          "302ai": "302.AI 平台 MCP 服務",
-          "bailian": "阿里雲百鍊平台 MCP 服務",
-          "lanyun": "藍雲科技雲平台 MCP 服務",
-          "mcprouter": "MCP 路由器平台 MCP 服務",
-          "modelscope": "ModelScope平台MCP服務"
-        },
         "selectProvider": "選擇提供者：",
         "setToken": "輸入權杖",
         "success": "同步 MCP 伺服器成功",
@@ -6430,7 +6383,7 @@
       },
       "type": "類型",
       "types": {
-        "inMemory": "記憶體內",
+        "inMemory": "內建",
         "sse": "SSE",
         "stdio": "STDIO",
         "streamableHttp": "串流 HTTP"
@@ -6860,6 +6813,7 @@
         "reorderFailed": "調整提示詞順序失敗",
         "updateFailed": "更新提示詞失敗"
       },
+      "manage": "管理提示詞",
       "title": "提示詞管理",
       "titleLabel": "標題",
       "titlePlaceholder": "請輸入提示詞標題",
@@ -7007,6 +6961,27 @@
           "international": "國際網域"
         }
       },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "使用 Claude 訂閱登入",
+        "description_detail": "此供應商複用 Claude Code CLI 的登入資訊（Claude Pro/Max），僅供 Agent 使用。請開啟終端機執行 `claude` 完成登入。",
+        "launch_failed": "開啟終端機失敗，請手動執行 `claude` 登入。",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "已登入 Claude Code",
+        "logged_in_detail": "Agent 將使用你的 Claude Code CLI 訂閱憑證。",
+        "open_terminal": "開啟終端機登入",
+        "recheck": "重新檢測"
+      },
+      "codex": {
+        "account": "帳號:{{accountId}}",
+        "description": "使用你的 ChatGPT 訂閱登入",
+        "description_detail": "此供應商透過你的 ChatGPT Plus/Pro 登入(OAuth)存取 OpenAI Codex 模型。將開啟瀏覽器完成登入。",
+        "logged_in": "已登入 OpenAI Codex",
+        "sign_in_button": "使用 ChatGPT 登入",
+        "sign_in_failed": "登入失敗,請重試。",
+        "sign_in_success": "已登入 OpenAI Codex",
+        "signing_in": "等待瀏覽器授權…"
+      },
       "copilot": {
         "add_request_header": "新增請求標頭",
         "auth_failed": "GitHub Copilot 認證失敗",
@@ -7081,6 +7056,15 @@
       },
       "filter_agent": "篩選支援 Agent 的服務商",
       "get_api_key": "點選這裡取得金鑰",
+      "grok_cli": {
+        "description": "使用你的 SuperGrok 訂閱登入",
+        "description_detail": "此 provider 使用你的 xAI SuperGrok 登入（OAuth）來存取 Grok CLI 模型（Grok Build、Composer）。將開啟瀏覽器完成登入。",
+        "logged_in": "已登入 Grok CLI",
+        "sign_in_button": "使用 xAI 登入",
+        "sign_in_failed": "登入失敗，請重試。",
+        "sign_in_success": "已登入 Grok CLI",
+        "signing_in": "等待瀏覽器…"
+      },
       "logo_upload_failed": "無法處理所選圖片",
       "misc": "其他",
       "more_endpoints": {
@@ -7601,7 +7585,6 @@
     "openclaw": "OpenClaw",
     "paintings": "繪畫",
     "settings": "設定",
-    "store": "助手庫",
     "translate": "翻譯",
     "work": "工作"
   },
@@ -7796,11 +7779,6 @@
     "tooltip": {
       "newline": "換行"
     }
-  },
-  "tray": {
-    "quit": "結束",
-    "show_quick_assistant": "快捷助手",
-    "show_window": "顯示視窗"
   },
   "update": {
     "install": "立即安裝",

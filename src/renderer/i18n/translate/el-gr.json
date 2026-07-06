@@ -604,9 +604,7 @@
         "select_failed": "Αποτυχία επιλογής φακέλου."
       },
       "workspace_status": {
-        "inaccessible": "Η διαδρομή του χώρου εργασίας δεν είναι προσβάσιμη: {{path}}",
-        "missing": "Η διαδρομή του χώρου εργασίας δεν υπάρχει: {{path}}",
-        "not_directory": "Η διαδρομή του χώρου εργασίας δεν είναι κατάλογος: {{path}}"
+        "inaccessible": "Η διαδρομή του χώρου εργασίας δεν είναι προσβάσιμη: {{path}}"
       }
     },
     "settings": {
@@ -1084,41 +1082,6 @@
     },
     "title": "Διακομιστής API"
   },
-  "appMenu": {
-    "about": "Σχετικά",
-    "close": "Κλείσιμο Παραθύρου",
-    "copy": "Αντιγραφή",
-    "cut": "Κόψε",
-    "delete": "Διαγραφή",
-    "documentation": "Τεκμηρίωση",
-    "edit": "Επεξεργασία",
-    "feedback": "Σχόλια",
-    "file": "Αρχείο",
-    "forceReload": "Εξαναγκασμένη επαναφόρτωση",
-    "front": "Μεταφορά Όλων Μπροστά",
-    "help": "Βοήθεια",
-    "hide": "Κρύψε",
-    "hideOthers": "Απόκρυψη Άλλων",
-    "minimize": "Ελαχιστοποίηση",
-    "paste": "Επικόλληση",
-    "quit": "Παραιτήσου",
-    "redo": "Ξανακάνε",
-    "releases": "Κυκλοφορίες",
-    "reload": "Επαναφόρτωση",
-    "resetZoom": "Πραγματικό Μέγεθος",
-    "selectAll": "Επιλογή Όλων",
-    "services": "Υπηρεσίες",
-    "toggleDevTools": "Εναλλαγή Εργαλείων Προγραμματιστή",
-    "toggleFullscreen": "Εναλλαγή πλήρους οθόνης",
-    "undo": "Αναίρεση",
-    "unhide": "Εμφάνιση Όλων",
-    "view": "Προβολή",
-    "website": "Ιστοσελίδα",
-    "window": "Παράθυρο",
-    "zoom": "Ζουμ",
-    "zoomIn": "Μεγέθυνση",
-    "zoomOut": "Σμίκρυνση"
-  },
   "assistants": {
     "abbr": "Βοηθός",
     "clear": {
@@ -1333,12 +1296,14 @@
       "add": "Προσθήκη ετικέτας",
       "delete": "Διαγραφή ετικέτας",
       "deleteConfirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτήν την ετικέτα;",
+      "group_by": "[to be translated]:Group by tag",
       "manage": "Διαχείριση ετικετών",
       "modify": "Επεξεργασία ετικέτας",
       "none": "Δεν υπάρχουν προς το παρόν ετικέτες",
       "settings": {
         "title": "Ρυθμίσεις Ετικέτας"
       },
+      "ungroup": "[to be translated]:Turn off tag grouping",
       "untagged": "Αχαρακτήριστο"
     },
     "title": "Βοηθός",
@@ -2065,7 +2030,6 @@
     "copy_failed": "Αποτυχία αντιγραφής",
     "create_success": "Δημιουργήθηκε με επιτυχία",
     "current": "Τρέχων",
-    "cut": "Κοπή",
     "default": "Προεπιλογή",
     "delete": "Διαγραφή",
     "delete_confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε;",
@@ -2103,7 +2067,6 @@
     "image_preview": "Προεπισκόπηση εικόνας",
     "image_url": "Διεύθυνση URL εικόνας",
     "image_url_or_upload": "Εισαγάγετε διεύθυνση URL εικόνας ή ανεβάστε αρχείο",
-    "inspect": "Επιθεώρηση",
     "invalid_value": "Μη έγκυρη τιμή",
     "knowledge_base": "Βάση Γνώσεων",
     "language": "Γλώσσα",
@@ -2124,7 +2087,6 @@
     "open_in": "Άνοιγμα στο {{name}}",
     "open_in_new_tab": "Άνοιγμα σε νέα καρτέλα",
     "open_sidebar": "Άνοιγμα πλαϊνής γραμμής",
-    "paste": "Επικόλληση",
     "placeholders": {
       "select": {
         "model": "Επιλέξτε μοντέλο"
@@ -2179,18 +2141,6 @@
     "warning": "Προσοχή",
     "yesterday": "Χθες",
     "you": "Εσείς"
-  },
-  "dialog": {
-    "all_files": "Όλα τα Αρχεία",
-    "html_files": "Αρχεία HTML",
-    "open_file": "Άνοιγμα Αρχείου",
-    "pdf_files": "Αρχεία PDF",
-    "png_image": "Εικόνα PNG",
-    "save_as_html": "Αποθήκευση ως HTML",
-    "save_as_pdf": "Αποθήκευση ως PDF",
-    "save_file": "Αποθήκευση Αρχείου",
-    "select_folder": "Επιλέξτε φάκελο",
-    "word_document": "Έγγραφο Word"
   },
   "docs": {
     "title": "Βοήθεια"
@@ -4733,6 +4683,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "AliCloud Bailian",
     "deepseek": "Βαθιά Αναζήτηση",
@@ -4768,6 +4719,7 @@
     "ollama": "Ollama",
     "open-mineru": "Ανοιχτό MinerU",
     "openai": "OpenAI",
+    "opencode": "[to be translated]:OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -6248,6 +6200,9 @@
         "button": "Λήψη Διακομιστών",
         "success": "Επιτυχής ανάκτηση διακομιστών MCP"
       },
+      "filter": {
+        "label": "[to be translated]:Filter"
+      },
       "findMore": "Περισσότεροι διακομιστές MCP",
       "headers": "Κεφαλίδες",
       "headersTooltip": "Προσαρμοσμένες κεφαλίδες HTTP αιτήσεων",
@@ -6288,6 +6243,7 @@
       "noDescriptionAvailable": "Δεν υπάρχει διαθέσιμη περιγραφή",
       "noLogs": "Δεν υπάρχουν αρχεία καταγραφής ακόμα",
       "noServers": "Δεν έχουν ρυθμιστεί διακομιστές",
+      "notInstalled": "[to be translated]:Not installed",
       "not_support": "Το μοντέλο δεν υποστηρίζεται",
       "npx_list": {
         "actions": "Ενέργειες",
@@ -6301,12 +6257,6 @@
         "search_error": "Η αναζήτηση απέτυχε",
         "usage": "Χρήση",
         "version": "Έκδοση"
-      },
-      "oauth": {
-        "callback": {
-          "message": "Μπορείτε να κλείσετε αυτήν τη σελίδα και να επιστρέψετε στο Cherry Studio",
-          "title": "Επιτυχής Ταυτοποίηση"
-        }
       },
       "prompts": {
         "arguments": "Ορίσματα",
@@ -6323,6 +6273,7 @@
         "title": "Εκτέλεση εξωτερικού MCP;"
       },
       "provider": "Πάροχος",
+      "providerNotFound": "[to be translated]:MCP provider not found",
       "providerPlaceholder": "Όνομα παρόχου",
       "providerUrl": "URL Παρόχου",
       "providers": "Πάροχοι",
@@ -6369,13 +6320,6 @@
         "getToken": "Λήψη API Τοκεν",
         "getTokenDescription": "Λήψη ενός προσωπικού API τοκεν από τον λογαριασμό σας",
         "noServersAvailable": "Δεν υπάρχουν διαθέσιμοι MCP διακομιστές",
-        "providerDescriptions": {
-          "302ai": "302.Υπηρεσία MCP Πλατφόρμας AI",
-          "bailian": "Υπηρεσία MCP Πλατφόρμας Bailian της Alibaba Cloud",
-          "lanyun": "Υπηρεσία MCP της Πλατφόρμας Cloud Τεχνολογίας Lanyun",
-          "mcprouter": "Πλατφόρμα Δρομολογητή MCP Υπηρεσία MCP",
-          "modelscope": "Υπηρεσία MCP Πλατφόρμας ModelScope"
-        },
         "selectProvider": "Επιλέξτε Πάροχο:",
         "setToken": "Εισαγάγετε το τοκεν σας",
         "success": "Ο συγχρονισμός MCP διακομιστή ολοκληρώθηκε επιτυχώς",
@@ -6997,6 +6941,17 @@
           "acceleration": "Τομέας επιτάχυνσης",
           "international": "Διεθνής τομέας"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7787,11 +7742,6 @@
     "tooltip": {
       "newline": "Αλλαγή γραμμής"
     }
-  },
-  "tray": {
-    "quit": "Έξοδος",
-    "show_quick_assistant": "Σύντομη βοήθεια",
-    "show_window": "Εμφάνιση παραθύρου"
   },
   "update": {
     "install": "Εγκατάσταση",

@@ -19,7 +19,7 @@ vi.mock('@renderer/components/Popups/SearchPopup', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/resources/resourceListRevealEvents', () => ({
+vi.mock('@renderer/services/resourceListRevealEvents', () => ({
   emitResourceListReveal: mocks.emitResourceListReveal
 }))
 
@@ -38,7 +38,7 @@ vi.mock('@renderer/utils/platform', () => ({
   platform: 'linux'
 }))
 
-vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
+vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
   getMiniAppsLogo: () => undefined
 }))
 
@@ -56,10 +56,6 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 
 vi.mock('@renderer/i18n/label', () => ({
   getThemeModeLabel: () => 'Light'
-}))
-
-vi.mock('@renderer/services/SettingsWindowService', () => ({
-  openSettingsWindow: vi.fn()
 }))
 
 vi.mock('@renderer/utils/error', () => ({

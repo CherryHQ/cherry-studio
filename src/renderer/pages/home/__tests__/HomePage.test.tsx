@@ -1,8 +1,9 @@
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -92,7 +93,13 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
-  useCommandHandler: vi.fn()
+  useCommandHandler: vi.fn(),
+  useResolvedCommand: () => ({
+    enabled: true,
+    execute: vi.fn(),
+    label: 'Toggle sidebar',
+    shortcutLabel: ''
+  })
 }))
 
 vi.mock('@data/hooks/usePreference', async () => {
@@ -137,11 +144,35 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   }
 })
 
-vi.mock('@renderer/components/chat', () => ({
+vi.mock('@renderer/components/chat/shell/ChatAppShell', () => ({
   ChatAppShell: ({ centerContent }: { centerContent?: ReactNode }) => (
     <div data-testid="message-only-shell">{centerContent}</div>
-  ),
-  ConversationShell: ({
+  )
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationPageShell', () => ({
+  default: ({
+    center,
+    pane,
+    paneOpen,
+    topBar
+  }: {
+    center?: { content?: ReactNode }
+    pane?: ReactNode
+    paneOpen?: boolean
+    topBar?: ReactNode
+  }) => (
+    <section data-testid="home-conversation-page-shell">
+      <output data-testid="pane-open">{String(paneOpen)}</output>
+      <div>{topBar}</div>
+      <div>{pane}</div>
+      <div>{center?.content}</div>
+    </section>
+  )
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
+  default: ({
     topBar,
     pane,
     paneOpen,
@@ -158,8 +189,11 @@ vi.mock('@renderer/components/chat', () => ({
       <div>{pane}</div>
       <div>{center}</div>
     </section>
-  ),
-  ConversationStageCenter: ({
+  )
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationStageCenter', () => ({
+  default: ({
     placement,
     composer,
     homeWelcomeText
@@ -172,9 +206,34 @@ vi.mock('@renderer/components/chat', () => ({
       <output data-testid="welcome-text">{homeWelcomeText ?? ''}</output>
       {composer}
     </div>
-  ),
+  )
+}))
+
+vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
+  ...(await importActual<typeof ChatPrimitives>()),
   EmptyState: ({ title }: { title?: string }) => <div data-testid="empty-state">{title}</div>,
   LoadingState: ({ label }: { label?: string }) => <div role="status">{label}</div>
+}))
+
+vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
+  ResourceCatalogView: ({
+    onOpenAssistantChat,
+    resourceType,
+    toolbarLeading
+  }: {
+    onOpenAssistantChat?: (assistantId: string) => void
+    resourceType: string
+    toolbarLeading?: ReactNode
+  }) => (
+    <div data-testid={`resource-catalog-${resourceType}`}>
+      {toolbarLeading && <div data-testid="resource-toolbar-leading">{toolbarLeading}</div>}
+      {resourceType === 'assistant' && (
+        <button type="button" onClick={() => onOpenAssistantChat?.('assistant-2')}>
+          Go to chat with assistant 2
+        </button>
+      )}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
@@ -417,12 +476,17 @@ vi.mock('../components/ChatNavbar', () => ({
   )
 }))
 
-vi.mock('../Tabs', () => ({
-  default: ({ onOpenHistoryRecords, revealRequest }: any) => (
+vi.mock('../Tabs/HomeTabs', () => ({
+  default: ({ onOpenHistoryRecords, resourceMenuItems, revealRequest }: any) => (
     <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs">
       <button type="button" onClick={() => onOpenHistoryRecords?.()}>
         Open history records
       </button>
+      {resourceMenuItems?.map((item: { id: string; label: ReactNode; onSelect: () => void | Promise<void> }) => (
+        <button key={item.id} type="button" onClick={() => void item.onSelect()}>
+          {item.label}
+        </button>
+      ))}
     </div>
   )
 }))
@@ -474,15 +538,17 @@ vi.mock('../components/TopicRightPane', () => {
   return { TopicRightPane }
 })
 
-vi.mock('@renderer/components/chat/resources/variants/AssistantResourceList', () => ({
+vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
   AssistantResourceList: ({
     activeAssistantId,
     onAddAssistant,
-    onActiveAssistantDeleted
+    onActiveAssistantDeleted,
+    resourceMenuItems
   }: {
     activeAssistantId?: string | null
     onAddAssistant?: () => void | Promise<void>
     onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
+    resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => (
     <div data-active-assistant-id={activeAssistantId ?? ''} data-testid="assistant-resource-list">
       <button type="button" onClick={() => void onAddAssistant?.()}>
@@ -491,6 +557,11 @@ vi.mock('@renderer/components/chat/resources/variants/AssistantResourceList', ()
       <button type="button" onClick={() => void onActiveAssistantDeleted?.(activeAssistantId ?? '')}>
         Delete active assistant
       </button>
+      {resourceMenuItems?.map((item) => (
+        <button key={item.id} type="button" onClick={() => void item.onSelect()}>
+          {item.label}
+        </button>
+      ))}
     </div>
   )
 }))
@@ -605,6 +676,109 @@ describe('HomePage', () => {
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
+  })
+
+  it('renders the assistant resource view in the chat center', () => {
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+
+    expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
+    expect(screen.getByTestId('home-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+  })
+
+  it('keeps the assistant resource view open while opening the classic-layout assistant picker', () => {
+    homeMocks.preferenceValues.set('topic.layout', 'classic')
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+
+    expect(screen.getByTestId('assistant-conversation-picker')).toBeInTheDocument()
+    expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+  })
+
+  it('keeps the assistant resource view open until the selected assistant topic is ready', async () => {
+    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    let resolveCreateTopic!: (topic: Topic) => void
+    homeMocks.createTopic.mockReturnValue(
+      new Promise<Topic>((resolve) => {
+        resolveCreateTopic = resolve
+      })
+    )
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+    expect(screen.queryByTestId('assistant-conversation-picker')).not.toBeInTheDocument()
+    expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveCreateTopic({ ...createdTopic, assistantId: 'assistant-2' })
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created'))
+    expect(screen.queryByTestId('resource-catalog-assistant')).not.toBeInTheDocument()
+  })
+
+  it('keeps a sidebar toggle beside resource search so a collapsed pane can be reopened', async () => {
+    homeMocks.preferenceValues.set('topic.tab.show', true)
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+
+    const shell = screen.getByTestId('home-conversation-page-shell')
+    expect(within(shell).getByTestId('pane-open')).toHaveTextContent('true')
+
+    const toolbarLeading = within(shell).getByTestId('resource-toolbar-leading')
+
+    // Collapse the pane from the resource toolbar toggle, then confirm the toggle survives the collapse.
+    fireEvent.click(within(toolbarLeading).getByRole('button'))
+    await waitFor(() => expect(within(shell).getByTestId('pane-open')).toHaveTextContent('false'))
+
+    fireEvent.click(within(toolbarLeading).getByRole('button'))
+    await waitFor(() => expect(within(shell).getByTestId('pane-open')).toHaveTextContent('true'))
+  })
+
+  it('starts a modern-layout draft from the inline assistant catalog go-to-chat action', async () => {
+    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Go to chat with assistant 2' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-2')
+    )
+    expect(screen.queryByTestId('resource-catalog-assistant')).not.toBeInTheDocument()
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('creates an empty classic-layout topic from the inline assistant catalog go-to-chat action', async () => {
+    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Go to chat with assistant 2' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+    expect(screen.queryByTestId('resource-catalog-assistant')).not.toBeInTheDocument()
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
   })
 
   it('restores and records the classic-layout topic right pane open state from cache', () => {

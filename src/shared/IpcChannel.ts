@@ -94,14 +94,6 @@ export enum IpcChannel {
   Copilot_Logout = 'copilot:logout',
   Copilot_GetUser = 'copilot:get-user',
 
-  // CherryIN OAuth
-  CherryIN_GetBalance = 'cherryin:get-balance',
-  CherryIN_Logout = 'cherryin:logout',
-  CherryIN_StartOAuthFlow = 'cherryin:start-oauth-flow',
-  // Main → renderer push: OAuth callback result, addressed to the flow initiator
-  // captured at startOAuthFlow time. Replaces the renderer-pulled exchange-token IPC.
-  CherryIN_OAuthResult = 'cherryin:oauth-result',
-
   // obsidian
   Obsidian_GetVaults = 'obsidian:get-vaults',
   Obsidian_GetFiles = 'obsidian:get-files',
@@ -265,6 +257,8 @@ export enum IpcChannel {
   CodeCli_Run = 'code-cli:run',
   CodeCli_GetAvailableTerminals = 'code-cli:get-available-terminals',
   CodeCli_SetCustomTerminalPath = 'code-cli:set-custom-terminal-path',
+  CodeCli_GetCustomTerminalPath = 'code-cli:get-custom-terminal-path',
+  CodeCli_RemoveCustomTerminalPath = 'code-cli:remove-custom-terminal-path',
 
   // OVMS
   Ovms_IsSupported = 'ovms:is-supported',
@@ -312,11 +306,7 @@ export enum IpcChannel {
 
   // AI capability IPC (model ops, streaming chat, agent-session warm-up, tool approval,
   // agent run-task) migrated to IpcApi (`ai.*`). Only `translate.open` remains on legacy IPC.
-  Ai_Translate_Open = 'ai:translate:open',
-
-  // Settings window — legacy "open a named window" channel (preload `settings.openSettings`).
-  // The former WindowManager_* control + event channels were migrated to IpcApi (`window.*`).
-  SettingsWindow_Open = 'settings-window:open'
+  Ai_Translate_Open = 'ai:translate:open'
 
   // BinaryManager (tool manager) was migrated to IpcApi (`binary.*`).
 

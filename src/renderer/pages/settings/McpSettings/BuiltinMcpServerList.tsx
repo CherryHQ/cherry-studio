@@ -1,5 +1,6 @@
 import { Badge, Button, Popover, PopoverContent, PopoverTrigger, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
 import { builtinMcpServers } from '@renderer/pages/settings/McpSettings/builtinMcpServers'
@@ -9,14 +10,13 @@ import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingTitle } from '..'
 import { toCreateMcpServerDto } from './utils'
 
 const BuiltinMcpServerList: FC = () => {
   const { t } = useTranslation()
   const { addMcpServer, mcpServers } = useMcpServers()
   const [searchText, setSearchText] = useState('')
-  const [filter, setFilter] = useState<'all' | 'installed' | 'available'>('all')
+  const [filter, setFilter] = useState<'installed' | 'uninstalled'>('uninstalled')
 
   const installedCount = useMemo(
     () =>
@@ -32,7 +32,7 @@ const BuiltinMcpServerList: FC = () => {
       const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
 
       if (filter === 'installed' && !isInstalled) return false
-      if (filter === 'available' && isInstalled) return false
+      if (filter === 'uninstalled' && isInstalled) return false
 
       if (!keyword) return true
 
@@ -53,14 +53,11 @@ const BuiltinMcpServerList: FC = () => {
       <div className="mb-3 flex w-full min-w-0 flex-wrap items-center justify-between gap-3">
         <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="min-w-0">
           <TabsList className="h-8 rounded-full bg-muted/70 p-0.5">
-            <TabsTrigger value="all" className="h-7 rounded-[14px] px-2.5 text-xs">
-              {t('models.all')}
-            </TabsTrigger>
             <TabsTrigger value="installed" className="h-7 rounded-[14px] px-2.5 text-xs">
               {t('settings.skills.installed')}
             </TabsTrigger>
-            <TabsTrigger value="available" className="h-7 rounded-[14px] px-2.5 text-xs">
-              {t('settings.skills.install')}
+            <TabsTrigger value="uninstalled" className="h-7 rounded-[14px] px-2.5 text-xs">
+              {t('settings.mcp.notInstalled')}
             </TabsTrigger>
           </TabsList>
         </Tabs>

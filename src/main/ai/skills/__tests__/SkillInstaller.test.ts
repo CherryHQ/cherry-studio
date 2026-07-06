@@ -5,7 +5,7 @@ const mockCopyDirectoryRecursive = vi.fn()
 const mockDeleteDirectoryRecursive = vi.fn()
 const mockFsRename = vi.fn()
 
-vi.mock('@main/utils/file', () => ({
+vi.mock('@main/utils/legacyFile', () => ({
   pathExists: (...args: unknown[]) => mockPathExists(...args)
 }))
 

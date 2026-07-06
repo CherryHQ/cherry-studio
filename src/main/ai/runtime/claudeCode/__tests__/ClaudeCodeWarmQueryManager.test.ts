@@ -8,7 +8,7 @@ const { startupMock, buildWarmRequestMock, applicationGetMock, traceModeEnabledM
   traceModeEnabledMock: vi.fn()
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: { get: applicationGetMock }
 }))
 

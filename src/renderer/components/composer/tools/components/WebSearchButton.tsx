@@ -1,5 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { ActionIconButton } from '@renderer/components/Buttons'
+import ActionIconButton from '@renderer/components/ActionIconButton'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'

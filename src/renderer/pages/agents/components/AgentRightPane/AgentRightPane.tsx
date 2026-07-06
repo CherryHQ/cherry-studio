@@ -1,9 +1,7 @@
 import { Badge, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
-import { EmptyState } from '@renderer/components/chat'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import { resolveInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
 import {
   ArtifactFilePreview,
   ArtifactPaneView,
@@ -28,8 +26,8 @@ import {
   isSelectableFileNode,
   useArtifactFileTreeModel
 } from '@renderer/components/chat/panes/useArtifactFileTreeModel'
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
+import { EmptyState } from '@renderer/components/chat/primitives'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -38,8 +36,10 @@ import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessi
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import {

@@ -67,15 +67,19 @@ vi.mock('@cherrystudio/ui', () => ({
   PageSidePanel: ({
     children,
     header,
+    headerClassName,
     open
   }: {
     children: React.ReactNode
     header?: React.ReactNode
+    headerClassName?: string
     open?: boolean
   }) =>
     open ? (
       <div>
-        {header}
+        <div data-testid="page-side-panel-header" className={headerClassName}>
+          {header}
+        </div>
         {children}
       </div>
     ) : null
@@ -180,6 +184,12 @@ describe('TranslateHistory', () => {
     expect(translateHistoryMock.useTranslateHistory).toHaveBeenCalledTimes(1)
   })
 
+  it('localizes compact header spacing to the translate history drawer', () => {
+    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+
+    expect(screen.getByTestId('page-side-panel-header')).toHaveClass('pb-0')
+  })
+
   it('opens detail and supports reuse', () => {
     render(<TranslateHistory isOpen onHistoryItemClick={onHistoryItemClick} onClose={vi.fn()} />)
 
@@ -215,7 +225,13 @@ describe('TranslateHistory', () => {
     render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
 
     fireEvent.click(screen.getByText('hello'))
+    const actionLabels = screen
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label') ?? button.textContent)
+    const detailStarIndex = actionLabels.lastIndexOf('translate.history.filter.starred')
+    expect(actionLabels.indexOf('translate.history.delete')).toBeLessThan(detailStarIndex)
     const copyTargetButton = screen.getByRole('button', { name: 'translate.history.copy_target' })
+    expect(copyTargetButton).toHaveClass('text-primary-foreground')
     fireEvent.click(copyTargetButton)
 
     await waitFor(() => expect(writeTextMock).toHaveBeenCalledWith('你好'))

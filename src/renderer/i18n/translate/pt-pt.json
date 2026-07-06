@@ -604,9 +604,7 @@
         "select_failed": "Falha ao selecionar pasta."
       },
       "workspace_status": {
-        "inaccessible": "O caminho do workspace não está acessível: {{path}}",
-        "missing": "O caminho do espaço de trabalho não existe: {{path}}",
-        "not_directory": "O caminho do workspace não é um diretório: {{path}}"
+        "inaccessible": "O caminho do workspace não está acessível: {{path}}"
       }
     },
     "settings": {
@@ -1084,41 +1082,6 @@
     },
     "title": "Servidor API"
   },
-  "appMenu": {
-    "about": "Sobre",
-    "close": "Fechar Janela",
-    "copy": "Copiar",
-    "cut": "Corte",
-    "delete": "Excluir",
-    "documentation": "Documentação",
-    "edit": "Editar",
-    "feedback": "Feedback",
-    "file": "Arquivo",
-    "forceReload": "Forçar Recarregamento",
-    "front": "Trazer Tudo para a Frente",
-    "help": "Ajuda",
-    "hide": "Esconder",
-    "hideOthers": "Ocultar Outros",
-    "minimize": "Minimizar",
-    "paste": "Colar",
-    "quit": "Sair",
-    "redo": "Refazer",
-    "releases": "Lançamentos",
-    "reload": "Recarregar",
-    "resetZoom": "Tamanho Real",
-    "selectAll": "Selecionar Todos",
-    "services": "Serviços",
-    "toggleDevTools": "Alternar Ferramentas de Desenvolvedor",
-    "toggleFullscreen": "Alternar Tela Cheia",
-    "undo": "Desfazer",
-    "unhide": "Mostrar Todos",
-    "view": "Visualizar",
-    "website": "Site",
-    "window": "Janela",
-    "zoom": "Zoom",
-    "zoomIn": "Ampliar",
-    "zoomOut": "Reduzir Zoom"
-  },
   "assistants": {
     "abbr": "Assistente",
     "clear": {
@@ -1333,12 +1296,14 @@
       "add": "Adicionar etiqueta",
       "delete": "Excluir etiqueta",
       "deleteConfirm": "Tem certeza de que deseja excluir esta etiqueta?",
+      "group_by": "[to be translated]:Group by tag",
       "manage": "Gerenciar etiquetas",
       "modify": "Modificar etiqueta",
       "none": "Nenhuma etiqueta no momento",
       "settings": {
         "title": "Configuração de Etiquetas"
       },
+      "ungroup": "[to be translated]:Turn off tag grouping",
       "untagged": "Não agrupado"
     },
     "title": "Assistente",
@@ -2065,7 +2030,6 @@
     "copy_failed": "Falha ao copiar",
     "create_success": "Criado com sucesso",
     "current": "Atual",
-    "cut": "Cortar",
     "default": "Padrão",
     "delete": "Excluir",
     "delete_confirm": "Tem certeza de que deseja excluir?",
@@ -2103,7 +2067,6 @@
     "image_preview": "Pré-visualização da imagem",
     "image_url": "URL da imagem",
     "image_url_or_upload": "Insira o URL da imagem ou carregue o arquivo",
-    "inspect": "Verificar",
     "invalid_value": "Valor inválido",
     "knowledge_base": "Base de Conhecimento",
     "language": "Língua",
@@ -2124,7 +2087,6 @@
     "open_in": "Abrir em {{name}}",
     "open_in_new_tab": "Abrir em nova aba",
     "open_sidebar": "Abrir barra lateral",
-    "paste": "Colar",
     "placeholders": {
       "select": {
         "model": "Selecionar modelo"
@@ -2179,18 +2141,6 @@
     "warning": "Aviso",
     "yesterday": "Ontem",
     "you": "Você"
-  },
-  "dialog": {
-    "all_files": "Todos os Arquivos",
-    "html_files": "Arquivos HTML",
-    "open_file": "Abrir Arquivo",
-    "pdf_files": "Arquivos PDF",
-    "png_image": "Imagem PNG",
-    "save_as_html": "Salvar como HTML",
-    "save_as_pdf": "Salvar como PDF",
-    "save_file": "Salvar Arquivo",
-    "select_folder": "Selecionar Pasta",
-    "word_document": "Documento do Word"
   },
   "docs": {
     "title": "Documentação de Ajuda"
@@ -4733,6 +4683,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copiloto",
     "dashscope": "Área de Atuação AliCloud",
     "deepseek": "Busca Profunda",
@@ -4768,6 +4719,7 @@
     "ollama": "Ollama",
     "open-mineru": "MinerU Aberto",
     "openai": "OpenAI",
+    "opencode": "[to be translated]:OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV (NPU) OCR",
@@ -6248,6 +6200,9 @@
         "button": "Buscar Servidores",
         "success": "Servidores MCP obtidos com sucesso"
       },
+      "filter": {
+        "label": "[to be translated]:Filter"
+      },
       "findMore": "Mais servidores MCP",
       "headers": "Cabeçalhos da Requisição",
       "headersTooltip": "Cabeçalhos HTTP personalizados para as requisições",
@@ -6288,6 +6243,7 @@
       "noDescriptionAvailable": "Nenhuma descrição disponível no momento",
       "noLogs": "Ainda sem registos",
       "noServers": "Nenhum servidor configurado",
+      "notInstalled": "[to be translated]:Not installed",
       "not_support": "Modelo Não Suportado",
       "npx_list": {
         "actions": "Ações",
@@ -6301,12 +6257,6 @@
         "search_error": "Falha na pesquisa",
         "usage": "Uso",
         "version": "Versão"
-      },
-      "oauth": {
-        "callback": {
-          "message": "Você pode fechar esta página e retornar ao Cherry Studio",
-          "title": "Autenticação Bem-Sucedida"
-        }
       },
       "prompts": {
         "arguments": "Argumentos",
@@ -6323,6 +6273,7 @@
         "title": "Executar MCP externo?"
       },
       "provider": "Fornecedor",
+      "providerNotFound": "[to be translated]:MCP provider not found",
       "providerPlaceholder": "Nome do Fornecedor",
       "providerUrl": "URL do Fornecedor",
       "providers": "Fornecedores",
@@ -6369,13 +6320,6 @@
         "getToken": "Obter token de API",
         "getTokenDescription": "Obtenha um token de API pessoal da sua conta",
         "noServersAvailable": "Nenhum servidor MCP disponível",
-        "providerDescriptions": {
-          "302ai": "302.Serviço MCP da Plataforma AI",
-          "bailian": "Alibaba Cloud Bailian Plataforma Serviço MCP",
-          "lanyun": "Plataforma Cloud da Lanyun Technology - Serviço MCP",
-          "mcprouter": "Plataforma de Roteamento MCP Serviço MCP",
-          "modelscope": "Serviço MCP da Plataforma ModelScope"
-        },
         "selectProvider": "Selecione o provedor:",
         "setToken": "Digite seu token",
         "success": "Servidor MCP sincronizado com sucesso",
@@ -6997,6 +6941,17 @@
           "acceleration": "Domínio de aceleração",
           "international": "Domínio internacional"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7787,11 +7742,6 @@
     "tooltip": {
       "newline": "Quebra de linha"
     }
-  },
-  "tray": {
-    "quit": "Sair",
-    "show_quick_assistant": "Atalho de Assistente",
-    "show_window": "Exibir Janela"
   },
   "update": {
     "install": "Instalar",

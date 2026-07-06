@@ -28,7 +28,7 @@ vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useAddKnowledgeItems: vi.fn()
 }))
 
-vi.mock('@renderer/components/TopView', () => ({
+vi.mock('@renderer/components/TopView/TopView', () => ({
   TopView: mocks.TopView
 }))
 
@@ -55,8 +55,11 @@ vi.mock('@renderer/utils/knowledge', () => ({
     translations: 0,
     errors: 0
   }),
+  processMessageContent: mocks.processMessageContent
+}))
+
+vi.mock('@renderer/services/knowledgeContent', () => ({
   analyzeTopicContent: vi.fn(),
-  processMessageContent: mocks.processMessageContent,
   processTopicContent: vi.fn()
 }))
 
@@ -74,7 +77,7 @@ vi.mock('lucide-react', () => ({
   Check: () => <span data-testid="check-icon" />
 }))
 
-vi.mock('@renderer/components/Tags/CustomTag', () => ({
+vi.mock('@renderer/components/tags/CustomTag', () => ({
   default: ({ children }: { children: React.ReactNode }) => <span>{children}</span>
 }))
 
@@ -103,7 +106,14 @@ vi.mock('@cherrystudio/ui', () => ({
     </select>
   ),
   Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
-  DialogContent: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
+  DialogContent: ({
+    children,
+    closeOnOverlayClick,
+    ...props
+  }: React.ComponentProps<'div'> & { closeOnOverlayClick?: boolean }) => {
+    void closeOnOverlayClick
+    return <div {...props}>{children}</div>
+  },
   DialogFooter: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
   DialogHeader: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
   DialogTitle: ({ children, ...props }: React.ComponentProps<'h2'>) => <h2 {...props}>{children}</h2>,
@@ -112,9 +122,9 @@ vi.mock('@cherrystudio/ui', () => ({
   Label: ({ children, ...props }: React.ComponentProps<'label'>) => <label {...props}>{children}</label>
 }))
 
-async function renderPopup(source: MessageExportView) {
-  const { default: SaveToKnowledgePopup } = await import('../SaveToKnowledgePopup')
+import SaveToKnowledgePopup from '../SaveToKnowledgePopup'
 
+function renderPopup(source: MessageExportView) {
   const promise = SaveToKnowledgePopup.show({ source: { type: 'message', data: source } })
   const rendered = mocks.TopView.show.mock.calls[0][0] as React.ReactNode
 
@@ -182,7 +192,7 @@ describe('SaveToKnowledgePopup', () => {
   })
 
   it('saves resolvable files and warns about failed files', async () => {
-    const { promise } = await renderPopup(
+    const { promise } = renderPopup(
       createMessageWithFiles([createFile('/tmp/ok.pdf', 'ok'), createFile('bad.pdf', 'bad')])
     )
 

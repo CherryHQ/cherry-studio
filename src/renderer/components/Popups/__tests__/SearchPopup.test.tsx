@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   show: vi.fn()
 }))
 
-vi.mock('../../TopView', () => ({
+vi.mock('../../TopView/TopView', () => ({
   TopView: {
     hide: mocks.hide,
     show: mocks.show
@@ -52,12 +52,10 @@ vi.mock('@cherrystudio/ui', async () => {
     DialogContent: ({
       children,
       className,
-      closeOnOverlayClick,
       overlayClassName,
       overlayProps
     }: PropsWithChildren<{
       className?: string
-      closeOnOverlayClick?: boolean
       overlayClassName?: string
       overlayProps?: ComponentProps<'div'>
     }>) => {
@@ -71,10 +69,7 @@ vi.mock('@cherrystudio/ui', async () => {
             {...overlayProps}
             onClick={(event) => {
               overlayProps?.onClick?.(event)
-              // Match the real DialogContent: the overlay only closes when closeOnOverlayClick is set.
-              if (closeOnOverlayClick) {
-                context?.onOpenChange?.(false)
-              }
+              context?.onOpenChange?.(false)
             }}
           />
           <div data-testid="dialog-content" className={className}>

@@ -9,7 +9,7 @@
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
-import type { OffsetPaginationResponse } from '../apiTypes'
+import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from './jobs'

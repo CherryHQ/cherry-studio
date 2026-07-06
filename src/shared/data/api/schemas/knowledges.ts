@@ -5,7 +5,7 @@
  * declared in `src/shared/ipc/schemas/knowledge`, not through DataApi.
  */
 
-import type { CursorPaginationResponse, OffsetPaginationResponse } from '@shared/data/api'
+import type { CursorPaginationResponse, OffsetPaginationResponse } from '@shared/data/api/types'
 import {
   type KnowledgeBase,
   KnowledgeBaseEntitySchema,

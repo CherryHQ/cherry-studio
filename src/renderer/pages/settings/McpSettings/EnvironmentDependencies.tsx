@@ -13,8 +13,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
-import { useIpcOn } from '@renderer/ipc/useIpcOn'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
@@ -53,6 +52,7 @@ interface EnvironmentDependenciesProps {
 
 const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = false }) => {
   const [binaryState, setBinaryState] = useState<BinaryState | null>(null)
+  const [binaryStateReady, setBinaryStateReady] = useState(false)
   const [bundled, setBundled] = useState<Record<string, string | null>>({})
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
   const [customTools, setCustomTools] = usePreference('feature.binary.tools')
@@ -81,6 +81,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       if (!mountedRef.current) return
       setBinaryState(state)
       setBundled(bundledMap)
+      setBinaryStateReady(true)
     } catch (error) {
       logger.error('Failed to refresh binary state', error as Error)
     }
@@ -92,6 +93,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   useIpcOn('binary.state_changed', (state) => {
     setBinaryState(state)
+    setBinaryStateReady(true)
     // mise install may shadow a bundled binary; re-probe so the source label stays accurate.
     void ipcApi.request('binary.probe_bundled').then((b) => {
       if (mountedRef.current) setBundled(b)
@@ -160,6 +162,10 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const totalCount = PRESETS_BINARY_TOOLS.length + customTools.length
 
   if (mini) {
+    if (!binaryStateReady) {
+      return null
+    }
+
     const uvAvailable = Boolean(binaryState?.tools.uv) || 'uv' in bundled
     const bunAvailable = Boolean(binaryState?.tools.bun) || 'bun' in bundled
     if (uvAvailable && bunAvailable) {
@@ -572,7 +578,7 @@ function AddToolDialog({
         if (!v) reset()
         onOpenChange(v)
       }}>
-      <DialogContent>
+      <DialogContent closeOnOverlayClick={false}>
         <DialogHeader>
           <DialogTitle>{t('settings.plugins.addTool')}</DialogTitle>
           <DialogDescription>{t('settings.plugins.addToolDescription')}</DialogDescription>

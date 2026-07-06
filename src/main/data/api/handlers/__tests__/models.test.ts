@@ -1,5 +1,5 @@
 import type { CreateModelInput } from '@data/services/ModelService'
-import { DataApiErrorFactory, ErrorCode } from '@shared/data/api'
+import { DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import {
   BulkUpdateModelsSchema,
   CreateModelsSchema,

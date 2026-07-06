@@ -25,6 +25,7 @@ vi.mock('@renderer/utils/style', () => ({
 }))
 
 vi.mock('@renderer/services/ExportService', () => ({
+  getMessageTitle: vi.fn(),
   messageToMarkdown: vi.fn()
 }))
 
@@ -34,7 +35,7 @@ vi.mock('@renderer/utils/export', () => ({
 
 vi.mock('@renderer/utils/image', () => ({
   captureScrollableAsBlob: vi.fn(),
-  captureScrollableAsDataURL: vi.fn()
+  captureScrollableAsDataUrl: vi.fn()
 }))
 
 vi.mock('@renderer/utils/message/partsHelpers', () => ({
@@ -42,10 +43,6 @@ vi.mock('@renderer/utils/message/partsHelpers', () => ({
   getTextFromParts: () => 'hello',
   hasTextParts: () => true,
   hasTranslationParts: () => false
-}))
-
-vi.mock('@renderer/services/MessagesService', () => ({
-  getMessageTitle: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({

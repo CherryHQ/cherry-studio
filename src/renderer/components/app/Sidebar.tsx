@@ -1,14 +1,12 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { arrayMove } from '@dnd-kit/sortable'
-import {
-  emitResourceListReveal,
-  type ResourceListRevealSource
-} from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
+import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
@@ -24,10 +22,15 @@ import { useTranslation } from 'react-i18next'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
 import UserPopup from '../Popups/UserPopup'
-import { Sidebar as UISidebar } from '../Sidebar'
-import { getSidebarDisplayWidth, getSidebarLayout, normalizeSidebarWidth } from '../Sidebar/constants'
-import { UserAvatar } from '../Sidebar/primitives'
-import type { SidebarUser, SidebarVisibleLayout } from '../Sidebar/types'
+import {
+  getSidebarDisplayWidth,
+  getSidebarLayout,
+  normalizeSidebarWidth,
+  Sidebar as UISidebar,
+  type SidebarUser,
+  type SidebarVisibleLayout,
+  UserAvatar
+} from '../Sidebar'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
 const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
@@ -167,8 +170,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [activeTab, updateTab, openTab, defaultPaintingProvider]
   )
   const handleOpenSettingsTab = useCallback(() => {
-    openTab('/settings/provider', { title: t('settings.title') })
-  }, [openTab, t])
+    openSettingsTab('/settings/provider')
+  }, [])
 
   const handleOpenMiniAppTab = useCallback(
     (appId: string) => {
