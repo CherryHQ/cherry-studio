@@ -176,7 +176,10 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 
 export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
   /**
-   * Create-only: ids of pre-existing global skills to enable for the new agent.
+   * Create-only: ids of pre-existing global skills to enable for the new agent,
+   * in addition to all builtin skills — the server unions in every `source:
+   * 'builtin'` skill id regardless of what's passed here, so this list is not
+   * the complete set of skills the created agent will have enabled.
    * Writes `agent_skill` join rows in the same create transaction. Editing an
    * existing agent's skills goes through the skill toggle IPC (which also manages
    * workspace symlinks), NOT PATCH /agents — so this is intentionally absent from
