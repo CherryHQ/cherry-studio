@@ -44,9 +44,11 @@ const isComparableVersionPair = (latest?: string, installed?: string): boolean =
 }
 
 const isNewerVersion = (latest?: string, installed?: string): boolean => {
-  if (!isComparableVersionPair(latest, installed)) return false
+  const validLatest = latest ? semverValid(latest) : null
+  const validInstalled = installed ? semverValid(installed) : null
+  if (!validLatest || !validInstalled) return false
   try {
-    return semverGt(latest, installed)
+    return semverGt(validLatest, validInstalled)
   } catch {
     return false
   }
