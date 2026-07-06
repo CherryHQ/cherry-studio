@@ -60,6 +60,7 @@ const ChatContent: FC<Props> = ({
     uiMessages,
     siblingsMap,
     isLoading: isHistoryLoading,
+    isStale: isHistoryStale,
     refresh,
     activeNodeId,
     rootId,
@@ -80,6 +81,7 @@ const ChatContent: FC<Props> = ({
       clearBranchDraft={clearBranchDraft}
       getBranchDraftAnchorId={getBranchDraftAnchorId}
       isHistoryLoading={isHistoryLoading}
+      isHistoryStale={isHistoryStale}
       initialMessages={uiMessages}
       uiMessages={uiMessages}
       siblingsMap={siblingsMap}
@@ -99,6 +101,7 @@ const ChatContent: FC<Props> = ({
 
 interface InnerProps extends Props {
   isHistoryLoading: boolean
+  isHistoryStale: boolean
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   /** One-time seed for `useChat(messages:)` — consumed on mount only. */
   initialMessages: CherryUIMessage[]
@@ -124,6 +127,7 @@ const ChatContentInner: FC<InnerProps> = ({
   clearBranchDraft,
   getBranchDraftAnchorId,
   isHistoryLoading,
+  isHistoryStale,
   initialMessages,
   uiMessages,
   siblingsMap,
@@ -188,6 +192,7 @@ const ChatContentInner: FC<InnerProps> = ({
       messages={runtime.messages}
       partsByMessageId={runtime.partsByMessageId}
       isInitialLoading={isHistoryLoading}
+      isMessagesStale={isHistoryStale}
       loadOlder={loadOlder}
       hasOlder={hasOlder}
       openCitationsPanel={onOpenCitationsPanel}
