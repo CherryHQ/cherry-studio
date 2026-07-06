@@ -241,17 +241,37 @@ export class ExportOrchestrator {
       let filesTotal = 0
       let filesBytes = 0
       let knowledgeBases: readonly string[] = []
+      let filesMissing: readonly string[] = []
+      let knowledgeMissing: readonly string[] = []
       if (fileIds.size > 0) {
         filesDir = join(stagingRoot, 'files')
         const r = await fileStager.stageFiles(fileIds, filesDir)
         filesTotal = r.total
         filesBytes = r.totalBytes
+        filesMissing = r.missing
       }
       if (baseIds.size > 0) {
         knowledgeDir = join(stagingRoot, 'knowledge')
         const r = await fileStager.stageKnowledge(baseIds, knowledgeDir)
         knowledgeBases = r.bases
+        knowledgeMissing = r.missing
       }
+
+      // 4.5 DB↔staged alignment (spec export-orchestrator.md "Staged blob set 驱动
+      // manifest + DB 裁剪"). A snapshot row whose blob/dir was missing at stage
+      // time must not survive into the archive — otherwise restore re-creates a
+      // row pointing at a file the archive never held (restore残缺). Close the
+      // readonly snapshot, then DELETE missing rows from backup.sqlite (file_ref /
+      // knowledge_item cascade via FK). This is the export-time dual of step 2.5
+      // strip, driven by the staged set rather than the preset.
+      if (snapshotDb) {
+        snapshotDb.close()
+        snapshotDb = undefined
+      }
+      await this.pruneMissingRows(backupDbPath, filesMissing, knowledgeMissing)
+
+      // staged ids = collected − missing (per-file manifest for restore cross-check).
+      const stagedFileIds = [...fileIds].filter((id) => !filesMissing.includes(id))
 
       // 5. build manifest reflecting what was actually staged.
       manifest = {
@@ -264,7 +284,7 @@ export class ExportOrchestrator {
         sensitiveData: { included: true, rotated: false },
         schemaMigrationId: options.schemaMigrationId,
         producerAppVersion: options.producerAppVersion,
-        files: { total: filesTotal, totalBytes: filesBytes },
+        files: { ids: stagedFileIds, total: filesTotal, totalBytes: filesBytes },
         knowledge: { bases: [...knowledgeBases] }
       }
 
@@ -306,5 +326,41 @@ export class ExportOrchestrator {
       }
     }
     return [...tables]
+  }
+
+  /**
+   * Delete file_entry / knowledge_base rows whose blob/dir was missing at stage
+   * time, so backup.sqlite rows ↔ staged files are 1:1 (no restore残缺: a row
+   * pointing at a file the archive never held). Opens a write connection to the
+   * snapshot DB; file_ref (chat_message_file_ref / painting_file_ref) and
+   * knowledge_item cascade via FK (PRAGMA foreign_keys = ON). No-op when nothing
+   * was missing. Table names are the stable resource-root tables owned by
+   * FILE_STORAGE / KNOWLEDGE; FK CASCADE removes their members.
+   */
+  private async pruneMissingRows(
+    backupDbPath: string,
+    filesMissing: readonly string[],
+    knowledgeMissing: readonly string[]
+  ): Promise<void> {
+    if (filesMissing.length === 0 && knowledgeMissing.length === 0) return
+    const db = new Database(backupDbPath)
+    try {
+      db.pragma('foreign_keys = ON')
+      // Chunk to stay under SQLITE_MAX_VARIABLE_NUMBER (default 999); matches
+      // SqliteFileStager's chunked IN(...) lookup.
+      const CHUNK = 500
+      const deleteIds = (table: string, ids: readonly string[]): void => {
+        for (let i = 0; i < ids.length; i += CHUNK) {
+          const batch = ids.slice(i, i + CHUNK)
+          const placeholders = batch.map(() => '?').join(',')
+          // Cascade FKs remove dependent rows (file_ref.fileEntryId / knowledge_item.baseId).
+          db.prepare(`DELETE FROM ${table} WHERE id IN (${placeholders})`).run(...batch)
+        }
+      }
+      if (filesMissing.length > 0) deleteIds('file_entry', filesMissing)
+      if (knowledgeMissing.length > 0) deleteIds('knowledge_base', knowledgeMissing)
+    } finally {
+      db.close()
+    }
   }
 }

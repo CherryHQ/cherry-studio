@@ -17,7 +17,7 @@ const SAMPLE: BackupManifest = {
   sensitiveData: { included: true, rotated: false },
   schemaMigrationId: '0001_abc.sql',
   producerAppVersion: '1.0.0',
-  files: { total: 0, totalBytes: 0 },
+  files: { ids: [], total: 0, totalBytes: 0 },
   knowledge: { bases: [] }
 }
 
