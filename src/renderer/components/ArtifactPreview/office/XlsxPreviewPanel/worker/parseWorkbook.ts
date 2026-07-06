@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
 
+import { assertZipLimits } from '../../zipPreflight'
 import { charWidthToPx, DEFAULT_COL_WIDTH_PX, DEFAULT_ROW_HEIGHT_PX, MAX_COLS, MAX_ROWS, ptToPx } from '../gridLayout'
 import type {
   BorderEdge,
@@ -388,6 +389,9 @@ async function normalizeDrawingsForExcelJs(zip: JSZip, original: ArrayBuffer): P
  * 流水线顺序(固定):unzip → ExcelJS 单元格/样式 → 公式求值 → 图表 → 图片 → 组装。
  */
 export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promise<WorkbookRenderModel> {
+  // 解压库拿到字节之前先做中央目录预检:压缩后 20MB 上限挡不住 zip bomb(解压后可膨胀数 GB)
+  assertZipLimits(new Uint8Array(data), 'XLSX')
+
   let zip: JSZip
   let dataForExcelJs = data
   try {

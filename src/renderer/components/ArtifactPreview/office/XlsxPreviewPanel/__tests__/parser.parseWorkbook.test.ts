@@ -2,6 +2,8 @@ import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
 import { beforeAll, describe, expect, it } from 'vitest'
 
+import { createZipBytes } from '../../__tests__/zipTestBytes'
+import { OFFICE_ZIP_LIMITS } from '../../zipPreflight'
 import type { CellStyle, WorkbookRenderModel } from '../renderModel'
 import { parseWorkbook } from '../worker/parseWorkbook'
 import { buildChartWorkbookArrayBuffer } from './xlsxTestPackages'
@@ -580,6 +582,35 @@ describe('parseWorkbook — corrupted input', () => {
   it('rejects with a readable error message', async () => {
     const garbage = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     await expect(parseWorkbook(garbage.buffer, 'corrupt.xlsx')).rejects.toThrow(/./)
+  })
+})
+
+describe('parseWorkbook — ZIP preflight rejects decompression bombs', () => {
+  it('rejects an entry whose declared uncompressed size exceeds the limit', async () => {
+    const bytes = createZipBytes([
+      { name: 'xl/worksheets/sheet1.xml', uncompressedSize: OFFICE_ZIP_LIMITS.maxEntryUncompressedBytes + 1 }
+    ])
+
+    await expect(parseWorkbook(bytes.buffer, 'bomb-entry.xlsx')).rejects.toThrow(/XLSX preview supports ZIP entries/)
+  })
+
+  it('rejects an archive whose declared total uncompressed size exceeds the limit', async () => {
+    const bytes = createZipBytes(
+      Array.from({ length: 9 }, (_, index) => ({
+        name: `xl/media/image-${index}.bin`,
+        uncompressedSize: OFFICE_ZIP_LIMITS.maxEntryUncompressedBytes
+      }))
+    )
+
+    await expect(parseWorkbook(bytes.buffer, 'bomb-total.xlsx')).rejects.toThrow(/total uncompressed bytes/)
+  })
+
+  it('rejects an archive declaring too many entries', async () => {
+    const bytes = createZipBytes(
+      Array.from({ length: OFFICE_ZIP_LIMITS.maxEntries + 1 }, (_, index) => ({ name: `xl/f-${index}.xml` }))
+    )
+
+    await expect(parseWorkbook(bytes.buffer, 'bomb-entries.xlsx')).rejects.toThrow(/up to 4000 entries/)
   })
 })
 
