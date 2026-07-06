@@ -1,6 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { BackToMainWindowIcon } from '@renderer/components/icons'
+import { BackToMainWindowIcon } from '@renderer/components/icons/WindowIcons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useTabs } from '@renderer/hooks/tab'
 import { cn } from '@renderer/utils/style'

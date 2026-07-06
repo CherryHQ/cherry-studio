@@ -66,7 +66,7 @@ vi.mock('@renderer/components/command', async () => {
   }
 })
 
-vi.mock('@renderer/components/chat/messages/flow', () => ({
+vi.mock('@renderer/components/chat/flow', () => ({
   buildTopicMessageFlowGraph: vi.fn((tree) => {
     const parentById = new Map(
       tree.nodes.map((node: { id: string; parentId: string | null }) => [node.id, node.parentId])

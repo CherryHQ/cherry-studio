@@ -265,7 +265,7 @@ export class MainWindowService extends BaseService {
     // Dangerous API
     if (isDev) {
       mainWindow.webContents.on('will-attach-webview', (_, webPreferences) => {
-        webPreferences.preload = join(__dirname, '../preload/index.js')
+        webPreferences.preload = join(__dirname, '../preload/preload.js')
       })
     }
   }

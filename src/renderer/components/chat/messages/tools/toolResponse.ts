@@ -5,8 +5,8 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
 
-import { AgentToolsType } from './agent/types'
 import { isMetaToolName } from './meta/metaToolNames'
+import { AgentToolsType } from './shared/agentToolTypes'
 
 /** AI-SDK-v6 ToolUIPart approval-state string literals. */
 export const APPROVAL_REQUESTED = 'approval-requested'

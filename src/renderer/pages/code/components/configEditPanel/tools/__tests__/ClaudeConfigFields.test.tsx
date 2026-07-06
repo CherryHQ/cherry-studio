@@ -93,7 +93,7 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('@renderer/components/Selector/model', () => ({
+vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({
     value,
     onSelect,

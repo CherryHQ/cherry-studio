@@ -1,5 +1,5 @@
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { ModelSelector } from '@renderer/components/Selector/model'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import { getProviderDisplayName, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { CodeCli } from '@shared/types/codeCli'

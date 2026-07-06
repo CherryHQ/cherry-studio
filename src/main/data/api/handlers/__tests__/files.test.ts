@@ -1,5 +1,5 @@
 import { fileEntryTable } from '@data/db/schemas/file'
-import { DataApiError, ErrorCode } from '@shared/data/api'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'

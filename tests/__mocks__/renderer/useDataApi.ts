@@ -5,8 +5,8 @@ import type {
   QueryParamsForPath,
   ResponseForPath,
   TemplateApiPaths
-} from '@shared/data/api/apiPaths'
-import type { ConcreteApiPaths, PaginationResponse } from '@shared/data/api/apiTypes'
+} from '@shared/data/api/paths'
+import type { ConcreteApiPaths, PaginationResponse } from '@shared/data/api/types'
 import type { KeyedMutator } from 'swr'
 import { vi } from 'vitest'
 

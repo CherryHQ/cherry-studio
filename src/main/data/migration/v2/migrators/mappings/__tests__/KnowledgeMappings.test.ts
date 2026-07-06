@@ -1,9 +1,9 @@
-import { FILE_TYPE } from '@shared/data/types/file'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED,
   KNOWLEDGE_NOTE_CONTENT_MAX
 } from '@shared/data/types/knowledge'
+import { FILE_TYPE } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
 import { legacyModelToUniqueId } from '../../transformers/ModelTransformers'

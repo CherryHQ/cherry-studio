@@ -1,4 +1,4 @@
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

@@ -1,7 +1,6 @@
+import { SettingHelpLink, SettingHelpText, SettingHelpTextRow } from '@renderer/components/SettingsPrimitives'
 import { ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow } from '../..'
 
 export const PADDLEOCR_DEPLOYMENT_URL = 'https://github.com/PaddlePaddle/PaddleOCR'
 

@@ -4,7 +4,7 @@ import type { ComponentProps, CSSProperties, KeyboardEvent, ReactNode } from 're
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { TopView } from '../TopView'
+import { TopView } from '../TopView/TopView'
 
 type PromptTextAreaProps = Omit<
   ComponentProps<typeof Textarea.Input>,

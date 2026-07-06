@@ -10,7 +10,7 @@ const selectorHarness = vi.hoisted(() => ({
   models: [] as Model[]
 }))
 
-vi.mock('@renderer/components/Selector/model', () => ({
+vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: (props: { filter?: (model: Model) => boolean; trigger: ReactNode }) => (
     <div>
       {props.trigger}
@@ -22,10 +22,7 @@ vi.mock('@renderer/components/Selector/model', () => ({
           ))}
       </div>
     </div>
-  )
-}))
-
-vi.mock('@renderer/components/Selector/model/utils', () => ({
+  ),
   getProviderDisplayName: (provider: { name: string }) => provider.name
 }))
 

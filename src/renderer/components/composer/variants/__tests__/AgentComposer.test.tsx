@@ -322,7 +322,7 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   ModelAvatar: () => <span data-testid="model-avatar" />
 }))
 
-vi.mock('@renderer/components/Selector', () => ({
+vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({ onSelect, trigger, open, onOpenChange, shortcut }: any) => (
     <div data-testid="agent-model-selector" data-open={String(Boolean(open))} data-shortcut={shortcut ?? ''}>
       {trigger}
@@ -343,7 +343,7 @@ vi.mock('@renderer/components/Selector', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resource', () => ({
+vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   AgentSelector: ({ autoSelectOnCreate, onChange, trigger }: any) => (
     <div data-testid="agent-selector" data-auto-select-on-create={String(Boolean(autoSelectOnCreate))}>
       {trigger}
@@ -362,7 +362,7 @@ vi.mock('@renderer/components/resource', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resource/dialogs/edit/ResourceEditDialogHost', () => ({
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit/ResourceEditDialogHost', () => ({
   ResourceEditDialogHost: ({ target, onOpenChange }: any) => (
     <div data-testid="resource-edit-dialog-host" data-kind={target?.kind ?? ''} data-id={target?.id ?? ''}>
       <button type="button" onClick={() => onOpenChange(false)}>

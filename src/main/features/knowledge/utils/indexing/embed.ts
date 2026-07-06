@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
 import { UniqueModelIdSchema } from '@shared/data/types/model'

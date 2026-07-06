@@ -1,0 +1,75 @@
+import { MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
+import { JoplinIcon, SiyuanIcon } from '@renderer/components/icons/SvgIcon'
+import Scrollbar from '@renderer/components/Scrollbar'
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import { useTheme } from '@renderer/hooks/useTheme'
+import {
+  settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
+  settingsSubmenuListClassName,
+  settingsSubmenuScrollClassName
+} from '@renderer/pages/settings/settingsStyles'
+import { BookOpen } from 'lucide-react'
+import type { FC, ReactNode } from 'react'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import JoplinSettings from './JoplinSettings'
+import NotionSettings from './NotionSettings'
+import ObsidianSettings from './ObsidianSettings'
+import SiyuanSettings from './SiyuanSettings'
+import YuqueSettings from './YuqueSettings'
+
+type IntegrationMenuKey = 'notion' | 'yuque' | 'joplin' | 'obsidian' | 'siyuan'
+
+type IntegrationMenuItem = {
+  key: IntegrationMenuKey
+  title: string
+  icon: ReactNode
+}
+
+const IntegrationSettings: FC = () => {
+  const { t } = useTranslation()
+  const { theme } = useTheme()
+  const [menu, setMenu] = useState<IntegrationMenuKey>('notion')
+
+  const menuItems: IntegrationMenuItem[] = [
+    { key: 'notion', title: t('settings.data.notion.title'), icon: <i className="iconfont icon-notion" /> },
+    { key: 'yuque', title: t('settings.data.yuque.title'), icon: <BookOpen size={16} /> },
+    { key: 'joplin', title: t('settings.data.joplin.title'), icon: <JoplinIcon /> },
+    { key: 'obsidian', title: t('settings.data.obsidian.title'), icon: <i className="iconfont icon-obsidian" /> },
+    { key: 'siyuan', title: t('settings.data.siyuan.title'), icon: <SiyuanIcon /> }
+  ]
+
+  return (
+    <RowFlex className="min-w-0 flex-1">
+      <div className={`flex shrink-0 flex-col ${settingsSubmenuScrollClassName}`}>
+        <PageHeader title={t('settings.integrations.title')} />
+        <Scrollbar className="min-h-0 flex-1 [&_.iconfont]:text-current [&_.iconfont]:leading-4">
+          <MenuList className={settingsSubmenuListClassName}>
+            {menuItems.map((item) => (
+              <MenuItem
+                key={item.key}
+                label={item.title}
+                active={menu === item.key}
+                onClick={() => setMenu(item.key)}
+                icon={item.icon}
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+              />
+            ))}
+          </MenuList>
+        </Scrollbar>
+      </div>
+      <SettingsContentColumn theme={theme}>
+        {menu === 'notion' && <NotionSettings />}
+        {menu === 'yuque' && <YuqueSettings />}
+        {menu === 'joplin' && <JoplinSettings />}
+        {menu === 'obsidian' && <ObsidianSettings />}
+        {menu === 'siyuan' && <SiyuanSettings />}
+      </SettingsContentColumn>
+    </RowFlex>
+  )
+}
+
+export default IntegrationSettings

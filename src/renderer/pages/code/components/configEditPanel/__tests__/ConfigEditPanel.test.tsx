@@ -110,7 +110,7 @@ vi.mock('@renderer/components/ProviderAvatar', () => ({
   )
 }))
 
-vi.mock('@renderer/components/Selector/model', () => ({
+vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({ onSelect, trigger }: { onSelect: (modelId: UniqueModelId) => void; trigger: ReactNode }) => (
     <div data-testid="model-selector">
       <button type="button" onClick={() => onSelect('anthropic::claude-new' as UniqueModelId)}>

@@ -43,7 +43,7 @@ vi.mock('@main/core/application', () => ({
   }
 }))
 
-vi.mock('@main/utils/file/pathStatus', () => ({
+vi.mock('@main/utils/file', () => ({
   getPathStatus: mockGetPathStatus
 }))
 
