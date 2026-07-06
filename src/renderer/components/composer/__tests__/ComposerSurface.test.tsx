@@ -561,8 +561,12 @@ describe('ComposerSurface', () => {
 
     const restoreButton = screen.getByRole('button', { name: 'chat.input.restore' })
     expect(restoreButton).toHaveAttribute('aria-pressed', 'true')
-    expect(restoreButton).toHaveClass('opacity-100', 'bg-accent/80', 'rotate-0')
-    expect(cornerLine).toHaveClass('opacity-0', 'scale-50')
+    // Button remains hover-only regardless of custom height state.
+    expect(restoreButton).toHaveClass('opacity-0')
+    expect(restoreButton).not.toHaveClass('opacity-100')
+    // Corner arc stays visible as a hover affordance even after height is set.
+    expect(cornerLine).not.toHaveClass('opacity-0')
+    expect(cornerLine).not.toHaveClass('scale-50')
   })
 
   it('uses temporary manual height while dragging and restores the default height from the corner control', async () => {
