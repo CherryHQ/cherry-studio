@@ -84,7 +84,9 @@ export function createSdkMcpServerInstance(mcpId: string): McpServer {
   rawServer.setRequestHandler(ListToolsRequestSchema, async () => {
     try {
       logger.debug('SDK bridge: listing tools', { mcpId })
-      const tools = application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false })
+      const tools = await application
+        .get('McpCatalogService')
+        .listToolsForSnapshot(serverConfig.id, { includeDisabled: false })
       return {
         tools: tools.map(toSdkTool)
       }

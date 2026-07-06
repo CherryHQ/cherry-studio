@@ -70,6 +70,9 @@ function withCache<T extends unknown[], R>(
 @DependsOn(['McpRuntimeService'])
 export class McpCatalogService extends BaseService {
   private prewarmCancelled = false
+  /** Single-flights `listToolsForSnapshot` refreshes per serverId so concurrent bridges/sessions
+   *  initializing at once don't each open a connection to the same server. */
+  private readonly snapshotRefreshInFlight = new Map<string, Promise<void>>()
 
   protected async onInit(): Promise<void> {
     this.prewarmCancelled = false
@@ -206,6 +209,38 @@ export class McpCatalogService extends BaseService {
       server = undefined
     }
     return server ? tools.filter((tool) => !isMcpToolDisabledBySource(server, tool)) : tools
+  }
+
+  /**
+   * List a server's tools for a **per-session snapshot** consumer (the SDK MCP bridge in
+   * `createSdkMcpServerInstance`), connecting to fill a cold cache instead of returning `[]`.
+   *
+   * `listTools` is intentionally cache-only and synchronous so a dead/slow server can't block the
+   * chat/agent startup hot path (issue #16242); a cold cache there only self-heals on a *later*
+   * session once a background warmer fills it. But the SDK snapshots each bridge server's tools
+   * **once per session** with no per-turn re-read (unlike the aiSdk/assistant path, which re-syncs
+   * the MCP registry every turn), so a cold or warmed-but-empty cache would freeze the agent at zero
+   * tools for the whole session. This variant therefore awaits a live `refreshTools` when the cache
+   * isn't populated, degrading a dead server to `[]` rather than throwing to the SDK. Re-probing a
+   * genuinely-empty server once per snapshot is an accepted cost.
+   */
+  public async listToolsForSnapshot(serverId: string, options: ListToolsOptions = {}): Promise<McpTool[]> {
+    const cached = application.get('CacheService').getShared(mcpToolsCacheKey(serverId)) as McpTool[] | undefined
+    if (cached === undefined || cached.length === 0) {
+      let refresh = this.snapshotRefreshInFlight.get(serverId)
+      if (!refresh) {
+        refresh = this.refreshTools(serverId)
+          .catch((error) => {
+            logger.warn('Failed to refresh tools for session snapshot', { serverId, error })
+          })
+          .finally(() => {
+            this.snapshotRefreshInFlight.delete(serverId)
+          })
+        this.snapshotRefreshInFlight.set(serverId, refresh)
+      }
+      await refresh
+    }
+    return this.listTools(serverId, options)
   }
 
   // Resources and prompts are owned by McpRuntimeService (cached under `mcp:list_*` and exposed

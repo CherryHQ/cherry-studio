@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   findByIdOrName: vi.fn(),
   applicationGet: vi.fn(),
+  listToolsForSnapshot: vi.fn(),
   listPrompts: vi.fn(),
   getPrompt: vi.fn()
 }))
@@ -33,13 +34,15 @@ describe('createSdkMcpServerInstance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.findByIdOrName.mockReturnValue({ id: 'server-1', name: 'Docs MCP' })
+    mocks.listToolsForSnapshot.mockResolvedValue([])
     mocks.listPrompts.mockResolvedValue([])
     mocks.getPrompt.mockResolvedValue({
       description: 'Prompt description',
       messages: [{ role: 'user', content: { type: 'text', text: 'Prompt body' } }]
     })
     mocks.applicationGet.mockImplementation((name: string) => {
-      if (name === 'McpCatalogService') return { listPrompts: mocks.listPrompts }
+      if (name === 'McpCatalogService')
+        return { listToolsForSnapshot: mocks.listToolsForSnapshot, listPrompts: mocks.listPrompts }
       if (name === 'McpRuntimeService') return { getPrompt: mocks.getPrompt }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -65,6 +68,35 @@ describe('createSdkMcpServerInstance', () => {
     expect(result).toEqual({
       description: 'Prompt description',
       messages: [{ role: 'user', content: { type: 'text', text: 'Prompt body' } }]
+    })
+  })
+
+  it('lists tools via McpCatalogService.listToolsForSnapshot, stripping bridge-internal fields', async () => {
+    mocks.listToolsForSnapshot.mockResolvedValue([
+      {
+        name: 'search',
+        description: 'search desc',
+        inputSchema: { type: 'object', properties: {}, required: [] },
+        id: 'search-id',
+        serverId: 'server-1',
+        serverName: 'Docs MCP',
+        type: 'mcp'
+      }
+    ])
+
+    const sdkServer = createSdkMcpServerInstance('server-1')
+    const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
+    const handler = handlers.get('tools/list')
+
+    expect(handler).toBeDefined()
+
+    const result = await handler!({ method: 'tools/list' }, {})
+
+    expect(mocks.listToolsForSnapshot).toHaveBeenCalledWith('server-1', { includeDisabled: false })
+    expect(result).toEqual({
+      tools: [
+        { name: 'search', description: 'search desc', inputSchema: { type: 'object', properties: {}, required: [] } }
+      ]
     })
   })
 

@@ -172,6 +172,65 @@ describe('McpCatalogService', () => {
     expect(runtimeService.withClient).not.toHaveBeenCalled()
   })
 
+  it('listToolsForSnapshot awaits a refresh and returns tools when the cache is cold (undefined)', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValue({ tools: [sdkTool('search')] })
+
+    const service = new McpCatalogService()
+    const tools = await service.listToolsForSnapshot('server-1')
+
+    expect(runtimeService.withClient).toHaveBeenCalledTimes(1)
+    expect(tools.map((tool) => tool.name)).toEqual(['search'])
+  })
+
+  it('listToolsForSnapshot awaits a refresh when the cache is warmed-but-empty', async () => {
+    cacheStore.set('mcp.tools.server-1', [])
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValue({ tools: [sdkTool('search')] })
+
+    const service = new McpCatalogService()
+    const tools = await service.listToolsForSnapshot('server-1')
+
+    expect(runtimeService.withClient).toHaveBeenCalledTimes(1)
+    expect(tools.map((tool) => tool.name)).toEqual(['search'])
+  })
+
+  it('listToolsForSnapshot returns the populated cache immediately without refreshing', async () => {
+    cacheStore.set('mcp.tools.server-1', [{ name: 'search' }, { name: 'blocked' }])
+    getById.mockReturnValue(server({ disabledTools: ['blocked'] }))
+
+    const service = new McpCatalogService()
+    const refreshSpy = vi.spyOn(service, 'refreshTools')
+    const tools = await service.listToolsForSnapshot('server-1')
+
+    expect(refreshSpy).not.toHaveBeenCalled()
+    expect(runtimeService.withClient).not.toHaveBeenCalled()
+    expect(tools.map((tool) => tool.name)).toEqual(['search'])
+  })
+
+  it('listToolsForSnapshot resolves to [] and does not throw when the refresh fails', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockRejectedValue(new Error('connection failed'))
+
+    const service = new McpCatalogService()
+    await expect(service.listToolsForSnapshot('server-1')).resolves.toEqual([])
+  })
+
+  it('listToolsForSnapshot single-flights concurrent refreshes for the same server', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValue({ tools: [sdkTool('search')] })
+
+    const service = new McpCatalogService()
+    const [a, b] = await Promise.all([
+      service.listToolsForSnapshot('server-1'),
+      service.listToolsForSnapshot('server-1')
+    ])
+
+    expect(runtimeService.withClient).toHaveBeenCalledTimes(1)
+    expect(a.map((tool) => tool.name)).toEqual(['search'])
+    expect(b.map((tool) => tool.name)).toEqual(['search'])
+  })
+
   it('delegates listResources to the runtime service', async () => {
     const resources = [{ uri: 'file://a', name: 'a', serverId: 'server-1', serverName: 'docs' }]
     runtimeListResources.mockResolvedValue(resources)
