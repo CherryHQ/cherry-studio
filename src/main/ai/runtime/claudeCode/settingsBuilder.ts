@@ -634,7 +634,7 @@ async function buildToolPermissions(
   const agentConfig = agent.configuration
   const isAssistant = agentConfig?.builtin_role === 'assistant'
 
-  // Raw session context for tool enable-predicates (worktree needs .git; cherry-tools notify/config need a
+  // Raw session context for tool enable-predicates (worktree needs .git; cherry-tools notify needs a
   // connected channel). Channels are fetched once here so the predicates stay synchronous.
   const cwd = session.workspace?.path
   const conditionContext: ClaudeToolContext | undefined = cwd

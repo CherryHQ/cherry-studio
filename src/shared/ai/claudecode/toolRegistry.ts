@@ -311,7 +311,7 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Adds, deletes, or refreshes knowledge base documents',
     mcpServer: 'cherry-tools'
   },
-  // agent autonomy / channels (hosted by cherry-tools). notify/config need a connected channel to do anything.
+  // agent autonomy / channels (hosted by cherry-tools). notify needs a connected channel to do anything.
   CherryCron: {
     name: 'mcp__cherry-tools__cron',
     category: 'orchestration',
@@ -319,7 +319,7 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Manages the in-app scheduler',
     mcpServer: 'cherry-tools'
   },
-  // notify/config are condition-gated (agent has a connected channel) — see toolConditions.ts.
+  // notify is condition-gated (agent has a connected channel) — see toolConditions.ts.
   CherryNotify: {
     name: 'mcp__cherry-tools__notify',
     category: 'orchestration',

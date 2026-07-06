@@ -75,13 +75,13 @@ describe('resolveDisallowedTools', () => {
     expect(disallowed.has('mcp__cherry-tools__notify')).toBe(false)
   })
 
-  it('disables worktree without .git and cherry-tools notify/config without channels', () => {
+  it('disables worktree without .git and cherry-tools notify without channels', () => {
     existsSync.mockReturnValue(false) // no .git
     const disallowed = new Set(resolveDisallowedTools({}, { cwd: '/ws', channels: [] }))
     expect(disallowed.has('EnterWorktree')).toBe(true)
     expect(disallowed.has('ExitWorktree')).toBe(true)
     expect(disallowed.has('mcp__cherry-tools__notify')).toBe(true)
-    expect(disallowed.has('mcp__cherry-tools__config')).toBe(true)
+    expect(disallowed.has('mcp__cherry-tools__config')).toBe(false)
   })
 
   it('enables worktree with .git and cherry-tools notify/config with a channel', () => {
