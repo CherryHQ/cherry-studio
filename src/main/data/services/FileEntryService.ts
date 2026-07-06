@@ -38,7 +38,7 @@ import {
   SafeNameSchema
 } from '@shared/data/types/file'
 import { chatMessageSourceType, paintingSourceType } from '@shared/data/types/file'
-import { and, asc, count, eq, isNotNull, isNull, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, isNotNull, isNull, lt, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
 import { ZodError } from 'zod'
@@ -232,6 +232,16 @@ export interface FileEntryService {
 
   /** Tx-scoped variant of `delete` for composing write flows. */
   deleteTx(tx: DbOrTx, id: FileEntryId): void
+
+  /**
+   * Hard-delete trashed entries whose `deletedAt` is older than `cutoffMs`,
+   * up to `limit` rows. Consumed by the trash purge job — DB only: the purged
+   * ids drop out of `listAllIds()`, so the subsequent file orphan sweep
+   * unlinks the on-disk `{userData}/Data/Files/{id}.{ext}` blobs. The
+   * `fe_external_no_delete` CHECK guarantees only internal rows can be
+   * trashed, so external rows are never selected here.
+   */
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): FileEntryId[]
 }
 
 type FileEntryRow = typeof fileEntryTable.$inferSelect
@@ -640,6 +650,20 @@ class FileEntryServiceImpl implements FileEntryService {
 
   deleteTx(tx: DbOrTx, id: FileEntryId): void {
     tx.delete(fileEntryTable).where(eq(fileEntryTable.id, id)).run()
+  }
+
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): FileEntryId[] {
+    const rows = tx
+      .select({ id: fileEntryTable.id })
+      .from(fileEntryTable)
+      .where(and(isNotNull(fileEntryTable.deletedAt), lt(fileEntryTable.deletedAt, cutoffMs)))
+      .limit(limit)
+      .all()
+    const ids = rows.map((row) => row.id)
+    if (ids.length === 0) return ids
+
+    tx.delete(fileEntryTable).where(inArray(fileEntryTable.id, ids)).run()
+    return ids
   }
 }
 

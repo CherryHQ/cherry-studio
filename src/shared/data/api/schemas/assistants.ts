@@ -95,6 +95,11 @@ export const ASSISTANTS_MAX_LIMIT = 500
 export const ListAssistantsQuerySchema = z.strictObject({
   /** Filter by assistant ID */
   id: z.string().optional(),
+  /**
+   * `true` lists only trashed (soft-deleted) assistants — the trash view.
+   * Omitted/false keeps the default active-only filter (files.ts precedent).
+   */
+  inTrash: z.boolean().optional(),
   /** Free-text match against name OR description (case-insensitive LIKE) */
   search: z.string().trim().min(1).optional(),
   /** Return assistants bound to ANY of these tag ids (union) */
@@ -130,7 +135,16 @@ export const DeleteAssistantQuerySchema = z.strictObject({
    * Delete the assistant's topics in the same main-process transaction.
    * Omitted/false preserves the historical "delete assistant only" behavior.
    */
-  deleteTopics: z.boolean().optional()
+  deleteTopics: z.boolean().optional(),
+  /**
+   * `true` skips the trash: the assistant row is hard-deleted (DB only —
+   * junction rows cascade, `topic.assistantId` FK SET NULLs). Omitted/false
+   * archives (soft-deletes) so the assistant is restorable from the trash.
+   * `permanent` affects only the assistant row itself: with
+   * `deleteTopics: true` the topics are still archived (not hard-deleted) and
+   * restore independently from the trash.
+   */
+  permanent: z.boolean().optional()
 })
 export type DeleteAssistantQueryParams = z.input<typeof DeleteAssistantQuerySchema>
 
@@ -183,6 +197,19 @@ export type AssistantSchemas = {
       params: { id: string }
       query?: DeleteAssistantQueryParams
       response: void
+    }
+  }
+
+  /**
+   * Restore a trashed assistant (resource-action pattern).
+   * Clears `deletedAt` so the assistant reappears in active listings.
+   * Tags/pins purged at archive time are NOT restored.
+   * @example POST /assistants/abc123/restore
+   */
+  '/assistants/:id/restore': {
+    POST: {
+      params: { id: string }
+      response: Assistant
     }
   }
 } & OrderEndpoints<'/assistants'>

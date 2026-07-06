@@ -18,12 +18,13 @@ import type {
   CreateAgentSessionDto,
   DeleteAgentSessionsResult,
   ListAgentSessionsQuery,
+  RestoreAgentSessionsResult,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
@@ -48,7 +49,10 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     agentId: row.session.agentId,
     workspace: rowToAgentWorkspace(row.workspace),
     createdAt: timestampToISO(row.session.createdAt),
-    updatedAt: timestampToISO(row.session.updatedAt)
+    updatedAt: timestampToISO(row.session.updatedAt),
+    // Read-only trash marker: present only on soft-deleted rows (trash
+    // listings). Never writable through DTOs.
+    deletedAt: row.session.deletedAt != null ? timestampToISO(row.session.deletedAt) : undefined
   }
 }
 
@@ -67,7 +71,7 @@ export class AgentSessionService {
   search(query: { q: string; limit: number; updatedAtFrom?: number }): SessionEntitySearchItem[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
-    const filters: SQL[] = []
+    const filters: SQL[] = [isNull(sessionsTable.deletedAt)]
     const search = buildSearchPredicate(query.q)
     if (search) filters.push(search)
     if (query.updatedAtFrom !== undefined) {
@@ -84,7 +88,7 @@ export class AgentSessionService {
       })
       .from(sessionsTable)
       .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
-      .where(filters.length > 0 ? and(...filters) : undefined)
+      .where(and(...filters))
       .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
       .limit(limit)
       .all()
@@ -147,10 +151,12 @@ export class AgentSessionService {
   }
 
   private assertAgentExistsTx(tx: DbOrTx, agentId: string): void {
+    // Archived agents are hidden from reads, so new sessions cannot be
+    // created under them either.
     const [agent] = tx
       .select({ id: agentsTable.id })
       .from(agentsTable)
-      .where(eq(agentsTable.id, agentId))
+      .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
       .limit(1)
       .all()
     if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
@@ -162,7 +168,7 @@ export class AgentSessionService {
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .where(eq(sessionsTable.id, id))
+      .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
@@ -174,7 +180,7 @@ export class AgentSessionService {
       const [row] = tx
         .select({ traceId: sessionsTable.traceId })
         .from(sessionsTable)
-        .where(eq(sessionsTable.id, sessionId))
+        .where(and(eq(sessionsTable.id, sessionId), isNull(sessionsTable.deletedAt)))
         .limit(1)
         .all()
 
@@ -193,7 +199,11 @@ export class AgentSessionService {
     const ordering = keysetOrdering(sessionsTable.orderKey, sessionsTable.id, { major: 'asc', tie: 'asc' })
     const cursor = decodeListCursor(query.cursor, asStringKey, 'agent-session')
 
-    const filters: SQL[] = []
+    // `inTrash: true` flips the liveness filter to show only trashed rows;
+    // cursor/agent filters compose unchanged.
+    const filters: SQL[] = [
+      query.inTrash === true ? isNotNull(sessionsTable.deletedAt) : isNull(sessionsTable.deletedAt)
+    ]
     if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
     if (cursor) {
       filters.push(ordering.where(cursor))
@@ -239,7 +249,12 @@ export class AgentSessionService {
   }
 
   updateTx(tx: DbOrTx, id: string, patch: UpdateAgentSessionDto): SessionRow | undefined {
-    const [row] = tx.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning().all()
+    const [row] = tx
+      .update(sessionsTable)
+      .set(patch)
+      .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
+      .returning()
+      .all()
     return row
   }
 
@@ -284,7 +299,7 @@ export class AgentSessionService {
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .where(eq(sessionsTable.id, id))
+      .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
@@ -319,11 +334,25 @@ export class AgentSessionService {
     insertWithOrderKey(tx, sessionsTable, values, { pkColumn: sessionsTable.id, position: 'first' })
   }
 
-  delete(id: string): void {
-    application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id))
+  /**
+   * Delete one session.
+   *
+   * Default (archive) path: soft-delete — sets `deletedAt` so the row lands
+   * in the trash and is restorable via {@link restore}. Session pins are
+   * purged at archive time; session messages and the backing workspace row
+   * (including a system workspace) are untouched so restore is lossless.
+   *
+   * `permanent: true`: hard-delete via the cascade path — session messages
+   * FK-cascade, pins are purged, and a backing system workspace row is
+   * removed. Works on both active and already-trashed rows.
+   */
+  delete(id: string, options: { permanent?: boolean } = {}): void {
+    application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id, options))
   }
 
-  deleteTx(tx: DbOrTx, id: string): void {
+  deleteTx(tx: DbOrTx, id: string, options: { permanent?: boolean } = {}): void {
+    // No isNull gate: trashed rows must be permanently deletable, and
+    // re-archiving an archived row is an idempotent no-op.
     const [row] = tx
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
@@ -333,26 +362,149 @@ export class AgentSessionService {
       .all()
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
 
-    this.cascadeDeleteSessionRowsTx(tx, [row])
+    if (options.permanent === true) {
+      this.cascadeDeleteSessionRowsTx(tx, [row])
+    } else {
+      this.archiveByIdsTx(tx, [id])
+    }
   }
 
-  deleteByIds(ids: string[]): DeleteAgentSessionsResult {
+  deleteByIds(ids: string[], options: { permanent?: boolean } = {}): DeleteAgentSessionsResult {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return { deletedIds: [] }
+    const permanent = options.permanent === true
 
     const deletedIds = application.get('DbService').withWriteTx((tx) => {
-      const rows = tx
-        .select({ session: sessionsTable, workspace: agentWorkspaceTable })
-        .from(sessionsTable)
-        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-        .where(inArray(sessionsTable.id, uniqueIds))
-        .all()
+      if (permanent) {
+        const rows = tx
+          .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+          .from(sessionsTable)
+          .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+          .where(inArray(sessionsTable.id, uniqueIds))
+          .all()
 
-      return this.cascadeDeleteSessionRowsTx(tx, rows)
+        return this.cascadeDeleteSessionRowsTx(tx, rows)
+      }
+
+      return this.archiveByIdsTx(tx, uniqueIds)
     })
 
-    logger.info('Deleted sessions', { count: deletedIds.length })
+    logger.info(permanent ? 'Permanently deleted sessions' : 'Archived sessions', { count: deletedIds.length })
     return { deletedIds }
+  }
+
+  /**
+   * Archive (soft-delete) sessions: sets `deletedAt` on active rows only, so
+   * re-archiving is idempotent and `deletedAt` is never overwritten. Session
+   * pins are purged immediately — a surviving pin row would silently hide the
+   * session from pin-JOINed listings, and pins are deliberately not restored.
+   * System workspaces are NOT deleted on archive (restore must be lossless);
+   * the backing workspace row/dir is only removed at purge.
+   */
+  archiveByIdsTx(tx: DbOrTx, ids: string[]): string[] {
+    const uniqueIds = Array.from(new Set(ids))
+    if (uniqueIds.length === 0) return []
+
+    const rows = tx
+      .update(sessionsTable)
+      .set({ deletedAt: Date.now() })
+      .where(and(inArray(sessionsTable.id, uniqueIds), isNull(sessionsTable.deletedAt)))
+      .returning({ id: sessionsTable.id })
+      .all()
+    const archivedIds = rows.map((row) => row.id)
+
+    pinService.purgeForEntitiesTx(tx, 'session', archivedIds)
+    return archivedIds
+  }
+
+  /**
+   * Archive every active session belonging to an agent. Mirrors
+   * `deleteByAgentIdTx`'s agent validation but routes through
+   * {@link archiveByIdsTx} instead of the hard-delete cascade.
+   */
+  archiveByAgentIdTx(tx: DbOrTx, agentId: string, options: { validateAgent?: boolean } = {}): string[] {
+    if (options.validateAgent ?? true) {
+      const [agent] = tx
+        .select({ id: agentsTable.id })
+        .from(agentsTable)
+        .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
+    }
+
+    const rows = tx
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(and(eq(sessionsTable.agentId, agentId), isNull(sessionsTable.deletedAt)))
+      .all()
+
+    return this.archiveByIdsTx(
+      tx,
+      rows.map((row) => row.id)
+    )
+  }
+
+  /**
+   * Restore one trashed session: clears `deletedAt` so it re-enters active
+   * listings. Throws NOT_FOUND when the row does not exist or is not trashed.
+   * Pins purged at archive time are NOT restored.
+   */
+  restore(id: string): AgentSessionEntity {
+    const result = application
+      .get('DbService')
+      .getDb()
+      .update(sessionsTable)
+      .set({ deletedAt: null })
+      .where(and(eq(sessionsTable.id, id), isNotNull(sessionsTable.deletedAt)))
+      .run()
+    if (result.changes === 0) throw DataApiErrorFactory.notFound('Session', id)
+
+    logger.info('Restored session', { id })
+    return this.getById(id)
+  }
+
+  /**
+   * Bulk-restore trashed sessions. Missing/active ids are ignored so
+   * overlapping multi-window restores stay idempotent; `restoredIds` reports
+   * what was actually restored.
+   */
+  restoreByIds(ids: string[]): RestoreAgentSessionsResult {
+    const uniqueIds = Array.from(new Set(ids))
+    if (uniqueIds.length === 0) return { restoredIds: [] }
+
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .update(sessionsTable)
+      .set({ deletedAt: null })
+      .where(and(inArray(sessionsTable.id, uniqueIds), isNotNull(sessionsTable.deletedAt)))
+      .returning({ id: sessionsTable.id })
+      .all()
+    const restoredIds = rows.map((row) => row.id)
+
+    logger.info('Restored sessions', { count: restoredIds.length })
+    return { restoredIds }
+  }
+
+  /**
+   * Purge sessions whose trash retention has expired (trash.purge job path).
+   * Hard-deletes up to `limit` rows with `deletedAt < cutoffMs` inside the
+   * caller's transaction via the cascade path (session messages FK-cascade,
+   * backing system workspace rows removed, pins purged) and returns the
+   * purged ids.
+   */
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
+    const rows = tx
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .where(and(isNotNull(sessionsTable.deletedAt), lt(sessionsTable.deletedAt, cutoffMs)))
+      .limit(limit)
+      .all()
+    if (rows.length === 0) return []
+
+    return this.cascadeDeleteSessionRowsTx(tx, rows)
   }
 
   deleteWorkspaceCascade(workspaceId: string): void {
@@ -374,10 +526,15 @@ export class AgentSessionService {
     return sessionIds
   }
 
+  /**
+   * `DELETE /agents/:agentId/sessions` path — archives (soft-deletes) every
+   * active session of the agent. Hard deletion of an agent's sessions only
+   * happens via {@link deleteByAgentIdTx} on the permanent agent-delete path.
+   */
   deleteByAgentId(agentId: string): DeleteAgentSessionsResult {
-    const deletedIds = application.get('DbService').withWriteTx((tx) => this.deleteByAgentIdTx(tx, agentId))
+    const deletedIds = application.get('DbService').withWriteTx((tx) => this.archiveByAgentIdTx(tx, agentId))
 
-    logger.info('Deleted agent sessions', { agentId, count: deletedIds.length })
+    logger.info('Archived agent sessions', { agentId, count: deletedIds.length })
     return { deletedIds }
   }
 
@@ -452,7 +609,7 @@ export class AgentSessionService {
     const [target] = tx
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
-      .where(eq(sessionsTable.id, id))
+      .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
       .limit(1)
       .all()
     if (!target) throw DataApiErrorFactory.notFound('Session', id)
@@ -470,8 +627,15 @@ export class AgentSessionService {
   }
 
   exists(id: string): boolean {
+    // Archived sessions read as absent — session-message writes must not
+    // target them.
     const db = application.get('DbService').getDb()
-    const [row] = db.select({ id: sessionsTable.id }).from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1).all()
+    const [row] = db
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(and(eq(sessionsTable.id, id), isNull(sessionsTable.deletedAt)))
+      .limit(1)
+      .all()
     return !!row
   }
 }

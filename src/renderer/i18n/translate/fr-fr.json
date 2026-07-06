@@ -1296,12 +1296,14 @@
       "add": "Ajouter un tag",
       "delete": "Supprimer le tag",
       "deleteConfirm": "Voulez-vous vraiment supprimer ce tag ?",
+      "group_by": "[to be translated]:Group by tag",
       "manage": "Gestion des tags",
       "modify": "Modifier le tag",
       "none": "Aucun tag pour le moment",
       "settings": {
         "title": "Paramètres des balises"
       },
+      "ungroup": "[to be translated]:Turn off tag grouping",
       "untagged": "Non groupé"
     },
     "title": "Agent",
@@ -1613,6 +1615,13 @@
       "top": "Retour en haut"
     },
     "resend": "Réenvoyer",
+    "resource_view": {
+      "menu": {
+        "agent": "[to be translated]:Agents",
+        "assistant": "[to be translated]:Assistants",
+        "skill": "[to be translated]:Skills"
+      }
+    },
     "save": {
       "file": {
         "title": "Enregistrer dans un fichier local"
@@ -2328,6 +2337,7 @@
       "no_match_description": "Aucun fichier ne correspond aux filtres actuels",
       "no_match_title": "Aucun fichier correspondant trouvé"
     },
+    "empty_trash": "[to be translated]:Empty trash",
     "error": {
       "delete_failed": "Échec de la suppression des fichiers",
       "delete_partial_failed": "Certains fichiers n'ont pas pu être supprimés",
@@ -2345,6 +2355,7 @@
     "missing": "Manquant",
     "modified_at": "Modifié le",
     "name": "Nom du fichier",
+    "no_actions": "[to be translated]:No actions available",
     "open": "Ouvrir",
     "other": "Autre",
     "permanent_delete": "Supprimer définitivement",
@@ -2358,13 +2369,18 @@
     "remove_from_library": "Supprimer de la bibliothèque",
     "rename": "Renommer",
     "restore": "Restaurer",
+    "select_all": "[to be translated]:Select visible files",
+    "select_all_short": "[to be translated]:Select All",
+    "select_file": "[to be translated]:Select {{name}}",
     "selected_count": "{{count}} fichiers sélectionnés",
+    "selected_missing_hint": "[to be translated]:Some selected files are missing. Locate them or remove their records.",
     "show_in_folder": "Afficher dans le dossier",
     "size": "Taille",
     "text": "Texte",
     "title": "Fichier",
     "trash": "Poubelle",
     "type": "Type",
+    "upload": "[to be translated]:Upload files",
     "video": "Vidéo"
   },
   "globalSearch": {
@@ -2748,7 +2764,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} sources",
-      "documents_count": "{{count}} documents",
       "updated_at": "Mis à jour {{time}}"
     },
     "name_required": "Le nom de la base de connaissances est requis",
@@ -2908,7 +2923,8 @@
       "preview_description": "Aperçu",
       "preview_prompt": "Invite",
       "scroll_left": "Faire défiler les catégories vers la gauche",
-      "scroll_right": "Faire défiler les catégories vers la droite"
+      "scroll_right": "Faire défiler les catégories vers la droite",
+      "title": "[to be translated]:Assistant Library"
     },
     "badge": {
       "update": "Mise à jour"
@@ -4694,6 +4710,7 @@
     "github": "GitHub Modèles",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "[to be translated]:Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent HunYuan",
@@ -4717,6 +4734,8 @@
     "ollama": "Ollama",
     "open-mineru": "Ouvrir MinerU",
     "openai": "OpenAI",
+    "openai-codex": "[to be translated]:OpenAI Codex",
+    "opencode": "[to be translated]:OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV (NPU) OCR",
@@ -5830,6 +5849,52 @@
         "token_placeholder": "Введите токен CherryNote"
       },
       "title": "Paramètres des données",
+      "trash": {
+        "days_remaining_lt_one": "[to be translated]:Less than 1 day left",
+        "days_remaining_one": "[to be translated]:{{count}} day left",
+        "days_remaining_other": "[to be translated]:{{count}} days left",
+        "deleted_at": "[to be translated]:Deleted at {{time}}",
+        "domain": {
+          "agents": "[to be translated]:Agents",
+          "assistants": "[to be translated]:Assistants",
+          "files": "[to be translated]:Files",
+          "paintings": "[to be translated]:Paintings",
+          "sessions": "[to be translated]:Sessions",
+          "topics": "[to be translated]:Topics"
+        },
+        "empty": {
+          "section": "[to be translated]:No deleted items"
+        },
+        "empty_trash": {
+          "button": "[to be translated]:Empty Trash",
+          "confirm_content": "[to be translated]:All items in every category will be permanently deleted immediately. This cannot be undone.",
+          "confirm_title": "[to be translated]:Empty trash?",
+          "error": "[to be translated]:Failed to empty trash",
+          "success": "[to be translated]:Trash emptied"
+        },
+        "error": {
+          "load": "[to be translated]:Failed to load"
+        },
+        "load_more": "[to be translated]:Load more",
+        "page_next": "[to be translated]:Next",
+        "page_prev": "[to be translated]:Previous",
+        "permanent_delete": {
+          "confirm_content": "[to be translated]:\"{{name}}\" will be permanently deleted. This cannot be undone.",
+          "confirm_title": "[to be translated]:Delete permanently?",
+          "error": "[to be translated]:Failed to delete",
+          "label": "[to be translated]:Delete Permanently",
+          "success": "[to be translated]:Permanently deleted"
+        },
+        "restore": {
+          "error": "[to be translated]:Failed to restore",
+          "label": "[to be translated]:Restore",
+          "success": "[to be translated]:Restored"
+        },
+        "retention_hint": "[to be translated]:Items are permanently deleted after {{days}} days",
+        "retention_hint_never": "[to be translated]:Deleted items are kept until you delete them permanently",
+        "title": "[to be translated]:Recently Deleted",
+        "unnamed": "[to be translated]:Untitled"
+      },
       "webdav": {
         "autoSync": {
           "label": "Synchronisation automatique",
@@ -6794,6 +6859,7 @@
         "reorderFailed": "Échec du réordonnancement des invites",
         "updateFailed": "Échec de la mise à jour de l'invite"
       },
+      "manage": "[to be translated]:Manage Prompts",
       "title": "Gestion des prompts",
       "titleLabel": "Titre",
       "titlePlaceholder": "Saisissez le titre du prompt",
@@ -6952,6 +7018,16 @@
         "open_terminal": "[to be translated]:Open terminal to sign in",
         "recheck": "[to be translated]:Recheck"
       },
+      "codex": {
+        "account": "[to be translated]:Account: {{accountId}}",
+        "description": "[to be translated]:Sign in with your ChatGPT subscription",
+        "description_detail": "[to be translated]:This provider uses your ChatGPT Plus/Pro login (OAuth) to access OpenAI Codex models. Your browser will open to complete sign-in.",
+        "logged_in": "[to be translated]:Signed in to OpenAI Codex",
+        "sign_in_button": "[to be translated]:Sign in with ChatGPT",
+        "sign_in_failed": "[to be translated]:Sign-in failed. Please try again.",
+        "sign_in_success": "[to be translated]:Signed in to OpenAI Codex",
+        "signing_in": "[to be translated]:Waiting for browser…"
+      },
       "copilot": {
         "add_request_header": "Add header",
         "auth_failed": "Échec de l'authentification Github Copilot",
@@ -7026,6 +7102,15 @@
       },
       "filter_agent": "Fournisseurs pris en charge par l'agent de filtrage",
       "get_api_key": "Cliquez ici pour obtenir une clé",
+      "grok_cli": {
+        "description": "[to be translated]:Sign in with your SuperGrok subscription",
+        "description_detail": "[to be translated]:This provider uses your xAI SuperGrok login (OAuth) to access Grok CLI models (Grok Build, Composer). Your browser will open to complete sign-in.",
+        "logged_in": "[to be translated]:Signed in to Grok CLI",
+        "sign_in_button": "[to be translated]:Sign in with xAI",
+        "sign_in_failed": "[to be translated]:Sign-in failed. Please try again.",
+        "sign_in_success": "[to be translated]:Signed in to Grok CLI",
+        "signing_in": "[to be translated]:Waiting for browser…"
+      },
       "logo_upload_failed": "Échec du traitement de l'image sélectionnée",
       "misc": "autre",
       "more_endpoints": {
@@ -7546,7 +7631,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Peintures",
     "settings": "Paramètres",
-    "store": "Bibliothèque d'assistants",
     "translate": "Traduire",
     "work": "Travail"
   },

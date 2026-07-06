@@ -7,6 +7,7 @@ const {
   getAgentMock,
   updateAgentMock,
   deleteAgentMock,
+  restoreAgentMock,
   reorderMock,
   reorderBatchMock,
   listTasksMock,
@@ -22,6 +23,7 @@ const {
   getAgentMock: vi.fn(),
   updateAgentMock: vi.fn(),
   deleteAgentMock: vi.fn(),
+  restoreAgentMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   listTasksMock: vi.fn(),
@@ -40,6 +42,7 @@ vi.mock('@data/services/AgentService', () => ({
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
     deleteAgent: deleteAgentMock,
+    restoreAgent: restoreAgentMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
   }
@@ -119,6 +122,23 @@ describe('agentHandlers', () => {
         limit: 100,
         offset: 0,
         search: 'research'
+      })
+    })
+
+    it('GET forwards inTrash to the service', async () => {
+      listAgentsMock.mockReturnValueOnce({ agents: [], total: 0 })
+
+      await agentHandlers['/agents'].GET({
+        query: {
+          inTrash: true
+        }
+      } as never)
+
+      expect(listAgentsMock).toHaveBeenCalledWith({
+        limit: 100,
+        offset: 0,
+        search: undefined,
+        inTrash: true
       })
     })
 
@@ -224,7 +244,7 @@ describe('agentHandlers', () => {
         agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
       ).resolves.toBeUndefined()
 
-      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false })
+      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false, permanent: false })
     })
 
     it('delegates DELETE with session cleanup when requested', async () => {
@@ -237,7 +257,20 @@ describe('agentHandlers', () => {
         } as never)
       ).resolves.toBeUndefined()
 
-      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: true })
+      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: true, permanent: false })
+    })
+
+    it('forwards permanent to the service on DELETE', async () => {
+      deleteAgentMock.mockReturnValueOnce(true)
+
+      await expect(
+        agentHandlers['/agents/:agentId'].DELETE({
+          params: { agentId: AGENT_ID },
+          query: { permanent: true }
+        } as never)
+      ).resolves.toBeUndefined()
+
+      expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false, permanent: true })
     })
 
     it('throws notFound when agent does not exist on DELETE', async () => {
@@ -246,6 +279,19 @@ describe('agentHandlers', () => {
       await expect(
         agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    })
+  })
+
+  describe('/agents/:agentId/restore', () => {
+    it('delegates POST to agentService.restoreAgent', async () => {
+      restoreAgentMock.mockReturnValueOnce(mockAgent)
+
+      const result = await agentHandlers['/agents/:agentId/restore'].POST({
+        params: { agentId: AGENT_ID }
+      } as never)
+
+      expect(restoreAgentMock).toHaveBeenCalledWith(AGENT_ID)
+      expect(result).toMatchObject({ id: AGENT_ID })
     })
   })
 

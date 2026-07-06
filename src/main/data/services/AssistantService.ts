@@ -20,7 +20,7 @@ import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Tag } from '@shared/data/types/tag'
-import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, or, type SQL, sql } from 'drizzle-orm'
 
 import { modelService } from './ModelService'
 import { pinService } from './PinService'
@@ -62,6 +62,9 @@ function rowToAssistant(
     knowledgeBaseIds: relations.knowledgeBaseIds,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
+    // Read-only trash marker: present only on soft-deleted rows (trash listing
+    // / includeDeleted reads). Never writable through DTOs.
+    deletedAt: row.deletedAt != null ? timestampToISO(row.deletedAt) : undefined,
     tags,
     modelName
   }
@@ -251,7 +254,12 @@ export class AssistantDataService {
     const { page, limit } = query
     const offset = (page - 1) * limit
 
-    const conditions: SQL[] = [isNull(assistantTable.deletedAt)]
+    // `inTrash: true` flips the liveness filter to show only trashed rows;
+    // every other filter/sort composes unchanged. The count query below shares
+    // `whereClause`, so trash totals stay correct.
+    const conditions: SQL[] = [
+      query.inTrash === true ? isNotNull(assistantTable.deletedAt) : isNull(assistantTable.deletedAt)
+    ]
     if (query.id !== undefined) {
       conditions.push(eq(assistantTable.id, query.id))
     }
@@ -515,14 +523,45 @@ export class AssistantDataService {
   }
 
   /**
-   * Soft-delete an assistant (sets deletedAt timestamp).
-   * The row is preserved so topic.assistantId FK remains valid
-   * and junction table data (mcpServers, knowledgeBases) is retained.
-   * Tag bindings are intentionally removed during delete, so restoring a
-   * soft-deleted assistant does not restore its previous tags.
+   * Delete an assistant.
+   *
+   * Default (archive) path: soft-delete — sets `deletedAt` so the row lands in
+   * the trash and is restorable via {@link restore}. The row is preserved so
+   * topic.assistantId FK remains valid and junction table data (mcpServers,
+   * knowledgeBases) is retained. Tag/pin bindings are intentionally purged at
+   * archive time, so restoring does not bring them back.
+   *
+   * `permanent: true`: hard-delete — the row is removed (DB only; junction
+   * rows cascade, `topic.assistantId` FK SET NULLs). Works on both active and
+   * already-trashed rows. `permanent` affects only the assistant row itself:
+   * with `deleteTopics: true` the topics still go through
+   * `topicService.deleteByAssistantIdTx` (archive semantics once topics soft
+   * delete lands) and restore independently.
    */
-  delete(id: string, options: { deleteTopics?: boolean } = {}): void {
+  delete(id: string, options: { deleteTopics?: boolean; permanent?: boolean } = {}): void {
+    const permanent = options.permanent === true
     const deleted = application.get('DbService').withWriteTx((tx) => {
+      if (permanent) {
+        // Existence check up front (no isNull gate — trashed rows must be
+        // permanently deletable) so a missing assistant writes nothing.
+        const [row] = tx
+          .select({ id: assistantTable.id })
+          .from(assistantTable)
+          .where(eq(assistantTable.id, id))
+          .limit(1)
+          .all()
+        if (!row) return false
+
+        if (options.deleteTopics === true) {
+          // Topics must be handled BEFORE the hard DELETE: topic.assistantId
+          // is ON DELETE SET NULL, so deleting the row first would empty the
+          // assistantId-scoped topic lookup.
+          topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false })
+        }
+
+        return this.hardDeleteTx(tx, id)
+      }
+
       const didDelete = this.deleteTx(tx, id)
       if (!didDelete) return false
 
@@ -537,7 +576,10 @@ export class AssistantDataService {
       throw DataApiErrorFactory.notFound('Assistant', id)
     }
 
-    logger.info('Soft-deleted assistant', { id, deleteTopics: options.deleteTopics === true })
+    logger.info(permanent ? 'Permanently deleted assistant' : 'Soft-deleted assistant', {
+      id,
+      deleteTopics: options.deleteTopics === true
+    })
   }
 
   deleteTx(tx: DbOrTx, id: string): boolean {
@@ -554,6 +596,66 @@ export class AssistantDataService {
     pinService.purgeForEntityTx(tx, 'assistant', id)
 
     return true
+  }
+
+  /**
+   * Hard-delete an assistant row plus its tag/pin bindings (purge path).
+   * Deliberately has NO `isNull(deletedAt)` gate — trashed rows must be
+   * permanently deletable. DB only: junction rows (assistant_mcp_server /
+   * assistant_knowledge_base) cascade, `topic.assistantId` FK SET NULLs.
+   */
+  hardDeleteTx(tx: DbOrTx, id: string): boolean {
+    tagService.purgeForEntityTx(tx, 'assistant', id)
+    pinService.purgeForEntityTx(tx, 'assistant', id)
+
+    const [row] = tx.delete(assistantTable).where(eq(assistantTable.id, id)).returning({ id: assistantTable.id }).all()
+
+    return row !== undefined
+  }
+
+  /**
+   * Restore a trashed assistant: clears `deletedAt` so it re-enters active
+   * listings (with its pre-archive orderKey). Throws NOT_FOUND when the row
+   * does not exist or is not trashed. Tags/pins purged at archive time are
+   * NOT restored.
+   */
+  restore(id: string): Assistant {
+    const [row] = this.db
+      .update(assistantTable)
+      .set({ deletedAt: null })
+      .where(and(eq(assistantTable.id, id), isNotNull(assistantTable.deletedAt)))
+      .returning({ id: assistantTable.id })
+      .all()
+
+    if (!row) {
+      throw DataApiErrorFactory.notFound('Assistant', id)
+    }
+
+    logger.info('Restored assistant', { id })
+
+    return this.getById(id)
+  }
+
+  /**
+   * Purge assistants whose trash retention has expired (trash.purge job path).
+   * Hard-deletes up to `limit` rows with `deletedAt < cutoffMs` inside the
+   * caller's transaction and returns the purged ids.
+   */
+  purgeExpiredTx(tx: DbOrTx, cutoffMs: number, limit: number): string[] {
+    const rows = tx
+      .select({ id: assistantTable.id })
+      .from(assistantTable)
+      .where(and(isNotNull(assistantTable.deletedAt), lt(assistantTable.deletedAt, cutoffMs)))
+      .limit(limit)
+      .all()
+    const ids = rows.map((row) => row.id)
+    if (ids.length === 0) return ids
+
+    tagService.purgeForEntitiesTx(tx, 'assistant', ids)
+    pinService.purgeForEntitiesTx(tx, 'assistant', ids)
+    tx.delete(assistantTable).where(inArray(assistantTable.id, ids)).run()
+
+    return ids
   }
 
   /**

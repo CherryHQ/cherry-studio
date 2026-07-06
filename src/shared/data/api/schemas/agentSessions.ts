@@ -104,7 +104,14 @@ export const AgentSessionEntitySchema = z.strictObject({
   traceId: TraceIdSchema.optional(),
   orderKey: z.string(),
   createdAt: z.string(),
-  updatedAt: z.string()
+  updatedAt: z.string(),
+  /**
+   * Soft-delete timestamp (ISO string). Present only on trashed rows
+   * (`inTrash: true` listings). Read-only — never in mutable DTOs; restoring
+   * goes through `POST /agent-sessions/:sessionId/restore`, not a writable
+   * `deletedAt`.
+   */
+  deletedAt: z.string().optional()
 })
 export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 
@@ -140,13 +147,19 @@ export type SetAgentSessionWorkspaceDto = AgentSessionWorkspaceSource
 export const ListAgentSessionsQuerySchema = z.strictObject({
   agentId: z.string().optional(),
   cursor: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(200).optional()
+  limit: z.coerce.number().int().positive().max(200).optional(),
+  /** `true` lists only trashed (soft-deleted) sessions; omitted/false lists active only. */
+  inTrash: z.boolean().optional()
 })
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
 
 export interface DeleteAgentSessionsResult {
   deletedIds: string[]
+}
+
+export interface RestoreAgentSessionsResult {
+  restoredIds: string[]
 }
 
 export const AGENT_SESSION_DELETE_MAX_IDS = 200
@@ -162,9 +175,28 @@ const DeleteAgentSessionsIdsQueryValueSchema = z
   .pipe(z.array(z.string().min(1)).min(1).max(AGENT_SESSION_DELETE_MAX_IDS))
 
 export const DeleteAgentSessionsQuerySchema = z.strictObject({
-  ids: DeleteAgentSessionsIdsQueryValueSchema
+  ids: DeleteAgentSessionsIdsQueryValueSchema,
+  /**
+   * `true` skips the trash: session rows are hard-deleted (session messages
+   * FK-cascade, backing system workspace rows are removed, pins purged).
+   * Omitted/false archives (soft-deletes) so the sessions are restorable.
+   */
+  permanent: z.boolean().optional()
 })
 export type DeleteAgentSessionsQueryParams = z.input<typeof DeleteAgentSessionsQuerySchema>
+
+/** Query for `DELETE /agent-sessions/:sessionId`. */
+export const DeleteAgentSessionQuerySchema = z.strictObject({
+  /** Same semantics as the bulk `permanent` flag, scoped to one session. */
+  permanent: z.boolean().optional()
+})
+export type DeleteAgentSessionQueryParams = z.input<typeof DeleteAgentSessionQuerySchema>
+
+/** Query for `POST /agent-sessions/restore` (CSV ids, same cap as bulk delete). */
+export const RestoreAgentSessionsQuerySchema = z.strictObject({
+  ids: DeleteAgentSessionsIdsQueryValueSchema
+})
+export type RestoreAgentSessionsQueryParams = z.input<typeof RestoreAgentSessionsQuerySchema>
 
 // ============================================================================
 // API Schema definitions
@@ -183,14 +215,28 @@ export type AgentSessionSchemas = {
     /**
      * Delete an explicit set of sessions. Missing ids are ignored so overlapping
      * multi-window deletes remain idempotent; `deletedIds` reports what was
-     * actually removed.
+     * actually affected.
      *
-     * Cascades: session pins are purged; if a requested session is backed by a
-     * system workspace, that backing workspace row is removed too.
+     * Default archives (soft-deletes; pins purged, session messages and backing
+     * workspace rows untouched). `permanent=true` hard-deletes: session messages
+     * FK-cascade and backing system workspace rows are removed too.
      */
     DELETE: {
       query: DeleteAgentSessionsQueryParams
       response: DeleteAgentSessionsResult
+    }
+  }
+
+  /**
+   * Bulk-restore trashed sessions (resource-action pattern, CSV ids).
+   * Missing/active ids are ignored; `restoredIds` reports what was restored.
+   * Pins purged at archive time are NOT restored.
+   * @example POST /agent-sessions/restore?ids=a,b
+   */
+  '/agent-sessions/restore': {
+    POST: {
+      query: RestoreAgentSessionsQueryParams
+      response: RestoreAgentSessionsResult
     }
   }
 
@@ -207,12 +253,27 @@ export type AgentSessionSchemas = {
     /**
      * Delete one session.
      *
-     * Cascades: session pins are purged; if the session is backed by a system
-     * workspace, that backing workspace row is removed too.
+     * Default archives (soft-deletes; pins purged, session messages and backing
+     * workspace row untouched). `permanent=true` hard-deletes: session messages
+     * FK-cascade and a backing system workspace row is removed too.
      */
     DELETE: {
       params: { sessionId: string }
+      query?: DeleteAgentSessionQueryParams
       response: void
+    }
+  }
+
+  /**
+   * Restore one trashed session (resource-action pattern).
+   * Clears `deletedAt` so the session reappears in active listings.
+   * Pins purged at archive time are NOT restored.
+   * @example POST /agent-sessions/abc123/restore
+   */
+  '/agent-sessions/:sessionId/restore': {
+    POST: {
+      params: { sessionId: string }
+      response: AgentSessionEntity
     }
   }
 
@@ -249,10 +310,9 @@ export type AgentSessionSchemas = {
   }
   '/agents/:agentId/sessions': {
     /**
-     * Delete every session belonging to an agent (all-or-nothing — missing agent → NOT_FOUND).
-     *
-     * Cascades: session pins are purged; system workspaces backing deleted
-     * sessions are removed too.
+     * Archive every active session belonging to an agent (all-or-nothing —
+     * missing agent → NOT_FOUND). Session pins are purged; session messages
+     * and backing workspace rows are untouched so restore is lossless.
      */
     DELETE: {
       params: { agentId: string }

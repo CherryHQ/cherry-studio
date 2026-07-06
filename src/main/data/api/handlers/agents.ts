@@ -41,9 +41,9 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     GET: async ({ query }) => {
       const parsed = ListAgentsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const { search, page, limit } = parsed.data
+      const { search, page, limit, inTrash } = parsed.data
       const offset = (page - 1) * limit
-      const { agents, total } = agentService.listAgents({ limit, offset, search })
+      const { agents, total } = agentService.listAgents({ limit, offset, search, inTrash })
       return { items: agents, total, page }
     },
 
@@ -73,10 +73,17 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const parsed = DeleteAgentQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
       const deleted = agentService.deleteAgent(params.agentId, {
-        deleteSessions: parsed.data.deleteSessions === true
+        deleteSessions: parsed.data.deleteSessions === true,
+        permanent: parsed.data.permanent === true
       })
       if (!deleted) throw DataApiErrorFactory.notFound('Agent', params.agentId)
       return undefined
+    }
+  },
+
+  '/agents/:agentId/restore': {
+    POST: async ({ params }) => {
+      return agentService.restoreAgent(params.agentId)
     }
   },
 

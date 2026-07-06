@@ -4,6 +4,7 @@ import { paintingTable } from '@data/db/schemas/painting'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -233,8 +234,8 @@ describe('PaintingService', () => {
     paintingService.delete(painting.id)
 
     // create/update compose multiple statements and reorder/reorderBatch are read-then-write, so
-    // they route through withWriteTx (4). delete() is a single autocommit DELETE (the FK cascade
-    // clears painting_file_ref rows) and no longer opens a transaction.
+    // they route through withWriteTx (4). delete() defaults to archive — a single autocommit
+    // UPDATE setting deletedAt — and does not open a transaction.
     expect(MockMainDbServiceUtils.getMockCallCounts().withWriteTx - before).toBe(4)
   })
 
@@ -319,7 +320,17 @@ describe('PaintingService', () => {
       return rows.length === 1
     }
 
-    it('removes the painting row and its file refs in one go', async () => {
+    function expectNotFound(fn: () => unknown) {
+      let err: unknown
+      try {
+        fn()
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    }
+
+    it('permanent=true removes the painting row and its file refs in one go', async () => {
       const fileEntryId = '019606a0-0000-7000-8000-111111111111'
       const painting = paintingService.create(p({ providerId: 'aihubmix', prompt: 'd1' }))
       await seedFileEntry(fileEntryId)
@@ -329,17 +340,176 @@ describe('PaintingService', () => {
         { fileEntryId, sourceId: painting.id, role: 'input', createdAt: now, updatedAt: now }
       ])
 
-      paintingService.delete(painting.id)
+      paintingService.delete(painting.id, { permanent: true })
 
       expect(await paintingExists(painting.id)).toBe(false)
       expect(fileRefService.findBySource({ sourceType: 'painting', sourceId: painting.id })).toEqual([])
     })
 
-    it('succeeds when the painting has no file refs (today’s real path)', async () => {
+    it('permanent=true succeeds when the painting has no file refs (today’s real path)', async () => {
       const painting = paintingService.create(p({ providerId: 'aihubmix', prompt: 'd3' }))
 
-      expect(paintingService.delete(painting.id)).toBeUndefined()
+      expect(paintingService.delete(painting.id, { permanent: true })).toBeUndefined()
       expect(await paintingExists(painting.id)).toBe(false)
+    })
+
+    it('archives by default: hidden from list and get, row and file refs survive', async () => {
+      const fileEntryId = '019606a0-0000-7000-8000-00000000d101'
+      await seedFileEntry(fileEntryId)
+      const archived = paintingService.create(
+        p({ providerId: 'aihubmix', prompt: 'archived', files: { output: [fileEntryId], input: [] } })
+      )
+      const kept = paintingService.create(p({ providerId: 'aihubmix', prompt: 'kept' }))
+
+      paintingService.delete(archived.id)
+
+      const active = paintingService.list({ limit: 20 })
+      expect(active.items.map((item) => item.id)).toEqual([kept.id])
+      expect(active.total).toBe(1)
+      expectNotFound(() => paintingService.getById(archived.id))
+
+      const [row] = await dbh.db.select().from(paintingTable).where(eq(paintingTable.id, archived.id))
+      expect(row.deletedAt).not.toBeNull()
+      expect(await listPaintingRefs(archived.id)).toEqual([
+        expect.objectContaining({ fileEntryId, sourceId: archived.id, role: 'output' })
+      ])
+    })
+
+    it('throws NOT_FOUND when archiving a missing or already-archived painting', async () => {
+      const painting = paintingService.create(p({ providerId: 'aihubmix', prompt: 'once' }))
+      paintingService.delete(painting.id)
+
+      expectNotFound(() => paintingService.delete(painting.id))
+      expectNotFound(() => paintingService.delete('missing-id'))
+    })
+
+    it('blocks update and reorder for archived paintings until restored', async () => {
+      const painting = paintingService.create(p({ providerId: 'aihubmix', prompt: 'frozen' }))
+      paintingService.delete(painting.id)
+
+      expectNotFound(() => paintingService.update(painting.id, { prompt: 'nope' }))
+      expectNotFound(() => paintingService.reorder(painting.id, { position: 'first' }))
+    })
+
+    it('permanent=true hard-deletes a trashed painting and cascades its refs', async () => {
+      const fileEntryId = '019606a0-0000-7000-8000-00000000d102'
+      await seedFileEntry(fileEntryId)
+      const painting = paintingService.create(
+        p({ providerId: 'aihubmix', prompt: 'trash then purge', files: { output: [fileEntryId], input: [] } })
+      )
+      paintingService.delete(painting.id)
+
+      paintingService.delete(painting.id, { permanent: true })
+
+      expect(await paintingExists(painting.id)).toBe(false)
+      expect(await listPaintingRefs(painting.id)).toEqual([])
+      expectNotFound(() => paintingService.delete('missing-id', { permanent: true }))
+    })
+  })
+
+  describe('trash listing and restore', () => {
+    it('lists archived paintings with inTrash=true and keeps total in sync', async () => {
+      const active = paintingService.create(p({ providerId: 'aihubmix', prompt: 'active' }))
+      const trashedOld = paintingService.create(p({ providerId: 'aihubmix', prompt: 'trashed old' }))
+      const trashedNew = paintingService.create(p({ providerId: 'aihubmix', prompt: 'trashed new' }))
+      paintingService.delete(trashedOld.id)
+      paintingService.delete(trashedNew.id)
+
+      const activeList = paintingService.list({ limit: 20 })
+      expect(activeList.items.map((item) => item.id)).toEqual([active.id])
+      expect(activeList.total).toBe(1)
+
+      const trashList = paintingService.list({ inTrash: true, limit: 20 })
+      expect(trashList.items.map((item) => item.id)).toEqual([trashedNew.id, trashedOld.id])
+      expect(trashList.total).toBe(2)
+      for (const item of trashList.items) {
+        expect(item.deletedAt).toEqual(expect.any(String))
+      }
+    })
+
+    it('restores an archived painting with its files intact', async () => {
+      const outputId = '019606a0-0000-7000-8000-00000000d201'
+      const inputId = '019606a0-0000-7000-8000-00000000d202'
+      await seedFileEntry(outputId)
+      await seedFileEntry(inputId)
+      const painting = paintingService.create(
+        p({ providerId: 'aihubmix', prompt: 'round trip', files: { output: [outputId], input: [inputId] } })
+      )
+      paintingService.delete(painting.id)
+
+      const restored = paintingService.restore(painting.id)
+
+      expect(restored.id).toBe(painting.id)
+      expect(restored.deletedAt).toBeUndefined()
+      expect(restored.files).toEqual({ output: [outputId], input: [inputId] })
+      expect(paintingService.getById(painting.id).files).toEqual({ output: [outputId], input: [inputId] })
+      expect(paintingService.list({ limit: 20 }).items.map((item) => item.id)).toEqual([painting.id])
+      expect(paintingService.list({ inTrash: true, limit: 20 }).items).toEqual([])
+    })
+
+    it('throws NOT_FOUND when restoring a painting that is missing or not in the trash', async () => {
+      const painting = paintingService.create(p({ providerId: 'aihubmix', prompt: 'never archived' }))
+
+      let activeErr: unknown
+      try {
+        paintingService.restore(painting.id)
+      } catch (e) {
+        activeErr = e
+      }
+      expect(activeErr).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      let missingErr: unknown
+      try {
+        paintingService.restore('missing-id')
+      } catch (e) {
+        missingErr = e
+      }
+      expect(missingErr).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    })
+  })
+
+  describe('purgeExpiredTx', () => {
+    it('hard-deletes only expired trash rows, cascades refs, and honors the limit', async () => {
+      const expiredRefId = '019606a0-0000-7000-8000-00000000d301'
+      await seedFileEntry(expiredRefId)
+      const expired = paintingService.create(
+        p({ providerId: 'aihubmix', prompt: 'expired', files: { output: [expiredRefId], input: [] } })
+      )
+      const fresh = paintingService.create(p({ providerId: 'aihubmix', prompt: 'fresh trash' }))
+      const active = paintingService.create(p({ providerId: 'aihubmix', prompt: 'still active' }))
+      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
+      paintingService.delete(expired.id)
+      paintingService.delete(fresh.id)
+      await dbh.db
+        .update(paintingTable)
+        .set({ deletedAt: cutoff - 1000 })
+        .where(eq(paintingTable.id, expired.id))
+
+      const purged = paintingService.purgeExpiredTx(dbh.db, cutoff, 10)
+
+      expect(purged).toEqual([expired.id])
+      expect(await dbh.db.select().from(paintingTable).where(eq(paintingTable.id, expired.id))).toEqual([])
+      expect(await listPaintingRefs(expired.id)).toEqual([])
+      // Fresh trash row and active row survive.
+      expect((await dbh.db.select().from(paintingTable).where(eq(paintingTable.id, fresh.id))).length).toBe(1)
+      expect((await dbh.db.select().from(paintingTable).where(eq(paintingTable.id, active.id))).length).toBe(1)
+    })
+
+    it('respects the batch limit and returns an empty array when nothing is expired', async () => {
+      const first = paintingService.create(p({ providerId: 'aihubmix', prompt: 'batch 1' }))
+      const second = paintingService.create(p({ providerId: 'aihubmix', prompt: 'batch 2' }))
+      const cutoff = Date.now() + 60_000 // everything archived "now" counts as expired
+      paintingService.delete(first.id)
+      paintingService.delete(second.id)
+
+      const firstBatch = paintingService.purgeExpiredTx(dbh.db, cutoff, 1)
+      expect(firstBatch).toHaveLength(1)
+
+      const secondBatch = paintingService.purgeExpiredTx(dbh.db, cutoff, 1)
+      expect(secondBatch).toHaveLength(1)
+      expect([...firstBatch, ...secondBatch].sort()).toEqual([first.id, second.id].sort())
+
+      expect(paintingService.purgeExpiredTx(dbh.db, cutoff, 1)).toEqual([])
     })
   })
 })

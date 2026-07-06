@@ -5850,6 +5850,52 @@
         "token_placeholder": "请输入思源笔记令牌"
       },
       "title": "数据",
+      "trash": {
+        "days_remaining_lt_one": "剩余不足 1 天",
+        "days_remaining_one": "剩余 {{count}} 天",
+        "days_remaining_other": "剩余 {{count}} 天",
+        "deleted_at": "删除于 {{time}}",
+        "domain": {
+          "agents": "Agent",
+          "assistants": "助手",
+          "files": "文件",
+          "paintings": "绘画",
+          "sessions": "会话",
+          "topics": "话题"
+        },
+        "empty": {
+          "section": "暂无已删除的项目"
+        },
+        "empty_trash": {
+          "button": "清空回收站",
+          "confirm_content": "回收站中所有分类的全部项目将被立即彻底删除，且无法恢复。",
+          "confirm_title": "确定要清空回收站吗？",
+          "error": "清空回收站失败",
+          "success": "回收站已清空"
+        },
+        "error": {
+          "load": "加载失败"
+        },
+        "load_more": "加载更多",
+        "page_next": "下一页",
+        "page_prev": "上一页",
+        "permanent_delete": {
+          "confirm_content": "“{{name}}”将被彻底删除，且无法恢复。",
+          "confirm_title": "确定要彻底删除吗？",
+          "error": "彻底删除失败",
+          "label": "彻底删除",
+          "success": "已彻底删除"
+        },
+        "restore": {
+          "error": "恢复失败",
+          "label": "恢复",
+          "success": "已恢复"
+        },
+        "retention_hint": "已删除的项目将在 {{days}} 天后被自动彻底删除",
+        "retention_hint_never": "已删除的项目将一直保留，直到你手动彻底删除",
+        "title": "最近删除",
+        "unnamed": "未命名"
+      },
       "webdav": {
         "autoSync": {
           "label": "自动备份",

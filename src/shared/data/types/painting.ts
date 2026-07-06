@@ -27,7 +27,13 @@ export const PaintingSchema = z.strictObject({
   // service emits these via `timestampToISO`. `id` stays `z.string()` because
   // migration supplies opaque ids.
   createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime()
+  updatedAt: z.iso.datetime(),
+  /**
+   * Read-only trash marker — present only on archived paintings. Set via
+   * `DELETE /paintings/:id` (archive) and cleared via
+   * `POST /paintings/:id/restore`; never writable through create/update DTOs.
+   */
+  deletedAt: z.iso.datetime().optional()
 })
 
 export type Painting = z.infer<typeof PaintingSchema>

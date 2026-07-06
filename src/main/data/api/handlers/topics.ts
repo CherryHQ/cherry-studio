@@ -13,9 +13,11 @@ import { topicService } from '@data/services/TopicService'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreateTopicSchema,
+  DeleteTopicQuerySchema,
   DeleteTopicsQuerySchema,
   DuplicateTopicSchema,
   ListTopicsQuerySchema,
+  RestoreTopicsQuerySchema,
   SetActiveNodeSchema,
   type TopicSchemas,
   UpdateTopicSchema
@@ -36,7 +38,14 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 
     DELETE: async ({ query }) => {
       const parsed = DeleteTopicsQuerySchema.parse(query)
-      return topicService.deleteByIds(parsed.ids)
+      return topicService.deleteByIds(parsed.ids, { permanent: parsed.permanent === true })
+    }
+  },
+
+  '/topics/restore': {
+    POST: async ({ query }) => {
+      const parsed = RestoreTopicsQuerySchema.parse(query)
+      return topicService.restoreByIds(parsed.ids)
     }
   },
 
@@ -50,9 +59,16 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
       return topicService.update(params.id, parsed)
     },
 
-    DELETE: async ({ params }) => {
-      topicService.delete(params.id)
+    DELETE: async ({ params, query }) => {
+      const parsed = DeleteTopicQuerySchema.parse(query ?? {})
+      topicService.delete(params.id, { permanent: parsed.permanent === true })
       return undefined
+    }
+  },
+
+  '/topics/:id/restore': {
+    POST: async ({ params }) => {
+      return topicService.restore(params.id)
     }
   },
 

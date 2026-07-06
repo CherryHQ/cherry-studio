@@ -23,7 +23,7 @@ import {
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
-import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -89,6 +89,7 @@ export class AgentSessionMessageService {
           JOIN agent_session s ON s.id = sm.session_id
           LEFT JOIN agent a ON a.id = s.agent_id
           WHERE sm.searchable_text != ''
+            AND s.deleted_at IS NULL
             AND ${messageSessionCondition}
             AND ${createdAtCondition}
             AND ${sql.join(ftsConditions, sql` AND `)}
@@ -138,7 +139,7 @@ export class AgentSessionMessageService {
     const [session] = database
       .select({ id: sessionTable.id })
       .from(sessionTable)
-      .where(eq(sessionTable.id, sessionId))
+      .where(and(eq(sessionTable.id, sessionId), isNull(sessionTable.deletedAt)))
       .limit(1)
       .all()
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
@@ -204,7 +205,7 @@ export class AgentSessionMessageService {
     const [session] = database
       .select({ id: sessionTable.id })
       .from(sessionTable)
-      .where(eq(sessionTable.id, sessionId))
+      .where(and(eq(sessionTable.id, sessionId), isNull(sessionTable.deletedAt)))
       .limit(1)
       .all()
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
