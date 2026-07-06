@@ -8,14 +8,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useCloseConversationTabs } from '../useCloseConversationTabs'
 
-function createTabsContext(tabs: Tab[], closeTab = vi.fn()): TabsContextValue {
+function createTabsContext(tabs: Tab[], closeTabs = vi.fn()): TabsContextValue {
   return {
     tabs,
     activeTabId: tabs[0]?.id ?? '',
     activeTab: tabs[0],
     isLoading: false,
     addTab: vi.fn(),
-    closeTab,
+    closeTab: vi.fn(),
+    closeTabs,
     setActiveTab: vi.fn(),
     updateTab: vi.fn(),
     openTab: vi.fn(),
@@ -39,7 +40,7 @@ describe('useCloseConversationTabs', () => {
   })
 
   it('closes assistant tabs matching deleted topic ids', () => {
-    const closeTab = vi.fn()
+    const closeTabs = vi.fn()
     const context = createTabsContext(
       [
         {
@@ -69,7 +70,7 @@ describe('useCloseConversationTabs', () => {
           metadata: { instanceAppId: 'agents', instanceKey: 'topic-a' }
         }
       ],
-      closeTab
+      closeTabs
     )
 
     const { result } = renderHook(() => useCloseConversationTabs(), { wrapper: wrapperFor(context) })
@@ -78,14 +79,11 @@ describe('useCloseConversationTabs', () => {
       result.current('assistants', ['topic-a', 'topic-b'])
     })
 
-    expect(closeTab).toHaveBeenCalledWith('topic-a-tab')
-    expect(closeTab).toHaveBeenCalledWith('topic-b-url-tab')
-    expect(closeTab).not.toHaveBeenCalledWith('message-only-tab')
-    expect(closeTab).not.toHaveBeenCalledWith('session-tab')
+    expect(closeTabs).toHaveBeenCalledWith(['topic-a-tab', 'topic-b-url-tab'])
   })
 
   it('closes agent tabs matching deleted session ids', () => {
-    const closeTab = vi.fn()
+    const closeTabs = vi.fn()
     const context = createTabsContext(
       [
         {
@@ -109,7 +107,7 @@ describe('useCloseConversationTabs', () => {
           metadata: { instanceAppId: 'assistants', instanceKey: 'session-a' }
         }
       ],
-      closeTab
+      closeTabs
     )
 
     const { result } = renderHook(() => useCloseConversationTabs(), { wrapper: wrapperFor(context) })
@@ -118,8 +116,6 @@ describe('useCloseConversationTabs', () => {
       result.current('agents', ['session-a', 'session-b'])
     })
 
-    expect(closeTab).toHaveBeenCalledWith('session-a-tab')
-    expect(closeTab).toHaveBeenCalledWith('session-b-url-tab')
-    expect(closeTab).not.toHaveBeenCalledWith('topic-tab')
+    expect(closeTabs).toHaveBeenCalledWith(['session-a-tab', 'session-b-url-tab'])
   })
 })

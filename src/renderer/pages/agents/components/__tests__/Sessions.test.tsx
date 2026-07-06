@@ -245,7 +245,7 @@ const tabsContextMocks = vi.hoisted(() => ({
 }))
 
 const dataApiMocks = vi.hoisted(() => ({
-  deleteWorkspace: vi.fn().mockResolvedValue(undefined),
+  deleteWorkspace: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
   deleteAgentSessions: vi.fn().mockResolvedValue({ deletedIds: [] as string[], deletedCount: 0 }),
   findOrCreateWorkspace: vi.fn(async ({ body }: { body: { path: string } }) => {
     const workspace = dataApiMocks.workspaces.find((candidate) => candidate.path === body.path)
@@ -674,7 +674,7 @@ describe('Sessions', () => {
     dataApiMocks.workspacesError = undefined
     dataApiMocks.workspacesLoading = false
     dataApiMocks.workspacesRefreshing = false
-    dataApiMocks.deleteWorkspace.mockResolvedValue(undefined)
+    dataApiMocks.deleteWorkspace.mockResolvedValue({ deletedIds: [] })
     dataApiMocks.deleteAgentSessions.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
     dataApiMocks.refetchAgents.mockResolvedValue(undefined)
     dataApiMocks.reorderAgent.mockResolvedValue(undefined)
@@ -2012,6 +2012,7 @@ describe('Sessions', () => {
     const callOrder: string[] = []
     dataApiMocks.deleteWorkspace.mockImplementationOnce(async () => {
       callOrder.push('workspace')
+      return { deletedIds: ['session-a'] }
     })
     agentDataMocks.useAgents.mockReturnValue({
       agents: [],
@@ -2077,9 +2078,10 @@ describe('Sessions', () => {
     ])
     expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
     expect(callOrder).toEqual(['workspace'])
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a'])
     expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(
-      'session-b',
-      expect.objectContaining({ id: 'session-b' })
+      'session-pinned',
+      expect.objectContaining({ id: 'session-pinned' })
     )
     expect(dataApiMocks.refetchWorkspaces).toHaveBeenCalled()
     expect(sessionDataMocks.reload).toHaveBeenCalled()
@@ -2235,6 +2237,7 @@ describe('Sessions', () => {
       '/agent-channels'
     ])
     expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a'])
     expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(
       'session-b',
       expect.objectContaining({ id: 'session-b' })

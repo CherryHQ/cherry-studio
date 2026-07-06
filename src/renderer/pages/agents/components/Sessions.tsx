@@ -911,11 +911,11 @@ const Sessions = ({
       if (!confirmed) return
 
       setDeletingWorkspaceGroupId(group.id)
-      const affectedSessionIds = new Set(sessionIds)
 
       try {
-        await deleteWorkspace({ params: { workspaceId } })
-        closeConversationTabs('agents', sessionIds)
+        const result = await deleteWorkspace({ params: { workspaceId } })
+        closeConversationTabs('agents', result.deletedIds)
+        const affectedSessionIds = new Set(result.deletedIds)
 
         if (activeSessionId && affectedSessionIds.has(activeSessionId)) {
           const remaining = sessionItems.find((session) => !affectedSessionIds.has(session.id))
