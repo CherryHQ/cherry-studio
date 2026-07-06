@@ -20,7 +20,7 @@ const MANIFEST_FULL: BackupManifest = {
   sensitiveData: { included: true, rotated: false },
   schemaMigrationId: '0001_abc.sql',
   producerAppVersion: '1.0.0',
-  files: { total: 1, totalBytes: 6 },
+  files: { ids: ['f1'], total: 1, totalBytes: 6 },
   knowledge: { bases: ['base-1'] }
 }
 

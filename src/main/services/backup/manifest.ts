@@ -48,7 +48,17 @@ export interface BackupManifest {
   readonly schemaMigrationId: string
   /** Producer app version (package.json) — diagnostic only, NOT in the gate. */
   readonly producerAppVersion: string
-  readonly files: { readonly total: number; readonly totalBytes: number }
+  readonly files: {
+    /**
+     * Per-file staged ids (= collected file_entry ids − missing). Lets restore
+     * cross-check backup.sqlite file_entry rows against the staged blob set, and
+     * lets the orchestrator prune rows whose blob was missing at stage time.
+     * See export-orchestrator.md "Staged blob set 驱动 manifest + DB 裁剪".
+     */
+    readonly ids: readonly string[]
+    readonly total: number
+    readonly totalBytes: number
+  }
   readonly knowledge: { readonly bases: readonly string[] }
 }
 

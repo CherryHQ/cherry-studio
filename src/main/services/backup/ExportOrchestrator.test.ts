@@ -305,6 +305,7 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       // manifest reflects the staged blobs.
       expect(manifest.includeFiles).toBe(true)
       expect(manifest.includeKnowledgeFiles).toBe(true)
+      expect(manifest.files.ids).toEqual(['f1'])
       expect(manifest.files.total).toBe(1)
       expect(manifest.files.totalBytes).toBe(5)
       expect(manifest.knowledge.bases).toEqual(['kb1'])
@@ -326,6 +327,79 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
           expect(count('job'), 'job stripped on full (ALWAYS_STRIP)').toBe(0)
           expect(count('file_entry'), 'file_entry preserved on full').toBe(1)
           expect(count('knowledge_base'), 'knowledge_base preserved on full').toBe(1)
+        } finally {
+          d.close()
+        }
+      } finally {
+        await zip.close()
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('prunes file_entry/knowledge_base rows whose blob/dir was missing at stage (DB↔staged alignment)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-export-missing-'))
+    try {
+      const filesRoot = await mkdtemp(join(tmpdir(), 'cs-files-root-'))
+      const kbRoot = await mkdtemp(join(tmpdir(), 'cs-kb-root-'))
+      // mf1 has a blob on disk; mf2 does NOT (missing). mkb1 has a dir; mkb2 does NOT.
+      await writeFile(join(filesRoot, 'mf1.txt'), 'hello')
+      await mkdir(join(kbRoot, 'mkb1'), { recursive: true })
+      await writeFile(join(kbRoot, 'mkb1', 'source.md'), 'doc')
+
+      // Isolate from earlier tests' rows, then seed exactly these 4 fixtures.
+      await dbh.db.delete(fileEntryTable)
+      await dbh.db.delete(knowledgeBaseTable)
+      await dbh.db.insert(fileEntryTable).values([
+        { id: 'mf1', origin: 'internal', name: 'a', ext: 'txt', size: 5 },
+        { id: 'mf2', origin: 'internal', name: 'b', ext: 'txt', size: 5 }
+      ])
+      await dbh.db.insert(knowledgeBaseTable).values([
+        { id: 'mkb1', name: 'kb1', status: 'completed', chunkSize: 100, chunkOverlap: 20, searchMode: 'bm25' },
+        { id: 'mkb2', name: 'kb2', status: 'completed', chunkSize: 100, chunkOverlap: 20, searchMode: 'bm25' }
+      ])
+
+      const liveRow = dbh.sqlite.prepare('PRAGMA database_list').get() as { file: string }
+      const orch = new ExportOrchestrator({
+        copier: new SqliteBackupCopier(liveRow.file),
+        registry: contributorManager.getRegistry(),
+        tempDir: dir,
+        filesRoot,
+        knowledgeRoot: kbRoot,
+        stripper: new SqliteBackupStripper()
+      })
+      const out = join(dir, 'missing.cbu')
+      const { manifest } = await orch.exportBackup({
+        preset: 'full',
+        outputPath: out,
+        restoreId: 'rm',
+        producerAppVersion: '1.0.0',
+        schemaMigrationId: '0001_x.sql'
+      })
+
+      // manifest reflects ONLY staged (mf1, mkb1); mf2/mkb2 missing excluded.
+      expect(manifest.files.ids).toEqual(['mf1'])
+      expect(manifest.files.total).toBe(1)
+      expect(manifest.knowledge.bases).toEqual(['mkb1'])
+
+      // archive: only staged blobs/dir present; missing absent.
+      const { zip, entries } = await openZip(out)
+      try {
+        expect(entries).toContain('files/mf1')
+        expect(entries).not.toContain('files/mf2')
+        expect(entries).toContain('knowledge/mkb1/source.md')
+        expect(entries.some((e) => e.startsWith('knowledge/mkb2'))).toBe(false)
+
+        // backup.sqlite: missing rows PRUNED — DB rows ↔ staged files 1:1, so
+        // restore can't re-create a row pointing at a file the archive never held.
+        const extracted = join(dir, 'extracted.db')
+        await zip.extract('backup.sqlite', extracted)
+        const d = new Database(extracted, { readonly: true })
+        try {
+          const count = (t: string) => (d.prepare(`SELECT COUNT(*) AS c FROM "${t}"`).get() as { c: number }).c
+          expect(count('file_entry'), 'mf2 pruned (missing blob)').toBe(1)
+          expect(count('knowledge_base'), 'mkb2 pruned (missing dir)').toBe(1)
         } finally {
           d.close()
         }
