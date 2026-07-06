@@ -6,7 +6,8 @@
  */
 
 import { application } from '@main/core/application'
-import type { ReasoningDetailUnion } from '@main/features/apiGateway/adapters/openrouter'
+
+import type { ReasoningDetailUnion } from './openrouter'
 
 /**
  * Interface for reasoning cache

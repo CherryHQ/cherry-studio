@@ -17,7 +17,7 @@ import { v7 as uuidv7 } from 'uuid'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
-import { runtimeDriverRegistry } from '../../runtime'
+import { runtimeDriverRegistry } from '../../runtime/registry'
 import type { StreamListener } from '../types'
 import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
