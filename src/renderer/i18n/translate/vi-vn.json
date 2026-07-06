@@ -1285,7 +1285,12 @@
         "titleLabel": "Tiêu đề",
         "titlePlaceholder": "Nhập tiêu đề"
       },
-      "title": "Cài đặt Trợ lý"
+      "title": "Cài đặt Trợ lý",
+      "tool_use_mode": {
+        "function": "Chức năng",
+        "label": "Chế độ Sử dụng Công cụ",
+        "prompt": "Lời nhắc"
+      }
     },
     "tags": {
       "add": "Thêm thẻ",

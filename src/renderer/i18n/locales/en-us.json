@@ -1285,7 +1285,12 @@
         "titleLabel": "Title",
         "titlePlaceholder": "Enter title"
       },
-      "title": "Assistant Settings"
+      "title": "Assistant Settings",
+      "tool_use_mode": {
+        "function": "Function",
+        "label": "Tool Use Mode",
+        "prompt": "Prompt"
+      }
     },
     "tags": {
       "add": "Add Tag",
