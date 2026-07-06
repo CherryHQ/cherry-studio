@@ -19,7 +19,8 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
 }))
 
 const chatWriteMock = vi.hoisted(() => ({
-  editMessage: vi.fn()
+  editMessage: vi.fn(),
+  setActiveNode: vi.fn()
 }))
 
 const commandHandlerMock = vi.hoisted(() => vi.fn())
@@ -233,12 +234,14 @@ const createTopic = (id: string): Topic =>
 function MessageListAdapterHarness({
   imageActionConsumer,
   messages = [],
+  onStartBranchDraft,
   onValue,
   partsByMessageId = {},
   topic
 }: {
   imageActionConsumer?: 'capture'
   messages?: CherryUIMessage[]
+  onStartBranchDraft?: MessageListProviderValue['actions']['startMessageBranch']
   onValue?: (value: MessageListProviderValue) => void
   partsByMessageId?: Record<string, CherryMessagePart[]>
   topic: Topic
@@ -247,7 +250,8 @@ function MessageListAdapterHarness({
     topic,
     messages,
     partsByMessageId,
-    imageActionConsumer
+    imageActionConsumer,
+    onStartBranchDraft
   })
 
   useEffect(() => {
@@ -428,6 +432,25 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(chatWriteMock.editMessage).toHaveBeenCalledWith('message-1', [updatedPart])
     expect(dataApiService.patch).not.toHaveBeenCalled()
     expect(window.toast.success).toHaveBeenCalledWith('code_block.edit.save.success')
+  })
+
+  it('starts message branches through the injected branch draft handler', async () => {
+    const onStartBranchDraft = vi.fn().mockResolvedValue(undefined)
+    let value: MessageListProviderValue | undefined
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        onStartBranchDraft={onStartBranchDraft}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await waitFor(() => expect(value).toBeDefined())
+    await value?.actions.startMessageBranch?.('assistant-old')
+
+    expect(onStartBranchDraft).toHaveBeenCalledWith('assistant-old')
+    expect(chatWriteMock.setActiveNode).not.toHaveBeenCalled()
   })
 
   it('shows an error when saving code block edits through chat write fails', async () => {

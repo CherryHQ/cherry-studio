@@ -138,7 +138,7 @@ export function RightPaneHost({
     })
     observer.observe(container)
     return () => observer.disconnect()
-  }, [hasVisiblePane, minWidth, onReservedSpaceUnavailable, reservedCenterWidth])
+  }, [hasVisiblePane, minWidth, onReservedSpaceUnavailable, paneRef, reservedCenterWidth])
 
   return (
     <AnimatePresence initial={false} onExitComplete={onCloseAnimationComplete}>
@@ -174,7 +174,7 @@ export function RightPaneHost({
                 onResize: setPaneWidth,
                 invert: true
               })}
-              className="group/right-pane-resize-handle absolute top-0 bottom-0 left-0 z-10 w-2 cursor-col-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+              className="group/right-pane-resize-handle absolute top-0 bottom-0 left-0 z-30 w-2 cursor-col-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
               <div className="absolute top-0 left-0 h-full w-0.5 bg-primary/20 opacity-0 transition-opacity group-hover/right-pane-resize-handle:opacity-100 group-data-[resizing=true]/right-pane:bg-primary/35 group-data-[resizing=true]/right-pane:opacity-100" />
             </div>
           )}

@@ -129,30 +129,54 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     expect(options.sortFn!(reversedItems, '')).toEqual(reversedItems)
   })
 
-  it('filters by filterText substring and pinyin, without loose fuzzy subsequence', () => {
-    const options = createUnifiedQuickPanelOpenOptions([], {
-      quickPanel,
-      additionalItems: [
-        { id: 'skill:pdf', label: 'pdf', description: 'Read and analyze PDFs', filterText: 'pdf', icon: 'skill' }
+  it('filters by explicit text, search aliases, pinyin, and pinyin initials without loose fuzzy subsequence', () => {
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'web-search',
+          kind: 'command',
+          label: '网络搜索',
+          icon: 'search',
+          sources: ['root-panel'],
+          searchAliases: ['Web Search', 'Online Search']
+        }
       ],
-      resourceItems: [{ id: 'quick-phrases', label: '提示词管理', icon: 'phrase' }]
-    })
+      {
+        quickPanel,
+        additionalItems: [
+          {
+            id: 'skill:pdf',
+            label: 'pdf',
+            description: 'Read and analyze PDFs',
+            filterText: 'pdf',
+            icon: 'skill'
+          }
+        ],
+        resourceItems: [{ id: 'quick-phrases', label: '提示词管理', icon: 'phrase' }]
+      }
+    )
 
     const filterFn = options.filterFn!
     const fuzzyRegex = /s.*l/i
     const pinyinCache = new WeakMap<QuickPanelListItem, string>()
     const skill = options.list.find((item) => item.label === 'pdf')!
     const quickPhrases = options.list.find((item) => item.label === '提示词管理')!
+    const webSearch = options.list.find((item) => item.label === '网络搜索')!
 
-    // Skill matches its name...
+    // Skills keep their explicit root-panel search field and do not match descriptions.
     expect(filterFn(skill, 'pdf', fuzzyRegex, pinyinCache)).toBe(true)
-    // ...but not its description (name-only).
     expect(filterFn(skill, 'analyze', fuzzyRegex, pinyinCache)).toBe(false)
 
-    // Chinese row matches by substring and pinyin substring...
+    // Chinese row matches by substring, pinyin substring, and pinyin initial substring...
     expect(filterFn(quickPhrases, '提示词', fuzzyRegex, pinyinCache)).toBe(true)
     expect(filterFn(quickPhrases, 'tishi', fuzzyRegex, pinyinCache)).toBe(true)
-    // ...but not by a loose fuzzy subsequence of its pinyin (tiShiCiGuanLi).
+    expect(filterFn(quickPhrases, 'tscgl', fuzzyRegex, pinyinCache)).toBe(true)
+
+    // Launcher rows with filterText still match hidden English aliases and visible Chinese labels by initials.
+    expect(filterFn(webSearch, 'web', fuzzyRegex, pinyinCache)).toBe(true)
+    expect(filterFn(webSearch, 'online', fuzzyRegex, pinyinCache)).toBe(true)
+    expect(filterFn(webSearch, 'wlss', fuzzyRegex, pinyinCache)).toBe(true)
+    // ...but not by a loose fuzzy subsequence of its pinyin or initials.
     expect(filterFn(quickPhrases, 'sl', fuzzyRegex, pinyinCache)).toBe(false)
   })
 

@@ -1,4 +1,5 @@
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
   type QuickPanelCallBackOptions,
@@ -189,6 +190,7 @@ const useKnowledgeBaseToolController = ({
         order: 40,
         label: t('chat.input.knowledge_base'),
         description: resolvedDisabledReason ?? '',
+        searchAliases: getQuickPanelSearchAliases(t, 'chat.input.knowledge_base', ['knowledge base']),
         disabledReason: resolvedDisabledReason,
         icon: <FileSearch />,
         active: isEnabled,

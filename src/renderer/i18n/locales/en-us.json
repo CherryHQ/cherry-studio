@@ -1587,6 +1587,11 @@
       "new": {
         "branch": {
           "created": "New Branch Created",
+          "disabled": {
+            "active": "This node is already selected. Continue typing to extend the branch from here.",
+            "latest": "You are already at the end of this branch. Continue typing to extend it.",
+            "no_follow_up": "There is no follow-up after this message yet. Switch to this node and continue typing instead."
+          },
           "label": "New Branch"
         },
         "context": "New Context"
@@ -3353,6 +3358,10 @@
       "tags": "Tags",
       "title": "Library"
     },
+    "skill_add": {
+      "local_import": "Local import",
+      "online_search": "Online search"
+    },
     "skill_detail": {
       "created_at": "Created",
       "delete_description": "Remove this skill and all of its configuration. This action cannot be undone.",
@@ -3363,6 +3372,15 @@
       "no_description": "No description",
       "source_files": "Source files",
       "updated_at": "Recently updated"
+    },
+    "skill_marketplace": {
+      "empty_description": "Search online registries to find installable skills.",
+      "empty_title": "Search for skills",
+      "no_results_description": "Try another keyword or import a local ZIP or directory.",
+      "no_results_title": "No skills found",
+      "search_failed_description": "Search failed. Please try again later.",
+      "search_placeholder": "Search skills...",
+      "title": "Online skill search"
     },
     "sort": {
       "created": "Sort by created",
@@ -7279,6 +7297,9 @@
     },
     "skills": {
       "author": "Author",
+      "batchInstallComplete": "Installed {{count}} skills",
+      "batchInstallPartialFailed": "Installed {{success}}/{{total}} skills, {{failed}} failed",
+      "batchInstallQueued": "Queued",
       "batchUninstallSuccess": "{{count}} skills uninstalled",
       "builtin": "Built-in",
       "confirmBatchUninstall": "Are you sure you want to uninstall {{count}} selected skills?",

@@ -38,7 +38,6 @@ import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/useP
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -432,7 +431,6 @@ const Sessions = ({
     reorderSession,
     togglePin
   } = useAgentSessionsSource()
-  const currentTabId = useCurrentTabId()
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)
@@ -509,15 +507,10 @@ const Sessions = ({
 
   const setActiveSessionId = useCallback(
     (id: string | null) => {
-      // One tab per session: if this session is already open in another tab,
-      // focus that tab instead of navigating the current one (avoids a duplicate
-      // tab). The page owns session changes and syncs the current instance key
-      // through tab metadata.
-      if (id && conversationNav.focusExistingTab(id, { excludeTabId: currentTabId ?? undefined })) return
       const session = id ? (sessionItemsRef.current.find((candidate) => candidate.id === id) ?? null) : null
       setControlledActiveSessionId(id, session)
     },
-    [conversationNav, currentTabId, setControlledActiveSessionId]
+    [setControlledActiveSessionId]
   )
 
   const { updateSession } = useUpdateSession()
