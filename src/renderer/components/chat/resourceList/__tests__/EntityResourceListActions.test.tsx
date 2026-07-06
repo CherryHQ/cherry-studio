@@ -611,7 +611,7 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'settings.assistant.icon.type.none' })[0])
 
-    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('assistant.icon_type', 'none')
+    expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.icon_type', 'none')
   })
 
   it('lets the classic agent rail switch back to the workdir session view', async () => {

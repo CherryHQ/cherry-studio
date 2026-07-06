@@ -64,7 +64,8 @@ export function AgentResourceList({
   onActiveAgentDeleted
 }: AgentResourceListProps) {
   const { t } = useTranslation()
-  const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
+  // Agent rail icon style is stored under its own key so it no longer mutates the assistant's.
+  const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()

@@ -690,7 +690,7 @@ describe('Sessions', () => {
     preferenceMocks.values.clear()
     cacheMocks.values.clear()
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
-    preferenceMocks.values.set('assistant.icon_type', 'emoji')
+    preferenceMocks.values.set('agent.icon_type', 'emoji')
     preferenceMocks.values.set('agent.session.position', 'left')
     setSessionGroupExpansionCache(createExpandedSessionGroupExpansionFixture())
     preferenceMocks.values.set('topic.tab.show', true)
@@ -1055,7 +1055,7 @@ describe('Sessions', () => {
 
   it('uses the configured model icon for agent session groups', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
-    preferenceMocks.values.set('assistant.icon_type', 'model')
+    preferenceMocks.values.set('agent.icon_type', 'model')
     preferenceMocks.values.set('chat.default_model_id', 'provider-default::default-model')
     setSessionGroupExpansionCache({
       ...createExpandedSessionGroupExpansionFixture(),
@@ -2387,7 +2387,7 @@ describe('Sessions', () => {
     expect(modelIconMenuItem).toBeDefined()
     fireEvent.click(modelIconMenuItem as HTMLElement)
 
-    await vi.waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('assistant.icon_type', 'model'))
+    await vi.waitFor(() => expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.icon_type', 'model'))
   })
 
   it('deletes an agent from the agent group menu', async () => {

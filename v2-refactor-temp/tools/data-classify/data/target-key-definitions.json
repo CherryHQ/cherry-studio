@@ -144,6 +144,13 @@
       "description": "Topic sidebar display grouping mode"
     },
     {
+      "targetKey": "agent.icon_type",
+      "type": "PreferenceTypes.AssistantIconType",
+      "defaultValue": "emoji",
+      "status": "classified",
+      "description": "Agent rail entity icon style (emoji/model/none), independent of the assistant icon type"
+    },
+    {
       "targetKey": "agent.session.display_mode",
       "type": "PreferenceTypes.AgentSessionDisplayMode",
       "defaultValue": "workdir",

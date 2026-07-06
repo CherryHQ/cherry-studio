@@ -279,7 +279,8 @@ const Sessions = ({
   const [groupNow] = useState(() => new Date())
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const [storedPanePosition, setStoredPanePosition] = usePreference('agent.session.position')
-  const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
+  // Agent session icon style is stored under its own key so it no longer mutates the assistant's.
+  const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const resolvedPanePosition = panePosition ?? storedPanePosition
   const setResolvedPanePosition = onSetPanePosition ?? setStoredPanePosition
