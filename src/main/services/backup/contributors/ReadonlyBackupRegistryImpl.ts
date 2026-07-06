@@ -32,7 +32,7 @@ import {
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
 import { INFRASTRUCTURE_TABLES, RUNTIME_EXCLUDED_FILE_REF_SOURCES } from '@main/data/db/backup/exclusions'
 import { frozenMap } from '@main/data/db/backup/freeze'
-import type { FileRefSourceType } from '@shared/data/types/file/ref'
+import type { FileRefSourceType } from '@shared/data/types/file'
 
 /** Brand marking a genuinely finalized registry instance. */
 export const READONLY_REGISTRY = Symbol.for('@backup/readonly-registry')

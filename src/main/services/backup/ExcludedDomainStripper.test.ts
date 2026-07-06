@@ -68,7 +68,7 @@ async function seedAll(dbh: ReturnType<typeof setupTestDatabase>): Promise<void>
   // KNOWLEDGE (excluded) + member + ASSISTANTS junction referrer (cross-domain cascade-prune target).
   await dbh.db
     .insert(knowledgeBaseTable)
-    .values([{ id: 'kb1', name: 'KB', status: 'completed', chunkSize: 500, chunkOverlap: 50, searchMode: 'bm25' }])
+    .values([{ id: 'kb1', name: 'KB', status: 'completed', chunkSize: 500, chunkOverlap: 50 }])
   await dbh.db
     .insert(knowledgeItemTable)
     .values([{ id: 'ki1', baseId: 'kb1', type: 'file', data: { source: 'file', url: '' }, status: 'completed' }])

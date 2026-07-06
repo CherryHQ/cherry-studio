@@ -269,7 +269,7 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       await dbh.db.insert(fileEntryTable).values([{ id: 'f1', origin: 'internal', name: 'a', ext: 'txt', size: 5 }])
       await dbh.db
         .insert(knowledgeBaseTable)
-        .values([{ id: 'kb1', name: 'kb', status: 'completed', chunkSize: 100, chunkOverlap: 20, searchMode: 'bm25' }])
+        .values([{ id: 'kb1', name: 'kb', status: 'completed', chunkSize: 100, chunkOverlap: 20 }])
       await dbh.db.insert(appStateTable).values([{ key: 'migration_v2_status', value: 'completed' }])
       // Fixture blobs at the live filesystem roots.
       const filesRoot = await mkdtemp(join(tmpdir(), 'cs-files-root-'))
@@ -356,8 +356,8 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         { id: 'mf2', origin: 'internal', name: 'b', ext: 'txt', size: 5 }
       ])
       await dbh.db.insert(knowledgeBaseTable).values([
-        { id: 'mkb1', name: 'kb1', status: 'completed', chunkSize: 100, chunkOverlap: 20, searchMode: 'bm25' },
-        { id: 'mkb2', name: 'kb2', status: 'completed', chunkSize: 100, chunkOverlap: 20, searchMode: 'bm25' }
+        { id: 'mkb1', name: 'kb1', status: 'completed', chunkSize: 100, chunkOverlap: 20 },
+        { id: 'mkb2', name: 'kb2', status: 'completed', chunkSize: 100, chunkOverlap: 20 }
       ])
 
       const liveRow = dbh.sqlite.prepare('PRAGMA database_list').get() as { file: string }
@@ -440,7 +440,7 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       await dbh.db.insert(chatMessageFileRefTable).values([{ id: 'cmfr1', fileEntryId: 'f1', sourceId: 'msg1', role: 'attachment' }])
       await dbh.db
         .insert(knowledgeBaseTable)
-        .values([{ id: 'kb1', name: 'KB', status: 'completed', chunkSize: 500, chunkOverlap: 50, searchMode: 'bm25' }])
+        .values([{ id: 'kb1', name: 'KB', status: 'completed', chunkSize: 500, chunkOverlap: 50 }])
       await dbh.db.insert(assistantKnowledgeBaseTable).values([{ assistantId: 'ast1', knowledgeBaseId: 'kb1' }])
       // app_state (ALWAYS_STRIP) — runtime state, must be stripped even on lite.
       await dbh.db.insert(appStateTable).values([{ key: 'migration_v2_status', value: 'completed' }])
