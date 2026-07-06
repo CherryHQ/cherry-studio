@@ -40,15 +40,6 @@ const DEFAULT_BASIC_PROMPT = `You are a personal assistant running inside Cherry
 
 `
 
-const SKILLS_GUIDANCE = `## Skills
-
-You can manage Claude skills via the \`mcp__skills__skills\` tool — search the marketplace, install / remove existing skills, and author new ones via the \`init\` and \`register\` actions. Discovery and runtime activation of installed skills is handled automatically by the agent SDK; this tool is just the management surface.
-
-When to act:
-- When the user asks for a capability you don't already have, search the marketplace before attempting the task from scratch — there is often an existing skill that fits.
-- After completing a non-trivial task (5+ tool calls, an iterative fix, a workflow you'd want to repeat), offer to save the approach as a new skill via \`init\` + \`register\`.
-- If you find an installed skill is outdated, incomplete, or wrong, fix it in place. Get the skill's \`path\` from \`mcp__skills__skills\` action="list" (or use the path returned by \`init\` if you just created it), then use the native Read / Edit tools on the files in that directory. The live symlink picks up file changes immediately, so no separate "patch" call is needed. Don't wait for the user to ask — patch immediately when you notice the issue.`
-
 const MEMORY_GUIDANCE = `## Workspace Memory
 
 You have persistent memory in this agent's workspace via the \`mcp__agent-memory__memory\` tool: \`update\` rewrites \`memory/FACT.md\` (durable knowledge), \`append\` adds a timestamped entry to \`memory/JOURNAL.jsonl\` (one-off events), and \`search\` queries the journal.
@@ -91,11 +82,11 @@ If the user explicitly needs browser automation (filling forms, clicking, naviga
 
 /**
  * Compose the tool-strategy guidance for an agent. Every section is always
- * present — the autonomy (cron / notify / config), skills, memory, and web-tools
- * MCP servers are injected for every agent.
+ * present — the autonomy (cron / notify / config), memory, and web-tools MCP
+ * servers are injected for every agent.
  */
 function composeToolGuidance(): string {
-  return [CHERRY_GUIDANCE, SKILLS_GUIDANCE, MEMORY_GUIDANCE, WEB_TOOLS_GUIDANCE].join('\n\n')
+  return [CHERRY_GUIDANCE, MEMORY_GUIDANCE, WEB_TOOLS_GUIDANCE].join('\n\n')
 }
 
 function memoriesTemplate(workspacePath: string, sections: string): string {
@@ -123,8 +114,8 @@ ${sections}`
  *
  * {@link buildSystemPrompt} — full custom prompt that REPLACES the SDK preset
  * entirely. Includes the basic identity, the full tool guidance (autonomy +
- * skills + memory + web), bootstrap instructions when needed, and the
- * workspace memory files (SOUL.md / USER.md / FACT.md).
+ * memory + web), bootstrap instructions when needed, and the workspace memory
+ * files (SOUL.md / USER.md / FACT.md).
  *
  * Memory files layout:
  *   {workspace}/SOUL.md          — personality, tone, communication style
@@ -135,7 +126,11 @@ ${sections}`
 export class PromptBuilder {
   private cache = new Map<string, CacheEntry>()
 
-  async buildSystemPrompt(workspacePath: string, config?: AgentConfiguration): Promise<string> {
+  async buildSystemPrompt(
+    workspacePath: string,
+    config?: AgentConfiguration,
+    hasUserInstructions = false
+  ): Promise<string> {
     const parts: string[] = []
 
     // Basic prompt: workspace system.md (case-insensitive) > embedded default
@@ -147,7 +142,7 @@ export class PromptBuilder {
     parts.push(composeToolGuidance())
 
     // Bootstrap detection: inject bootstrap instructions if not completed
-    const needsBootstrap = await this.shouldRunBootstrap(workspacePath, config)
+    const needsBootstrap = await this.shouldRunBootstrap(workspacePath, config, hasUserInstructions)
     if (needsBootstrap) {
       parts.push(BOOTSTRAP_INSTRUCTIONS)
       logger.info('Bootstrap mode active — injecting onboarding instructions')
@@ -197,10 +192,15 @@ ${content}
    * Determine whether bootstrap should run.
    * - If `bootstrap_completed` is explicitly true, skip.
    * - If SOUL.md has substantial non-template content, skip (legacy agent migration).
+   * - If the agent already has non-blank user instructions, skip.
    * - Otherwise, run bootstrap.
    */
-  private async shouldRunBootstrap(workspacePath: string, config?: AgentConfiguration): Promise<boolean> {
-    if (config?.bootstrap_completed === true) {
+  private async shouldRunBootstrap(
+    workspacePath: string,
+    config?: AgentConfiguration,
+    hasUserInstructions = false
+  ): Promise<boolean> {
+    if (config?.bootstrap_completed === true || hasUserInstructions) {
       return false
     }
 

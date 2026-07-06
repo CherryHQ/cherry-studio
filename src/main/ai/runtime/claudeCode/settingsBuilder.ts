@@ -888,7 +888,7 @@ export async function buildSystemPrompt(
   // Not added to the assistant path above — it injects its own environment via buildAssistantContext.
   const runtimeBlock = `\n\n${await buildRuntimeContext()}`
 
-  const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig)
+  const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig, Boolean(instructions?.trim()))
   const userInstructions = instructions ? `\n\n${instructions}` : ''
   return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
 }

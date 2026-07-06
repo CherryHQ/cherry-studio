@@ -76,21 +76,19 @@ describe('PromptBuilder', () => {
     expect(result).not.toContain('## Memories')
   })
 
-  it('embeds tool guidance sections in order (autonomy, skills, memory, web)', async () => {
+  it('embeds tool guidance sections in order (autonomy, memory, web)', async () => {
     setupFiles({})
 
     const result = await builder.buildSystemPrompt('/workspace')
 
     const cherryIdx = result.indexOf('## Autonomy Tools')
-    const skillsIdx = result.indexOf('## Skills')
     const memoryIdx = result.indexOf('## Workspace Memory')
     const webIdx = result.indexOf('## Web Search Strategy')
     expect(cherryIdx).toBeGreaterThanOrEqual(0)
-    expect(cherryIdx).toBeLessThan(skillsIdx)
-    expect(skillsIdx).toBeLessThan(memoryIdx)
+    expect(cherryIdx).toBeLessThan(memoryIdx)
     expect(memoryIdx).toBeLessThan(webIdx)
     expect(result).toContain('mcp__cherry-tools__cron')
-    expect(result).toContain('mcp__skills__skills')
+    expect(result).not.toContain('mcp__skills__skills')
     expect(result).toContain('mcp__agent-memory__memory')
     expect(result).toContain('mcp__cherry-tools__web_search')
     expect(result).toContain('mcp__cherry-tools__web_fetch')
@@ -233,6 +231,14 @@ describe('PromptBuilder', () => {
       setupFiles({})
 
       const result = await builder.buildSystemPrompt('/workspace', { ...baseConfig, bootstrap_completed: true })
+
+      expect(result).not.toContain('## Bootstrap Mode')
+    })
+
+    it('skips bootstrap when the agent already has non-blank user instructions', async () => {
+      setupFiles({})
+
+      const result = await builder.buildSystemPrompt('/workspace', baseConfig, true)
 
       expect(result).not.toContain('## Bootstrap Mode')
     })
