@@ -1,87 +1,46 @@
+import {
+  createImageActionBus,
+  type ImageActionRequest,
+  type ImageActionType
+} from '@renderer/utils/message/imageActionBus'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
-export type AgentSessionImageActionType = 'copy' | 'export'
+export type AgentSessionImageActionType = ImageActionType
 
 export type AgentSessionImageActionTarget = Pick<AgentSessionEntity, 'id' | 'name'>
 
-export interface AgentSessionImageActionRequest {
-  id: number
-  promise: Promise<void>
-  session: AgentSessionImageActionTarget
-  type: AgentSessionImageActionType
-}
+export type AgentSessionImageActionRequest = ImageActionRequest<AgentSessionImageActionTarget, 'session'>
 
-interface AgentSessionImageActionSettlement {
-  reject: (reason?: unknown) => void
-  resolve: () => void
-}
-
-let nextRequestId = 1
-let pendingRequests: AgentSessionImageActionRequest[] = []
-const settlements = new Map<number, AgentSessionImageActionSettlement>()
+const agentSessionImageActionBus = createImageActionBus<AgentSessionImageActionTarget, 'session'>({
+  targetKey: 'session',
+  getTargetId: (session) => session.id
+})
 
 export function requestAgentSessionImageAction(
   type: AgentSessionImageActionType,
   session: AgentSessionImageActionTarget
 ): AgentSessionImageActionRequest {
-  let settlement: AgentSessionImageActionSettlement | undefined
-  const promise = new Promise<void>((resolve, reject) => {
-    settlement = { resolve, reject }
-  })
-  const request = { id: nextRequestId++, promise, type, session }
-  settlements.set(request.id, settlement as AgentSessionImageActionSettlement)
-  pendingRequests.push(request)
-  return request
+  return agentSessionImageActionBus.requestImageAction(type, session)
 }
 
 export function settleAgentSessionImageActionRequest(
   request: AgentSessionImageActionRequest,
   actionPromise: Promise<void> | void
 ): void {
-  const settlement = settlements.get(request.id)
-  if (!settlement) return
-
-  settlements.delete(request.id)
-  void Promise.resolve(actionPromise).then(settlement.resolve, settlement.reject)
+  agentSessionImageActionBus.settleImageActionRequest(request, actionPromise)
 }
 
 export function consumePendingAgentSessionImageActions(
   sessionId: string,
   type?: AgentSessionImageActionType
 ): AgentSessionImageActionRequest[] {
-  const matches: AgentSessionImageActionRequest[] = []
-  const remaining: AgentSessionImageActionRequest[] = []
-
-  for (const request of pendingRequests) {
-    if (request.session.id === sessionId && (!type || request.type === type)) {
-      matches.push(request)
-    } else {
-      remaining.push(request)
-    }
-  }
-
-  pendingRequests = remaining
-  return matches
+  return agentSessionImageActionBus.consumePendingImageActions(sessionId, type)
 }
 
 export function rejectPendingAgentSessionImageActions(sessionId: string | undefined, reason: unknown): void {
-  const remaining: AgentSessionImageActionRequest[] = []
-
-  for (const request of pendingRequests) {
-    if (sessionId === undefined || request.session.id === sessionId) {
-      const settlement = settlements.get(request.id)
-      settlements.delete(request.id)
-      settlement?.reject(reason)
-    } else {
-      remaining.push(request)
-    }
-  }
-
-  pendingRequests = remaining
+  agentSessionImageActionBus.rejectPendingImageActions(sessionId, reason)
 }
 
 export function clearPendingAgentSessionImageActionsForTest(): void {
-  pendingRequests = []
-  settlements.clear()
-  nextRequestId = 1
+  agentSessionImageActionBus.clearPendingImageActionsForTest()
 }

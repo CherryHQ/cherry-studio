@@ -1706,6 +1706,7 @@
               "tip": "Conversation will be saved to knowledge base with complete context"
             }
           },
+          "source_fallback": "Conversation",
           "success": "Conversation successfully saved to knowledge base ({{count}} items)",
           "title": "Save Conversation to Knowledge Base"
         }

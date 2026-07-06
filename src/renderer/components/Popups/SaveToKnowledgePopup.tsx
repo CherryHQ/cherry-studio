@@ -110,7 +110,7 @@ interface Props extends ShowParams {
   resolve: (data: SaveResult | null) => void
 }
 
-const getNoteSource = (source: ContentSource, sourceTitle?: string) => {
+const getNoteSource = (source: ContentSource, fallbackConversationTitle: string, sourceTitle?: string) => {
   const trimmedSourceTitle = sourceTitle?.trim()
 
   if (trimmedSourceTitle) {
@@ -126,7 +126,7 @@ const getNoteSource = (source: ContentSource, sourceTitle?: string) => {
   }
 
   if (source.type === 'messages') {
-    return source.data.title.trim() || 'Conversation'
+    return source.data.title.trim() || fallbackConversationTitle
   }
 
   return source.data.id
@@ -320,7 +320,7 @@ const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, res
       }
 
       const items: KnowledgeAddItemInput[] = []
-      const noteSource = getNoteSource(source, sourceTitle)
+      const noteSource = getNoteSource(source, t('chat.save.topic.knowledge.source_fallback'), sourceTitle)
 
       if (isNoteMode) {
         const note = source.data

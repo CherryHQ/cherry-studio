@@ -31,6 +31,7 @@ import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
 import {
@@ -88,11 +89,6 @@ import { useTopicMenuActions } from './useTopicMenuActions'
 const logger = loggerService.withContext('Topics')
 // Let the context menu close before mounting the heavier offscreen message list.
 const IMAGE_CAPTURE_START_DELAY_MS = 160
-
-type TopicImageCaptureTarget = {
-  requestId: number
-  topic: Topic
-}
 
 interface Props {
   activeTopic?: Topic
@@ -238,9 +234,11 @@ export function Topics({
   const [topicExpansionAssistant, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
-  const [imageCaptureTargets, setImageCaptureTargets] = useState<TopicImageCaptureTarget[]>([])
-  const imageCaptureMountedRef = useRef(true)
-  const imageCaptureStartTimersRef = useRef<Set<number>>(new Set())
+  const { queueTarget: queueImageCaptureTarget, targets: imageCaptureTargets } = useImageCaptureTargets<Topic>({
+    cancelMessage: 'Topic image export was cancelled',
+    delayMs: IMAGE_CAPTURE_START_DELAY_MS,
+    rejectPendingActions: rejectPendingTopicImageActions
+  })
   const [exportMenuOptions] = useMultiplePreferences({
     docx: 'data.export.menus.docx',
     image: 'data.export.menus.image',
@@ -333,38 +331,10 @@ export function Topics({
         void request.promise.catch(() => window.toast.error(t('common.copy_failed')))
       }
 
-      const startTimerId = window.setTimeout(() => {
-        imageCaptureStartTimersRef.current.delete(startTimerId)
-        if (!imageCaptureMountedRef.current) return
-        setImageCaptureTargets((current) => [...current, { requestId: request.id, topic }])
-      }, IMAGE_CAPTURE_START_DELAY_MS)
-
-      imageCaptureStartTimersRef.current.add(startTimerId)
-      void request.promise
-        .finally(() => {
-          window.clearTimeout(startTimerId)
-          imageCaptureStartTimersRef.current.delete(startTimerId)
-          if (!imageCaptureMountedRef.current) return
-          setImageCaptureTargets((current) => current.filter((target) => target.requestId !== request.id))
-        })
-        .catch(() => undefined)
+      queueImageCaptureTarget(request, topic)
     },
-    [showTopicImageExportToast, t]
+    [queueImageCaptureTarget, showTopicImageExportToast, t]
   )
-
-  useEffect(() => {
-    imageCaptureMountedRef.current = true
-    const imageCaptureStartTimers = imageCaptureStartTimersRef.current
-
-    return () => {
-      imageCaptureMountedRef.current = false
-      for (const timerId of imageCaptureStartTimers) {
-        window.clearTimeout(timerId)
-      }
-      imageCaptureStartTimers.clear()
-      rejectPendingTopicImageActions(undefined, new Error('Topic image export was cancelled'))
-    }
-  }, [])
 
   const apiBackedTopics = useMemo(
     () =>
@@ -699,7 +669,7 @@ export function Topics({
   const imageCaptureTopics = useMemo(() => {
     const topicById = new Map<string, Topic>()
     for (const target of imageCaptureTargets) {
-      topicById.set(target.topic.id, target.topic)
+      topicById.set(target.target.id, target.target)
     }
     return [...topicById.values()]
   }, [imageCaptureTargets])

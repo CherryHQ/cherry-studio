@@ -327,7 +327,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 vi.mock('@renderer/pages/agents/messages/AgentSessionImageCaptureHost', () => {
   const React = require('react')
   return {
-    default: (props: { session: AgentSessionEntity }) => {
+    default: (props: { modelFallback?: unknown; session: AgentSessionEntity }) => {
       agentSessionImageCaptureHostMocks.render(props)
       return React.createElement('div', {
         'data-testid': 'agent-session-image-capture-host',
@@ -731,7 +731,7 @@ describe('Sessions', () => {
     })
     sessionDataMocks.useUpdateSession.mockReturnValue({ updateSession: sessionDataMocks.updateSession })
     agentDataMocks.useAgents.mockReturnValue({
-      agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent' }],
+      agents: [{ id: 'agent-a', model: 'provider-a::model-a', modelName: 'Model A', name: 'Alpha agent' }],
       isLoading: false,
       error: undefined,
       refetch: dataApiMocks.refetchAgents
@@ -1501,6 +1501,11 @@ describe('Sessions', () => {
     )
     expect(agentSessionImageCaptureHostMocks.render).toHaveBeenCalledWith(
       expect.objectContaining({
+        modelFallback: {
+          id: 'model-a',
+          name: 'Model A',
+          provider: 'provider-a'
+        },
         session: expect.objectContaining({ id: 'session-b' })
       })
     )
@@ -1525,6 +1530,11 @@ describe('Sessions', () => {
     )
     expect(agentSessionImageCaptureHostMocks.render).toHaveBeenCalledWith(
       expect.objectContaining({
+        modelFallback: {
+          id: 'model-a',
+          name: 'Model A',
+          provider: 'provider-a'
+        },
         session: expect.objectContaining({ id: 'session-a' })
       })
     )

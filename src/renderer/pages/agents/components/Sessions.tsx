@@ -40,6 +40,7 @@ import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
@@ -58,7 +59,7 @@ import {
   exportMarkdownToYuque,
   exportMessagesToNotion
 } from '@renderer/services/ExportService'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { getAgentAvatarFromConfiguration, getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -161,10 +162,6 @@ const SESSION_DISPLAY_ICONS: Record<AgentSessionDisplayMode, ReactNode> = {
 const EMPTY_WORKSPACE_ROWS: AgentWorkspaceEntity[] = []
 // Let the context menu close before mounting the heavier offscreen message list.
 const IMAGE_CAPTURE_START_DELAY_MS = 160
-type AgentSessionImageCaptureTarget = {
-  requestId: number
-  session: AgentSessionEntity
-}
 type CreateSessionSeed = {
   agentId: string
   workspace?: AgentSessionWorkspaceSource
@@ -449,9 +446,12 @@ const Sessions = ({
     workspaceId: string
   } | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
-  const [imageCaptureTargets, setImageCaptureTargets] = useState<AgentSessionImageCaptureTarget[]>([])
-  const imageCaptureMountedRef = useRef(true)
-  const imageCaptureStartTimersRef = useRef<Set<number>>(new Set())
+  const { queueTarget: queueImageCaptureTarget, targets: imageCaptureTargets } =
+    useImageCaptureTargets<AgentSessionEntity>({
+      cancelMessage: 'Agent session image export was cancelled',
+      delayMs: IMAGE_CAPTURE_START_DELAY_MS,
+      rejectPendingActions: rejectPendingAgentSessionImageActions
+    })
 
   const { data: channels } = useQuery('/agent-channels')
   const channelTypeMap = useMemo(() => {
@@ -854,23 +854,9 @@ const Sessions = ({
         void request.promise.catch(() => window.toast.error(t('common.copy_failed')))
       }
 
-      const startTimerId = window.setTimeout(() => {
-        imageCaptureStartTimersRef.current.delete(startTimerId)
-        if (!imageCaptureMountedRef.current) return
-        setImageCaptureTargets((current) => [...current, { requestId: request.id, session }])
-      }, IMAGE_CAPTURE_START_DELAY_MS)
-
-      imageCaptureStartTimersRef.current.add(startTimerId)
-      void request.promise
-        .finally(() => {
-          window.clearTimeout(startTimerId)
-          imageCaptureStartTimersRef.current.delete(startTimerId)
-          if (!imageCaptureMountedRef.current) return
-          setImageCaptureTargets((current) => current.filter((target) => target.requestId !== request.id))
-        })
-        .catch(() => undefined)
+      queueImageCaptureTarget(request, session)
     },
-    [showSessionImageExportToast, t]
+    [queueImageCaptureTarget, showSessionImageExportToast, t]
   )
 
   const handleSaveSessionToNotes = useCallback(
@@ -891,7 +877,8 @@ const Sessions = ({
         if (result?.success) {
           window.toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
         }
-      } catch {
+      } catch (err) {
+        logger.error('Failed to save agent session to knowledge base', { err, sessionId: session.id })
         window.toast.error(t('chat.save.topic.knowledge.error.save_failed'))
       }
     },
@@ -955,20 +942,6 @@ const Sessions = ({
     },
     [handleSessionImageAction]
   )
-
-  useEffect(() => {
-    imageCaptureMountedRef.current = true
-    const imageCaptureStartTimers = imageCaptureStartTimersRef.current
-
-    return () => {
-      imageCaptureMountedRef.current = false
-      for (const timerId of imageCaptureStartTimers) {
-        window.clearTimeout(timerId)
-      }
-      imageCaptureStartTimers.clear()
-      rejectPendingAgentSessionImageActions(undefined, new Error('Agent session image export was cancelled'))
-    }
-  }, [])
 
   const { trigger: findOrCreateWorkspace } = useMutation('POST', '/agent-workspaces', {
     refresh: ['/agent-workspaces']
@@ -1729,7 +1702,7 @@ const Sessions = ({
   const imageCaptureSessions = useMemo(() => {
     const sessionById = new Map<string, AgentSessionEntity>()
     for (const target of imageCaptureTargets) {
-      sessionById.set(target.session.id, target.session)
+      sessionById.set(target.target.id, target.target)
     }
     return [...sessionById.values()]
   }, [imageCaptureTargets])
@@ -1844,13 +1817,17 @@ const Sessions = ({
         }}
         onSaved={refetchAgents}
       />
-      {imageCaptureSessions.map((session) => (
-        <AgentSessionImageCaptureHost
-          key={session.id}
-          activeAgent={session.agentId ? agentById.get(session.agentId) : undefined}
-          session={session}
-        />
-      ))}
+      {imageCaptureSessions.map((session) => {
+        const activeAgent = session.agentId ? agentById.get(session.agentId) : undefined
+        return (
+          <AgentSessionImageCaptureHost
+            key={session.id}
+            activeAgent={activeAgent}
+            modelFallback={getAgentModelFallbackSnapshot(activeAgent)}
+            session={session}
+          />
+        )
+      })}
     </SessionResourceList>
   )
 }

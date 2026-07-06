@@ -28,6 +28,11 @@ import type {
   MessageRuntime
 } from '@renderer/components/chat/messages/types'
 import {
+  bindCaptureMessageImageRuntime,
+  flushPendingMessageImageActions,
+  runMessageImageAction
+} from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
+import {
   getMessageListItemModel,
   modelToSnapshot,
   toMessageListItem
@@ -219,39 +224,33 @@ export function useHomeMessageListProviderValue({
     }
   })
 
-  const runTopicImageAction = useCallback((runtime: MessageListRuntime, type: TopicImageActionType) => {
-    if (type === 'copy') {
-      return runtime.copyTopicImage()
-    }
-
-    return runtime.exportTopicImage()
-  }, [])
-
   const consumeTopicImageAction = useCallback(
     (runtime: MessageListRuntime, type: TopicImageActionType, data?: Topic) => {
       if (data && data.id !== topic.id) return
 
       const requests = consumePendingTopicImageActions(topic.id, type)
       if (requests.length === 0) {
-        void runTopicImageAction(runtime, type)
+        void runMessageImageAction(runtime, type)
         return
       }
 
       for (const request of requests) {
-        settleTopicImageActionRequest(request, runTopicImageAction(runtime, type))
+        settleTopicImageActionRequest(request, runMessageImageAction(runtime, type))
       }
     },
-    [runTopicImageAction, topic.id]
+    [topic.id]
   )
 
   const flushPendingTopicImageActions = useCallback(
     (runtime: MessageListRuntime) => {
-      const requests = consumePendingTopicImageActions(topic.id)
-      for (const request of requests) {
-        settleTopicImageActionRequest(request, runTopicImageAction(runtime, request.type))
-      }
+      flushPendingMessageImageActions({
+        consumePendingActions: consumePendingTopicImageActions,
+        runtime,
+        settleActionRequest: settleTopicImageActionRequest,
+        targetId: topic.id
+      })
     },
-    [runTopicImageAction, topic.id]
+    [topic.id]
   )
 
   useEffect(() => {
@@ -262,8 +261,14 @@ export function useHomeMessageListProviderValue({
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
       if (imageActionConsumer === 'capture') {
-        flushPendingTopicImageActions(runtime)
-        return () => rejectPendingTopicImageActions(topic.id, new Error('Topic image export was cancelled'))
+        return bindCaptureMessageImageRuntime({
+          cancelMessage: 'Topic image export was cancelled',
+          consumePendingActions: consumePendingTopicImageActions,
+          rejectPendingActions: rejectPendingTopicImageActions,
+          runtime,
+          settleActionRequest: settleTopicImageActionRequest,
+          targetId: topic.id
+        })
       }
 
       flushPendingTopicImageActions(runtime)

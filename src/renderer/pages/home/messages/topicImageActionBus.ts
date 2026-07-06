@@ -1,19 +1,14 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
+import {
+  createImageActionBus,
+  type ImageActionRequest,
+  type ImageActionType
+} from '@renderer/utils/message/imageActionBus'
 
-export type TopicImageActionType = 'copy' | 'export'
+export type TopicImageActionType = ImageActionType
 
-export interface TopicImageActionRequest {
-  id: number
-  promise: Promise<void>
-  topic: Topic
-  type: TopicImageActionType
-}
-
-interface TopicImageActionSettlement {
-  reject: (reason?: unknown) => void
-  resolve: () => void
-}
+export type TopicImageActionRequest = ImageActionRequest<Topic, 'topic'>
 
 interface RequestTopicImageActionOptions {
   emit?: boolean
@@ -24,76 +19,42 @@ const TOPIC_IMAGE_EVENT_NAMES: Record<TopicImageActionType, string> = {
   export: EVENT_NAMES.EXPORT_TOPIC_IMAGE
 }
 
-let nextRequestId = 1
-let pendingRequests: TopicImageActionRequest[] = []
-const settlements = new Map<number, TopicImageActionSettlement>()
+const topicImageActionBus = createImageActionBus<Topic, 'topic', RequestTopicImageActionOptions>({
+  targetKey: 'topic',
+  getTargetId: (topic) => topic.id,
+  onRequest: (type, topic, options) => {
+    if (options?.emit !== false) {
+      void EventEmitter.emit(TOPIC_IMAGE_EVENT_NAMES[type], topic)
+    }
+  }
+})
 
 export function requestTopicImageAction(
   type: TopicImageActionType,
   topic: Topic,
   options: RequestTopicImageActionOptions = {}
 ): TopicImageActionRequest {
-  let settlement: TopicImageActionSettlement | undefined
-  const promise = new Promise<void>((resolve, reject) => {
-    settlement = { resolve, reject }
-  })
-  const request = { id: nextRequestId++, promise, type, topic }
-  settlements.set(request.id, settlement as TopicImageActionSettlement)
-  pendingRequests.push(request)
-  if (options.emit !== false) {
-    void EventEmitter.emit(TOPIC_IMAGE_EVENT_NAMES[type], topic)
-  }
-  return request
+  return topicImageActionBus.requestImageAction(type, topic, options)
 }
 
 export function settleTopicImageActionRequest(
   request: TopicImageActionRequest,
   actionPromise: Promise<void> | void
 ): void {
-  const settlement = settlements.get(request.id)
-  if (!settlement) return
-
-  settlements.delete(request.id)
-  void Promise.resolve(actionPromise).then(settlement.resolve, settlement.reject)
+  topicImageActionBus.settleImageActionRequest(request, actionPromise)
 }
 
 export function consumePendingTopicImageActions(
   topicId: string,
   type?: TopicImageActionType
 ): TopicImageActionRequest[] {
-  const matches: TopicImageActionRequest[] = []
-  const remaining: TopicImageActionRequest[] = []
-
-  for (const request of pendingRequests) {
-    if (request.topic.id === topicId && (!type || request.type === type)) {
-      matches.push(request)
-    } else {
-      remaining.push(request)
-    }
-  }
-
-  pendingRequests = remaining
-  return matches
+  return topicImageActionBus.consumePendingImageActions(topicId, type)
 }
 
 export function rejectPendingTopicImageActions(topicId: string | undefined, reason: unknown): void {
-  const remaining: TopicImageActionRequest[] = []
-
-  for (const request of pendingRequests) {
-    if (topicId === undefined || request.topic.id === topicId) {
-      const settlement = settlements.get(request.id)
-      settlements.delete(request.id)
-      settlement?.reject(reason)
-    } else {
-      remaining.push(request)
-    }
-  }
-
-  pendingRequests = remaining
+  topicImageActionBus.rejectPendingImageActions(topicId, reason)
 }
 
 export function clearPendingTopicImageActionsForTest(): void {
-  pendingRequests = []
-  settlements.clear()
-  nextRequestId = 1
+  topicImageActionBus.clearPendingImageActionsForTest()
 }

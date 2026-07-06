@@ -22,6 +22,7 @@ import type {
   MessageListState,
   MessageRuntime
 } from '@renderer/components/chat/messages/types'
+import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
@@ -32,7 +33,6 @@ import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo } from 'react'
 
 import {
-  type AgentSessionImageActionType,
   consumePendingAgentSessionImageActions,
   rejectPendingAgentSessionImageActions,
   settleAgentSessionImageActionRequest
@@ -186,24 +186,6 @@ export function useAgentMessageListProviderValue({
     [navigate]
   )
 
-  const runAgentSessionImageAction = useCallback((runtime: MessageListRuntime, type: AgentSessionImageActionType) => {
-    if (type === 'copy') {
-      return runtime.copyTopicImage()
-    }
-
-    return runtime.exportTopicImage()
-  }, [])
-
-  const flushPendingAgentSessionImageActions = useCallback(
-    (runtime: MessageListRuntime) => {
-      const requests = consumePendingAgentSessionImageActions(sessionId)
-      for (const request of requests) {
-        settleAgentSessionImageActionRequest(request, runAgentSessionImageAction(runtime, request.type))
-      }
-    },
-    [runAgentSessionImageAction, sessionId]
-  )
-
   useEffect(() => {
     if (imageActionConsumer !== 'capture') return
 
@@ -213,9 +195,14 @@ export function useAgentMessageListProviderValue({
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
       if (imageActionConsumer === 'capture') {
-        flushPendingAgentSessionImageActions(runtime)
-        return () =>
-          rejectPendingAgentSessionImageActions(sessionId, new Error('Agent session image export was cancelled'))
+        return bindCaptureMessageImageRuntime({
+          cancelMessage: 'Agent session image export was cancelled',
+          consumePendingActions: consumePendingAgentSessionImageActions,
+          rejectPendingActions: rejectPendingAgentSessionImageActions,
+          runtime,
+          settleActionRequest: settleAgentSessionImageActionRequest,
+          targetId: sessionId
+        })
       }
 
       agentMessageListRuntimes.set(topic.id, runtime)
@@ -226,7 +213,7 @@ export function useAgentMessageListProviderValue({
         }
       }
     },
-    [flushPendingAgentSessionImageActions, imageActionConsumer, sessionId, topic.id]
+    [imageActionConsumer, sessionId, topic.id]
   )
 
   const bindMessageRuntime = useCallback((messageId: string, runtime: MessageRuntime) => {

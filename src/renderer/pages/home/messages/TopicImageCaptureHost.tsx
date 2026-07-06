@@ -1,11 +1,10 @@
 import { loggerService } from '@logger'
-import MessageList from '@renderer/components/chat/messages/MessageList'
-import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
+import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
+import { useMessageImageCaptureMessages } from '@renderer/components/chat/messages/hooks/useMessageImageCaptureMessages'
+import MessageImageCaptureHost from '@renderer/components/chat/messages/MessageImageCaptureHost'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import type { Topic } from '@renderer/types/topic'
-import { createPartsByMessageId, exportViewToUIMessage } from '@renderer/utils/message/exportView'
-import type { CherryUIMessage } from '@shared/data/types/message'
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback } from 'react'
 
 import { useHomeMessageListProviderValue } from './homeMessageListAdapter'
 import { rejectPendingTopicImageActions } from './topicImageActionBus'
@@ -16,31 +15,21 @@ interface TopicImageCaptureHostProps {
   topic: Topic
 }
 
-const TopicImageCaptureHost = ({ topic }: TopicImageCaptureHostProps) => {
-  const [messages, setMessages] = useState<CherryUIMessage[] | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setMessages(null)
-
-    void getTopicMessages(topic.id)
-      .then((exportMessages) => {
-        if (!cancelled) setMessages(exportMessages.map(exportViewToUIMessage))
+const TopicImageCaptureHostContent = ({ topic }: TopicImageCaptureHostProps) => {
+  const loadMessages = useCallback(() => getTopicMessages(topic.id), [topic.id])
+  const handleLoadError = useCallback(
+    (error: unknown) => {
+      logger.error('Failed to load topic messages for image capture', error as Error, {
+        topicId: topic.id
       })
-      .catch((error) => {
-        if (cancelled) return
-        logger.error('Failed to load topic messages for image capture', error as Error, {
-          topicId: topic.id
-        })
-        rejectPendingTopicImageActions(topic.id, error)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [topic.id])
-
-  const partsByMessageId = useMemo(() => (messages ? createPartsByMessageId(messages) : {}), [messages])
+      rejectPendingTopicImageActions(topic.id, error)
+    },
+    [topic.id]
+  )
+  const { messages, partsByMessageId } = useMessageImageCaptureMessages({
+    loadMessages,
+    onError: handleLoadError
+  })
 
   const messageList = useHomeMessageListProviderValue({
     topic,
@@ -50,18 +39,20 @@ const TopicImageCaptureHost = ({ topic }: TopicImageCaptureHostProps) => {
     imageActionConsumer: 'capture'
   })
 
-  if (!messages) return null
-
   return (
-    <div
-      aria-hidden="true"
-      className="-left-[10000px] pointer-events-none fixed top-0 h-px w-[960px] overflow-hidden bg-background text-foreground"
-      data-topic-image-capture-host>
-      <MessageListProvider value={messageList}>
-        <MessageList />
-      </MessageListProvider>
-    </div>
+    <MessageImageCaptureHost
+      captureHostAttribute="data-topic-image-capture-host"
+      messageList={messageList}
+      ready={messages !== null}
+      testId="topic-image-capture-host"
+    />
   )
 }
+
+const TopicImageCaptureHost = ({ topic }: TopicImageCaptureHostProps) => (
+  <MessageEditingProvider>
+    <TopicImageCaptureHostContent topic={topic} />
+  </MessageEditingProvider>
+)
 
 export default memo(TopicImageCaptureHost)

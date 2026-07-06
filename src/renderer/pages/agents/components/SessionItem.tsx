@@ -167,7 +167,7 @@ const SessionItem = ({
     ]
   )
 
-  const { menuActions, handleMenuAction } = useSessionMenuActions(actionContext)
+  const { getActions: getMenuActions, handleMenuAction } = useSessionMenuActions(actionContext)
 
   const clearDeleteConfirmationTimeout = useCallback(() => {
     if (deleteConfirmationTimeoutRef.current === null) return
@@ -309,7 +309,7 @@ const SessionItem = ({
 
   return (
     <>
-      <ResourceListActionContextMenu item={session} actions={menuActions} onAction={handleMenuAction}>
+      <ResourceListActionContextMenu item={session} getActions={getMenuActions} onAction={handleMenuAction}>
         {row}
       </ResourceListActionContextMenu>
       <EditNameDialog
