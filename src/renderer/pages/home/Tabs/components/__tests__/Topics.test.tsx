@@ -129,6 +129,10 @@ const pinMutationMocks = vi.hoisted(() => ({
   deletePin: vi.fn()
 }))
 
+const assistantMutationMocks = vi.hoisted(() => ({
+  deleteAssistant: vi.fn()
+}))
+
 const topicStreamStatusMocks = vi.hoisted(() => ({
   markSeen: vi.fn(),
   statuses: new Map<string, { isFulfilled?: boolean; isPending?: boolean }>()
@@ -593,6 +597,7 @@ describe('Topics', () => {
     })
     pinMutationMocks.createPin.mockResolvedValue(createTopicPin())
     pinMutationMocks.deletePin.mockResolvedValue(undefined)
+    assistantMutationMocks.deleteAssistant.mockResolvedValue(undefined)
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
     tabsContextMocks.openTab.mockClear()
     tabsContextMocks.setActiveTab.mockClear()
@@ -603,6 +608,9 @@ describe('Topics', () => {
       }
       if (method === 'DELETE' && path === '/pins/:id') {
         return { trigger: pinMutationMocks.deletePin, isLoading: false, error: undefined }
+      }
+      if (method === 'DELETE' && path === '/assistants/:id') {
+        return { trigger: assistantMutationMocks.deleteAssistant, isLoading: false, error: undefined }
       }
       return { trigger: vi.fn(), isLoading: false, error: undefined }
     })
@@ -2291,7 +2299,6 @@ describe('Topics', () => {
   })
 
   it('deletes an assistant from the left assistant group menu', async () => {
-    const deleteSpy = vi.spyOn(dataApiService, 'delete').mockResolvedValue(undefined as never)
     const onActiveAssistantDeleted = vi.fn()
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
 
@@ -2318,7 +2325,10 @@ describe('Topics', () => {
       )
     )
     await vi.waitFor(() =>
-      expect(deleteSpy).toHaveBeenCalledWith('/assistants/assistant-1', { query: { deleteTopics: true } })
+      expect(assistantMutationMocks.deleteAssistant).toHaveBeenCalledWith({
+        params: { id: 'assistant-1' },
+        query: { deleteTopics: true }
+      })
     )
     expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1')
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
