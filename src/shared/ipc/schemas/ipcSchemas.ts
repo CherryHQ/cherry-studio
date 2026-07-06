@@ -3,12 +3,13 @@ import { type AiEventSchemas, aiRequestSchemas } from './ai'
 import { appRequestSchemas } from './app'
 import { type BinaryEventSchemas, binaryRequestSchemas } from './binary'
 import { cherryinRequestSchemas } from './cherryin'
-import { entityImageRequestSchemas } from './entityImage'
 import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
+import { miniAppRequestSchemas } from './miniApp'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
 import { profileRequestSchemas } from './profile'
+import { providerRequestSchemas } from './provider'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { webSearchRequestSchemas } from './webSearch'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -25,12 +26,13 @@ export const ipcRequestSchemas = {
   ...appRequestSchemas,
   ...binaryRequestSchemas,
   ...cherryinRequestSchemas,
-  ...entityImageRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
+  ...miniAppRequestSchemas,
   ...oauthRequestSchemas,
   ...profileRequestSchemas,
+  ...providerRequestSchemas,
   ...selectionRequestSchemas,
   ...webSearchRequestSchemas,
   ...windowRequestSchemas

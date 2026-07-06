@@ -5,12 +5,13 @@ import { aiHandlers } from './ai'
 import { appHandlers } from './app'
 import { binaryHandlers } from './binary'
 import { cherryinHandlers } from './cherryin'
-import { entityImageHandlers } from './entityImage'
 import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
+import { miniAppHandlers } from './miniApp'
 import { oauthHandlers } from './oauth'
 import { profileHandlers } from './profile'
+import { providerHandlers } from './provider'
 import { selectionHandlers } from './selection'
 import { webSearchHandlers } from './webSearch'
 import { windowHandlers } from './window'
@@ -29,12 +30,13 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...appHandlers,
   ...binaryHandlers,
   ...cherryinHandlers,
-  ...entityImageHandlers,
   ...fileHandlers,
   ...fileProcessingHandlers,
   ...knowledgeHandlers,
+  ...miniAppHandlers,
   ...oauthHandlers,
   ...profileHandlers,
+  ...providerHandlers,
   ...selectionHandlers,
   ...webSearchHandlers,
   ...windowHandlers

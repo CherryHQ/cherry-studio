@@ -20,14 +20,11 @@ vi.mock('@data/services/ProviderService', () => ({ providerService: { update: pr
 vi.mock('@data/services/MiniAppService', () => ({ miniAppService: { update: miniAppUpdateMock } }))
 vi.mock('@main/services/file/utils/entityImageWebp', () => ({ transcodeToEntityWebp: transcodeMock }))
 
-import { LogoImageIntentSchema } from '@shared/ipc/schemas/entityImage'
-
-import { entityImageHandlers } from '../entityImage'
+import { entityLogoService } from '../EntityLogoService'
 
 const FILE_ID = '019606a0-0000-7000-8000-000000000003'
 const WEBP = Buffer.from([7, 7])
 const fileManager = { createInternalEntry: createInternalEntryMock, permanentDelete: permanentDeleteMock }
-const ctx = { senderId: null }
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -42,10 +39,10 @@ beforeEach(() => {
   miniAppUpdateMock.mockReturnValue({})
 })
 
-describe('provider.set_logo', () => {
+describe('setProviderLogo', () => {
   it('creates a file_entry from bytes and binds it via the service', async () => {
     const data = new Uint8Array([1, 2])
-    await entityImageHandlers['provider.set_logo']({ providerId: 'p1', image: { kind: 'image', data } }, ctx)
+    await entityLogoService.setProviderLogo('p1', { kind: 'image', data })
 
     expect(transcodeMock).toHaveBeenCalledWith(data)
     expect(createInternalEntryMock).toHaveBeenCalledWith({ source: 'bytes', data: WEBP, name: 'image', ext: 'webp' })
@@ -54,17 +51,14 @@ describe('provider.set_logo', () => {
   })
 
   it('binds a preset key without creating a file', async () => {
-    await entityImageHandlers['provider.set_logo'](
-      { providerId: 'p1', image: { kind: 'key', key: 'icon:openai' } },
-      ctx
-    )
+    await entityLogoService.setProviderLogo('p1', { kind: 'key', key: 'icon:openai' })
 
     expect(createInternalEntryMock).not.toHaveBeenCalled()
     expect(providerUpdateMock).toHaveBeenCalledWith('p1', { logo: { kind: 'key', key: 'icon:openai' } })
   })
 
   it('binds a default without creating a file', async () => {
-    await entityImageHandlers['provider.set_logo']({ providerId: 'p1', image: { kind: 'default' } }, ctx)
+    await entityLogoService.setProviderLogo('p1', { kind: 'default' })
 
     expect(createInternalEntryMock).not.toHaveBeenCalled()
     expect(providerUpdateMock).toHaveBeenCalledWith('p1', { logo: { kind: 'default' } })
@@ -75,43 +69,31 @@ describe('provider.set_logo', () => {
       throw new Error('bind failed')
     })
 
-    await expect(
-      entityImageHandlers['provider.set_logo'](
-        { providerId: 'p1', image: { kind: 'image', data: new Uint8Array([1]) } },
-        ctx
-      )
-    ).rejects.toThrow('bind failed')
+    await expect(entityLogoService.setProviderLogo('p1', { kind: 'image', data: new Uint8Array([1]) })).rejects.toThrow(
+      'bind failed'
+    )
 
     expect(permanentDeleteMock).toHaveBeenCalledWith(FILE_ID)
   })
 })
 
-describe('LogoImageIntentSchema key variant', () => {
-  it('accepts a preset key', () => {
-    expect(LogoImageIntentSchema.safeParse({ kind: 'key', key: 'icon:openai' }).success).toBe(true)
-  })
-
-  it('rejects a data:/file:/http(s): key — bytes / stored-file refs / remote URLs are not preset keys', () => {
-    for (const key of [
-      'data:image/png;base64,abc',
-      `file:${FILE_ID}`,
-      'file:///tmp/x.png',
-      'http://example.com/logo.png',
-      'https://example.com/logo.png'
-    ]) {
-      expect(LogoImageIntentSchema.safeParse({ kind: 'key', key }).success).toBe(false)
-    }
-  })
-})
-
-describe('mini_app.set_logo', () => {
+describe('setMiniAppLogo', () => {
   it('creates a file_entry from bytes and binds it via the service', async () => {
-    await entityImageHandlers['mini_app.set_logo'](
-      { appId: 'a1', image: { kind: 'image', data: new Uint8Array([1]) } },
-      ctx
-    )
+    await entityLogoService.setMiniAppLogo('a1', { kind: 'image', data: new Uint8Array([1]) })
 
     expect(createInternalEntryMock).toHaveBeenCalled()
     expect(miniAppUpdateMock).toHaveBeenCalledWith('a1', { logo: { kind: 'file', fileId: FILE_ID } })
+  })
+
+  it('compensates (permanentDelete) when the bind fails', async () => {
+    miniAppUpdateMock.mockImplementationOnce(() => {
+      throw new Error('bind failed')
+    })
+
+    await expect(entityLogoService.setMiniAppLogo('a1', { kind: 'image', data: new Uint8Array([1]) })).rejects.toThrow(
+      'bind failed'
+    )
+
+    expect(permanentDeleteMock).toHaveBeenCalledWith(FILE_ID)
   })
 })

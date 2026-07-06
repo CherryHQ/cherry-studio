@@ -1,6 +1,11 @@
 import * as z from 'zod'
 
-import { defineRoute } from '../define'
+/**
+ * Shared entity-image schema atoms — the `LogoImageIntent` union and its byte
+ * guard, reused by the per-domain set-logo commands (`provider.set_logo` in
+ * `./provider`, `mini_app.set_logo` in `./miniApp`). The routes live in those
+ * domain files; this module holds only the shared pieces.
+ */
 
 /**
  * Preset icon id / `icon:<id>` ref. Mirrors `LogoKeySchema` in
@@ -14,14 +19,6 @@ const LogoKeySchema = z
   .min(1)
   .max(2048)
   .refine((v) => !/^(data:|file:|https?:)/i.test(v), 'logo key must not be a data:, file:, or http(s): ref')
-
-/**
- * Entity-image set commands (provider / mini-app logo; the avatar variant lives
- * in `profile.ts`). The renderer sends **business intent + raw bytes**; the main
- * handler normalizes to a 128×128 WebP, creates the `file_entry`, binds it via
- * the owner's single-file `file_ref` slot, and compensates (permanentDelete) on
- * bind failure. No `file_entry` is ever created in the renderer.
- */
 
 /** Max raw upload accepted (pre-normalization); sharp downsizes to 128² regardless. */
 export const MAX_ENTITY_IMAGE_BYTES = 16 * 1024 * 1024
@@ -41,14 +38,3 @@ export const LogoImageIntentSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('default') })
 ])
 export type LogoImageIntent = z.infer<typeof LogoImageIntentSchema>
-
-export const entityImageRequestSchemas = {
-  'provider.set_logo': defineRoute({
-    input: z.strictObject({ providerId: z.string().min(1), image: LogoImageIntentSchema }),
-    output: z.void()
-  }),
-  'mini_app.set_logo': defineRoute({
-    input: z.strictObject({ appId: z.string().min(1), image: LogoImageIntentSchema }),
-    output: z.void()
-  })
-}
