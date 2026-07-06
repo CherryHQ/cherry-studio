@@ -181,6 +181,13 @@ interface ParsedA1Range {
   right: number
 }
 
+/**
+ * Chart reference range cell cap. Chart data references come from untrusted XML, so a tiny workbook can point a chart
+ * at `Sheet1!$A$1:$XFD$1048576`. Materializing that many cells would tie up the worker before the per-chart catch can
+ * recover, so references above this area throw and fall back to no data. Mirrors the formula evaluator's own guard.
+ */
+const MAX_CHART_RANGE_CELLS = 100_000
+
 /** Parse an A1 range reference needed by chartXmlParser. Invalid refs return null. */
 function parseA1Range(ref: string): ParsedA1Range | null {
   let sheet: string | undefined
@@ -206,6 +213,36 @@ function parseA1Range(ref: string): ParsedA1Range | null {
     bottom: Math.max(...rows),
     right: Math.max(...cols)
   }
+}
+
+/**
+ * Read an A1 range from the raw value table as a 2D array for chart reference backfill. Ranges exceeding
+ * MAX_CHART_RANGE_CELLS by area throw so chartXmlParser's safeReadRange catch treats them as missing data instead of
+ * materializing a huge array. Booleans are mapped to 1/0, empty cells to null. Returns null for unparseable refs.
+ */
+export function readRangeFromValueTable(
+  rawValueTable: Map<string, string | number | boolean | null>,
+  fallbackSheet: string,
+  ref: string
+): (string | number | null)[][] | null {
+  const parsed = parseA1Range(ref)
+  if (!parsed) return null
+  const rangeRows = parsed.bottom - parsed.top + 1
+  const rangeCols = parsed.right - parsed.left + 1
+  if (rangeRows * rangeCols > MAX_CHART_RANGE_CELLS) {
+    throw new Error(`chart range ${ref} exceeds ${MAX_CHART_RANGE_CELLS} cells`)
+  }
+  const refSheet = parsed.sheet ?? fallbackSheet
+  const result: (string | number | null)[][] = []
+  for (let r = parsed.top; r <= parsed.bottom; r++) {
+    const rowValues: (string | number | null)[] = []
+    for (let c = parsed.left; c <= parsed.right; c++) {
+      const raw = rawValueTable.get(`${refSheet}!${r}:${c}`)
+      rowValues.push(typeof raw === 'boolean' ? (raw ? 1 : 0) : (raw ?? null))
+    }
+    result.push(rowValues)
+  }
+  return result
 }
 
 /** Map ExcelJS style font/fill/border/alignment to CellStyle, resolving colors through the theme. */
@@ -767,19 +804,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
 
     const dataAccessor: SheetDataAccessor = {
       readRange(ref: string): (string | number | null)[][] | null {
-        const parsed = parseA1Range(ref)
-        if (!parsed) return null
-        const refSheet = parsed.sheet ?? worksheet.name
-        const result: (string | number | null)[][] = []
-        for (let r = parsed.top; r <= parsed.bottom; r++) {
-          const rowValues: (string | number | null)[] = []
-          for (let c = parsed.left; c <= parsed.right; c++) {
-            const raw = rawValueTable.get(`${refSheet}!${r}:${c}`)
-            rowValues.push(typeof raw === 'boolean' ? (raw ? 1 : 0) : (raw ?? null))
-          }
-          result.push(rowValues)
-        }
-        return result
+        return readRangeFromValueTable(rawValueTable, worksheet.name, ref)
       }
     }
 
