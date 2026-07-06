@@ -288,7 +288,14 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       const history = this.buildHistory(userMessage.id)
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,
-        request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
+        request: this.buildStreamRequest(
+          req.topicId,
+          assistantId,
+          model.id,
+          history,
+          placeholder.id,
+          req.knowledgeBaseIds
+        ),
         rootSpan
       }))
       // Author the turn span's input attributes here, where the built request payload is available.
@@ -378,7 +385,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         models: [
           {
             modelId: model.id,
-            request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, anchor.id),
+            request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, anchor.id, undefined),
             rootSpan
           }
         ],
@@ -446,7 +453,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         models: [
           {
             modelId: model.id,
-            request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
+            request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id, undefined),
             rootSpan
           }
         ],
@@ -479,7 +486,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     assistantId: string | undefined,
     uniqueModelId: UniqueModelId,
     history: CherryUIMessage[],
-    messageId: string
+    messageId: string,
+    knowledgeBaseIds: string[] | undefined
   ): AiStreamRequest {
     return {
       chatId: topicId,
@@ -487,7 +495,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       assistantId,
       uniqueModelId,
       messages: history,
-      messageId
+      messageId,
+      knowledgeBaseIds
     }
   }
 }

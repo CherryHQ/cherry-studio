@@ -1586,6 +1586,11 @@
       "new": {
         "branch": {
           "created": "New Branch Created",
+          "disabled": {
+            "active": "This node is already selected. Continue typing to extend the branch from here.",
+            "latest": "You are already at the end of this branch. Continue typing to extend it.",
+            "no_follow_up": "There is no follow-up after this message yet. Switch to this node and continue typing instead."
+          },
           "label": "New Branch"
         },
         "context": "New Context"
@@ -2794,15 +2799,11 @@
         "chunk_size": "Target token count for each document chunk. This affects retrieval granularity and context length.",
         "document_count": "Maximum number of document chunks returned for each retrieval. Higher values cover more content but use more context.",
         "embedding_model": "Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
-        "hybrid_alpha": "Vector score weight in hybrid retrieval. Higher values favor semantic matching.",
         "processor": "Parser used when importing files to extract body text, tables, and related content.",
         "rerank_model": "Model used to rerank initial retrieval results and improve final chunk relevance.",
-        "search_mode": "Choose a retrieval mode: vector search for semantic matching, full-text search for keywords, or hybrid search for both.",
         "smart_chunking": "Automatically split along Markdown structure (headings, code blocks, paragraphs) and never split inside a code block. Turn off to split purely by the separator.",
-        "threshold": "Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter.",
-        "threshold_disabled": "This retrieval mode returns ordered results and does not use a similarity threshold."
+        "threshold": "Similarity threshold for filtering low-relevance reranked chunks. Higher values make retrieval stricter."
       },
-      "hybrid_alpha": "Hybrid Alpha",
       "processor": "Processing Provider",
       "rerank_disabled": "Disabled",
       "rerank_model": "Rerank Model",
@@ -2811,12 +2812,6 @@
       "retrieval": "Retrieval",
       "save_action": "Save",
       "saved": "Saved",
-      "search_mode": {
-        "bm25": "Full-text Search",
-        "hybrid": "Hybrid Search (recommended)",
-        "title": "Search Mode",
-        "vector": "Vector Search"
-      },
       "separator_rule": "Separator Rule",
       "smart_chunking": "Smart Chunking",
       "threshold": "Similarity Threshold",
@@ -3361,6 +3356,10 @@
       "tags": "Tags",
       "title": "Library"
     },
+    "skill_add": {
+      "local_import": "Local import",
+      "online_search": "Online search"
+    },
     "skill_detail": {
       "created_at": "Created",
       "delete_description": "Remove this skill and all of its configuration. This action cannot be undone.",
@@ -3371,6 +3370,15 @@
       "no_description": "No description",
       "source_files": "Source files",
       "updated_at": "Recently updated"
+    },
+    "skill_marketplace": {
+      "empty_description": "Search online registries to find installable skills.",
+      "empty_title": "Search for skills",
+      "no_results_description": "Try another keyword or import a local ZIP or directory.",
+      "no_results_title": "No skills found",
+      "search_failed_description": "Search failed. Please try again later.",
+      "search_placeholder": "Search skills...",
+      "title": "Online skill search"
     },
     "sort": {
       "created": "Sort by created",
@@ -5323,6 +5331,9 @@
       "auto_switch_to_topics": "Auto switch to conversation",
       "title": "Advanced Settings"
     },
+    "appearance": {
+      "title": "Appearance"
+    },
     "assistant": {
       "icon": {
         "type": {
@@ -5391,6 +5402,7 @@
         "cloud_storage": "Cloud Backup",
         "export_settings": "Export",
         "import_settings": "Import",
+        "note_export": "Note Export",
         "third_party": "Third-party Connections"
       },
       "export_menu": {
@@ -5952,6 +5964,48 @@
         "token_placeholder": "Please enter the Yuque Token"
       }
     },
+    "dependencies": {
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "No custom tools yet. Add one to get started.",
+      "description": "Manage binary tools and runtime dependencies required by the app.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Install",
+      "installError": "Failed to install tool",
+      "installing": "Installing...",
+      "invalidTool": "Invalid tool name or key",
+      "notInstalled": "Not installed",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
+      "title": "Dependencies",
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
+    },
     "developer": {
       "enable_developer_mode": "Enable Developer Mode",
       "help": "After enabling developer mode, you can use the trace feature to view the data flow during model invocation. Changes take effect after restarting the application.",
@@ -6012,7 +6066,7 @@
       },
       "title": "Display Settings",
       "topic": {
-        "title": "Conversation Settings"
+        "title": "Conversation View Settings"
       },
       "zoom": {
         "title": "Zoom Settings"
@@ -6394,10 +6448,11 @@
       "user": "User"
     },
     "menuGroups": {
-      "appSettings": "Settings",
-      "integrations": "Models",
-      "productivity": "Productivity",
-      "services": "Plugins",
+      "automation": "Automation",
+      "capabilities": "Capabilities & Tools",
+      "models": "Models",
+      "personal": "Personal",
+      "quickAccess": "Quick Access",
       "system": "System"
     },
     "messages": {
@@ -6714,7 +6769,7 @@
       "assistant": "Assistant Message",
       "backup": "Backup Message",
       "knowledge_embed": "KnowledgeBase Message",
-      "title": "Notification Settings"
+      "title": "Notifications"
     },
     "openai": {
       "service_tier": {
@@ -6750,48 +6805,6 @@
       }
     },
     "parameter_settings": "Parameter Settings",
-    "plugins": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "No custom tools yet. Add one to get started.",
-      "description": "Manage binary tools and runtime dependencies required by the app.",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Install",
-      "installError": "Failed to install tool",
-      "installing": "Installing...",
-      "invalidTool": "Invalid tool name or key",
-      "notInstalled": "Not installed",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
-      "source": {
-        "bundled": "bundled"
-      },
-      "title": "Dependencies",
-      "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
-      },
-      "update": "Update to latest version"
-    },
     "power": {
       "prevent_sleep_when_busy": "Keep the system awake while tasks are running"
     },
@@ -7229,6 +7242,7 @@
       "all_enable": "Enable All",
       "bind_first_to_enable": "Bind a shortcut first to change its enabled state",
       "categories": {
+        "all": "All",
         "assistant": "AI Tools",
         "chat": "Messages",
         "general": "General",
@@ -7244,6 +7258,7 @@
       "empty": "No shortcuts are available in this group",
       "enabled": "Enable",
       "exit_fullscreen": "Exit Fullscreen",
+      "filter": "Filter",
       "label": "Key",
       "move_tab_to_first": "Move Tab to First",
       "new_topic": "New Conversation",
@@ -7280,6 +7295,9 @@
     },
     "skills": {
       "author": "Author",
+      "batchInstallComplete": "Installed {{count}} skills",
+      "batchInstallPartialFailed": "Installed {{success}}/{{total}} skills, {{failed}} failed",
+      "batchInstallQueued": "Queued",
       "batchUninstallSuccess": "{{count}} skills uninstalled",
       "builtin": "Built-in",
       "confirmBatchUninstall": "Are you sure you want to uninstall {{count}} selected skills?",
@@ -7312,6 +7330,9 @@
       "uninstallSuccess": "Skill uninstalled: {{name}}",
       "viewSource": "View Source",
       "zip": "ZIP"
+    },
+    "system": {
+      "title": "System"
     },
     "theme": {
       "color_primary": "Primary Color",

@@ -156,6 +156,7 @@ const MessageHeader: FC<Props> = memo(
         </div>
         {isMultiSelectMode && (
           <Checkbox
+            data-message-select-checkbox
             checked={isSelected}
             onCheckedChange={(checked) => actions.selectMessage?.(message.id, checked === true)}
             className="absolute top-0 right-0"

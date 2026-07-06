@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "98956c64-f5cb-4400-ba89-1961a919cdd5",
+  "id": "056f15b4-1256-4d30-85f9-c1ad2f1b23c6",
   "prevId": "53ba65df-7a61-4a0c-a563-3e32dfba69fa",
   "tables": {
     "agent": {
@@ -637,8 +637,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "message_snapshot": {
-          "name": "message_snapshot",
+        "model_snapshot": {
+          "name": "model_snapshot",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -2017,20 +2017,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "search_mode": {
-          "name": "search_mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "hybrid_alpha": {
-          "name": "hybrid_alpha",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -2079,10 +2065,6 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "knowledge_base_search_mode_check": {
-          "name": "knowledge_base_search_mode_check",
-          "value": "\"knowledge_base\".\"search_mode\" IN ('vector', 'bm25', 'hybrid')"
-        },
         "knowledge_base_chunk_strategy_check": {
           "name": "knowledge_base_chunk_strategy_check",
           "value": "\"knowledge_base\".\"chunk_strategy\" IN ('structured', 'delimiter')"
@@ -2093,7 +2075,7 @@
         },
         "knowledge_base_status_error_check": {
           "name": "knowledge_base_status_error_check",
-          "value": "\n        (\n          \"knowledge_base\".\"status\" = 'completed'\n          AND \"knowledge_base\".\"error\" IS NULL\n          AND (\n            (\n              \"knowledge_base\".\"embedding_model_id\" IS NOT NULL\n              AND \"knowledge_base\".\"dimensions\" IS NOT NULL\n              AND \"knowledge_base\".\"dimensions\" > 0\n            )\n            OR (\n              \"knowledge_base\".\"embedding_model_id\" IS NULL\n              AND \"knowledge_base\".\"dimensions\" IS NULL\n              AND \"knowledge_base\".\"search_mode\" = 'bm25'\n            )\n          )\n        )\n        OR (\n          \"knowledge_base\".\"status\" = 'failed'\n          AND \"knowledge_base\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_base\".\"error\")) > 0\n        )\n      "
+          "value": "\n        (\n          \"knowledge_base\".\"status\" = 'completed'\n          AND \"knowledge_base\".\"error\" IS NULL\n          AND (\n            (\n              \"knowledge_base\".\"embedding_model_id\" IS NOT NULL\n              AND \"knowledge_base\".\"dimensions\" IS NOT NULL\n              AND \"knowledge_base\".\"dimensions\" > 0\n            )\n            OR (\n              \"knowledge_base\".\"embedding_model_id\" IS NULL\n              AND \"knowledge_base\".\"dimensions\" IS NULL\n            )\n          )\n        )\n        OR (\n          \"knowledge_base\".\"status\" = 'failed'\n          AND \"knowledge_base\".\"error\" IS NOT NULL\n          AND length(trim(\"knowledge_base\".\"error\")) > 0\n        )\n      "
         }
       }
     },
@@ -2551,8 +2533,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "message_snapshot": {
-          "name": "message_snapshot",
+        "model_snapshot": {
+          "name": "model_snapshot",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

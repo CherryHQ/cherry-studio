@@ -14,10 +14,6 @@ import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
 import { TabIcon } from './TabIcon'
 import { useTabDrag } from './useTabDrag'
 
-function isHomeTab(tab: Pick<Tab, 'id'>) {
-  return tab.id === 'home'
-}
-
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 type AppShellTabBarProps = {
@@ -154,8 +150,9 @@ const NormalTabButton = ({
     [tabRef, ref]
   )
 
-  const showRightClose = showClose && !isNarrow
-  const showIconOverlayClose = showClose && isNarrow
+  const canClose = showClose
+  const showRightClose = canClose && !isNarrow
+  const showIconOverlayClose = canClose && isNarrow
 
   return (
     // Spread injected ContextMenuTrigger props first; the explicit drag handler
@@ -169,6 +166,19 @@ const NormalTabButton = ({
       type="button"
       onPointerDown={drag.onPointerDown}
       onClick={onSelect}
+      onAuxClick={(e) => {
+        if (e.button === 1 && canClose) {
+          e.preventDefault()
+          e.stopPropagation()
+          onClose()
+        }
+      }}
+      onDoubleClick={(e) => {
+        if (!canClose) return
+        e.preventDefault()
+        e.stopPropagation()
+        onClose()
+      }}
       style={{
         transform: `translateX(${drag.translateX}px)`,
         transition: drag.isDragging || drag.noTransition ? 'none' : 'transform 200ms ease',
@@ -253,18 +263,14 @@ interface TabCapabilities {
 
 /**
  * Single source of truth for what a tab can do, derived from its zone and the
- * tab counts. A window always keeps at least one normal tab, so the last normal
- * tab can't be closed / pinned / detached and therefore shows no menu. Pinned
- * tabs can always be unpinned but never closed directly; reordering is per-zone.
+ * tab counts. Normal tabs can always be closed/pinned/detached; if the last tab
+ * closes, TabsProvider opens Launchpad as the empty-state fallback. Pinned tabs
+ * can always be unpinned but never closed directly; reordering is per-zone.
  */
 export function getTabCapabilities(
   tab: Pick<Tab, 'id' | 'isPinned'>,
   ctx: { pinnedCount: number; normalCount: number; canDetach: boolean }
 ): TabCapabilities {
-  if (isHomeTab(tab)) {
-    return { menu: false, reorder: false, togglePin: false, detach: false, close: false }
-  }
-
   const detach = ctx.canDetach
   if (tab.isPinned) {
     const hasSiblings = ctx.pinnedCount > 1
@@ -272,11 +278,11 @@ export function getTabCapabilities(
   }
   const hasSiblings = ctx.normalCount > 1
   return {
-    menu: hasSiblings,
+    menu: true,
     reorder: hasSiblings,
-    togglePin: hasSiblings,
-    detach: hasSiblings && detach,
-    close: hasSiblings
+    togglePin: true,
+    detach,
+    close: true
   }
 }
 
@@ -402,8 +408,7 @@ export const AppShellTabBar = ({
     return { pinnedTabs: pinned, normalTabs: normal }
   }, [tabs])
   const hasUnpinnedTabs = normalTabs.length > 0
-  const homeTabIndex = normalTabs.findIndex(isHomeTab)
-  const normalReorderStartIndex = homeTabIndex === -1 ? 0 : homeTabIndex + 1
+  const normalReorderStartIndex = 0
   // Shared input for `getTabCapabilities` — every per-tab affordance is derived
   // from this, so the render stays declarative.
   const tabContext = useMemo(
