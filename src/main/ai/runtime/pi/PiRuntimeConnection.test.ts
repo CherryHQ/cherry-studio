@@ -1,12 +1,15 @@
+import type * as NodeFs from 'node:fs'
+
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
 
-const PI_ROOT = '/cherry/.pi/agent'
-const PI_SESSIONS = '/cherry/.pi/sessions'
+const PI_ROOT = '/cherry/agents/pi'
+const PI_SESSIONS = '/cherry/agents/pi/sessions'
 const WORKSPACE = '/work/space'
-const SESSION_FILE = '/cherry/.pi/sessions/s.jsonl'
+const SESSION_ID = 'sess-1'
+const SESSION_FILE = `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_${SESSION_ID}.jsonl`
 
 const mocks = vi.hoisted(() => ({
   getById: vi.fn(),
@@ -14,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   resolveInjection: vi.fn(),
   getPath: vi.fn(),
   loadPiSdk: vi.fn(),
+  readdirSync: vi.fn(),
   // pi fakes / captures
   subscribeCb: undefined as ((event: AgentSessionEvent) => void) | undefined,
   unsubscribe: vi.fn(),
@@ -34,9 +38,14 @@ const mocks = vi.hoisted(() => ({
   settingsArgs: undefined as unknown[] | undefined,
   isStreaming: false,
   steeringMode: 'one-at-a-time' as 'all' | 'one-at-a-time',
-  sessionFile: '/cherry/.pi/sessions/s.jsonl' as string | undefined
+  sessionId: 'sess-1' as string | undefined,
+  sessionFile: '/cherry/agents/pi/sessions/2026-07-06T00-00-00-000Z_sess-1.jsonl' as string | undefined
 }))
 
+vi.mock('node:fs', async (importOriginal) => ({
+  ...(await importOriginal<typeof NodeFs>()),
+  readdirSync: mocks.readdirSync
+}))
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
@@ -56,6 +65,9 @@ const fakeSession = {
   },
   get sessionFile() {
     return mocks.sessionFile
+  },
+  get sessionId() {
+    return mocks.sessionId
   },
   subscribe: (cb: (event: AgentSessionEvent) => void) => {
     mocks.subscribeCb = cb
@@ -138,7 +150,9 @@ beforeEach(() => {
   mocks.settingsArgs = undefined
   mocks.isStreaming = false
   mocks.steeringMode = 'one-at-a-time'
+  mocks.sessionId = SESSION_ID
   mocks.sessionFile = SESSION_FILE
+  mocks.readdirSync.mockReturnValue([])
   delete process.env.PI_CODING_AGENT_DIR
   delete process.env.PI_CODING_AGENT_SESSION_DIR
 
@@ -175,7 +189,7 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.createOpts?.agentDir).toBe(PI_ROOT)
     expect(mocks.setRuntimeApiKey).toHaveBeenCalledWith('p', 'real-key')
     expect(mocks.registerProvider).toHaveBeenCalledWith('p', expect.objectContaining({ apiKey: 'placeholder' }))
-    expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS)
+    expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: SESSION_ID })
     expect(mocks.sessionOpen).not.toHaveBeenCalled()
     // agent.instructions become the pi system prompt override; disk SYSTEM.md discovery is suppressed.
     expect(mocks.loaderOpts).toMatchObject({ systemPrompt: '', appendSystemPrompt: [] })
@@ -183,15 +197,44 @@ describe('PiRuntimeConnection', () => {
     expect((mocks.loaderOpts as { systemPromptOverride: () => string }).systemPromptOverride()).toBe('Be helpful.')
   })
 
-  it('reopens the session file on resume', async () => {
-    await new PiRuntimeConnection({ ...input, resumeToken: `${PI_SESSIONS}/prev/s.jsonl` }).start()
-    expect(mocks.sessionOpen).toHaveBeenCalledWith(`${PI_SESSIONS}/prev/s.jsonl`, PI_SESSIONS, WORKSPACE)
+  it('reopens the session file by scanning for the resume session id', async () => {
+    mocks.readdirSync.mockReturnValue(['2026-07-06T00-00-00-000Z_sess-1.jsonl'])
+
+    await new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()
+    expect(mocks.sessionOpen).toHaveBeenCalledWith(
+      `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_sess-1.jsonl`,
+      PI_SESSIONS,
+      WORKSPACE
+    )
     expect(mocks.sessionCreate).not.toHaveBeenCalled()
   })
 
-  it('rejects resume tokens outside the Cherry-owned pi session dir', async () => {
+  it('opens the newest matching session file when a resume id has multiple files', async () => {
+    mocks.readdirSync.mockReturnValue([
+      '2026-07-06T00-00-00-000Z_sess-1.jsonl',
+      '2026-07-06T01-00-00-000Z_sess-1.jsonl'
+    ])
+
+    await new PiRuntimeConnection({ ...input, resumeToken: SESSION_ID }).start()
+    expect(mocks.sessionOpen).toHaveBeenCalledWith(
+      `${PI_SESSIONS}/2026-07-06T01-00-00-000Z_sess-1.jsonl`,
+      PI_SESSIONS,
+      WORKSPACE
+    )
+  })
+
+  it('rejects invalid or unmatched resume tokens', async () => {
     await expect(new PiRuntimeConnection({ ...input, resumeToken: '/tmp/evil.jsonl' }).start()).rejects.toThrow(
-      'outside Cherry-owned session dir'
+      'valid session id inside Cherry-owned session dir'
+    )
+    await expect(new PiRuntimeConnection({ ...input, resumeToken: '../evil' }).start()).rejects.toThrow(
+      'valid session id inside Cherry-owned session dir'
+    )
+    await expect(new PiRuntimeConnection({ ...input, resumeToken: 'foo/bar' }).start()).rejects.toThrow(
+      'valid session id inside Cherry-owned session dir'
+    )
+    await expect(new PiRuntimeConnection({ ...input, resumeToken: 'missing-id' }).start()).rejects.toThrow(
+      'no pi session file found for resume token'
     )
     expect(mocks.sessionOpen).not.toHaveBeenCalled()
     expect(mocks.createAgentSession).not.toHaveBeenCalled()
@@ -224,7 +267,7 @@ describe('PiRuntimeConnection', () => {
     const terminal = events.filter((e) => e.type === 'turn-complete')
     expect(terminal).toHaveLength(1)
     expect(events.at(-1)?.type).toBe('turn-complete')
-    expect(events.some((e) => e.type === 'resume-token' && e.token === SESSION_FILE)).toBe(true)
+    expect(events.some((e) => e.type === 'resume-token' && e.token === SESSION_ID)).toBe(true)
   })
 
   it('send routes normal messages to prompt', async () => {

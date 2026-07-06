@@ -150,9 +150,11 @@ These are the choices nothing enforces:
   tools execute at main-process privilege with no sandbox must default to
   gated (`'default'`) and route every mutating tool through the approval
   extension.
-- **Resume tokens are opaque to the host but not to you.** If the token is a
-  filesystem path, validate it is contained in the Cherry-owned session
-  directory before use.
+- **Resume tokens are opaque to the host but not to you.** Persist a stable
+  runtime id as the resume handle and resolve it under the Cherry-owned session
+  directory at open time; never persist absolute paths, because DB-stored paths
+  pin that directory forever. Validate the handle before using it to locate a
+  session file.
 
 ## Verification
 

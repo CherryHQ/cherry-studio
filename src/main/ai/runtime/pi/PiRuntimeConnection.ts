@@ -1,3 +1,4 @@
+import { readdirSync } from 'node:fs'
 import path from 'node:path'
 
 import { agentService } from '@data/services/AgentService'
@@ -174,8 +175,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     await resourceLoader.reload()
 
     const sessionManager = this.resumeToken
-      ? pi.SessionManager.open(assertResumeTokenInSessionDir(this.resumeToken, sessionDir), sessionDir, workspacePath)
-      : pi.SessionManager.create(workspacePath, sessionDir)
+      ? pi.SessionManager.open(resolveResumeTokenSessionFile(this.resumeToken, sessionDir), sessionDir, workspacePath)
+      : pi.SessionManager.create(workspacePath, sessionDir, { id: this.input.sessionId })
 
     const { session: piSession } = await pi.createAgentSession({
       cwd: workspacePath,
@@ -396,12 +397,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return { categories: [], totalTokens, maxTokens, percentage, model: this.modelId }
   }
 
-  /** resume-token = pi `sessionFile` path (reopen handle for `SessionManager.open`). */
+  /** resume-token = pi session id; reopen scans Cherry's session dir for `*_<id>.jsonl`. */
   private maybeEmitResumeToken(): void {
-    const sessionFile = this.session?.sessionFile
-    if (!sessionFile || sessionFile === this.resumeToken) return
-    this.resumeToken = sessionFile
-    this.eventQueue.push({ type: 'resume-token', token: sessionFile })
+    const token = this.session?.sessionId
+    if (!token || token === this.resumeToken) return
+    this.resumeToken = token
+    this.eventQueue.push({ type: 'resume-token', token })
   }
 }
 
@@ -416,14 +417,31 @@ function normalizeDisabledTools(disabledTools: string[] | undefined | null): Set
   return new Set((disabledTools ?? []).map((tool) => tool.toLowerCase()))
 }
 
-function assertResumeTokenInSessionDir(resumeToken: string, sessionDir: string): string {
-  const resolvedToken = path.resolve(resumeToken)
-  const resolvedSessionDir = path.resolve(sessionDir)
-  const relative = path.relative(resolvedSessionDir, resolvedToken)
-  if (relative.startsWith('..') || path.isAbsolute(relative)) {
-    throw new Error('pi resume token points outside Cherry-owned session dir')
+function resolveResumeTokenSessionFile(resumeToken: string, sessionDir: string): string {
+  if (
+    !resumeToken ||
+    resumeToken !== path.basename(resumeToken) ||
+    !/^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/.test(resumeToken)
+  ) {
+    throw new Error('pi resume token must be a valid session id inside Cherry-owned session dir')
   }
-  return resolvedToken
+
+  let entries: string[]
+  try {
+    entries = readdirSync(sessionDir)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') entries = []
+    else throw error
+  }
+
+  // pi owns the timestamped filename prefix; Cherry persists the stable id suffix.
+  // If the same id is recreated, the lexicographically greatest timestamp is the newest state.
+  const match = entries
+    .filter((entry) => entry.endsWith(`_${resumeToken}.jsonl`))
+    .sort()
+    .at(-1)
+  if (!match) throw new Error('no pi session file found for resume token in Cherry-owned session dir')
+  return path.join(sessionDir, match)
 }
 
 /** pi triggers `manual` on `compact()`, `threshold`/`overflow` automatically — Cherry's

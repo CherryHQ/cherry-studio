@@ -192,8 +192,9 @@ Allowed in v1:
   exported to pi as `PI_CODING_AGENT_DIR`. This is not a prompt/skill import
   surface in v1.
 - Cherry-owned pi sessions: `application.getPath('feature.agents.pi.sessions')`,
-  exported as `PI_CODING_AGENT_SESSION_DIR` and used as the only valid resume
-  token parent.
+  exported as `PI_CODING_AGENT_SESSION_DIR`. The resume token is the pi session
+  id; reopen resolves it by scanning this directory for `*_<id>.jsonl`, so the
+  directory can be relocated without invalidating stored tokens.
 - Cherry agent instructions from the agent record, via `systemPromptOverride`.
 - Inline Cherry-owned extensions required for the integration: provider
   injection and tool approval/policy enforcement.
