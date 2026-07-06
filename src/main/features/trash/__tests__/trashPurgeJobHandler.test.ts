@@ -50,6 +50,7 @@ function makeCtx(input: { emptyAll?: boolean } = {}): JobContext<{ emptyAll?: bo
     jobId: 'job-trash-test',
     input,
     attempt: 1,
+    parentId: null,
     signal: new AbortController().signal,
     metadata: {},
     patchMetadata: vi.fn(async () => undefined),

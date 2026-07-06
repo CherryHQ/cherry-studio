@@ -1,5 +1,5 @@
 import { Button } from '@cherrystudio/ui'
-import { SettingDivider, SettingGroup, SettingTitle } from '@renderer/pages/settings'
+import { SettingDivider, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { Loader } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
