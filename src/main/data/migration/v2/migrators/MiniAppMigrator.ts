@@ -18,7 +18,8 @@ import { BaseMigrator } from './BaseMigrator'
 import { transformMiniApp } from './mappings/MiniAppMappings'
 import {
   type EntityImageRef,
-  insertPreparedImageFileTx,
+  insertPreparedImageEntryTx,
+  insertPreparedImageRefTx,
   prepareBase64ImageFileEntry,
   type PreparedEntityImageFile
 } from './utils/logoMigration'
@@ -213,14 +214,21 @@ export class MiniAppMigrator extends BaseMigrator {
       }
 
       ctx.db.transaction((tx) => {
+        // Insert file_entries first (the mini-app's `logo_file_id` FK needs
+        // them), then the owner rows, then the ref rows (whose `source_id` FK
+        // needs the owner) — see logoRef ordering.
         for (const logoFile of logoFiles) {
-          insertPreparedImageFileTx(tx, logoFile)
+          insertPreparedImageEntryTx(tx, logoFile)
         }
 
         for (let i = 0; i < this.preparedRows.length; i += BATCH_SIZE) {
           const batch = this.preparedRows.slice(i, i + BATCH_SIZE)
           tx.insert(miniAppTable).values(batch).run()
           processed += batch.length
+        }
+
+        for (const logoFile of logoFiles) {
+          insertPreparedImageRefTx(tx, logoFile)
         }
       })
 

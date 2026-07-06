@@ -14,7 +14,9 @@ import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { fileEntryTable } from './file'
 import { messageTable } from './message'
+import { miniAppTable } from './miniApp'
 import { paintingTable } from './painting'
+import { userProviderTable } from './userProvider'
 
 function sqlStringList(values: readonly string[]) {
   return sql.raw(values.map((value) => `'${value.replaceAll("'", "''")}'`).join(', '))
@@ -86,14 +88,17 @@ export const paintingFileRefTable = sqliteTable(
  *
  * Unlike the collection refs (`chat_message`, `painting`) these model a
  * single-file slot whose file id also lives directly on the owning row's
- * `logo_file_id` column. The slot is always kept in sync through the `logoRef`
- * helpers (`reconcileLogoSlotTx` / `clearSingleFileRefTx`), and the owner's
- * delete flow clears it explicitly — so `sourceId` carries **no FK** (this also
- * avoids ordering coupling: the owner row and its logo are created together).
- * Only `fileEntryId` cascades, so deleting the file drops the row and
- * orphan-counting stays exact. There is **no `role` column**: the slot's role
- * is a constant ('logo') carrying no information and read by nothing, so it is
- * dropped and the unique `(sourceId)` index alone enforces at most one file per
+ * `logo_file_id` column, kept in sync through the `logoRef` helpers
+ * (`reconcileLogoSlotTx` / `clearSingleFileRefTx`). `sourceId` carries a **FK to
+ * the owner** (`onDelete: 'cascade'`), matching the collection ref tables:
+ * dropping a provider / mini-app drops its ref row, and `fileEntryId` cascades
+ * on file delete so orphan-counting stays exact. Because both ends are
+ * enforced, the two write paths must order their inserts `file_entry → owner
+ * row → ref row` (the owner's `logo_file_id` FK needs the file first, the ref's
+ * `sourceId` FK needs the owner first): the live `set_logo` path always updates
+ * an existing owner, and the migrators sequence the three inserts explicitly.
+ * There is **no `role` column**: the slot's role is a constant ('logo') read by
+ * nothing, so the unique `(sourceId)` index alone enforces at most one file per
  * slot. (The user avatar deliberately has no slot table — it is persisted only
  * in the `app.user.avatar` preference.)
  */
@@ -104,7 +109,9 @@ export const providerLogoFileRefTable = sqliteTable(
     fileEntryId: text()
       .notNull()
       .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
-    sourceId: text().notNull(),
+    sourceId: text()
+      .notNull()
+      .references(() => userProviderTable.providerId, { onDelete: 'cascade' }),
     ...createUpdateTimestamps
   },
   (t) => [index('plfr_entry_id_idx').on(t.fileEntryId), uniqueIndex('plfr_source_id_idx').on(t.sourceId)]
@@ -117,7 +124,9 @@ export const miniAppLogoFileRefTable = sqliteTable(
     fileEntryId: text()
       .notNull()
       .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
-    sourceId: text().notNull(),
+    sourceId: text()
+      .notNull()
+      .references(() => miniAppTable.appId, { onDelete: 'cascade' }),
     ...createUpdateTimestamps
   },
   (t) => [index('malfr_entry_id_idx').on(t.fileEntryId), uniqueIndex('malfr_source_id_idx').on(t.sourceId)]

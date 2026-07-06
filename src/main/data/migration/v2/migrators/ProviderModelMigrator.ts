@@ -37,7 +37,8 @@ import { type OldLlmSettings, transformModel, transformProvider } from './mappin
 import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
 import {
   type EntityImageRef,
-  insertPreparedImageFileTx,
+  insertPreparedImageEntryTx,
+  insertPreparedImageRefTx,
   prepareBase64ImageFileEntry,
   type PreparedEntityImageFile
 } from './utils/logoMigration'
@@ -433,8 +434,11 @@ export class ProviderModelMigrator extends BaseMigrator {
       ctx.db.transaction((tx) => {
         ensureCherryAiDefaultProviderAndModelTx(tx)
 
+        // Insert file_entries before the owner rows (the provider's
+        // `logo_file_id` FK needs them); the ref rows go in after the owner rows
+        // exist (their `source_id` FK needs the provider), below.
         for (const logoFile of providerLogoFiles) {
-          insertPreparedImageFileTx(tx, logoFile)
+          insertPreparedImageEntryTx(tx, logoFile)
         }
 
         const [lastProvider] = tx
@@ -481,6 +485,12 @@ export class ProviderModelMigrator extends BaseMigrator {
             Math.round(((providerIndex + 1) / this.providers.length) * 100),
             `Migrated ${processedProviders}/${this.providers.length} providers and ${processedModels} models`
           )
+        }
+
+        // Owner rows now exist — insert the logo ref rows (their `source_id` FK
+        // references `user_provider.provider_id`).
+        for (const logoFile of providerLogoFiles) {
+          insertPreparedImageRefTx(tx, logoFile)
         }
 
         const pinRows = assignOrderKeysInSequence(
