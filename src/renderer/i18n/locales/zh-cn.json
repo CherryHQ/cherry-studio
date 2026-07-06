@@ -8,7 +8,7 @@
       },
       "model": {
         "supported_providers": "支持的服务商",
-        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于智能体功能。",
+        "tooltip": "目前大多数聊天模型可用于智能体，暂不支持 Gemini 服务商。",
         "view_providers": "查看支持的服务商"
       },
       "title": "添加智能体",
@@ -1460,6 +1460,7 @@
       "pause": "暂停",
       "placeholder": "输入消息，按 {{key}} 发送，输入 / 选择工具或操作",
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
+      "resize_height": "调整输入框高度",
       "resource_panel": {
         "categories": {
           "agents": "Agents",
@@ -1478,16 +1479,16 @@
         },
         "title": "资源"
       },
+      "restore": "还原",
       "send": "发送",
       "send_failed": "消息发送失败",
       "settings": "设置",
       "slash_commands": {
         "commands": {
-          "clear": "清空对话历史",
-          "compact": "压缩对话（可附带聚焦指令）",
+          "clear": "开启全新对话，清空上下文",
+          "compact": "通过总结当前对话来释放上下文",
           "context": "以彩色网格可视化当前上下文使用情况",
-          "cost": "显示 token 用量统计（订阅相关详情见成本跟踪指南）",
-          "todos": "列出当前待办事项"
+          "usage": "显示会话成本、套餐用量上限与活动统计"
         },
         "description": "代理会话斜杠命令",
         "title": "斜杠命令"
@@ -2793,15 +2794,11 @@
         "chunk_size": "单个文档片段的目标 token 数，影响召回粒度和上下文长度。",
         "document_count": "每次召回返回的最大文档片段数，越大覆盖越多但消耗更多上下文。",
         "embedding_model": "用于将知识库内容转换为向量。更换模型后，通常需要重新索引已有内容。",
-        "hybrid_alpha": "混合检索中向量得分的权重，值越高越偏向语义匹配。",
         "processor": "导入文件时使用的解析处理服务，用于提取正文、表格等内容。",
         "rerank_model": "对初步召回结果重新排序的模型，可提升最终片段相关性。",
-        "search_mode": "选择召回方式：向量检索适合语义匹配，全文检索适合关键词，混合检索会结合两者。",
         "smart_chunking": "自动沿 Markdown 结构（标题、代码块、段落）分段，且不从代码块内部切开。关闭后仅按分隔符切分。",
-        "threshold": "过滤低相关片段的相似度阈值，值越高召回越严格。",
-        "threshold_disabled": "该检索模式按排序返回结果，不使用相似度阈值。"
+        "threshold": "用于过滤低相关性重排片段的相似度阈值，数值越高召回越严格。"
       },
-      "hybrid_alpha": "Hybrid Alpha",
       "processor": "处理服务商",
       "rerank_disabled": "不使用",
       "rerank_model": "重排模型",
@@ -2810,12 +2807,6 @@
       "retrieval": "Retrieval",
       "save_action": "保存",
       "saved": "已保存",
-      "search_mode": {
-        "bm25": "全文检索",
-        "hybrid": "混合检索（推荐）",
-        "title": "检索模式",
-        "vector": "向量检索"
-      },
       "separator_rule": "分隔符规则",
       "smart_chunking": "智能分段",
       "threshold": "相似度阈值",
@@ -4447,7 +4438,7 @@
     },
     "generate_failed": "生成图像失败",
     "generated_image": "生成图片",
-    "generating": "生成中...",
+    "generating": "绘图进行中，请不要离开页面",
     "go_to_settings": "去设置",
     "guidance_scale": "引导比例",
     "guidance_scale_tip": "无分类器指导 ({{min}}-{{max}})。控制模型在寻找相关图像时对提示词的遵循程度",
@@ -6230,6 +6221,9 @@
         "button": "获取服务器",
         "success": "服务器获取成功"
       },
+      "filter": {
+        "label": "筛选"
+      },
       "findMore": "更多 MCP",
       "headers": "请求头",
       "headersTooltip": "HTTP 请求的自定义请求头",
@@ -6270,6 +6264,7 @@
       "noDescriptionAvailable": "暂无描述",
       "noLogs": "暂无日志",
       "noServers": "未配置服务器",
+      "notInstalled": "未安装",
       "not_support": "模型不支持",
       "npx_list": {
         "actions": "操作",
@@ -6299,6 +6294,7 @@
         "title": "运行外部 MCP？"
       },
       "provider": "提供者",
+      "providerNotFound": "未找到 MCP 提供商",
       "providerPlaceholder": "提供者名称",
       "providerUrl": "提供者网址",
       "providers": "提供商",
@@ -6345,13 +6341,6 @@
         "getToken": "获取 API 令牌",
         "getTokenDescription": "从您的帐户中获取个人 API 令牌",
         "noServersAvailable": "无可用的 MCP 服务器",
-        "providerDescriptions": {
-          "302ai": "302.AI 平台 MCP 服务",
-          "bailian": "百炼平台服务",
-          "lanyun": "蓝耘科技云平台 MCP 服务",
-          "mcprouter": "MCP Router 平台 MCP 服务",
-          "modelscope": "ModelScope 平台 MCP 服务"
-        },
         "selectProvider": "选择提供商：",
         "setToken": "输入您的令牌",
         "success": "同步 MCP 服务器成功",

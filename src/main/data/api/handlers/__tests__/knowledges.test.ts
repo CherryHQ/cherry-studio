@@ -242,9 +242,7 @@ describe('knowledgeHandlers', () => {
         knowledgeHandlers['/knowledge-bases/:id'].PATCH({
           params: { id: 'kb-1' },
           body: {
-            threshold: null,
-            documentCount: null,
-            hybridAlpha: null
+            documentCount: null
           }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')

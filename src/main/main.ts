@@ -11,7 +11,8 @@
 
 import '@main/data/bootConfig'
 
-import { application, serviceList } from '@application'
+import { application } from '@application'
+import { serviceList } from '@main/core/application/serviceRegistry'
 // Preboot phase — order matters. See core/preboot/README.md.
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'

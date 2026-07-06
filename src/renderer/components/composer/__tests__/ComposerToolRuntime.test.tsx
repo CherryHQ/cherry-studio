@@ -21,14 +21,16 @@ const { mockGetToolsForScope, mockQuickPanelValue, mockUseQuickPanel } = vi.hois
   }
 })
 
-vi.mock('@renderer/components/composer/tools', () => ({}))
+vi.mock('@renderer/components/composer/tools/builtinTools', () => ({
+  getAllTools: () => [],
+  getToolsForScope: (...args: unknown[]) => mockGetToolsForScope(...args)
+}))
 
 vi.mock('@renderer/components/composer/tools/types', () => ({
   TopicType: {
     Chat: 'chat',
     Session: 'session'
-  },
-  getToolsForScope: (...args: unknown[]) => mockGetToolsForScope(...args)
+  }
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({

@@ -1296,12 +1296,14 @@
       "add": "Adaugă etichetă",
       "delete": "Șterge eticheta",
       "deleteConfirm": "Ești sigur că vrei să ștergi această etichetă?",
+      "group_by": "[to be translated]:Group by tag",
       "manage": "Gestionare etichete",
       "modify": "Modifică eticheta",
       "none": "Fără etichete",
       "settings": {
         "title": "Setări etichete"
       },
+      "ungroup": "[to be translated]:Turn off tag grouping",
       "untagged": "Neetichetat"
     },
     "title": "Asistenți",
@@ -4717,6 +4719,7 @@
     "ollama": "Ollama",
     "open-mineru": "MinerU Deschis",
     "openai": "OpenAI",
+    "opencode": "[to be translated]:OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -6197,6 +6200,9 @@
         "button": "Preluare servere",
         "success": "Serverele MCP au fost preluate cu succes"
       },
+      "filter": {
+        "label": "[to be translated]:Filter"
+      },
       "findMore": "Găsește mai multe MCP",
       "headers": "Headere",
       "headersTooltip": "Headere personalizate pentru cereri HTTP",
@@ -6237,6 +6243,7 @@
       "noDescriptionAvailable": "Nicio descriere disponibilă",
       "noLogs": "Niciun jurnal încă",
       "noServers": "Niciun server configurat",
+      "notInstalled": "[to be translated]:Not installed",
       "not_support": "Model neacceptat",
       "npx_list": {
         "actions": "Acțiuni",
@@ -6266,6 +6273,7 @@
         "title": "Rulezi MCP extern?"
       },
       "provider": "Furnizor",
+      "providerNotFound": "[to be translated]:MCP provider not found",
       "providerPlaceholder": "Nume furnizor",
       "providerUrl": "URL furnizor",
       "providers": "Furnizori",
@@ -6312,13 +6320,6 @@
         "getToken": "Obține token API",
         "getTokenDescription": "Obține tokenul tău personal API din contul tău",
         "noServersAvailable": "Nu există servere MCP disponibile",
-        "providerDescriptions": {
-          "302ai": "Serviciul MCP al Platformei 302.AI",
-          "bailian": "Serviciul MCP al Platformei Bailian Alibaba Cloud",
-          "lanyun": "Platforma Cloud Lanyun Technology - Serviciul MCP",
-          "mcprouter": "Platformă Router MCP Serviciu MCP",
-          "modelscope": "Serviciul MCP al Platformei ModelScope"
-        },
         "selectProvider": "Selectează furnizor:",
         "setToken": "Introdu tokenul tău",
         "success": "Sincronizare servere MCP reușită",
