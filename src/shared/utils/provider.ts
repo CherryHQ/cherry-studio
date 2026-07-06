@@ -27,6 +27,13 @@ export function isOllamaProvider(provider: Provider): boolean {
   )
 }
 
+/**
+ * Ollama's local server does not validate credentials, but Claude Code's SDK
+ * still requires a non-empty auth token string — used as a stand-in wherever
+ * an Ollama provider has no configured API key.
+ */
+export const OLLAMA_CLAUDE_CODE_AUTH_TOKEN = 'ollama'
+
 // `&& !iam-gcp` excludes Vertex, which the seeder gives the same
 // google-generate-content endpoint as Gemini.
 export function isGeminiProvider(provider: Provider): boolean {

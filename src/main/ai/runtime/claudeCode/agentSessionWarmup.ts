@@ -10,7 +10,12 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
-import { isExternalCliProvider, isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
+import {
+  isExternalCliProvider,
+  isGeminiProvider,
+  isOllamaProvider,
+  OLLAMA_CLAUDE_CODE_AUTH_TOKEN
+} from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
@@ -18,8 +23,6 @@ import { withDeepSeek1mSuffix } from './deepseekContext'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import { buildClaudeCodeSessionSettings } from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
-
-const OLLAMA_CLAUDE_CODE_AUTH_TOKEN = 'ollama'
 
 export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   settings: ClaudeCodeSettings

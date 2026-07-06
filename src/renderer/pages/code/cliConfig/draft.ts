@@ -5,6 +5,7 @@ import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
 import { formatApiHost } from '@shared/utils/api'
+import { isOllamaProvider, OLLAMA_CLAUDE_CODE_AUTH_TOKEN } from '@shared/utils/provider'
 import { stringify as stringifyToml } from 'smol-toml'
 
 import {
@@ -99,9 +100,16 @@ async function resolveContext(args: CliConfigWriteArgs): Promise<ResolvedCliConf
     throw new Error(`Provider not found: ${providerId}`)
   }
 
+  const apiKey = firstApiKey(apiKeysRes?.keys)
+  // Ollama's local server needs no real credential, but Claude Code's SDK
+  // still requires a non-empty auth token — mirrors the same fallback used
+  // for the in-app agent runtime (agentSessionWarmup.ts).
+  const effectiveApiKey =
+    apiKey || (args.cliTool === CodeCli.CLAUDE_CODE && isOllamaProvider(provider) ? OLLAMA_CLAUDE_CODE_AUTH_TOKEN : '')
+
   return {
     provider,
-    apiKey: firstApiKey(apiKeysRes?.keys),
+    apiKey: effectiveApiKey,
     model,
     modelRecord,
     configBlob: sanitizeCliConfigBlob(args.cliTool, args.configBlob)

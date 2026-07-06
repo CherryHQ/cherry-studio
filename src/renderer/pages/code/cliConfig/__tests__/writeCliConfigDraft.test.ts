@@ -25,6 +25,13 @@ const anthropicProvider = {
   defaultChatEndpoint: 'anthropic-messages'
 } as unknown as Provider
 
+const ollamaProvider = {
+  id: 'ollama',
+  name: 'Ollama',
+  endpointConfigs: { 'anthropic-messages': { baseUrl: 'http://localhost:11434' } },
+  defaultChatEndpoint: 'ollama-chat'
+} as unknown as Provider
+
 const openaiCompatProvider = {
   id: 'deepseek',
   name: 'DeepSeek',
@@ -118,6 +125,27 @@ describe('writeCliConfigDraft', () => {
         ANTHROPIC_BASE_URL: 'https://api.anthropic.com',
         ANTHROPIC_AUTH_TOKEN: 'sk-secret',
         ANTHROPIC_MODEL: 'claude-sonnet-4-5'
+      })
+    })
+
+    it('injects a placeholder auth token for Ollama, which needs no real API key', async () => {
+      mockGet({
+        '/providers/ollama': () => ollamaProvider,
+        '/providers/ollama/api-keys': () => ({ keys: [] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'ollama::llama3'
+      })
+
+      expect(written).not.toBeNull()
+      const parsed = JSON.parse(written!.content)
+      expect(parsed.env).toEqual({
+        ANTHROPIC_BASE_URL: 'http://localhost:11434',
+        ANTHROPIC_AUTH_TOKEN: 'ollama',
+        ANTHROPIC_MODEL: 'llama3'
       })
     })
 
