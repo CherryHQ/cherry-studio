@@ -10,6 +10,7 @@ import { loggerService } from '@logger'
 import { parseSkillMetadata } from '@main/utils/markdownParser'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
+import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/utils/markdownParser', () => ({
@@ -354,6 +355,71 @@ describe('SkillService', () => {
       const spy = vi.spyOn(skillService as never, 'installFromClawhub').mockResolvedValue({} as never)
       await skillService.install({ installSource: 'clawhub:my-skill' })
       expect(spy).toHaveBeenCalledWith('my-skill')
+    })
+
+    it('installs clawhub skills through current API endpoints and owner source URL', async () => {
+      const skillService = new SkillService()
+      const tempDir = await createTempDir('skill-clawhub-install-')
+      const extractDir = path.join(tempDir, 'extracted')
+      const locatedSkillDir = path.join(extractDir, 'code')
+      const installedSkill = {
+        id: '44444444-4444-4444-8444-444444444444',
+        name: 'Code',
+        description: 'Coding workflow',
+        folderName: 'code',
+        source: 'marketplace',
+        sourceUrl: 'https://clawhub.ai/ivangdavila/skills/code',
+        namespace: null,
+        author: null,
+        sourceTags: [],
+        contentHash: 'hash-code',
+        isEnabled: false,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }
+
+      vi.mocked(net.fetch)
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ owner: { handle: 'ivangdavila' } }), {
+            headers: { 'Content-Type': 'application/json' },
+            status: 200
+          })
+        )
+        .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3]), { status: 200 }))
+      const createTempDirSpy = vi.spyOn(skillService as never, 'createTempDir').mockResolvedValue(tempDir as never)
+      const extractZipSpy = vi.spyOn(skillService as never, 'extractZip').mockResolvedValue(undefined as never)
+      const locateSkillDirSpy = vi
+        .spyOn(skillService as never, 'locateSkillDir')
+        .mockResolvedValue(locatedSkillDir as never)
+      const installSkillDirSpy = vi
+        .spyOn(skillService as never, 'installSkillDir')
+        .mockResolvedValue(installedSkill as never)
+
+      try {
+        const result = await skillService.install({ installSource: 'clawhub:code' })
+
+        expect(result).toBe(installedSkill)
+        expect(net.fetch).toHaveBeenNthCalledWith(1, 'https://clawhub.ai/api/v1/skills/code', {
+          headers: { 'User-Agent': 'CherryStudio' }
+        })
+        expect(net.fetch).toHaveBeenNthCalledWith(2, 'https://clawhub.ai/api/v1/download?slug=code', {
+          headers: { 'User-Agent': 'CherryStudio' }
+        })
+        expect(createTempDirSpy).toHaveBeenCalledWith('clawhub')
+        expect(extractZipSpy).toHaveBeenCalledWith(path.join(tempDir, 'skill.zip'), extractDir)
+        expect(locateSkillDirSpy).toHaveBeenCalledWith(extractDir)
+        expect(installSkillDirSpy).toHaveBeenCalledWith(
+          locatedSkillDir,
+          'marketplace',
+          'https://clawhub.ai/ivangdavila/skills/code'
+        )
+      } finally {
+        createTempDirSpy.mockRestore()
+        extractZipSpy.mockRestore()
+        locateSkillDirSpy.mockRestore()
+        installSkillDirSpy.mockRestore()
+        vi.mocked(net.fetch).mockReset()
+      }
     })
   })
 
