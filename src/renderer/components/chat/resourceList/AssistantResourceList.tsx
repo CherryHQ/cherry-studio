@@ -73,6 +73,7 @@ export function AssistantResourceList({
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   const isTagGrouping = assistantSortType === 'tags'
+  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
   const {
     assistants,
@@ -443,8 +444,8 @@ export function AssistantResourceList({
       <ResourceEntityRail
         variant="assistant"
         items={items}
-        selectedId={selectedId}
-        selectedClickId={activeAssistantId ?? DEFAULT_ASSISTANT_ENTITY_ID}
+        selectedId={hasActiveResourceMenuItem ? null : selectedId}
+        selectedClickId={hasActiveResourceMenuItem ? null : (activeAssistantId ?? DEFAULT_ASSISTANT_ENTITY_ID)}
         status={listStatus}
         ariaLabel={t('assistants.abbr')}
         defaultGroupLabel={t('assistants.abbr')}
@@ -463,7 +464,6 @@ export function AssistantResourceList({
         }
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAssistantClick?.()}
-        resourceMenuItems={resourceMenuItems}
         // Reorder persists the global assistant `orderKey`; tag grouping only scopes drops
         // visually, so dragging within a tag would still move the assistant in the global
         // order. Disable reorder while grouping by tag until a tag-scoped ordering exists.

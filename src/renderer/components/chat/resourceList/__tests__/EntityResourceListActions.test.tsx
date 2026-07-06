@@ -575,7 +575,9 @@ describe('classic layout entity resource list actions', () => {
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
   })
 
-  it('passes the active assistant resource view state into the classic assistant rail', () => {
+  it('keeps assistant management in the shared display menu without adding a classic rail entry', () => {
+    const onManageAssistants = vi.fn()
+
     render(
       <AssistantResourceList
         activeAssistantId="assistant-1"
@@ -584,7 +586,7 @@ describe('classic layout entity resource list actions', () => {
             active: true,
             id: 'assistant-resource-view',
             label: 'Manage assistants',
-            onSelect: vi.fn()
+            onSelect: onManageAssistants
           }
         ]}
         onSelectTopic={vi.fn()}
@@ -592,7 +594,11 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-active-resource-menu', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
+
+    expect(onManageAssistants).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-active-resource-menu', 'false')
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', '')
   })
 
   it('uses delete-agent actions for the classic layout agent context and more menus', async () => {
