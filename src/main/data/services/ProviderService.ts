@@ -15,6 +15,7 @@ import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { clearSingleFileRefTx, reconcileLogoSlotTx } from '@data/services/utils/logoRef'
+import { resolveLogoSrc } from '@data/services/utils/logoSrc'
 import { applyMoves, insertManyWithOrderKey, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
@@ -22,7 +23,7 @@ import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_
 import type { LogoBindInput } from '@shared/data/api/schemas/logo'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
 import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
-import { providerLogoRef, tagStoredFileRef } from '@shared/data/types/file'
+import { providerLogoRef } from '@shared/data/types/file'
 import type {
   ApiKeyEntry,
   AuthConfig,
@@ -129,9 +130,11 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     id: row.providerId,
     presetProviderId: row.presetProviderId ?? undefined,
     name: row.name,
-    // Uploaded logos live on disk: emit a `file:<id>` ref the renderer resolves;
-    // otherwise the preset icon key. Public type is a single optional string.
-    logo: row.logoFileId ? tagStoredFileRef(row.logoFileId) : (row.logoKey ?? undefined),
+    // Preset icon key stays on `logo`; an uploaded logo resolves main-side to a
+    // ready `file://` URL on `logoSrc` (mutually exclusive) so the renderer
+    // never reconstructs a disk path.
+    logo: row.logoKey ?? undefined,
+    logoSrc: resolveLogoSrc(row.logoFileId),
     description: presetMetadata.description,
     websites: presetMetadata.websites,
     endpointConfigs: row.endpointConfigs ?? undefined,

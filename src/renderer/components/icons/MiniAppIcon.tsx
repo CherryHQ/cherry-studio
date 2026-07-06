@@ -1,11 +1,9 @@
-import { useCache } from '@data/hooks/useCache'
 import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
-import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC } from 'react'
 
 interface Props {
-  app: Pick<MiniApp, 'logo' | 'name' | 'background'>
+  app: Pick<MiniApp, 'logo' | 'logoSrc' | 'name' | 'background'>
   /** `avatar` keeps the bordered Avatar chrome; `plain` strips it from icon logos; `bare` also strips it from image logos. */
   appearance?: 'avatar' | 'plain' | 'bare'
   size?: number
@@ -13,41 +11,41 @@ interface Props {
 }
 
 const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }) => {
-  const [filesPath] = useCache('app.path.files')
-  // Preset-derived apps already include seeded display fields.
-  if (app.logo) {
-    const logo = getMiniAppsLogo(app.logo)
-    const chromeless = appearance === 'plain' || appearance === 'bare'
+  // A preset key resolves to a CompoundIcon; an uploaded logo arrives as a
+  // ready `logoSrc` URL (or a pre-resolved url on `logo` for sidebar tabs).
+  const compound = app.logo ? getMiniAppsLogo(app.logo) : undefined
+  const src = app.logoSrc ?? app.logo
 
-    // CompoundIcon: default usages keep the Avatar wrapper; Launchpad-style tiles render the logo itself.
-    if (logo && typeof logo !== 'string') {
-      const Icon = logo
-      if (chromeless) {
-        return (
-          <span
-            className="flex shrink-0 items-center justify-center"
-            style={{
-              width: `${size}px`,
-              height: `${size}px`,
-              userSelect: 'none',
-              ...style
-            }}>
-            <Icon
-              aria-label={app.name || 'MiniApp Icon'}
-              className="select-none"
-              style={{ width: `${size}px`, height: `${size}px` }}
-            />
-          </span>
-        )
-      }
-
-      return <Icon.Avatar size={size} className="select-none border border-border" shape="rounded" />
+  // CompoundIcon: default usages keep the Avatar wrapper; Launchpad-style tiles render the logo itself.
+  if (compound) {
+    const Icon = compound
+    if (appearance === 'plain' || appearance === 'bare') {
+      return (
+        <span
+          className="flex shrink-0 items-center justify-center"
+          style={{
+            width: `${size}px`,
+            height: `${size}px`,
+            userSelect: 'none',
+            ...style
+          }}>
+          <Icon
+            aria-label={app.name || 'MiniApp Icon'}
+            className="select-none"
+            style={{ width: `${size}px`, height: `${size}px` }}
+          />
+        </span>
+      )
     }
 
+    return <Icon.Avatar size={size} className="select-none border border-border" shape="rounded" />
+  }
+
+  if (src) {
     if (appearance === 'bare') {
       return (
         <img
-          src={typeof logo === 'string' ? logo : resolveStoredImageSrc(app.logo, filesPath)}
+          src={src}
           className="shrink-0 select-none object-contain"
           style={{ width: `${size}px`, height: `${size}px`, userSelect: 'none', ...style }}
           draggable={false}
@@ -58,7 +56,7 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }
 
     return (
       <img
-        src={typeof logo === 'string' ? logo : resolveStoredImageSrc(app.logo, filesPath)}
+        src={src}
         className="select-none rounded-2xl border border-border"
         style={{
           width: `${size}px`,

@@ -10,13 +10,11 @@ import {
   FieldLabel,
   Input
 } from '@cherrystudio/ui'
-import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi } from '@renderer/ipc'
-import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
 import { uuid } from '@renderer/utils/uuid'
 import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -36,7 +34,6 @@ const logger = loggerService.withContext('NewMiniAppPanel')
 const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
   const { t } = useTranslation()
   const { createCustomMiniApp, refreshCustomMiniApp, updateCustomMiniApp } = useMiniApps()
-  const [filesPath] = useCache('app.path.files')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const isEditing = app != null
 
@@ -79,7 +76,8 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     }
     setName(app.name)
     setUrl(app.url)
-    setLogo(app.logo ?? '')
+    // Preset key or an existing uploaded logo's main-resolved URL.
+    setLogo(app.logo ?? app.logoSrc ?? '')
   }, [app, open])
 
   const handleClose = () => {
@@ -158,9 +156,9 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
 
   const hasUploadedLogo = stagedFile != null
   const logoValue = logo.trim() || 'application'
-  // Resolve a stored file id (an existing app's uploaded logo) to a file:// URL;
-  // preset ids resolve to their CompoundIcon, object URLs / urls pass through.
-  const previewLogo = getMiniAppsLogo(logoValue) ?? resolveStoredImageSrc(logoValue, filesPath)
+  // Preset ids resolve to their CompoundIcon; a staged object URL / an existing
+  // uploaded logo's `file://` URL passes through as an image src.
+  const previewLogo = getMiniAppsLogo(logoValue) ?? logoValue
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

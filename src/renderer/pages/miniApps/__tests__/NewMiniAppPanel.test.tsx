@@ -48,22 +48,6 @@ vi.mock('@renderer/utils/uuid', () => ({
   uuid: () => 'generated-id'
 }))
 
-vi.mock('@renderer/utils/storedImage', () => {
-  // Re-implement the pure resolver so the suite doesn't pull the real module's
-  // deps. A `file:<id>` ref resolves to the on-disk WebP; everything else
-  // passes through.
-  return {
-    resolveStoredImageSrc: (value?: string | null, filesPath?: string) => {
-      if (!value) return undefined
-      if (value.startsWith('file:') && !value.startsWith('file://')) {
-        if (!filesPath) return undefined
-        return `file://${filesPath}/${value.slice('file:'.length)}.webp`
-      }
-      return value
-    }
-  }
-})
-
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, onClick, disabled }: React.PropsWithChildren<{ onClick?: () => void; disabled?: boolean }>) => (
     <button type="button" onClick={onClick} disabled={disabled}>
@@ -249,7 +233,7 @@ describe('NewMiniAppPanel', () => {
     })
   })
 
-  it('resolves an existing stored-id logo to a file:// preview', () => {
+  it('previews an existing uploaded logo from its main-resolved logoSrc', () => {
     render(
       <NewMiniAppPanel
         open={true}
@@ -260,7 +244,7 @@ describe('NewMiniAppPanel', () => {
           orderKey: 'a0',
           name: 'Old App',
           url: 'https://old.app',
-          logo: `file:${STORED_ID}`
+          logoSrc: `file:///files/${STORED_ID}.webp`
         }}
         onClose={vi.fn()}
       />

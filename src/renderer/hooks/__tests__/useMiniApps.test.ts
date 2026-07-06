@@ -320,14 +320,13 @@ describe('useMiniApps', () => {
       expect(mockTabs.updateTab).not.toHaveBeenCalledWith('tab-2', expect.anything())
     })
 
-    it('should resolve an uploaded-logo file id to a file:// tab icon when syncing', async () => {
+    it('uses the service-resolved logoSrc as the file:// tab icon when syncing', async () => {
       const storedId = '0190f3c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f'
       const existing = createMiniApp('custom-app', { presetMiniAppId: null })
-      // The service returns an uploaded logo as a `file:<id>` ref.
-      const updated = { ...existing, name: 'New App', logo: `file:${storedId}` }
+      // The service returns an uploaded logo pre-resolved onto `logoSrc`.
+      const updated = { ...existing, name: 'New App', logoSrc: `file:///files/${storedId}.webp` }
       const trigger = vi.fn().mockResolvedValue(updated)
       MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
-      MockUseCacheUtils.setCacheValue('app.path.files', '/files')
       mockTabs.tabs = [{ id: 'tab-1', url: '/app/mini-app/custom-app' }]
 
       const { result } = renderHook(() => useMiniApps())

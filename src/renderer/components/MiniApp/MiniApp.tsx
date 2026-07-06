@@ -1,6 +1,5 @@
 import { ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import MiniAppIcon from '@renderer/components/icons/MiniAppIcon'
@@ -9,7 +8,6 @@ import MarqueeText from '@renderer/components/MarqueeText'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
-import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC, KeyboardEvent } from 'react'
@@ -42,7 +40,6 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
   } = useMiniApps()
   const { miniAppFavoriteIds, toggleMiniApp } = useSidebarFavorites()
   const { openTab } = useTabs()
-  const [filesPath] = useCache('app.path.files')
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false)
   const [removingCustom, setRemovingCustom] = useState(false)
   const isPinned = pinned.some((p) => p.appId === app.appId)
@@ -60,11 +57,10 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     if (onOpen) {
       onOpen(app, displayName)
     } else {
-      // Resolve an uploaded-logo file id to a file:// src for TabIcon; preset
-      // ids / urls pass through.
+      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
       openTab(`/app/mini-app/${app.appId}`, {
         title: displayName,
-        icon: resolveStoredImageSrc(app.logo, filesPath) ?? app.logo
+        icon: app.logoSrc ?? app.logo
       })
     }
     onClick?.()

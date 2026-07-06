@@ -124,12 +124,6 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: mocks.ipcRequest }
 }))
 
-vi.mock('@renderer/utils/storedImage', () => ({
-  // useAvatar resolves the avatar Preference through this; the avatar test uses a
-  // plain file:// value (not a `file:<id>` ref), so pass it through unchanged.
-  resolveStoredImageSrc: (value?: string | null) => value ?? undefined
-}))
-
 vi.mock('@renderer/utils/naming', () => ({
   isEmoji: (value: string) => value === '🙂'
 }))

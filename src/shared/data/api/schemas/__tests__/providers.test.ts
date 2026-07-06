@@ -51,7 +51,9 @@ describe('Provider DTO logo validation', () => {
   })
 
   it('rejects a default intent on create (no such variant)', () => {
-    expect(CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: { kind: 'default' } }).success).toBe(false)
+    expect(CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: { kind: 'default' } }).success).toBe(
+      false
+    )
   })
 
   it('rejects a logo field on update — logo edits go through provider.set_logo', () => {

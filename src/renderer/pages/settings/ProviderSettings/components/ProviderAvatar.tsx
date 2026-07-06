@@ -1,12 +1,10 @@
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
-import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
 import type { Provider } from '@shared/data/types/provider'
 import type { CSSProperties } from 'react'
 
 interface ProviderAvatarProps {
-  provider: Pick<Provider, 'id' | 'name' | 'logo'>
+  provider: Pick<Provider, 'id' | 'name' | 'logo' | 'logoSrc'>
   size?: number
   className?: string
   style?: CSSProperties
@@ -14,10 +12,10 @@ interface ProviderAvatarProps {
 
 export function ProviderAvatar({ provider, size, className, style }: ProviderAvatarProps) {
   const systemIcon = resolveProviderIcon(provider.id)
-  const [filesPath] = useCache('app.path.files')
-  // Preset providers render the bundled icon; only custom providers carry a `logo`.
-  // A stored file-id resolves to a file:// URL; `icon:<id>` / remote URLs pass through.
-  const customLogo = systemIcon ? undefined : resolveStoredImageSrc(provider.logo, filesPath)
+  // Preset providers render the bundled icon; custom providers carry either a
+  // preset brand key (`icon:<id>` on `logo`) or a main-resolved uploaded-logo
+  // URL (`logoSrc`). The primitive dispatches on both.
+  const customLogo = systemIcon ? undefined : (provider.logo ?? provider.logoSrc)
   if (systemIcon) {
     return (
       <ProviderAvatarPrimitive

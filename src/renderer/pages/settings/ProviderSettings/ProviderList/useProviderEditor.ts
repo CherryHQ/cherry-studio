@@ -60,7 +60,8 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
   const modeRef = useRef<ProviderEditorMode | null>(null)
   const submitTokenRef = useRef(0)
   const editingProvider = mode?.kind === 'edit' ? mode.provider : null
-  const initialLogo = editingProvider?.logo
+  // Preset key or an existing uploaded logo's main-resolved URL (logoSrc).
+  const initialLogo = editingProvider?.logo ?? editingProvider?.logoSrc
 
   const updateMode = useCallback((next: ProviderEditorMode | null) => {
     submitTokenRef.current += 1

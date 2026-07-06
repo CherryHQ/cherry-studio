@@ -7,10 +7,9 @@
  *
  * v1 stored these as base64 data URLs (provider logos in Dexie under
  * `image://provider-<id>`, custom mini-app logos in `custom-minapps.json`, the
- * avatar under `image://avatar`). v2 keeps them on disk and renders them via
- * `resolveStoredImageSrc`, which builds `{id}.webp` — so the bytes must be
- * normalized to WebP here (128×128 cover-crop, matching the renderer's
- * `normalizeImageToWebp`), not stored raw.
+ * avatar under `image://avatar`). v2 keeps them on disk as normalized WebP
+ * (128×128 cover-crop via `transcodeToEntityWebp`, matching the live upload
+ * path) — so the bytes must be transcoded here, not stored raw.
  *
  * The physical file write is non-transactional — same risk model as
  * `ChatMappings.promoteBase64ToFileEntry`. Callers that need a DB transaction

@@ -610,12 +610,14 @@ export const providerLogoRef = defineSingleFileRef('provider_logo')
 export const miniAppLogoRef = defineSingleFileRef('mini_app_logo')
 
 /**
- * Prefix tagging an uploaded entity image in its owner's **display value**
- * (`provider.logo` / `miniApp.logo` / the `app.user.avatar` preference), e.g.
- * `file:0190f3c4-…`. The owner's API tags an uploaded file this way so the
- * renderer's `resolveStoredImageSrc` resolves it by prefix (→ `file://…/{id}.webp`)
- * instead of guessing from the value's shape; every other form (icon ref / emoji
- * / preset id) passes through. Distinct from an already-resolved `file://…` URL.
+ * Prefix tagging an uploaded avatar in the `app.user.avatar` preference, e.g.
+ * `file:0190f3c4-…`. The preference is the avatar's only persisted copy (no
+ * DTO), so `useAvatar` resolves the tagged id to a `file://` URL through the
+ * file IPC; every other form (emoji / default `''`) passes through. Distinct
+ * from an already-resolved `file://…` URL.
+ *
+ * Provider / mini-app uploaded logos do NOT use this tag — they're stored as a
+ * `logo_file_id` column and resolved main-side onto the DTO's `logoSrc`.
  */
 export const STORED_FILE_REF_PREFIX = 'file:'
 

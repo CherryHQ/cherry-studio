@@ -470,8 +470,11 @@ describe('MiniAppService', () => {
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'logo-app'))
       expect(row.logoKey).toBeNull()
       expect(row.logoFileId).toBe(FILE_ID)
-      // Public DTO emits a `file:<id>` ref for the renderer to resolve.
-      expect(updated.logo).toBe(`file:${FILE_ID}`)
+      // The uploaded logo lives on `logoFileId`; the DTO's `logo` key stays
+      // clear and the renderer-facing URL resolves main-side onto `logoSrc`
+      // (FileManager mock → deterministic file:// path).
+      expect(updated.logo).toBeUndefined()
+      expect(updated.logoSrc).toBe(`file:///mock/files/${FILE_ID}.webp`)
       const refs = await logoRefs('logo-app')
       expect(refs).toHaveLength(1)
       expect(refs[0].fileEntryId).toBe(FILE_ID)

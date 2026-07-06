@@ -78,7 +78,8 @@ const miniAppVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { ty
     const title = app.nameKey ? ctx.t(app.nameKey) : app.name
     const tab = {
       title,
-      miniApp: { id: app.appId, logo: app.logo, url: app.url }
+      // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+      miniApp: { id: app.appId, logo: app.logoSrc ?? app.logo, url: app.url }
     }
 
     return {

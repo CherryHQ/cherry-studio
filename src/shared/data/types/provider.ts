@@ -263,13 +263,18 @@ export const ProviderSchema = z.object({
   /** Display name */
   name: z.string(),
   /**
-   * Resolved logo (`logoFileId ?? logoKey`): an uploaded logo's opaque
-   * file-entry id (rendered via `resolveStoredImageSrc` → `file://…/{id}.webp`),
-   * or a preset `icon:<providerId>` brand-icon ref. Absent for preset
-   * providers rendered by id. Never a remote URL or data URL — a custom logo
-   * is always a local uploaded file.
+   * Preset logo key — a `icon:<providerId>` brand-icon ref. Absent for preset
+   * providers rendered by id, and for custom providers with an uploaded logo
+   * (those carry {@link logoSrc} instead). Never a URL or data URL.
    */
   logo: z.string().optional(),
+  /**
+   * Ready-to-render URL for an uploaded logo, resolved main-side from the
+   * `file_entry` (`file://…`). Mutually exclusive with {@link logo}. The
+   * renderer renders it directly and never reconstructs a disk path — the file
+   * storage layout stays a main-process detail.
+   */
+  logoSrc: z.string().optional(),
   /** Description */
   description: z.string().optional(),
   /** Preset provider website links */

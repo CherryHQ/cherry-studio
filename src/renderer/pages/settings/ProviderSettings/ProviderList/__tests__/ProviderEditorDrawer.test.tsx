@@ -70,10 +70,6 @@ vi.mock('@renderer/components/ProviderLogoPicker', () => ({
   )
 }))
 
-vi.mock('@renderer/utils/storedImage', () => ({
-  resolveStoredImageSrc: (value?: string | null) => value ?? undefined
-}))
-
 vi.mock('@renderer/utils/style', () => ({
   generateColorFromChar: vi.fn(),
   getForegroundColor: vi.fn(),
