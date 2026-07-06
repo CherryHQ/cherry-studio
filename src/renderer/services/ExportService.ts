@@ -6,8 +6,8 @@ import { Client } from '@notionhq/client'
 // `useTopic` hook module, so this is a service -> hook import. Sinking the
 // accessor below the hooks tier is deferred as out of scope here.
 import { getTopicMessages } from '@renderer/hooks/useTopic'
-import i18n from '@renderer/i18n'
 import { getProviderLabelKey } from '@renderer/i18n/label'
+import i18n from '@renderer/i18n/resolver'
 import { addNote } from '@renderer/services/NotesService'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'

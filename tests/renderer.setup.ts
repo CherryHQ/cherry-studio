@@ -11,13 +11,13 @@ if (!bufferModule.SlowBuffer) {
 
 // i18n now initializes lazily via initI18n() instead of a module-level side effect,
 // so seed it once per test file for components that render real translations.
-// The whole body is guarded: files that vi.mock('@renderer/i18n') make the dynamic
+// The whole body is guarded: files that vi.mock('@renderer/i18n/resolver') make the dynamic
 // import invoke their mock factory (which may throw), and files that
 // vi.mock('react-i18next') without initReactI18next make initI18n() reject. Neither
 // needs real initialization, so swallow both the import error and the init rejection.
 beforeAll(async () => {
   try {
-    const mod = await import('@renderer/i18n')
+    const mod = await import('@renderer/i18n/resolver')
     await mod.initI18n?.()
   } catch {
     // Intentionally ignored — mocked-i18n test files don't need real init.

@@ -24,7 +24,7 @@
 import { isAbortError } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
-import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
+import type { NativeFileSupport } from '@main/ai/runtime/aiSdk'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import { application } from '@main/core/application'
 import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
