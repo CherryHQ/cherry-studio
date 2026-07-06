@@ -1296,14 +1296,14 @@
       "add": "Добавить тег",
       "delete": "Удалить тег",
       "deleteConfirm": "Вы уверены, что хотите удалить этот тег?",
-      "group_by": "[to be translated]:Group by tag",
+      "group_by": "Группировать по тегу",
       "manage": "Управление тегами",
       "modify": "Изменить тег",
       "none": "Нет тегов",
       "settings": {
         "title": "Настройки тегов"
       },
-      "ungroup": "[to be translated]:Turn off tag grouping",
+      "ungroup": "Отключить группировку тегов",
       "untagged": "Несгруппированные метки"
     },
     "title": "Ассистенты",
@@ -1565,8 +1565,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Кэш {{hit_rate}}%",
+        "tooltip": "Чтение кэша {{cache_read}} / запись кэша {{cache_write}} / без кэша {{no_cache}} · сэкономлено {{saved}} входных токенов"
       },
       "editing_current": "Это сообщение редактируется в композере",
       "flow": {
@@ -2330,6 +2330,7 @@
       "no_match_description": "Ни один файл не соответствует текущим фильтрам",
       "no_match_title": "Совпадающие файлы не найдены"
     },
+    "empty_trash": "Очистить корзину",
     "error": {
       "delete_failed": "Не удалось удалить файлы",
       "delete_partial_failed": "Некоторые файлы не удалось удалить",
@@ -2347,6 +2348,7 @@
     "missing": "Отсутствует",
     "modified_at": "Изменено",
     "name": "Имя",
+    "no_actions": "Нет доступных действий",
     "open": "Открыть",
     "other": "Другое",
     "permanent_delete": "Удалить навсегда",
@@ -2360,13 +2362,18 @@
     "remove_from_library": "Удалить из библиотеки",
     "rename": "Переименовать",
     "restore": "Восстановить",
+    "select_all": "Выбрать видимые файлы",
+    "select_all_short": "Выбрать все",
+    "select_file": "Выбрать {{name}}",
     "selected_count": "{{count}} файлов выбрано",
+    "selected_missing_hint": "Некоторые выбранные файлы отсутствуют. Найдите их или удалите их записи.",
     "show_in_folder": "Показать в папке",
     "size": "Размер",
     "text": "Текст",
     "title": "Файлы",
     "trash": "Мусор",
     "type": "Тип",
+    "upload": "Загрузить файлы",
     "video": "Видео"
   },
   "globalSearch": {
@@ -2750,7 +2757,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} источников",
-      "documents_count": "{{count}} документов",
       "updated_at": "Обновлено {{time}}"
     },
     "name_required": "Требуется название базы знаний",
@@ -4719,7 +4725,7 @@
     "ollama": "Ollama",
     "open-mineru": "Открыть MinerU",
     "openai": "OpenAI",
-    "opencode": "[to be translated]:OpenCode Go",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -5305,6 +5311,9 @@
       "auto_switch_to_topics": "Автоматически переключаться на топик",
       "title": "Расширенные настройки"
     },
+    "appearance": {
+      "title": "Внешний вид"
+    },
     "assistant": {
       "icon": {
         "type": {
@@ -5373,6 +5382,7 @@
         "cloud_storage": "Настройки облачного резервирования",
         "export_settings": "Настройки экспорта",
         "import_settings": "Импорт настроек",
+        "note_export": "Экспорт заметок",
         "third_party": "Сторонние подключения"
       },
       "export_menu": {
@@ -5934,6 +5944,48 @@
         "token_placeholder": "Введите токен Yuque"
       }
     },
+    "dependencies": {
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Пользовательских инструментов пока нет. Добавьте один, чтобы начать.",
+      "description": "Управляйте бинарными инструментами и зависимостями среды выполнения, необходимыми приложению.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Установить",
+      "installError": "Failed to install tool",
+      "installing": "Установка...",
+      "invalidTool": "Неверное имя или ключ инструмента",
+      "notInstalled": "Не установлено",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
+      "title": "Зависимости окружения",
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
+    },
     "developer": {
       "enable_developer_mode": "Включить разработчик",
       "help": "После включения режима разработчика можно использовать функцию трассировки вызовов для просмотра потока данных в процессе вызова модели.",
@@ -5994,7 +6046,7 @@
       },
       "title": "Настройки отображения",
       "topic": {
-        "title": "Настройки топиков"
+        "title": "Настройки вида диалога"
       },
       "zoom": {
         "title": "Настройки масштаба"
@@ -6376,10 +6428,11 @@
       "user": "Пользователь"
     },
     "menuGroups": {
-      "appSettings": "Настройки приложения",
-      "integrations": "Модели",
-      "productivity": "Производительность",
-      "services": "Плагины",
+      "automation": "Автоматизация",
+      "capabilities": "Возможности и инструменты",
+      "models": "Модели",
+      "personal": "Личный",
+      "quickAccess": "Быстрый доступ",
       "system": "Система"
     },
     "messages": {
@@ -6696,7 +6749,7 @@
       "assistant": "Сообщение ассистента",
       "backup": "Резервное сообщение",
       "knowledge_embed": "Сообщение базы знаний",
-      "title": "Настройки уведомлений"
+      "title": "Уведомления"
     },
     "openai": {
       "service_tier": {
@@ -6732,48 +6785,6 @@
       }
     },
     "parameter_settings": "Параметры настройки",
-    "plugins": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Пользовательских инструментов пока нет. Добавьте один, чтобы начать.",
-      "description": "Управляйте бинарными инструментами и зависимостями среды выполнения, необходимыми приложению.",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Установить",
-      "installError": "Failed to install tool",
-      "installing": "Установка...",
-      "invalidTool": "Неверное имя или ключ инструмента",
-      "notInstalled": "Не установлено",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
-      "source": {
-        "bundled": "bundled"
-      },
-      "title": "Зависимости окружения",
-      "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
-      },
-      "update": "Update to latest version"
-    },
     "power": {
       "prevent_sleep_when_busy": "Не давайте системе переходить в спящий режим, пока выполняются задачи."
     },
@@ -7191,6 +7202,7 @@
       "all_enable": "Включить все",
       "bind_first_to_enable": "Сначала назначьте сочетание клавиш, чтобы изменить его состояние включения.",
       "categories": {
+        "all": "Все",
         "assistant": "Инструменты ИИ-ассистента",
         "chat": "Взаимодействие с сообщениями",
         "general": "Глобальное и Окно",
@@ -7206,6 +7218,7 @@
       "empty": "В этой группе нет доступных ярлыков",
       "enabled": "Включить",
       "exit_fullscreen": "Выйти из полноэкранного режима",
+      "filter": "Фильтр",
       "label": "Клавиша",
       "move_tab_to_first": "Переместить вкладку в начало",
       "new_topic": "Новый топик",
@@ -7274,6 +7287,9 @@
       "uninstallSuccess": "Навык удалён: {{name}}",
       "viewSource": "Посмотреть исходный код",
       "zip": "ЗИП"
+    },
+    "system": {
+      "title": "Система"
     },
     "theme": {
       "color_primary": "Цвет темы",
