@@ -24,7 +24,7 @@ vi.mock('@renderer/components/Navbar', () => ({
   NavbarHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
 
-vi.mock('@renderer/components/icons', () => ({
+vi.mock('@renderer/components/icons/SidebarToggleIcons', () => ({
   SidebarCollapseIcon: () => <span data-testid="collapse-icon" />,
   SidebarExpandIcon: () => <span data-testid="expand-icon" />
 }))

@@ -1,5 +1,5 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

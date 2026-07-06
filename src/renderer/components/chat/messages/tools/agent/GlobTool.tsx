@@ -1,15 +1,15 @@
 import { useTranslation } from 'react-i18next'
 
-import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
-import { countLines, truncateOutput } from '../shared/truncateOutput'
-import { ClickableFilePath } from './ClickableFilePath'
-import { ToolHeader, TruncatedIndicator } from './GenericTools'
-import { TerminalContainer } from './TerminalOutput'
 import {
   AgentToolsType,
   type GlobToolInput as GlobToolInputType,
   type GlobToolOutput as GlobToolOutputType
-} from './types'
+} from '../shared/agentToolTypes'
+import { ClickableFilePath } from '../shared/ClickableFilePath'
+import { ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import { countLines, truncateOutput } from '../shared/truncateOutput'
+import { TerminalContainer } from './TerminalOutput'
 
 export function GlobTool({
   input,

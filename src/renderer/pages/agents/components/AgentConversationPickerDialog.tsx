@@ -1,7 +1,10 @@
 import { loggerService } from '@logger'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resource'
-import { ResourceCreateWizard, type ResourceCreateWizardValues } from '@renderer/components/resource/dialogs'
+import {
+  ResourceCreateWizard,
+  type ResourceCreateWizardValues
+} from '@renderer/components/resourceCatalog/dialogs/create'
+import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resourceCatalog/selectors'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'

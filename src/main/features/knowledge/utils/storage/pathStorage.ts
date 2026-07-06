@@ -3,9 +3,9 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { getFileExt } from '@main/utils/file'
-import { copy, ensureDir, type PathReadability, probeReadable, remove, removeDir, write } from '@main/utils/file/fs'
+import { copy, ensureDir, type PathReadability, probeReadable, remove, removeDir, write } from '@main/utils/file'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
+import { getFileExt } from '@main/utils/legacyFile'
 import type { FilePath } from '@shared/types/file'
 import { knowledgeFileProcessingExts } from '@shared/utils/file'
 

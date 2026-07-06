@@ -2,7 +2,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ProviderList from '../ProviderList'
+import { ProviderList } from '../ProviderList'
 
 const reorderSpy = vi.fn()
 const useProvidersMock = vi.fn()

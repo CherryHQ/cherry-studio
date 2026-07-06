@@ -1,3 +1,3 @@
-export * from './CodeBlockView'
+export { CodeBlockView } from './CodeBlockView'
 export { default as HtmlArtifactsCard } from './HtmlArtifactsCard'
-export * from './types'
+export type { ViewMode } from './types'

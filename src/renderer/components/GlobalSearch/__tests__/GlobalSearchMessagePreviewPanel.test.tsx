@@ -75,14 +75,20 @@ function mockPreviewInfiniteQuery(path: string) {
   }
 }
 
-vi.mock('@renderer/components/chat/messages', () => ({
-  MessageContentProvider: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  MessageContent: ({ message }: any) => (
+vi.mock('@renderer/components/chat/messages/MessageContentProvider', () => ({
+  MessageContentProvider: ({ children }: { children: ReactNode }) => <div>{children}</div>
+}))
+
+vi.mock('@renderer/components/chat/messages/frame/MessageContent', () => ({
+  default: ({ message }: any) => (
     <div>
       <span>message-content:{message.id}</span>
       <span> needle</span>
     </div>
-  ),
+  )
+}))
+
+vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
   toMessageListItem: (message: any) => message
 }))
 

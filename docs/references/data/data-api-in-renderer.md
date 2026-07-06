@@ -298,7 +298,7 @@ function TopicList() {
 ### With Try-Catch
 
 ```typescript
-import { DataApiError, ErrorCode } from '@shared/data/api'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
 try {
   await dataApiService.post('/topics', { body: data })

@@ -49,7 +49,7 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
     ├── formatters/                  ← output event → SSE wire string
     └── factory/                     ← `MessageConverterFactory`, `StreamAdapterFactory`
 
-src/preload/index.ts                      ← `window.api.apiGateway.{start,stop,restart}`
+src/preload/preload.ts                    ← `window.api.apiGateway.{start,stop,restart}`
 src/renderer/hooks/useApiGateway.ts       ← renderer state (config + running + loading) and actions
 src/renderer/pages/settings/ToolSettings/ApiGatewaySettings/   ← settings UI
 ```

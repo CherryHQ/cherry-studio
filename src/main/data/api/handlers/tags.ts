@@ -9,7 +9,6 @@
  */
 
 import { tagService } from '@data/services/TagService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { TagSchemas } from '@shared/data/api/schemas/tags'
 import {
   CreateTagSchema,
@@ -18,6 +17,7 @@ import {
   TagIdSchema,
   UpdateTagSchema
 } from '@shared/data/api/schemas/tags'
+import type { HandlersFor } from '@shared/data/api/types'
 import { EntityIdSchema, EntityTypeSchema } from '@shared/data/types/entityType'
 
 export const tagHandlers: HandlersFor<TagSchemas> = {
