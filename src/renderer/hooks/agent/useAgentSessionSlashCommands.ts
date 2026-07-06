@@ -1,7 +1,7 @@
-import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { cacheService } from '@data/CacheService'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { SlashCommand } from '@shared/ai/slashCommands'
-import { useMemo } from 'react'
+import { useCallback, useMemo, useSyncExternalStore } from 'react'
 
 const EMPTY_SESSION_ID = '__none__'
 
@@ -13,13 +13,18 @@ const EMPTY_SESSION_ID = '__none__'
  * builtin list. The cached SDK shape (`name` without a leading slash) is normalised to the
  * composer's `{ command, description }` form here.
  *
- * Reads via the non-mutating {@link useSharedCacheValue} (not `useSharedCache`): the latter seeds the
- * schema default (`null`) on mount when this window's local copy is empty and broadcasts it to Main,
- * which would clobber Main's already-published catalog before the initial sync lands. Main owns this
- * key, so this window must only ever read it.
+ * Subscribes to the shared cache directly via `useSyncExternalStore` (rather than `useSharedCache`):
+ * that hook seeds the schema default (`null`) on mount when this window's local copy is empty and
+ * broadcasts it to Main, which would clobber Main's already-published catalog before the initial
+ * sync lands. Main owns this key, so this window must only ever read it — a read that never writes.
  */
 export function useAgentSessionSlashCommands(sessionId: string | undefined): SlashCommand[] | undefined {
-  const cached = useSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
+  const key = AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID)
+  const cached = useSyncExternalStore(
+    useCallback((callback) => cacheService.subscribe(key, callback), [key]),
+    useCallback(() => cacheService.getShared(key), [key]),
+    useCallback(() => cacheService.getShared(key), [key]) // SSR snapshot
+  )
 
   return useMemo(() => {
     if (!sessionId || !cached || cached.length === 0) return undefined

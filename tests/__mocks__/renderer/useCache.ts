@@ -208,18 +208,6 @@ export const mockUseSharedCache = vi.fn(
 )
 
 /**
- * Mock useSharedCacheValue hook (read-only shared cache) — never seeds a default, mirroring
- * production. Reads the same `mockSharedCache` store so seeding via the shared utilities works.
- */
-export const mockUseSharedCacheValue = vi.fn(
-  <K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined => {
-    return (mockSharedCache.get(key) ?? DefaultSharedCache[key as keyof SharedCacheSchema]) as
-      | InferSharedCacheValue<K>
-      | undefined
-  }
-)
-
-/**
  * Mock usePersistCache hook (persistent cache)
  */
 export const mockUsePersistCache = vi.fn(
@@ -257,7 +245,6 @@ export const mockUsePersistCache = vi.fn(
 export const MockUseCache = {
   useCache: mockUseCache,
   useSharedCache: mockUseSharedCache,
-  useSharedCacheValue: mockUseSharedCacheValue,
   usePersistCache: mockUsePersistCache
 }
 
@@ -271,7 +258,6 @@ export const MockUseCacheUtils = {
   resetMocks: () => {
     mockUseCache.mockClear()
     mockUseSharedCache.mockClear()
-    mockUseSharedCacheValue.mockClear()
     mockUsePersistCache.mockClear()
 
     // Reset caches to defaults
@@ -419,18 +405,6 @@ export const MockUseCacheUtils = {
       const defaultValue =
         mockSharedCache.get(cacheKey) ?? initValue ?? DefaultSharedCache[cacheKey as keyof SharedCacheSchema]
       return [defaultValue, vi.fn()]
-    }) as never)
-  },
-
-  /**
-   * Mock read-only shared cache hook to return a specific value for a key
-   */
-  mockSharedCacheValueReturn: <K extends SharedCacheKey>(key: K, value: InferSharedCacheValue<K> | undefined) => {
-    mockUseSharedCacheValue.mockImplementation(((cacheKey: K) => {
-      if (cacheKey === key) {
-        return value
-      }
-      return mockSharedCache.get(cacheKey) ?? DefaultSharedCache[cacheKey as keyof SharedCacheSchema]
     }) as never)
   },
 
