@@ -40,9 +40,12 @@ const STALE_AGE_MS = 7 * 24 * 60 * 60 * 1000
 const SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 @Injectable('VfsBlobService')
-// BeforeReady (not Background): init is sub-millisecond and the adapter must be
-// resolvable before the first AI request builds chef middleware options.
-@ServicePhase(Phase.BeforeReady)
+// WhenReady: both consumers resolve the service only during AI requests, which
+// are post-ready — the chef middleware adapter (buildChefOptions) and fs_read's
+// root. Init is a sub-millisecond mkdir + adapter construction and the stale
+// sweep is fire-and-forget in onReady, so there is no hard ordering constraint
+// that would require BeforeReady.
+@ServicePhase(Phase.WhenReady)
 export class VfsBlobService extends BaseService {
   private rootDir!: string
   private adapter!: FileSystemAdapter
