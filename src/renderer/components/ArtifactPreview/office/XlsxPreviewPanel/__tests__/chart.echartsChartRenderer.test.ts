@@ -15,7 +15,12 @@ import type { ChartModel } from '../renderModel'
 const setOption = vi.fn()
 const resize = vi.fn()
 const dispose = vi.fn()
-const init = vi.fn((_dom: HTMLElement, _theme?: unknown, _opts?: unknown) => ({ setOption, resize, dispose }))
+const init = vi.fn((dom: HTMLElement, theme?: unknown, opts?: unknown) => {
+  void dom
+  void theme
+  void opts
+  return { setOption, resize, dispose }
+})
 
 vi.mock('echarts/core', () => ({
   init,

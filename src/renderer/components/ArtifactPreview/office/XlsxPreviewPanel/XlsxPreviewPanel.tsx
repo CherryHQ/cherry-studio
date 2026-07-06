@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import { EmptyState, LoadingState } from '@renderer/components/chat'
+import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { AlertCircle, FileSpreadsheet, ZoomIn, ZoomOut } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'

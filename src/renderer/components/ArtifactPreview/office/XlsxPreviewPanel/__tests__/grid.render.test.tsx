@@ -456,7 +456,11 @@ describe('XlsxGrid — floating layer', () => {
       () => 0
     )
     const dispose = vi.fn()
-    const renderChart = vi.fn((_chart: ChartModel, _container: HTMLElement) => dispose)
+    const renderChart = vi.fn((chart: ChartModel, container: HTMLElement) => {
+      void chart
+      void container
+      return dispose
+    })
 
     const { unmount } = render(
       <XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} renderChart={renderChart} />
@@ -484,8 +488,10 @@ describe('XlsxGrid — floating layer', () => {
     const renderChart = vi.fn(() => vi.fn())
     render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} renderChart={renderChart} />)
 
-    expect(screen.getByText('xlsx_preview.chart_unsupported')).toBeInTheDocument()
     expect(screen.getByText('scatterChart')).toBeInTheDocument()
+    expect(screen.getByText('scatterChart').closest('[data-testid="xlsx-grid-chart"]')?.firstElementChild).toHaveClass(
+      'border-dashed'
+    )
     // renderChart should only be invoked for the supported ('bar') chart, not the unsupported one.
     expect(renderChart).toHaveBeenCalledTimes(1)
   })
@@ -501,6 +507,6 @@ describe('XlsxGrid — floating layer', () => {
     )
     const barOnlySheet: SheetRenderModel = { ...salesSheet, charts: [salesSheet.charts[0]] }
     render(<XlsxGrid sheet={barOnlySheet} styles={model.styles} imageUrls={{}} zoom={1} />)
-    expect(screen.getByText('xlsx_preview.chart_unsupported')).toBeInTheDocument()
+    expect(screen.getByTestId('xlsx-grid-chart').firstElementChild).toHaveClass('border-dashed')
   })
 })
