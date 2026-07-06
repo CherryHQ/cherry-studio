@@ -153,6 +153,7 @@ export function useChatRuntimeState({
   const {
     overlay,
     liveAssistants,
+    disposeOverlay,
     reset: resetOverlay
   } = useExecutionOverlay(topic.id, branchActiveExecutions, messages, {
     onFinish: (executionId, event) => finishRef.current?.(executionId, event)
@@ -311,6 +312,7 @@ export function useChatRuntimeState({
             (execution) => !finishedBranchExecutionIdsRef.current.has(execution.executionId)
           )
           if (hasRemainingExecutions) {
+            disposeOverlay(message.id)
             setBranchLiveMessages((current) => current.filter((item) => item.id !== message.id))
           } else {
             setBranchLiveMessages([])
@@ -320,7 +322,7 @@ export function useChatRuntimeState({
         }
       })()
     },
-    [branchActiveExecutions, cache, invalidateCache, onBranchLiveStateChange, topic.id]
+    [branchActiveExecutions, cache, disposeOverlay, invalidateCache, onBranchLiveStateChange, topic.id]
   )
   finishRef.current = handleExecutionFinish
 

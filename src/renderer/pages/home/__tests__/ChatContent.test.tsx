@@ -1164,6 +1164,7 @@ describe('ChatContent', () => {
       executionId: string,
       event: { message: CherryUIMessage; isAbort: boolean; isError: boolean }
     ) => void
+    const disposeOverlay = mockExecutionOverlay.current.disposeOverlay
 
     act(() => {
       finish('provider::model-a', {
@@ -1171,6 +1172,14 @@ describe('ChatContent', () => {
         isAbort: false,
         isError: false
       })
+    })
+
+    await waitFor(() => {
+      expect(disposeOverlay).toHaveBeenCalledWith('reserved-assistant-a')
+      expect(onBranchLiveStateChange).not.toHaveBeenLastCalledWith(null)
+    })
+
+    act(() => {
       finish('provider::model-b', {
         message: { ...reservedAssistantB, parts: [{ type: 'text', text: 'model b final' }] as CherryMessagePart[] },
         isAbort: false,
