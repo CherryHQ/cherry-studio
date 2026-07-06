@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,6 +35,27 @@ import { ImportSkillDialog } from '../ImportSkillDialog'
 
 const toastError = vi.fn()
 
+const createDropData = (files: File[]) => ({
+  dataTransfer: {
+    files,
+    items: files.map((file) => ({
+      kind: 'file',
+      type: file.type,
+      getAsFile: () => file
+    })),
+    types: ['Files']
+  }
+})
+
+const dropSkillFiles = async (files: File[]) => {
+  const dropzone = screen.getByText('library.import_skill_dialog.local.drop_hint').closest('button')
+  expect(dropzone).toBeInTheDocument()
+
+  await act(async () => {
+    fireEvent.drop(dropzone!, createDropData(files))
+  })
+}
+
 beforeAll(() => {
   globalThis.ResizeObserver = class {
     observe() {}
@@ -60,6 +81,8 @@ beforeEach(() => {
       ...window.api,
       file: {
         ...window.api?.file,
+        getPathForFile: vi.fn((file: File) => `/tmp/${file.name}`),
+        isDirectory: vi.fn(async () => false),
         select: vi.fn(async () => [{ name: 'broken.zip', path: '/tmp/broken.zip' }])
       }
     }
@@ -169,5 +192,58 @@ describe('ImportSkillDialog', () => {
     expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Skill One')
     expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Skill Two')
     expect(screen.getByText('settings.skills.batchInstallComplete:2')).toBeInTheDocument()
+  })
+
+  it('installs multiple dropped ZIP files through the dropzone', async () => {
+    const files = [
+      new File(['one'], 'one.zip', { type: 'application/zip' }),
+      new File(['two'], 'two.zip', { type: 'application/zip' })
+    ]
+    installFromZip
+      .mockResolvedValueOnce({ id: 'skill-one', name: 'Skill One' })
+      .mockResolvedValueOnce({ id: 'skill-two', name: 'Skill Two' })
+
+    render(<ImportSkillDialog open onOpenChange={vi.fn()} />)
+
+    await dropSkillFiles(files)
+
+    await waitFor(() => expect(installFromZip).toHaveBeenCalledTimes(2))
+    expect(window.api.file.getPathForFile).toHaveBeenNthCalledWith(1, files[0])
+    expect(window.api.file.getPathForFile).toHaveBeenNthCalledWith(2, files[1])
+    expect(window.api.file.isDirectory).toHaveBeenNthCalledWith(1, '/tmp/one.zip')
+    expect(window.api.file.isDirectory).toHaveBeenNthCalledWith(2, '/tmp/two.zip')
+    expect(installFromZip).toHaveBeenNthCalledWith(1, '/tmp/one.zip')
+    expect(installFromZip).toHaveBeenNthCalledWith(2, '/tmp/two.zip')
+    expect(installFromDirectory).not.toHaveBeenCalled()
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Skill One')
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Skill Two')
+    expect(screen.getByText('settings.skills.batchInstallComplete:2')).toBeInTheDocument()
+  })
+
+  it('keeps per-file errors for invalid dropped files mixed with ZIPs and directories', async () => {
+    const files = [
+      new File(['skill'], 'skill-dir', { type: '' }),
+      new File(['zip'], 'plugin.zip', { type: 'application/zip' }),
+      new File(['readme'], 'readme.txt', { type: 'text/plain' })
+    ]
+    vi.mocked(window.api.file.isDirectory).mockImplementation(async (path) => path === '/tmp/skill-dir')
+    installFromDirectory.mockResolvedValueOnce({ id: 'skill-dir', name: 'Directory Skill' })
+    installFromZip.mockResolvedValueOnce({ id: 'skill-zip', name: 'Zip Skill' })
+
+    render(<ImportSkillDialog open onOpenChange={vi.fn()} />)
+
+    await dropSkillFiles(files)
+
+    await waitFor(() => expect(installFromDirectory).toHaveBeenCalledWith('/tmp/skill-dir'))
+    await waitFor(() => expect(installFromZip).toHaveBeenCalledWith('/tmp/plugin.zip'))
+    expect(installFromZip).toHaveBeenCalledTimes(1)
+    expect(installFromDirectory).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent(
+      'settings.skills.installSuccess:Directory Skill'
+    )
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Zip Skill')
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('readme.txt')
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.invalidFormat')
+    expect(screen.getByText('settings.skills.batchInstallPartialFailed:2:3:1')).toBeInTheDocument()
   })
 })
