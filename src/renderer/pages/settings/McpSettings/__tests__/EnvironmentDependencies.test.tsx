@@ -30,14 +30,17 @@ vi.mock('@renderer/ipc', () => ({
           return ipcMocks.removeTool(input)
         case 'binary.get_tool_dir':
           return ipcMocks.getToolDir(input)
+        case 'local_model.get_status':
+          return Promise.resolve({ status: 'unsupported' })
         default:
           throw new Error(`unexpected route: ${route}`)
       }
     }
-  }
+  },
+  // Event subscriptions are inert in these tests — refreshState drives all UI state.
+  useIpcOn: vi.fn()
 }))
 
-// Event subscriptions are inert in these tests — refreshState drives all UI state.
 vi.mock('@renderer/ipc/useIpcOn', () => ({
   useIpcOn: vi.fn()
 }))

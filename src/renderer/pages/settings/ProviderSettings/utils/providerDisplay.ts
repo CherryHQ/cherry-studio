@@ -1,5 +1,5 @@
-import i18n from '@renderer/i18n'
 import { getProviderLabelKey } from '@renderer/i18n/label'
+import i18n from '@renderer/i18n/resolver'
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig, Provider } from '@shared/data/types/provider'

@@ -1,4 +1,4 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
 import type { StopCondition, ToolSet } from 'ai'
 
 import { isAgentSessionTopic } from '../../../../agentSession/topic'

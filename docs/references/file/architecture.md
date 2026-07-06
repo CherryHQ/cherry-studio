@@ -198,7 +198,7 @@ The **same physical external file** can therefore be reached by either handle va
 
 ### 2.2 `FileHandle`: the Polymorphic Reference
 
-`FileHandle = FileEntryHandle | FilePathHandle` (see [`src/shared/types/file/index.ts`](../../../src/shared/types/file/index.ts)) is the first-class reference type crossing the IPC boundary. Every IPC method that makes sense regardless of which subsystem is in the loop accepts a `FileHandle`; handlers dispatch internally on `handle.kind`. See §3.3 for the full dispatch table.
+`FileHandle = FileEntryHandle | FilePathHandle` (see [`src/shared/data/types/file.ts`](../../../src/shared/data/types/file.ts)) is the first-class reference type crossing the IPC boundary. Every IPC method that makes sense regardless of which subsystem is in the loop accepts a `FileHandle`; handlers dispatch internally on `handle.kind`. See §3.3 for the full dispatch table.
 
 Use `FileHandle` whenever a signature does not *inherently* require an entry row (e.g. anything that isn't a lifecycle op on a FileEntry).
 

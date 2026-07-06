@@ -40,12 +40,12 @@ vi.mock('@main/services/TopicNamingService', () => ({
   }
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: { get: mocks.applicationGet }
 }))
 
 const { AgentChatContextProvider } = await import('../AgentChatContextProvider')
-const { runtimeDriverRegistry } = await import('../../../runtime')
+const { runtimeDriverRegistry } = await import('../../../runtime/registry')
 
 function makeSubscriber(id = 'wc:1:agent-session:session-1'): StreamListener {
   return {
