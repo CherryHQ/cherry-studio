@@ -30,6 +30,7 @@ import {
   type ClaudeToolCategory,
   claudeUserFacingTools
 } from '@shared/ai/claudecode/toolRegistry'
+import { PI_BUILTIN_TOOL_CATEGORIES, PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { Sparkles, Wrench } from 'lucide-react'
@@ -202,8 +203,7 @@ function AgentEditDialogContent({
 }: EditDialogBaseProps<AgentDetail> & { resource: AgentDetail }) {
   const { t } = useTranslation()
   // pi agents expose a reduced config surface (D8): no plan/small-model tiers,
-  // no soul/heartbeat, no plan permission mode, and no MCP/skills tool tabs
-  // (pi's built-in tool set is not the Claude catalog rendered here).
+  // no soul/heartbeat, no plan permission mode, and no MCP/skills tool tabs.
   const isPi = resource.type === 'pi'
   const [activeTab, setActiveTab] = useState('basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
@@ -239,21 +239,17 @@ function AgentEditDialogContent({
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
       { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
-      // Tools tab is Claude-only for v1: it renders the Claude built-in catalog
-      // plus MCP/skills, none of which map to a pi agent's runtime (D8).
-      ...(isPi
-        ? []
-        : [
-            {
-              id: 'tools',
-              label: t('library.config.dialogs.edit.tools_tab'),
-              children: [
-                { id: DEFAULT_TOOL_TAB, label: t('library.config.agent.section.tools.tab.tools') },
-                { id: 'tools.mcp', label: t('library.config.agent.section.tools.tab.mcp') },
-                { id: 'tools.skills', label: t('library.config.agent.section.tools.tab.skills') }
-              ]
-            }
-          ]),
+      {
+        id: 'tools',
+        label: t('library.config.dialogs.edit.tools_tab'),
+        children: isPi
+          ? [{ id: DEFAULT_TOOL_TAB, label: t('library.config.agent.section.tools.tab.tools') }]
+          : [
+              { id: DEFAULT_TOOL_TAB, label: t('library.config.agent.section.tools.tab.tools') },
+              { id: 'tools.mcp', label: t('library.config.agent.section.tools.tab.mcp') },
+              { id: 'tools.skills', label: t('library.config.agent.section.tools.tab.skills') }
+            ]
+      },
       { id: 'advanced', label: t('library.config.dialogs.edit.advanced_tab') }
     ],
     [isPi, t]
@@ -628,11 +624,23 @@ function AgentToolsFields({
   const skillIds = form.watch('skillIds')
   const canManageSkills = Boolean(agent.id)
 
-  // Built-in catalog: registry user-facing tools grouped into category sections.
   // The toggle is a real enable/disable that writes the opt-out `disabledTools` set
   // (empty = all enabled); approval is governed solely by the permission-mode cards.
   const disabledSet = useMemo(() => new Set(disabledTools), [disabledTools])
   const builtinSections = useMemo(() => {
+    if (agent.type === 'pi') {
+      return PI_BUILTIN_TOOL_CATEGORIES.map((category) => ({
+        category,
+        label: t(CATEGORY_LABEL_KEYS[category], CATEGORY_LABEL_FALLBACKS[category]),
+        items: PI_BUILTIN_TOOLS.filter((tool) => tool.category === category).map<CatalogItem>((tool) => ({
+          id: tool.name,
+          name: t(`agent.tools.builtin.${tool.name}.label`),
+          description: t(`agent.tools.builtin.${tool.name}.description`),
+          icon: <Wrench size={13} strokeWidth={1.5} className="text-foreground/55" />
+        }))
+      })).filter((section) => section.items.length > 0)
+    }
+
     const tools = claudeUserFacingTools()
     return CLAUDE_TOOL_CATEGORIES.map((category) => ({
       category,
@@ -646,7 +654,7 @@ function AgentToolsFields({
           icon: <Wrench size={13} strokeWidth={1.5} className="text-foreground/55" />
         }))
     })).filter((section) => section.items.length > 0)
-  }, [t])
+  }, [agent.type, t])
   const enabledToolIds = useMemo<ReadonlySet<string>>(
     () => new Set(builtinSections.flatMap((s) => s.items.map((i) => i.id)).filter((id) => !disabledSet.has(id))),
     [builtinSections, disabledSet]

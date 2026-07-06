@@ -9,6 +9,7 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { application } from '@main/core/application'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 import { toolApprovalRegistry } from '../toolApproval/ToolApprovalRegistry'
@@ -26,7 +27,7 @@ import { PiStreamAdapter } from './piStreamAdapter'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
-const PI_BUILTIN_TOOL_NAMES = ['read', 'grep', 'find', 'ls', 'bash', 'edit', 'write'] as const
+const PI_BUILTIN_TOOL_NAMES = PI_BUILTIN_TOOLS.map((tool) => tool.name)
 
 interface PendingSteer {
   input: AgentRuntimeUserInput

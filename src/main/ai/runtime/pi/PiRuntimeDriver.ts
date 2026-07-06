@@ -1,28 +1,11 @@
 import { agentService } from '@data/services/AgentService'
+import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from '../types'
 import { assertPiProviderUsable } from './modelInjection'
 import { PiRuntimeConnection } from './PiRuntimeConnection'
-
-/**
- * pi built-in tools (plan capability matrix). pi ships 7 lowercase built-ins; we
- * do NOT rename them to Claude casing — that would corrupt pi's tool identity and
- * the approval/policy lookups (D8). MCP tools are deferred for pi v1.
- *
- * Read-only tools default to auto-approval; mutating/side-effecting tools default
- * to prompt. The authoritative per-turn gate is Phase 3's approval extension.
- */
-const PI_BUILTIN_TOOLS: readonly Tool[] = [
-  { id: 'read', name: 'read', origin: 'builtin', approval: 'auto' },
-  { id: 'grep', name: 'grep', origin: 'builtin', approval: 'auto' },
-  { id: 'find', name: 'find', origin: 'builtin', approval: 'auto' },
-  { id: 'ls', name: 'ls', origin: 'builtin', approval: 'auto' },
-  { id: 'bash', name: 'bash', origin: 'builtin', approval: 'prompt' },
-  { id: 'edit', name: 'edit', origin: 'builtin', approval: 'prompt' },
-  { id: 'write', name: 'write', origin: 'builtin', approval: 'prompt' }
-]
 
 export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'pi'
@@ -47,7 +30,12 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
 
   async listAvailableTools(_mcpIds: string[]): Promise<Tool[]> {
     // MCP is deferred for pi v1 (plan capability matrix); mcpIds are ignored.
-    return PI_BUILTIN_TOOLS.map((tool) => ({ ...tool }))
+    return PI_BUILTIN_TOOLS.map((tool) => ({
+      id: tool.name,
+      name: tool.name,
+      origin: 'builtin',
+      approval: tool.approval
+    }))
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
