@@ -658,6 +658,30 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it('carries the source base rerank threshold into the restored base', async () => {
+    // Restore must not silently reset the configured rerank threshold: `KnowledgeBaseService.create`
+    // persists `threshold ?? null`, so omitting it from the create DTO would relax post-rerank
+    // relevance filtering after a rebuild even though the migration and RAG config preserve it.
+    const service = new KnowledgeService()
+    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::new', dimensions: 6 })
+    knowledgeBaseGetByIdMock
+      .mockReturnValueOnce(
+        createBase({ id: 'source-kb', status: 'failed', rerankModelId: 'provider::rerank', threshold: 0.42 })
+      )
+      .mockReturnValue(restoredBase)
+    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([createNoteItem('source-note', 'source-kb')])
+
+    await service.restoreBase({
+      sourceBaseId: 'source-kb',
+      name: 'Restored KB',
+      embeddingModelId: 'provider::new',
+      dimensions: 6
+    })
+
+    expect(knowledgeBaseCreateMock).toHaveBeenCalledWith(expect.objectContaining({ threshold: 0.42 }))
+  })
+
   it('skips a root item whose source is gone and restores the rest (partial restore)', async () => {
     // M4: a failed base often holds an item whose source no longer exists — a v1-migrated directory
     // child has a virtual path with no raw/ file, and a deleted file has no material to copy. Because

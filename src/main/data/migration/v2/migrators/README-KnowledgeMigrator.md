@@ -76,6 +76,7 @@
 | `preprocessProvider.provider.id` | `fileProcessorId` | Optional |
 | `chunkSize` | `chunkSize` | Copied when positive integer; otherwise normalized to the default chunk size |
 | `chunkOverlap` | `chunkOverlap` | Copied when non-negative integer and smaller than `chunkSize`; otherwise normalized to the default overlap for the resolved chunk size |
+| `threshold` | `threshold` | Copied when within `[0, 1]`; otherwise cleared |
 | `documentCount` | `documentCount` | Copied when positive; otherwise cleared |
 | `created_at` | `createdAt` | Timestamp conversion |
 | `updated_at` | `updatedAt` | Timestamp conversion |
@@ -99,7 +100,6 @@
 - `video` items are skipped.
 - `memory` items are skipped.
 - Legacy per-base knowledge store paths that resolve to directories are skipped as unsupported pre-v2 layouts.
-- Legacy retrieval cutoff config is dropped.
 - Invalid/malformed items are skipped and recorded as warnings in `prepare`.
 - Invalid knowledge-base tuning fields are normalized during migration; they do not cause the base or its items to be skipped.
 
@@ -127,10 +127,10 @@
   - all items under that base are skipped
   - a warning is recorded during `prepare`
 - Missing or dangling embedding model identity is cleared to `null`, `status` is set to `failed`, and `error` is set to `missing_embedding_model` with a warning. That error value is a shared `KnowledgeBaseErrorCode`, not a free-form string. It does not require legacy vector DB inspection; valid legacy `dimensions` are preserved and invalid or missing legacy `dimensions` are stored as `null`.
-- Non-structural tuning config (`chunkSize`, `chunkOverlap`, `documentCount`) is migrated on a best-effort basis:
+- Non-structural tuning config (`chunkSize`, `chunkOverlap`, `threshold`, `documentCount`) is migrated on a best-effort basis:
   - valid values are preserved
   - invalid `chunkSize` / `chunkOverlap` values are replaced with defaults
-  - invalid nullable tuning values such as `documentCount` are cleared
+  - invalid nullable tuning values such as `threshold` / `documentCount` are cleared
   - the base still migrates
 - V2 keeps `knowledge_item` flat and uses optional `groupId` for grouping queries.
 - Legacy v1 knowledge data does not include that field, so migrated items keep it as `null`.

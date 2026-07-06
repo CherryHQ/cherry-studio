@@ -157,7 +157,7 @@ A vector base's `knowledge_base.embeddingModelId` / `dimensions` must be valid t
 
 ### 6.1 search() wiring and retrieval tuning
 
-`documentCount` is the only base-level retrieval tuning column left; `search()` reads it from the base row as the result cap (`documentCount ?? 10`). Retrieval mode is derived at runtime: bases with a completed vector config use hybrid retrieval, and bases without an embedding model fall back to BM25.
+`documentCount` and `threshold` are the base-level retrieval tuning columns left; `search()` reads `documentCount` from the base row as the result cap (`documentCount ?? 10`) and applies `threshold` as a relevance cutoff on scored hits (`applyRelevanceThreshold` in `utils/search.ts` — it filters vector-mode or post-rerank relevance scores and is a no-op for BM25/RRF ranking scores). Retrieval mode is derived at runtime: bases with a completed vector config use hybrid retrieval, and bases without an embedding model fall back to BM25.
 
 ### 6.2 Legacy result shape mapping
 

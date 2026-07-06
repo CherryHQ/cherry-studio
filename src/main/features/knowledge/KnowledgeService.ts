@@ -368,6 +368,7 @@ export class KnowledgeService extends BaseService {
       fileProcessorId: sourceBase.fileProcessorId,
       chunkSize: sourceBase.chunkSize,
       chunkOverlap: sourceBase.chunkOverlap,
+      threshold: sourceBase.threshold,
       documentCount: sourceBase.documentCount,
       groupId: sourceBase.groupId ?? undefined
     }
