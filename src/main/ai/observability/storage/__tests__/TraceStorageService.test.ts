@@ -235,6 +235,24 @@ describe('TraceStorageService', () => {
     expect(service['pendingEvents'].size).toBe(0)
   })
 
+  // A single OTLP request can be ~10 MiB of decompressed plaintext (raw bodies, tool I/O). Buffering
+  // orphan events must be bounded by bytes, not just count, or spans that never arrive pin megabytes.
+  it('evicts oldest buffered spans once retained bytes exceed the budget', async () => {
+    await service._doInit()
+
+    const bigEvent = (): TimedEvent =>
+      ({ name: 'llm_request', time: [0, 0], attributes: { body: 'x'.repeat(2 * 1024 * 1024) } }) as TimedEvent
+
+    // 10 spans × ~2 MiB each ≈ 20 MiB > 16 MiB budget → oldest-first eviction, most recent kept.
+    for (let i = 0; i < 10; i++) {
+      service.addSpanEvent('trace', `span-${i}`, bigEvent())
+    }
+
+    expect(service['pendingEventBytes']).toBeLessThanOrEqual(16 * 1024 * 1024)
+    expect(service['pendingEvents'].has('span-0')).toBe(false)
+    expect(service['pendingEvents'].has('span-9')).toBe(true)
+  })
+
   // A warm-query span can be stored before the live connection registers the trace's topic; it must
   // still become visible + flushable once setTopicId backfills the topic (REGRESSION warm-trace-orphan).
   it('backfills topicId onto spans stored before trace metadata so they become visible and flushable', async () => {

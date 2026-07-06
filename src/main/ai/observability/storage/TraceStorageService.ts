@@ -22,6 +22,21 @@ const logger = loggerService.withContext('TraceStorageService')
 // growing memory without bound; the oldest buffered span is evicted first (Map insertion order).
 const MAX_PENDING_EVENT_SPANS = 1000
 const MAX_PENDING_EVENTS_PER_SPAN = 200
+// A single OTLP request can carry ~10 MiB of decompressed plaintext (raw request/response bodies,
+// tool I/O), so the count caps above don't bound memory — one buffered span could hold megabytes.
+// Cap the total retained bytes too and evict oldest-first until under budget.
+const MAX_PENDING_EVENT_BYTES = 16 * 1024 * 1024
+
+// Byte proxy for a buffered event. `.length` counts UTF-16 units, not exact bytes, but it tracks
+// event size closely enough to bound the buffer; must be deterministic so add/remove accounting stays
+// balanced. ponytail: JSON.stringify estimate, swap for a byte-exact measure only if the cap proves loose.
+function estimateEventBytes(event: TimedEvent): number {
+  try {
+    return JSON.stringify(event).length
+  } catch {
+    return 0
+  }
+}
 
 /** Union spans by id; `overrides` (e.g. the live, fresher copy) wins over `base` (e.g. the history file). */
 function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity[] {
@@ -37,6 +52,8 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   private readonly store = new TraceSpanStore()
   // Orphan OTLP log events keyed by the span id they reference, awaiting that span's arrival.
   private readonly pendingEvents = new Map<string, TimedEvent[]>()
+  // Running estimate of bytes retained across all pendingEvents, kept in sync on buffer/evict/drain.
+  private pendingEventBytes = 0
 
   protected async onInit() {
     this.registerIpcHandlers()
@@ -66,7 +83,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
    */
   async onDeactivate() {
     this.store.clear()
-    this.pendingEvents.clear()
+    this.clearPendingEvents()
   }
 
   private registerIpcHandlers() {
@@ -108,12 +125,12 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   clear: () => void = () => {
     this.store.clear()
-    this.pendingEvents.clear()
+    this.clearPendingEvents()
   }
 
   async cleanLocalData() {
     this.store.clear()
-    this.pendingEvents.clear()
+    this.clearPendingEvents()
     try {
       await fs.rm(this.traceRootDir(), { recursive: true, force: true })
     } catch (err) {
@@ -191,24 +208,45 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   private bufferPendingEvent(spanId: string, event: TimedEvent): void {
     let events = this.pendingEvents.get(spanId)
     if (!events) {
-      // Evict the oldest buffered span (insertion order) once over the cap so events for spans that
-      // never arrive can't grow memory without bound.
-      if (this.pendingEvents.size >= MAX_PENDING_EVENT_SPANS) {
-        const oldest = this.pendingEvents.keys().next().value
-        if (oldest !== undefined) this.pendingEvents.delete(oldest)
-      }
+      // Evict the oldest buffered span (insertion order) once over the span-count cap.
+      if (this.pendingEvents.size >= MAX_PENDING_EVENT_SPANS) this.evictOldestPendingSpan()
       events = []
       this.pendingEvents.set(spanId, events)
     }
     if (events.length >= MAX_PENDING_EVENTS_PER_SPAN) return
     events.push(event)
+    this.pendingEventBytes += estimateEventBytes(event)
+    // Evict oldest buffered spans until retained plaintext fits the byte budget. Stop at one span so a
+    // single active span (already bounded by MAX_PENDING_EVENTS_PER_SPAN) is never dropped mid-buffer.
+    while (this.pendingEventBytes > MAX_PENDING_EVENT_BYTES && this.pendingEvents.size > 1) {
+      this.evictOldestPendingSpan()
+    }
+  }
+
+  private evictOldestPendingSpan(): void {
+    const oldest = this.pendingEvents.keys().next().value
+    if (oldest !== undefined) this.removePendingSpan(oldest)
+  }
+
+  /** Remove a span's buffered events, keeping pendingEventBytes balanced. Returns the removed events. */
+  private removePendingSpan(spanId: string): TimedEvent[] | undefined {
+    const events = this.pendingEvents.get(spanId)
+    if (!events) return undefined
+    this.pendingEvents.delete(spanId)
+    for (const event of events) this.pendingEventBytes -= estimateEventBytes(event)
+    if (this.pendingEventBytes < 0) this.pendingEventBytes = 0
+    return events
+  }
+
+  private clearPendingEvents(): void {
+    this.pendingEvents.clear()
+    this.pendingEventBytes = 0
   }
 
   /** Drain buffered orphan events onto a span that has just been stored. No-op when none buffered. */
   private drainPendingEvents(spanId: string): void {
-    const events = this.pendingEvents.get(spanId)
+    const events = this.removePendingSpan(spanId)
     if (!events) return
-    this.pendingEvents.delete(spanId)
     const span = this.store.getSpan(spanId)
     if (!span) return
     this.appendEventsToSpan(span, events)
