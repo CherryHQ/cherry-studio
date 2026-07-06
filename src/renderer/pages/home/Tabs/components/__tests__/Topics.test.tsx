@@ -1,3 +1,4 @@
+import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
@@ -97,9 +98,7 @@ const imageCaptureTargetsMock = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/hooks/useImageCaptureTargets', async () => {
-  const actual = await vi.importActual<typeof import('@renderer/hooks/useImageCaptureTargets')>(
-    '@renderer/hooks/useImageCaptureTargets'
-  )
+  const actual = await vi.importActual<typeof ImageCaptureTargetsHook>('@renderer/hooks/useImageCaptureTargets')
 
   return {
     ...actual,

@@ -1,4 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
@@ -342,9 +343,7 @@ vi.mock('@renderer/pages/agents/messages/AgentSessionImageCaptureHost', () => {
 })
 
 vi.mock('@renderer/hooks/useImageCaptureTargets', async () => {
-  const actual = await vi.importActual<typeof import('@renderer/hooks/useImageCaptureTargets')>(
-    '@renderer/hooks/useImageCaptureTargets'
-  )
+  const actual = await vi.importActual<typeof ImageCaptureTargetsHook>('@renderer/hooks/useImageCaptureTargets')
 
   return {
     ...actual,
