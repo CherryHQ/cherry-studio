@@ -129,6 +129,7 @@ interface ChatComposerContextControlsProps {
   side: 'top' | 'bottom'
   iconOnly?: boolean
   showAssistantTrigger?: boolean
+  onDialogCloseAutoFocus?: () => void
   onAssistantChange: (assistantId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
   onMentionedModelsSelect: (models: Model[]) => void
@@ -154,6 +155,7 @@ const ChatComposerContextControls = ({
   side,
   iconOnly = false,
   showAssistantTrigger = true,
+  onDialogCloseAutoFocus,
   onAssistantChange,
   onModelSelect,
   onMentionedModelsSelect,
@@ -213,6 +215,7 @@ const ChatComposerContextControls = ({
           side={side}
           align="start"
           mountStrategy="lazy-keep"
+          onDialogCloseAutoFocus={onDialogCloseAutoFocus}
           trigger={assistantTrigger}
         />
       ) : null}
@@ -283,8 +286,22 @@ const ChatComposerContextControls = ({
 type ChatComposerControlProps = Omit<ChatComposerContextControlsProps, 'side'>
 
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
+type ComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
 type ChatComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
 type ChatComposerControlsRenderer = (props: ChatComposerControlProps) => ChatComposerControlSlots
+
+const restoreComposerInputFocus = (inputAdapter: ComposerInputAdapter) => {
+  window.requestAnimationFrame(() => inputAdapter?.focus())
+}
+
+const ChatComposerContextControlsWithAutoFocus = ({
+  inputAdapter,
+  ...props
+}: ChatComposerControlProps & { side: 'top' | 'bottom'; iconOnly?: boolean; inputAdapter: ComposerInputAdapter }) => {
+  const onDialogCloseAutoFocus = useCallback(() => restoreComposerInputFocus(inputAdapter), [inputAdapter])
+
+  return <ChatComposerContextControls {...props} onDialogCloseAutoFocus={onDialogCloseAutoFocus} />
+}
 
 const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
   renderLeftControls: (inputAdapter, unifiedPanelControl) => (
@@ -293,7 +310,12 @@ const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
       unifiedPanelControl={unifiedPanelControl}
       toolMenuPlacement="beforeContext"
       renderContextControls={({ side, iconOnly }) => (
-        <ChatComposerContextControls {...props} side={side} iconOnly={iconOnly} />
+        <ChatComposerContextControlsWithAutoFocus
+          {...props}
+          side={side}
+          iconOnly={iconOnly}
+          inputAdapter={inputAdapter}
+        />
       )}
     />
   )
@@ -305,11 +327,17 @@ const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
       <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
     </div>
   ),
-  renderBelowControls: () => (
+  renderBelowControls: (inputAdapter) => (
     <ComposerBelowControls
       renderContextControls={({ side, iconOnly }) => (
         // Draft/home always picks the assistant via the switcher, regardless of view mode.
-        <ChatComposerContextControls {...props} side={side} useMentionedModelSelector iconOnly={iconOnly} />
+        <ChatComposerContextControlsWithAutoFocus
+          {...props}
+          side={side}
+          useMentionedModelSelector
+          iconOnly={iconOnly}
+          inputAdapter={inputAdapter}
+        />
       )}
     />
   )

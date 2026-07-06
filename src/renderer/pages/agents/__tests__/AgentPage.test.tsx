@@ -1300,7 +1300,7 @@ describe('AgentPage', () => {
         }
       })
     )
-    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-composer-empty')
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-composer-empty'))
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-composer-empty')
     expect(agentPageMocks.invalidateCache).toHaveBeenCalledWith([
       '/agent-sessions',

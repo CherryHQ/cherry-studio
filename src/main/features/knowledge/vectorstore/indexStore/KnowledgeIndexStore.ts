@@ -1,5 +1,6 @@
 import { extractFtsTokens, needsLikeFallback, toFtsLikePattern, toFtsMatchQuery } from './ftsQuery'
 import { computeSearchTextId, computeUnitId, hashContentText, hashEmbeddingText } from './hashing'
+import { hasAnyMaterial as indexHasAnyMaterial } from './indexMeta'
 import type {
   KnowledgeIndexSearchInput,
   KnowledgeIndexSearchMatch,
@@ -431,6 +432,53 @@ export class KnowledgeIndexStore {
   /** Whether the backing driver has been closed (see {@link SqliteDriver.isClosed}). */
   isClosed(): boolean {
     return this.driver.isClosed()
+  }
+
+  /**
+   * Whether the index holds at least one material row. Synchronous (delegates to
+   * the {@link indexHasAnyMaterial} probe) so the store-open diagnostic can run
+   * inside the fully-synchronous open path without breaking its single-flight
+   * guarantee (see KnowledgeVectorStoreService).
+   */
+  hasAnyMaterial(): boolean {
+    return indexHasAnyMaterial(this.driver)
+  }
+
+  /**
+   * Row counts across the index's tables plus the number of `search_text` rows
+   * whose embedding-text hash has no stored embedding (a unit silently absent from
+   * vector search). Used by the v1→v2 vector migrator's post-build validation.
+   */
+  describeIndexCounts(): { materials: number; units: number; embeddings: number; unitsMissingEmbedding: number } {
+    return {
+      materials: this.tableCount('material'),
+      units: this.tableCount('search_unit'),
+      embeddings: this.tableCount('embedding'),
+      unitsMissingEmbedding: this.countUnitsMissingEmbedding()
+    }
+  }
+
+  /**
+   * Fold the WAL back into the main db file (TRUNCATE) so the committed pages are
+   * durable in `index.sqlite` itself and the next opener sees a self-contained
+   * store. Used by the vector migrator before closing a freshly built store.
+   */
+  checkpoint(): void {
+    this.driver.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+  }
+
+  private tableCount(table: string): number {
+    const result = this.driver.execute(`SELECT count(*) AS count FROM ${table}`)
+    return Number(result.rows[0]?.count ?? 0)
+  }
+
+  private countUnitsMissingEmbedding(): number {
+    const result = this.driver.execute(
+      `SELECT count(*) AS count FROM search_text st
+       LEFT JOIN embedding e ON e.embedding_text_hash = st.embedding_text_hash
+       WHERE e.embedding_text_hash IS NULL`
+    )
+    return Number(result.rows[0]?.count ?? 0)
   }
 
   private requireQueryEmbedding(input: KnowledgeIndexSearchInput): number[] {

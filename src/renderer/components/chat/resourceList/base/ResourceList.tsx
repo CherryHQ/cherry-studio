@@ -1,7 +1,7 @@
 import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
 import { CommandHint } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
-import type { CommandId } from '@shared/utils/command/definitions'
+import type { CommandId } from '@shared/utils/command'
 import { SearchIcon, SquareMinus } from 'lucide-react'
 import type { ComponentProps, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef } from 'react'

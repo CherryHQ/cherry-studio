@@ -401,7 +401,8 @@ const HomePage: FC = () => {
         trigger: 'submit-message',
         topicId: topic.id,
         userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
-        mentionedModelIds: options?.mentionedModels
+        mentionedModelIds: options?.mentionedModels,
+        knowledgeBaseIds: options?.knowledgeBaseIds
       })
       const rendererTopic = mapApiTopicToRendererTopic(topic)
       setDraftAssistantSelectionState(undefined)
