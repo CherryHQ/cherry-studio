@@ -45,11 +45,11 @@ describe('buildChartOption — bar/line/area (category axis)', () => {
     expect(option.yAxis.data).toEqual(['A', 'B'])
   })
 
-  it('sets series.stack when chart.stacked is true, and leaves it unset otherwise', () => {
+  it('sets series.stack when chart.stacking is set, and leaves it unset otherwise', () => {
     const stacked: ChartModel = {
       rect: baseRect,
       type: 'bar',
-      stacked: true,
+      stacking: 'stacked',
       series: [
         { name: 'A', categories: ['x'], values: [1] },
         { name: 'B', categories: ['x'], values: [2] }
@@ -58,10 +58,63 @@ describe('buildChartOption — bar/line/area (category axis)', () => {
     const stackedOption = buildChartOption(stacked) as any
     expect(stackedOption.series[0].stack).toBe('total')
     expect(stackedOption.series[1].stack).toBe('total')
+    // 普通堆叠不做归一化,保留原始值
+    expect(stackedOption.series[0].data).toEqual([1])
+    expect(stackedOption.yAxis.max).toBeUndefined()
 
-    const unstacked: ChartModel = { ...stacked, stacked: undefined }
+    const unstacked: ChartModel = { ...stacked, stacking: undefined }
     const unstackedOption = buildChartOption(unstacked) as any
     expect(unstackedOption.series[0].stack).toBeUndefined()
+  })
+
+  it('normalizes percentStacked values per category and caps the value axis at 100%', () => {
+    const chart: ChartModel = {
+      rect: baseRect,
+      type: 'bar',
+      stacking: 'percentStacked',
+      series: [
+        { name: 'A', categories: ['x', 'y'], values: [10, 30] },
+        { name: 'B', categories: ['x', 'y'], values: [30, 10] }
+      ]
+    }
+    const option = buildChartOption(chart) as any
+
+    expect(option.series[0].data).toEqual([25, 75])
+    expect(option.series[1].data).toEqual([75, 25])
+    expect(option.series[0].stack).toBe('total')
+    expect(option.yAxis.max).toBe(100)
+    expect(option.yAxis.axisLabel.formatter).toBe('{value}%')
+  })
+
+  it('percentStacked maps null values and zero-total categories to the gap marker', () => {
+    const chart: ChartModel = {
+      rect: baseRect,
+      type: 'bar',
+      stacking: 'percentStacked',
+      series: [
+        { name: 'A', categories: ['x', 'y', 'z'], values: [null, 0, 5] },
+        { name: 'B', categories: ['x', 'y', 'z'], values: [4, 0, 15] }
+      ]
+    }
+    const option = buildChartOption(chart) as any
+
+    // x:A 缺失 → '-';y 类目合计 0 → 无法归一化 → '-';z 正常归一化
+    expect(option.series[0].data).toEqual(['-', '-', 25])
+    expect(option.series[1].data).toEqual([100, '-', 75])
+  })
+
+  it('percentStacked puts the percent axis on x for horizontal bars', () => {
+    const chart: ChartModel = {
+      rect: baseRect,
+      type: 'bar',
+      barDirection: 'bar',
+      stacking: 'percentStacked',
+      series: [{ name: 'A', categories: ['x'], values: [5] }]
+    }
+    const option = buildChartOption(chart) as any
+
+    expect(option.xAxis.max).toBe(100)
+    expect(option.yAxis.type).toBe('category')
   })
 
   it('maps a line chart to type "line" without areaStyle', () => {

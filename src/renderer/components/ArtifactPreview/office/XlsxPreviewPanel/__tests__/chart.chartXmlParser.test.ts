@@ -26,7 +26,7 @@ describe('parseCharts — generated chart workbook with cache', () => {
     const bar = charts[0]
     expect(bar.type).toBe('bar')
     expect(bar.barDirection).toBe('col')
-    expect(bar.stacked).toBe(true)
+    expect(bar.stacking).toBe('stacked')
     expect(bar.title).toBe('Bar Chart')
     expect(bar.series).toHaveLength(2)
     expect(bar.series[0]).toEqual({
@@ -43,7 +43,7 @@ describe('parseCharts — generated chart workbook with cache', () => {
     const hbar = charts[1]
     expect(hbar.type).toBe('bar')
     expect(hbar.barDirection).toBe('bar')
-    expect(hbar.stacked).toBeUndefined()
+    expect(hbar.stacking).toBeUndefined()
     expect(hbar.title).toBe('Horizontal Bar Chart')
 
     const line = charts[2]

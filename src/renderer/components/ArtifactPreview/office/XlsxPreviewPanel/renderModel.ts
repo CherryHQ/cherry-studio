@@ -122,7 +122,8 @@ export interface ChartModel {
   series: ChartSeries[]
   /** bar 专用:'col' 纵向柱 | 'bar' 横向条 */
   barDirection?: 'col' | 'bar'
-  stacked?: boolean
+  /** c:grouping 堆叠模式;percentStacked(100% 堆叠)渲染时按类目归一化为百分比 */
+  stacking?: 'stacked' | 'percentStacked'
 }
 
 // ---------------------------------------------------------------------------

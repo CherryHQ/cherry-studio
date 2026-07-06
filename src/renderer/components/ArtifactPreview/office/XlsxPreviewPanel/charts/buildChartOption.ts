@@ -11,19 +11,30 @@ const toEchartsValue = (value: number | null): number | '-' => (value === null ?
 
 const buildCategoryAxisData = (series: ChartSeries[]): (string | number)[] => series[0]?.categories ?? []
 
+/** Excel 100% 堆叠(percentStacked):每个类目按系列合计归一化为百分比;合计为 0 或值缺失 → null */
+const normalizePercentStacked = (series: ChartSeries[]): (number | null)[][] => {
+  const categoryCount = series.reduce((max, s) => Math.max(max, s.values.length), 0)
+  const totals = Array.from({ length: categoryCount }, (_, i) => series.reduce((sum, s) => sum + (s.values[i] ?? 0), 0))
+  return series.map((s) => s.values.map((v, i) => (v === null || totals[i] === 0 ? null : (v / totals[i]) * 100)))
+}
+
 const buildBarLineAreaOption = (chart: ChartModel): EChartsCoreOption => {
   const isHorizontal = chart.type === 'bar' && chart.barDirection === 'bar'
+  const isPercentStacked = chart.stacking === 'percentStacked'
   const categoryAxis = {
     type: 'category' as const,
     data: buildCategoryAxisData(chart.series)
   }
-  const valueAxis = { type: 'value' as const }
+  const valueAxis = isPercentStacked
+    ? { type: 'value' as const, max: 100, axisLabel: { formatter: '{value}%' } }
+    : { type: 'value' as const }
 
-  const series = chart.series.map((s) => {
+  const seriesValues = isPercentStacked ? normalizePercentStacked(chart.series) : chart.series.map((s) => s.values)
+  const series = chart.series.map((s, i) => {
     const base = {
       name: s.name,
-      data: s.values.map(toEchartsValue),
-      stack: chart.stacked ? 'total' : undefined
+      data: seriesValues[i].map(toEchartsValue),
+      stack: chart.stacking ? 'total' : undefined
     }
     if (chart.type === 'bar') return { ...base, type: 'bar' as const }
     if (chart.type === 'area') return { ...base, type: 'line' as const, areaStyle: {} }

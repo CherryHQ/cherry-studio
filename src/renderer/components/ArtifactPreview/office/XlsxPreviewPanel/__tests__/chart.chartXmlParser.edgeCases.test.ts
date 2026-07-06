@@ -239,6 +239,35 @@ describe('parseCharts — hostile cache declarations are bounded', () => {
   })
 })
 
+describe('parseCharts — percentStacked grouping is preserved distinctly', () => {
+  it('parses c:grouping val="percentStacked" into stacking: "percentStacked"', async () => {
+    const chartXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <c:chartSpace ${CHART_NS}>
+        <c:chart>
+          <c:plotArea>
+            <c:barChart>
+              <c:barDir val="col"/>
+              <c:grouping val="percentStacked"/>
+              <c:ser>
+                <c:idx val="0"/>
+                <c:val><c:numRef><c:f>Sheet1!$B$2:$B$3</c:f><c:numCache><c:ptCount val="2"/><c:pt idx="0"><c:v>1</c:v></c:pt><c:pt idx="1"><c:v>2</c:v></c:pt></c:numCache></c:numRef></c:val>
+              </c:ser>
+            </c:barChart>
+          </c:plotArea>
+        </c:chart>
+      </c:chartSpace>`
+
+    const zip = buildBaseZip()
+    zip.file('xl/drawings/drawing1.xml', wrapDrawing(twoCellAnchorXml('rId1')))
+    zip.file('xl/drawings/_rels/drawing1.xml.rels', drawingRelsXml([{ id: 'rId1', target: '../charts/chart1.xml' }]))
+    zip.file('xl/charts/chart1.xml', chartXml)
+
+    const { charts } = await parseCharts(zip, 'Sheet1', DEFAULT_LAYOUT, emptyDataAccessor)
+
+    expect(charts[0].stacking).toBe('percentStacked')
+  })
+})
+
 describe('parseCharts — single series normalization', () => {
   it('treats a lone c:ser node (not an array) the same as an array of one', async () => {
     const chartXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

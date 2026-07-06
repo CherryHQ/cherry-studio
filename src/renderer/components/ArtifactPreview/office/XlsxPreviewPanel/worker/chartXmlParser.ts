@@ -479,7 +479,7 @@ const parseChartXml = (chartXml: string, data: SheetDataAccessor, warnings: stri
 
   if (type === 'bar' || type === 'line' || type === 'area') {
     const grouping = valAttr(findChild(node, 'grouping'))
-    if (grouping === 'stacked' || grouping === 'percentStacked') result.stacked = true
+    if (grouping === 'stacked' || grouping === 'percentStacked') result.stacking = grouping
   }
 
   return result
