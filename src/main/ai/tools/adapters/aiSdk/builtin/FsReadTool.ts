@@ -11,7 +11,7 @@ import { isAbsolute } from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { validatePath } from '@main/ai/mcp/servers/filesystem/types'
+import { validatePath } from '@main/ai/mcp/servers/filesystem'
 import { readTextFileWithAutoEncoding } from '@main/utils/legacyFile'
 import { CONTEXT_PERSIST_THRESHOLD_CHARS, FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import { MB } from '@shared/utils/constants'
