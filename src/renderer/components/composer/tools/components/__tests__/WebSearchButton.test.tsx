@@ -22,7 +22,6 @@ const mocks = vi.hoisted(() => ({
 const launcherApi: ToolLauncherApi = {
   registerLaunchers: vi.fn(() => vi.fn())
 }
-import { installSyncRafMock } from '../../../../../../../tests/__mocks__/requestAnimationFrame'
 let restoreRequestAnimationFrame: (() => void) | undefined
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18next>()
