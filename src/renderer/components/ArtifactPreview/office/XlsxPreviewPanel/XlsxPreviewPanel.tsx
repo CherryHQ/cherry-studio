@@ -3,7 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat'
 import { AlertCircle, FileSpreadsheet, ZoomIn, ZoomOut } from 'lucide-react'
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ChartRenderer } from './charts/ChartRenderer'
@@ -63,7 +63,6 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
   const [activeSheetName, setActiveSheetName] = useState<string | null>(null)
   const [selectedCell, setSelectedCell] = useState<SelectedCellInfo | null>(null)
   const [chartRenderer, setChartRenderer] = useState<ChartRenderer | null>(null)
-  const imageUrlsRef = useRef<Record<number, string>>({})
   const [imageUrls, setImageUrls] = useState<Record<number, string>>({})
 
   const model = state.status === 'ready' ? state.model : null
@@ -90,7 +89,6 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
     for (const [imageId, image] of Object.entries(model.images)) {
       nextUrls[Number(imageId)] = URL.createObjectURL(new Blob([image.data], { type: image.mime }))
     }
-    imageUrlsRef.current = nextUrls
     setImageUrls(nextUrls)
 
     return () => {
@@ -177,6 +175,8 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
       className="relative flex h-full w-full flex-col overflow-hidden bg-background">
       <div className="min-h-0 flex-1">
         <XlsxGrid
+          // 切换 sheet 时以 name 为 key 重挂网格,重置其内部选中态(避免旧行列位置残留选中浮层)
+          key={activeSheet.name}
           sheet={activeSheet}
           styles={model.styles}
           imageUrls={imageUrls}

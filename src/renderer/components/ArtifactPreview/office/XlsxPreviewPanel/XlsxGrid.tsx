@@ -127,7 +127,11 @@ interface CellViewProps {
   /** 首行/首列补画 top/left 网格线,避免相邻格重叠加粗(见 05 文档) */
   isFirstRow: boolean
   isFirstCol: boolean
-  positionStyle: React.CSSProperties
+  /** 定位/尺寸(zoom=1 px);拆成基本类型传入,使 memo 浅比较在位置不变时能跳过重渲染 */
+  top: number
+  left: number
+  width: number
+  height: number
 }
 
 /** 单元格文本 span 的 inline style:超链接着色 + wrap 格按整行裁剪(避免半行乱码) */
@@ -148,17 +152,27 @@ const cellTextStyle = (cell: CellRenderModel, clampLines: number | undefined): R
 }
 
 /** 普通/合并单元格共用的渲染体。合并覆盖但非 master 的单元格由调用方传入 cell=undefined 只保留背景。 */
-const CellView = memo(function CellView({ cell, style, isFirstRow, isFirstCol, positionStyle }: CellViewProps) {
+const CellView = memo(function CellView({
+  cell,
+  style,
+  isFirstRow,
+  isFirstCol,
+  top,
+  left,
+  width,
+  height
+}: CellViewProps) {
   const css = cellStyleToCss(style)
   const hAlign = style?.hAlign ?? (cell ? defaultHAlign(cell) : 'left')
   // wrap 格:格高放不下全部换行内容时只显示放得下的整行(默认行高即一行),完整内容由选中弹层展示
-  const clampLines =
-    style?.wrap && typeof positionStyle.height === 'number'
-      ? wrapClampLines(positionStyle.height, css.fontSize as number)
-      : undefined
+  const clampLines = style?.wrap ? wrapClampLines(height, css.fontSize as number) : undefined
 
   const finalCss: React.CSSProperties = {
-    ...positionStyle,
+    position: 'absolute',
+    top,
+    left,
+    width,
+    height,
     ...css,
     display: 'flex',
     justifyContent: css.justifyContent ?? H_ALIGN_TO_JUSTIFY[hAlign],
@@ -481,13 +495,10 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
                       style={style}
                       isFirstRow={row === 1}
                       isFirstCol={col === 1}
-                      positionStyle={{
-                        position: 'absolute',
-                        top: axisOffset(rowLayout, vr.index),
-                        left: axisOffset(colLayout, vc.index),
-                        width: colLayout.sizes[vc.index],
-                        height: rowLayout.sizes[vr.index]
-                      }}
+                      top={axisOffset(rowLayout, vr.index)}
+                      left={axisOffset(colLayout, vc.index)}
+                      width={colLayout.sizes[vc.index]}
+                      height={rowLayout.sizes[vr.index]}
                     />
                   </div>
                 )
@@ -513,13 +524,10 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
                     style={style}
                     isFirstRow={masterRow === 1}
                     isFirstCol={masterCol === 1}
-                    positionStyle={{
-                      position: 'absolute',
-                      top: rect.y,
-                      left: rect.x,
-                      width: rect.width,
-                      height: rect.height
-                    }}
+                    top={rect.y}
+                    left={rect.x}
+                    width={rect.width}
+                    height={rect.height}
                   />
                 </div>
               )

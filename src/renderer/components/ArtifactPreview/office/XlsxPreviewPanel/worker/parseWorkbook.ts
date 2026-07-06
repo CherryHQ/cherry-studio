@@ -583,7 +583,8 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
 
     for (const colModel of worksheetModel.cols ?? []) {
       const min = colModel.min ?? 0
-      const max = colModel.max ?? min
+      // 整表列定义(Excel 对整列套格式时常写 max=16384)只展开到渲染上限,避免生成上万个无用键并随 postMessage 克隆
+      const max = Math.min(colModel.max ?? min, MAX_COLS)
       for (let c = min; c <= max; c++) {
         if (colModel.hidden) {
           colWidthsPx[c] = 0
