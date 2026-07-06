@@ -659,22 +659,11 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       }
     }
 
-    // Floating images.
+    // Floating images. Image anchor coordinates are untrusted, so offsets go through the bounded axisOffsetPx —
+    // a crafted image with a huge <xdr:col>/<xdr:row> must not loop up to the anchor and pin the worker.
     const floatingImages: FloatingObjectModel[] = []
-    const colX = (col: number): number => {
-      let x = 0
-      for (let c = 1; c < col; c++) {
-        x += colWidthsPx[c] ?? defaultColWidthPx
-      }
-      return x
-    }
-    const rowY = (row: number): number => {
-      let y = 0
-      for (let r = 1; r < row; r++) {
-        y += rowHeightsPx[r] ?? defaultRowHeightPx
-      }
-      return y
-    }
+    const colX = (col: number): number => axisOffsetPx(col, colWidthsPx, defaultColWidthPx)
+    const rowY = (row: number): number => axisOffsetPx(row, rowHeightsPx, defaultRowHeightPx)
 
     for (const img of worksheet.getImages()) {
       const excelImageId = Number(img.imageId)

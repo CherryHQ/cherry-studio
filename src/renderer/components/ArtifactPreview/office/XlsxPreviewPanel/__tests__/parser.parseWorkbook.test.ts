@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 
 import { createZipBytes } from '../../__tests__/zipTestBytes'
 import { OFFICE_ZIP_LIMITS } from '../../zipPreflight'
+import { MAX_COLS, MAX_ROWS } from '../gridLayout'
 import type { CellStyle, WorkbookRenderModel } from '../renderModel'
 import { parseWorkbook } from '../worker/parseWorkbook'
 import { buildChartWorkbookArrayBuffer } from './xlsxTestPackages'
@@ -576,6 +577,41 @@ describe('parseWorkbook — floating images', () => {
     expect(sheet.rowCount).toBeGreaterThanOrEqual(40)
     expect(sheet.colCount).toBeGreaterThanOrEqual(20)
   })
+
+  // Anchor coordinates come from untrusted drawing XML. A tiny image with a billion-scale <xdr:col>/<xdr:row> must
+  // not loop up to the anchor when computing its offset (that pinned the worker before the offset went through the
+  // bounded axisOffsetPx). ExcelJS itself OOMs when *writing* such an anchor, so the workbook is written with a small
+  // anchor and the stored drawing XML is then mutated to the hostile coordinate — mirroring a crafted .xlsx. The
+  // tight timeout fails if the local colX/rowY looping regression returns.
+  it('bounds a hostile image anchor instead of looping up to the coordinate', async () => {
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('S1')
+    const imgId = wb.addImage({ base64: PNG_BASE64, extension: 'png' })
+    ws.addImage(imgId, { tl: { col: 1, row: 1 }, ext: { width: 20, height: 10 } } as unknown as ExcelJS.ImagePosition)
+
+    const zip = await JSZip.loadAsync(await toArrayBuffer(wb))
+    const drawingPath = 'xl/drawings/drawing1.xml'
+    const drawing = await zip.file(drawingPath)!.async('string')
+    zip.file(
+      drawingPath,
+      drawing
+        .replace('<xdr:col>1</xdr:col>', '<xdr:col>1000000000</xdr:col>')
+        .replace('<xdr:row>1</xdr:row>', '<xdr:row>1000000000</xdr:row>')
+    )
+    const buffer = await zip.generateAsync({ type: 'arraybuffer' })
+
+    const parsed = await parseWorkbook(buffer, 'hostile-image-anchor.xlsx')
+    const sheet = parsed.sheets[0]
+
+    expect(sheet.floatingImages).toHaveLength(1)
+    // Offset scales linearly with the anchor without iterating: axisOffsetPx(col+1) = col * defaultColWidthPx.
+    expect(sheet.floatingImages[0].rect.x).toBe(1_000_000_000 * sheet.defaultColWidthPx)
+    expect(sheet.floatingImages[0].rect.y).toBe(1_000_000_000 * sheet.defaultRowHeightPx)
+    // The sheet clamps to the render limits and is flagged truncated rather than materializing billions of tracks.
+    expect(sheet.rowCount).toBe(MAX_ROWS)
+    expect(sheet.colCount).toBe(MAX_COLS)
+    expect(parsed.warnings).toContain('sheet-truncated')
+  }, 2000)
 })
 
 describe('parseWorkbook — corrupted input', () => {
