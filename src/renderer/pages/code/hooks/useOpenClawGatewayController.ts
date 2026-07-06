@@ -8,7 +8,7 @@ import { CodeCli } from '@shared/types/codeCli'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { parseConfiguredModelId } from '../cliConfig/applyContext'
+import { parseConfiguredModelId } from '../cliConfig'
 
 const logger = loggerService.withContext('useOpenClawGatewayController')
 

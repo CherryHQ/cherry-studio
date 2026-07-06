@@ -5,11 +5,13 @@ import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 import type { CodeCli } from '@shared/types/codeCli'
 import { useEffect, useState } from 'react'
 
-import { resolveCliConfigApplyContext } from '../cliConfig/applyContext'
-import { readCliConfigFiles } from '../cliConfig/draft'
-import { extractConnectionFromCliConfigDraft } from '../cliConfig/parser'
-import { cliConfigConnectionMatchesProvider } from '../cliConfig/providerMatching'
-import type { CliConfigConnection } from '../cliConfig/types'
+import {
+  type CliConfigConnection,
+  cliConfigConnectionMatchesProvider,
+  extractConnectionFromCliConfigDraft,
+  readCliConfigFiles,
+  resolveCliConfigApplyContext
+} from '../cliConfig'
 
 const logger = loggerService.withContext('useCurrentCliConfigConnection')
 

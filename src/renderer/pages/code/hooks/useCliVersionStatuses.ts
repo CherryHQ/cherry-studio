@@ -1,5 +1,4 @@
-import { ipcApi } from '@renderer/ipc'
-import { useIpcOn } from '@renderer/ipc/useIpcOn'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { BinaryState } from '@shared/data/preference/preferenceTypes'
 import type { CodeCli } from '@shared/types/codeCli'

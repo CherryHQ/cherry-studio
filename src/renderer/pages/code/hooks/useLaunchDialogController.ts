@@ -7,7 +7,7 @@ import type { ComponentProps } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { resolveCliConfigApplyContext } from '../cliConfig/applyContext'
+import { resolveCliConfigApplyContext } from '../cliConfig'
 import type { LaunchDialog } from '../components/LaunchDialog'
 import { PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 import { useAvailableTerminals } from './useAvailableTerminals'

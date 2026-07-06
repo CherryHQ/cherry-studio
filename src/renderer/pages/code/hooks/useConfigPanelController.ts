@@ -6,12 +6,15 @@ import type { CodeCli } from '@shared/types/codeCli'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { parseConfiguredModelId, resolveCliConfigApplyContext } from '../cliConfig/applyContext'
-import { clearCliConfig } from '../cliConfig/clear'
-import { writeCliConfigDraft } from '../cliConfig/draft'
-import { extractConnectionFromCliConfigDraft } from '../cliConfig/parser'
-import { sanitizeCliConfigBlob } from '../cliConfig/sanitize'
-import type { CliConfigConnection } from '../cliConfig/types'
+import {
+  clearCliConfig,
+  type CliConfigConnection,
+  extractConnectionFromCliConfigDraft,
+  parseConfiguredModelId,
+  resolveCliConfigApplyContext,
+  sanitizeCliConfigBlob,
+  writeCliConfigDraft
+} from '../cliConfig'
 import type { ConfigEditPanelProps, ConfigEditPanelSubmitValues } from '../components/configEditPanel/types'
 
 const logger = loggerService.withContext('useConfigPanelController')

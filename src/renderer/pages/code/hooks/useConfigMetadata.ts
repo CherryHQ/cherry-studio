@@ -1,6 +1,6 @@
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
-import { hasClaudeDetailedModels } from '@renderer/pages/code/cliConfig/claudeModels'
+import { hasClaudeDetailedModels } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'

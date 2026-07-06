@@ -6,7 +6,7 @@ import { CodeCli } from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { clearCliConfig } from '../cliConfig/clear'
+import { clearCliConfig } from '../cliConfig'
 import type { CodeCliPageViewProps } from '../components/CodeCliPageView'
 import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 import type { CodeToolMeta, VersionStatus } from '../types/codeCli'
