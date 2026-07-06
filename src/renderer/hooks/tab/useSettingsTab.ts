@@ -1,5 +1,5 @@
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import { OPEN_SETTINGS_TAB_EVENT, type OpenSettingsTabEvent } from '@renderer/services/settingsNavigation'
 import { isSettingsPath, normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import type { MainWindowInitData } from '@shared/types/mainWindow'

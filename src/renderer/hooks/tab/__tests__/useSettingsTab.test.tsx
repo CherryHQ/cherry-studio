@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   initData: null as { kind: 'navigation'; to: string; requestId: number } | null
 }))
 
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: {
     t: (key: string) => key
   }
