@@ -67,6 +67,15 @@ vi.mock('../agentRightPaneProjection', async (importActual) => {
   }
 })
 
+const mockUseAgentSessionContextUsage = vi.hoisted(() => {
+  type UseAgentSessionContextUsageMock = (
+    sessionId: string | undefined,
+    expectedModels?: readonly (string | null | undefined)[],
+    fallbackSnapshot?: unknown
+  ) => { percentage: null; usage: null; source: 'none' }
+  return vi.fn<UseAgentSessionContextUsageMock>(() => ({ percentage: null, usage: null, source: 'none' }))
+})
+
 vi.mock('@cherrystudio/ui', () => ({
   Badge: ({ children }: PropsWithChildren) => <span>{children}</span>,
   Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode }) => (
@@ -310,7 +319,7 @@ vi.mock('@renderer/hooks/agent/useAgentSessionCompaction', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
-  useAgentSessionContextUsage: () => ({ percentage: null, usage: null })
+  useAgentSessionContextUsage: mockUseAgentSessionContextUsage
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -1264,5 +1273,35 @@ describe('AgentRightPane', () => {
 
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+  })
+
+  it('passes current model candidates to right-pane context usage consumers', () => {
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        modelFallback={{
+          id: 'anthropic::claude-sonnet-4-5',
+          name: 'Claude Sonnet 4.5',
+          provider: 'anthropic'
+        }}
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    const statusShortcut = document.querySelector('[data-shell-tab-shortcut="status"]')
+    fireEvent.click(statusShortcut as HTMLElement)
+
+    const matchingCalls = mockUseAgentSessionContextUsage.mock.calls.filter(
+      ([sessionId, expectedModels]) =>
+        sessionId === 'session-a' &&
+        Array.isArray(expectedModels) &&
+        expectedModels.includes('anthropic::claude-sonnet-4-5') &&
+        expectedModels.includes('claude-sonnet-4-5')
+    )
+    expect(matchingCalls.length).toBeGreaterThanOrEqual(2)
   })
 })

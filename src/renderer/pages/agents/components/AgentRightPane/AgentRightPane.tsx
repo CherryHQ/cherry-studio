@@ -42,9 +42,10 @@ import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@rendere
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
-import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentSessionContextUsageSnapshot } from '@shared/ai/agentSessionContextUsage'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
+import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { TreeDirRoot } from '@shared/utils/file'
 import {
   Activity,
@@ -119,6 +120,7 @@ interface AgentRightPaneMeta {
   agentId?: string
   agentName?: string
   agentAvatar?: string
+  modelFallback?: ModelSnapshot
   lastContextUsage?: AgentSessionContextUsageSnapshot | null
   conversationState: AgentConversationState
   workspaceId?: string
@@ -200,6 +202,17 @@ function useAgentRightPaneRuntime(): AgentRightPaneRuntime {
   const value = use(AgentRightPaneRuntimeContext)
   if (!value) throw new Error('useAgentRightPaneRuntime must be used within <AgentRightPane.Scope>')
   return value
+}
+
+function getContextUsageModelCandidates(model: ModelSnapshot | undefined): string[] | undefined {
+  if (!model) return undefined
+  const modelId = isUniqueModelId(model.id) ? parseUniqueModelId(model.id).modelId : model.id
+  return [model.id, modelId].filter((value, index, values) => value && values.indexOf(value) === index)
+}
+
+function useAgentRightPaneContextUsage(meta: AgentRightPaneMeta) {
+  const expectedModels = useMemo(() => getContextUsageModelCandidates(meta.modelFallback), [meta.modelFallback])
+  return useAgentSessionContextUsage(meta.sessionId, expectedModels, meta.lastContextUsage)
 }
 
 function useAgentRightPaneFileState(): AgentRightPaneFileState {
@@ -315,6 +328,7 @@ function AgentRightPaneStateProvider({
   agentId,
   agentName,
   agentAvatar,
+  modelFallback,
   lastContextUsage,
   conversationState = 'ready',
   present = true,
@@ -487,6 +501,7 @@ function AgentRightPaneStateProvider({
       agentId,
       agentName,
       agentAvatar,
+      modelFallback,
       lastContextUsage,
       conversationState,
       workspaceId,
@@ -499,6 +514,7 @@ function AgentRightPaneStateProvider({
       agentName,
       conversationState,
       lastContextUsage,
+      modelFallback,
       sessionId,
       sessionName,
       traceId,
@@ -776,11 +792,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
   const meta = useAgentRightPaneMeta()
   const { t } = useTranslation()
   const status = useAgentRightPaneStatus(active)
-  const { usage, percentage, source, capturedAt } = useAgentSessionContextUsage(
-    meta.sessionId,
-    undefined,
-    meta.lastContextUsage
-  )
+  const { usage, percentage, source, capturedAt } = useAgentRightPaneContextUsage(meta)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
   const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
@@ -1044,11 +1056,7 @@ function AgentRightPaneHighlights({
 function AgentRightPaneStatusPreview() {
   const meta = useAgentRightPaneMeta()
   const status = useAgentRightPaneStatus()
-  const { usage, percentage, source, capturedAt } = useAgentSessionContextUsage(
-    meta.sessionId,
-    undefined,
-    meta.lastContextUsage
-  )
+  const { usage, percentage, source, capturedAt } = useAgentRightPaneContextUsage(meta)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
   const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
