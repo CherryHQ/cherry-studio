@@ -6,12 +6,12 @@ import type { Model } from '@renderer/types/model'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { messagesToPlainText } from '@renderer/utils/export'
 import { markdownToPlainText } from '@renderer/utils/markdown'
-import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import {
   AGENT_SESSION_MESSAGES_MAX_LIMIT,
   type AgentSessionEntity,
   type AgentSessionMessageEntity
 } from '@shared/data/api/schemas/agentSessions'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('AgentSessionExportService')

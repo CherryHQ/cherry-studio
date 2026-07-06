@@ -51,7 +51,6 @@ import {
   getAgentSessionExportTitle,
   getAgentSessionMessagesForExport
 } from '@renderer/services/AgentSessionExportService'
-import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import {
   exportContentToNotes,
   exportMarkdownToJoplin,
@@ -61,6 +60,7 @@ import {
 } from '@renderer/services/ExportService'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { cn } from '@renderer/utils/style'
