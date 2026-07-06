@@ -165,7 +165,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     const installed = binaryState?.tools[tool.name]
     let latest = latestVersions?.[tool.name]
 
-    if (installed?.version && !latest) {
+    if (installed?.version) {
       const fresh = await fetchLatestVersions(true)
       if (!fresh) return
       latest = fresh[tool.name]

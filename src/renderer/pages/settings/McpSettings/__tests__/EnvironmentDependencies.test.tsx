@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -77,12 +77,16 @@ vi.mock('@cherrystudio/ui', () => {
     Button: ({
       children,
       onClick,
-      'aria-label': ariaLabel
+      'aria-label': ariaLabel,
+      disabled,
+      title
     }: {
       children?: React.ReactNode
       onClick?: () => void
       'aria-label'?: string
-    }) => React.createElement('button', { onClick, 'aria-label': ariaLabel }, children),
+      disabled?: boolean
+      title?: string
+    }) => React.createElement('button', { onClick, 'aria-label': ariaLabel, disabled, title }, children),
     ConfirmDialog: childrenOnly,
     Dialog: childrenOnly,
     DialogContent: passthrough('div'),
@@ -202,5 +206,23 @@ describe('EnvironmentDependencies', () => {
     expect(() => render(<EnvironmentDependencies />)).not.toThrow()
     await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalled())
     expect(screen.queryByText('vnightly')).not.toBeInTheDocument()
+  })
+
+  it('force-refreshes before deciding whether a managed tool update is up to date', async () => {
+    const { gt } = await import('semver')
+    vi.mocked(gt).mockImplementation((latest) => latest === '2.0.0')
+
+    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.latestVersions.mockResolvedValueOnce({ uv: '1.0.0' }).mockResolvedValueOnce({ uv: '2.0.0' })
+
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledWith(false))
+    const updateButtons = await screen.findAllByTitle('settings.plugins.update')
+    fireEvent.click(updateButtons[1])
+
+    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledWith(true))
+    await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv', tool: 'uv' }))
+    expect(window.toast.success).not.toHaveBeenCalledWith('settings.plugins.upToDate')
   })
 })
