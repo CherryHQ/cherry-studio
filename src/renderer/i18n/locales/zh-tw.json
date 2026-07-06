@@ -4434,7 +4434,7 @@
     },
     "generate_failed": "無法生成圖片",
     "generated_image": "產生的圖片",
-    "generating": "生成中...",
+    "generating": "繪圖進行中，請不要離開頁面",
     "go_to_settings": "前往設定",
     "guidance_scale": "引導比例",
     "guidance_scale_tip": "無分類器指導 ({{min}}-{{max}})。控制模型在尋找相關影像時對提示詞的遵循程度",
