@@ -1,7 +1,7 @@
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { enableProviderWhenModelsAvailable } from './providerEnablement'
+import { enableProviderWhenModelsAvailable } from '../providerEnablement'
 
 const disabledProvider = { id: 'cherryin', isEnabled: false }
 const enabledProvider = { id: 'cherryin', isEnabled: true }
