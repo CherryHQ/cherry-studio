@@ -134,6 +134,13 @@ export type AiStreamOpenRequest = {
   topicId: string
   /** UniqueModelIds selected by the composer model selector — Main dispatches one execution per model. */
   mentionedModelIds?: UniqueModelId[]
+  /**
+   * Knowledge bases selected via the composer `/` picker for this turn. Scope is resolved by
+   * `resolveKnowledgeBaseIds`: the assistant's own bound bases take precedence when non-empty
+   * (these ids are then ignored); only when the assistant has none does this selection define
+   * the scope.
+   */
+  knowledgeBaseIds?: string[]
 } & (
   | {
       /** Brand-new user turn: create the user msg + N assistant placeholders. */

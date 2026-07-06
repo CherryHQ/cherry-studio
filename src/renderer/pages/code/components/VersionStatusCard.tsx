@@ -98,8 +98,8 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               className="text-muted-foreground/30 hover:text-destructive"
               onClick={onRemove}
               disabled={isInstalling || isUpgrading}
-              aria-label={t('settings.plugins.remove')}
-              title={t('settings.plugins.remove')}>
+              aria-label={t('settings.dependencies.remove')}
+              title={t('settings.dependencies.remove')}>
               <Trash2 className="size-3.5" />
             </Button>
           )}

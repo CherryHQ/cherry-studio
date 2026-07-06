@@ -2948,15 +2948,11 @@
         "chunk_size": "单个文档片段的目标 token 数，影响召回粒度和上下文长度。",
         "document_count": "每次召回返回的最大文档片段数，越大覆盖越多但消耗更多上下文。",
         "embedding_model": "用于将知识库内容转换为向量。更换模型后，通常需要重新索引已有内容。",
-        "hybrid_alpha": "混合检索中向量得分的权重，值越高越偏向语义匹配。",
         "processor": "导入文件时使用的解析处理服务，用于提取正文、表格等内容。",
         "rerank_model": "对初步召回结果重新排序的模型，可提升最终片段相关性。",
-        "search_mode": "选择召回方式：向量检索适合语义匹配，全文检索适合关键词，混合检索会结合两者。",
         "smart_chunking": "自动沿 Markdown 结构（标题、代码块、段落）分段，且不从代码块内部切开。关闭后仅按分隔符切分。",
-        "threshold": "过滤低相关片段的相似度阈值，值越高召回越严格。",
-        "threshold_disabled": "该检索模式按排序返回结果，不使用相似度阈值。"
+        "threshold": "用于过滤低相关性重排片段的相似度阈值，数值越高召回越严格。"
       },
-      "hybrid_alpha": "Hybrid Alpha",
       "processor": "处理服务商",
       "rerank_disabled": "不使用",
       "rerank_model": "重排模型",
@@ -2965,12 +2961,6 @@
       "retrieval": "Retrieval",
       "save_action": "保存",
       "saved": "已保存",
-      "search_mode": {
-        "bm25": "全文检索",
-        "hybrid": "混合检索（推荐）",
-        "title": "检索模式",
-        "vector": "向量检索"
-      },
       "separator_rule": "分隔符规则",
       "smart_chunking": "智能分段",
       "threshold": "相似度阈值",
@@ -5478,6 +5468,9 @@
       "auto_switch_to_topics": "自动切换到对话",
       "title": "高级设置"
     },
+    "appearance": {
+      "title": "外观"
+    },
     "assistant": {
       "icon": {
         "type": {
@@ -5546,6 +5539,7 @@
         "cloud_storage": "云备份设置",
         "export_settings": "导出设置",
         "import_settings": "导入设置",
+        "note_export": "笔记导出",
         "third_party": "第三方连接"
       },
       "export_menu": {
@@ -6107,6 +6101,48 @@
         "token_placeholder": "请输入语雀 Token"
       }
     },
+    "dependencies": {
+      "addTool": "添加工具",
+      "addToolDescription": "使用 mise 工具键添加工具（例如 github:sharkdp/fd、uv、bun）。",
+      "coreDepsMissing": "核心依赖未安装",
+      "customTools": "自定义工具",
+      "customToolsEmpty": "暂无自定义工具，点击上方添加。",
+      "description": "管理应用运行所需的二进制工具和运行时依赖。",
+      "duplicateName": "已存在相同名称的工具",
+      "fieldVersion": "版本（可选，默认为最新）",
+      "install": "安装",
+      "installError": "工具安装失败",
+      "installing": "安装中...",
+      "invalidTool": "工具名称或标识无效",
+      "notInstalled": "未安装",
+      "openBinariesDir": "打开二进制文件目录",
+      "remove": "移除工具",
+      "removeConfirmMessage": "确定要移除 \"{{name}}\" 吗？二进制文件将被删除。",
+      "removeConfirmTitle": "移除工具",
+      "searchFailed": "搜索失败，请查看日志",
+      "searchRegistry": "搜索 mise 工具仓库...",
+      "source": {
+        "bundled": "内置"
+      },
+      "title": "环境依赖",
+      "tools": {
+        "bun": "MCP 服务及相关工具链使用的 JavaScript 运行时。",
+        "claude": "Anthropic 的终端智能编程工具。",
+        "codex": "OpenAI 的开源编程代理，可读取、编辑和执行本地仓库中的代码。",
+        "fd": "快速文件查找工具，find 的替代品。",
+        "gh": "GitHub CLI，用于仓库和工作流管理。",
+        "hermes": "Nous Research 开发的自我进化 AI 编程代理，能从经验中创建技能并跨会话持久化知识。",
+        "lark-cli": "飞书官方 CLI，覆盖消息、文档、多维表格、日历等 200+ 命令及 AI Agent 技能。",
+        "ntn": "Notion 官方 CLI，支持身份验证、Workers 管理和完整的 Notion API 终端访问。",
+        "openclaw": "跨平台个人 AI 助手，提供聊天、语音、画布、摄像头和屏幕捕获等功能。",
+        "opencode": "开源 AI 编程代理，支持 75+ 模型并集成 GitHub Actions 自动化工作流。",
+        "pi": "AI 代理工具包，包含编程代理 CLI、统一 LLM API、TUI/Web UI 和 Slack 机器人。",
+        "rg": "快速文本搜索工具 (ripgrep)，grep 的替代品。",
+        "rtk": "CLI 代理工具，通过压缩终端输出来减少 LLM token 消耗。",
+        "uv": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
+      },
+      "update": "更新到最新版本"
+    },
     "developer": {
       "enable_developer_mode": "启用开发者模式",
       "help": "启用开发者模式后，将可以使用调用链功能查看模型调用过程的数据流。更改将在重启应用后生效。",
@@ -6167,7 +6203,7 @@
       },
       "title": "显示",
       "topic": {
-        "title": "对话设置"
+        "title": "对话视图设置"
       },
       "zoom": {
         "title": "缩放设置"
@@ -6549,10 +6585,11 @@
       "user": "用户"
     },
     "menuGroups": {
-      "appSettings": "应用设置",
-      "integrations": "模型",
-      "productivity": "效率",
-      "services": "插件",
+      "automation": "自动化",
+      "capabilities": "能力与工具",
+      "models": "模型",
+      "personal": "个人",
+      "quickAccess": "快捷入口",
       "system": "系统"
     },
     "messages": {
@@ -6869,7 +6906,7 @@
       "assistant": "助手消息",
       "backup": "备份",
       "knowledge_embed": "知识库",
-      "title": "通知设置"
+      "title": "通知"
     },
     "openai": {
       "service_tier": {
@@ -6905,47 +6942,6 @@
       }
     },
     "parameter_settings": "参数设置",
-    "plugins": {
-      "addTool": "添加工具",
-      "addToolDescription": "使用 mise 工具键添加工具（例如 github:sharkdp/fd、uv、bun）。",
-      "coreDepsMissing": "核心依赖未安装",
-      "customTools": "自定义工具",
-      "customToolsEmpty": "暂无自定义工具，点击上方添加。",
-      "description": "管理应用运行所需的二进制工具和运行时依赖。",
-      "duplicateName": "已存在相同名称的工具",
-      "fieldVersion": "版本（可选，默认为最新）",
-      "install": "安装",
-      "installError": "工具安装失败",
-      "installing": "安装中...",
-      "invalidTool": "工具名称或标识无效",
-      "notInstalled": "未安装",
-      "openBinariesDir": "打开二进制文件目录",
-      "remove": "移除工具",
-      "removeConfirmMessage": "确定要移除 \"{{name}}\" 吗？二进制文件将被删除。",
-      "removeConfirmTitle": "移除工具",
-      "searchFailed": "搜索失败，请查看日志",
-      "searchRegistry": "搜索 mise 工具仓库...",
-      "source": {
-        "bundled": "内置"
-      },
-      "title": "环境依赖",
-      "tools": {
-        "bun": "MCP 服务及相关工具链使用的 JavaScript 运行时。",
-        "claude": "Anthropic 的终端智能编程工具。",
-        "codex": "OpenAI 的开源编程代理，可读取、编辑和执行本地仓库中的代码。",
-        "fd": "快速文件查找工具，find 的替代品。",
-        "gh": "GitHub CLI，用于仓库和工作流管理。",
-        "lark-cli": "飞书官方 CLI，覆盖消息、文档、多维表格、日历等 200+ 命令及 AI Agent 技能。",
-        "ntn": "Notion 官方 CLI，支持身份验证、Workers 管理和完整的 Notion API 终端访问。",
-        "openclaw": "跨平台个人 AI 助手，提供聊天、语音、画布、摄像头和屏幕捕获等功能。",
-        "opencode": "开源 AI 编程代理，支持 75+ 模型并集成 GitHub Actions 自动化工作流。",
-        "pi": "AI 代理工具包，包含编程代理 CLI、统一 LLM API、TUI/Web UI 和 Slack 机器人。",
-        "rg": "快速文本搜索工具 (ripgrep)，grep 的替代品。",
-        "rtk": "CLI 代理工具，通过压缩终端输出来减少 LLM token 消耗。",
-        "uv": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
-      },
-      "update": "更新到最新版本"
-    },
     "power": {
       "prevent_sleep_when_busy": "运行任务时保持系统唤醒"
     },
@@ -7383,6 +7379,7 @@
       "all_enable": "全部启用",
       "bind_first_to_enable": "请先绑定快捷键，再调整启用状态",
       "categories": {
+        "all": "全部",
         "assistant": "AI 助手工具",
         "chat": "消息交互",
         "general": "全局与窗口",
@@ -7398,6 +7395,7 @@
       "empty": "当前分组下没有可显示的快捷键",
       "enabled": "启用",
       "exit_fullscreen": "退出全屏",
+      "filter": "筛选",
       "label": "按键",
       "move_tab_to_first": "将标签页移到最左",
       "new_topic": "新建对话",
@@ -7466,6 +7464,9 @@
       "uninstallSuccess": "技能已卸载：{{name}}",
       "viewSource": "查看源码",
       "zip": "ZIP"
+    },
+    "system": {
+      "title": "系统"
     },
     "theme": {
       "color_primary": "主题颜色",

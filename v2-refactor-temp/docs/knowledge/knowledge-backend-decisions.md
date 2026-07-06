@@ -293,7 +293,7 @@ Restore 允许 failed base，也允许 completed base；即使 completed source 
 4. 查询 sqlite-vec vector store。
 5. 过滤 missing / other-base / deleting source item 的结果。
 6. 如果配置了 rerank model，执行 rerank。
-7. 应用 threshold 并写入 rank。
+7. 仅对 `scoreKind = relevance` 的结果应用 relevance threshold；BM25 / hybrid 的 ranking 分数不做 threshold 过滤，然后写入 rank。
 
 `list-item-chunks` / `delete-item-chunk` 当前规则：
 

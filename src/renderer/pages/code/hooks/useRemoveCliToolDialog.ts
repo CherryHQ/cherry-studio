@@ -23,8 +23,8 @@ export function useRemoveCliToolDialog({
     removeDialogProps: {
       open: !!removeTarget,
       onOpenChange: (open) => !open && setRemoveTarget(null),
-      title: t('settings.plugins.removeConfirmTitle'),
-      description: t('settings.plugins.removeConfirmMessage', { name: toolName }),
+      title: t('settings.dependencies.removeConfirmTitle'),
+      description: t('settings.dependencies.removeConfirmMessage', { name: toolName }),
       destructive: true,
       onConfirm: async () => {
         if (removeTarget) await remove(removeTarget)
