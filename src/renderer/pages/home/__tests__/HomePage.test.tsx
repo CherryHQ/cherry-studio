@@ -1,3 +1,4 @@
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -143,11 +144,14 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   }
 })
 
-vi.mock('@renderer/components/chat', () => ({
+vi.mock('@renderer/components/chat/shell/ChatAppShell', () => ({
   ChatAppShell: ({ centerContent }: { centerContent?: ReactNode }) => (
     <div data-testid="message-only-shell">{centerContent}</div>
-  ),
-  ConversationPageShell: ({
+  )
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationPageShell', () => ({
+  default: ({
     center,
     pane,
     paneOpen,
@@ -164,8 +168,11 @@ vi.mock('@renderer/components/chat', () => ({
       <div>{pane}</div>
       <div>{center?.content}</div>
     </section>
-  ),
-  ConversationShell: ({
+  )
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
+  default: ({
     topBar,
     pane,
     paneOpen,
@@ -182,8 +189,11 @@ vi.mock('@renderer/components/chat', () => ({
       <div>{pane}</div>
       <div>{center}</div>
     </section>
-  ),
-  ConversationStageCenter: ({
+  )
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationStageCenter', () => ({
+  default: ({
     placement,
     composer,
     homeWelcomeText
@@ -196,12 +206,16 @@ vi.mock('@renderer/components/chat', () => ({
       <output data-testid="welcome-text">{homeWelcomeText ?? ''}</output>
       {composer}
     </div>
-  ),
+  )
+}))
+
+vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
+  ...(await importActual<typeof ChatPrimitives>()),
   EmptyState: ({ title }: { title?: string }) => <div data-testid="empty-state">{title}</div>,
   LoadingState: ({ label }: { label?: string }) => <div role="status">{label}</div>
 }))
 
-vi.mock('@renderer/components/resource/catalog', () => ({
+vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
   ResourceCatalogView: ({
     onOpenAssistantChat,
     resourceType,
@@ -462,7 +476,7 @@ vi.mock('../components/ChatNavbar', () => ({
   )
 }))
 
-vi.mock('../Tabs', () => ({
+vi.mock('../Tabs/HomeTabs', () => ({
   default: ({ onOpenHistoryRecords, resourceMenuItems, revealRequest }: any) => (
     <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs">
       <button type="button" onClick={() => onOpenHistoryRecords?.()}>
@@ -524,7 +538,7 @@ vi.mock('../components/TopicRightPane', () => {
   return { TopicRightPane }
 })
 
-vi.mock('@renderer/components/chat/resources/variants/AssistantResourceList', () => ({
+vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
   AssistantResourceList: ({
     activeAssistantId,
     onAddAssistant,

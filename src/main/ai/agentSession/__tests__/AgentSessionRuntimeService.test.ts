@@ -40,12 +40,12 @@ vi.mock('@main/services/TopicNamingService', () => ({
   topicNamingService: { maybeRenameAgentSession: mocks.maybeRenameAgentSession }
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: { get: mocks.applicationGet }
 }))
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
-const { runtimeDriverRegistry } = await import('../../runtime')
+const { runtimeDriverRegistry } = await import('../../runtime/registry')
 const baseTurnInput = {
   sessionId: 'session-1',
   topicId: 'agent-session:session-1',

@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { read as fsRead } from '@main/utils/file/fs'
+import { read as fsRead } from '@main/utils/file'
 import type { FileUIPart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { FilePath } from '@shared/types/file'

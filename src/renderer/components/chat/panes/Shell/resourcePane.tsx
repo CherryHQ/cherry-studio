@@ -1,4 +1,4 @@
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { List } from 'lucide-react'
 import { createContext, type ReactNode, use, useEffect, useRef } from 'react'
 

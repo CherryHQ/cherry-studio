@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
-import type { FilePath } from '@shared/types/file/common'
-import { getFileTypeByExt } from '@shared/utils/file/fileType'
+import type { FileEntry } from '@shared/data/types/file'
+import type { FilePath } from '@shared/types/file'
+import { getFileTypeByExt } from '@shared/utils/file'
 import { type Dispatch, type SetStateAction, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 

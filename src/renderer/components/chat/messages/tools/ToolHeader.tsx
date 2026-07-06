@@ -23,8 +23,8 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListUi } from '../MessageListProvider'
-import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './agent/GenericTools'
-import { AgentToolsType } from './agent/types'
+import { AgentToolsType } from './shared/agentToolTypes'
+import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './shared/GenericTools'
 
 type Translate = (key: string, options?: Record<string, string>) => string
 export interface ToolActivity {

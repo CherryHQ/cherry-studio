@@ -62,6 +62,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       if (asChild && React.isValidElement(children)) {
         const childProps = children.props || {}
 
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, {
           ...triggerProps,
           ...childProps,
@@ -300,7 +301,7 @@ vi.mock('@renderer/hooks/tab', () => ({
   useCurrentTabId: () => null
 }))
 
-vi.mock('@renderer/components/resource/dialogs', () => ({
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
   ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } | null }) =>
     target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
 }))

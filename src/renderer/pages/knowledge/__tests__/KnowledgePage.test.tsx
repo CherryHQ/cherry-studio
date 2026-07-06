@@ -35,14 +35,14 @@ vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useReindexKnowledgeItem: (baseId: string) => mockUseReindexKnowledgeItem(baseId)
 }))
 
-vi.mock('../hooks', () => ({
+vi.mock('../hooks/useKnowledgeGroups', () => ({
   useKnowledgeGroups: () => mockUseKnowledgeGroups(),
   useCreateKnowledgeGroup: () => mockUseCreateKnowledgeGroup(),
   useUpdateKnowledgeGroup: () => mockUseUpdateKnowledgeGroup(),
   useDeleteKnowledgeGroup: () => mockUseDeleteKnowledgeGroup()
 }))
 
-vi.mock('@renderer/components/app/Navbar', () => ({
+vi.mock('@renderer/components/Navbar', () => ({
   Navbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   NavbarCenter: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
@@ -112,7 +112,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('../components/navigator', () => ({
-  default: ({
+  BaseNavigator: ({
     bases,
     groups,
     width,

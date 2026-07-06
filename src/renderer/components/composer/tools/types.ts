@@ -1,4 +1,3 @@
-import { loggerService } from '@logger'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ThinkingOption } from '@renderer/types/reasoning'
@@ -13,8 +12,6 @@ import type { ComposerSerializedToken } from '../tokens'
 import type { ComposerToolContextValue } from './ComposerToolProvider'
 
 export { TopicType }
-
-const logger = loggerService.withContext('ComposerToolRegistry')
 
 export type ComposerToolScope = TopicType | 'quick-assistant' | 'painting'
 
@@ -159,42 +156,3 @@ export interface ToolDefinition<
 export const defineTool = <S extends readonly ToolStateKey[], A extends readonly ToolActionKey[]>(
   tool: ToolDefinition<S, A>
 ): ToolDefinition<S, A> => tool
-
-// Tool registry (use any for generics to accept all tool definitions)
-const toolRegistry = new Map<string, ToolDefinition<any, any>>()
-
-export const registerTool = (tool: ToolDefinition<any, any>): void => {
-  if (toolRegistry.has(tool.key)) {
-    logger.warn(`Tool with key "${tool.key}" is already registered. Overwriting.`)
-  }
-  toolRegistry.set(tool.key, tool)
-}
-
-export const getTool = (key: string): ToolDefinition<any, any> | undefined => {
-  return toolRegistry.get(key)
-}
-
-export const getAllTools = (): ToolDefinition<any, any>[] => {
-  return Array.from(toolRegistry.values())
-}
-
-export const getToolsForScope = (
-  scope: ComposerToolScope,
-  context: Omit<ToolContext, 'scope'>
-): ToolDefinition<any, any>[] => {
-  const fullContext: ToolContext = { ...context, scope }
-
-  return getAllTools().filter((tool) => {
-    // Check scope visibility
-    if (tool.visibleInScopes && !tool.visibleInScopes.includes(scope)) {
-      return false
-    }
-
-    // Check custom condition
-    if (tool.condition && !tool.condition(fullContext)) {
-      return false
-    }
-
-    return true
-  })
-}

@@ -2,25 +2,21 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import {
-  isAgentSessionWorkspaceError,
-  prepareClaudeCodeWorkspaceDirectory
-} from '@main/ai/runtime/claudeCode/settingsBuilder'
-import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
-import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
-import { application } from '@main/core/application'
+import { isAgentSessionWorkspaceError, prepareClaudeCodeWorkspaceDirectory } from '@main/ai/runtime/claudeCode'
+import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent, SendMessageOptions } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
-import { wrapExternalContent } from './security'
+import { wrapExternalContent } from './security/ExternalContentGuard'
 
 const logger = loggerService.withContext('ChannelMessageHandler')
 

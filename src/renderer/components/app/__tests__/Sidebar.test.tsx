@@ -7,6 +7,8 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type * as SidebarConstants from '../../Sidebar/constants'
+
 type FakeTab = {
   id: string
   type: 'route' | 'miniapp'
@@ -99,7 +101,7 @@ vi.mock('@renderer/utils/routeTitle', () => ({
     })[url] ?? 'Chat'
 }))
 
-vi.mock('@renderer/components/chat/resources/resourceListRevealEvents', () => ({
+vi.mock('@renderer/services/resourceListRevealEvents', () => ({
   emitResourceListReveal: mocks.emitResourceListReveal
 }))
 
@@ -124,16 +126,8 @@ vi.mock('../../Popups/UserPopup', () => ({
   }
 }))
 
-vi.mock('../../Icons/SVGIcon', () => ({
+vi.mock('../../icons/SvgIcon', () => ({
   OpenClawSidebarIcon: () => null
-}))
-
-vi.mock('../../Sidebar/primitives', () => ({
-  UserAvatar: ({ user, className }: { user: { name: string }; className?: string }) => (
-    <div className={className} data-testid="sidebar-user-avatar">
-      {user.name}
-    </div>
-  )
 }))
 
 vi.mock('../../layout/ShellTabBarActions', () => ({
@@ -155,111 +149,121 @@ const parseEntryKey = (key: string) => {
   return { type: key.slice(0, idx), id: key.slice(idx + 1) }
 }
 
-vi.mock('../../Sidebar', () => ({
-  Sidebar: ({
-    isFloating,
-    isFloatingClosing,
-    onDismiss,
-    onHoverChange,
-    onEntriesReorder,
-    active,
-    entries,
-    title,
-    logo,
-    user,
-    actions,
-    width,
-    onResizePreview
-  }: {
-    isFloating?: boolean
-    isFloatingClosing?: boolean
-    active?: { activeItem: string; activeTabId?: string }
-    entries?: MockSidebarEntry[]
-    title?: string
-    logo?: ReactNode
-    user?: unknown
-    actions?: ReactNode | ((layout: 'icon' | 'full') => ReactNode)
-    width?: number
-    onResizePreview?: (width: number | null) => void
-    onDismiss?: () => void
-    onHoverChange?: (hovering: boolean) => void
-    onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
-  }) => {
-    mocks.onEntriesReorder = onEntriesReorder
-    // Entries are type-agnostic resolved rows; the tests still assert per-type
-    // testids, so recover the type/id from the stable `entry.key` (`${type}:${id}`).
-    const activeState = active ?? { activeItem: '' }
-    const items = entries?.filter((entry) => parseEntryKey(entry.key).type === 'app')
-    const dockedTabs = entries?.filter((entry) => parseEntryKey(entry.key).type === 'mini_app')
-    return isFloating ? (
-      <div
-        className={isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in'}
-        data-testid="floating-sidebar">
-        <button type="button" onClick={onDismiss}>
-          dismiss
-        </button>
+vi.mock('../../Sidebar', async () => {
+  const constants = await vi.importActual<typeof SidebarConstants>('../../Sidebar/constants')
+  return {
+    ...constants,
+    UserAvatar: ({ user, className }: { user: { name: string }; className?: string }) => (
+      <div className={className} data-testid="sidebar-user-avatar">
+        {user.name}
       </div>
-    ) : (
-      <>
-        <div data-testid="sidebar-title">{title}</div>
-        <div data-testid="sidebar-logo">{logo}</div>
-        <div data-testid="sidebar-footer-user">{user ? 'user' : 'none'}</div>
-        <div data-testid="sidebar-footer-actions">{typeof actions === 'function' ? actions('icon') : actions}</div>
-        <button type="button" data-testid="preview-80" onClick={() => onResizePreview?.(80)} />
-        <button type="button" data-testid="preview-null" onClick={() => onResizePreview?.(null)} />
-        <button type="button" onClick={() => onHoverChange?.(true)}>
-          reveal
-        </button>
-        <div data-testid="ui-sidebar" data-width={width} />
-        <div data-testid="sidebar-items">
-          {items?.map((item) => (
-            <div key={item.key}>
-              <button
-                type="button"
-                data-testid={`sidebar-item-${parseEntryKey(item.key).id}`}
-                onClick={() => item.onOpen()}>
-                <span>{item.label}</span>
-              </button>
-              {item.contextMenuItems?.map((menuItem) => (
-                <button
-                  key={menuItem.id}
-                  type="button"
-                  data-testid={`sidebar-menu-${menuItem.id}`}
-                  disabled={menuItem.enabled === false}
-                  onClick={menuItem.onSelect}>
-                  {menuItem.label}
-                </button>
-              ))}
-            </div>
-          ))}
+    ),
+    MiniAppIcon: () => null,
+    Sidebar: ({
+      isFloating,
+      isFloatingClosing,
+      onDismiss,
+      onHoverChange,
+      onEntriesReorder,
+      active,
+      entries,
+      title,
+      logo,
+      user,
+      actions,
+      width,
+      onResizePreview
+    }: {
+      isFloating?: boolean
+      isFloatingClosing?: boolean
+      active?: { activeItem: string; activeTabId?: string }
+      entries?: MockSidebarEntry[]
+      title?: string
+      logo?: ReactNode
+      user?: unknown
+      actions?: ReactNode | ((layout: 'icon' | 'full') => ReactNode)
+      width?: number
+      onResizePreview?: (width: number | null) => void
+      onDismiss?: () => void
+      onHoverChange?: (hovering: boolean) => void
+      onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
+    }) => {
+      mocks.onEntriesReorder = onEntriesReorder
+      // Entries are type-agnostic resolved rows; the tests still assert per-type
+      // testids, so recover the type/id from the stable `entry.key` (`${type}:${id}`).
+      const activeState = active ?? { activeItem: '' }
+      const items = entries?.filter((entry) => parseEntryKey(entry.key).type === 'app')
+      const dockedTabs = entries?.filter((entry) => parseEntryKey(entry.key).type === 'mini_app')
+      return isFloating ? (
+        <div
+          className={isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in'}
+          data-testid="floating-sidebar">
+          <button type="button" onClick={onDismiss}>
+            dismiss
+          </button>
         </div>
-        <div data-testid="sidebar-mini-app-section">
-          {dockedTabs?.map((miniTab) => (
-            <div key={miniTab.key}>
-              <button
-                type="button"
-                data-active={miniTab.isActive(activeState) ? 'true' : 'false'}
-                data-testid={`sidebar-mini-app-${parseEntryKey(miniTab.key).id}`}
-                onClick={() => miniTab.onOpen()}>
-                {miniTab.label}
-              </button>
-              {miniTab.contextMenuItems?.map((menuItem) => (
+      ) : (
+        <>
+          <div data-testid="sidebar-title">{title}</div>
+          <div data-testid="sidebar-logo">{logo}</div>
+          <div data-testid="sidebar-footer-user">{user ? 'user' : 'none'}</div>
+          <div data-testid="sidebar-footer-actions">{typeof actions === 'function' ? actions('icon') : actions}</div>
+          <button type="button" data-testid="preview-80" onClick={() => onResizePreview?.(80)} />
+          <button type="button" data-testid="preview-null" onClick={() => onResizePreview?.(null)} />
+          <button type="button" onClick={() => onHoverChange?.(true)}>
+            reveal
+          </button>
+          <div data-testid="ui-sidebar" data-width={width} />
+          <div data-testid="sidebar-items">
+            {items?.map((item) => (
+              <div key={item.key}>
                 <button
-                  key={menuItem.id}
                   type="button"
-                  data-testid={`sidebar-menu-${menuItem.id}`}
-                  disabled={menuItem.enabled === false}
-                  onClick={menuItem.onSelect}>
-                  {menuItem.label}
+                  data-testid={`sidebar-item-${parseEntryKey(item.key).id}`}
+                  onClick={() => item.onOpen()}>
+                  <span>{item.label}</span>
                 </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      </>
-    )
+                {item.contextMenuItems?.map((menuItem) => (
+                  <button
+                    key={menuItem.id}
+                    type="button"
+                    data-testid={`sidebar-menu-${menuItem.id}`}
+                    disabled={menuItem.enabled === false}
+                    onClick={menuItem.onSelect}>
+                    {menuItem.label}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+          <div data-testid="sidebar-mini-app-section">
+            {dockedTabs?.map((miniTab) => (
+              <div key={miniTab.key}>
+                <button
+                  type="button"
+                  data-active={miniTab.isActive(activeState) ? 'true' : 'false'}
+                  data-testid={`sidebar-mini-app-${parseEntryKey(miniTab.key).id}`}
+                  onClick={() => miniTab.onOpen()}>
+                  {miniTab.label}
+                </button>
+                {miniTab.contextMenuItems?.map((menuItem) => (
+                  <button
+                    key={menuItem.id}
+                    type="button"
+                    data-testid={`sidebar-menu-${menuItem.id}`}
+                    disabled={menuItem.enabled === false}
+                    onClick={menuItem.onSelect}>
+                    {menuItem.label}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
+      )
+    }
   }
-}))
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({

@@ -1,5 +1,4 @@
-import '@renderer/components/composer/tools'
-
+import { getAllTools, getToolsForScope } from '@renderer/components/composer/tools/builtinTools'
 import {
   ComposerToolDerivedStateProvider,
   type ComposerToolDispatch,
@@ -19,7 +18,6 @@ import type {
   ToolStateKey,
   ToolStateMap
 } from '@renderer/components/composer/tools/types'
-import { getAllTools, getToolsForScope } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useProvider } from '@renderer/hooks/useProvider'

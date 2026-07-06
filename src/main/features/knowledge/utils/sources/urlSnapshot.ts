@@ -1,4 +1,4 @@
-import { sanitizeFilename } from '@shared/utils/file/filename'
+import { sanitizeFilename } from '@shared/utils/file'
 
 import { reserveImportedFileRelativePath, writeFileIntoKnowledgeBaseAt } from '../storage/pathStorage'
 import { serializeOkfFrontmatter } from './okfFrontmatter'

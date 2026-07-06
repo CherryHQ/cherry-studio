@@ -4,13 +4,15 @@ import {
   type MessageMenuBarButtonId,
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
-import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
-import { messageToMarkdown } from '@renderer/services/ExportService'
-import { getMessageTitle } from '@renderer/services/MessagesService'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
+import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import EditIcon from '@renderer/components/icons/EditIcon'
+import RefreshIcon from '@renderer/components/icons/RefreshIcon'
+import { getMessageTitle, messageToMarkdown } from '@renderer/services/ExportService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { messageToPlainText } from '@renderer/utils/export'
-import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
+import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getTranslationFromParts } from '@renderer/utils/message/partsHelpers'
@@ -228,7 +230,7 @@ registerCommand('message.copyImage', async ({ actions, messageContainerRef }) =>
 })
 
 registerCommand('message.exportImage', async ({ actions, messageContainerRef, messageForExport, t }) => {
-  const imageData = await captureScrollableAsDataURL(messageContainerRef)
+  const imageData = await captureScrollableAsDataUrl(messageContainerRef)
   const title = await getMessageTitle(messageForExport)
   if (!title || !imageData || !actions.saveImage) {
     actions.notifyError?.(t('message.error.unknown'))

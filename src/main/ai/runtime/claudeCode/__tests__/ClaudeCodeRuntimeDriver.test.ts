@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   adapterInstances: [] as any[]
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: { get: mocks.applicationGet }
 }))
 

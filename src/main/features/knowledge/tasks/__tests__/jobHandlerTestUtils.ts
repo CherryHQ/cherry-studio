@@ -285,6 +285,7 @@ export function createCtx<TInput>(input: TInput, jobId = 'job-1'): JobContext<TI
     jobId,
     input,
     attempt: 1,
+    parentId: null,
     signal: new AbortController().signal,
     metadata: {},
     patchMetadata: vi.fn().mockResolvedValue(undefined),
