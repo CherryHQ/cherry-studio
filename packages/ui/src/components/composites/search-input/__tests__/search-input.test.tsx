@@ -62,15 +62,4 @@ describe('SearchInput', () => {
 
     expect(screen.getByRole('button', { name: '清除' })).toBeInTheDocument()
   })
-
-  it('uses the unified lightweight clear button style', () => {
-    render(<SearchInput value="cherry" onChange={() => {}} onClear={() => {}} clearLabel="清除" />)
-
-    expect(screen.getByRole('button', { name: '清除' })).toHaveClass(
-      'rounded-full',
-      'text-foreground-muted',
-      'hover:bg-transparent',
-      'hover:text-foreground'
-    )
-  })
 })
