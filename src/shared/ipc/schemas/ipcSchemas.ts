@@ -7,6 +7,7 @@ import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
 import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
+import { navigationRequestSchemas } from './navigation'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { webSearchRequestSchemas } from './webSearch'
@@ -28,6 +29,7 @@ export const ipcRequestSchemas = {
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
   ...localModelRequestSchemas,
+  ...navigationRequestSchemas,
   ...oauthRequestSchemas,
   ...selectionRequestSchemas,
   ...webSearchRequestSchemas,

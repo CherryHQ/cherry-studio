@@ -9,6 +9,7 @@ import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
 import { localModelHandlers } from './localModel'
+import { navigationHandlers } from './navigation'
 import { oauthHandlers } from './oauth'
 import { selectionHandlers } from './selection'
 import { webSearchHandlers } from './webSearch'
@@ -32,6 +33,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...fileProcessingHandlers,
   ...knowledgeHandlers,
   ...localModelHandlers,
+  ...navigationHandlers,
   ...oauthHandlers,
   ...selectionHandlers,
   ...webSearchHandlers,

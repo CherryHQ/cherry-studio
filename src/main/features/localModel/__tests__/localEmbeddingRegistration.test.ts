@@ -46,8 +46,7 @@ describe('localEmbeddingRegistration', () => {
       dimensions: 1024,
       error: null,
       chunkSize: 1000,
-      chunkOverlap: 200,
-      searchMode: 'vector'
+      chunkOverlap: 200
     })
   }
 

@@ -39,7 +39,6 @@ import { ProxyService } from '@main/services/proxy/ProxyService'
 import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { SelectionService } from '@main/services/selection/SelectionService'
-import { SettingsWindowService } from '@main/services/SettingsWindowService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { StorageMonitorService } from '@main/services/StorageMonitorService'
 import { SubWindowService } from '@main/services/SubWindowService'
@@ -90,7 +89,6 @@ export const services = {
   FileProcessingService,
   PowerService,
   SelectionService,
-  SettingsWindowService,
   ShortcutService,
   ThemeService,
   TraceStorageService,

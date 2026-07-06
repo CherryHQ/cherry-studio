@@ -104,7 +104,11 @@ const pdfSkillToken = {
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     getCasual: vi.fn(() => ''),
-    setCasual: vi.fn()
+    setCasual: vi.fn(),
+    // useAgentSessionSlashCommands subscribes to the shared slash-command catalog; no catalog here
+    // means the composer falls back to the builtin list.
+    getShared: vi.fn(() => undefined),
+    subscribe: vi.fn(() => () => {})
   }
 }))
 

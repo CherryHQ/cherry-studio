@@ -1296,12 +1296,14 @@
       "add": "タグ追加",
       "delete": "タグ削除",
       "deleteConfirm": "このタグを削除してもよろしいですか？",
+      "group_by": "[to be translated]:Group by tag",
       "manage": "タグ管理",
       "modify": "タグ修正",
       "none": "タグなし",
       "settings": {
         "title": "タグ設定"
       },
+      "ungroup": "[to be translated]:Turn off tag grouping",
       "untagged": "未分類"
     },
     "title": "アシスタント",
@@ -4717,6 +4719,7 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "opencode": "[to be translated]:OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -6197,6 +6200,9 @@
         "button": "サーバーを取得",
         "success": "MCPサーバーの取得に成功しました"
       },
+      "filter": {
+        "label": "[to be translated]:Filter"
+      },
       "findMore": "MCP を見つける",
       "headers": "ヘッダー",
       "headersTooltip": "HTTP リクエストのカスタムヘッダー",
@@ -6237,6 +6243,7 @@
       "noDescriptionAvailable": "説明がありません",
       "noLogs": "ログはまだありません",
       "noServers": "サーバーが設定されていません",
+      "notInstalled": "[to be translated]:Not installed",
       "not_support": "モデルはサポートされていません",
       "npx_list": {
         "actions": "アクション",
@@ -6266,6 +6273,7 @@
         "title": "外部のMCPを実行しますか？"
       },
       "provider": "プロバイダー",
+      "providerNotFound": "[to be translated]:MCP provider not found",
       "providerPlaceholder": "プロバイダー名",
       "providerUrl": "プロバイダーURL",
       "providers": "プロバイダー",
@@ -6312,13 +6320,6 @@
         "getToken": "API トークンを取得する",
         "getTokenDescription": "アカウントから個人用 API トークンを取得します",
         "noServersAvailable": "利用可能な MCP サーバーがありません",
-        "providerDescriptions": {
-          "302ai": "302.AIプラットフォームMCPサービス",
-          "bailian": "Alibaba Cloud Bailian Platform MCP Service",
-          "lanyun": "Lanyun Technology Cloud Platform MCP Service",
-          "mcprouter": "MCPルータープラットフォーム MCPサービス",
-          "modelscope": "ModelScopeプラットフォームMCPサービス"
-        },
         "selectProvider": "プロバイダーを選択：",
         "setToken": "トークンを入力してください",
         "success": "MCPサーバーの同期成功",

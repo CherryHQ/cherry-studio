@@ -8,7 +8,7 @@
       },
       "model": {
         "supported_providers": "支援的服務商",
-        "tooltip": "目前，僅支援 Anthropic 端點的模型可供 Agent 功能使用。",
+        "tooltip": "目前大多數聊天模型可供 Agent 使用，暫不支援 Gemini 服務商。",
         "view_providers": "檢視支援的服務商"
       },
       "title": "新增 Agent",
@@ -1460,6 +1460,7 @@
       "pause": "暫停",
       "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 選擇工具或操作",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
+      "resize_height": "調整輸入框高度",
       "resource_panel": {
         "categories": {
           "agents": "智能體",
@@ -1478,16 +1479,16 @@
         },
         "title": "資源"
       },
+      "restore": "還原",
       "send": "傳送",
       "send_failed": "訊息傳送失敗",
       "settings": "設定",
       "slash_commands": {
         "commands": {
-          "clear": "清空對話歷史",
-          "compact": "壓縮對話（可附帶聚焦指令）",
+          "clear": "開啟全新對話，清空上下文",
+          "compact": "透過總結目前對話來釋放上下文",
           "context": "以彩色網格視覺化目前上下文使用情況",
-          "cost": "顯示 token 用量統計（訂閱相關詳情見成本追蹤指南）",
-          "todos": "列出目前待辦事項"
+          "usage": "顯示工作階段成本、方案用量上限與活動統計"
         },
         "description": "Agent 工作階段斜線指令",
         "title": "斜線指令"
@@ -2795,15 +2796,11 @@
         "chunk_size": "单个文档片段的目标 token 数，影响召回粒度和上下文长度。",
         "document_count": "每次召回返回的最大文档片段数，越大覆盖越多但消耗更多上下文。",
         "embedding_model": "用于将知识库内容转换为向量。更换模型后，通常需要重新索引已有内容。",
-        "hybrid_alpha": "混合检索中向量得分的权重，值越高越偏向语义匹配。",
         "processor": "导入文件时使用的解析处理服务，用于提取正文、表格等内容。",
         "rerank_model": "对初步召回结果重新排序的模型，可提升最终片段相关性。",
-        "search_mode": "选择召回方式：向量检索适合语义匹配，全文检索适合关键词，混合检索会结合两者。",
         "smart_chunking": "自動沿 Markdown 結構（標題、程式碼區塊、段落）分段，且不從程式碼區塊內部切開。關閉後僅按分隔符切分。",
-        "threshold": "过滤低相关片段的相似度阈值，值越高召回越严格。",
-        "threshold_disabled": "该检索模式按排序返回结果，不使用相似度阈值。"
+        "threshold": "用於過濾低相關性重排片段的相似度閾值，數值越高召回越嚴格。"
       },
-      "hybrid_alpha": "Hybrid Alpha",
       "processor": "处理服务商",
       "rerank_disabled": "不使用",
       "rerank_model": "重排模型",
@@ -2812,15 +2809,9 @@
       "retrieval": "Retrieval",
       "save_action": "儲存",
       "saved": "已儲存",
-      "search_mode": {
-        "bm25": "全文检索",
-        "hybrid": "混合检索（推荐）",
-        "title": "检索模式",
-        "vector": "向量檢索"
-      },
       "separator_rule": "分隔符规则",
       "smart_chunking": "智慧分段",
-      "threshold": "相似度阈值",
+      "threshold": "相似度閾值",
       "tokens_unit": "tokens",
       "use_local_embedding": "使用本機模型"
     },
@@ -4437,7 +4428,7 @@
     },
     "generate_failed": "無法生成圖片",
     "generated_image": "產生的圖片",
-    "generating": "生成中...",
+    "generating": "繪圖進行中，請不要離開頁面",
     "go_to_settings": "前往設定",
     "guidance_scale": "引導比例",
     "guidance_scale_tip": "無分類器指導 ({{min}}-{{max}})。控制模型在尋找相關影像時對提示詞的遵循程度",
@@ -6221,6 +6212,9 @@
         "button": "取得伺服器",
         "success": "伺服器取得成功"
       },
+      "filter": {
+        "label": "篩選"
+      },
       "findMore": "更多 MCP",
       "headers": "請求標頭",
       "headersTooltip": "HTTP 請求的自定義標頭",
@@ -6261,6 +6255,7 @@
       "noDescriptionAvailable": "描述不存在",
       "noLogs": "暫無日誌",
       "noServers": "未設定伺服器",
+      "notInstalled": "未安裝",
       "not_support": "不支援此模型",
       "npx_list": {
         "actions": "操作",
@@ -6290,6 +6285,7 @@
         "title": "執行外部 MCP？"
       },
       "provider": "提供者",
+      "providerNotFound": "未找到 MCP 供應商",
       "providerPlaceholder": "提供者名稱",
       "providerUrl": "提供者網址",
       "providers": "供應商",
@@ -6336,13 +6332,6 @@
         "getToken": "取得 API 權杖",
         "getTokenDescription": "從帳戶取得個人 API 權杖",
         "noServersAvailable": "無可用的 MCP 伺服器",
-        "providerDescriptions": {
-          "302ai": "302.AI 平台 MCP 服務",
-          "bailian": "阿里雲百鍊平台 MCP 服務",
-          "lanyun": "藍雲科技雲平台 MCP 服務",
-          "mcprouter": "MCP 路由器平台 MCP 服務",
-          "modelscope": "ModelScope平台MCP服務"
-        },
         "selectProvider": "選擇提供者：",
         "setToken": "輸入權杖",
         "success": "同步 MCP 伺服器成功",
@@ -6388,7 +6377,7 @@
       },
       "type": "類型",
       "types": {
-        "inMemory": "記憶體內",
+        "inMemory": "內建",
         "sse": "SSE",
         "stdio": "STDIO",
         "streamableHttp": "串流 HTTP"
