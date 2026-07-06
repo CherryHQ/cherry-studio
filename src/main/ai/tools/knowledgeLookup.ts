@@ -3,10 +3,12 @@
  *
  * Single source of truth shared by the AI-SDK builtin tools (`kb_search` /
  * `kb_list`) and the Claude Code in-process MCP bridge. `allowedIds` scopes
- * which bases are reachable: in the AI-SDK path it is the assistant's
- * `knowledgeBaseIds`; an empty array means "no scope" (all user bases),
- * which is what the Claude Code agent path passes since agents have no
- * per-assistant knowledge scope.
+ * which bases are reachable: in the AI-SDK path it is the scope resolved by
+ * `resolveKnowledgeBaseIds` (the assistant's own bound bases take precedence
+ * when non-empty; only when the assistant has none does the composer's
+ * per-turn selection define the scope); an empty array means "no scope"
+ * (all user bases), which is what the Claude Code agent path passes since
+ * agents have no per-assistant knowledge scope.
  *
  * `searchKnowledge` never throws: an infrastructure failure (every targeted
  * base errored) returns `{ error }` so it is distinguishable from "ran fine,
