@@ -865,26 +865,39 @@ describe('JobManager integration', () => {
       const db = MockMainDbServiceExport.dbService.getDb() as DbType
 
       let handle!: JobHandle
-      db.transaction(
-        (tx) => {
-          handle = jobManager.enqueueTx(
-            tx,
-            'tx.delayed' as never,
-            { message: 'later', sleepMs: 5 } as never,
-            {
-              scheduledAt: Date.now() + 150
-            } as never
-          )
-        },
-        { behavior: 'immediate' }
-      )
+      let settled!: { status: string } | 'timeout'
 
-      expect(handle.snapshot.status).toBe('delayed')
+      vi.useFakeTimers()
+      try {
+        db.transaction(
+          (tx) => {
+            handle = jobManager.enqueueTx(
+              tx,
+              'tx.delayed' as never,
+              { message: 'later', sleepMs: 5 } as never,
+              {
+                scheduledAt: Date.now() + 150
+              } as never
+            )
+          },
+          { behavior: 'immediate' }
+        )
 
-      const settled = await Promise.race([
-        handle.finished,
-        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 3000))
-      ])
+        expect(handle.snapshot.status).toBe('delayed')
+
+        const settledPromise = Promise.race([
+          handle.finished,
+          new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 1000))
+        ])
+
+        // enqueueTx arms delayed jobs in a post-commit microtask.
+        await Promise.resolve()
+        await vi.advanceTimersByTimeAsync(1000)
+        settled = await settledPromise
+      } finally {
+        vi.useRealTimers()
+      }
+
       expect(settled).not.toBe('timeout')
       expect((settled as { status: string }).status).toBe('completed')
 
