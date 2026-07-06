@@ -1,6 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { ActionIconButton } from '@renderer/components/Buttons'
+import ActionIconButton from '@renderer/components/ActionIconButton'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { scrollElementIntoView } from '@renderer/utils/dom'
 import { classNames } from '@renderer/utils/style'

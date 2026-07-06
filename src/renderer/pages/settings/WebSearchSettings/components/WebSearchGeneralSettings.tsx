@@ -1,7 +1,7 @@
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { FC } from 'react'
 
-import { SettingsContentColumn } from '../..'
 import BasicSettings from './BasicSettings'
 import BlacklistSettings from './BlacklistSettings'
 

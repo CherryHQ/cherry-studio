@@ -122,7 +122,7 @@ describe('KnowledgeBaseRow', () => {
     expect(container.querySelector('span[aria-label]')).not.toBeInTheDocument()
   })
 
-  it('renders the selected row with the large rounded highlight', () => {
+  it('renders the selected row with the rounded highlight', () => {
     render(
       <KnowledgeBaseRow
         base={createKnowledgeBase()}
@@ -135,11 +135,27 @@ describe('KnowledgeBaseRow', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /Base 1/ }).parentElement).toHaveClass('rounded-xl', 'bg-secondary')
+    expect(screen.getByRole('button', { name: /Base 1/ }).parentElement).toHaveClass('rounded-md', 'bg-secondary')
     expect(screen.getByText('Base 1')).toHaveClass('text-sm', 'font-medium')
   })
 
-  it('reserves trailing action space so long names cannot overlap the more button', () => {
+  it('does not render a hover more button; actions are only reachable via right-click', () => {
+    render(
+      <KnowledgeBaseRow
+        base={createKnowledgeBase()}
+        groups={[createGroup()]}
+        selected={false}
+        onSelectBase={vi.fn()}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onDeleteBase={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: '更多' })).not.toBeInTheDocument()
+  })
+
+  it('lets long names use the full row width now that no trailing button is reserved', () => {
     render(
       <KnowledgeBaseRow
         base={createKnowledgeBase({ name: 'A very long knowledge base name that should stay within the text column' })}
@@ -152,8 +168,7 @@ describe('KnowledgeBaseRow', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /A very long knowledge base name/ }).parentElement).toHaveClass(
-      'grid',
+    expect(screen.getByRole('button', { name: /A very long knowledge base name/ }).parentElement).not.toHaveClass(
       'grid-cols-[minmax(0,1fr)_1.75rem]'
     )
     expect(screen.getByText('A very long knowledge base name that should stay within the text column')).toHaveClass(

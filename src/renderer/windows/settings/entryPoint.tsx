@@ -3,6 +3,7 @@ import '@renderer/assets/styles/tailwind.css'
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { initI18n } from '@renderer/i18n'
 import { ipcApi } from '@renderer/ipc'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_SETTINGS_PATH, normalizeSettingsPath } from '@shared/data/types/settingsPath'
@@ -46,6 +47,8 @@ async function getInitialSettingsPath() {
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
 const preloadError = await preloadSettingsPreferences()
+// Initialize i18n even when preference preload failed — SettingsWindowFatalError renders via i18n.t().
+await initI18n()
 const initialSettingsPath = preloadError ? DEFAULT_SETTINGS_PATH : await getInitialSettingsPath()
 
 root.render(

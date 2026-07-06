@@ -15,13 +15,13 @@
 
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
   type FileSchemas,
   ListFilesQuerySchema,
   RefCountsQuerySchema,
   RefsBySourceQuerySchema
 } from '@shared/data/api/schemas/files'
+import type { HandlersFor } from '@shared/data/api/types'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 
 export const fileHandlers: HandlersFor<FileSchemas> = {

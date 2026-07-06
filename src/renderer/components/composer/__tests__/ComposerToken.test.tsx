@@ -53,7 +53,8 @@ vi.mock('@cherrystudio/ui', async () => {
       showArrow?: boolean
     }) => {
       const trigger = React.isValidElement(children)
-        ? React.cloneElement(children, { 'data-tooltip-trigger': 'true' } as Record<string, unknown>)
+        ? // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
+          React.cloneElement(children, { 'data-tooltip-trigger': 'true' } as Record<string, unknown>)
         : children
 
       return (
@@ -165,6 +166,7 @@ vi.mock('@cherrystudio/ui', async () => {
         }
       }
 
+      // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
       return React.cloneElement(children, {
         'data-popover-trigger': 'true',
         ref: setTriggerRef
@@ -1102,7 +1104,7 @@ describe('ComposerToken', () => {
 
     await waitFor(() => expect(container.querySelector('[data-popover-trigger="true"]')).toBeInTheDocument())
     openTokenPopover(container, 'knowledge')
-    fireEvent.click(screen.getByRole('button', { name: 'appMenu.delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
 
     await waitFor(() => expect(serializeComposerDocument(editor!).tokens).toEqual([]))
   })

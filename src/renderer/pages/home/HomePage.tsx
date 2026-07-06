@@ -1,28 +1,30 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
-  ChatAppShell,
-  type ChatPanePosition,
-  ConversationShell,
-  ConversationStageCenter,
-  EmptyState,
-  LoadingState
-} from '@renderer/components/chat'
-import {
   type ResourcePaneConfig,
   ResourcePaneCountButton,
   type ResourcePaneCountButtonProps,
   useResourcePane
 } from '@renderer/components/chat/panes/Shell'
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
-import { AssistantResourceList } from '@renderer/components/chat/resources/variants/AssistantResourceList'
-import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
+import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
+import { AssistantResourceList } from '@renderer/components/chat/resourceList/AssistantResourceList'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import { ChatAppShell } from '@renderer/components/chat/shell/ChatAppShell'
+import ConversationPageShell from '@renderer/components/chat/shell/ConversationPageShell'
+import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
+import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
+import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import { ChatHomePlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
 import {
   createRecentTopicEntryFromTopic,
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
+import {
+  ConversationResourceView,
+  type ConversationResourceViewDefinition,
+  useConversationResourceView
+} from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
@@ -32,8 +34,10 @@ import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssist
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -45,6 +49,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useLocation, useSearch } from '@tanstack/react-router'
+import { MessageCircle } from 'lucide-react'
 import type { FC, HTMLAttributes, ReactNode } from 'react'
 import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -58,12 +63,13 @@ import {
 import ChatNavbar from './components/ChatNavbar'
 import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
-import HomeTabs from './Tabs'
 import { Topics } from './Tabs/components/Topics'
+import HomeTabs from './Tabs/HomeTabs'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
 const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
+type AssistantConversationResourceKind = 'assistant'
 
 type DraftAssistantSelectionSource = 'explicit' | 'last-used' | 'first-assistant' | 'runtime-fallback'
 type ResolvedDraftAssistantSelection = { assistantId?: string; source: DraftAssistantSelectionSource }
@@ -226,6 +232,33 @@ const HomePage: FC = () => {
       ? undefined
       : (activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined) ?? undefined)
   const draftScopeKey = `home-draft:${draftScopeId}`
+  const resourceConversationKey = useMemo(() => {
+    if (visibleTopic?.id) return `topic:${visibleTopic.id}`
+    if (draftAssistantSelectionSnapshot) return `draft:${draftAssistantSelectionSnapshot.assistantId ?? 'default'}`
+    return 'empty'
+  }, [draftAssistantSelectionSnapshot, visibleTopic?.id])
+  const resourceViewDefinitions = useMemo<
+    readonly ConversationResourceViewDefinition<AssistantConversationResourceKind>[]
+  >(
+    () => [
+      {
+        icon: <MessageCircle />,
+        id: 'assistant-resource-view',
+        kind: 'assistant',
+        label: t('chat.resource_view.menu.assistant')
+      }
+    ],
+    [t]
+  )
+  const {
+    activeKind: activeResourceViewKind,
+    close: closeResourceView,
+    menuItems: resourceMenuItems
+  } = useConversationResourceView<AssistantConversationResourceKind>({
+    conversationKey: resourceConversationKey,
+    definitions: resourceViewDefinitions,
+    disabled: isMessageOnlyView || isWindowFrame
+  })
 
   useEffect(() => {
     if (!isAssistantListResolved || !lastUsedAssistantId || assistantIdSet.has(lastUsedAssistantId)) return
@@ -388,6 +421,7 @@ const HomePage: FC = () => {
   const startDraftAssistantSelection = useCallback(
     (payload?: AddNewTopicPayload) => {
       try {
+        closeResourceView()
         const selection = resolveDraftAssistantTarget(payload?.assistantId)
         const targetAssistantId = selection.assistantId
         const current = draftAssistantSelectionRef.current
@@ -403,7 +437,7 @@ const HomePage: FC = () => {
         logger.error('Failed to start draft topic', err as Error)
       }
     },
-    [resolveDraftAssistantTarget, setDraftAssistantSelectionState]
+    [closeResourceView, resolveDraftAssistantTarget, setDraftAssistantSelectionState]
   )
 
   const updateDraftAssistantSelection = useCallback(
@@ -453,6 +487,7 @@ const HomePage: FC = () => {
 
   const setActiveTopicAndDiscardDraft = useCallback(
     (topic: Topic) => {
+      closeResourceView()
       // One tab per topic: if this topic is already open in another tab, focus
       // that tab instead of navigating the current one (which would duplicate
       // it in the tab bar). The current tab keeps its own topic untouched.
@@ -464,7 +499,7 @@ const HomePage: FC = () => {
       setActiveTopic(topic)
       return true
     },
-    [conversationNav, currentTabId, setActiveTopic, setDraftAssistantSelectionState]
+    [closeResourceView, conversationNav, currentTabId, setActiveTopic, setDraftAssistantSelectionState]
   )
   // Classic-layout reset after deleting the active assistant: select the latest
   // remaining topic (across other assistants). Filter by the deleted id so this
@@ -567,6 +602,21 @@ const HomePage: FC = () => {
     [createTopic, classicLayoutTopics, refreshTopics, resolveDraftAssistantTarget, setActiveTopicAndDiscardDraft, t]
   )
 
+  // "去对话" from the assistant library (after adding a preset). The legacy navigate-to-chat no longer
+  // fits the classic/modern split, so branch on layout: classic auto-creates an empty topic and
+  // switches to it; modern drops into the draft compose with the assistant pre-selected. Both handlers
+  // already close the resource center internally.
+  const handleOpenAssistantChatFromLibrary = useCallback(
+    (assistantId: string) => {
+      if (isClassicTopicLayout) {
+        void createAndActivateEmptyTopic({ assistantId })
+      } else {
+        startDraftAssistantSelection({ assistantId })
+      }
+    },
+    [createAndActivateEmptyTopic, isClassicTopicLayout, startDraftAssistantSelection]
+  )
+
   useEffect(() => {
     void window.api.window.setMinimumSize(SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
@@ -577,6 +627,7 @@ const HomePage: FC = () => {
 
   const handleHistoryTopicSelect = useCallback(
     (topic: Topic, messageId?: string) => {
+      closeResourceView()
       if (!setActiveTopicAndDiscardDraft(topic)) return
       setResourceListOpen(true)
       setPendingLocateMessageId(messageId)
@@ -588,7 +639,7 @@ const HomePage: FC = () => {
         requestId: topicRevealRequestIdRef.current
       })
     },
-    [setActiveTopicAndDiscardDraft, setResourceListOpen]
+    [closeResourceView, setActiveTopicAndDiscardDraft, setResourceListOpen]
   )
   const closeHistoryRecords = useCallback(() => {
     setHistoryRecordsOpen(false)
@@ -633,8 +684,39 @@ const HomePage: FC = () => {
   const handleLocateMessageHandled = useCallback(() => {
     setPendingLocateMessageId(undefined)
   }, [])
+  const resourceCenter = useMemo(
+    () =>
+      activeResourceViewKind
+        ? {
+            className: 'relative',
+            content: (
+              <ConversationResourceView
+                kind={activeResourceViewKind}
+                onOpenAssistantChat={handleOpenAssistantChatFromLibrary}
+                toolbarLeading={
+                  !isMessageOnlyView && !isWindowFrame ? (
+                    <ConversationSidebarToggleButton
+                      sidebarOpen={effectiveShowSidebar}
+                      onSidebarToggle={toggleResourceListOpen}
+                      tooltipPlacement="bottom"
+                    />
+                  ) : undefined
+                }
+              />
+            )
+          }
+        : null,
+    [
+      activeResourceViewKind,
+      effectiveShowSidebar,
+      handleOpenAssistantChatFromLibrary,
+      isMessageOnlyView,
+      isWindowFrame,
+      toggleResourceListOpen
+    ]
+  )
 
-  if (!visibleTopic && !draftAssistantSelectionSnapshot) {
+  if (!visibleTopic && !draftAssistantSelectionSnapshot && !resourceCenter) {
     if (isMessageOnlyView) {
       return (
         <Container id="home-page">
@@ -657,10 +739,13 @@ const HomePage: FC = () => {
   const pane = isClassicTopicLayout ? (
     <AssistantResourceList
       activeAssistantId={visibleAssistantId ?? null}
-      onAddAssistant={() => setAssistantPickerOpen(true)}
+      onAddAssistant={() => {
+        setAssistantPickerOpen(true)
+      }}
       onOpenHistoryRecords={openHistoryRecords}
       onSelectTopic={setActiveTopicAndDiscardDraft}
       onStartDraftAssistant={(assistantId) => startDraftAssistantSelection({ assistantId })}
+      resourceMenuItems={resourceMenuItems}
       onActiveAssistantDeleted={handleActiveAssistantDeleted}
     />
   ) : (
@@ -670,6 +755,7 @@ const HomePage: FC = () => {
       onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
       onOpenHistoryRecords={openHistoryRecords}
       revealRequest={topicRevealRequest}
+      resourceMenuItems={resourceMenuItems}
     />
   )
   // In classic layout the topic list moves into the chat's right pane as a tab; the single page-level
@@ -717,6 +803,25 @@ const HomePage: FC = () => {
       onSelect={handleAssistantConversationSelect}
     />
   ) : null
+
+  if (resourceCenter) {
+    return (
+      <Container id="home-page">
+        <ContentContainer $detached={isWindowFrame}>
+          <ConversationPageShell
+            id="chat"
+            center={resourceCenter}
+            pane={pane}
+            paneOpen={effectiveShowSidebar}
+            panePosition={panePosition}
+            onPaneCollapse={() => setResourceListOpen(false)}
+          />
+        </ContentContainer>
+        {assistantPickerDialog}
+        {historyRecordsOverlay}
+      </Container>
+    )
+  }
 
   if (draftAssistantSelectionSnapshot) {
     return renderWithRightPane(

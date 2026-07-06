@@ -52,6 +52,7 @@ import {
   updateSelectedPromptVariableToken
 } from './promptVariables'
 import {
+  COMPOSER_SUPPRESS_SUGGESTION_META,
   type ComposerSuggestionSource,
   type ComposerUnifiedPanelControl,
   type ComposerUnifiedPanelResourceProvider,
@@ -96,7 +97,7 @@ interface ComposerClipboardCopyView {
 }
 
 export interface ComposerSurfaceActions {
-  focus: () => void
+  focus: (position?: 'start' | 'end' | 'all' | number | boolean | null) => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
@@ -319,6 +320,10 @@ const getManagedTokenSignature = (
 
 function shouldDelegateLongTextPasteToFileHandler(text: string) {
   return Boolean(text && text.length > LONG_TEXT_PASTE_THRESHOLD)
+}
+
+function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
+  editor.chain().focus().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertContent(content).run()
 }
 
 function exceedsComposerInputMaxLength(currentText: string, nextText: string, replacedText = '') {
@@ -616,8 +621,8 @@ export default function ComposerSurface({
     t
   })
 
-  const focusEditor = useCallback(() => {
-    editorRef.current?.commands.focus()
+  const focusEditor = useCallback((position?: 'start' | 'end' | 'all' | number | boolean | null) => {
+    editorRef.current?.commands.focus(position)
   }, [])
 
   const {
@@ -1118,7 +1123,7 @@ export default function ComposerSurface({
           token={fileToken}
           selected={selected}
           onRemove={() => removeToken(fileToken.id)}
-          removeLabel={t('appMenu.delete')}
+          removeLabel={t('common.delete')}
           tooltipActions={
             pastedTextToken ? (
               <Button
@@ -1379,7 +1384,7 @@ export default function ComposerSurface({
 
         if (clipboardPasteOverride !== null) {
           event.preventDefault()
-          editor.chain().focus().insertContent(clipboardPasteOverride.content).run()
+          insertComposerPastedContent(editor, clipboardPasteOverride.content)
           if (clipboardPasteOverride.files.length > 0) {
             setFiles((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
           }
@@ -1395,12 +1400,21 @@ export default function ComposerSurface({
 
       if (plainTextOverride !== null) {
         event.preventDefault()
-        editorRef.current?.chain().focus().insertContent(plainTextOverride).run()
+        const currentEditor = editorRef.current
+        if (currentEditor) {
+          insertComposerPastedContent(currentEditor, plainTextOverride)
+        }
         return true
       }
 
       if (!pastedText && pastedHtml.includes('data-composer-token')) {
         event.preventDefault()
+        return true
+      }
+
+      if (!pastedText && hasClipboardFiles(event.clipboardData)) {
+        event.preventDefault()
+        void handlePaste(event)
         return true
       }
 
@@ -1435,7 +1449,7 @@ export default function ComposerSurface({
         'composerSurfaceFocus',
         () => {
           if (!createdEditor || createdEditor.isDestroyed) return
-          createdEditor.commands.focus()
+          createdEditor.commands.focus('end')
         },
         0
       )
@@ -1610,10 +1624,7 @@ export default function ComposerSurface({
 
   useEffect(() => {
     pasteHandling.init()
-    pasteHandling.registerHandler('inputbar', handlePaste)
-    return () => {
-      pasteHandling.unregisterHandler('inputbar')
-    }
+    return pasteHandling.registerHandler('inputbar', handlePaste)
   }, [handlePaste])
 
   const sendDraft = useCallback(() => {
@@ -1832,4 +1843,10 @@ export default function ComposerSurface({
       </div>
     </NarrowLayout>
   )
+}
+
+function hasClipboardFiles(data: DataTransfer | null | undefined) {
+  if (!data) return false
+  if (data.files?.length > 0) return true
+  return Array.from(data.items ?? []).some((item) => item.kind === 'file')
 }

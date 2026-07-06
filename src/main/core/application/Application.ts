@@ -125,7 +125,7 @@ export class Application {
    * that places the built registry into the Application instance.
    *
    * Single-call enforced — repeated invocation throws to surface misuse
-   * (e.g. accidentally calling it from both main/index.ts and a test).
+   * (e.g. accidentally calling it from both main/main.ts and a test).
    * Tests that need a fresh registry should use `__setPathMapForTesting()`
    * instead, which bypasses this guard for test isolation.
    *
@@ -474,8 +474,6 @@ export class Application {
    * All application lifecycle operations exposed to renderer live here.
    */
   private registerApplicationIpc(): void {
-    ipcMain.handle(IpcChannel.Application_Quit, () => this.quit())
-
     ipcMain.handle(IpcChannel.Application_Relaunch, (_, options?: Electron.RelaunchOptions) => {
       this.relaunch(options)
     })

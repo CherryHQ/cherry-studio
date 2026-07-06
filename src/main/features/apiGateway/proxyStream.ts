@@ -18,9 +18,8 @@
 
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { SseListener } from '@main/ai/streamManager'
-import type { StreamListener } from '@main/ai/streamManager/types'
-import type { CallOverrides } from '@main/ai/types/requests'
+import { SseListener, type StreamListener } from '@main/ai/streamManager'
+import type { CallOverrides } from '@main/ai/types'
 import { application } from '@main/core/application'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'

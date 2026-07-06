@@ -1,4 +1,4 @@
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 /**

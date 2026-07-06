@@ -11,16 +11,17 @@ import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
+import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
 import { providerService } from '@main/data/services/ProviderService'
 import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { Base64String, UrlString } from '@shared/types/file/common'
+import type { Base64String, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
@@ -38,13 +39,13 @@ import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/c
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import { Agent } from './runtime/aiSdk/Agent'
-import type { AgentLoopHooks } from './runtime/aiSdk/loop'
+import type { AgentLoopHooks } from './runtime/aiSdk/loop/types'
 import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
 import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
 import type { RequestFeature } from './runtime/aiSdk/params/feature'
 import { skillService } from './skills/SkillService'
-import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
-import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
+import { WebContentsListener } from './streamManager'
+import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
 import type { AppProviderSettingsMap } from './types'
 import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
@@ -708,6 +709,12 @@ export class AiService extends BaseService {
       throw new Error('Cannot resolve providerId: not in request and assistant has no model')
     }
     const provider = providerService.getByProviderId(providerId)
+    // Registry-sourced providers (login-based, no API model list) return their
+    // shipped catalog instead of calling the upstream API. The rest of the pull
+    // flow (enrich → reconcile → enable) is unchanged.
+    if (provider.modelListSource === 'registry') {
+      return providerRegistryService.listProviderRegistryModels({ providerId })
+    }
     return listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
   }
 

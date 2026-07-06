@@ -11,7 +11,7 @@
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { exists, isSameFile, move as fsMove } from '@main/utils/file/fs'
+import { exists, isSameFile, move as fsMove } from '@main/utils/file'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import { SafeNameSchema } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'

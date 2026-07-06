@@ -8,7 +8,8 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { KnowledgeRagConfigFormValues } from '../types'
-import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues, normalizeKnowledgeError } from '../utils'
+import { normalizeKnowledgeError } from '../utils/error'
+import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues } from '../utils/rag'
 
 const logger = loggerService.withContext('useKnowledgeRagConfig')
 
@@ -51,8 +52,16 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
       }))
   }, [fileProcessorOverrides, t])
 
-  const save = async (values: KnowledgeRagConfigFormValues) => {
+  const save = async (
+    values: KnowledgeRagConfigFormValues,
+    embeddingModelOverride?: { embeddingModelId: string | null; dimensions: number | null }
+  ) => {
     const patch = buildKnowledgeRagConfigPatch(initialValues, values)
+
+    if (embeddingModelOverride) {
+      patch.embeddingModelId = embeddingModelOverride.embeddingModelId
+      patch.dimensions = embeddingModelOverride.dimensions
+    }
 
     try {
       return await trigger({

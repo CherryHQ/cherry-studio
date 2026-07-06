@@ -1,14 +1,11 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { arrayMove } from '@dnd-kit/sortable'
-import {
-  emitResourceListReveal,
-  type ResourceListRevealSource
-} from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { useTabs } from '@renderer/hooks/tab'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {

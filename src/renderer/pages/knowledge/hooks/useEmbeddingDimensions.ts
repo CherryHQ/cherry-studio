@@ -3,7 +3,7 @@ import { ipcApi } from '@renderer/ipc'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { useCallback, useState } from 'react'
 
-import { normalizeKnowledgeError } from '../utils'
+import { normalizeKnowledgeError } from '../utils/error'
 
 const logger = loggerService.withContext('useEmbeddingDimensions')
 

@@ -1,4 +1,4 @@
-import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api'
+import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api/errors'
 
 const MODEL_IN_USE_BY_KNOWLEDGE_BASE_REASON = 'model is in use by a knowledge base'
 const MODEL_IN_USE_AS_DEFAULT_REASON = 'model is in use as the default model'

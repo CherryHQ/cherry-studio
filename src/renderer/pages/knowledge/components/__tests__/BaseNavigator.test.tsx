@@ -5,7 +5,7 @@ import type * as ReactModule from 'react'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import BaseNavigator from '../navigator'
+import { BaseNavigator } from '../navigator'
 
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react') as typeof ReactModule
@@ -197,6 +197,7 @@ vi.mock('@cherrystudio/ui', () => {
           onClick?: (event: ReactMouseEvent) => void
         }>
 
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(child, {
           onClick: (event: ReactMouseEvent) => {
             child.props.onClick?.(event)
@@ -246,6 +247,7 @@ vi.mock('@cherrystudio/ui', () => {
         }
       }
       if (asChild && React.isValidElement(children)) {
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, triggerProps)
       }
       return (
@@ -317,6 +319,7 @@ vi.mock('@cherrystudio/ui', () => {
             }
           }
         }
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, merged)
       }
       return (
@@ -478,15 +481,6 @@ const createGroup = (overrides: Partial<Group> = {}): Group => ({
   updatedAt: '2026-04-23T00:00:00.000Z',
   ...overrides
 })
-
-const getBaseMoreButton = (baseName: string) => {
-  const baseRow = screen.getByRole('button', { name: new RegExp(baseName) }).parentElement
-  if (!baseRow) {
-    throw new Error(`Missing base row for ${baseName}`)
-  }
-
-  return within(baseRow).getByRole('button', { name: '更多' })
-}
 
 const getGroupMoreButton = (groupName: string) => {
   const groupTrigger = screen.getByRole('button', { name: new RegExp(groupName) })
@@ -787,7 +781,7 @@ describe('BaseNavigator', () => {
     expect(screen.getByRole('button', { name: '删除知识库' })).toBeInTheDocument()
   })
 
-  it('opens the knowledge base menu from the trailing action button', () => {
+  it('opens the knowledge base menu on right click', () => {
     render(
       <BaseNavigator
         bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })]}
@@ -806,7 +800,7 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.click(getBaseMoreButton('Alpha'))
+    fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }), { clientX: 240, clientY: 320 })
 
     expect(screen.getByRole('button', { name: '重命名' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: '删除知识库' })).toBeInTheDocument()
@@ -857,7 +851,7 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.click(getBaseMoreButton('Alpha'))
+    fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }), { clientX: 240, clientY: 320 })
     fireEvent.click(screen.getByRole('button', { name: '重命名' }))
 
     await waitFor(() => {
@@ -1067,7 +1061,9 @@ describe('BaseNavigator', () => {
     )
 
     expect(screen.getByText('默认')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: '更多' })).toHaveLength(1)
+    // The default group has no menu trigger, and base rows expose their actions
+    // only through the right-click context menu — so no "更多" button is rendered.
+    expect(screen.queryByRole('button', { name: '更多' })).not.toBeInTheDocument()
   })
 
   it('filters visible sections and rows when the search value changes', () => {

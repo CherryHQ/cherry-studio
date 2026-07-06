@@ -159,14 +159,6 @@ export class MainWindowService extends BaseService {
     this.ipcHandle(IpcChannel.Notification_OnClick, (_, notification) => {
       application.get('WindowManager').broadcastToType(WindowType.Main, 'notification-click', notification)
     })
-
-    // Dev-only: force a renderer crash to test render-process-gone recovery
-    // (see the render-process-gone handler in setupMainWindowMonitor).
-    if (isDev) {
-      this.ipcHandle(IpcChannel.MainWindow_CrashRenderProcess, () => {
-        this.mainWindow?.webContents.forcefullyCrashRenderer()
-      })
-    }
   }
 
   /**
@@ -273,7 +265,7 @@ export class MainWindowService extends BaseService {
     // Dangerous API
     if (isDev) {
       mainWindow.webContents.on('will-attach-webview', (_, webPreferences) => {
-        webPreferences.preload = join(__dirname, '../preload/index.js')
+        webPreferences.preload = join(__dirname, '../preload/preload.js')
       })
     }
   }

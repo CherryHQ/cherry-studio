@@ -1,4 +1,4 @@
-import { CopyIcon } from '@renderer/components/Icons'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
@@ -8,8 +8,8 @@ import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
-import { getEffectiveStatus, ToolStatusIndicator } from '../agent/GenericTools'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, formatArgValue } from '../shared/ArgsTable'
+import { getEffectiveStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import { ToolDisclosure } from '../shared/ToolDisclosure'
 import type { MetaToolName } from './metaToolNames'
 

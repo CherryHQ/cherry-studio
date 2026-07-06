@@ -19,6 +19,7 @@ import type { Stats } from 'node:fs'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
+import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
 import { ZipArchive } from 'archiver'
@@ -28,7 +29,6 @@ import StreamZip from 'node-stream-zip'
 import * as path from 'path'
 import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
-import { isPathInside, resolveAndValidatePath } from '../utils/file'
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 
@@ -86,7 +86,7 @@ class BackupManager {
     // path registry — every path it touches is hand-rolled from
     // app.getPath('userData'). Two reasons:
     //
-    //   1. handleStartupRestore (this method) runs from src/main/index.ts
+    //   1. handleStartupRestore (this method) runs from src/main/main.ts
     //      BEFORE application.bootstrap() — it has to move restore markers
     //      off disk before any service grabs file handles. Calling
     //      application.getPath() pre-bootstrap throws.

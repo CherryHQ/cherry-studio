@@ -639,12 +639,29 @@ it('rejects invalid knowledge base status error combinations', () => {
   ).toBe(false)
 })
 
-it('rejects embedding model changes in patch schema', () => {
+it('accepts a paired embedding model + dimensions change in patch schema', () => {
+  expect(
+    UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: 'openai::text-embedding-3-small', dimensions: 1536 })
+      .success
+  ).toBe(true)
+  expect(UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: null, dimensions: null }).success).toBe(true)
+  expect(UpdateKnowledgeBaseSchema.safeParse({}).success).toBe(true)
+})
+
+it('rejects a half-set embedding model / dimensions pair in patch schema', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: 'openai::text-embedding-3-small' }).success).toBe(
     false
   )
+  expect(UpdateKnowledgeBaseSchema.safeParse({ dimensions: 1536 }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: null }).success).toBe(false)
-  expect(UpdateKnowledgeBaseSchema.safeParse({}).success).toBe(true)
+})
+
+it('rejects a half-null embedding model / dimensions pair in patch schema even when both are provided', () => {
+  expect(UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: null, dimensions: 1536 }).success).toBe(false)
+  expect(
+    UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: 'openai::text-embedding-3-small', dimensions: null })
+      .success
+  ).toBe(false)
 })
 
 it('accepts nullable model and processor clears in patch schema', () => {

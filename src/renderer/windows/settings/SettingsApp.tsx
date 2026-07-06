@@ -2,12 +2,12 @@ import { Alert, Button } from '@cherrystudio/ui'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
-import TopViewContainer from '@renderer/components/TopView'
+import TopViewContainer from '@renderer/components/TopView/TopView'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
 import { routeTree } from '@renderer/routeTree.gen'
-import NavigationService from '@renderer/services/NavigationService'
+import { navigationService } from '@renderer/services/NavigationService'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
@@ -41,7 +41,7 @@ function SettingsWindowRouter({ initialPath }: { initialPath: string }) {
   const targetPath = useWindowInitData<string>()
 
   useEffect(() => {
-    NavigationService.setNavigate(router.navigate)
+    navigationService.setNavigate(router.navigate)
   }, [router])
 
   useEffect(() => {

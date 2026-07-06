@@ -42,7 +42,7 @@ async function renderSubWindowAppShell() {
     SubWindowTitle: () => <div data-testid="sub-window-title" />
   }))
   vi.doMock('@renderer/components/WindowControls', () => ({
-    default: () => <div data-testid="window-controls" />,
+    WindowControls: () => <div data-testid="window-controls" />,
     useHasWindowControls: () => false
   }))
   vi.doMock('../SubWindowTitleBar', () => ({
