@@ -1,5 +1,5 @@
-import { application } from '@application'
 import { loggerService } from '@logger'
+import { openSettingsInMainWindow } from '@main/services/settingsNavigation'
 
 const logger = loggerService.withContext('ProtocolService:providersImport')
 
@@ -45,7 +45,7 @@ export async function handleProvidersProtocolUrl(url: URL) {
         logger.debug('handleProvidersProtocolUrl', { data, version })
       }
 
-      application.get('SettingsWindowService').open(`/settings/provider?addProviderData=${encodeURIComponent(data)}`)
+      openSettingsInMainWindow(`/settings/provider?addProviderData=${encodeURIComponent(data)}`)
       break
     }
     default:
