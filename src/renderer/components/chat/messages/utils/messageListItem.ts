@@ -176,6 +176,7 @@ export function createMessageExportView(message: MessageListItem, parts: CherryM
     status: message.status,
     modelId: message.modelId,
     model,
+    messageSnapshot: message.messageSnapshot,
     parentId: message.parentId,
     siblingsGroupId: message.siblingsGroupId,
     stats: message.stats,

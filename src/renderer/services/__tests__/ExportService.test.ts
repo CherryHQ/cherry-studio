@@ -333,6 +333,23 @@ describe('ExportService', () => {
       expect(markdown).toContain('Parts-only content')
     })
 
+    it('uses the frozen producing author for the header, surviving rename/delete', async () => {
+      const message = createExportView([{ type: 'text', text: 'snapshotted reply' }])
+      message.messageSnapshot = {
+        assistant: {
+          id: 'a1',
+          name: 'My Assistant',
+          emoji: '🎯',
+          model: { id: 'gpt-5', name: 'GPT-5', provider: 'openai' }
+        }
+      }
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).toContain('## 🎯 My Assistant')
+      expect(markdown).not.toContain('## 🤖 Assistant')
+    })
+
     it('should format composer skill tokens as pasteable markers instead of hidden prompt text', async () => {
       const message = createExportView(
         [

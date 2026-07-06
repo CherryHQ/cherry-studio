@@ -23,6 +23,7 @@ import {
   getNamingTextContent,
   getThinkingContent
 } from '@renderer/utils/message/find'
+import { getMessageSnapshotAuthor } from '@shared/data/types/message'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 import DOMPurify from 'dompurify'
@@ -133,7 +134,12 @@ const sanitizeReasoningContent = (content: string): string => {
   })
 }
 
-const getRoleText = async (role: string, modelName?: string, providerId?: string): Promise<string> => {
+const getRoleText = async (
+  role: string,
+  modelName?: string,
+  providerId?: string,
+  author?: { name: string; emoji?: string }
+): Promise<string> => {
   const { showModelNameInMarkdown, showModelProviderInMarkdown } = await preferenceService.getMultiple({
     showModelNameInMarkdown: 'data.export.markdown.show_model_name',
     showModelProviderInMarkdown: 'data.export.markdown.show_model_provider'
@@ -143,9 +149,13 @@ const getRoleText = async (role: string, modelName?: string, providerId?: string
   } else if (role === 'system') {
     return '🤖 System'
   } else {
-    let assistantText = '🤖 '
+    // Prefer the frozen producing author (survives rename/delete); fall back to the generic label.
+    const emoji = author?.emoji || '🤖'
+    const authorLabel = author?.name || 'Assistant'
+    let assistantText = `${emoji} `
     if (showModelNameInMarkdown && modelName) {
-      assistantText += `${modelName}`
+      // Author-first (mirrors the on-screen header); model is secondary when the author is known.
+      assistantText += author?.name ? `${authorLabel} | ${modelName}` : modelName
       if (showModelProviderInMarkdown && providerId) {
         const providerDisplayName = i18n.t(getProviderLabelKey(providerId), { defaultValue: providerId })
         assistantText += ` | ${providerDisplayName}`
@@ -154,10 +164,10 @@ const getRoleText = async (role: string, modelName?: string, providerId?: string
       return assistantText
     } else if (showModelProviderInMarkdown && providerId) {
       const providerDisplayName = i18n.t(getProviderLabelKey(providerId), { defaultValue: providerId })
-      assistantText += `Assistant | ${providerDisplayName}`
+      assistantText += `${authorLabel} | ${providerDisplayName}`
       return assistantText
     }
-    return assistantText + 'Assistant'
+    return assistantText + authorLabel
   }
 }
 
@@ -190,7 +200,8 @@ const createBaseMarkdown = async (
   normalizeCitations: boolean = true
 ): Promise<{ titleSection: string; reasoningSection: string; contentSection: string; citation: string }> => {
   const forceDollarMathInMarkdown = await preferenceService.get('data.export.markdown.force_dollar_math')
-  const roleText = await getRoleText(message.role, message.model?.name, message.model?.provider)
+  const author = getMessageSnapshotAuthor('messageSnapshot' in message ? message.messageSnapshot : undefined)
+  const roleText = await getRoleText(message.role, message.model?.name, message.model?.provider, author)
   const titleSection = `## ${roleText}`
   let reasoningSection = ''
 
