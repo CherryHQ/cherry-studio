@@ -16,9 +16,15 @@ export interface OpenCodeNpmInfo {
 }
 
 export function resolveGeminiBaseUrl(provider: Provider): string {
-  return (
-    GEMINI_AGGREGATOR_BASE_URLS[provider.id] ?? provider.endpointConfigs?.['google-generate-content']?.baseUrl ?? ''
-  )
+  const dedicated =
+    GEMINI_AGGREGATOR_BASE_URLS[provider.id] ?? provider.endpointConfigs?.['google-generate-content']?.baseUrl
+  if (dedicated) return dedicated
+  // Aggregators allow-listed for Gemini CLI (CLI_TOOL_PROVIDER_MAP) without a dedicated
+  // google-generate-content endpoint or an entry above (e.g. CherryIN, DMXAPI) proxy every
+  // protocol off the same host as their default chat endpoint — mirrors the fallback
+  // buildCherryinConfig/dmxapiProvider.ts already rely on for real chat requests.
+  const fallbackEndpoint = provider.defaultChatEndpoint
+  return (fallbackEndpoint && provider.endpointConfigs?.[fallbackEndpoint]?.baseUrl) || ''
 }
 
 export function resolveClaudeBaseUrl(provider: Provider): string {

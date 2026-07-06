@@ -45,6 +45,19 @@ const geminiProvider = {
   }
 } as unknown as Provider
 
+/** CherryIN/DMXAPI: aggregators allow-listed for Gemini CLI with no dedicated
+ * google-generate-content endpoint and no GEMINI_AGGREGATOR_BASE_URLS entry —
+ * they proxy every protocol off their default chat endpoint's host. */
+const cherryinProvider = {
+  id: 'cherryin',
+  name: 'CherryIN',
+  defaultChatEndpoint: 'openai-chat-completions',
+  endpointConfigs: {
+    'anthropic-messages': { baseUrl: 'https://open.cherryin.net' },
+    'openai-chat-completions': { baseUrl: 'https://open.cherryin.net' }
+  }
+} as unknown as Provider
+
 const apiKeys: ApiKeyEntry[] = [{ id: 'k1', key: 'sk-secret', isEnabled: true }]
 
 describe('cliConfigConnectionMatchesProvider', () => {
@@ -171,6 +184,17 @@ describe('cliConfigConnectionMatchesProvider', () => {
         aihubmixProvider,
         apiKeys,
         'gemini-2.5-pro'
+      )
+    ).toBe(true)
+  })
+
+  it('matches a CherryIN-style aggregator with no dedicated Gemini endpoint against its default-chat-endpoint host', () => {
+    expect(
+      cliConfigConnectionMatchesProvider(
+        CodeCli.GEMINI_CLI,
+        { baseUrl: 'https://open.cherryin.net', apiKey: 'sk-secret' },
+        cherryinProvider,
+        apiKeys
       )
     ).toBe(true)
   })

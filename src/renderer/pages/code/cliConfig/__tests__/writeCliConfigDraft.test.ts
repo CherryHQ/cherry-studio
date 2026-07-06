@@ -25,6 +25,18 @@ const anthropicProvider = {
   defaultChatEndpoint: 'anthropic-messages'
 } as unknown as Provider
 
+/** Gemini-CLI-allow-listed aggregator (CLI_TOOL_PROVIDER_MAP) with no dedicated
+ * google-generate-content endpoint and no GEMINI_AGGREGATOR_BASE_URLS entry. */
+const cherryinProvider = {
+  id: 'cherryin',
+  name: 'CherryIN',
+  defaultChatEndpoint: 'openai-chat-completions',
+  endpointConfigs: {
+    'anthropic-messages': { baseUrl: 'https://open.cherryin.net' },
+    'openai-chat-completions': { baseUrl: 'https://open.cherryin.net' }
+  }
+} as unknown as Provider
+
 const ollamaProvider = {
   id: 'ollama',
   name: 'Ollama',
@@ -719,6 +731,23 @@ describe('writeCliConfigDraft', () => {
       expect(settings.context).toBeUndefined()
       expect(settings.tools).toBeUndefined()
       expect(settings.advanced).toBeUndefined()
+    })
+
+    it('resolves a CherryIN-style aggregator base URL from its default chat endpoint', async () => {
+      mockGet({
+        '/providers/cherryin': () => cherryinProvider,
+        '/providers/cherryin/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.GEMINI_CLI,
+        modelId: 'cherryin::agent/deepseek-v4-flash'
+      })
+
+      expect(findWrite('.env').content).toContain('GOOGLE_GEMINI_BASE_URL=https://open.cherryin.net')
+      const settings = JSON.parse(findWrite('settings.json').content)
+      expect(settings.model).toEqual({ name: 'agent/deepseek-v4-flash' })
     })
 
     it('preserves a field Cherry has no UI for instead of silently deleting it', async () => {
