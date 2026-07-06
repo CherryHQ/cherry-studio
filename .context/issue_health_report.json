@@ -1,92 +1,82 @@
 {
-  "generated_at": "2026-07-05",
+  "generated_at": "2026-07-06",
   "summary": {
-    "total_open": 942,
-    "active": 501,
-    "aging": 294,
-    "stale": 144,
-    "zombie": 3,
-    "health_score": "FAIR",
-    "health_note": "47% of open issues untouched in 30+ days. Active base 53.2% — flat vs yesterday (53.0%). 11 net closures today, mostly inactive/not_planned. 3 P1 issues still open aged 59–123 days."
-  },
-  "health_buckets": {
-    "Active":  {"count": 501, "pct": 53.2, "definition": "updated within last 30 days (since 2026-06-05)"},
-    "Aging":   {"count": 294, "pct": 31.2, "definition": "last updated 31–90 days ago (2026-04-06 to 2026-06-05)"},
-    "Stale":   {"count": 144, "pct": 15.3, "definition": "not updated in 91–180 days (2026-01-05 to 2026-04-05)"},
-    "Zombie":  {"count": 3,   "pct": 0.3,  "definition": "not updated in 180+ days (before 2026-01-05)",
-      "list": [
-        {"number": 5712,  "title": "【需求汇总】Agents with Workflows / 工作流&协同",      "last_updated": "2025-10-23", "created": "2025-05-07"},
-        {"number": 10844, "title": "[Feature]: Backup feature enhance",                  "last_updated": "2025-11-01", "created": "2025-10-20"},
-        {"number": 11578, "title": "Upgrade to the MCP protocol by November 25, 2025.", "last_updated": "2025-11-30", "created": "2025-11-30"}
-      ]
-    }
+    "total_open": 946,
+    "health_score": "CAUTION",
+    "health_note": "946 open issues (+4 vs yesterday). 96 unlabeled (10.1%). 3 P1s open 60–124 days. Security CVE PR #16748 unmerged. Active bot-close wave visible (59/100 recent issues carry 'inactive'). Positive: 385 closed in 30 days and v1.9.12 shipped yesterday.",
+    "active_30d_estimate": "~500+ (385 closed; high update velocity this week)",
+    "closed_last_30d": 385
   },
   "p1_issues": [
-    {"number": 14899, "title": "[Feature]: Unified Notification Center",                            "labels": ["Planned", "P1", "feature", "UI/UX"], "milestone": "v2.4.0", "age_days": 59, "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"},
-    {"number": 13608, "title": "[Bug]: xiaomi mimo response only displays the last line",           "labels": ["P1", "Models"],                       "age_days": 109, "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"},
-    {"number": 13193, "title": "[Bug]: AI_APICallError: Resource not found (Azure OpenAI responses API)", "labels": ["P1", "Models"], "assignee": "DeJeune", "age_days": 123, "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"}
+    {
+      "number": 14899,
+      "title": "[Feature]: Unified Notification Center",
+      "labels": ["Planned", "P1", "feature", "UI/UX"],
+      "milestone": "v2.4.0",
+      "age_days": 60,
+      "assignee": null,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899",
+      "risk": "Planned but unassigned — v2.4.0 milestone has 37 open issues"
+    },
+    {
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "labels": ["P1", "Models"],
+      "age_days": 110,
+      "assignee": null,
+      "milestone": "v1.8.1 (closed)",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
+      "risk": "Milestone closed, still open — likely orphaned. 110 days old."
+    },
+    {
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI defaults to responses API (404 Resource not found)",
+      "labels": ["P1", "Models"],
+      "age_days": 124,
+      "assignee": "DeJeune",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
+      "risk": "4+ months old. Assigned but no recent activity. Breaking for Azure users."
+    }
   ],
-  "bug_analysis": {
-    "total_open_bug_label": 100,
-    "stale_30d_plus": 97,
-    "fresh_last_7d": 3,
-    "top_by_reactions": [
-      {"number": 10241, "title": "Tool calling results dropped in subsequent conversation",      "reactions_plus1": 5, "days_stale": 82},
-      {"number": 11765, "title": "Provider cannot overwrite User-Agent header",                  "reactions_plus1": 4, "days_stale": 47},
-      {"number": 13082, "title": "Frequent lag during normal operations",                        "reactions_plus1": 3, "days_stale": 77},
-      {"number": 12890, "title": "Image-based PDF cannot be properly read",                      "reactions_plus1": 3, "days_stale": 2},
-      {"number": 12534, "title": "No allowed providers available for selected model",            "reactions_plus1": 3, "days_stale": 81}
-    ],
-    "top_by_comments": [
-      {"number": 12618, "title": "Unable to configure Azure/Anthropic API",                      "comments": 14},
-      {"number": 12612, "title": "Azure OpenAI gpt-5.2 Unsupported parameter 'messages'",       "comments": 13},
-      {"number": 12268, "title": "Agent Error",                                                   "comments": 10},
-      {"number": 12230, "title": "Reasoning effort not set",                                      "comments": 8},
-      {"number": 12890, "title": "Image-based PDF file cannot be read",                          "comments": 7}
-    ],
-    "oldest_bugs": [
-      {"number": 5825,  "title": "[错误]: 使用第三方claude api，输出有问题",              "created": "2025-05-10", "updated": "2026-03-11"},
-      {"number": 10073, "title": "API Comma Splitting breaking OpenAI Compatible endpoints",  "created": "2025-09-09", "updated": "2026-03-11"},
-      {"number": 10228, "title": "Graphviz codes rendering failure",                          "created": "2025-09-17", "updated": "2026-03-11"}
-    ],
-    "note": "The 'BUG' label is applied conservatively. Many bug-titled issues carry other labels (UI/UX, Models, inactive, MCP). True bug count is much higher than 100."
-  },
-  "unlabeled_issues": {
-    "count": 93,
-    "pct": 9.9,
-    "new_unlabeled_today": [
-      {"number": 16742, "title": "[Bug]: WebDAV backup fails with proxy (socket hang up)"},
-      {"number": 15692, "title": "[Bug]: Builtin skills sync creates garbage directories with backslash paths in ~/Downloads", "note": "labeled 'inactive' but root cause unresolved"}
-    ],
-    "action": "Triage needed. Available labels: BUG, feature, UI/UX, Models, RAG, MCP, Performance, Assistant, Data, Connectivity, needs-repro, needs-more-info, help wanted, discussion, internal_team, Planned, P1, inactive"
-  },
   "security_issues_open": [
-    {"number": 15409, "title": "[Bug]: CherryIN OAuth flow can be completed by different renderer sender", "labels": ["needs-triage", "inactive"], "note": "Cross-renderer OAuth hijack. Verify if fixed in current build."},
-    {"number": 16677, "title": "[Bug]: Knowledge base embedding ignores provider custom headers (Authorization dropped)", "labels": ["RAG"], "note": "Auth headers stripped in RAG requests — security-relevant"}
+    {
+      "type": "PR",
+      "number": 16748,
+      "title": "fix: upgrade @hono/node-server to 1.19.10 (CVE-2026-29087)",
+      "author": "orbisai0security",
+      "created_at": "2026-07-05",
+      "priority": "HIGH — CVE fix awaiting review/merge"
+    }
   ],
   "data_integrity_issues_open": [
-    {"number": 15316, "title": "[Bug]: agents.db backup races with concurrent writes, producing corrupted restores", "labels": ["needs-triage", "Data"], "milestone": "v1.9.8", "assignee": "kangfenmao"},
-    {"number": 15423, "title": "[CRITICAL/Data Loss]: Total Wipe of All Chat Sessions due to IndexedDB & Full Disk", "labels": ["Data", "inactive"], "note": "Unresolved data-loss despite inactive label"}
+    {
+      "number": 15423,
+      "title": "[CRITICAL/Data Loss]: Total Wipe of All Chat Sessions due to IndexedDB & Full Disk",
+      "labels": ["Data", "inactive"],
+      "note": "Labeled inactive but unresolved data-loss scenario"
+    }
   ],
   "inactive_label_analysis": {
-    "total_open": 128,
-    "note": "128 open issues carry the 'inactive' label (confirmed via label search today). Co-label breakdown from yesterday's sample:",
-    "co_labels_top": {"UI/UX": 31, "Assistant": 21, "Models": 17, "needs-repro": 14, "MCP": 10, "BUG": 8}
+    "count_in_first_100_sample": 59,
+    "note": "59 of the 100 most recently updated issues carry 'inactive' — automated bot-close wave in progress"
   },
-  "oldest_open_issue": {
-    "number": 5712,
-    "title": "【需求汇总】Agents with Workflows / 工作流&协同",
-    "created": "2025-05-07",
-    "last_updated": "2025-10-23",
-    "labels": ["invalid", "inactive"],
-    "age_days": 424
+  "unlabeled_issues": {
+    "count": 96,
+    "pct": 10.1,
+    "action": "Triage needed. Available labels: BUG, feature, UI/UX, Models, RAG, MCP, Performance, Assistant, Data, Connectivity, needs-repro, help wanted, discussion, Planned, P1, inactive"
   },
+  "top_issues_by_engagement": [
+    {"number": 6505,  "title": "划词助手 / Selection Assistant FAQ&反馈", "comments": 364, "updated": "2026-07-03"},
+    {"number": 11101, "title": "[Feature]: Keep Tool Calling Context",      "comments": 13,  "labels": ["feature","MCP","inactive"]},
+    {"number": 13959, "title": "[Bug]: Built-in OpenClaw needs upgrade for Playwright CDP", "comments": 8},
+    {"number": 13953, "title": "[Bug]: Assistant stops after successful search tool use",  "comments": 7},
+    {"number": 14499, "title": "Cherry Claw cannot use Mimo Token Plan",    "comments": 7}
+  ],
   "recommendations": [
-    "BUG #10241 (MCP tool dropping) has most upvotes (5) and is 82d stale — assign owner.",
-    "3 P1 issues open 59–123 days: #13193 (Azure API, assigned DeJeune, 123d), #13608 (xiaomi mimo, 109d), #14899 (Notification Center, 59d, v2.4.0 milestone).",
-    "93 issues lack any label — schedule triage pass (down 5 from yesterday).",
-    "Security: #16677 (RAG auth header drop) and #15409 (OAuth cross-renderer) both open and inactive/unlabeled — escalate.",
-    "128 inactive-labeled open issues: bulk-close or re-evaluate scope.",
-    "Oldest PR #12659 is 156 days old (feat(backup) — likely superseded by v2 backup work)."
+    "URGENT: Review and merge PR #16748 (CVE-2026-29087 @hono/node-server).",
+    "3 P1 issues open 60–124 days: #13193 (Azure API, assigned DeJeune, 124d), #13608 (mimo, 110d), #14899 (Notification Center, 60d, v2.4.0).",
+    "96 unlabeled issues (10.1%) — schedule triage pass.",
+    "New today: #16785 (SiliconFlow image gen broken), #16784 (Fireworks AI config), #16764 (white screen regression) — all need triage.",
+    "Data-loss issue #15423 is labeled inactive but the root cause is unresolved — re-evaluate."
   ]
 }

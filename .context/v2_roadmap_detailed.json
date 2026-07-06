@@ -1,113 +1,90 @@
 {
-  "generated_at": "2026-07-05",
-  "v2_status": {
-    "branch": "merged_into_main",
-    "summary": "v2 refactor branch has been merged into main. main is now the active development branch with v1 and v2 code coexisting. Large, frequent, breaking changes expected.",
+  "generated_at": "2026-07-06",
+  "data_source": "GitHub MCP API",
+  "v2_branch_status": {
     "open_prs_targeting_v2": 0,
-    "open_prs_targeting_main": 304,
-    "note": "No open PRs target the v2 branch. All active development goes to main."
+    "merged_prs_to_v2_historical": 24,
+    "note": "v2 branch merged into main. Active development on main. v1+v2 code coexist."
   },
-  "data_layer_migration": {
-    "removing": ["Dexie", "ElectronStore"],
-    "adopting": ["Cache", "Preference", "DataApi"],
-    "redux_status": "fully_removed",
-    "dexie_status": "in_progress — PR #16440 removes last v2 Dexie settings table dependencies (avatar→Preference, provider logos→DataApi, MCP cache→persist-cache)"
+  "active_milestones": {
+    "v2_4_0": {
+      "title": "v2.4.0",
+      "open_issues": 37,
+      "closed_issues": 5,
+      "created_at": "2026-04-30",
+      "last_updated": "2026-07-02",
+      "key_items": [
+        {"number": 14899, "title": "Unified Notification Center", "labels": ["Planned", "P1"], "assigned": false}
+      ]
+    }
   },
-  "recent_v2_pr_activity": {
-    "merged_prs_last_30d": 310,
-    "merged_prs_last_7d": 70,
-    "avg_merge_time_days": 1.8,
-    "top_contributors": [
-      {"author": "zhangjiadi225", "merges": 16},
-      {"author": "DeJeune",       "merges": 16},
-      {"author": "eeee0717",      "merges": 15},
-      {"author": "ousugo",        "merges": 10},
-      {"author": "vaayne",        "merges": 10}
-    ],
-    "merge_type_breakdown": {
-      "fix": 57,
-      "feat": 24,
-      "refactor": 13,
-      "perf": 2,
-      "chore": 1,
-      "docs": 1,
-      "other": 2
-    },
-    "notable_open_prs": [
-      {
-        "number": 16440,
-        "title": "refactor(dexie): retire the settings table from v2 storage paths",
-        "age_days": 10,
-        "author": "DeJeune",
-        "significance": "Removes last v2 Dexie settings table dependencies. Adds migration 0015."
-      },
-      {
-        "number": 15239,
-        "title": "Feature/expand branch chat v2",
-        "age_days": 45,
-        "author": "unknown",
-        "significance": "Long-standing feature PR, 45 days open"
-      },
-      {
-        "number": 12659,
-        "title": "feat(backup): add v2 backup system refactor plan document",
-        "age_days": 156,
-        "author": "unknown",
-        "significance": "Oldest open PR — likely superseded by v2 backup implementation"
-      }
-    ],
-    "notable_merged_recently": [
-      "fix(resource): improve assistant tag selector dialog behavior (#16724) — 2026-07-04",
-      "fix(dialog): close dialogs on overlay click by default (#16725) — 2026-07-04",
-      "fix(provider-registry): restore login-based providers lost in catalog regeneration (#16723) — 2026-07-04",
-      "fix(composer): preserve pasted scoped shell commands (#16709) — 2026-07-04",
-      "fix(mcp-migration): fallback unnamed servers to id (#16717) — 2026-07-03",
-      "fix(translate): preserve stopped output and polish history drawer (#16679) — 2026-07-03",
-      "fix(agent-artifacts): enable deliverable context actions (#16694) — 2026-07-03"
-    ]
-  },
-  "open_issues_v2_labeled": 1,
-  "stale_bugs_v2_labeled": [
+  "latest_releases": [
     {
-      "number": 13082,
-      "title": "[Bug]: Frequent lag during normal operations",
-      "labels": ["BUG", "Planned", "Performance", "v2"],
-      "days_since_update": 77,
-      "upvotes": 3,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13082"
+      "tag": "v1.9.12",
+      "published": "2026-07-05",
+      "prs": 18,
+      "highlights": [
+        "Claude Fable/Opus 5 capability detection",
+        "DeepSeek V4+ reasoning_effort forwarding",
+        "MiniMax-M3 thinking control fix",
+        "Kimi K2.7 Code support",
+        "hono CVE-2026-29087 fix (bundled in release)"
+      ]
+    },
+    {"tag": "v1.9.11", "published": "2026-06-07", "prs": 12},
+    {"tag": "v1.9.9",  "published": "2026-06-02", "prs": 3}
+  ],
+  "active_main_prs_of_note": [
+    {
+      "number": 15988,
+      "title": "feat(ai-params): context-build — truncate tool results + history compression via context-chef",
+      "author": "MyPrototypeWhat",
+      "age_days": 25,
+      "status": "open, non-draft",
+      "note": "Large architectural PR — context truncation + history compression. Related follow-up: issue #16786"
     },
     {
-      "number": 11571,
-      "title": "[Bug]: There is a Minor Issue with MessageContentLoading",
-      "labels": ["BUG", "v2"],
-      "days_since_update": 89,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/11571"
+      "number": 16440,
+      "title": "refactor(dexie): retire the settings table from v2 storage paths",
+      "author": "DeJeune",
+      "note": "v2 cleanup: removing Dexie per CLAUDE.md v2 refactoring plan"
+    },
+    {
+      "number": 16726,
+      "title": "refactor(agent): remove CherryClaw branding and Soul Mode toggle",
+      "author": "vaayne",
+      "note": "Agent simplification — CherryClaw → Agent rename"
+    },
+    {
+      "number": 16748,
+      "title": "fix: upgrade @hono/node-server to 1.19.10 (CVE-2026-29087)",
+      "author": "orbisai0security",
+      "priority": "HIGH — security CVE, review needed"
+    },
+    {
+      "number": 16510,
+      "title": "refactor(settings): data, integration & tool settings pages [D/5]",
+      "author": "SiinXu",
+      "base": "SiinXu/ui-design-system-08-ps-components",
+      "note": "Part of UI design system adoption series"
     }
   ],
-  "ui_design_system_prs": {
-    "note": "9+ stacked SiinXu/ui-design-system-* PRs open, chained against each other (not main). These are large UI redesign PRs progressing incrementally.",
-    "base_branches_detected": [
-      "SiinXu/ui-design-system-12-other-pages",
-      "SiinXu/ui-design-system-11-launchpad",
-      "SiinXu/ui-design-system-09-data-settings",
-      "SiinXu/ui-design-system-08-ps-components",
-      "SiinXu/ui-design-system-07-ps-lists",
-      "SiinXu/ui-design-system-06-ps-base",
-      "SiinXu/ui-design-system-05-sidebar-nav",
-      "SiinXu/ui-design-system-04-window-shell",
-      "SiinXu/ui-design-system-03-composites"
-    ]
+  "v2_refactoring_signals": {
+    "dexie_removal": "PR #16440 — retiring Dexie settings table (v2 data layer cleanup)",
+    "data_layer": "DataApi/Preference/Cache/BootConfig architecture in active adoption",
+    "ui_layer": "@cherrystudio/ui adoption via SiinXu UI design system series",
+    "agent_rename": "PR #16726 removes CherryClaw branding — Agent simplification complete",
+    "context_build": "PR #15988 (25d open) — large AI context truncation/compression feature; follow-up issue #16786 filed today",
+    "popup_refactor": "PR #16782 — replacing TopView god-component with imperative popup/toast tracks"
   },
-  "schema_migration_status": {
-    "note": "Drizzle schemas in src/main/data/db/schemas/; migrations in migrations/sqlite-drizzle/. Dev-only artifacts — will be regenerated as clean initial migration before release.",
-    "latest_known_migration": "0015_tranquil_terrax.sql (adds logo column to user_provider — from PR #16440)"
-  },
-  "milestone_v2_4_0": {
-    "open_issues": 37,
-    "closed_issues": 5,
-    "p1_in_milestone": [
-      {"number": 14899, "title": "[Feature]: Unified Notification Center", "age_days": 59}
-    ],
-    "note": "Milestone v2.4.0 has 37 open issues and 5 closed. P1 Notification Center (#14899) is active."
-  }
+  "security_open": [
+    {
+      "pr": 16748,
+      "cve": "CVE-2026-29087",
+      "package": "@hono/node-server",
+      "target_version": "1.19.10",
+      "priority": "HIGH",
+      "note": "Open since 2026-07-05 — needs review and merge"
+    }
+  ]
 }
