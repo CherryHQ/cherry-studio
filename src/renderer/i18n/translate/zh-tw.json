@@ -7983,12 +7983,12 @@
     "visualization": "視覺化"
   },
   "xlsx_preview": {
-    "chart_unsupported": "[to be translated]:This chart type isn't supported yet",
-    "formula_not_evaluated": "[to be translated]:Formula couldn't be evaluated",
-    "sheet_tabs_label": "[to be translated]:Sheets",
+    "chart_unsupported": "暫不支援此圖表類型",
+    "formula_not_evaluated": "公式無法求值",
+    "sheet_tabs_label": "工作表",
     "too_large": {
-      "description": "[to be translated]:File exceeds the {{limit}} preview limit.",
-      "title": "[to be translated]:File too large to preview"
+      "description": "檔案超過 {{limit}} 的預覽大小限制。",
+      "title": "檔案過大，無法預覽"
     }
   }
 }
