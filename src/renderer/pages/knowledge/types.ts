@@ -1,4 +1,4 @@
-import type { KnowledgeChunkStrategy, KnowledgeSearchMode } from '@shared/data/types/knowledge'
+import type { KnowledgeChunkStrategy } from '@shared/data/types/knowledge'
 
 export type KnowledgeTabKey = 'data' | 'rag' | 'recall'
 
@@ -17,6 +17,4 @@ export interface KnowledgeRagConfigFormValues {
   rerankModelId: string | null
   documentCount: number
   threshold: number
-  searchMode: KnowledgeSearchMode
-  hybridAlpha: number | null
 }

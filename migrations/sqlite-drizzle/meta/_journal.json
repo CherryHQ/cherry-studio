@@ -130,8 +130,15 @@
     {
       "idx": 18,
       "version": "6",
-      "when": 1783053102770,
-      "tag": "0018_flippant_gambit",
+      "when": 1783248309483,
+      "tag": "0018_aberrant_shinobi_shaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1783331259758,
+      "tag": "0019_nifty_whiplash",
       "breakpoints": true
     }
   ],
