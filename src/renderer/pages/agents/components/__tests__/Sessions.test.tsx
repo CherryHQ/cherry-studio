@@ -238,6 +238,7 @@ const cacheMocks = vi.hoisted(() => ({
 }))
 
 const tabsContextMocks = vi.hoisted(() => ({
+  closeConversationTabs: vi.fn(),
   openTab: vi.fn(),
   setActiveTab: vi.fn(),
   tabs: [] as Array<{ id: string; type: string; url: string }>
@@ -297,6 +298,7 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
+  useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs,
   useOptionalTabsContext: () => tabsContextMocks,
   useCurrentTabId: () => null
 }))
