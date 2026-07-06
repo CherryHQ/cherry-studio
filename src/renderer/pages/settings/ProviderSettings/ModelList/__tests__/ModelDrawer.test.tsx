@@ -1,3 +1,5 @@
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -127,11 +129,6 @@ describe('Model drawers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ;(window as any).api.getAppInfo = vi.fn().mockResolvedValue({})
-    ;(window as any).toast = {
-      success: vi.fn(),
-      error: vi.fn()
-    }
-    ;(window as any).modal = { confirm: vi.fn() }
 
     useModelsMock.mockReturnValue({ models: [] })
   })
@@ -225,7 +222,7 @@ describe('Model drawers', () => {
       rejectCreate(new Error('create failed'))
     })
 
-    expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
     expect(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i })).not.toBeDisabled()
   })
 
@@ -376,16 +373,16 @@ describe('Model drawers', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /common\.delete/i }))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /common\.delete/i }))
+    })
 
-    expect(window.modal.confirm).toHaveBeenCalledTimes(1)
-    const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(popup.confirm).toHaveBeenCalledTimes(1)
+    const options = vi.mocked(popup.confirm).mock.calls[0][0]
     expect(options.okButtonProps).toEqual({ danger: true })
 
-    await options.onOk()
-
     expect(deleteModelMock).toHaveBeenCalledWith('openai', 'claude-4-sonnet')
-    expect(window.toast.success).toHaveBeenCalledWith('common.delete_success')
+    expect(toast.success).toHaveBeenCalledWith('common.delete_success')
     expect(onClose).toHaveBeenCalled()
   })
 

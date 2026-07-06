@@ -18,14 +18,12 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
 import { SettingSubtitle } from '@renderer/components/SettingsPrimitives'
-import { TopView } from '@renderer/components/TopView/TopView'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { CircleHelp } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface Props {
-  resolve: (data: any) => void
-}
+type Props = PopupInjectedProps<any>
 
 export const TopicNamingSettings = () => {
   const [enableTopicNaming, setEnableTopicNaming] = usePreference('topic.naming.enabled')
@@ -90,16 +88,10 @@ export const TopicNamingSettings = () => {
   )
 }
 
-const PopupContainer: React.FC<Props> = ({ resolve }) => {
-  const [open, setOpen] = useState(true)
+const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const { t } = useTranslation()
 
-  const closePopup = () => {
-    setOpen(false)
-    resolve({})
-  }
-
-  TopicNamingModalPopup.hide = closePopup
+  const closePopup = () => resolve({})
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && closePopup()}>
@@ -122,24 +114,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   )
 }
 
-const TopViewKey = 'TopicNamingModalPopup'
+const TopicNamingModalPopup = createPopup<Record<string, never>, any>(PopupContainer, { dismissResult: {} })
 
-export default class TopicNamingModalPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide(TopViewKey)
-  }
-  static show() {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
-    })
-  }
-}
+export default TopicNamingModalPopup

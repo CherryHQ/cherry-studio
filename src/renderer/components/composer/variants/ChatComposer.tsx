@@ -29,6 +29,7 @@ import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvide
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -818,7 +819,7 @@ const ChatComposerInner = ({
     isFulfilled,
     markSeen,
     onDrain: sendQueuedPayload,
-    onDrainFailed: () => window.toast?.error(t('chat.input.send_failed'))
+    onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
 
   // Edit a queued item = restore the whole draft (text + tokens + files + knowledge bases) into the
@@ -876,7 +877,7 @@ const ChatComposerInner = ({
 
       if (editingMessageForCurrentTopic) {
         if (!chatWrite?.forkAndResend) {
-          window.toast?.error(t('message.error.operation_unavailable'))
+          toast.error(t('message.error.operation_unavailable'))
           return
         }
 
@@ -889,23 +890,23 @@ const ChatComposerInner = ({
           stopEditing()
         } catch (error) {
           logger.warn('edited message fork and resend failed', { error })
-          window.toast?.error(t('message.error.operation_unavailable'))
+          toast.error(t('message.error.operation_unavailable'))
         }
         return
       }
 
       if (missingAssistantMessage) {
-        window.toast?.error(selectAssistantMessage)
+        toast.error(selectAssistantMessage)
         return
       }
 
       if (!runtimeModel && !selectedModelForMissingAssistantDefault) {
-        window.toast?.error(t('code.model_required'))
+        toast.error(t('code.model_required'))
         return
       }
 
       if (missingSelectedModelMessage) {
-        window.toast?.error(missingSelectedModelMessage)
+        toast.error(missingSelectedModelMessage)
         return
       }
 
@@ -943,7 +944,7 @@ const ChatComposerInner = ({
         setText(previousText)
         setFiles(previousFiles)
         setSelectedKnowledgeBases(previousKnowledgeBases)
-        window.toast?.error(t('chat.input.send_failed'))
+        toast.error(t('chat.input.send_failed'))
       }
     },
     [
@@ -1060,7 +1061,7 @@ const ChatComposerInner = ({
                 // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
                 const sent = await sendQueuedPayload(item.payload)
                 if (sent) removeFollowup(id)
-                else window.toast?.error(t('chat.input.send_failed'))
+                else toast.error(t('chat.input.send_failed'))
               }}
               onEdit={(id) => {
                 const item = queuedFollowups.find((entry) => entry.id === id)

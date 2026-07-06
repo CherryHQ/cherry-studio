@@ -17,6 +17,7 @@ import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
@@ -149,7 +150,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
       if (!selected) return
       void setDefaultModel(selected).catch((error) => {
         logger.error('Failed to set default model', { modelId: selected.id, error })
-        window.toast.error(t('settings.models.manage.operation_failed'))
+        toast.error(t('settings.models.manage.operation_failed'))
       })
     },
     [setDefaultModel, t]

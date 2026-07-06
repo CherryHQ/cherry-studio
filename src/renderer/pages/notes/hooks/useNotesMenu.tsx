@@ -6,6 +6,8 @@ import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { exportNote } from '@renderer/services/ExportService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode } from '@renderer/types/note'
 import { Edit3, FilePlus, FileSearch, Folder, FolderOpen, Sparkles, Star, StarOff, UploadIcon } from 'lucide-react'
 import { useCallback } from 'react'
@@ -54,17 +56,17 @@ export const useNotesMenu = ({
     async (note: NotesTreeNode) => {
       try {
         if (bases.length === 0) {
-          window.toast.warning(t('chat.save.knowledge.empty.no_knowledge_base'))
+          toast.warning(t('chat.save.knowledge.empty.no_knowledge_base'))
           return
         }
 
         const result = await SaveToKnowledgePopup.showForNote(note)
 
         if (result?.success) {
-          window.toast.success(t('notes.export_success', { count: result.savedCount }))
+          toast.success(t('notes.export_success', { count: result.savedCount }))
         }
       } catch (error) {
-        window.toast.error(t('notes.export_failed'))
+        toast.error(t('notes.export_failed'))
         logger.error(`Failed to export note to knowledge base: ${error}`)
       }
     },
@@ -82,7 +84,7 @@ export const useNotesMenu = ({
         await exportNote({ node, platform })
       } catch (error) {
         logger.error(`Failed to ${platform === 'copyImage' ? 'copy' : 'export'} as image:`, error as Error)
-        window.toast.error(t('common.copy_failed'))
+        toast.error(t('common.copy_failed'))
       }
     },
     [activeNode, onSelectNode, t]
@@ -94,7 +96,7 @@ export const useNotesMenu = ({
         await fn()
       } catch (error) {
         logger.error('note export failed', error as Error)
-        window.toast.error(t('notes.export_failed'))
+        toast.error(t('notes.export_failed'))
       }
     },
     [t]
@@ -112,7 +114,7 @@ export const useNotesMenu = ({
           ? t('notes.delete_folder_confirm', { name: node.name })
           : t('notes.delete_note_confirm', { name: node.name })
 
-      window.modal.confirm({
+      popup.confirm({
         title: t('notes.delete'),
         content: confirmText,
         centered: true,

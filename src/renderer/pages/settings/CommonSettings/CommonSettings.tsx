@@ -42,6 +42,8 @@ import {
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName
 } from '@renderer/pages/settings/settingsStyles'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { NotificationSource } from '@renderer/types/notification'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isLinux, isMac } from '@renderer/utils/platform'
@@ -120,7 +122,7 @@ export function confirmMenuPresentationModeChange({
 }: MenuPresentationModeChangeOptions): void {
   if (mode === currentMode) return
 
-  void window.modal.confirm({
+  void popup.confirm({
     title: t('settings.general.common.menu.presentation_mode.restart.title'),
     content: t('settings.general.common.menu.presentation_mode.restart.content'),
     okText: t('common.confirm'),
@@ -130,7 +132,7 @@ export function confirmMenuPresentationModeChange({
       try {
         await setMenuPresentationMode(mode)
       } catch (error) {
-        window.toast.error(formatErrorMessage(error))
+        toast.error(formatErrorMessage(error))
         throw error
       }
 
@@ -358,7 +360,7 @@ const CommonSettings: FC = () => {
   )
 
   const handleUseSystemTitleBarChange = (checked: boolean) => {
-    void window.modal.confirm({
+    void popup.confirm({
       title: t('settings.use_system_title_bar.confirm.title'),
       content: t('settings.use_system_title_bar.confirm.content'),
       okText: t('common.confirm'),
@@ -368,7 +370,7 @@ const CommonSettings: FC = () => {
         try {
           await setUseSystemTitleBar(checked)
         } catch (error) {
-          window.toast.error(formatErrorMessage(error))
+          toast.error(formatErrorMessage(error))
           throw error
         }
 
@@ -384,7 +386,7 @@ const CommonSettings: FC = () => {
   }
 
   const handleHardwareAccelerationChange = (checked: boolean) => {
-    void window.modal.confirm({
+    void popup.confirm({
       title: t('settings.hardware_acceleration.confirm.title'),
       content: t('settings.hardware_acceleration.confirm.content'),
       okText: t('common.confirm'),
@@ -394,7 +396,7 @@ const CommonSettings: FC = () => {
         try {
           await setDisableHardwareAcceleration(checked)
         } catch (error) {
-          window.toast.error(formatErrorMessage(error))
+          toast.error(formatErrorMessage(error))
           throw error
         }
 
@@ -433,7 +435,7 @@ const CommonSettings: FC = () => {
 
   const onSetProxyUrl = () => {
     if (proxyUrl && !isValidProxyUrl(proxyUrl)) {
-      window.toast.error(t('message.error.invalid.proxy.url'))
+      toast.error(t('message.error.invalid.proxy.url'))
       return
     }
 

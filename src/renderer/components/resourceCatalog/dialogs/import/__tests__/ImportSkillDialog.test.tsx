@@ -23,9 +23,9 @@ vi.mock('@renderer/hooks/useSkills', () => ({
   useSkillInstall: () => ({ installFromZip, installFromDirectory })
 }))
 
-import { ImportSkillDialog } from '../ImportSkillDialog'
+import { toast } from '@renderer/services/toast'
 
-const toastError = vi.fn()
+import { ImportSkillDialog } from '../ImportSkillDialog'
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -47,7 +47,6 @@ beforeAll(() => {
 beforeEach(() => {
   vi.clearAllMocks()
   Object.assign(window, {
-    toast: { ...window.toast, error: toastError },
     api: {
       ...window.api,
       file: {
@@ -107,6 +106,6 @@ describe('ImportSkillDialog', () => {
     // The dialog surfaces the error inline...
     await waitFor(() => expect(screen.getByText('corrupt archive')).toBeInTheDocument())
     // ...and does NOT add its own toast on top of the hook's `reportAndRethrowSkillMutationError`.
-    expect(toastError).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })

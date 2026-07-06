@@ -1,3 +1,4 @@
+import { popup } from '@renderer/services/popup'
 import { isEmpty } from 'es-toolkit/compat'
 import i18next from 'i18next'
 
@@ -23,7 +24,7 @@ export async function checkProviderEnabled(provider: PaintingProviderRuntime): P
 
   if (!provider.isEnabled) {
     return new Promise((_, reject) => {
-      window.modal.warning({
+      popup.warning({
         content: i18next.t('error.provider_disabled'),
         centered: true,
         closable: true,
@@ -43,7 +44,7 @@ export async function checkProviderEnabled(provider: PaintingProviderRuntime): P
   }
 
   return new Promise((_, reject) => {
-    window.modal.warning({
+    popup.warning({
       content: i18next.t('error.no_api_key'),
       centered: true,
       closable: true,

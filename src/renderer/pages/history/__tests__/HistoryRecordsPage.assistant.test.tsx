@@ -267,6 +267,9 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+
 import HistoryRecordsPage from '../HistoryRecordsPage'
 
 function createTopic(overrides: Partial<Topic> = {}): Topic {
@@ -321,16 +324,6 @@ const flushCommandMenuAction = () => new Promise<void>((resolve) => queueMicrota
 describe('HistoryRecordsPage assistant mode', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
-    Object.assign(window, {
-      modal: {
-        confirm: vi.fn()
-      },
-      toast: {
-        error: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn()
-      }
-    })
     hookMocks.useAgents.mockReset()
     hookMocks.useTopics.mockReset()
     hookMocks.useAssistants.mockReset()
@@ -531,7 +524,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     })
 
     expect(hookMocks.deleteTopics).toHaveBeenCalledWith(['topic-alpha'])
-    expect(window.toast.error).toHaveBeenCalledWith('Bulk delete failed')
+    expect(toast.error).toHaveBeenCalledWith('Bulk delete failed')
     expect(onRecordSelect).not.toHaveBeenCalled()
   })
 
@@ -714,7 +707,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       { id: 'topic-beta', dto: { assistantId: 'assistant-beta' } }
     ])
     expect(hookMocks.updateTopic).not.toHaveBeenCalled()
-    expect(window.toast.success).toHaveBeenCalledWith('Moved 2 conversation(s)')
+    expect(toast.success).toHaveBeenCalledWith('Moved 2 conversation(s)')
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
   })
@@ -756,9 +749,9 @@ describe('HistoryRecordsPage assistant mode', () => {
       { id: 'topic-alpha', dto: { assistantId: 'assistant-beta' } },
       { id: 'topic-beta', dto: { assistantId: 'assistant-beta' } }
     ])
-    expect(window.toast.warning).toHaveBeenCalledWith('Moved 1 of 2 conversation(s); 1 failed')
-    expect(window.toast.error).not.toHaveBeenCalled()
-    expect(window.toast.success).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('Moved 1 of 2 conversation(s); 1 failed')
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
 
     // The successfully-moved topic is pruned from the selection; the failed one stays selected.
     const alphaCheckbox = within(screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement).getByRole(
@@ -1021,7 +1014,7 @@ describe('HistoryRecordsPage assistant mode', () => {
         isNameManuallyEdited: true
       })
     )
-    expect(window.toast.success).toHaveBeenCalledWith('Saved')
+    expect(toast.success).toHaveBeenCalledWith('Saved')
   })
 
   it('shows an error when topic rename from history fails', async () => {
@@ -1052,8 +1045,8 @@ describe('HistoryRecordsPage assistant mode', () => {
         isNameManuallyEdited: true
       })
     )
-    expect(window.toast.error).toHaveBeenCalledWith('Rename failed')
-    expect(window.toast.success).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('Rename failed')
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('does not persist empty or unchanged topic names from history rename dialog', async () => {
@@ -1106,6 +1099,7 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
+    vi.mocked(popup.confirm).mockImplementationOnce(async () => true)
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
@@ -1113,10 +1107,10 @@ describe('HistoryRecordsPage assistant mode', () => {
       await flushCommandMenuAction()
     })
 
-    expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Conversations' }))
+    expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Conversations' }))
     expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
 
-    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
+    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
       await confirmOptions?.onOk?.()
       await flushAnimationFrame()
@@ -1144,6 +1138,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       />
     )
 
+    vi.mocked(popup.confirm).mockImplementationOnce(async () => true)
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
@@ -1151,7 +1146,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       await flushCommandMenuAction()
     })
 
-    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
+    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
       await confirmOptions?.onOk?.()
       await flushAnimationFrame()
@@ -1207,6 +1202,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       />
     )
 
+    vi.mocked(popup.confirm).mockImplementationOnce(async () => true)
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
@@ -1214,7 +1210,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       await flushCommandMenuAction()
     })
 
-    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
+    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
       await confirmOptions?.onOk?.()
       await flushAnimationFrame()
@@ -1244,6 +1240,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       />
     )
 
+    vi.mocked(popup.confirm).mockImplementationOnce(async () => true)
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
@@ -1251,7 +1248,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       await flushCommandMenuAction()
     })
 
-    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
+    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
       await confirmOptions?.onOk?.()
       await flushAnimationFrame()

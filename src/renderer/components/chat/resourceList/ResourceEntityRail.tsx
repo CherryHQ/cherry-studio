@@ -3,6 +3,7 @@ import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/action
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
+import { popup } from '@renderer/services/popup'
 import { cn } from '@renderer/utils/style'
 import { History, MoreHorizontal } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
@@ -143,7 +144,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
 
       const confirm = action.confirm
       if (confirm) {
-        void window.modal.confirm({
+        void popup.confirm({
           title: confirm.title,
           content: confirm.description ?? confirm.content,
           okText: confirm.confirmText,

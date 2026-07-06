@@ -2,6 +2,8 @@ import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { CheckCircle2, CircleAlert, LogIn, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -59,17 +61,17 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
       setAccountId(account.accountId)
       // The main process enabled the provider; mirror it into the renderer cache.
       await updateProvider({ isEnabled: true })
-      window.toast.success(t(`${ns}.sign_in_success`))
+      toast.success(t(`${ns}.sign_in_success`))
     } catch (error) {
       logger.error(`${providerId} sign-in failed`, error as Error)
-      window.toast.error(t(`${ns}.sign_in_failed`))
+      toast.error(t(`${ns}.sign_in_failed`))
     } finally {
       setSigningIn(false)
     }
   }, [providerId, ns, t, updateProvider])
 
   const handleLogout = useCallback(() => {
-    window.modal.confirm({
+    popup.confirm({
       title: t('settings.provider.oauth.logout'),
       content: t('settings.provider.oauth.logout_confirm'),
       centered: true,
@@ -82,10 +84,10 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
           await updateProvider({ authConfig: { type: 'api-key' }, isEnabled: false })
           setLoggedIn(false)
           setAccountId(null)
-          window.toast.success(t('settings.provider.oauth.logout_success'))
+          toast.success(t('settings.provider.oauth.logout_success'))
         } catch (error) {
           logger.error(`${providerId} logout failed`, error as Error)
-          window.toast.warning(t('settings.provider.oauth.logout_warning'))
+          toast.warning(t('settings.provider.oauth.logout_warning'))
         } finally {
           setLoggingOut(false)
         }

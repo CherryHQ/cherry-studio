@@ -39,6 +39,8 @@ import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCurrentTabId } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { usePins } from '@renderer/hooks/usePins'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
@@ -704,7 +706,7 @@ const Sessions = ({
           }
         } catch (err) {
           logger.error('Failed to start draft session after deleting last session', { err, sessionId: id })
-          window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+          toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
         } finally {
           setActiveSessionId(null)
         }
@@ -739,11 +741,11 @@ const Sessions = ({
           { showSuccessToast: false }
         )
         if (updatedSession) {
-          window.toast.success(t('common.saved'))
+          toast.success(t('common.saved'))
         }
       } catch (err) {
         logger.error('Failed to rename session', { err, sessionId: id })
-        window.toast.error(t('agent.session.update.error.failed'))
+        toast.error(t('agent.session.update.error.failed'))
       }
     },
     [sessionItems, t, updateSession]
@@ -809,7 +811,7 @@ const Sessions = ({
         return null
       } catch (err) {
         logger.error('Failed to create session from session list', { err, agentId: seed.agentId })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
         return null
       } finally {
         setCreatingSession(false)
@@ -851,7 +853,7 @@ const Sessions = ({
       setDeletingAgentGroupId(agentId)
 
       try {
-        const confirmed = await window.modal.confirm({
+        const confirmed = await popup.confirm({
           title: t('agent.session.agent.delete.title'),
           content: t('agent.session.agent.delete.content'),
           okText: t('common.delete'),
@@ -874,10 +876,10 @@ const Sessions = ({
 
         await reload()
         await refetchWorkspaces()
-        window.toast.success(t('common.delete_success'))
+        toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete agent sessions', { agentId, err, sessionIds })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.agent.delete.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.agent.delete.error.failed')))
       } finally {
         deletingAgentGroupIdRef.current = null
         setDeletingAgentGroupId(null)
@@ -896,7 +898,7 @@ const Sessions = ({
         .map((session) => session.id)
       if (sessionIds.length === 0) return
 
-      const confirmed = await window.modal.confirm({
+      const confirmed = await popup.confirm({
         title: t('agent.session.workdir.delete.title'),
         content: t('agent.session.workdir.delete.content'),
         okText: t('common.delete'),
@@ -921,10 +923,10 @@ const Sessions = ({
 
         await reload()
         await refetchWorkspaces()
-        window.toast.success(t('common.delete_success'))
+        toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete workspace group', { err, sessionIds, workspaceId })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.workdir.delete.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.workdir.delete.error.failed')))
       } finally {
         setDeletingWorkspaceGroupId(null)
       }
@@ -966,10 +968,10 @@ const Sessions = ({
           body: { name: trimmedName },
           params: { workspaceId: target.workspaceId }
         })
-        window.toast.success(t('common.saved'))
+        toast.success(t('common.saved'))
       } catch (err) {
         logger.error('Failed to rename workspace group', { err, workspaceId: target.workspaceId })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.workdir.rename.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.workdir.rename.error.failed')))
       }
     },
     [renamingWorkspaceGroup, t, updateWorkspace]
@@ -980,7 +982,7 @@ const Sessions = ({
       try {
         await window.api.file.openPath(workdirPath)
       } catch (err) {
-        window.toast.error(formatErrorMessageWithPrefix(err, t('files.error.open_path', { path: workdirPath })))
+        toast.error(formatErrorMessageWithPrefix(err, t('files.error.open_path', { path: workdirPath })))
       }
     },
     [t]
@@ -1011,7 +1013,7 @@ const Sessions = ({
         await refetchAgents()
       } catch (err) {
         logger.error('Failed to toggle agent pin from session group', { agentId, err })
-        window.toast.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]
@@ -1107,7 +1109,7 @@ const Sessions = ({
           } catch (err) {
             setOptimisticAgentOrderIds(null)
             logger.error('Failed to reorder agent session group', { activeAgentId, err, overAgentId })
-            window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
+            toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
 
             try {
               await refetchAgents()
@@ -1150,7 +1152,7 @@ const Sessions = ({
             err,
             overWorkspaceId
           })
-          window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
+          toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
 
           try {
             await refetchWorkspaces()

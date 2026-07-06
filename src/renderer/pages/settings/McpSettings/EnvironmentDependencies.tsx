@@ -14,6 +14,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
@@ -97,7 +98,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     })
   })
   useIpcOn('binary.reconcile_failed', (names) => {
-    window.toast.error(`${t('settings.plugins.installError')}: ${names}`)
+    toast.error(`${t('settings.plugins.installError')}: ${names}`)
   })
 
   const installTool = async (tool: ManagedBinary) => {
@@ -106,7 +107,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       await ipcApi.request('binary.install_tool', tool)
     } catch (error) {
       logger.error('Failed to install tool', error as Error)
-      window.toast.error(`${t('settings.plugins.installError')}: ${formatErrorMessage(error)}`)
+      toast.error(`${t('settings.plugins.installError')}: ${formatErrorMessage(error)}`)
       throw error
     } finally {
       setInstallingTools((prev) => {
@@ -122,13 +123,13 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     try {
       validateManagedBinary(tool)
     } catch {
-      window.toast.error(t('settings.plugins.invalidTool'))
+      toast.error(t('settings.plugins.invalidTool'))
       throw new Error('invalid')
     }
 
     const allNames = [...PRESETS_BINARY_TOOLS.map((p) => p.name), ...customTools.map((c) => c.name)]
     if (allNames.includes(tool.name)) {
-      window.toast.error(t('settings.plugins.duplicateName'))
+      toast.error(t('settings.plugins.duplicateName'))
       throw new Error('duplicate')
     }
 
@@ -148,7 +149,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       setDeleteTarget(null)
     } catch (error) {
       logger.error('Failed to remove tool', error as Error)
-      window.toast.error(formatErrorMessage(error))
+      toast.error(formatErrorMessage(error))
     }
   }
 

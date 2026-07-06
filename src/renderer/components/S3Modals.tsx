@@ -11,6 +11,8 @@ import {
   Spinner
 } from '@cherrystudio/ui'
 import { backupToS3 } from '@renderer/services/BackupService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { formatFileSize } from '@renderer/utils/file'
 import dayjs from 'dayjs'
 import { useCallback, useState } from 'react'
@@ -137,7 +139,7 @@ export function useS3RestoreModal({
 
   const showRestoreModal = useCallback(async () => {
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.toast.error(t('settings.data.s3.manager.config.incomplete'))
+      toast.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
 
@@ -158,7 +160,7 @@ export function useS3RestoreModal({
       })
       setBackupFiles(files)
     } catch (error: any) {
-      window.toast.error(t('settings.data.s3.manager.files.fetch.error', { message: error.message }))
+      toast.error(t('settings.data.s3.manager.files.fetch.error', { message: error.message }))
     } finally {
       setLoadingFiles(false)
     }
@@ -166,13 +168,13 @@ export function useS3RestoreModal({
 
   const handleRestore = useCallback(async () => {
     if (!selectedFile || !endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.toast.error(
+      toast.error(
         !selectedFile ? t('settings.data.s3.restore.file.required') : t('settings.data.s3.restore.config.incomplete')
       )
       return
     }
 
-    window.modal.confirm({
+    popup.confirm({
       title: t('settings.data.s3.restore.confirm.title'),
       content: t('settings.data.s3.restore.confirm.content', { fileName: selectedFile }),
       okText: t('settings.data.s3.restore.confirm.ok'),
@@ -194,10 +196,10 @@ export function useS3RestoreModal({
             maxBackups: 0,
             skipBackupFile: false
           })
-          window.toast.success(t('message.restore.success'))
+          toast.success(t('message.restore.success'))
           setIsRestoreModalVisible(false)
         } catch (error: any) {
-          window.toast.error(t('settings.data.s3.restore.error', { message: error.message }))
+          toast.error(t('settings.data.s3.restore.error', { message: error.message }))
         } finally {
           setRestoring(false)
         }

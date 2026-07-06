@@ -120,6 +120,22 @@ A **headless** capability (no UI) that outgrows one file grows **in place** into
 | No UI, ever | no JSX and no React hooks inside; UI parts route into the shared buckets by shape (§3 / §6), and the domain promotes to `features/<domain>/` only once the §4.1 trigger holds |
 | Plain internal names | files drop the topic prefix (the directory carries it) — `aiTransport/streamDispatchCoordinator.ts`, not `aiTransportStreamDispatchCoordinator.ts`; the `Service` / `Manager` suffix still marks only stateful singleton classes ([Naming §5.2](./naming-conventions.md)) |
 
+### 3.2 Imperative UI: popups (dialogs) and toasts (notifications)
+
+Two imperative interaction primitives, each a **module-level store** (the command entry) drained by a **per-window host leaf** (the declarative render). This replaced the retired full-screen view stack (`TopView`), whose wrapper shape invited god-component drift.
+
+| Need | Use |
+|---|---|
+| Await an answer / value from the user | `createPopup(Component)` → `handle.show(props): Promise<R>` (`services/popup`) |
+| A standard confirm / strong acknowledgement | `confirm` / `error` / `info` / `warning` (`services/popup`) |
+| A non-blocking notification (fire-and-forget) | `toast.*` (`services/toast`) |
+| The open state belongs to a parent component | inline controlled `<Dialog open>` — **not** these tracks (the parent owns the state) |
+| An anchored overlay (menu / popover / tooltip) | the Radix primitive directly — not a popup |
+
+- **Hosts are leaves, not wrappers.** Each window mounts `<PopupHost/>` and `<ToastHost/>` as sibling leaves inside its providers (never wrapping the content), each subscribing to its module store via `useSyncExternalStore`. A wrapper is the handiest place to hang global hooks — exactly how the old stack became a god component; a leaf cannot regress that way.
+- **Two tracks, one pattern.** Dialogs (blocking, answer-returning) and toasts (non-blocking, one-way) never share focus; both pair a module-level store (imperative entry) with a per-window host (declarative render).
+- **Contract.** `handle.show()` is single-flight (a second call while in-flight returns the first promise); with no host mounted it resolves `dismissResult` immediately (never hangs, never rejects); a popup that lazy-loads carries its own `<Suspense>`.
+
 ## 4. `features/` Definition
 
 > A `features/<domain>/` is a **self-contained business-domain module** — a full row on the domain axis that co-locates the pages, components, hooks, services, and utils for **one** business domain in a single tree, exposing its public API through a curated `index.ts`.

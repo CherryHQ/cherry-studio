@@ -1,4 +1,6 @@
 import { loggerService } from '@renderer/services/LoggerService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { ArrowUpCircle, Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -44,14 +46,14 @@ const UpdateButton: FC<UpdateButtonProps> = ({ onUpdateComplete, onUpdatingChang
       const result = await window.api.openclaw.performUpdate()
       if (result.success) {
         setUpdateInfo(null)
-        window.toast.success(t('openclaw.update.success'))
+        toast.success(t('openclaw.update.success'))
         onUpdateComplete?.()
       } else {
-        window.toast.error(result.message)
+        toast.error(result.message)
       }
     } catch (err) {
       logger.error('Failed to update OpenClaw', err as Error)
-      window.toast.error(err instanceof Error ? err.message : String(err))
+      toast.error(err instanceof Error ? err.message : String(err))
     } finally {
       setIsUpdating(false)
     }
@@ -65,7 +67,7 @@ const UpdateButton: FC<UpdateButtonProps> = ({ onUpdateComplete, onUpdatingChang
   const handleClick = () => {
     if (isUpdating) return
 
-    window.modal.confirm({
+    popup.confirm({
       title: t('openclaw.update.modal_title'),
       content: t('openclaw.update.available', {
         latest: updateInfo?.latestVersion,

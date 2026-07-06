@@ -11,6 +11,8 @@ import {
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -207,7 +209,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const autoSave = useCallback(
     (overrides?: BuildPatchOverrides) => {
       void handleUpdateModel(buildPatch(overrides)).catch(() => {
-        window.toast.error(t('common.error'))
+        toast.error(t('common.error'))
       })
     },
     [buildPatch, handleUpdateModel, t]
@@ -259,7 +261,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
     const { modelId } = parseUniqueModelId(model.id)
 
-    window.modal.confirm({
+    popup.confirm({
       title: t('common.delete_confirm'),
       content: t('settings.models.manage.remove_model'),
       okButtonProps: { danger: true },
@@ -267,7 +269,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       centered: true,
       onOk: async () => {
         await deleteModel(model.providerId ?? providerId, modelId)
-        window.toast.success(t('common.delete_success'))
+        toast.success(t('common.delete_success'))
         onClose()
       }
     })
@@ -328,7 +330,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   className={fieldClasses.iconButton}
                   onClick={() => {
                     void navigator.clipboard.writeText(apiModelId)
-                    window.toast.success(t('message.copied'))
+                    toast.success(t('message.copied'))
                   }}>
                   <CopyIcon size={14} />
                 </button>

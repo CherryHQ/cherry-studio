@@ -1,8 +1,10 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
-import TopViewContainer from '@renderer/components/TopView/TopView'
+import ToastHost from '@renderer/components/ToastHost'
+import { useAppInit } from '@renderer/hooks/useAppInit'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n/resolver'
@@ -70,6 +72,27 @@ function useSettingsWindowFormControlText() {
   }, [])
 }
 
+// Behavior leaf inside the providers: runs the shared per-window init plus the
+// settings-only launch-with-data-path navigation, and mounts the popup/toast hosts.
+function SettingsWindowRuntime(): React.ReactElement {
+  useAppInit()
+
+  useEffect(() => {
+    void window.api.getDataPathFromArgs().then((dataPath) => {
+      if (dataPath) {
+        void navigationService.navigate?.({ to: '/settings/data', replace: true })
+      }
+    })
+  }, [])
+
+  return (
+    <>
+      <PopupHost />
+      <ToastHost />
+    </>
+  )
+}
+
 function SettingsApp({ initialPath }: { initialPath: string }): React.ReactElement {
   const shellStyle = { '--navbar-height': '0px', '--settings-width': '200px' } as CSSProperties
   const isMacTransparentWindow = useMacTransparentWindow()
@@ -83,17 +106,16 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
       <CodeStyleProvider>
         <CommandContextKeyProvider>
           <CommandProvider>
-            <TopViewContainer>
-              <div
-                className={cn(
-                  'flex h-screen w-screen overflow-hidden text-foreground',
-                  settingsWindowFormControlTextClassName,
-                  isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
-                )}
-                style={shellStyle}>
-                <SettingsWindowRouter initialPath={initialPath} />
-              </div>
-            </TopViewContainer>
+            <div
+              className={cn(
+                'flex h-screen w-screen overflow-hidden text-foreground',
+                settingsWindowFormControlTextClassName,
+                isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+              )}
+              style={shellStyle}>
+              <SettingsWindowRouter initialPath={initialPath} />
+            </div>
+            <SettingsWindowRuntime />
           </CommandProvider>
         </CommandContextKeyProvider>
       </CodeStyleProvider>

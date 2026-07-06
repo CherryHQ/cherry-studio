@@ -7,6 +7,8 @@ import {
   isProviderSettingsListVisibleProvider,
   matchKeywordsInProvider
 } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
 import { canManageProvider, isAnthropicSupportedProvider } from '@shared/utils/provider'
 import { Plus } from 'lucide-react'
@@ -203,7 +205,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   }, [])
 
   const handleReorderError = useCallback(() => {
-    window.toast.error(t('settings.provider.reorder_failed'))
+    toast.error(t('settings.provider.reorder_failed'))
   }, [t])
 
   const handleSubmitEditor = useCallback(
@@ -211,9 +213,9 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       const result = await submitEditor(providerInput)
 
       if (result.notice === 'create-logo-save-failed') {
-        window.toast.error(t('message.error.save_provider_logo'))
+        toast.error(t('message.error.save_provider_logo'))
       } else if (result.notice === 'update-logo-save-failed') {
-        window.toast.error(t('message.error.update_provider_logo'))
+        toast.error(t('message.error.update_provider_logo'))
       }
     },
     [submitEditor, t]
@@ -221,7 +223,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   const handleDeleteProvider = useCallback(
     (providerId: Provider['id']) => {
-      window.modal.confirm({
+      popup.confirm({
         title: t('settings.provider.delete.title'),
         content: t('settings.provider.delete.content'),
         okButtonProps: { danger: true },

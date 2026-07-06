@@ -1,6 +1,8 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -12,8 +14,6 @@ import WebSearchButton from '../WebSearchButton'
 const mocks = vi.hoisted(() => ({
   updateAssistant: vi.fn(),
   navigate: vi.fn(),
-  confirm: vi.fn(),
-  toastWarning: vi.fn(),
   assistant: undefined as any,
   model: undefined as Model | undefined
 }))
@@ -144,16 +144,6 @@ describe('WebSearchButton', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', null)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_fetch_urls_provider', null)
-    Object.assign(window, {
-      modal: {
-        ...window.modal,
-        confirm: mocks.confirm
-      },
-      toast: {
-        ...window.toast,
-        warning: mocks.toastWarning
-      }
-    })
   })
 
   it('opens web search settings and does not update the assistant when external providers are missing', () => {
@@ -161,7 +151,7 @@ describe('WebSearchButton', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
 
-    expect(mocks.confirm).toHaveBeenCalledWith(
+    expect(popup.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'settings.tool.websearch.search_provider',
         content: 'settings.tool.websearch.search_provider_placeholder'
@@ -187,7 +177,7 @@ describe('WebSearchButton', () => {
 
     fireEvent.click(button)
 
-    expect(mocks.toastWarning).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalled()
     expect(mocks.updateAssistant).not.toHaveBeenCalled()
   })
 

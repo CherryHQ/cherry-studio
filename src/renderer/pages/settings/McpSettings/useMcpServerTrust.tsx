@@ -1,3 +1,4 @@
+import { popup } from '@renderer/services/popup'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { useCallback } from 'react'
@@ -23,7 +24,7 @@ export const useMcpServerTrust = (updateServer: (body: UpdateMcpServerDto) => vo
     async (server: McpServer): Promise<boolean> => {
       const commandPreview = getCommandPreview(server)
       return new Promise<boolean>((resolve) => {
-        window.modal.confirm({
+        popup.confirm({
           centered: true,
           title: t('settings.mcp.protocolInstallWarning.title'),
           content: (

@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as React from 'react'
 import type { PropsWithChildren } from 'react'
@@ -17,8 +18,7 @@ const mocks = vi.hoisted(() => ({
   setLastUsedTarget: vi.fn(),
   openPath: vi.fn(),
   showInFolder: vi.fn(),
-  windowOpen: vi.fn(),
-  toastError: vi.fn()
+  windowOpen: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -159,10 +159,6 @@ describe('OpenExternalAppButton', () => {
       configurable: true,
       value: mocks.windowOpen
     })
-    Object.defineProperty(window, 'toast', {
-      configurable: true,
-      value: { error: mocks.toastError }
-    })
   })
 
   it('opens the workspace in the file manager when no code editor is available', async () => {
@@ -212,7 +208,7 @@ describe('OpenExternalAppButton', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open in Finder' }))
 
-    await waitFor(() => expect(mocks.toastError).toHaveBeenCalledWith('Failed to open /tmp/workspace: denied'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to open /tmp/workspace: denied'))
   })
 
   it('opens the selected file with the default app without changing the editor target', async () => {

@@ -1,4 +1,5 @@
 import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
+import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
@@ -153,15 +154,6 @@ const { useAgentMessageListProviderValue } = await import('../agentMessageListAd
 describe('useAgentMessageListProviderValue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.defineProperty(window, 'toast', {
-      configurable: true,
-      writable: true,
-      value: {
-        error: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn()
-      }
-    })
     window.api.file.openPath = vi.fn()
     window.api.file.showInFolder = vi.fn()
     window.api.file.isDirectory = vi.fn().mockResolvedValue(false)
@@ -443,8 +435,8 @@ describe('useAgentMessageListProviderValue', () => {
     await value?.actions.saveSelectedMessages?.(['user-1'])
 
     expect(exportActionsMock.saveTextFile).toHaveBeenCalled()
-    expect(window.toast.error).not.toHaveBeenCalled()
-    expect(window.toast.success).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
     expect(cacheHookMocks.setMultiSelectMode).not.toHaveBeenCalled()
     expect(cacheHookMocks.setSelectedMessageIds).not.toHaveBeenCalled()
   })

@@ -88,6 +88,11 @@ function DialogContent({
         <DialogOverlay className={overlayClassName} />
       )}
       <PortalContainerProvider container={contentElement}>
+        {/*
+          The `duration-200` close animation on DialogContent below is mirrored by
+          imperative hosts that delay unmount until it finishes — keep it in sync with
+          the renderer's services/popup POPUP_EXIT_MS constant.
+        */}
         <DialogPrimitive.Content
           ref={handleRef}
           data-slot="dialog-content"

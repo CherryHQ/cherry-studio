@@ -1,24 +1,21 @@
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { MessageExportView } from '@renderer/types/messageExport'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   processMessageContent: vi.fn(),
-  submitKnowledgeItems: vi.fn(),
-  TopView: {
-    show: vi.fn(),
-    hide: vi.fn()
-  },
-  toast: {
-    error: vi.fn(),
-    success: vi.fn(),
-    warning: vi.fn()
-  }
+  submitKnowledgeItems: vi.fn()
 }))
+
+// This suite renders the real popup under a real PopupHost, so opt out of the
+// global services/popup mock installed in tests/renderer.setup.ts.
+vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useKnowledgeBases: vi.fn()
@@ -26,10 +23,6 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
 
 vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useAddKnowledgeItems: vi.fn()
-}))
-
-vi.mock('@renderer/components/TopView/TopView', () => ({
-  TopView: mocks.TopView
 }))
 
 vi.mock('@renderer/utils/knowledge', () => ({
@@ -122,13 +115,18 @@ vi.mock('@cherrystudio/ui', () => ({
   Label: ({ children, ...props }: React.ComponentProps<'label'>) => <label {...props}>{children}</label>
 }))
 
+import { PopupHost } from '@renderer/components/PopupHost'
+
 import SaveToKnowledgePopup from '../SaveToKnowledgePopup'
 
 function renderPopup(source: MessageExportView) {
-  const promise = SaveToKnowledgePopup.show({ source: { type: 'message', data: source } })
-  const rendered = mocks.TopView.show.mock.calls[0][0] as React.ReactNode
+  render(<PopupHost />)
 
-  render(<>{rendered}</>)
+  let promise!: ReturnType<typeof SaveToKnowledgePopup.show>
+  act(() => {
+    promise = SaveToKnowledgePopup.show({ source: { type: 'message', data: source } })
+  })
+
   return { promise }
 }
 
@@ -182,12 +180,18 @@ describe('SaveToKnowledgePopup', () => {
         file: {
           ensureExternalEntry: vi.fn()
         }
-      },
-      toast: mocks.toast
+      }
     })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Unmount the host first so draining leftover entries fires no React update on a
+    // still-mounted host, then settle+drain the singleton store for the next test.
+    cleanup()
+    for (const entry of [...popupService.getSnapshot()]) {
+      popupService.settle(entry.instanceId, null)
+    }
+    await new Promise((resolve) => setTimeout(resolve, POPUP_EXIT_MS + 20))
     vi.useRealTimers()
   })
 
@@ -197,20 +201,22 @@ describe('SaveToKnowledgePopup', () => {
     )
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
-    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
-    await waitFor(() =>
-      expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
-        {
-          type: 'file',
-          data: {
-            source: '/tmp/ok.pdf',
-            path: '/tmp/ok.pdf'
-          }
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
+      {
+        type: 'file',
+        data: {
+          source: '/tmp/ok.pdf',
+          path: '/tmp/ok.pdf'
         }
-      ])
-    )
-    expect(mocks.toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
+      }
+    ])
+    expect(toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
 
     await expect(promise).resolves.toEqual({ success: true, savedCount: 1 })
   })

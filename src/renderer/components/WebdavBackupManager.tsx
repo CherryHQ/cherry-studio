@@ -11,6 +11,8 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { restoreFromWebdav } from '@renderer/services/BackupService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { formatFileSize } from '@renderer/utils/file'
 import dayjs from 'dayjs'
 import { ChevronLeft, ChevronRight, CircleAlert, RefreshCw, Trash2 } from 'lucide-react'
@@ -70,7 +72,7 @@ export function WebdavBackupManager({
 
   const fetchBackupFiles = useCallback(async () => {
     if (!webdavHost) {
-      window.toast.error(t('message.error.invalid.webdav'))
+      toast.error(t('message.error.invalid.webdav'))
       return
     }
 
@@ -84,7 +86,7 @@ export function WebdavBackupManager({
       } as WebdavConfig)
       setBackupFiles(files)
     } catch (error: any) {
-      window.toast.error(`${t('settings.data.webdav.backup.manager.fetch.error')}: ${error.message}`)
+      toast.error(`${t('settings.data.webdav.backup.manager.fetch.error')}: ${error.message}`)
     } finally {
       setLoading(false)
     }
@@ -127,16 +129,16 @@ export function WebdavBackupManager({
 
   const handleDeleteSelected = async () => {
     if (selectedRowKeys.length === 0) {
-      window.toast.warning(t('settings.data.webdav.backup.manager.select.files.delete'))
+      toast.warning(t('settings.data.webdav.backup.manager.select.files.delete'))
       return
     }
 
     if (!webdavHost) {
-      window.toast.error(t('message.error.invalid.webdav'))
+      toast.error(t('message.error.invalid.webdav'))
       return
     }
 
-    window.modal.confirm({
+    popup.confirm({
       title: t('settings.data.webdav.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.webdav.backup.manager.delete.confirm.multiple', { count: selectedRowKeys.length }),
@@ -155,13 +157,13 @@ export function WebdavBackupManager({
               webdavPath
             } as WebdavConfig)
           }
-          window.toast.success(
+          toast.success(
             t('settings.data.webdav.backup.manager.delete.success.multiple', { count: selectedRowKeys.length })
           )
           setSelectedRowKeys([])
           await fetchBackupFiles()
         } catch (error: any) {
-          window.toast.error(`${t('settings.data.webdav.backup.manager.delete.error')}: ${error.message}`)
+          toast.error(`${t('settings.data.webdav.backup.manager.delete.error')}: ${error.message}`)
         } finally {
           setDeleting(false)
         }
@@ -171,11 +173,11 @@ export function WebdavBackupManager({
 
   const handleDeleteSingle = async (fileName: string) => {
     if (!webdavHost) {
-      window.toast.error(t('message.error.invalid.webdav'))
+      toast.error(t('message.error.invalid.webdav'))
       return
     }
 
-    window.modal.confirm({
+    popup.confirm({
       title: t('settings.data.webdav.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.webdav.backup.manager.delete.confirm.single', { fileName }),
@@ -191,10 +193,10 @@ export function WebdavBackupManager({
             webdavPass,
             webdavPath
           } as WebdavConfig)
-          window.toast.success(t('settings.data.webdav.backup.manager.delete.success.single'))
+          toast.success(t('settings.data.webdav.backup.manager.delete.success.single'))
           await fetchBackupFiles()
         } catch (error: any) {
-          window.toast.error(`${t('settings.data.webdav.backup.manager.delete.error')}: ${error.message}`)
+          toast.error(`${t('settings.data.webdav.backup.manager.delete.error')}: ${error.message}`)
         } finally {
           setDeleting(false)
         }
@@ -204,11 +206,11 @@ export function WebdavBackupManager({
 
   const handleRestore = async (fileName: string) => {
     if (!webdavHost) {
-      window.toast.error(customLabels?.invalidConfigMessage || t('message.error.invalid.webdav'))
+      toast.error(customLabels?.invalidConfigMessage || t('message.error.invalid.webdav'))
       return
     }
 
-    window.modal.confirm({
+    popup.confirm({
       title: customLabels?.restoreConfirmTitle || t('settings.data.webdav.restore.confirm.title'),
       icon: <CircleAlert />,
       content: customLabels?.restoreConfirmContent || t('settings.data.webdav.restore.confirm.content'),
@@ -219,10 +221,10 @@ export function WebdavBackupManager({
         setRestoring(true)
         try {
           await (restoreMethod || restoreFromWebdav)(fileName)
-          window.toast.success(t('settings.data.webdav.backup.manager.restore.success'))
+          toast.success(t('settings.data.webdav.backup.manager.restore.success'))
           onClose() // 关闭模态框
         } catch (error: any) {
-          window.toast.error(`${t('settings.data.webdav.backup.manager.restore.error')}: ${error.message}`)
+          toast.error(`${t('settings.data.webdav.backup.manager.restore.error')}: ${error.message}`)
         } finally {
           setRestoring(false)
         }

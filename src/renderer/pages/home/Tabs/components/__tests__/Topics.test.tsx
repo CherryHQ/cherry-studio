@@ -308,6 +308,8 @@ import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import type * as TopicDataApiModule from '@renderer/hooks/useTopic'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import type { Pin } from '@shared/data/types/pin'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
@@ -515,18 +517,6 @@ function clearTopicStreamCache(...topicIds: string[]) {
 describe('Topics', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.assign(window, {
-      modal: {
-        confirm: vi.fn().mockResolvedValue(true)
-      },
-      toast: {
-        error: vi.fn(),
-        closeToast: vi.fn(),
-        loading: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn()
-      }
-    })
     clearPendingTopicImageActionsForTest()
     topicStreamStatusMocks.statuses.clear()
     clearTopicStreamCache('topic-a', 'topic-b', 'topic-c', 'topic-d', 'topic-e')
@@ -990,7 +980,7 @@ describe('Topics', () => {
     fireEvent.click(exportImageItem)
 
     expect(setActiveTopic).not.toHaveBeenCalled()
-    expect(window.toast.loading).not.toHaveBeenCalled()
+    expect(toast.loading).not.toHaveBeenCalled()
 
     await vi.waitFor(() => expect(animationFrameCallbacks.length).toBeGreaterThan(0))
     act(() => {
@@ -999,7 +989,7 @@ describe('Topics', () => {
       }
     })
 
-    expect(window.toast.loading).toHaveBeenCalledWith(
+    expect(toast.loading).toHaveBeenCalledWith(
       expect.objectContaining({
         key: expect.stringMatching(/^topic-image-export:/),
         promise: expect.any(Promise),
@@ -1020,7 +1010,7 @@ describe('Topics', () => {
     const [request] = consumePendingTopicImageActions('topic-c', 'export')
     settleTopicImageActionRequest(request, Promise.resolve())
     await vi.waitFor(() => {
-      expect(window.toast.success).toHaveBeenCalledWith('Image saved successfully')
+      expect(toast.success).toHaveBeenCalledWith('Image saved successfully')
     })
     requestAnimationFrameSpy.mockRestore()
   })
@@ -1061,7 +1051,7 @@ describe('Topics', () => {
     })
 
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
-    expect(window.toast.loading).not.toHaveBeenCalled()
+    expect(toast.loading).not.toHaveBeenCalled()
     expect(EventEmitter.emit).toHaveBeenCalledWith(
       EVENT_NAMES.COPY_TOPIC_IMAGE,
       expect.objectContaining({ id: 'topic-c' })
@@ -1072,7 +1062,7 @@ describe('Topics', () => {
     settleTopicImageActionRequest(request, Promise.reject(new Error('copy failed')))
 
     await vi.waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('Copy failed')
+      expect(toast.error).toHaveBeenCalledWith('Copy failed')
     })
     requestAnimationFrameSpy.mockRestore()
   })
@@ -1088,6 +1078,9 @@ describe('Topics', () => {
   })
 
   it('confirms topic deletion from the shared context menu before deleting', async () => {
+    // Suppress the default auto-confirm (which invokes onOk) so we can assert deletion
+    // stays gated until onOk fires.
+    vi.mocked(popup.confirm).mockImplementationOnce(async () => true)
     const { getByText } = renderTopicList()
 
     fireEvent.contextMenu(getByText('Alpha topic'))
@@ -1097,11 +1090,11 @@ describe('Topics', () => {
 
     // Deletion is gated behind a confirm popup (command-menu items have no inline dialog).
     await vi.waitFor(() =>
-      expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Conversations' }))
+      expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Conversations' }))
     )
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
 
-    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
+    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
     await confirmOptions?.onOk?.()
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
@@ -2009,7 +2002,7 @@ describe('Topics', () => {
     fireEvent.click(deleteAssistantChatsButton)
 
     await vi.waitFor(() =>
-      expect(window.modal.confirm).toHaveBeenCalledWith(
+      expect(popup.confirm).toHaveBeenCalledWith(
         expect.objectContaining({
           content: 'Delete all assistant conversations?',
           title: 'Clear conversations'
@@ -2031,10 +2024,8 @@ describe('Topics', () => {
     const confirmPromise = new Promise<boolean>((resolve) => {
       resolveConfirm = resolve
     })
-    const confirm = vi.fn().mockReturnValue(confirmPromise)
-    Object.assign(window, {
-      modal: { confirm }
-    })
+    const confirm = vi.mocked(popup.confirm)
+    confirm.mockReturnValue(confirmPromise)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({
       deletedIds: ['topic-a', 'topic-b'],
@@ -2176,8 +2167,8 @@ describe('Topics', () => {
       within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
     )
 
-    await vi.waitFor(() => expect(window.toast.error).toHaveBeenCalledWith('At least one conversation must be kept'))
-    expect(window.modal.confirm).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('At least one conversation must be kept'))
+    expect(popup.confirm).not.toHaveBeenCalled()
     expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
     expect(topicDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
     expect(topicDataMocks.refreshTopics).not.toHaveBeenCalled()
@@ -2262,9 +2253,7 @@ describe('Topics', () => {
       }
     })
 
-    await vi.waitFor(() =>
-      expect(window.toast.error).toHaveBeenCalledWith('Failed to reorder assistants: order failed')
-    )
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to reorder assistants: order failed'))
     expect(patchSpy).toHaveBeenCalledWith('/assistants/assistant-1/order', { body: { after: 'assistant-2' } })
   })
 

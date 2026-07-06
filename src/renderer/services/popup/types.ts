@@ -1,0 +1,94 @@
+import type React from 'react'
+
+/**
+ * Props the PopupHost injects into every createPopup component. A popup component
+ * receives these in addition to its own props; it must not declare or supply them.
+ */
+export interface PopupInjectedProps<R> {
+  /** Drives `<Dialog open>`; flips to false when the popup enters its exit phase. */
+  open: boolean
+  /**
+   * Settle the popup promise and start the exit phase. Idempotent — the second and
+   * later calls are no-ops (the store drops the entry once it is closing).
+   */
+  resolve: (result: R) => void
+}
+
+export type PopupComponent<P, R> = React.ComponentType<P & PopupInjectedProps<R>>
+
+export interface PopupHandle<P, R> {
+  /**
+   * Show the popup and resolve with its result. Single-flight: while a previous
+   * show() is still in flight this returns the SAME promise and ignores `props`.
+   * `props` is optional only when `P` has no required fields (a propless popup).
+   */
+  show(...args: {} extends P ? [props?: P] : [props: P]): Promise<R>
+  /** Settle the in-flight popup with `dismissResult`; a no-op when not showing. */
+  hide(): void
+}
+
+export interface CreatePopupOptions<R> {
+  /**
+   * Result used when the popup is dismissed without an explicit answer — host-side
+   * `hide()` and the no-host fallback. Provide it for any non-void `R` so the type
+   * stays honest (e.g. `createPopup<Params, string | null>(C, { dismissResult: null })`).
+   */
+  dismissResult?: R
+}
+
+export type ConfirmPopupType = 'confirm' | 'error' | 'info' | 'warning'
+
+type ConfirmButtonProps = {
+  danger?: boolean
+  disabled?: boolean
+  style?: React.CSSProperties
+  className?: string
+}
+
+/**
+ * The prefab-dialog config for confirm/error/info/warning. Mirrors the antd-era
+ * modal surface minus its throwaway parts: no `afterClose` (no call site consumes
+ * it), no `destroyAll`/`update`/`destroy` handle (prefabs return a plain
+ * `Promise<boolean>`), no `warn`/`success`.
+ */
+export interface ConfirmPopupProps {
+  title?: React.ReactNode
+  content?: React.ReactNode
+  okText?: React.ReactNode
+  cancelText?: React.ReactNode
+  onOk?: () => unknown | Promise<unknown>
+  onCancel?: () => unknown | Promise<unknown>
+  okButtonProps?: ConfirmButtonProps
+  cancelButtonProps?: Omit<ConfirmButtonProps, 'danger'>
+  centered?: boolean
+  width?: string | number
+  icon?: React.ReactNode
+  maskClosable?: boolean
+  closable?: boolean
+  className?: string
+  rootClassName?: string
+  style?: React.CSSProperties
+  okCancel?: boolean
+}
+
+interface PopupEntryBase {
+  instanceId: string
+  /** True while shown; flips to false during the exit phase before removal. */
+  open: boolean
+  /** The promise resolver; settling the entry calls it exactly once. */
+  resolve: (result: unknown) => void
+}
+
+export interface ComponentPopupEntry extends PopupEntryBase {
+  kind: 'component'
+  Component: PopupComponent<any, any>
+  props: Record<string, unknown>
+}
+
+export interface ConfirmPopupEntry extends PopupEntryBase {
+  kind: 'confirm'
+  confirmType: ConfirmPopupType
+  props: ConfirmPopupProps
+}
+
+export type PopupEntry = ComponentPopupEntry | ConfirmPopupEntry

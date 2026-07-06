@@ -5,6 +5,8 @@ import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServerMutations } from '@renderer/hooks/useMcpServer'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
@@ -76,7 +78,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
             await fetchServerVersion({ ...serverForUpdate, isActive: true })
             await window.api.mcp.refreshTools(serverForUpdate.id)
           } catch (error: any) {
-            window.modal.error({
+            popup.error({
               title: t('settings.mcp.startError'),
               content: formatMcpError(error),
               centered: true
@@ -88,7 +90,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
           setVersion(null)
         }
       } catch (error: any) {
-        window.modal.error({
+        popup.error({
           title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
           content: formatMcpError(error),
           centered: true
@@ -102,18 +104,18 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
 
   const handleDelete = useCallback(() => {
     try {
-      window.modal.confirm({
+      popup.confirm({
         title: t('settings.mcp.deleteServer'),
         content: t('settings.mcp.deleteServerConfirm'),
         centered: true,
         onOk: async () => {
           await window.api.mcp.removeServer(server.id)
           await deleteMcpServer({})
-          window.toast.success(t('settings.mcp.deleteSuccess'))
+          toast.success(t('settings.mcp.deleteSuccess'))
         }
       })
     } catch (error: any) {
-      window.toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
+      toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
     }
   }, [server, deleteMcpServer, t])
 

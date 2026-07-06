@@ -1,3 +1,5 @@
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -178,28 +180,21 @@ describe('CommonSettings menu presentation mode', () => {
   const t = (key: string) => key
   const setMenuPresentationMode = vi.fn<(mode: MenuPresentationMode) => Promise<void>>()
   const setTimeoutTimer = vi.fn<(key: string, callback: () => void, delay: number) => void>()
-  const confirm = vi.fn()
   const relaunch = vi.fn()
-  const toastError = vi.fn()
 
-  let originalModal: any
-  let originalToast: any
   let originalApi: any
 
   beforeEach(() => {
     vi.clearAllMocks()
     setMenuPresentationMode.mockResolvedValue(undefined)
-    originalModal = (window as any).modal
-    originalToast = (window as any).toast
+    // Record confirm calls without auto-running onOk (the global mock's default), so
+    // each test drives the confirmation flow explicitly via the captured onOk.
+    vi.mocked(popup.confirm).mockImplementation(async () => true)
     originalApi = (window as any).api
-    ;(window as any).modal = { confirm }
-    ;(window as any).toast = { error: toastError }
     ;(window as any).api = { application: { relaunch } }
   })
 
   afterEach(() => {
-    ;(window as any).modal = originalModal
-    ;(window as any).toast = originalToast
     ;(window as any).api = originalApi
   })
 
@@ -212,7 +207,7 @@ describe('CommonSettings menu presentation mode', () => {
       t
     })
 
-    expect(confirm).not.toHaveBeenCalled()
+    expect(popup.confirm).not.toHaveBeenCalled()
   })
 
   it('saves the selected mode and schedules relaunch after confirmation', async () => {
@@ -224,7 +219,7 @@ describe('CommonSettings menu presentation mode', () => {
       t
     })
 
-    expect(confirm).toHaveBeenCalledWith(
+    expect(popup.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'settings.general.common.menu.presentation_mode.restart.title',
         content: 'settings.general.common.menu.presentation_mode.restart.content',
@@ -234,8 +229,8 @@ describe('CommonSettings menu presentation mode', () => {
       })
     )
 
-    const options = confirm.mock.calls[0][0]
-    await options.onOk()
+    const options = vi.mocked(popup.confirm).mock.calls[0][0]
+    await options.onOk!()
 
     expect(setMenuPresentationMode).toHaveBeenCalledWith('native')
     expect(setTimeoutTimer).toHaveBeenCalledWith('handleMenuPresentationModeChange', expect.any(Function), 500)
@@ -256,10 +251,10 @@ describe('CommonSettings menu presentation mode', () => {
       t
     })
 
-    const options = confirm.mock.calls[0][0]
-    await expect(options.onOk()).rejects.toThrow('save failed')
+    const options = vi.mocked(popup.confirm).mock.calls[0][0]
+    await expect(options.onOk!()).rejects.toThrow('save failed')
 
-    expect(toastError).toHaveBeenCalledWith('save failed')
+    expect(toast.error).toHaveBeenCalledWith('save failed')
     expect(setTimeoutTimer).not.toHaveBeenCalled()
     expect(relaunch).not.toHaveBeenCalled()
   })

@@ -1,12 +1,9 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import { TopView } from '@renderer/components/TopView/TopView'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import type { CSSProperties, ReactNode } from 'react'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { useTopViewClose } from './useTopViewClose'
 
 const logger = loggerService.withContext('GeneralPopup')
 
@@ -44,9 +41,7 @@ interface ShowParams {
   width?: number | string
 }
 
-interface Props extends ShowParams {
-  resolve: (data: any) => void
-}
+type Props = ShowParams & PopupInjectedProps<any>
 
 const getContentStyle = ({
   style,
@@ -78,6 +73,7 @@ const PopupContainer: React.FC<Props> = ({
   okText,
   onCancel: handleCancel,
   onOk: handleOk,
+  open,
   resolve,
   rootClassName,
   styles,
@@ -85,12 +81,11 @@ const PopupContainer: React.FC<Props> = ({
   width,
   ...rest
 }) => {
-  const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const close = useTopViewClose({ afterClose: rest.afterClose, resolve, setOpen, topViewKey: TopViewKey })
 
   const settle = (result: any) => {
-    close(result)
+    rest.afterClose?.()
+    resolve(result)
   }
 
   const onOk = async () => {
@@ -117,8 +112,6 @@ const PopupContainer: React.FC<Props> = ({
       onCancel()
     }
   }
-
-  GeneralPopup.hide = onCancel
 
   const shouldUseCustomWidth =
     width !== undefined || rest.style?.maxWidth !== undefined || styles?.content?.maxWidth !== undefined
@@ -172,17 +165,7 @@ const PopupContainer: React.FC<Props> = ({
   )
 }
 
-const TopViewKey = 'GeneralPopup'
-
 /** 在这个 Popup 中展示任意内容 */
-export default class GeneralPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide(TopViewKey)
-  }
-  static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
-      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
-    })
-  }
-}
+const GeneralPopup = createPopup<ShowParams, any>(PopupContainer, { dismissResult: {} })
+
+export default GeneralPopup

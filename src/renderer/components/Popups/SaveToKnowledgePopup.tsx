@@ -13,10 +13,11 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/tags/CustomTag'
-import { TopView } from '@renderer/components/TopView/TopView'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { analyzeTopicContent, processTopicContent } from '@renderer/services/knowledgeContent'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { NotesTreeNode } from '@renderer/types/note'
 import type { Topic } from '@renderer/types/topic'
@@ -25,11 +26,10 @@ import { analyzeMessageContent, CONTENT_TYPES, processMessageContent } from '@re
 import { resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeAddItemInput } from '@shared/data/types/knowledge'
 import { Check } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('SaveToKnowledgePopup')
-const CLOSE_ANIMATION_MS = 200
 
 // Base Content Type Config
 const CONTENT_TYPE_CONFIG = {
@@ -99,9 +99,7 @@ interface SaveResult {
   savedCount: number
 }
 
-interface Props extends ShowParams {
-  resolve: (data: SaveResult | null) => void
-}
+type Props = ShowParams & PopupInjectedProps<SaveResult | null>
 
 const getNoteSource = (source: ContentSource, title?: string) => {
   const trimmedTitle = title?.trim()
@@ -121,15 +119,13 @@ const getNoteSource = (source: ContentSource, title?: string) => {
   return source.data.id
 }
 
-const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
-  const [open, setOpen] = useState(true)
+const PopupContainer: React.FC<Props> = ({ source, title, open, resolve }) => {
   const [loading, setLoading] = useState(false)
   const [analysisLoading, setAnalysisLoading] = useState(true)
   const [selectedBaseId, setSelectedBaseId] = useState<string>()
   const [selectedTypes, setSelectedTypes] = useState<ContentType[]>([])
   const [hasInitialized, setHasInitialized] = useState(false)
   const [contentStats, setContentStats] = useState<ContentStats | null>(null)
-  const resolvedRef = useRef(false)
   const { bases } = useKnowledgeBases()
   const { submit: submitKnowledgeItems } = useAddKnowledgeItems(selectedBaseId || '')
   const { t } = useTranslation()
@@ -269,16 +265,6 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
     setSelectedTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
   }
 
-  const resolveAfterClose = (result: SaveResult | null) => {
-    if (resolvedRef.current) return
-
-    resolvedRef.current = true
-    setOpen(false)
-    window.setTimeout(() => {
-      resolve(result)
-    }, CLOSE_ANIMATION_MS)
-  }
-
   const onOk = async () => {
     if (!formState.canSubmit) return
 
@@ -370,7 +356,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
               totalCount: fileResults.length,
               failedFiles
             })
-            window.toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: failedCount }))
+            toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: failedCount }))
           }
 
           items.push(
@@ -387,7 +373,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         await submitKnowledgeItems(items)
       }
 
-      resolveAfterClose({ success: true, savedCount })
+      resolve({ success: true, savedCount })
     } catch (error) {
       logger.error('save failed:', error as Error)
 
@@ -406,13 +392,13 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         }
       }
 
-      window.toast.error(errorMessage)
+      toast.error(errorMessage)
       setLoading(false)
     }
   }
 
   const onCancel = () => {
-    resolveAfterClose(null)
+    resolve(null)
   }
 
   const renderEmptyState = () => (
@@ -533,37 +519,16 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   )
 }
 
-const TopViewKey = 'SaveToKnowledgePopup'
+const popup = createPopup<ShowParams, SaveResult | null>(PopupContainer, { dismissResult: null })
 
-export default class SaveToKnowledgePopup {
-  static hide() {
-    TopView.hide(TopViewKey)
-  }
-
-  static show(props: ShowParams): Promise<SaveResult | null> {
-    return new Promise<SaveResult | null>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(result) => {
-            resolve(result)
-            this.hide()
-          }}
-        />,
-        TopViewKey
-      )
-    })
-  }
-
-  static showForMessage(message: ExportableMessage, title?: string): Promise<SaveResult | null> {
-    return this.show({ source: { type: 'message', data: message }, title })
-  }
-
-  static showForTopic(topic: Topic, title?: string): Promise<SaveResult | null> {
-    return this.show({ source: { type: 'topic', data: topic }, title })
-  }
-
-  static showForNote(note: NotesTreeNode, title?: string): Promise<SaveResult | null> {
-    return this.show({ source: { type: 'note', data: note }, title })
-  }
+const SaveToKnowledgePopup = {
+  ...popup,
+  showForMessage: (message: ExportableMessage, title?: string): Promise<SaveResult | null> =>
+    popup.show({ source: { type: 'message', data: message }, title }),
+  showForTopic: (topic: Topic, title?: string): Promise<SaveResult | null> =>
+    popup.show({ source: { type: 'topic', data: topic }, title }),
+  showForNote: (note: NotesTreeNode, title?: string): Promise<SaveResult | null> =>
+    popup.show({ source: { type: 'note', data: note }, title })
 }
+
+export default SaveToKnowledgePopup

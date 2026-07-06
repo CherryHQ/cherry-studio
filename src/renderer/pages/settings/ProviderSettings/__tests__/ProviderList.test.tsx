@@ -1,3 +1,5 @@
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -174,8 +176,6 @@ describe('ProviderList', () => {
       ...(window as any).api,
       getAppInfo: vi.fn().mockResolvedValue({ appDataPath: '' })
     }
-    ;(window as any).modal = { confirm: vi.fn() }
-    ;(window as any).toast = { error: vi.fn(), success: vi.fn() }
   })
 
   it('filters providers by search text and forwards selection', () => {
@@ -310,7 +310,7 @@ describe('ProviderList', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'trigger-reorder' })[0])
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalled()
     })
   })
 
@@ -369,8 +369,8 @@ describe('ProviderList', () => {
 
     fireEvent.click(screen.getByTestId('provider-list-delete-openai'))
 
-    expect(window.modal.confirm).toHaveBeenCalledTimes(1)
-    const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(popup.confirm).toHaveBeenCalledTimes(1)
+    const options = vi.mocked(popup.confirm).mock.calls[0][0]
     expect(options.title).toBeTruthy()
     expect(options.okText).toBeTruthy()
     expect(options.okButtonProps).toEqual({ danger: true })
@@ -381,9 +381,9 @@ describe('ProviderList', () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
     fireEvent.click(screen.getByTestId('provider-list-delete-openai'))
-    const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    const options = vi.mocked(popup.confirm).mock.calls[0][0]
 
-    await options.onOk()
+    await options.onOk?.()
 
     expect(deleteProviderMock).toHaveBeenCalledWith('openai')
   })

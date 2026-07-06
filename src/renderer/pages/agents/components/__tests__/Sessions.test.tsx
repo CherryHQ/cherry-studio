@@ -500,6 +500,9 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+
 import { SESSION_AGENT_SECTION_ID, SESSION_PINNED_SECTION_ID, SESSION_WORKDIR_SECTION_ID } from '../sessionListHelpers'
 import Sessions from '../Sessions'
 
@@ -684,13 +687,6 @@ describe('Sessions', () => {
         file: {
           openPath: vi.fn().mockResolvedValue(undefined)
         }
-      },
-      modal: {
-        confirm: vi.fn().mockResolvedValue(true)
-      },
-      toast: {
-        error: vi.fn(),
-        success: vi.fn()
       }
     })
     cacheMocks.state.activeSessionId = 'session-a'
@@ -1657,7 +1653,7 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(onStartDraftSession).toHaveBeenCalled())
     // The rejection must be surfaced and the active id cleared in `finally` so the view never
     // stays pointed at the just-deleted session.
-    await vi.waitFor(() => expect(window.toast.error).toHaveBeenCalled())
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalled())
     await vi.waitFor(() => expect(setActiveSessionId).toHaveBeenCalledWith(null, null))
   })
 
@@ -2003,7 +1999,7 @@ describe('Sessions', () => {
       '/agent-workspaces',
       '/agent-sessions'
     ])
-    expect(window.toast.success).toHaveBeenCalledWith('Saved')
+    expect(toast.success).toHaveBeenCalledWith('Saved')
   })
 
   it('deletes a workspace group through the workspace delete endpoint', async () => {
@@ -2062,7 +2058,7 @@ describe('Sessions', () => {
         params: { workspaceId: 'ws-a' }
       })
     )
-    expect(window.modal.confirm).toHaveBeenCalledWith(
+    expect(popup.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
         content: 'Deleting this work directory also deletes tasks under it. The actual folder is not deleted.'
       })
@@ -2219,7 +2215,7 @@ describe('Sessions', () => {
         params: { agentId: 'agent-a' }
       })
     )
-    expect(window.modal.confirm).toHaveBeenCalledWith(
+    expect(popup.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
         content:
           "Deleting this agent's tasks will delete all tasks associated with this agent. The agent itself will not be deleted.",
@@ -2245,8 +2241,7 @@ describe('Sessions', () => {
     const confirmPromise = new Promise<boolean>((resolve) => {
       resolveConfirm = resolve
     })
-    const confirm = vi.fn().mockReturnValue(confirmPromise)
-    Object.assign(window, { modal: { confirm } })
+    vi.mocked(popup.confirm).mockReturnValue(confirmPromise)
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
@@ -2274,13 +2269,13 @@ describe('Sessions', () => {
     fireEvent.pointerDown(within(alphaGroup as HTMLElement).getByRole('button', { name: 'More' }))
     fireEvent.click(within(alphaGroup as HTMLElement).getByRole('menuitem', { name: 'Delete agent tasks' }))
 
-    await vi.waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(popup.confirm).toHaveBeenCalledTimes(1))
     fireEvent.pointerDown(within(betaGroup as HTMLElement).getByRole('button', { name: 'More' }))
     const betaDeleteMenuItem = within(betaGroup as HTMLElement).getByRole('menuitem', { name: 'Delete agent tasks' })
     await vi.waitFor(() => expect(betaDeleteMenuItem).toBeDisabled())
     fireEvent.click(betaDeleteMenuItem)
 
-    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(popup.confirm).toHaveBeenCalledTimes(1)
     expect(dataApiMocks.deleteAgentSessions).not.toHaveBeenCalled()
 
     await act(async () => {

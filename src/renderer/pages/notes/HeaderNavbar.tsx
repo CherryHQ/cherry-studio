@@ -22,6 +22,7 @@ import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { findNode } from '@renderer/services/NotesTreeService'
+import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode } from '@renderer/types/note'
 import { t } from 'i18next'
 import { Check, ChevronRight, MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
@@ -76,13 +77,13 @@ const HeaderNavbar = ({
       const content = getCurrentNoteContent?.()
       if (content) {
         await navigator.clipboard.writeText(content)
-        window.toast.success(t('common.copied'))
+        toast.success(t('common.copied'))
       } else {
-        window.toast.warning(t('notes.no_content_to_copy'))
+        toast.warning(t('notes.no_content_to_copy'))
       }
     } catch (error) {
       logger.error('Failed to copy content:', error as Error)
-      window.toast.error(t('common.copy_failed'))
+      toast.error(t('common.copy_failed'))
     }
   }, [getCurrentNoteContent])
 
@@ -90,18 +91,18 @@ const HeaderNavbar = ({
     try {
       const content = getCurrentNoteContent?.()
       if (!content) {
-        window.toast.warning(t('notes.no_content_to_export'))
+        toast.warning(t('notes.no_content_to_export'))
         return
       }
       if (!activeNode) {
-        window.toast.warning(t('notes.no_note_selected'))
+        toast.warning(t('notes.no_note_selected'))
         return
       }
       const fileName = activeNode.name.replace('.md', '')
       await window.api.export.toWord(content, fileName)
     } catch (error) {
       logger.error('Failed to export to Word:', error as Error)
-      window.toast.error(t('notes.export_to_word_failed'))
+      toast.error(t('notes.export_to_word_failed'))
     }
   }, [getCurrentNoteContent, activeNode])
 

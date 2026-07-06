@@ -1,6 +1,7 @@
 // Import Message, MessageBlock, and necessary enums
 import { getTopicMessages } from '@renderer/hooks/useTopic'
 import { addNote } from '@renderer/services/NotesService'
+import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -17,14 +18,6 @@ beforeEach(() => {
         read: vi.fn().mockResolvedValue('[]'),
         writeWithId: vi.fn()
       }
-    },
-    configurable: true
-  })
-  Object.defineProperty(window, 'toast', {
-    value: {
-      error: vi.fn(),
-      success: vi.fn(),
-      warning: vi.fn()
     },
     configurable: true
   })
@@ -600,7 +593,7 @@ describe('ExportService', () => {
 
       expect(addNote).not.toHaveBeenCalled()
       expect(loggerErrorSpy).toHaveBeenCalledWith('导出到笔记失败:', exportError)
-      expect(window.toast.error).toHaveBeenCalledWith('message.error.notes.export')
+      expect(toast.error).toHaveBeenCalledWith('message.error.notes.export')
 
       loggerErrorSpy.mockRestore()
     })

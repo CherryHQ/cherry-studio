@@ -1,3 +1,4 @@
+import { popup } from '@renderer/services/popup'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
@@ -320,16 +321,6 @@ function setupAgentHistory({
 describe('HistoryRecordsPage agent mode', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="agent-page"></div><div id="home-page"></div>'
-    Object.assign(window, {
-      modal: {
-        confirm: vi.fn()
-      },
-      toast: {
-        error: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn()
-      }
-    })
     MockCacheUtils.resetMocks()
     hookMocks.deleteSession.mockReset()
     hookMocks.deleteSession.mockResolvedValue(true)
@@ -906,6 +897,7 @@ describe('HistoryRecordsPage agent mode', () => {
   })
 
   it('confirms session deletion and moves the active session when needed', async () => {
+    vi.mocked(popup.confirm).mockImplementation(async () => true)
     const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
 
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
@@ -915,10 +907,10 @@ describe('HistoryRecordsPage agent mode', () => {
       await flushCommandMenuAction()
     })
 
-    expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete task' }))
+    expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete task' }))
     expect(hookMocks.deleteSession).not.toHaveBeenCalled()
 
-    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
+    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
       await confirmOptions?.onOk?.()
       await flushAnimationFrame()
@@ -929,6 +921,7 @@ describe('HistoryRecordsPage agent mode', () => {
   })
 
   it('clears the active session after deleting the last session from history', async () => {
+    vi.mocked(popup.confirm).mockImplementation(async () => true)
     const { onRecordSelect } = setupAgentHistory({
       activeRecordId: 'session-alpha',
       sessions: [createSession()]
@@ -941,7 +934,7 @@ describe('HistoryRecordsPage agent mode', () => {
       await flushCommandMenuAction()
     })
 
-    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
+    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
       await confirmOptions?.onOk?.()
       await flushAnimationFrame()
@@ -952,6 +945,7 @@ describe('HistoryRecordsPage agent mode', () => {
   })
 
   it('keeps the active session unchanged when history deletion fails', async () => {
+    vi.mocked(popup.confirm).mockImplementation(async () => true)
     hookMocks.deleteSession.mockResolvedValueOnce(false)
     const { onRecordSelect } = setupAgentHistory({ activeRecordId: 'session-alpha' })
 
@@ -962,7 +956,7 @@ describe('HistoryRecordsPage agent mode', () => {
       await flushCommandMenuAction()
     })
 
-    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
+    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
       await confirmOptions?.onOk?.()
       await flushAnimationFrame()

@@ -26,14 +26,6 @@ const mockRevokeObjectURL = vi.fn()
 // Mock fetch
 const mockFetch = vi.fn()
 
-// Mock window.toast
-const mockedToast = {
-  error: vi.fn(),
-  success: vi.fn(),
-  warning: vi.fn(),
-  info: vi.fn()
-}
-
 // 辅助函数
 const waitForAsync = () => new Promise((resolve) => setTimeout(resolve, 10))
 const createMockResponse = (options = {}) => ({
@@ -47,9 +39,6 @@ describe('download', () => {
   describe('download', () => {
     beforeEach(() => {
       vi.clearAllMocks()
-
-      // 设置 window.toast mock
-      Object.defineProperty(window, 'toast', { value: mockedToast, writable: true })
 
       // 设置 DOM mock
       const mockElement = {
@@ -228,29 +217,26 @@ describe('download', () => {
     })
 
     describe('Error handling', () => {
-      it('should handle network errors gracefully', async () => {
+      it('should reject so the caller can surface a network error', async () => {
         const networkError = new Error('Network error')
         mockFetch.mockRejectedValue(networkError)
 
-        expect(() => download('https://example.com/file.pdf')).not.toThrow()
-        await waitForAsync()
-
-        expect(mockedToast.error).toHaveBeenCalledWith('下载失败：Network error')
+        await expect(download('https://example.com/file.pdf')).rejects.toThrow('Network error')
       })
 
-      it('should handle fetch errors without message', async () => {
-        mockFetch.mockRejectedValue(new Error())
+      it('should reject with the original error when it has no message', async () => {
+        const fetchError = new Error()
+        mockFetch.mockRejectedValue(fetchError)
 
-        expect(() => download('https://example.com/file.pdf')).not.toThrow()
-        await waitForAsync()
-
-        expect(mockedToast.error).toHaveBeenCalledWith('下载失败')
+        await expect(download('https://example.com/file.pdf')).rejects.toBe(fetchError)
       })
 
-      it('should handle HTTP errors gracefully', async () => {
+      it('should reject (not throw synchronously) on a bad HTTP response', async () => {
         mockFetch.mockResolvedValue({ ok: false, status: 404 })
 
-        expect(() => download('https://example.com/file.pdf')).not.toThrow()
+        const pending = download('https://example.com/file.pdf')
+        expect(pending).toBeInstanceOf(Promise)
+        await expect(pending).rejects.toBeInstanceOf(Error)
       })
     })
   })

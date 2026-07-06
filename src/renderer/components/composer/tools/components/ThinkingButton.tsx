@@ -11,6 +11,7 @@ import {
 } from '@renderer/components/icons/SvgIcon'
 import { cacheService } from '@renderer/data/CacheService'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import {
   getThinkModelType,
@@ -90,7 +91,7 @@ const useThinkingToolController = ({
         assistant?.settings.enableWebSearch &&
         option === 'minimal'
       ) {
-        window.toast.warning(t('chat.web_search.warning.openai'))
+        toast.warning(t('chat.web_search.warning.openai'))
         return
       }
       cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)

@@ -1,5 +1,6 @@
 import type { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
+import { popup } from '@renderer/services/popup'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { useMemo, useState } from 'react'
@@ -67,7 +68,7 @@ export const useActionItems = (
 
   const handleDeleteActionItem = (id: string) => {
     if (!initialItems) return
-    window.modal.confirm({
+    popup.confirm({
       centered: true,
       content: t('selection.settings.actions.delete_confirm'),
       onOk: () => {
@@ -78,7 +79,7 @@ export const useActionItems = (
 
   const handleReset = () => {
     if (!initialItems) return
-    window.modal.confirm({
+    popup.confirm({
       centered: true,
       content: t('selection.settings.actions.reset.confirm'),
       onOk: () => {

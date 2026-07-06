@@ -1,6 +1,6 @@
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, LoaderCircle, X } from 'lucide-react'
 import type React from 'react'
-import { createContext, use, useMemo, useRef, useSyncExternalStore } from 'react'
+import { createContext, use, useMemo, useSyncExternalStore } from 'react'
 
 import { cn } from '../../lib/utils'
 
@@ -37,6 +37,14 @@ export interface ToastLabels {
   success: React.ReactNode
 }
 
+/**
+ * Labels may be a plain partial object or a getter. A getter is resolved at the
+ * moment a toast fires / a viewport renders, so callers that read i18n through a
+ * getter always see the current language instead of a value snapshotted at
+ * module load (the old English-defaults bug).
+ */
+export type ToastLabelsInput = Partial<ToastLabels> | (() => Partial<ToastLabels>)
+
 export type ToastUtilities = ReturnType<typeof getToastUtilities>
 export type ToastStore = ReturnType<typeof createToastStore>
 
@@ -51,7 +59,13 @@ const DEFAULT_TOAST_LABELS: ToastLabels = {
 
 const getToastKey = (key?: string | number) => String(key ?? `toast-${Date.now()}-${Math.random()}`)
 
-const getToastLabels = (labels?: Partial<ToastLabels>): ToastLabels => ({ ...DEFAULT_TOAST_LABELS, ...labels })
+const resolveToastLabels = (labels?: ToastLabelsInput): Partial<ToastLabels> | undefined =>
+  typeof labels === 'function' ? labels() : labels
+
+const getToastLabels = (labels?: ToastLabelsInput): ToastLabels => ({
+  ...DEFAULT_TOAST_LABELS,
+  ...resolveToastLabels(labels)
+})
 
 const createToastStore = () => {
   let toastQueue: ToastRecord[] = []
@@ -142,8 +156,7 @@ const createToastStore = () => {
 }
 
 const defaultToastStore = createToastStore()
-const ToastStoreContext = createContext<ToastStore | null>(null)
-const ToastLabelsContext = createContext<Partial<ToastLabels> | undefined>(undefined)
+const ToastLabelsContext = createContext<ToastLabelsInput | undefined>(undefined)
 
 const upsertToast = (toast: ToastRecord, store = defaultToastStore) => {
   store.upsert(toast)
@@ -168,7 +181,7 @@ const createToast = (type: StaticToastType, store = defaultToastStore) => {
 }
 
 const createLoadingToast =
-  (labels?: Partial<ToastLabels>, store = defaultToastStore) =>
+  (labels?: ToastLabelsInput, store = defaultToastStore) =>
   <T,>(args: LoadingToastConfig<T>): string => {
     const toastLabels = getToastLabels(labels)
     const { title, description, icon, onError, promise, timeout, ...restConfig } = args
@@ -230,7 +243,7 @@ const createLoadingToast =
     return key
   }
 
-const createToastUtilities = (labels?: Partial<ToastLabels>, store = defaultToastStore) =>
+const createToastUtilities = (labels?: ToastLabelsInput, store = defaultToastStore) =>
   ({
     closeAll: store.closeAll,
     closeToast: (key: string) => store.remove(key),
@@ -259,32 +272,29 @@ export const closeAll = () => {
 
 export const getToastQueue = (): { toasts: ToastRecord[] } => ({ toasts: defaultToastStore.getSnapshot() })
 
-export const getToastUtilities = (labels?: Partial<ToastLabels>) => createToastUtilities(labels)
+export const getToastUtilities = (labels?: ToastLabelsInput) => createToastUtilities(labels)
 
-export const useToasts = (labels?: Partial<ToastLabels>) => {
-  const store = use(ToastStoreContext) ?? defaultToastStore
+export const useToasts = (labels?: ToastLabelsInput) => {
   const contextLabels = use(ToastLabelsContext)
   const toastLabels = labels ?? contextLabels
 
-  return useMemo(() => createToastUtilities(toastLabels, store), [toastLabels, store])
+  return useMemo(() => createToastUtilities(toastLabels), [toastLabels])
 }
 
-export const ToastProvider = ({ children, labels }: { children: React.ReactNode; labels?: Partial<ToastLabels> }) => {
-  const storeRef = useRef<ToastStore | null>(null)
-
-  if (!storeRef.current) {
-    storeRef.current = createToastStore()
-  }
-
-  return (
-    <ToastStoreContext value={storeRef.current}>
-      <ToastLabelsContext value={labels}>
-        {children}
-        <ToastViewport labels={labels} store={storeRef.current} />
-      </ToastLabelsContext>
-    </ToastStoreContext>
-  )
-}
+/**
+ * Convenience combo of i18n labels + a viewport, all bound to the single module
+ * `defaultToastStore`. It deliberately does NOT fork its own store: the module
+ * toast functions (`error`/`success`/… and `window.toast`) also write to
+ * `defaultToastStore`, so a per-provider fork would leave the command entry and
+ * the rendered viewport on different stores (the quickAssistant black-hole bug
+ * class). Every ToastViewport in every window reads the same store.
+ */
+export const ToastProvider = ({ children, labels }: { children: React.ReactNode; labels?: ToastLabelsInput }) => (
+  <ToastLabelsContext value={labels}>
+    {children}
+    <ToastViewport labels={labels} />
+  </ToastLabelsContext>
+)
 
 const typeIconMap: Record<ToastType, React.ReactNode> = {
   error: <AlertCircle className="size-4 text-destructive" />,
@@ -341,7 +351,7 @@ export const ToastViewport = ({
   labels,
   store = defaultToastStore
 }: {
-  labels?: Partial<ToastLabels>
+  labels?: ToastLabelsInput
   store?: ToastStore
 }) => {
   const toasts = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)

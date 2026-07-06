@@ -4,6 +4,7 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 import type { SerializedAiSdkError, SerializedAiSdkErrorUnion, SerializedError } from '@renderer/types/error'
 import {
   isSerializedAiSdkApiCallError,
@@ -531,7 +532,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
     }
 
     void navigator.clipboard.writeText(errorText)
-    window.toast.success(t('message.copied'))
+    toast.success(t('message.copied'))
   }, [error, t])
 
   const renderErrorDetails = (error?: SerializedError) => {

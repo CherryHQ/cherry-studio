@@ -3,6 +3,7 @@ import { ActionConfirmDialog } from '@renderer/components/chat/actions/ActionCon
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { popup } from '@renderer/services/popup'
 import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
@@ -220,7 +221,7 @@ export function HistoryActionContextMenu<TContext = unknown>({
       if (!action.availability.enabled) return
       const confirm = action.confirm
       if (confirm) {
-        void window.modal.confirm({
+        void popup.confirm({
           title: confirm.title,
           content: confirm.description ?? confirm.content,
           okText: confirm.confirmText,

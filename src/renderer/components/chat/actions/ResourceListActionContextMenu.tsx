@@ -1,4 +1,5 @@
 import { CommandContextMenu } from '@renderer/components/command'
+import { popup } from '@renderer/services/popup'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 
@@ -17,7 +18,7 @@ type ResourceListActionContextMenuProps<T extends ResourceListItemBase, TActionC
  * Resource-list (topics, agent sessions, …) row context menu, rendered through the
  * command system's CommandContextMenu so it honors the `menu.presentation_mode`
  * preference (Cherry vs Native). Actions map to extra items; an action's inline
- * confirm becomes a `window.modal.confirm` popup (a native OS menu cannot host an
+ * confirm becomes a `popup.confirm` popup (a native OS menu cannot host an
  * inline dialog).
  */
 export function ResourceListActionContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
@@ -34,7 +35,7 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
       if (!action.availability.enabled) return
       const confirm = action.confirm
       if (confirm) {
-        void window.modal.confirm({
+        void popup.confirm({
           title: confirm.title,
           content: confirm.description ?? confirm.content,
           okText: confirm.confirmText,

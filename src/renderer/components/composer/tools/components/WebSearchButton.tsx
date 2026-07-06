@@ -4,6 +4,8 @@ import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { canModelUseAssistantWebSearch, hasModelBuiltinWebSearch } from '@renderer/utils/model'
 import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
@@ -78,7 +80,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
 
   const onClick = useCallback(() => {
     if (!assistant || !model) {
-      window.toast.error(t('error.model.not_exists'))
+      toast.error(t('error.model.not_exists'))
       return
     }
     if (enableWebSearch) {
@@ -89,7 +91,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
     // Built-in web search bypasses the external-provider requirement; the
     // toggle simply flips the assistant flag and the model handles search.
     if (!hasBuiltinWebSearch && !activeProviderId) {
-      window.modal.confirm({
+      popup.confirm({
         centered: true,
         title: t('settings.tool.websearch.search_provider'),
         content: t('settings.tool.websearch.search_provider_placeholder'),

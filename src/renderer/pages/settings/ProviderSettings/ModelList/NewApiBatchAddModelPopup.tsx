@@ -13,13 +13,14 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { TopView } from '@renderer/components/TopView/TopView'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -33,9 +34,7 @@ interface ShowParams {
   batchModels: Model[]
 }
 
-interface Props extends ShowParams {
-  resolve: (data: any) => void
-}
+type Props = ShowParams & PopupInjectedProps<Record<string, never>>
 
 type FieldType = {
   provider: string
@@ -43,26 +42,15 @@ type FieldType = {
   endpointType?: EndpointType
 }
 
-const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels }) => {
-  const [open, setOpen] = useState(true)
-  const resolvedRef = useRef(false)
+const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels, open }) => {
   const [endpointType, setEndpointType] = useState<EndpointType>(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   const [submitting, setSubmitting] = useState(false)
   const { createModels } = useModelMutations()
   const { models: existingModels } = useModels({ providerId: provider.id })
   const { t } = useTranslation()
 
-  const closeWithResult = (data: any) => {
-    if (resolvedRef.current) {
-      return
-    }
-    resolvedRef.current = true
-    setOpen(false)
-    resolve(data)
-  }
-
   const onCancel = () => {
-    closeWithResult({})
+    resolve({})
   }
 
   const onAddModel = async (values: FieldType) => {
@@ -73,7 +61,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
     })
 
     if (modelsToAdd.length === 0) {
-      window.toast.error(t('error.model.exists'))
+      toast.error(t('error.model.exists'))
       return false
     }
 
@@ -95,11 +83,11 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
     try {
       setSubmitting(true)
       if (await onAddModel({ provider: provider.id, endpointType })) {
-        closeWithResult({})
+        resolve({})
       }
     } catch (error) {
       logger.error('Failed to batch add models', { providerId: provider.id, error })
-      window.toast.error(t('settings.models.manage.sync_pull_failed'))
+      toast.error(t('settings.models.manage.sync_pull_failed'))
     } finally {
       setSubmitting(false)
     }
@@ -154,23 +142,6 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   )
 }
 
-export default class NewApiBatchAddModelPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide('NewApiBatchAddModelPopup')
-  }
-  static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            this.hide()
-          }}
-        />,
-        'NewApiBatchAddModelPopup'
-      )
-    })
-  }
-}
+const NewApiBatchAddModelPopup = createPopup<ShowParams, Record<string, never>>(PopupContainer, { dismissResult: {} })
+
+export default NewApiBatchAddModelPopup

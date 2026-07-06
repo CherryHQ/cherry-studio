@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
+import { toast } from '@renderer/services/toast'
 import { download as downloadFile } from '@renderer/utils/download'
 import { svgToPngBlob, svgToSvgBlob } from '@renderer/utils/image'
 import type { RefObject } from 'react'
@@ -211,10 +212,10 @@ export const useImageTools = (
 
       const blob = await svgToPngBlob(imgElement)
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-      window.toast.success(t('message.copy.success'))
+      toast.success(t('message.copy.success'))
     } catch (error) {
       logger.error('Copy failed:', error as Error)
-      window.toast.error(t('message.copy.failed'))
+      toast.error(t('message.copy.failed'))
     }
   }, [getCleanImgElement, t])
 
@@ -234,17 +235,17 @@ export const useImageTools = (
         if (format === 'svg') {
           const blob = svgToSvgBlob(imgElement)
           const url = URL.createObjectURL(blob)
-          downloadFile(url, `${prefix}-${timestamp}.svg`)
+          await downloadFile(url, `${prefix}-${timestamp}.svg`)
           URL.revokeObjectURL(url)
         } else {
           const blob = await svgToPngBlob(imgElement)
           const pngUrl = URL.createObjectURL(blob)
-          downloadFile(pngUrl, `${prefix}-${timestamp}.png`)
+          await downloadFile(pngUrl, `${prefix}-${timestamp}.png`)
           URL.revokeObjectURL(pngUrl)
         }
       } catch (error) {
         logger.error('Download failed:', error as Error)
-        window.toast.error(t('message.download.failed'))
+        toast.error(t('message.download.failed'))
       }
     },
     [getCleanImgElement, prefix, t]
@@ -263,7 +264,7 @@ export const useImageTools = (
       await ImagePreviewService.show(imgElement, { format: 'svg' })
     } catch (error) {
       logger.error('Dialog preview failed:', error as Error)
-      window.toast.error(t('message.dialog.failed'))
+      toast.error(t('message.dialog.failed'))
     }
   }, [getCleanImgElement, t])
 

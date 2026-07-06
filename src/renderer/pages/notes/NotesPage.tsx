@@ -26,6 +26,7 @@ import {
   reorderTreeNodes,
   updateTreeNode
 } from '@renderer/services/NotesTreeService'
+import { toast } from '@renderer/services/toast'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { Note } from '@shared/data/types/note'
 import type { DirectoryTreeOptions } from '@shared/utils/file'
@@ -80,7 +81,7 @@ const NotesPage: FC = () => {
   useEffect(() => {
     if (!treeError) return
     logger.error('Failed to load notes directory tree', treeError, { notesPath, treeId })
-    window.toast.error(t('notes.tree_load_failed'))
+    toast.error(t('notes.tree_load_failed'))
   }, [treeError, notesPath, treeId, t])
 
   // 混合策略：useLiveQuery用于笔记树，React Query用于文件内容
@@ -160,7 +161,7 @@ const NotesPage: FC = () => {
       if (!targetPath || content.trim() === currentContent.trim()) return
       if (contentLoadErrorRef.current && targetPath === activeFilePathRef.current) {
         logger.warn('Skipped note save because current file content failed to load', { targetPath })
-        window.toast.error(t('notes.save_blocked_load_failed'))
+        toast.error(t('notes.save_blocked_load_failed'))
         return
       }
 
@@ -173,7 +174,7 @@ const NotesPage: FC = () => {
         const now = Date.now()
         if (now - lastSaveFailureToastAtRef.current > SAVE_FAILURE_TOAST_INTERVAL_MS) {
           lastSaveFailureToastAtRef.current = now
-          window.toast.error(t('notes.save_failed'))
+          toast.error(t('notes.save_failed'))
         }
       }
     },
@@ -209,7 +210,7 @@ const NotesPage: FC = () => {
     (newMarkdown: string) => {
       if (contentLoadError) {
         logger.warn('Ignored note edit because current file content failed to load', { activeFilePath })
-        window.toast.error(t('notes.save_blocked_load_failed'))
+        toast.error(t('notes.save_blocked_load_failed'))
         return
       }
       // 记录最新内容和文件路径，用于兜底保存
@@ -236,7 +237,7 @@ const NotesPage: FC = () => {
   useEffect(() => {
     if (contentLoadError) {
       logger.error('Failed to load note content:', contentLoadError)
-      window.toast.error(t('notes.load_failed'))
+      toast.error(t('notes.load_failed'))
     }
   }, [contentLoadError, t])
 
@@ -283,7 +284,7 @@ const NotesPage: FC = () => {
           })
           if (!entries || entries.length === 0) {
             // 默认目录为空，提示用户需要迁移文件
-            window.toast.warning({
+            toast.warning({
               title: t('notes.crossPlatformRestoreWarning', { path: defaultPath }),
               timeout: 10000
             })
@@ -446,7 +447,7 @@ const NotesPage: FC = () => {
     (node: NotesTreeNode, patch: Parameters<typeof patchNode>[1]) => {
       void patchNode(node, patch).catch((error) => {
         logger.error('Failed to persist note patch:', error as Error)
-        window.toast.error(t('notes.metadata_update_failed'))
+        toast.error(t('notes.metadata_update_failed'))
         void refreshTree().catch((refreshError) => {
           logger.error('Failed to refresh notes tree after metadata patch failure:', refreshError as Error)
         })
@@ -510,7 +511,7 @@ const NotesPage: FC = () => {
             logger.error('Failed to rollback note file operation after metadata sync failure:', rollbackError as Error)
           }
         }
-        window.toast.error(t('notes.metadata_sync_failed'))
+        toast.error(t('notes.metadata_sync_failed'))
         await refreshTree()
         return false
       }
@@ -544,7 +545,7 @@ const NotesPage: FC = () => {
         await refreshTree()
       } catch (error) {
         logger.error('Failed to create folder:', error as Error)
-        window.toast.error(t('notes.create_folder_failed'))
+        toast.error(t('notes.create_folder_failed'))
       }
     },
     [getTargetFolderPath, refreshTree, setFolderExpandedByPath, t]
@@ -573,7 +574,7 @@ const NotesPage: FC = () => {
         // shouldClearPath isn't permanently suppressed.
         isCreatingNoteRef.current = false
         logger.error('Failed to create note:', error as Error)
-        window.toast.error(t('notes.create_note_failed'))
+        toast.error(t('notes.create_note_failed'))
       }
     },
     [getTargetFolderPath, refreshTree, setActiveFilePath, setFolderExpandedByPath, t]
@@ -661,7 +662,7 @@ const NotesPage: FC = () => {
       } catch (error) {
         logger.error('Failed to delete node:', error as Error)
         if (error instanceof Error && error.message) {
-          window.toast.error(t('notes.delete_failed'))
+          toast.error(t('notes.delete_failed'))
         }
       }
     },
@@ -735,7 +736,7 @@ const NotesPage: FC = () => {
         // aren't suppressed.
         isRenamingRef.current = false
         logger.error('Failed to rename node:', error as Error)
-        window.toast.error(
+        toast.error(
           error instanceof Error && error.message.startsWith('Target name already exists')
             ? t('notes.target_name_exists')
             : t('notes.rename_failed')
@@ -760,7 +761,7 @@ const NotesPage: FC = () => {
     async (files: File[]) => {
       try {
         if (!files || files.length === 0) {
-          window.toast.warning(t('notes.no_file_selected'))
+          toast.warning(t('notes.no_file_selected'))
           return
         }
 
@@ -772,7 +773,7 @@ const NotesPage: FC = () => {
         // Validate uploadNotes function is available
         if (typeof uploadNotes !== 'function') {
           logger.error('uploadNotes function is not available', { uploadNotes })
-          window.toast.error(t('notes.upload_failed'))
+          toast.error(t('notes.upload_failed'))
           return
         }
 
@@ -787,17 +788,17 @@ const NotesPage: FC = () => {
         // Validate result object
         if (!result || typeof result !== 'object') {
           logger.error('Invalid upload result:', { result })
-          window.toast.error(t('notes.upload_failed'))
+          toast.error(t('notes.upload_failed'))
           return
         }
 
         // 检查上传结果
         if (result.fileCount === 0) {
           if (result.failedFiles > 0) {
-            window.toast.error(t('notes.upload_all_failed', { failed: result.failedFiles }))
+            toast.error(t('notes.upload_all_failed', { failed: result.failedFiles }))
             return
           }
-          window.toast.warning(t('notes.no_valid_files'))
+          toast.warning(t('notes.no_valid_files'))
           return
         }
 
@@ -806,16 +807,14 @@ const NotesPage: FC = () => {
         await refreshTree()
 
         if (result.failedFiles > 0) {
-          window.toast.warning(
-            t('notes.upload_partial_failed', { uploaded: result.fileCount, failed: result.failedFiles })
-          )
+          toast.warning(t('notes.upload_partial_failed', { uploaded: result.fileCount, failed: result.failedFiles }))
           return
         }
 
-        window.toast.success(t('notes.upload_success'))
+        toast.success(t('notes.upload_success'))
       } catch (error) {
         logger.error('Failed to handle file upload:', error as Error)
-        window.toast.error(t('notes.upload_failed'))
+        toast.error(t('notes.upload_failed'))
       }
     },
     [getTargetFolderPath, refreshTree, setFolderExpandedByPath, t]
@@ -914,7 +913,7 @@ const NotesPage: FC = () => {
         await refreshTree()
       } catch (error) {
         logger.error('Failed to move nodes:', error as Error)
-        window.toast.error(t('notes.move_failed'))
+        toast.error(t('notes.move_failed'))
       }
     },
     [

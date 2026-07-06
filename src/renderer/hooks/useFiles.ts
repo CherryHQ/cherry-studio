@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { useCallback, useMemo, useState } from 'react'
@@ -68,7 +69,7 @@ export const useFiles = (props?: Props) => {
         }
 
         if (supportedFiles.length !== _files.length) {
-          window.toast.info(
+          toast.info(
             t('chat.input.file_not_supported_count', {
               count: _files.length - supportedFiles.length
             })

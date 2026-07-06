@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import {
@@ -43,9 +44,6 @@ vi.mock('../useSessionChanged', () => ({
 vi.mock('@data/DataApiService', () => ({
   dataApiService: { get: vi.fn() }
 }))
-
-const mockToast = { success: vi.fn(), error: vi.fn() }
-vi.stubGlobal('window', { toast: mockToast })
 
 const workspace = {
   id: 'workspace-1',
@@ -366,7 +364,7 @@ describe('useSessions', () => {
 
     expect(refresh).toHaveBeenCalledTimes(1)
     expect(created).toBe(mockSession)
-    expect(mockToast.error).toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
   })
 
   it('shows an error toast and returns null when DataApi session creation fails', async () => {
@@ -380,7 +378,7 @@ describe('useSessions', () => {
     )
 
     expect(created).toBeNull()
-    expect(mockToast.error).toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
   })
 })
 
@@ -412,7 +410,7 @@ describe('useUpdateSession', () => {
       body: { agentId: 'agent-2' }
     })
     expect(updated).toBe(mockResult)
-    expect(mockToast.success).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('updates when called with no agentId (composer path) — only an explicit null gates', async () => {
@@ -479,7 +477,7 @@ describe('useUpdateSession', () => {
       body: { name: 'New name' }
     })
     expect(updated).toBeDefined()
-    expect(mockToast.success).toHaveBeenCalledWith('common.update_success')
+    expect(toast.success).toHaveBeenCalledWith('common.update_success')
   })
 
   it('keeps the session PATCH refresh scoped to session caches', () => {
@@ -545,7 +543,7 @@ describe('useUpdateSession', () => {
     const { result } = renderHook(() => useUpdateSession())
     await act(async () => result.current.updateSession({ id: 'session-1' }, { showSuccessToast: false }))
 
-    expect(mockToast.success).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('shows error toast and returns undefined on failure', async () => {
@@ -556,7 +554,7 @@ describe('useUpdateSession', () => {
     const updated = await act(async () => result.current.updateSession({ id: 'session-1' }))
 
     expect(updated).toBeUndefined()
-    expect(mockToast.error).toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
   })
 })
 

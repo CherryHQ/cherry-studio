@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import TextFilePreviewPopup from '@renderer/components/Popups/TextFilePreview'
+import { popup } from '@renderer/services/popup'
 import { FILE_TYPE, type FileType } from '@renderer/types/file'
 import { useTranslation } from 'react-i18next'
 
@@ -26,7 +27,7 @@ export function useAttachment() {
       }
     } catch (err) {
       logger.error(`Error opening ${path}:`, err as Error)
-      window.modal.error({ content: t('files.preview.error'), centered: true })
+      popup.error({ content: t('files.preview.error'), centered: true })
     }
   }
   return {

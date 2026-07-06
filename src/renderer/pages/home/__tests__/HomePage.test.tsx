@@ -617,6 +617,7 @@ vi.mock('@renderer/services/EventService', () => ({
 
 import { useTabSelfMetadata } from '@renderer/hooks/tab'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 
 import HomePage from '../HomePage'
@@ -1073,8 +1074,6 @@ describe('HomePage', () => {
     homeMocks.preferenceValues.set('topic.layout', 'classic')
     homeMocks.classicLayoutTopics = []
     homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
-    const toastError = vi.fn()
-    Object.assign(window, { toast: { error: toastError } })
 
     render(<HomePage />)
 
@@ -1082,7 +1081,7 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
-    await waitFor(() => expect(toastError).toHaveBeenCalled())
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
     expect(screen.queryByTestId('active-topic')?.textContent).not.toBe('topic-created')
   })
 
@@ -1091,15 +1090,13 @@ describe('HomePage', () => {
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
     homeMocks.classicLayoutTopics = []
     homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
-    const toastError = vi.fn()
-    Object.assign(window, { toast: { error: toastError } })
 
     render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Create empty topic from composer' }))
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalled())
-    await waitFor(() => expect(toastError).toHaveBeenCalled())
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
     expect(screen.queryByTestId('active-topic')?.textContent).not.toBe('topic-created')
   })
 

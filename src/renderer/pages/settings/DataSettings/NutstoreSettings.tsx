@@ -24,6 +24,8 @@ import {
   startNutstoreAutoSync,
   stopNutstoreAutoSync
 } from '@renderer/services/NutstoreService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
 import { Check, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
@@ -86,7 +88,7 @@ const NutstoreSettings: FC = () => {
 
   const handleLayout = useCallback(async () => {
     const confirmedLogout = await new Promise<boolean>((resolve) => {
-      window.modal.confirm({
+      popup.confirm({
         centered: true,
         title: t('settings.data.nutstore.logout.title'),
         content: t('settings.data.nutstore.logout.content'),
@@ -107,7 +109,7 @@ const NutstoreSettings: FC = () => {
     setCheckConnectionLoading(true)
     const isConnectedToNutstore = await checkConnection()
 
-    window.toast[isConnectedToNutstore ? 'success' : 'error']({
+    toast[isConnectedToNutstore ? 'success' : 'error']({
       timeout: 2000,
       title: isConnectedToNutstore
         ? t('settings.data.nutstore.checkConnection.success')

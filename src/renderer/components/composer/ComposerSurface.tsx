@@ -13,6 +13,7 @@ import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRich
 import SendMessageButton from '@renderer/components/SendMessageButton'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { toast } from '@renderer/services/toast'
 import { isPastedTextFileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import {
@@ -604,7 +605,7 @@ export default function ComposerSurface({
 
   const showBlockedSendReason = useCallback(() => {
     if (sendBlockedReasonRef.current) {
-      window.toast?.error(sendBlockedReasonRef.current)
+      toast.error(sendBlockedReasonRef.current)
     }
   }, [])
 
@@ -773,7 +774,7 @@ export default function ComposerSurface({
           )
         )
       } catch {
-        window.toast?.error(t('chat.input.file_error'))
+        toast.error(t('chat.input.file_error'))
       }
     },
     [setFiles, t]

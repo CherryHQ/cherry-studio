@@ -1,6 +1,8 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
+import { popup } from '@renderer/services/popup'
 import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
+import { toast } from '@renderer/services/toast'
 
 import { createPaintingGenerateError, presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import type { PaintingGenerationGuardReason } from '../hooks/usePaintingGenerationGuard'
@@ -20,7 +22,7 @@ export function presentPaintingGenerationGuardFeedback(
 ) {
   if (reason === 'provider_disabled' || reason === 'no_api_key') {
     if (providerId) {
-      window.modal.warning({
+      popup.warning({
         content: i18n.t(reason === 'provider_disabled' ? 'error.provider_disabled' : 'error.no_api_key'),
         centered: true,
         closable: true,
@@ -35,12 +37,12 @@ export function presentPaintingGenerationGuardFeedback(
     return
   }
   if (reason === 'catalog_error') {
-    window.toast.error(error?.message || i18n.t('paintings.req_error_model'))
+    toast.error(error?.message || i18n.t('paintings.req_error_model'))
     return
   }
   if (reason === 'model_unavailable') {
-    window.toast.error(i18n.t('paintings.req_error_model'))
+    toast.error(i18n.t('paintings.req_error_model'))
     return
   }
-  window.toast.error(i18n.t('paintings.select_model'))
+  toast.error(i18n.t('paintings.select_model'))
 }

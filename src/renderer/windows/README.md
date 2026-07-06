@@ -7,7 +7,7 @@ Each subdirectory is one renderer window: an HTML entry, a thin bootstrap, and a
 | Layer | File | Responsibility | Rule |
 |---|---|---|---|
 | **L1** | `entryPoint.tsx` | Bootstrap: side-effect imports (styles), any `await` preload / init-data, `createRoot().render(<XxxApp />)` | Fixed filename. Defines **no** component — only mounts one. |
-| **L2** | `XxxApp.tsx` | Providers root (`Provider` / `QueryClientProvider` / `ThemeProvider` …). May hold an inner `XxxContent` for post-Redux hook wiring (e.g. `window.toast`). | Fixed name `<WindowName>App`, default export, mounted by L1. |
+| **L2** | `XxxApp.tsx` | Providers root (`Provider` / `QueryClientProvider` / `ThemeProvider` …). May hold an inner leaf that runs per-window init hooks (`useAppInit`) and mounts the popup/toast hosts (`<PopupHost/>` / `<ToastHost/>`) as sibling leaves. | Fixed name `<WindowName>App`, default export, mounted by L1. |
 | **L3** | (varies) | The window's actual UI. | Named for what it is — **no forced suffix**. |
 
 `index.html`'s `<script src>` points at the window's `entryPoint.tsx`.

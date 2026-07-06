@@ -1,8 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
-import { lazy, Suspense, useRef, useState } from 'react'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { TopView } from '../TopView/TopView'
 
 // Deferred so the popup's imperative shell (this module, statically imported by
 // AppShell / ShellTabBarActions / AgentChatNavbar / MessagesService) no longer
@@ -15,40 +14,15 @@ const GlobalSearchPanel = lazy(() =>
   }))
 )
 
-const CLOSE_ANIMATION_MS = 200
+type Props = PopupInjectedProps<any>
 
-interface Props {
-  resolve: (data: any) => void
-}
-
-const PopupContainer: React.FC<Props> = ({ resolve }) => {
-  const [open, setOpen] = useState(true)
-  const resolvedRef = useRef(false)
+const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const { t } = useTranslation()
 
-  const resolveAfterClose = () => {
-    if (resolvedRef.current) return
-    resolvedRef.current = true
-    window.setTimeout(() => {
-      resolve({})
-    }, CLOSE_ANIMATION_MS)
-  }
-
-  const closePopup = () => {
-    setOpen(false)
-    resolveAfterClose()
-  }
-
-  const onOpenChange = (next: boolean) => {
-    if (!next) {
-      closePopup()
-    }
-  }
-
-  SearchPopup.hide = closePopup
+  const close = () => resolve({})
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => !next && close()}>
       <DialogContent
         showCloseButton={false}
         onOpenAutoFocus={(event) => event.preventDefault()}
@@ -58,29 +32,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           <DialogTitle>{t('globalSearch.open')}</DialogTitle>
         </DialogHeader>
         <Suspense fallback={null}>
-          <GlobalSearchPanel onClose={closePopup} />
+          <GlobalSearchPanel onClose={close} />
         </Suspense>
       </DialogContent>
     </Dialog>
   )
 }
 
-export default class SearchPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide('SearchPopup')
-  }
-  static show() {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide('SearchPopup')
-          }}
-        />,
-        'SearchPopup'
-      )
-    })
-  }
-}
+const SearchPopup = createPopup<Record<string, never>, any>(PopupContainer, { dismissResult: {} })
+
+export default SearchPopup

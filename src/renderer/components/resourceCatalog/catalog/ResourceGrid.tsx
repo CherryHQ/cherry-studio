@@ -17,6 +17,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useDeleteTag, useRenameTag } from '@renderer/hooks/useTags'
+import { toast } from '@renderer/services/toast'
 import type { ResourceItem, ResourceType, TagItem } from '@renderer/types/resourceCatalog'
 import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
 import type { Tag as BackendTag } from '@shared/data/types/tag'
@@ -189,7 +190,7 @@ export const ResourceGrid: FC<Props> = ({
       setShowAddTag(false)
     } catch (error) {
       const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
-      window.toast.error(message)
+      toast.error(message)
       logger.error('Failed to create tag', error instanceof Error ? error : new Error(String(error)), {
         name: trimmed
       })
@@ -220,7 +221,7 @@ export const ResourceGrid: FC<Props> = ({
       setRenamingTag(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
-      window.toast.error(message)
+      toast.error(message)
       logger.error('Failed to rename tag', error instanceof Error ? error : new Error(String(error)), {
         id: tag.id,
         name: tag.name,
@@ -242,7 +243,7 @@ export const ResourceGrid: FC<Props> = ({
       setDeletingTag(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
-      window.toast.error(message)
+      toast.error(message)
       logger.error('Failed to delete tag', error instanceof Error ? error : new Error(String(error)), {
         id: tag.id,
         name: tag.name
