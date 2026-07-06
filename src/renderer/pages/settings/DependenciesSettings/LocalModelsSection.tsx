@@ -141,7 +141,7 @@ const ModelCard: FC<ModelCardProps> = ({
             <span className="truncate font-medium text-foreground text-sm">{name}</span>
             {ready && (
               <Badge variant="secondary" className="px-1.5 py-0 text-[11px] leading-4">
-                {t('settings.plugins.localModels.status.ready')}
+                {t('settings.dependencies.localModels.status.ready')}
               </Badge>
             )}
           </div>
@@ -152,7 +152,7 @@ const ModelCard: FC<ModelCardProps> = ({
             variant="ghost"
             size="icon-sm"
             onClick={onRemove}
-            aria-label={t('settings.plugins.localModels.remove')}>
+            aria-label={t('settings.dependencies.localModels.remove')}>
             <Trash2 className="size-3.5" />
           </Button>
         )}
@@ -160,7 +160,7 @@ const ModelCard: FC<ModelCardProps> = ({
 
       {notice && (
         <p className={cn('mt-2 text-xs leading-4', notice === 'inUse' ? 'text-muted-foreground' : 'text-destructive')}>
-          {t(`settings.plugins.localModels.notice.${notice}`)}
+          {t(`settings.dependencies.localModels.notice.${notice}`)}
         </p>
       )}
 
@@ -170,7 +170,7 @@ const ModelCard: FC<ModelCardProps> = ({
             <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />
           </div>
           <div className="flex items-center justify-between text-muted-foreground text-xs">
-            <span>{t('settings.plugins.localModels.status.downloading')}</span>
+            <span>{t('settings.dependencies.localModels.status.downloading')}</span>
             <span>{percent}%</span>
           </div>
         </div>
@@ -181,12 +181,12 @@ const ModelCard: FC<ModelCardProps> = ({
           {downloading ? (
             <Button variant="outline" size="sm" className="h-7 w-full gap-1 font-medium text-xs" onClick={onCancel}>
               <X className="size-3.5" />
-              {t('settings.plugins.localModels.cancel')}
+              {t('settings.dependencies.localModels.cancel')}
             </Button>
           ) : (
             <Button variant="outline" size="sm" className="h-7 w-full gap-1 font-medium text-xs" onClick={onDownload}>
               <Download className="size-3.5" />
-              {t('settings.plugins.localModels.download')}
+              {t('settings.dependencies.localModels.download')}
             </Button>
           )}
         </div>
@@ -213,15 +213,17 @@ const LocalModelsSection: FC = () => {
 
   return (
     <div className="min-w-0">
-      <h2 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.plugins.localModels.title')}</h2>
+      <h2 className="font-semibold text-[15px] text-foreground leading-6">
+        {t('settings.dependencies.localModels.title')}
+      </h2>
       <p className="mt-1 mb-3 text-muted-foreground text-xs leading-5">
-        {t('settings.plugins.localModels.description')}
+        {t('settings.dependencies.localModels.description')}
       </p>
       <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <ModelCard
           icon={<Boxes className="size-5" />}
-          name={t('settings.plugins.localModels.embedding.name')}
-          subtitle={t('settings.plugins.localModels.embedding.subtitle')}
+          name={t('settings.dependencies.localModels.embedding.name')}
+          subtitle={t('settings.dependencies.localModels.embedding.subtitle')}
           status={embedding.status}
           percent={embedding.percent}
           notice={embedding.notice}
@@ -231,8 +233,8 @@ const LocalModelsSection: FC = () => {
         />
         <ModelCard
           icon={<ScanText className="size-5" />}
-          name={t('settings.plugins.localModels.ocr.name')}
-          subtitle={t('settings.plugins.localModels.ocr.subtitle')}
+          name={t('settings.dependencies.localModels.ocr.name')}
+          subtitle={t('settings.dependencies.localModels.ocr.subtitle')}
           status={ocr.status}
           percent={ocr.percent}
           notice={ocr.notice}

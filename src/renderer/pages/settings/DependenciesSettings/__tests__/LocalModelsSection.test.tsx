@@ -62,15 +62,15 @@ describe('LocalModelsSection', () => {
     render(<LocalModelsSection />)
     await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.get_status', { model: 'embedding' }))
 
-    fireEvent.click(within(embeddingCard()).getByText('settings.plugins.localModels.download'))
+    fireEvent.click(within(embeddingCard()).getByText('settings.dependencies.localModels.download'))
     await waitFor(() =>
-      expect(within(embeddingCard()).getByText('settings.plugins.localModels.cancel')).toBeInTheDocument()
+      expect(within(embeddingCard()).getByText('settings.dependencies.localModels.cancel')).toBeInTheDocument()
     )
 
     act(() => progressHandlers.forEach((h) => h({ model: 'embedding', status: 'downloading', percent: 45 })))
     expect(within(embeddingCard()).getByText('45%')).toBeInTheDocument()
 
-    fireEvent.click(within(embeddingCard()).getByText('settings.plugins.localModels.cancel'))
+    fireEvent.click(within(embeddingCard()).getByText('settings.dependencies.localModels.cancel'))
     await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.cancel', { model: 'embedding' }))
 
     // Backend aborts → the in-flight download rejects. A user cancel must not
@@ -78,9 +78,9 @@ describe('LocalModelsSection', () => {
     // download button.
     act(() => rejectDownload?.(new Error('download cancelled')))
     await waitFor(() =>
-      expect(within(embeddingCard()).getByText('settings.plugins.localModels.download')).toBeInTheDocument()
+      expect(within(embeddingCard()).getByText('settings.dependencies.localModels.download')).toBeInTheDocument()
     )
-    expect(screen.queryByText('settings.plugins.localModels.notice.downloadFailed')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.dependencies.localModels.notice.downloadFailed')).not.toBeInTheDocument()
   })
 
   it('surfaces a failure notice when the download genuinely fails', async () => {
@@ -93,12 +93,12 @@ describe('LocalModelsSection', () => {
     render(<LocalModelsSection />)
     await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.get_status', { model: 'embedding' }))
 
-    fireEvent.click(within(embeddingCard()).getByText('settings.plugins.localModels.download'))
+    fireEvent.click(within(embeddingCard()).getByText('settings.dependencies.localModels.download'))
 
     // No cancel in play → the failure is real and must be shown.
     await waitFor(() =>
       expect(
-        within(embeddingCard()).getByText('settings.plugins.localModels.notice.downloadFailed')
+        within(embeddingCard()).getByText('settings.dependencies.localModels.notice.downloadFailed')
       ).toBeInTheDocument()
     )
   })
