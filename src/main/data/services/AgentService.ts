@@ -117,7 +117,8 @@ export class AgentService {
   createAgent(req: CreateAgentDto): AgentEntity {
     const id = uuidv4()
     const mcps = req.mcps ?? []
-    const skillIds = Array.from(new Set(req.skillIds ?? []))
+    const globalSkillService = getDataService('AgentGlobalSkillService')
+    const skillIds = Array.from(new Set([...globalSkillService.listBuiltinIds(), ...(req.skillIds ?? [])]))
 
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
@@ -143,7 +144,7 @@ export class AgentService {
     // to keep this service↔service edge out of the static import graph — see
     // dataServiceRegistry.
     for (const skillId of skillIds) {
-      if (!getDataService('AgentGlobalSkillService').getById(skillId)) {
+      if (!globalSkillService.getById(skillId)) {
         throw DataApiErrorFactory.notFound('Skill', skillId)
       }
     }
@@ -172,7 +173,7 @@ export class AgentService {
           // symlinks don't exist yet (no session/workspace at create time) and get
           // reconciled later by SkillService when a workspace appears.
           for (const skillId of skillIds) {
-            getDataService('AgentGlobalSkillService').upsertJoinTx(tx, id, skillId, true)
+            globalSkillService.upsertJoinTx(tx, id, skillId, true)
           }
           return result
         }),

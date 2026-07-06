@@ -754,14 +754,20 @@ export class SkillService {
    * Register or refresh a built-in skill's DB row after its files have been
    * copied to the global skills directory. Called by `installBuiltinSkills`.
    *
-   * - If the row exists and files weren't updated, no-ops.
+   * - If the row exists and files weren't updated, heals missing agent joins only.
    * - If files were updated, refreshes the metadata row in-place.
    * - If the row is missing (first install), inserts it and fans it out to
    *   every existing agent via `enableForAllAgents`.
+   *
+   * Existing `agent_skill` rows are never overwritten, so user choices survive
+   * startup healing and app upgrades.
    */
   async syncBuiltinSkill(folderName: string, destPath: string, filesUpdated: boolean): Promise<void> {
     const existing = agentGlobalSkillService.getByFolderName(folderName)
-    if (existing && !filesUpdated) return
+    if (existing && !filesUpdated) {
+      agentGlobalSkillService.insertMissingEnabledJoinForAllAgents(existing.id)
+      return
+    }
 
     const metadata = await parseSkillMetadata(destPath, folderName, 'skills')
     const contentHash = await this.installer.computeContentHash(destPath)
@@ -775,6 +781,7 @@ export class SkillService {
         tags,
         contentHash
       })
+      agentGlobalSkillService.insertMissingEnabledJoinForAllAgents(existing.id)
     } else {
       const inserted = agentGlobalSkillService.insert({
         name: metadata.name,

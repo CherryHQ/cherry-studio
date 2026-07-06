@@ -91,6 +91,17 @@ export class AgentGlobalSkillService {
     return rows.map((row) => this.rowToInstalledSkill(row))
   }
 
+  /** Built-in skill ids, ordered by createdAt. Used to seed new agents. */
+  listBuiltinIds(): string[] {
+    const rows = this.db
+      .select({ id: agentGlobalSkillTable.id })
+      .from(agentGlobalSkillTable)
+      .where(eq(agentGlobalSkillTable.source, 'builtin'))
+      .orderBy(asc(agentGlobalSkillTable.createdAt))
+      .all()
+    return rows.map((row) => row.id)
+  }
+
   insert(values: InsertAgentGlobalSkillRow): AgentGlobalSkillRow {
     return this.insertTx(application.get('DbService').getDb(), values)
   }
@@ -165,6 +176,36 @@ export class AgentGlobalSkillService {
       this.upsertJoinTx(tx, agent.id, skillId, isEnabled)
     }
     return agents.map((a) => a.id)
+  }
+
+  /**
+   * Insert enabled join rows for agents that do not yet have this skill.
+   * Existing rows are left untouched so user per-agent choices survive startup
+   * healing and app upgrades.
+   */
+  insertMissingEnabledJoinForAllAgents(skillId: string): string[] {
+    return application.get('DbService').withWriteTx((tx) => this.insertMissingEnabledJoinForAllAgentsTx(tx, skillId))
+  }
+
+  insertMissingEnabledJoinForAllAgentsTx(tx: DbOrTx, skillId: string): string[] {
+    const agents = tx.select({ id: agentTable.id }).from(agentTable).all()
+    if (agents.length === 0) return []
+
+    const existingRows = tx
+      .select({ agentId: agentSkillTable.agentId })
+      .from(agentSkillTable)
+      .where(eq(agentSkillTable.skillId, skillId))
+      .all()
+    const existingAgentIds = new Set(existingRows.map((row) => row.agentId))
+    const missingAgents = agents.filter((agent) => !existingAgentIds.has(agent.id))
+    if (missingAgents.length === 0) return []
+
+    tx.insert(agentSkillTable)
+      .values(missingAgents.map((agent) => ({ agentId: agent.id, skillId, isEnabled: true })))
+      .onConflictDoNothing()
+      .run()
+
+    return missingAgents.map((agent) => agent.id)
   }
 
   /**

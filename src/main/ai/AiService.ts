@@ -14,6 +14,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerRegistryService } from '@main/data/services/ProviderRegistryService'
 import { providerService } from '@main/data/services/ProviderService'
 import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
+import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
@@ -189,6 +190,11 @@ export class AiService extends BaseService {
     // would otherwise overwrite (see installProviderUserAgentInterceptor).
     this.registerDisposable(installProviderUserAgentInterceptor())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
+    try {
+      await installBuiltinSkills()
+    } catch (error) {
+      logger.error('Failed to install built-in skills', error as Error)
+    }
     // Heal the CLAUDE_CONFIG_DIR/skills mirror once at startup; fire-and-forget so it never blocks init.
     void skillService.reconcileSkills().catch((error) => {
       logger.error('Failed to reconcile skills', error)

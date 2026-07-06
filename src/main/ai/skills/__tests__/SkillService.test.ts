@@ -372,9 +372,10 @@ describe('SkillService', () => {
       } as never)
     })
 
-    it('is a no-op when skill exists and files were not updated', async () => {
+    it('does not re-hash or re-parse metadata when skill exists and files were not updated, but heals a missing agent join', async () => {
       const skillService = new SkillService()
       vi.spyOn(skillService['installer'], 'computeContentHash').mockResolvedValue('hash1')
+      await seedAgent()
       await dbh.db.insert(agentGlobalSkillTable).values({
         id: SKILL_ID_BUILTIN,
         name: 'My Builtin',
@@ -387,11 +388,44 @@ describe('SkillService', () => {
       await skillService.syncBuiltinSkill(FOLDER_NAME, DEST_PATH, false)
 
       expect(skillService['installer'].computeContentHash).not.toHaveBeenCalled()
+      expect(parseSkillMetadata).not.toHaveBeenCalled()
+      const [join] = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_BUILTIN))
+      expect(join).toMatchObject({ agentId: AGENT_ID, isEnabled: true })
     })
 
-    it('updates metadata when skill exists and files were updated', async () => {
+    it('leaves an existing disabled agent join untouched while healing joins missing for other agents', async () => {
+      const skillService = new SkillService()
+      const AGENT_ID_2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+      await seedAgent()
+      await dbh.db.insert(agentTable).values({
+        id: AGENT_ID_2,
+        type: 'claude-code',
+        name: 'Second Agent',
+        instructions: 'You are a helpful assistant.',
+        model: null,
+        orderKey: 'a1'
+      })
+      await dbh.db.insert(agentGlobalSkillTable).values({
+        id: SKILL_ID_BUILTIN,
+        name: 'My Builtin',
+        folderName: FOLDER_NAME,
+        source: 'builtin',
+        contentHash: 'hash1',
+        isEnabled: false
+      })
+      await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_BUILTIN, isEnabled: false })
+
+      await skillService.syncBuiltinSkill(FOLDER_NAME, DEST_PATH, false)
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_BUILTIN))
+      expect(rows).toContainEqual(expect.objectContaining({ agentId: AGENT_ID, isEnabled: false }))
+      expect(rows).toContainEqual(expect.objectContaining({ agentId: AGENT_ID_2, isEnabled: true }))
+    })
+
+    it('updates metadata when skill exists and files were updated, and heals a missing agent join', async () => {
       const skillService = new SkillService()
       vi.spyOn(skillService['installer'], 'computeContentHash').mockResolvedValue('hash2')
+      await seedAgent()
       await dbh.db.insert(agentGlobalSkillTable).values({
         id: SKILL_ID_BUILTIN,
         name: 'Old Name',
@@ -409,6 +443,8 @@ describe('SkillService', () => {
         .where(eq(agentGlobalSkillTable.id, SKILL_ID_BUILTIN))
       expect(row?.name).toBe('My Builtin')
       expect(row?.contentHash).toBe('hash2')
+      const [join] = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_BUILTIN))
+      expect(join).toMatchObject({ agentId: AGENT_ID, isEnabled: true })
     })
 
     it('inserts and enables for all agents on first install', async () => {

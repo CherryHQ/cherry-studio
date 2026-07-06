@@ -14,11 +14,33 @@ const mockProviderGetRotatedApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
 const mockListProviderRegistryModels = vi.fn()
 const mockListModelsFromProvider = vi.fn()
+const mockInstallBuiltinSkills = vi.fn()
+const mockReconcileSkills = vi.fn()
+const mockRegisterBuiltinTools = vi.fn()
+const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
 
 vi.mock('@application', () => ({
   application: {
     get: mockApplicationGet
   }
+}))
+
+vi.mock('@main/utils/builtinSkills', () => ({
+  installBuiltinSkills: (...args: unknown[]) => mockInstallBuiltinSkills(...args)
+}))
+
+vi.mock('../skills/SkillService', () => ({
+  skillService: {
+    reconcileSkills: (...args: unknown[]) => mockReconcileSkills(...args)
+  }
+}))
+
+vi.mock('../tools/adapters/aiSdk/builtin/registerBuiltinTools', () => ({
+  registerBuiltinTools: (...args: unknown[]) => mockRegisterBuiltinTools(...args)
+}))
+
+vi.mock('../utils/customFetch', () => ({
+  installProviderUserAgentInterceptor: () => mockInstallProviderUserAgentInterceptor()
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
@@ -251,6 +273,40 @@ describe('AiService', () => {
 
     const callOptions = mockGenerateImage.mock.calls[0]?.[2] as Record<string, unknown>
     expect(callOptions).not.toHaveProperty('size')
+  })
+})
+
+describe('AiService.onInit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'JobManager' ? { registerHandler: vi.fn() } : undefined
+    )
+    mockReconcileSkills.mockResolvedValue(undefined)
+  })
+
+  it('installs built-in skills before reconciling skills', async () => {
+    const calls: string[] = []
+    mockInstallBuiltinSkills.mockImplementation(async () => {
+      calls.push('installBuiltinSkills')
+    })
+    mockReconcileSkills.mockImplementation(async () => {
+      calls.push('reconcileSkills')
+    })
+    const service = createService()
+
+    await service._doInit()
+
+    expect(calls).toEqual(['installBuiltinSkills', 'reconcileSkills'])
+  })
+
+  it('logs and continues past init when installBuiltinSkills rejects', async () => {
+    mockInstallBuiltinSkills.mockRejectedValue(new Error('disk full'))
+    const service = createService()
+
+    await expect(service._doInit()).resolves.toBeUndefined()
+
+    expect(mockReconcileSkills).toHaveBeenCalled()
   })
 })
 

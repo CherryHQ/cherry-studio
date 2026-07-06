@@ -18,11 +18,9 @@ const VERSION_FILE = '.version'
  *
  * Storage:  {userData}/Data/Skills/{folderName}/
  *
- * Per-agent enablement is handled separately: each existing agent gets a
- * symlink at `{agentWorkspace}/.claude/skills/{folderName}/` via
- * `skillService.enableForAllAgents` for any **newly registered** builtin
- * (i.e. first-run or app-upgrade that adds a new builtin). Already-registered
- * builtins are left alone so user per-agent choices survive upgrades.
+ * Per-agent enablement is handled separately by `SkillService`: every builtin
+ * is present in `agent_skill` for existing agents, while existing join rows are
+ * left untouched so user per-agent choices survive startup healing and upgrades.
  *
  * Each installed skill gets a `.version` file recording the app version that
  * installed it. On subsequent launches the bundled version is compared with
