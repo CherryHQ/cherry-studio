@@ -1,4 +1,4 @@
-import { useImageTools } from '@renderer/components/ActionTools/hooks/useImageTools'
+import { useImageTools } from '@renderer/components/ActionTools'
 import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import { memo, useImperativeHandle } from 'react'
 
