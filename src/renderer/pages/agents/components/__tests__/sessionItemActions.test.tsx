@@ -83,7 +83,7 @@ describe('session item actions', () => {
     const positionAction = actions.find((action) => action.id === 'session.position')
     const rightAction = positionAction?.children.find((action) => action.id === 'session.position-right')
 
-    expect(positionAction?.label).toBe('settings.topic.position.label')
+    expect(positionAction?.label).toBe('settings.agent.position.label')
     expect(rightAction?.availability.enabled).toBe(true)
 
     await executeSessionMenuAction(rightAction as (typeof actions)[number], actionContext)

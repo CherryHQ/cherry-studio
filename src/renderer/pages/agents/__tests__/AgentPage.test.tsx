@@ -62,7 +62,7 @@ const agentPageMocks = vi.hoisted(() => ({
   setClassicLayoutRightPaneOpen: vi.fn(),
   setShowSidebar: vi.fn(),
   sessionDisplayMode: 'time' as 'time' | 'workdir' | 'agent',
-  topicTabPosition: 'right' as 'left' | 'right',
+  sessionPanePosition: 'right' as 'left' | 'right',
   isActiveTab: false,
   showSidebar: false,
   routeSearch: { sessionId: 'session-initial' } as Record<string, unknown>,
@@ -120,8 +120,8 @@ vi.mock('@data/hooks/usePreference', async () => {
           ? agentPageMocks.showSidebar
           : key === 'agent.session.display_mode'
             ? agentPageMocks.sessionDisplayMode
-            : key === 'topic.tab.position'
-              ? agentPageMocks.topicTabPosition
+            : key === 'agent.session.position'
+              ? agentPageMocks.sessionPanePosition
               : undefined
       )
       const setPreference = vi.fn(async (nextValue: unknown) => {
@@ -130,8 +130,8 @@ vi.mock('@data/hooks/usePreference', async () => {
           agentPageMocks.setShowSidebar(nextValue)
         } else if (key === 'agent.session.display_mode') {
           agentPageMocks.sessionDisplayMode = nextValue as 'time' | 'workdir' | 'agent'
-        } else if (key === 'topic.tab.position') {
-          agentPageMocks.topicTabPosition = nextValue as 'left' | 'right'
+        } else if (key === 'agent.session.position') {
+          agentPageMocks.sessionPanePosition = nextValue as 'left' | 'right'
         }
         setValue(nextValue)
       })
@@ -627,7 +627,7 @@ describe('AgentPage', () => {
     agentPageMocks.activeSessionOptions = null
     agentPageMocks.focusExistingTab.mockReturnValue(false)
     agentPageMocks.sessionDisplayMode = 'time'
-    agentPageMocks.topicTabPosition = 'right'
+    agentPageMocks.sessionPanePosition = 'right'
     agentPageMocks.showSidebar = false
     agentPageMocks.isActiveTab = false
     agentPageMocks.dataApiGet.mockImplementation(async (path: string) => {
@@ -672,7 +672,7 @@ describe('AgentPage', () => {
 
   it('does not render the session resource pane when the classic session position is left', () => {
     agentPageMocks.sessionDisplayMode = 'agent'
-    agentPageMocks.topicTabPosition = 'left'
+    agentPageMocks.sessionPanePosition = 'left'
     agentPageMocks.classicLayoutRightPaneOpen = true
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
@@ -687,7 +687,7 @@ describe('AgentPage', () => {
 
   it('does not auto-open the session right pane when switching to agent display mode with left session position', () => {
     agentPageMocks.sessionDisplayMode = 'agent'
-    agentPageMocks.topicTabPosition = 'left'
+    agentPageMocks.sessionPanePosition = 'left'
     agentPageMocks.classicLayoutRightPaneOpen = false
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
@@ -713,7 +713,7 @@ describe('AgentPage', () => {
 
   it('renders the modern session sidebar when session display mode is time', () => {
     agentPageMocks.sessionDisplayMode = 'time'
-    agentPageMocks.topicTabPosition = 'right'
+    agentPageMocks.sessionPanePosition = 'right'
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 
@@ -727,7 +727,7 @@ describe('AgentPage', () => {
 
   it('switches to agent grouping when changing session position from the left sidebar', async () => {
     agentPageMocks.sessionDisplayMode = 'workdir'
-    agentPageMocks.topicTabPosition = 'left'
+    agentPageMocks.sessionPanePosition = 'left'
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 
@@ -736,12 +736,12 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Move sessions right' }))
 
     await waitFor(() => expect(agentPageMocks.sessionDisplayMode).toBe('agent'))
-    expect(agentPageMocks.topicTabPosition).toBe('right')
+    expect(agentPageMocks.sessionPanePosition).toBe('right')
   })
 
   it('expands only the active session agent when changing session position to the left sidebar', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
-    agentPageMocks.topicTabPosition = 'right'
+    agentPageMocks.sessionPanePosition = 'right'
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-a', agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
     agentPageMocks.classicLayoutSessions = [
@@ -754,7 +754,7 @@ describe('AgentPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Move sessions left' }))
 
-    await waitFor(() => expect(agentPageMocks.topicTabPosition).toBe('left'))
+    await waitFor(() => expect(agentPageMocks.sessionPanePosition).toBe('left'))
     expect(agentPageMocks.sessionExpansionAgent).toEqual(['session:agent:agent-b', 'session:agent:agent-c'])
   })
 

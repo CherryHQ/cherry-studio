@@ -113,7 +113,7 @@ sessionActionRegistry.registerAction({
 
 sessionActionRegistry.registerAction({
   id: 'session.position',
-  label: ({ t }) => t('settings.topic.position.label'),
+  label: ({ t }) => t('settings.agent.position.label'),
   icon: () => <PanelLeft size={14} />,
   order: 36,
   surface: 'menu',
@@ -122,14 +122,14 @@ sessionActionRegistry.registerAction({
     {
       id: 'session.position-left',
       commandId: 'session.position-left',
-      label: ({ t }) => t('settings.topic.position.left'),
+      label: ({ t }) => t('settings.agent.position.left'),
       order: 10,
       surface: 'menu'
     },
     {
       id: 'session.position-right',
       commandId: 'session.position-right',
-      label: ({ t }) => t('settings.topic.position.right'),
+      label: ({ t }) => t('settings.agent.position.right'),
       order: 20,
       surface: 'menu'
     }

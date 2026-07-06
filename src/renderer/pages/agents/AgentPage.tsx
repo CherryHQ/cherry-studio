@@ -87,7 +87,7 @@ function findReusableEmptySession<T extends { createdAt?: string; updatedAt?: st
 const AgentPage = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
-  const [panePosition, setPanePosition] = usePreference('topic.tab.position')
+  const [panePosition, setPanePosition] = usePreference('agent.session.position')
   const isClassicSessionLayout = sessionDisplayMode === 'agent'
   // Classic layout shares this full-sessions source with the rail; modern layout leaves it disabled (no fetch).
   // The picker uses it to reuse an empty placeholder session instead of stacking new ones.

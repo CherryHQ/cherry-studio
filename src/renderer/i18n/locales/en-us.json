@@ -5334,6 +5334,13 @@
       "auto_switch_to_topics": "Auto switch to conversation",
       "title": "Advanced Settings"
     },
+    "agent": {
+      "position": {
+        "label": "Session position",
+        "left": "Left",
+        "right": "Right"
+      }
+    },
     "assistant": {
       "icon": {
         "type": {

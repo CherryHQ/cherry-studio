@@ -505,9 +505,9 @@ vi.mock('react-i18next', () => ({
         'common.saved': 'Saved',
         'common.unnamed': 'Untitled',
         'error.model.not_exists': 'Model does not exist',
-        'settings.topic.position.label': 'Conversation position',
-        'settings.topic.position.left': 'Left',
-        'settings.topic.position.right': 'Right',
+        'settings.agent.position.label': 'Session position',
+        'settings.agent.position.left': 'Left',
+        'settings.agent.position.right': 'Right',
         'settings.assistant.icon.type.emoji': 'Emoji',
         'settings.assistant.icon.type.model': 'Model',
         'settings.assistant.icon.type.none': 'None',
@@ -691,7 +691,7 @@ describe('Sessions', () => {
     cacheMocks.values.clear()
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     preferenceMocks.values.set('assistant.icon_type', 'emoji')
-    preferenceMocks.values.set('topic.tab.position', 'left')
+    preferenceMocks.values.set('agent.session.position', 'left')
     setSessionGroupExpansionCache(createExpandedSessionGroupExpansionFixture())
     preferenceMocks.values.set('topic.tab.show', true)
     dataApiMocks.workspaces = [
@@ -1602,12 +1602,12 @@ describe('Sessions', () => {
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
 
-    expect(menuContent).toHaveTextContent('Conversation position')
+    expect(menuContent).toHaveTextContent('Session position')
 
     fireEvent.click(within(menuContent as HTMLElement).getByText('Right'))
 
     await vi.waitFor(() => {
-      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.position', 'right')
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.position', 'right')
     })
   })
 

@@ -278,7 +278,7 @@ const Sessions = ({
   const conversationNav = useConversationNavigation('agents')
   const [groupNow] = useState(() => new Date())
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
-  const [storedPanePosition, setStoredPanePosition] = usePreference('topic.tab.position')
+  const [storedPanePosition, setStoredPanePosition] = usePreference('agent.session.position')
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const resolvedPanePosition = panePosition ?? storedPanePosition

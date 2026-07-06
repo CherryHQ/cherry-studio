@@ -5334,6 +5334,13 @@
       "auto_switch_to_topics": "自動切換到對話",
       "title": "進階設定"
     },
+    "agent": {
+      "position": {
+        "label": "會話位置",
+        "left": "左側",
+        "right": "右側"
+      }
+    },
     "assistant": {
       "icon": {
         "type": {
