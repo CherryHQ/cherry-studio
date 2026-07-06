@@ -106,8 +106,10 @@ const serviceBarrelZones = serviceTopics.map((topic) => ({
     `src/renderer/services/!(${topic})/**/*`, // sibling topic dirs
     `src/renderer/services/*` // flat files at the services/ root
   ],
-  from: `src/renderer/services/${topic}/**/*`,
-  except: ['**/index.ts'], // the barrel itself stays importable
+  from: [
+    `src/renderer/services/${topic}/!(index).{ts,tsx,js,jsx}`,
+    `src/renderer/services/${topic}/!(index)/**/*`
+  ],
   message: `services/${topic}/ is a topic barrel — import @renderer/services/${topic} (its index.ts), not its internals. renderer-architecture.md §3.1/§5.`
 }))
 
@@ -636,11 +638,13 @@ export default defineConfig([
               from: ['src/renderer/components', 'src/renderer/hooks'],
               message: 'utils/ is stateless and may call downward infra (data/ipc) but must not import components/hooks or any higher app layer. renderer-architecture.md §3.'
             },
-            // @logger is a §2 primitive that physically lives under services/. `from` uses a glob, so `except` must also glob.
+            // @logger is a §2 primitive that physically lives under services/; keep it out of the restricted glob.
             {
               target: 'src/renderer/utils',
-              from: ['src/renderer/services/**/*'],
-              except: ['**/LoggerService.ts'],
+              from: [
+                'src/renderer/services/!(LoggerService).{ts,tsx,js,jsx}',
+                'src/renderer/services/!(LoggerService)/**/*'
+              ],
               message: 'utils/ must not import renderer services (except @logger). renderer-architecture.md §3.'
             },
             ...serviceBarrelZones
