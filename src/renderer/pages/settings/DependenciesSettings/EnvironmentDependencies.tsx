@@ -39,8 +39,12 @@ import { gt as semverGt, valid as semverValid } from 'semver'
 
 const logger = loggerService.withContext('EnvironmentDependencies')
 
+const isComparableVersionPair = (latest?: string, installed?: string): boolean => {
+  return Boolean(latest && installed && semverValid(latest) && semverValid(installed))
+}
+
 const isNewerVersion = (latest?: string, installed?: string): boolean => {
-  if (!latest || !installed || !semverValid(latest) || !semverValid(installed)) return false
+  if (!isComparableVersionPair(latest, installed)) return false
   try {
     return semverGt(latest, installed)
   } catch {
@@ -113,7 +117,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         return versions
       } catch (error) {
         logger.error('Failed to fetch latest versions', error as Error)
-        if (force) window.toast.error(`${t('settings.plugins.updateCheckFailed')}: ${formatErrorMessage(error)}`)
+        if (force) window.toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
         return null
       } finally {
         if (mountedRef.current && requestId === latestRequestIdRef.current) setCheckingUpdates(false)
@@ -142,18 +146,17 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     })
   })
   useIpcOn('binary.reconcile_failed', (names) => {
-    window.toast.error(`${t('settings.plugins.installError')}: ${names}`)
+    window.toast.error(`${t('settings.dependencies.installError')}: ${names}`)
   })
 
-  const installTool = async (tool: ManagedBinary): Promise<boolean> => {
+  const installTool = async (tool: ManagedBinary) => {
     setInstallingTools((prev) => new Set(prev).add(tool.name))
     try {
       await ipcApi.request('binary.install_tool', tool)
-      return true
     } catch (error) {
       logger.error('Failed to install tool', error as Error)
-      window.toast.error(`${t('settings.plugins.installError')}: ${formatErrorMessage(error)}`)
-      return false
+      window.toast.error(`${t('settings.dependencies.installError')}: ${formatErrorMessage(error)}`)
+      throw error
     } finally {
       setInstallingTools((prev) => {
         const next = new Set(prev)
@@ -174,8 +177,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       latest = fresh[tool.name]
     }
 
-    if (installed?.version && latest && !isNewerVersion(latest, installed.version)) {
-      window.toast.success(t('settings.plugins.upToDate'))
+    if (isComparableVersionPair(latest, installed?.version) && !isNewerVersion(latest, installed?.version)) {
+      window.toast.success(t('settings.dependencies.upToDate'))
       return
     }
 
@@ -186,18 +189,17 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     try {
       validateManagedBinary(tool)
     } catch {
-      window.toast.error(t('settings.plugins.invalidTool'))
+      window.toast.error(t('settings.dependencies.invalidTool'))
       throw new Error('invalid')
     }
 
     const allNames = [...PRESETS_BINARY_TOOLS.map((p) => p.name), ...customTools.map((c) => c.name)]
     if (allNames.includes(tool.name)) {
-      window.toast.error(t('settings.plugins.duplicateName'))
+      window.toast.error(t('settings.dependencies.duplicateName'))
       throw new Error('duplicate')
     }
 
-    const installed = await installTool(tool)
-    if (!installed) throw new Error('install failed')
+    await installTool(tool)
     await setCustomTools([...customTools, tool])
   }
 
@@ -238,7 +240,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       <Button
         className="nodrag h-8 rounded-lg px-2 text-destructive shadow-none hover:text-destructive"
         variant="ghost"
-        onClick={() => navigate({ to: '/settings/plugins' })}>
+        onClick={() => navigate({ to: '/settings/dependencies' })}>
         <TriangleAlert size={14} />
       </Button>
     )
@@ -248,7 +250,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     <div className="flex flex-col gap-5">
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
-          <h1 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.plugins.title')}</h1>
+          <h1 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.dependencies.title')}</h1>
           <span className="text-muted-foreground/50 text-xs">{totalCount}</span>
           <Button
             variant="ghost"
@@ -256,7 +258,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             className="text-muted-foreground/50 hover:text-foreground"
             onClick={() => void fetchLatestVersions(true)}
             disabled={checkingUpdates}
-            title={t('settings.plugins.update')}>
+            title={t('settings.dependencies.update')}>
             {checkingUpdates ? (
               <Loader2 className="size-3 motion-safe:animate-spin" />
             ) : (
@@ -264,7 +266,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             )}
           </Button>
         </div>
-        <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.plugins.description')}</p>
+        <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.dependencies.description')}</p>
       </div>
 
       <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -294,10 +296,12 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
       <div className="min-w-0">
         <div className="flex min-w-0 items-center justify-between">
-          <h2 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.plugins.customTools')}</h2>
+          <h2 className="font-semibold text-[15px] text-foreground leading-6">
+            {t('settings.dependencies.customTools')}
+          </h2>
           <Button variant="outline" size="sm" onClick={() => setShowAddDialog(true)}>
             <Plus className="size-3.5" />
-            {t('settings.plugins.addTool')}
+            {t('settings.dependencies.addTool')}
           </Button>
         </div>
       </div>
@@ -327,7 +331,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         </div>
       ) : (
         <div className="rounded-xl border border-border border-dashed bg-card/50 px-4 py-6 text-center text-muted-foreground text-xs leading-5">
-          {t('settings.plugins.customToolsEmpty')}
+          {t('settings.dependencies.customToolsEmpty')}
         </div>
       )}
 
@@ -336,8 +340,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       <ConfirmDialog
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-        title={t('settings.plugins.removeConfirmTitle')}
-        description={t('settings.plugins.removeConfirmMessage', { name: deleteNameRef.current })}
+        title={t('settings.dependencies.removeConfirmTitle')}
+        description={t('settings.dependencies.removeConfirmMessage', { name: deleteNameRef.current })}
         destructive
         onConfirm={async () => {
           if (deleteTarget) await handleRemoveTool(deleteTarget)
@@ -359,7 +363,7 @@ const BinaryToolPresetCard: FC<{
   onRemove: () => void
 }> = ({ tool, source, installedVersion, latestVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
   const { t } = useTranslation()
-  const description = t(`settings.plugins.tools.${tool.name}`)
+  const description = t(`settings.dependencies.tools.${tool.name}`)
   const present = source !== 'none'
   const isBundled = source === 'bundled'
 
@@ -399,7 +403,7 @@ const BinaryToolPresetCard: FC<{
                 )}
                 {isBundled && (
                   <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
-                    {t('settings.plugins.source.bundled')}
+                    {t('settings.dependencies.source.bundled')}
                   </Badge>
                 )}
               </div>
@@ -415,7 +419,7 @@ const BinaryToolPresetCard: FC<{
               className="text-foreground/40 hover:text-foreground"
               onClick={onUpdate}
               disabled={installing}
-              title={t('settings.plugins.update')}>
+              title={t('settings.dependencies.update')}>
               {installing ? (
                 <Loader2 className="size-3.5 motion-safe:animate-spin" />
               ) : (
@@ -428,8 +432,8 @@ const BinaryToolPresetCard: FC<{
               className="text-foreground/40 hover:text-destructive"
               onClick={onRemove}
               disabled={installing}
-              aria-label={t('settings.plugins.remove')}
-              title={t('settings.plugins.remove')}>
+              aria-label={t('settings.dependencies.remove')}
+              title={t('settings.dependencies.remove')}>
               <Trash2 className="size-3.5" />
             </Button>
           </div>
@@ -461,8 +465,8 @@ const BinaryToolPresetCard: FC<{
           <button
             type="button"
             onClick={onOpenPath}
-            aria-label={t('settings.plugins.openBinariesDir')}
-            title={t('settings.plugins.openBinariesDir')}
+            aria-label={t('settings.dependencies.openBinariesDir')}
+            title={t('settings.dependencies.openBinariesDir')}
             className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground">
             <FolderOpen className="size-3" />
           </button>
@@ -480,9 +484,9 @@ const BinaryToolPresetCard: FC<{
             loading={installing}>
             {!installing && <Download className="size-3.5" />}
             {installing
-              ? t('settings.plugins.installing')
+              ? t('settings.dependencies.installing')
               : isBundled
-                ? t('settings.plugins.install')
+                ? t('settings.dependencies.install')
                 : t('settings.mcp.install')}
           </Button>
         </div>
@@ -547,7 +551,7 @@ const CustomToolCard: FC<{
               className="text-foreground/40 hover:text-foreground"
               onClick={onUpdate}
               disabled={installing}
-              title={t('settings.plugins.update')}>
+              title={t('settings.dependencies.update')}>
               {installing ? (
                 <Loader2 className="size-3.5 motion-safe:animate-spin" />
               ) : (
@@ -561,7 +565,7 @@ const CustomToolCard: FC<{
               size="icon-sm"
               className="text-foreground/40 hover:text-foreground"
               onClick={onOpenPath}
-              aria-label={t('settings.plugins.openBinariesDir')}
+              aria-label={t('settings.dependencies.openBinariesDir')}
               title={t('common.open')}>
               <FolderOpen className="size-3.5" />
             </Button>
@@ -570,8 +574,8 @@ const CustomToolCard: FC<{
             variant="ghost"
             size="icon-sm"
             className="text-foreground/40 hover:text-destructive"
-            aria-label={t('settings.plugins.remove')}
-            title={t('settings.plugins.remove')}
+            aria-label={t('settings.dependencies.remove')}
+            title={t('settings.dependencies.remove')}
             onClick={onRemove}>
             <Trash2 className="size-3.5" />
           </Button>
@@ -588,7 +592,7 @@ const CustomToolCard: FC<{
             disabled={installing}
             loading={installing}>
             {!installing && <Download className="size-3.5" />}
-            {installing ? t('settings.plugins.installing') : t('settings.mcp.install')}
+            {installing ? t('settings.dependencies.installing') : t('settings.mcp.install')}
           </Button>
         </div>
       )}
@@ -683,13 +687,13 @@ function AddToolDialog({
       }}>
       <DialogContent closeOnOverlayClick={false}>
         <DialogHeader>
-          <DialogTitle>{t('settings.plugins.addTool')}</DialogTitle>
-          <DialogDescription>{t('settings.plugins.addToolDescription')}</DialogDescription>
+          <DialogTitle>{t('settings.dependencies.addTool')}</DialogTitle>
+          <DialogDescription>{t('settings.dependencies.addToolDescription')}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3 py-2">
           <div className="relative">
             <Input
-              placeholder={t('settings.plugins.searchRegistry')}
+              placeholder={t('settings.dependencies.searchRegistry')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
@@ -710,7 +714,7 @@ function AddToolDialog({
                 ))}
               </div>
             )}
-            {searchError && <p className="mt-1 text-destructive text-xs">{t('settings.plugins.searchFailed')}</p>}
+            {searchError && <p className="mt-1 text-destructive text-xs">{t('settings.dependencies.searchFailed')}</p>}
           </div>
 
           {selectedName && (
@@ -722,7 +726,7 @@ function AddToolDialog({
           )}
 
           <Input
-            placeholder={t('settings.plugins.fieldVersion')}
+            placeholder={t('settings.dependencies.fieldVersion')}
             value={version}
             onChange={(e) => setVersion(e.target.value)}
           />

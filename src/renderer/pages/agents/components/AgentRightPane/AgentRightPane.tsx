@@ -5,6 +5,7 @@ import { MessageListProvider } from '@renderer/components/chat/messages/MessageL
 import {
   ArtifactFilePreview,
   ArtifactPaneView,
+  isImageFile,
   isOfficeDocumentFile,
   resolveArtifactPaneFileSelection
 } from '@renderer/components/chat/panes/ArtifactPane'
@@ -99,7 +100,7 @@ function getFilePreviewTitle(filePath: string): string {
 }
 
 function isFramedFilePreview(filePath: string): boolean {
-  return /\.(html?|pdf)$/i.test(filePath) || isOfficeDocumentFile(filePath)
+  return /\.(html?|pdf)$/i.test(filePath) || isOfficeDocumentFile(filePath) || isImageFile(filePath)
 }
 
 interface AgentFlowTab {
@@ -421,7 +422,8 @@ function AgentRightPaneFilesPanel() {
 function AgentFilePreviewPanel({ preview }: { preview: AgentFilePreviewTab }) {
   const shellState = useShellState()
   const isOfficeDocumentPreview = isOfficeDocumentFile(preview.filePath)
-  const shouldSniffFile = !isOfficeDocumentPreview && !/\.pdf$/i.test(preview.filePath)
+  const shouldSniffFile =
+    !isOfficeDocumentPreview && !/\.pdf$/i.test(preview.filePath) && !isImageFile(preview.filePath)
   const sniffedIsText = useIsTextFile(preview.workspacePath, preview.filePath, { enabled: shouldSniffFile })
   const isText = shouldSniffFile ? sniffedIsText : 'binary'
   const fileSize = useFileSize(preview.workspacePath, preview.filePath)
