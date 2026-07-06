@@ -36,7 +36,7 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import { useCurrentTabId } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useCurrentTabId } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { usePins } from '@renderer/hooks/usePins'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
@@ -362,6 +362,7 @@ const Sessions = ({
   setActiveSessionId: setControlledActiveSessionId
 }: SessionsProps) => {
   const { t } = useTranslation()
+  const closeConversationTabs = useCloseConversationTabs()
   const isRightPanel = presentation === 'right-panel'
   const conversationNav = useConversationNavigation('agents')
   const [groupNow] = useState(() => new Date())
@@ -864,6 +865,7 @@ const Sessions = ({
         if (!confirmed) return
 
         const result = await deleteAgentSessions({ params: { agentId } })
+        closeConversationTabs('agents', result.deletedIds)
         const affectedSessionIds = new Set(result.deletedIds)
         const currentActiveSessionId = activeSessionIdRef.current
 
@@ -883,7 +885,7 @@ const Sessions = ({
         setDeletingAgentGroupId(null)
       }
     },
-    [deleteAgentSessions, refetchWorkspaces, reload, setActiveSessionId, t]
+    [closeConversationTabs, deleteAgentSessions, refetchWorkspaces, reload, setActiveSessionId, t]
   )
 
   const handleDeleteWorkdirGroup = useCallback(
@@ -913,6 +915,7 @@ const Sessions = ({
 
       try {
         await deleteWorkspace({ params: { workspaceId } })
+        closeConversationTabs('agents', sessionIds)
 
         if (activeSessionId && affectedSessionIds.has(activeSessionId)) {
           const remaining = sessionItems.find((session) => !affectedSessionIds.has(session.id))
@@ -931,6 +934,7 @@ const Sessions = ({
     },
     [
       activeSessionId,
+      closeConversationTabs,
       deleteWorkspace,
       deletingWorkspaceGroupId,
       refetchWorkspaces,
