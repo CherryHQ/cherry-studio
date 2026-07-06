@@ -1258,7 +1258,7 @@ describe('AgentPage', () => {
       | undefined
 
     act(() => {
-      sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open' })
+      sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open', targetTabId: 'agent-tab' })
     })
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-open'))
@@ -1280,10 +1280,31 @@ describe('AgentPage', () => {
       | undefined
 
     act(() => {
-      sessionMessageHandler?.({ sessionId: 'session-locate', messageId: 'message-locate' })
+      sessionMessageHandler?.({ sessionId: 'session-locate', messageId: 'message-locate', targetTabId: 'agent-tab' })
     })
 
     expect(screen.getByTestId('session-pane-open')).toHaveTextContent('true')
+  })
+
+  it('ignores a global-search session message targeted at another tab', async () => {
+    render(<AgentPage />)
+
+    const sessionMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      sessionMessageHandler?.({
+        sessionId: 'session-open',
+        messageId: 'message-open',
+        targetTabId: 'other-agent-tab'
+      })
+    })
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-initial'))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
   it('forwards a reveal request when navigation asks the current agent tab to reveal its selection', async () => {

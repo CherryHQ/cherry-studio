@@ -21,6 +21,11 @@ import {
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
 import {
+  type GlobalSearchTopicMessageSelectionPayload,
+  type GlobalSearchTopicSelectionPayload,
+  isGlobalSearchSelectionForTab
+} from '@renderer/components/GlobalSearch/globalSearchSelectionEvents'
+import {
   ConversationResourceView,
   type ConversationResourceViewDefinition,
   useConversationResourceView
@@ -651,14 +656,17 @@ const HomePage: FC = () => {
   })
 
   useEffect(() => {
-    const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, (topic) => {
-      handleGlobalSearchTopicSelect(topic as Topic)
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, (payload) => {
+      const selection = payload as GlobalSearchTopicSelectionPayload
+      if (!selection.topic || !isGlobalSearchSelectionForTab(selection, currentTabId)) return
+
+      handleGlobalSearchTopicSelect(selection.topic)
     })
     const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, (payload) => {
-      const { messageId, topic } = payload as { messageId?: string; topic?: Topic }
-      if (!topic || !messageId) return
+      const selection = payload as GlobalSearchTopicMessageSelectionPayload
+      if (!selection.topic || !selection.messageId || !isGlobalSearchSelectionForTab(selection, currentTabId)) return
 
-      handleGlobalSearchTopicSelect(topic, messageId)
+      handleGlobalSearchTopicSelect(selection.topic, selection.messageId)
     })
 
     return () => {
@@ -666,7 +674,7 @@ const HomePage: FC = () => {
       unsubscribeMessage()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/topic state without resubscribing.
-  }, [])
+  }, [currentTabId])
 
   const handleLocateMessageHandled = useCallback(() => {
     setPendingLocateMessageId(undefined)

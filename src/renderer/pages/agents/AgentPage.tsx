@@ -12,6 +12,11 @@ import {
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
 import {
+  type GlobalSearchAgentSessionMessageSelectionPayload,
+  type GlobalSearchAgentSessionSelectionPayload,
+  isGlobalSearchSelectionForTab
+} from '@renderer/components/GlobalSearch/globalSearchSelectionEvents'
+import {
   ConversationResourceView,
   type ConversationResourceViewDefinition,
   useConversationResourceView
@@ -595,14 +600,18 @@ const AgentPage = () => {
   })
 
   useEffect(() => {
-    const unsubscribeSession = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, (sessionId) => {
-      handleGlobalSearchSessionSelect(sessionId as string)
+    const unsubscribeSession = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, (payload) => {
+      const selection = payload as GlobalSearchAgentSessionSelectionPayload
+      if (!selection.sessionId || !isGlobalSearchSelectionForTab(selection, currentTabId)) return
+
+      handleGlobalSearchSessionSelect(selection.sessionId)
     })
     const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, (payload) => {
-      const { messageId, sessionId } = payload as { messageId?: string; sessionId?: string }
-      if (!sessionId || !messageId) return
+      const selection = payload as GlobalSearchAgentSessionMessageSelectionPayload
+      if (!selection.sessionId || !selection.messageId || !isGlobalSearchSelectionForTab(selection, currentTabId))
+        return
 
-      handleGlobalSearchSessionSelect(sessionId, messageId)
+      handleGlobalSearchSessionSelect(selection.sessionId, selection.messageId)
     })
 
     return () => {
@@ -610,7 +619,7 @@ const AgentPage = () => {
       unsubscribeMessage()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/session state without resubscribing.
-  }, [])
+  }, [currentTabId])
 
   useEffect(() => {
     if (initialDraftSessionEvaluatedRef.current) {

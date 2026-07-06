@@ -1204,7 +1204,7 @@ describe('HomePage', () => {
       | undefined
 
     act(() => {
-      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target' })
+      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target', targetTabId: 'chat-tab' })
     })
 
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-history'))
@@ -1226,11 +1226,28 @@ describe('HomePage', () => {
       | undefined
 
     act(() => {
-      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target' })
+      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target', targetTabId: 'chat-tab' })
     })
 
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-history'))
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-target')
+  })
+
+  it('ignores a global-search topic message targeted at another tab', async () => {
+    render(<HomePage />)
+
+    const topicMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target', targetTabId: 'other-chat-tab' })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial'))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
   it('keeps the current topic visible while the active topic is reloading', async () => {
