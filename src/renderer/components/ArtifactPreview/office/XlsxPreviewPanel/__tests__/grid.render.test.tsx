@@ -257,6 +257,23 @@ describe('XlsxGrid — merged cells', () => {
     expect(mergeCell.firstElementChild).toHaveStyle({ width: '302px', height: '36px' })
   })
 
+  it('exposes exactly one semantic gridcell per merged coordinate and hides covered placeholders', () => {
+    // Merge is rows 1-1, cols 1-4: the merge overlay must be the only gridcell for the master
+    // coordinate; base-layer placeholders (master included) must be hidden from the a11y tree.
+    showTitleMergeRange()
+    const { container } = render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    setScrollViewport(container)
+
+    const masterCells = container.querySelectorAll('[role="gridcell"][aria-colindex="1"]')
+    expect(masterCells).toHaveLength(1)
+    expect(masterCells[0]).toBe(screen.getByTestId('xlsx-grid-merge-cell'))
+
+    // 基础层被覆盖的 4 个占位格:无 gridcell 角色、aria-hidden
+    const baseRow = container.querySelectorAll('[role="row"][aria-rowindex="1"]')[0]
+    expect(baseRow.querySelectorAll('[role="gridcell"]')).toHaveLength(0)
+    expect(baseRow.querySelectorAll('[aria-hidden="true"]')).toHaveLength(4)
+  })
+
   it('keeps the merge layer visible when the master row has scrolled out of the virtual row range', () => {
     // Only row index 5 (row 6, "Total") is in the virtual range — row 0 (the merge's master row) is not.
     setRangeFromCounts(

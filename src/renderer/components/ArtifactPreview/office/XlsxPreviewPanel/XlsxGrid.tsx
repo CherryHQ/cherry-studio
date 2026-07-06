@@ -540,7 +540,8 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
           data-testid="xlsx-grid-zoom-layer"
           style={{ top: scaledHeaderHeight, left: scaledHeaderWidth, ...zoomTransform }}>
           {/* 单元格层:双向虚拟滚动。任何被合并覆盖的单元格(含 master)在此层置空内容——
-              master 的内容+样式由下方独立的合并层渲染,避免重复;这里只保留背景占位。 */}
+              master 的内容+样式由下方独立的合并层渲染,避免重复;这里只保留背景占位,
+              并对辅助技术隐藏(合并层的 master 是该坐标唯一的语义 gridcell)。 */}
           <div className="absolute">
             {virtualRows.map((vr) => {
               const row = vr.index + 1
@@ -556,9 +557,10 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
                       <div
                         key={vc.key}
                         onClick={() => selectCell(row, col)}
-                        role="gridcell"
-                        aria-colindex={col}
-                        aria-selected={isSelected}>
+                        role={isCovered ? undefined : 'gridcell'}
+                        aria-hidden={isCovered || undefined}
+                        aria-colindex={isCovered ? undefined : col}
+                        aria-selected={isCovered ? undefined : isSelected}>
                         <CellView
                           cell={cell}
                           style={style}
