@@ -3373,7 +3373,6 @@
       "no_results_title": "未找到技能",
       "search_failed_description": "搜索失败,请稍后重试。",
       "search_placeholder": "搜索技能...",
-      "subtitle": "搜索在线技能源,并将技能安装到全局资源库。",
       "title": "在线搜索技能"
     },
     "sort": {

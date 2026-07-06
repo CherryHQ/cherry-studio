@@ -27,6 +27,7 @@ type Props = {
 
 const SEARCH_SOURCES: SkillSearchSource[] = ['skills.sh', 'claude-plugins.dev', 'clawhub.ai']
 const DEFAULT_SEARCH_SOURCE: SkillSearchSource = 'skills.sh'
+const SEARCH_DEBOUNCE_MS = 300
 const SKILL_SEARCH_RESULT_ROW_ESTIMATE_PX = 64
 
 export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Props) {
@@ -37,16 +38,26 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
   const [activeSource, setActiveSource] = useState<SkillSearchSource>(DEFAULT_SEARCH_SOURCE)
   const [installedSources, setInstalledSources] = useState<Set<string>>(() => new Set())
   const pendingInstallSourcesRef = useRef<Set<string>>(new Set())
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasQuery = query.trim() !== ''
+
+  const clearPendingSearch = useCallback(() => {
+    if (!searchDebounceRef.current) return
+    clearTimeout(searchDebounceRef.current)
+    searchDebounceRef.current = null
+  }, [])
 
   useEffect(() => {
     if (open) return
+    clearPendingSearch()
     setQuery('')
     setActiveSource(DEFAULT_SEARCH_SOURCE)
     setInstalledSources(new Set())
     pendingInstallSourcesRef.current.clear()
     clear()
-  }, [clear, open])
+  }, [clear, clearPendingSearch, open])
+
+  useEffect(() => clearPendingSearch, [clearPendingSearch])
 
   const tabCounts = useMemo(() => {
     const counts = new Map<SkillSearchSource, number>()
@@ -80,13 +91,17 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
   const handleSearchChange = useCallback(
     (value: string) => {
       setQuery(value)
+      clearPendingSearch()
       if (value.trim()) {
-        void search(value)
+        searchDebounceRef.current = setTimeout(() => {
+          searchDebounceRef.current = null
+          void search(value)
+        }, SEARCH_DEBOUNCE_MS)
       } else {
         clear()
       }
     },
-    [clear, search]
+    [clear, clearPendingSearch, search]
   )
 
   const handleInstall = useCallback(

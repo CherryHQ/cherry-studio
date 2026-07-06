@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { SkillSearchResult } from '@shared/types/skill'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -194,7 +194,9 @@ describe('SkillMarketplaceDialog', () => {
 
     await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'react')
 
-    expect(searchMock).toHaveBeenLastCalledWith('react')
+    await waitFor(() => {
+      expect(searchMock).toHaveBeenLastCalledWith('react')
+    })
     const sourceTabs = screen.getAllByRole('radio')
     expect(sourceTabs.map((tab) => tab.textContent)).toEqual(['skills.sh1', 'claude-plugins.dev2', 'clawhub.ai'])
     expect(sourceTabs[0]).toHaveAttribute('aria-checked', 'true')
@@ -221,6 +223,28 @@ describe('SkillMarketplaceDialog', () => {
     expect(within(claudeResult).getByText('42')).toBeInTheDocument()
     expect(screen.queryByText('React Skill')).not.toBeInTheDocument()
     expect(within(claudeResult).queryByText('claude-plugins.dev')).not.toBeInTheDocument()
+  })
+
+  it('debounces marketplace searches while typing', () => {
+    vi.useFakeTimers()
+    try {
+      renderDialog()
+      const input = screen.getByPlaceholderText('library.skill_marketplace.search_placeholder')
+
+      fireEvent.change(input, { target: { value: 'r' } })
+      fireEvent.change(input, { target: { value: 're' } })
+      fireEvent.change(input, { target: { value: 'rea' } })
+      fireEvent.change(input, { target: { value: 'react' } })
+
+      vi.advanceTimersByTime(299)
+      expect(searchMock).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(1)
+      expect(searchMock).toHaveBeenCalledTimes(1)
+      expect(searchMock).toHaveBeenCalledWith('react')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('selects a source with results when the default source has no matches', async () => {
