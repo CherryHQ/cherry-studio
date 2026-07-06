@@ -145,4 +145,29 @@ describe('ImportSkillDialog', () => {
     expect(document.querySelectorAll('[data-slot="dialog-overlay"]')).toHaveLength(1)
     expect(onOpenChange).not.toHaveBeenCalled()
   })
+
+  it('installs every selected directory and keeps batch results visible', async () => {
+    const user = userEvent.setup()
+    vi.mocked(window.api.file.select).mockResolvedValue([
+      { name: 'skill-one', path: '/tmp/skill-one' },
+      { name: 'skill-two', path: '/tmp/skill-two' }
+    ] as any)
+    installFromDirectory
+      .mockResolvedValueOnce({ id: 'skill-one', name: 'Skill One' })
+      .mockResolvedValueOnce({ id: 'skill-two', name: 'Skill Two' })
+
+    render(<ImportSkillDialog open onOpenChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'settings.skills.installFromDirectory' }))
+
+    await waitFor(() => expect(installFromDirectory).toHaveBeenCalledTimes(2))
+    expect(window.api.file.select).toHaveBeenCalledWith(
+      expect.objectContaining({ properties: ['openDirectory', 'multiSelections'] })
+    )
+    expect(installFromDirectory).toHaveBeenNthCalledWith(1, '/tmp/skill-one')
+    expect(installFromDirectory).toHaveBeenNthCalledWith(2, '/tmp/skill-two')
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Skill One')
+    expect(screen.getByTestId('skill-import-results')).toHaveTextContent('settings.skills.installSuccess:Skill Two')
+    expect(screen.getByText('settings.skills.batchInstallComplete:2')).toBeInTheDocument()
+  })
 })

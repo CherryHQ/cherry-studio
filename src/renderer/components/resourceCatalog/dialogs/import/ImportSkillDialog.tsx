@@ -171,16 +171,13 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
     if (installing) return
     try {
       const selected = await window.api.file.select({
-        properties: ['openDirectory']
+        properties: ['openDirectory', 'multiSelections']
       })
       if (!selected || selected.length === 0) return
-      const directoryItem = createImportItem(
-        'directory',
-        selected[0].path,
-        selected[0].name ?? getNameFromPath(selected[0].path),
-        0
+      const directoryItems = selected.map((directory, index) =>
+        createImportItem('directory', directory.path, directory.name ?? getNameFromPath(directory.path), index)
       )
-      await runImportQueue([directoryItem], 'directory')
+      await runImportQueue(directoryItems, 'directory')
     } catch (e) {
       setStatus({ kind: 'error', message: getInstallErrorMessage(e) })
     }
