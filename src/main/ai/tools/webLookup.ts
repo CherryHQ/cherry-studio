@@ -13,8 +13,8 @@
  * it propagates as the cancellation it is rather than a retryable error.
  */
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { isPermanentWebSearchConfigError } from '@main/services/webSearch/utils/config'
 import { isAbortError } from '@main/services/webSearch/utils/errors'
 import type { WebSearchOutput } from '@shared/ai/builtinTools'

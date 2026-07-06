@@ -1,7 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { ipcApi } from '@renderer/ipc'
-import { useIpcOn } from '@renderer/ipc/useIpcOn'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { isLinux, isWin } from '@renderer/utils/platform'
 import { Minus, Square, X } from 'lucide-react'
 import type { SVGProps } from 'react'

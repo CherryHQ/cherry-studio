@@ -1,7 +1,6 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel/symbols'
 import type {
   QuickPanelInputAdapter,
   QuickPanelInputEvent,
@@ -53,6 +52,7 @@ import {
 } from './promptVariables'
 import {
   COMPOSER_SUPPRESS_SUGGESTION_META,
+  ComposerPanelSymbol,
   type ComposerSuggestionSource,
   type ComposerUnifiedPanelControl,
   type ComposerUnifiedPanelResourceProvider,

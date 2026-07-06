@@ -38,7 +38,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: { getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken }
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
       if (name === 'ApiGatewayService') {
