@@ -1,4 +1,4 @@
-import type { CliProviderConfig, CodeCliConfigs } from '@shared/data/preference/preferenceTypes'
+import type { CliProviderConfig, CodeCliConfigs, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
 import { CodeCli } from '@shared/types/codeCli'
 import { mockUsePreference, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
@@ -32,6 +32,30 @@ function setupUpdaterMock(configs: CodeCliConfigs) {
     return [{} as CodeCliConfigs, vi.fn().mockResolvedValue(undefined)]
   })
   return mockSetConfigs
+}
+
+function lastWrite(mockSetter: ReturnType<typeof setupUpdaterMock>, index = mockSetter.mock.calls.length - 1) {
+  const call = mockSetter.mock.calls[index]
+  if (!call) {
+    throw new Error(`Expected preference setter call at index ${index}`)
+  }
+  return call[0]
+}
+
+function lastToolState(mockSetter: ReturnType<typeof setupUpdaterMock>, index?: number): CodeCliToolState {
+  const toolState = lastWrite(mockSetter, index)[CodeCli.CLAUDE_CODE]
+  if (!toolState) {
+    throw new Error(`Expected ${CodeCli.CLAUDE_CODE} config to be written`)
+  }
+  return toolState
+}
+
+function providerConfig(toolState: CodeCliToolState, providerId: string): CliProviderConfig {
+  const provider = toolState.providers[providerId]
+  if (!provider) {
+    throw new Error(`Expected ${providerId} provider config to exist`)
+  }
+  return provider
 }
 
 const cfg = (overrides: Partial<CliProviderConfig> = {}): CliProviderConfig => ({
@@ -101,9 +125,9 @@ describe('useCodeCli', () => {
         await result.current.reorderProviders(['openrouter', 'anthropic'])
       })
 
-      const lastWrite = mockSetter.mock.calls.at(-1)?.[0] as CodeCliConfigs
-      expect(lastWrite['claude-code'].providers['openrouter']?.sortIndex).toBe(0)
-      expect(lastWrite['claude-code'].providers['anthropic']?.sortIndex).toBe(1)
+      const toolState = lastToolState(mockSetter)
+      expect(toolState.providers['openrouter']?.sortIndex).toBe(0)
+      expect(toolState.providers['anthropic']?.sortIndex).toBe(1)
     })
 
     it('should not fabricate missing provider configs while reordering', async () => {
@@ -116,9 +140,9 @@ describe('useCodeCli', () => {
         await result.current.reorderProviders(['openrouter', 'anthropic'])
       })
 
-      const lastWrite = mockSetter.mock.calls.at(-1)?.[0] as CodeCliConfigs
-      expect(lastWrite['claude-code'].providers['openrouter']).toBeUndefined()
-      expect(lastWrite['claude-code'].providers['anthropic']?.sortIndex).toBe(1)
+      const toolState = lastToolState(mockSetter)
+      expect(toolState.providers['openrouter']).toBeUndefined()
+      expect(toolState.providers['anthropic']?.sortIndex).toBe(1)
     })
   })
 
@@ -136,9 +160,8 @@ describe('useCodeCli', () => {
 
       expect(returnedId).toBe('openrouter')
       expect(mockSetter).toHaveBeenCalled()
-      const lastWrite = mockSetter.mock.calls.at(-1)?.[0] as CodeCliConfigs
-      expect(lastWrite['claude-code'].providers['openrouter']).toBeDefined()
-      expect(lastWrite['claude-code'].providers['openrouter'].modelId).toBe('openrouter::claude-4')
+      const toolState = lastToolState(mockSetter)
+      expect(providerConfig(toolState, 'openrouter').modelId).toBe('openrouter::claude-4')
     })
 
     it('should preserve existing config when updating only modelId', async () => {
@@ -153,8 +176,7 @@ describe('useCodeCli', () => {
         })
       })
 
-      const lastWrite = mockSetter.mock.calls.at(-1)?.[0] as CodeCliConfigs
-      const updated = lastWrite['claude-code'].providers['anthropic']
+      const updated = providerConfig(lastToolState(mockSetter), 'anthropic')
       expect(updated.modelId).toBe('anthropic::claude-5')
       expect(updated.config).toEqual({ foo: 1 })
     })
@@ -172,8 +194,7 @@ describe('useCodeCli', () => {
         })
       })
 
-      const lastWrite = mockSetter.mock.calls.at(-1)?.[0] as CodeCliConfigs
-      expect(lastWrite['claude-code'].providers['anthropic']?.sortIndex).toBe(2)
+      expect(lastToolState(mockSetter).providers['anthropic']?.sortIndex).toBe(2)
     })
   })
 
@@ -193,8 +214,7 @@ describe('useCodeCli', () => {
       })
 
       expect(mockSetter).toHaveBeenCalledTimes(2)
-      const lastWrite = mockSetter.mock.calls[1][0]
-      const toolState = lastWrite[CodeCli.CLAUDE_CODE]
+      const toolState = lastToolState(mockSetter, 1)
       expect(toolState.providers['anthropic']).toBeDefined()
       expect(toolState.current).toBe('anthropic')
     })
@@ -211,9 +231,9 @@ describe('useCodeCli', () => {
         await result.current.deleteProviderConfig('anthropic')
       })
 
-      const lastWrite = mockSetter.mock.calls.at(-1)?.[0] as CodeCliConfigs
-      expect(lastWrite['claude-code'].providers['anthropic']).toBeUndefined()
-      expect(lastWrite['claude-code'].current).toBeNull()
+      const toolState = lastToolState(mockSetter)
+      expect(toolState.providers['anthropic']).toBeUndefined()
+      expect(toolState.current).toBeNull()
     })
 
     it('should keep current when deleting an inactive provider', async () => {
@@ -226,8 +246,7 @@ describe('useCodeCli', () => {
         await result.current.deleteProviderConfig('openrouter')
       })
 
-      const lastWrite = mockSetter.mock.calls.at(-1)?.[0] as CodeCliConfigs
-      expect(lastWrite['claude-code'].current).toBe('anthropic')
+      expect(lastToolState(mockSetter).current).toBe('anthropic')
     })
   })
 
@@ -242,8 +261,7 @@ describe('useCodeCli', () => {
         await result.current.setCurrentProvider('openrouter')
       })
 
-      const lastWrite = mockSetter.mock.calls.at(-1)?.[0] as CodeCliConfigs
-      expect(lastWrite['claude-code'].current).toBe('openrouter')
+      expect(lastToolState(mockSetter).current).toBe('openrouter')
     })
 
     it('should support disabling via null', async () => {
@@ -256,8 +274,7 @@ describe('useCodeCli', () => {
         await result.current.setCurrentProvider(null)
       })
 
-      const lastWrite = mockSetter.mock.calls.at(-1)?.[0] as CodeCliConfigs
-      expect(lastWrite['claude-code'].current).toBeNull()
+      expect(lastToolState(mockSetter).current).toBeNull()
     })
   })
 
@@ -272,9 +289,9 @@ describe('useCodeCli', () => {
         await result.current.setDirectory('/new/project')
       })
 
-      const lastWrite = mockSetter.mock.calls.at(-1)?.[0] as CodeCliConfigs
-      expect(lastWrite['claude-code'].directory).toBe('/new/project')
-      expect(lastWrite['claude-code'].directories).toContain('/new/project')
+      const toolState = lastToolState(mockSetter)
+      expect(toolState.directory).toBe('/new/project')
+      expect(toolState.directories).toContain('/new/project')
     })
   })
 })
