@@ -10,7 +10,7 @@ const i18nMock = vi.hoisted(() => ({
   resolvedLanguage: 'zh-CN'
 }))
 
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: i18nMock
 }))
 vi.mock('@cherrystudio/ui', async () => {

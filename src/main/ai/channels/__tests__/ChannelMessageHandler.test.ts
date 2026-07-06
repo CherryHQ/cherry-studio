@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { channelMessageHandler } from '../ChannelMessageHandler'
-import { sanitizeChannelOutput } from '../security'
+import { sanitizeChannelOutput } from '../security/OutputSanitizer'
 
 const { mockPrepareClaudeCodeWorkspaceDirectory, MockAgentSessionWorkspaceError } = vi.hoisted(() => {
   class MockAgentSessionWorkspaceError extends Error {
@@ -36,8 +36,11 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../security', () => ({
-  wrapExternalContent: vi.fn((text: string) => text),
+vi.mock('../security/ExternalContentGuard', () => ({
+  wrapExternalContent: vi.fn((text: string) => text)
+}))
+
+vi.mock('../security/OutputSanitizer', () => ({
   sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
 }))
 

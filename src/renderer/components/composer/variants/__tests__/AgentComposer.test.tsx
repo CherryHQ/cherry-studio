@@ -362,7 +362,10 @@ vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resourceCatalog/dialogs/edit/ResourceEditDialogHost', () => ({
+// AgentComposer lazy-imports the `dialogs/edit` barrel (not the leaf), so the mock must
+// replace the barrel — otherwise the lazy import loads the real barrel's heavy sibling
+// dialogs, whose async resolution races findByTestId's timeout under full-suite load.
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
   ResourceEditDialogHost: ({ target, onOpenChange }: any) => (
     <div data-testid="resource-edit-dialog-host" data-kind={target?.kind ?? ''} data-id={target?.id ?? ''}>
       <button type="button" onClick={() => onOpenChange(false)}>

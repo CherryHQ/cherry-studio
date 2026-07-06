@@ -1,4 +1,5 @@
-import { getToolsForScope, TopicType } from '@renderer/components/composer/tools/types'
+import { getToolsForScope } from '@renderer/components/composer/tools/builtinTools'
+import { TopicType } from '@renderer/components/composer/tools/types'
 import { describe, expect, it, vi } from 'vitest'
 
 const { mockIsGenerateImageModel, mockIsReasoningModel, mockIsSupportedToolUse } = vi.hoisted(() => ({
@@ -45,14 +46,10 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
 }))
 
 describe('composer tool visibility', () => {
-  it('keeps assistant core capabilities discoverable when the current model cannot enable them', async () => {
+  it('keeps assistant core capabilities discoverable when the current model cannot enable them', () => {
     mockIsGenerateImageModel.mockReturnValue(false)
     mockIsReasoningModel.mockReturnValue(false)
     mockIsSupportedToolUse.mockReturnValue(false)
-
-    await import('../definitions/generateImageTool')
-    await import('../definitions/knowledgeBaseTool')
-    await import('../definitions/thinkingTool')
 
     const tools = getToolsForScope(TopicType.Chat, {
       assistant: {
@@ -73,9 +70,7 @@ describe('composer tool visibility', () => {
     )
   })
 
-  it('shows MCP status in chat and agent session scopes only', async () => {
-    await import('../definitions/mcpStatusTool')
-
+  it('shows MCP status in chat and agent session scopes only', () => {
     const model = {
       id: 'text-only',
       providerId: 'provider-1',

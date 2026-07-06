@@ -51,14 +51,15 @@ vi.mock('@main/core/paths/pathRegistry', async () => {
   }
 })
 
+// The `@application` alias resolves directly to `Application.ts`, so the
+// global `vi.mock('@application')` in tests/main.setup.ts would otherwise
+// intercept the deep `Application.ts` import below and hand back the stub
+// singleton (no real `getInstance` / `getPath`). Unmock it here so this suite
+// exercises the REAL Application class.
+vi.unmock('@application')
+
 import { Application } from '@main/core/application/Application'
 import { buildPathRegistry } from '@main/core/paths/pathRegistry'
-
-// Bypass the global mock of '@application' (which exports a stub
-// `application` proxy with a no-op bootstrap) by importing the real
-// Application class directly via its file path. The global mock only
-// intercepts the directory/index path, leaving `Application.ts` reachable
-// via the `@main/*` alias.
 
 describe('Application.getPath', () => {
   const app = Application.getInstance()

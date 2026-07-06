@@ -1,4 +1,4 @@
-import { defineTool, registerTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
+import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import type { PermissionMode } from '@renderer/types/agent'
@@ -103,7 +103,5 @@ const permissionModeTool = defineTool({
     runtime: ({ context }) => <PermissionModeComposerRuntime context={context} />
   }
 })
-
-registerTool(permissionModeTool)
 
 export default permissionModeTool

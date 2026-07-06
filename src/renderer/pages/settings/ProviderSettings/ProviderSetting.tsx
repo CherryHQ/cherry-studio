@@ -6,8 +6,7 @@ import ProviderHeader from './components/ProviderHeader'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
 import { useProviderAutoModelSync } from './hooks/providerSetting/useProviderAutoModelSync'
 import { useProviderOnboardingAutoEnable } from './hooks/providerSetting/useProviderOnboardingAutoEnable'
-import { ModelList } from './ModelList'
-import { ModelListHealthProvider, useModelListHealth } from './ModelList/modelListHealthContext'
+import { ModelList, ModelListHealthProvider, useModelListHealth } from './ModelList'
 import { providerDetailColumnClasses, ProviderSettingsContainer } from './primitives/ProviderSettingsPrimitives'
 
 interface ProviderSettingProps {
