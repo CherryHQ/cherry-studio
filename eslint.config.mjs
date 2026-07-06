@@ -693,20 +693,20 @@ export default defineConfig([
       ]
     }
   },
-  // Barrel / module-boundary rules (naming-conventions.md §6.4) — inline custom plugin, all warn.
+  // Barrel / module-boundary rules (naming-conventions.md §6.4) — inline custom plugin, all error.
   {
     files: ['src/**/*.{ts,tsx}'],
     // tests are exempt by design: white-box tests may deep-import a barrel's internals
     ignores: ['src/**/*.test.*', 'src/**/__tests__/**', 'src/**/__mocks__/**'],
     plugins: { barrel: barrelPlugin },
     rules: {
-      'barrel/no-export-star': 'warn',
-      'barrel/index-no-impl': 'warn',
-      'barrel/no-index-tsx': 'warn',
-      'barrel/named-only': 'warn',
-      'barrel/closed': 'warn',
-      'barrel/no-nesting': 'warn',
-      'barrel/no-bucket-root': 'warn'
+      'barrel/no-export-star': 'error',
+      'barrel/index-no-impl': 'error',
+      'barrel/no-index-tsx': 'error',
+      'barrel/named-only': 'error',
+      'barrel/closed': 'error',
+      'barrel/no-nesting': 'error',
+      'barrel/no-bucket-root': 'error'
     }
   },
   // renderer legacy css var migration warnings

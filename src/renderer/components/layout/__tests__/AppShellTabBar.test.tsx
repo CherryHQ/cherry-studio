@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
@@ -58,10 +58,6 @@ vi.mock('@renderer/i18n/label', () => ({
   getThemeModeLabel: () => 'Light'
 }))
 
-vi.mock('@renderer/services/SettingsWindowService', () => ({
-  openSettingsWindow: vi.fn()
-}))
-
 vi.mock('@renderer/utils/error', () => ({
   formatErrorMessage: (error: unknown) => (error instanceof Error ? error.message : String(error))
 }))
@@ -112,6 +108,34 @@ afterEach(() => {
 })
 
 describe('AppShellTabBar', () => {
+  const renderTabBar = (
+    props?: Partial<ComponentProps<typeof AppShellTabBar>>,
+    wrapperProps?: ComponentProps<'div'>
+  ) => {
+    const closeTab = vi.fn()
+    const tabs: Tab[] = props?.tabs ?? [
+      { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
+      { id: 'a', type: 'route', url: '/app/a', title: 'A' }
+    ]
+
+    render(
+      <div {...wrapperProps}>
+        <AppShellTabBar
+          tabs={tabs}
+          activeTabId={tabs[0]?.id ?? 'home'}
+          setActiveTab={vi.fn()}
+          reorderTabs={vi.fn()}
+          pinTab={vi.fn()}
+          unpinTab={vi.fn()}
+          openTab={vi.fn()}
+          {...props}
+          closeTab={closeTab}
+        />
+      </div>
+    )
+
+    return closeTab
+  }
   it('opens launchpad from the plus button', async () => {
     const user = userEvent.setup()
     const openTab = vi.fn()
@@ -337,6 +361,70 @@ describe('AppShellTabBar', () => {
 
     // Only the non-home normal tab is closeable; the fixed home tab and pinned tab are not.
     expect(screen.queryAllByTestId('menu-tab.close')).toHaveLength(1)
+  })
+  it('closes a normal tab on double click or middle click', () => {
+    const handleDoubleClick = vi.fn()
+    const handleAuxClick = vi.fn()
+    const closeTab = renderTabBar(undefined, {
+      onDoubleClick: handleDoubleClick,
+      onAuxClick: handleAuxClick
+    })
+    const tabA = screen.getByRole('button', { name: 'A' })
+
+    const doubleClick = new MouseEvent('dblclick', {
+      bubbles: true,
+      cancelable: true
+    })
+    fireEvent(tabA, doubleClick)
+    expect(closeTab).toHaveBeenCalledWith('a')
+    expect(doubleClick.defaultPrevented).toBe(true)
+    expect(handleDoubleClick).not.toHaveBeenCalled()
+
+    closeTab.mockClear()
+    const middleClick = new MouseEvent('auxclick', {
+      button: 1,
+      bubbles: true,
+      cancelable: true
+    })
+    fireEvent(tabA, middleClick)
+    expect(closeTab).toHaveBeenCalledWith('a')
+    expect(middleClick.defaultPrevented).toBe(true)
+    expect(handleAuxClick).not.toHaveBeenCalled()
+  })
+
+  it('keeps tabs open on double click or middle click when close controls are hidden', () => {
+    const handleDoubleClick = vi.fn()
+    const handleAuxClick = vi.fn()
+    const closeTab = renderTabBar(
+      {
+        tabs: [{ id: 'a', type: 'route', url: '/app/a', title: 'A' }],
+        activeTabId: 'a'
+      },
+      {
+        onDoubleClick: handleDoubleClick,
+        onAuxClick: handleAuxClick
+      }
+    )
+    const tabA = screen.getByRole('button', { name: 'A' })
+
+    const doubleClick = new MouseEvent('dblclick', {
+      bubbles: true,
+      cancelable: true
+    })
+    fireEvent(tabA, doubleClick)
+
+    const middleClick = new MouseEvent('auxclick', {
+      button: 1,
+      bubbles: true,
+      cancelable: true
+    })
+    fireEvent(tabA, middleClick)
+
+    expect(closeTab).not.toHaveBeenCalled()
+    expect(doubleClick.defaultPrevented).toBe(false)
+    expect(middleClick.defaultPrevented).toBe(false)
+    expect(handleDoubleClick).toHaveBeenCalledTimes(1)
+    expect(handleAuxClick).toHaveBeenCalledTimes(1)
   })
 })
 

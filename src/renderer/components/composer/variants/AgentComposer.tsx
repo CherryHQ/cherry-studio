@@ -24,6 +24,7 @@ import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
 import { useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
@@ -188,6 +189,7 @@ const AgentComposerRoot = ({
     enabled: isActiveTab && Boolean(session && agent && hasNewSessionShortcutAction)
   })
 
+  const sessionSlashCommands = useAgentSessionSlashCommands(sessionId)
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
     const accessiblePaths = session.workspace?.type === 'user' && session.workspace.path ? [session.workspace.path] : []
@@ -195,9 +197,10 @@ const AgentComposerRoot = ({
       agentId,
       sessionId,
       agentType: agent.type,
-      accessiblePaths
+      accessiblePaths,
+      slashCommands: sessionSlashCommands
     }
-  }, [session, agent, agentId, sessionId])
+  }, [session, agent, agentId, sessionId, sessionSlashCommands])
 
   const initialState = useMemo(
     () => ({
@@ -282,6 +285,7 @@ interface AgentComposerContextControlsProps {
   iconOnly?: boolean
   showAgentTrigger?: boolean
   agentTriggerMode?: 'selector' | 'edit'
+  onDialogCloseAutoFocus?: () => void
   onAgentChange: (agentId: string | null) => void | Promise<void>
 }
 
@@ -316,6 +320,7 @@ const AgentComposerContextControls = ({
   iconOnly = false,
   showAgentTrigger = true,
   agentTriggerMode = 'selector',
+  onDialogCloseAutoFocus,
   onAgentChange
 }: AgentComposerContextControlsProps) => {
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
@@ -366,7 +371,10 @@ const AgentComposerContextControls = ({
               <ResourceEditDialogHost
                 target={agentEditDialogTarget}
                 onOpenChange={(open) => {
-                  if (!open) setAgentEditDialogTarget(null)
+                  if (!open) {
+                    setAgentEditDialogTarget(null)
+                    onDialogCloseAutoFocus?.()
+                  }
                 }}
               />
             </React.Suspense>
@@ -380,6 +388,7 @@ const AgentComposerContextControls = ({
           side={side}
           align="start"
           mountStrategy="lazy-keep"
+          onDialogCloseAutoFocus={onDialogCloseAutoFocus}
           trigger={agentTrigger}
         />
       )}
@@ -555,6 +564,21 @@ type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls'
 }
 type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
 
+type AgentComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
+
+const restoreAgentComposerInputFocus = (inputAdapter: AgentComposerInputAdapter) => {
+  window.requestAnimationFrame(() => inputAdapter?.focus())
+}
+
+const AgentComposerContextControlsWithAutoFocus = ({
+  inputAdapter,
+  ...props
+}: AgentComposerContextControlsProps & { inputAdapter: AgentComposerInputAdapter }) => {
+  const onDialogCloseAutoFocus = useCallback(() => restoreAgentComposerInputFocus(inputAdapter), [inputAdapter])
+
+  return <AgentComposerContextControls {...props} onDialogCloseAutoFocus={onDialogCloseAutoFocus} />
+}
+
 // Active agent sessions are bound to their agent, so the agent trigger opens edit instead of switching.
 const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
   return {
@@ -565,7 +589,13 @@ const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
         toolMenuPlacement="beforeContext"
         renderContextControls={({ side, iconOnly }) => (
           <>
-            <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} agentTriggerMode="edit" />
+            <AgentComposerContextControlsWithAutoFocus
+              {...props}
+              side={side}
+              iconOnly={iconOnly}
+              agentTriggerMode="edit"
+              inputAdapter={inputAdapter}
+            />
             <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
           </>
         )}
@@ -581,11 +611,16 @@ const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
         <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
       </div>
     ),
-    renderBelowControls: () => (
+    renderBelowControls: (inputAdapter) => (
       <ComposerBelowControls
         renderContextControls={({ side, iconOnly }) => (
           <>
-            <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} />
+            <AgentComposerContextControlsWithAutoFocus
+              {...props}
+              side={side}
+              iconOnly={iconOnly}
+              inputAdapter={inputAdapter}
+            />
             <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
           </>
         )}

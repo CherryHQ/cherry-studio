@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 
 import ModelTagsWithLabel, { type ModelTagsWithLabelModel } from '../components/ModelTagsWithLabel'
 import { modelSyncClasses } from '../primitives/ProviderSettingsPrimitives'
-import type { ModelSyncPreviewResponse } from './modelSyncPreviewTypes'
+import type { ModelSyncPreviewResponse } from '../types/modelSyncPreviewTypes'
 import type { useModelListSyncSelections } from './useModelListSyncSelections'
 
 export type ModelSyncPreviewSelections = ReturnType<typeof useModelListSyncSelections>

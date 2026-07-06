@@ -1,5 +1,5 @@
 import { getTopicMessages } from '@renderer/hooks/useTopic'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import type { FileMetadata } from '@renderer/types/file'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'

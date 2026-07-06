@@ -135,8 +135,7 @@ describe('index-documents job handler', () => {
     knowledgeBaseGetByIdMock.mockReturnValue({
       ...createBase(),
       embeddingModelId: null,
-      dimensions: null,
-      searchMode: 'bm25'
+      dimensions: null
     })
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
     knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))

@@ -1296,12 +1296,14 @@
       "add": "Προσθήκη ετικέτας",
       "delete": "Διαγραφή ετικέτας",
       "deleteConfirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτήν την ετικέτα;",
+      "group_by": "Ομαδοποίηση κατά ετικέτα",
       "manage": "Διαχείριση ετικετών",
       "modify": "Επεξεργασία ετικέτας",
       "none": "Δεν υπάρχουν προς το παρόν ετικέτες",
       "settings": {
         "title": "Ρυθμίσεις Ετικέτας"
       },
+      "ungroup": "Απενεργοποίηση ομαδοποίησης ετικετών",
       "untagged": "Αχαρακτήριστο"
     },
     "title": "Βοηθός",
@@ -1563,8 +1565,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Cache {{hit_rate}}%",
+        "tooltip": "Ανάγνωση cache {{cache_read}} / εγγραφή {{cache_write}} / χωρίς cache {{no_cache}} · εξοικονομήθηκαν {{saved}} tokens εισόδου"
       },
       "editing_current": "Αυτό το μήνυμα επεξεργάζεται στον συνθέτη",
       "flow": {
@@ -2328,6 +2330,7 @@
       "no_match_description": "Κανένα αρχείο δεν ταιριάζει με τα τρέχοντα φίλτρα",
       "no_match_title": "Δεν βρέθηκαν αρχεία που να ταιριάζουν"
     },
+    "empty_trash": "Άδειασμα κάδου απορριμμάτων",
     "error": {
       "delete_failed": "Αποτυχία διαγραφής αρχείων",
       "delete_partial_failed": "Μερικά αρχεία δεν μπόρεσαν να διαγραφούν",
@@ -2345,6 +2348,7 @@
     "missing": "Αγνοούμενος",
     "modified_at": "Τροποποιήθηκε στις",
     "name": "Όνομα αρχείου",
+    "no_actions": "Δεν υπάρχουν διαθέσιμες ενέργειες",
     "open": "Άνοιγμα",
     "other": "Άλλο",
     "permanent_delete": "Διαγραφή οριστικά",
@@ -2358,13 +2362,18 @@
     "remove_from_library": "Αφαίρεση από τη βιβλιοθήκη",
     "rename": "Μετονομασία",
     "restore": "Επαναφορά",
+    "select_all": "Επιλογή ορατών αρχείων",
+    "select_all_short": "Επιλογή Όλων",
+    "select_file": "Επιλέξτε {{name}}",
     "selected_count": "{{count}} αρχεία επιλέχθηκαν",
+    "selected_missing_hint": "Κάποια επιλεγμένα αρχεία λείπουν. Εντοπίστε τα ή αφαιρέστε τις εγγραφές τους.",
     "show_in_folder": "Εμφάνιση στο φάκελο",
     "size": "Μέγεθος",
     "text": "Κείμενο",
     "title": "Αρχεία",
     "trash": "Σκουπίδια",
     "type": "Τύπος",
+    "upload": "Μεταφόρτωση αρχείων",
     "video": "Βίντεο"
   },
   "globalSearch": {
@@ -2748,7 +2757,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} πηγές",
-      "documents_count": "{{count}} έγγραφα",
       "updated_at": "Ενημερώθηκε {{time}}"
     },
     "name_required": "Απαιτείται το όνομα της βάσης γνώσεων",
@@ -4717,6 +4725,7 @@
     "ollama": "Ollama",
     "open-mineru": "Ανοιχτό MinerU",
     "openai": "OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -5302,6 +5311,9 @@
       "auto_switch_to_topics": "Αυτόματη μετάβαση σε θέματα",
       "title": "Ρυθμίσεις Ανώτερου Νiveau"
     },
+    "appearance": {
+      "title": "Εμφάνιση"
+    },
     "assistant": {
       "icon": {
         "type": {
@@ -5370,6 +5382,7 @@
         "cloud_storage": "Ρυθμίσεις αποθήκευσης στο νέφος",
         "export_settings": "Ρυθμίσεις εξαγωγής",
         "import_settings": "Εισαγωγή Ρυθμίσεων",
+        "note_export": "Εξαγωγή Σημείωσης",
         "third_party": "Σύνδεση τρίτων"
       },
       "export_menu": {
@@ -5931,6 +5944,48 @@
         "token_placeholder": "Παρακαλούμε εισάγετε το Token του Yusi"
       }
     },
+    "dependencies": {
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Δεν υπάρχουν ακόμα προσαρμοσμένα εργαλεία. Προσθέστε ένα για να ξεκινήσετε.",
+      "description": "Διαχειριστείτε τα δυαδικά εργαλεία και τις εξαρτήσεις χρόνου εκτέλεσης που απαιτούνται από την εφαρμογή.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Εγκατάσταση",
+      "installError": "Failed to install tool",
+      "installing": "Εγκατάσταση...",
+      "invalidTool": "Μη έγκυρο όνομα ή κλειδί εργαλείου",
+      "notInstalled": "Δεν έχει εγκατασταθεί",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
+      "title": "Εξαρτήσεις Περιβάλλοντος",
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
+    },
     "developer": {
       "enable_developer_mode": "Ενεργοποίηση λειτουργίας προγραμματιστή",
       "help": "Μετά την ενεργοποίηση της λειτουργίας προγραμματιστή, θα μπορείτε να χρησιμοποιήσετε τη λειτουργία αλυσίδας κλήσης για να δείτε τη ροή δεδομένων της διαδικασίας κλήσης του μοντέλου.",
@@ -5991,7 +6046,7 @@
       },
       "title": "Ρυθμίσεις εμφάνισης",
       "topic": {
-        "title": "Ρυθμίσεις Θεμάτων"
+        "title": "Ρυθμίσεις προβολής συνομιλίας"
       },
       "zoom": {
         "title": "Ρυθμίσεις κλίμακας"
@@ -6197,6 +6252,9 @@
         "button": "Λήψη Διακομιστών",
         "success": "Επιτυχής ανάκτηση διακομιστών MCP"
       },
+      "filter": {
+        "label": "[to be translated]:Filter"
+      },
       "findMore": "Περισσότεροι διακομιστές MCP",
       "headers": "Κεφαλίδες",
       "headersTooltip": "Προσαρμοσμένες κεφαλίδες HTTP αιτήσεων",
@@ -6237,6 +6295,7 @@
       "noDescriptionAvailable": "Δεν υπάρχει διαθέσιμη περιγραφή",
       "noLogs": "Δεν υπάρχουν αρχεία καταγραφής ακόμα",
       "noServers": "Δεν έχουν ρυθμιστεί διακομιστές",
+      "notInstalled": "[to be translated]:Not installed",
       "not_support": "Το μοντέλο δεν υποστηρίζεται",
       "npx_list": {
         "actions": "Ενέργειες",
@@ -6266,6 +6325,7 @@
         "title": "Εκτέλεση εξωτερικού MCP;"
       },
       "provider": "Πάροχος",
+      "providerNotFound": "[to be translated]:MCP provider not found",
       "providerPlaceholder": "Όνομα παρόχου",
       "providerUrl": "URL Παρόχου",
       "providers": "Πάροχοι",
@@ -6312,13 +6372,6 @@
         "getToken": "Λήψη API Τοκεν",
         "getTokenDescription": "Λήψη ενός προσωπικού API τοκεν από τον λογαριασμό σας",
         "noServersAvailable": "Δεν υπάρχουν διαθέσιμοι MCP διακομιστές",
-        "providerDescriptions": {
-          "302ai": "302.Υπηρεσία MCP Πλατφόρμας AI",
-          "bailian": "Υπηρεσία MCP Πλατφόρμας Bailian της Alibaba Cloud",
-          "lanyun": "Υπηρεσία MCP της Πλατφόρμας Cloud Τεχνολογίας Lanyun",
-          "mcprouter": "Πλατφόρμα Δρομολογητή MCP Υπηρεσία MCP",
-          "modelscope": "Υπηρεσία MCP Πλατφόρμας ModelScope"
-        },
         "selectProvider": "Επιλέξτε Πάροχο:",
         "setToken": "Εισαγάγετε το τοκεν σας",
         "success": "Ο συγχρονισμός MCP διακομιστή ολοκληρώθηκε επιτυχώς",
@@ -6375,10 +6428,11 @@
       "user": "Χρήστης"
     },
     "menuGroups": {
-      "appSettings": "Ρυθμίσεις Εφαρμογής",
-      "integrations": "Μοντέλα",
-      "productivity": "Παραγωγικότητα",
-      "services": "Πρόσθετα",
+      "automation": "Αυτοματοποίηση",
+      "capabilities": "Δυνατότητες & Εργαλεία",
+      "models": "Μοντέλα",
+      "personal": "Προσωπικό",
+      "quickAccess": "Γρήγορη Πρόσβαση",
       "system": "Σύστημα"
     },
     "messages": {
@@ -6695,7 +6749,7 @@
       "assistant": "Μήνυμα βοηθού",
       "backup": "Δημιουργία αντιγράφου ασφαλείας",
       "knowledge_embed": "Βάση γνώσης",
-      "title": "Ρυθμίσεις ειδοποιήσεων"
+      "title": "Ειδοποιήσεις"
     },
     "openai": {
       "service_tier": {
@@ -6731,48 +6785,6 @@
       }
     },
     "parameter_settings": "Ρυθμίσεις Παραμέτρων",
-    "plugins": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Δεν υπάρχουν ακόμα προσαρμοσμένα εργαλεία. Προσθέστε ένα για να ξεκινήσετε.",
-      "description": "Διαχειριστείτε τα δυαδικά εργαλεία και τις εξαρτήσεις χρόνου εκτέλεσης που απαιτούνται από την εφαρμογή.",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Εγκατάσταση",
-      "installError": "Failed to install tool",
-      "installing": "Εγκατάσταση...",
-      "invalidTool": "Μη έγκυρο όνομα ή κλειδί εργαλείου",
-      "notInstalled": "Δεν έχει εγκατασταθεί",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
-      "source": {
-        "bundled": "bundled"
-      },
-      "title": "Εξαρτήσεις Περιβάλλοντος",
-      "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
-      },
-      "update": "Update to latest version"
-    },
     "power": {
       "prevent_sleep_when_busy": "Διατήρησε το σύστημα σε εγρήγορση ενώ εκτελούνται εργασίες"
     },
@@ -7190,6 +7202,7 @@
       "all_enable": "Ενεργοποίηση Όλων",
       "bind_first_to_enable": "Δέστε πρώτα μια συντόμευση για να αλλάξετε την κατάσταση ενεργοποίησής της",
       "categories": {
+        "all": "Όλα",
         "assistant": "Εργαλεία Βοηθού Τεχνητής Νοημοσύνης",
         "chat": "Αλληλεπίδραση Μηνυμάτων",
         "general": "Καθολικό και Παράθυρο",
@@ -7205,6 +7218,7 @@
       "empty": "Δεν υπάρχουν διαθέσιμες συντομεύσεις σε αυτήν την ομάδα",
       "enabled": "ενεργοποίηση",
       "exit_fullscreen": "Έξοδος από πλήρη οθόνη",
+      "filter": "Φίλτρο",
       "label": "Πλήκτρο",
       "move_tab_to_first": "Μετακίνηση Καρτέλας στην Αρχή",
       "new_topic": "Νέο θέμα",
@@ -7273,6 +7287,9 @@
       "uninstallSuccess": "Δεξιότητα απεγκαταστάθηκε: {{name}}",
       "viewSource": "Προβολή Πηγής",
       "zip": "Τ.Κ."
+    },
+    "system": {
+      "title": "Σύστημα"
     },
     "theme": {
       "color_primary": "Κύριο Χρώμα Θέματος",
