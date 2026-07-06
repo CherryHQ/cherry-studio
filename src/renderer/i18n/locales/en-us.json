@@ -6218,6 +6218,9 @@
         "button": "Fetch Servers",
         "success": "Successfully fetched MCP servers"
       },
+      "filter": {
+        "label": "Filter"
+      },
       "findMore": "Find More MCP",
       "headers": "Headers",
       "headersTooltip": "Custom headers for HTTP requests",
@@ -6258,6 +6261,7 @@
       "noDescriptionAvailable": "No description available",
       "noLogs": "No logs yet",
       "noServers": "No servers configured",
+      "notInstalled": "Not installed",
       "not_support": "Model not supported",
       "npx_list": {
         "actions": "Actions",
@@ -6287,6 +6291,7 @@
         "title": "Run external MCP?"
       },
       "provider": "Provider",
+      "providerNotFound": "MCP provider not found",
       "providerPlaceholder": "Provider name",
       "providerUrl": "Provider URL",
       "providers": "Providers",
@@ -6333,13 +6338,6 @@
         "getToken": "Get API Token",
         "getTokenDescription": "Retrieve your personal API token from your account",
         "noServersAvailable": "No MCP servers available",
-        "providerDescriptions": {
-          "302ai": "302.AI Platform MCP Service",
-          "bailian": "Alibaba Cloud Bailian Platform MCP Service",
-          "lanyun": "Lanyun Technology Cloud Platform MCP Service",
-          "mcprouter": "MCP Router Platform MCP Service",
-          "modelscope": "ModelScope Platform MCP Service"
-        },
         "selectProvider": "Select Provider:",
         "setToken": "Enter Your Token",
         "success": "Sync MCP Servers successful",
@@ -6385,7 +6383,7 @@
       },
       "type": "Type",
       "types": {
-        "inMemory": "In Memory",
+        "inMemory": "Built-in",
         "sse": "SSE",
         "stdio": "STDIO",
         "streamableHttp": "Streamable HTTP"
