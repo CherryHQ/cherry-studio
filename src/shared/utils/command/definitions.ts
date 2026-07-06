@@ -31,6 +31,15 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'app.print',
+    titleKey: 'settings.shortcuts.print',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'P']
+    }
+  }),
+  defineCommand({
     id: 'app.sidebar.toggle',
     titleKey: 'settings.shortcuts.toggle_left_sidebar',
     categoryKey: 'settings.shortcuts.topic',
@@ -89,15 +98,6 @@ export const COMMAND_DEFINITIONS = [
     keybinding: {
       defaultBinding: ['CommandOrControl', '0'],
       editable: false
-    }
-  }),
-  defineCommand({
-    id: 'notes.print',
-    titleKey: 'settings.shortcuts.print_note',
-    categoryKey: 'settings.shortcuts.general',
-    scope: 'renderer',
-    keybinding: {
-      defaultBinding: ['CommandOrControl', 'P']
     }
   }),
   defineCommand({

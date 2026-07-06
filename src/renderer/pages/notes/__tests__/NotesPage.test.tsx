@@ -154,7 +154,7 @@ vi.mock('@renderer/hooks/command', () => ({
     id: command,
     label: command,
     enabled: true,
-    shortcutLabel: command === 'notes.print' ? mocks.printShortcutLabel : '',
+    shortcutLabel: command === 'app.print' ? mocks.printShortcutLabel : '',
     execute: vi.fn()
   })
 }))
@@ -378,7 +378,7 @@ describe('NotesPage print payloads', () => {
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
   })
 
-  it('routes the notes.print command through the current source editor content', async () => {
+  it('routes the app.print command through the current source editor content', async () => {
     render(<NotesPage />)
 
     await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
@@ -386,7 +386,7 @@ describe('NotesPage print payloads', () => {
 
     let command: { handler: () => void | Promise<void>; enabled: boolean } | undefined
     await waitFor(() => {
-      command = mocks.commandHandlers.get('notes.print')
+      command = mocks.commandHandlers.get('app.print')
       expect(command?.enabled).toBe(true)
     })
 
@@ -403,14 +403,14 @@ describe('NotesPage print payloads', () => {
     })
   })
 
-  it('keeps the notes.print command disabled for inactive tabs', async () => {
+  it('keeps the app.print command disabled for inactive tabs', async () => {
     mocks.isActiveTab = false
 
     render(<NotesPage />)
 
     await waitFor(() => expect(screen.getByDisplayValue('note')).toBeInTheDocument())
     await waitFor(() => {
-      expect(mocks.commandHandlers.get('notes.print')?.enabled).toBe(false)
+      expect(mocks.commandHandlers.get('app.print')?.enabled).toBe(false)
     })
   })
 

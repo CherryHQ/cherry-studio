@@ -63,7 +63,7 @@ const HeaderNavbar = ({
   const titleInputRef = useRef<HTMLInputElement>(null)
   const { settings, updateSettings } = useNotesSettings()
   const isActiveTab = useIsActiveTab()
-  const printCommand = useResolvedCommand('notes.print')
+  const printCommand = useResolvedCommand('app.print')
   const canShowStarButton = activeNode?.type === 'file' && onToggleStar
 
   const handleToggleShowWorkspace = useCallback(() => {
@@ -156,7 +156,7 @@ const HeaderNavbar = ({
     }
   }, [getPrintableDocumentPayload])
 
-  useCommandHandler('notes.print', handlePrint, { enabled: isActiveTab && activeNode?.type === 'file' })
+  useCommandHandler('app.print', handlePrint, { enabled: isActiveTab && activeNode?.type === 'file' })
 
   const handleShowSettings = useCallback(() => {
     void GeneralPopup.show({

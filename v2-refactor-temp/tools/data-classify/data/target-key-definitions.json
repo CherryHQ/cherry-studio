@@ -257,6 +257,19 @@
       "description": "Command shortcut: app.fullscreen.exit (unified command system)"
     },
     {
+      "targetKey": "shortcut.app.print",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "P"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.print (unified command system)"
+    },
+    {
       "targetKey": "shortcut.app.search",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
@@ -425,19 +438,6 @@
       },
       "status": "deleted",
       "description": "Deleted: command removed (feature not implemented in v2)."
-    },
-    {
-      "targetKey": "shortcut.notes.print",
-      "type": "PreferenceTypes.PreferenceShortcutType",
-      "defaultValue": {
-        "binding": [
-          "CommandOrControl",
-          "P"
-        ],
-        "enabled": true
-      },
-      "status": "classified",
-      "description": "Command shortcut: notes.print (unified command system)"
     },
     {
       "targetKey": "shortcut.quick_assistant.toggle",
