@@ -399,6 +399,240 @@ describe('MessagePartsRenderer', () => {
     expect(screen.getByTestId('mock-attachments').getAttribute('data-file-name')).toBe('doc.pdf')
   })
 
+  it('does not render duplicate user file attachments when composer file tokens are visible', () => {
+    renderParts(
+      [
+        {
+          type: 'text',
+          text: 'Open ',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [{ id: 'file:doc.pdf', kind: 'file', label: 'doc.pdf', index: 0, textOffset: 5 }]
+              }
+            }
+          }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///doc.pdf',
+          mediaType: 'application/pdf',
+          filename: 'doc.pdf'
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
+    expect(screen.queryByTestId('mock-attachments')).toBeNull()
+  })
+
+  it('keeps user file attachments when no composer file token is visible', () => {
+    renderParts(
+      [
+        { type: 'text', text: 'Open doc' } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///doc.pdf',
+          mediaType: 'application/pdf',
+          filename: 'doc.pdf'
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(screen.getByTestId('mock-attachments').getAttribute('data-file-name')).toBe('doc.pdf')
+  })
+
+  it('keeps user file attachments when composer file token prompt text is stale', () => {
+    renderParts(
+      [
+        {
+          type: 'text',
+          text: 'Open latest',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'file:doc.pdf',
+                    kind: 'file',
+                    label: 'doc.pdf',
+                    index: 0,
+                    textOffset: 5,
+                    promptText: 'doc.pdf'
+                  }
+                ]
+              }
+            }
+          }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///doc.pdf',
+          mediaType: 'application/pdf',
+          filename: 'doc.pdf'
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(document.querySelector('[data-composer-token-kind="file"]')).not.toBeInTheDocument()
+    expect(screen.getByTestId('mock-attachments').getAttribute('data-file-name')).toBe('doc.pdf')
+  })
+
+  it('matches visible composer file tokens to file parts before hiding attachment cards', () => {
+    renderParts(
+      [
+        {
+          type: 'text',
+          text: 'Attach visible.md and latest',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'file:source-visible',
+                    kind: 'file',
+                    label: 'visible.md',
+                    index: 0,
+                    textOffset: 7,
+                    payload: { origin_name: 'visible.md', name: 'visible.md' }
+                  },
+                  {
+                    id: 'file:source-stale',
+                    kind: 'file',
+                    label: 'stale.md',
+                    index: 1,
+                    textOffset: 22,
+                    promptText: 'stale.md',
+                    payload: { origin_name: 'stale.md', name: 'stale.md' }
+                  }
+                ]
+              }
+            }
+          }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///stale.md',
+          mediaType: 'text/markdown',
+          filename: 'stale.md',
+          providerMetadata: { cherry: { fileTokenSourceId: 'source-stale' } }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///visible.md',
+          mediaType: 'text/markdown',
+          filename: 'visible.md',
+          providerMetadata: { cherry: { fileTokenSourceId: 'source-visible' } }
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    const token = document.querySelector('[data-composer-token-kind="file"]')
+    expect(token).toBeInTheDocument()
+    expect(token).toHaveTextContent('visible.md')
+    const attachments = screen.getAllByTestId('mock-attachments')
+    expect(attachments).toHaveLength(1)
+    expect(attachments[0].getAttribute('data-file-name')).toBe('stale.md')
+  })
+
+  it('keeps attachment cards when file-name fallback is ambiguous', () => {
+    renderParts(
+      [
+        {
+          type: 'text',
+          text: 'Attach duplicate.txt',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'file:legacy-visible',
+                    kind: 'file',
+                    label: 'duplicate.txt',
+                    index: 0,
+                    textOffset: 7,
+                    payload: { origin_name: 'duplicate.txt', name: 'duplicate.txt' }
+                  }
+                ]
+              }
+            }
+          }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///first/duplicate.txt',
+          mediaType: 'text/plain',
+          filename: 'duplicate.txt'
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///second/duplicate.txt',
+          mediaType: 'text/plain',
+          filename: 'duplicate.txt'
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
+    const attachments = screen.getAllByTestId('mock-attachments')
+    expect(attachments).toHaveLength(2)
+  })
+
+  it('keeps user file attachments until collapsed message expansion makes the composer token visible', () => {
+    const text = ['Line 1', 'Line 2', 'Line 3', 'Line 4', 'Line 5', 'Open late.pdf'].join('\n')
+    renderParts(
+      [
+        {
+          type: 'text',
+          text,
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'file:source-late',
+                    kind: 'file',
+                    label: 'late.pdf',
+                    index: 0,
+                    textOffset: text.indexOf('late.pdf'),
+                    promptText: 'late.pdf',
+                    payload: { origin_name: 'late.pdf', name: 'late.pdf' }
+                  }
+                ]
+              }
+            }
+          }
+        } as unknown as CherryMessagePart,
+        {
+          type: 'file',
+          url: 'file:///late.pdf',
+          mediaType: 'application/pdf',
+          filename: 'late.pdf',
+          providerMetadata: { cherry: { fileTokenSourceId: 'source-late' } }
+        } as unknown as CherryMessagePart
+      ],
+      msg({ role: 'user' })
+    )
+
+    expect(document.querySelector('[data-composer-token-kind="file"]')).not.toBeInTheDocument()
+    expect(screen.getByTestId('mock-attachments').getAttribute('data-file-name')).toBe('late.pdf')
+
+    fireEvent.click(screen.getByRole('button', { name: 'message.message.user_content.expand' }))
+
+    expect(document.querySelector('[data-composer-token-kind="file"]')).toBeInTheDocument()
+    expect(screen.queryByTestId('mock-attachments')).toBeNull()
+  })
+
   // -- tool (single) --
   it('renders single dynamic-tool via MessageTools', () => {
     renderParts([
