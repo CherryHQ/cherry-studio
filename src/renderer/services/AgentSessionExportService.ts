@@ -12,17 +12,22 @@ import {
   type AgentSessionMessageEntity
 } from '@shared/data/api/schemas/agentSessions'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
+import type { ModelSnapshot } from '@shared/data/types/message'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('AgentSessionExportService')
 
 export type AgentSessionExportTarget = Pick<AgentSessionEntity, 'agentId' | 'id' | 'name'>
 
+export interface AgentSessionExportOptions {
+  modelFallback?: ModelSnapshot
+}
+
 export function getAgentSessionExportTitle(session: Pick<AgentSessionExportTarget, 'id' | 'name'>): string {
   return session.name.trim() || i18next.t('agent.session.new') || session.id
 }
 
-function modelSnapshotToModel(snapshot: AgentSessionMessageEntity['modelSnapshot']): Model | undefined {
+function modelSnapshotToModel(snapshot: ModelSnapshot | null | undefined): Model | undefined {
   if (!snapshot) return undefined
 
   return {
@@ -35,8 +40,11 @@ function modelSnapshotToModel(snapshot: AgentSessionMessageEntity['modelSnapshot
 
 function agentSessionMessageToExportView(
   row: AgentSessionMessageEntity,
-  agentId: string | null | undefined
+  agentId: string | null | undefined,
+  modelFallback?: ModelSnapshot
 ): MessageExportView {
+  const modelSnapshot = row.modelSnapshot ?? (row.role === 'assistant' ? modelFallback : undefined)
+
   return {
     id: row.id,
     role: row.role,
@@ -46,14 +54,15 @@ function agentSessionMessageToExportView(
     updatedAt: row.updatedAt,
     status: row.status,
     modelId: row.modelId ?? undefined,
-    model: modelSnapshotToModel(row.modelSnapshot),
+    model: modelSnapshotToModel(modelSnapshot),
     stats: row.stats ?? undefined,
     parts: row.data.parts ?? []
   }
 }
 
 export async function getAgentSessionMessagesForExport(
-  session: AgentSessionExportTarget
+  session: AgentSessionExportTarget,
+  options: AgentSessionExportOptions = {}
 ): Promise<MessageExportView[]> {
   const pages: MessageExportView[][] = []
   let cursor: string | undefined
@@ -66,7 +75,9 @@ export async function getAgentSessionMessagesForExport(
       query
     })) as CursorPaginationResponse<AgentSessionMessageEntity>
 
-    pages.push(response.items.map((row) => agentSessionMessageToExportView(row, session.agentId)))
+    pages.push(
+      response.items.map((row) => agentSessionMessageToExportView(row, session.agentId, options.modelFallback))
+    )
     cursor = response.nextCursor
   } while (cursor)
 
@@ -76,28 +87,35 @@ export async function getAgentSessionMessagesForExport(
 export async function agentSessionToMarkdown(
   session: AgentSessionExportTarget,
   exportReasoning?: boolean,
-  excludeCitations?: boolean
+  excludeCitations?: boolean,
+  options: AgentSessionExportOptions = {}
 ): Promise<string> {
   const title = getAgentSessionExportTitle(session)
-  const messages = await getAgentSessionMessagesForExport(session)
+  const messages = await getAgentSessionMessagesForExport(session, options)
 
   if (messages.length === 0) return `# ${title}`
 
   return `# ${title}\n\n${await messagesToMarkdown(messages, exportReasoning, excludeCitations)}`
 }
 
-export async function agentSessionToPlainText(session: AgentSessionExportTarget): Promise<string> {
+export async function agentSessionToPlainText(
+  session: AgentSessionExportTarget,
+  options: AgentSessionExportOptions = {}
+): Promise<string> {
   const title = markdownToPlainText(getAgentSessionExportTitle(session)).trim()
-  const messages = await getAgentSessionMessagesForExport(session)
+  const messages = await getAgentSessionMessagesForExport(session, options)
 
   if (messages.length === 0) return title
 
   return `${title}\n\n${messagesToPlainText(messages)}`
 }
 
-export async function copyAgentSessionAsMarkdown(session: AgentSessionExportTarget): Promise<void> {
+export async function copyAgentSessionAsMarkdown(
+  session: AgentSessionExportTarget,
+  options: AgentSessionExportOptions = {}
+): Promise<void> {
   try {
-    const markdown = await agentSessionToMarkdown(session)
+    const markdown = await agentSessionToMarkdown(session, undefined, undefined, options)
     await navigator.clipboard.writeText(markdown)
     window.toast.success(i18next.t('message.copy.success'))
   } catch (error) {
@@ -106,9 +124,12 @@ export async function copyAgentSessionAsMarkdown(session: AgentSessionExportTarg
   }
 }
 
-export async function copyAgentSessionAsPlainText(session: AgentSessionExportTarget): Promise<void> {
+export async function copyAgentSessionAsPlainText(
+  session: AgentSessionExportTarget,
+  options: AgentSessionExportOptions = {}
+): Promise<void> {
   try {
-    const plainText = await agentSessionToPlainText(session)
+    const plainText = await agentSessionToPlainText(session, options)
     await navigator.clipboard.writeText(plainText)
     window.toast.success(i18next.t('message.copy.success'))
   } catch (error) {
@@ -120,10 +141,11 @@ export async function copyAgentSessionAsPlainText(session: AgentSessionExportTar
 export async function exportAgentSessionAsMarkdown(
   session: AgentSessionExportTarget,
   exportReasoning?: boolean,
-  excludeCitations?: boolean
+  excludeCitations?: boolean,
+  options: AgentSessionExportOptions = {}
 ): Promise<void> {
   try {
-    const markdown = await agentSessionToMarkdown(session, exportReasoning, excludeCitations)
+    const markdown = await agentSessionToMarkdown(session, exportReasoning, excludeCitations, options)
     await exportMarkdownContentAsFile(getAgentSessionExportTitle(session), markdown)
   } catch (error) {
     logger.error('Failed to export agent session as markdown', error as Error, { sessionId: session.id })

@@ -45,6 +45,7 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import {
+  type AgentSessionExportOptions,
   agentSessionToMarkdown,
   copyAgentSessionAsMarkdown,
   copyAgentSessionAsPlainText,
@@ -541,6 +542,12 @@ const Sessions = ({
     return orderedAgents
   }, [agents, optimisticAgentOrderIds])
   const agentById = useMemo(() => new Map(agentsForDisplay.map((agent) => [agent.id, agent])), [agentsForDisplay])
+  const getSessionExportOptions = useCallback(
+    (session: AgentSessionEntity): AgentSessionExportOptions => ({
+      modelFallback: getAgentModelFallbackSnapshot(session.agentId ? agentById.get(session.agentId) : undefined)
+    }),
+    [agentById]
+  )
   const agentRankById = useMemo(
     () => new Map(agentsForDisplay.map((agent, index) => [agent.id, index])),
     [agentsForDisplay]
@@ -862,17 +869,17 @@ const Sessions = ({
   const handleSaveSessionToNotes = useCallback(
     async (session: AgentSessionEntity) => {
       const title = getAgentSessionExportTitle(session)
-      const markdown = await agentSessionToMarkdown(session)
+      const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await exportContentToNotes(title, markdown, notesPath)
     },
-    [notesPath]
+    [getSessionExportOptions, notesPath]
   )
 
   const handleSaveSessionToKnowledge = useCallback(
     async (session: AgentSessionEntity) => {
       try {
         const title = getAgentSessionExportTitle(session)
-        const messages = await getAgentSessionMessagesForExport(session)
+        const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
         const result = await SaveToKnowledgePopup.showForMessages(messages, title)
         if (result?.success) {
           window.toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
@@ -882,52 +889,86 @@ const Sessions = ({
         window.toast.error(t('chat.save.topic.knowledge.error.save_failed'))
       }
     },
-    [t]
+    [getSessionExportOptions, t]
   )
 
-  const handleExportSessionMarkdown = useCallback((session: AgentSessionEntity) => {
-    return exportAgentSessionAsMarkdown(session)
-  }, [])
+  const handleCopySessionMarkdown = useCallback(
+    (session: AgentSessionEntity) => copyAgentSessionAsMarkdown(session, getSessionExportOptions(session)),
+    [getSessionExportOptions]
+  )
 
-  const handleExportSessionMarkdownReason = useCallback((session: AgentSessionEntity) => {
-    return exportAgentSessionAsMarkdown(session, true)
-  }, [])
+  const handleCopySessionPlainText = useCallback(
+    (session: AgentSessionEntity) => copyAgentSessionAsPlainText(session, getSessionExportOptions(session)),
+    [getSessionExportOptions]
+  )
 
-  const handleExportSessionWord = useCallback(async (session: AgentSessionEntity) => {
-    const title = getAgentSessionExportTitle(session)
-    const markdown = await agentSessionToMarkdown(session)
-    await window.api.export.toWord(markdown, removeSpecialCharactersForFileName(title))
-  }, [])
+  const handleExportSessionMarkdown = useCallback(
+    (session: AgentSessionEntity) => {
+      return exportAgentSessionAsMarkdown(session, undefined, undefined, getSessionExportOptions(session))
+    },
+    [getSessionExportOptions]
+  )
 
-  const handleExportSessionNotion = useCallback(async (session: AgentSessionEntity) => {
-    const title = getAgentSessionExportTitle(session)
-    const messages = await getAgentSessionMessagesForExport(session)
-    await exportMessagesToNotion(title, messages)
-  }, [])
+  const handleExportSessionMarkdownReason = useCallback(
+    (session: AgentSessionEntity) => {
+      return exportAgentSessionAsMarkdown(session, true, undefined, getSessionExportOptions(session))
+    },
+    [getSessionExportOptions]
+  )
 
-  const handleExportSessionYuque = useCallback(async (session: AgentSessionEntity) => {
-    const title = getAgentSessionExportTitle(session)
-    const markdown = await agentSessionToMarkdown(session)
-    await exportMarkdownToYuque(title, markdown)
-  }, [])
+  const handleExportSessionWord = useCallback(
+    async (session: AgentSessionEntity) => {
+      const title = getAgentSessionExportTitle(session)
+      const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
+      await window.api.export.toWord(markdown, removeSpecialCharactersForFileName(title))
+    },
+    [getSessionExportOptions]
+  )
 
-  const handleExportSessionObsidian = useCallback(async (session: AgentSessionEntity) => {
-    const title = getAgentSessionExportTitle(session)
-    const messages = await getAgentSessionMessagesForExport(session)
-    await ObsidianExportPopup.show({ title: title.replace(/\\/g, '_'), messages, processingMethod: '3' })
-  }, [])
+  const handleExportSessionNotion = useCallback(
+    async (session: AgentSessionEntity) => {
+      const title = getAgentSessionExportTitle(session)
+      const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
+      await exportMessagesToNotion(title, messages)
+    },
+    [getSessionExportOptions]
+  )
 
-  const handleExportSessionJoplin = useCallback(async (session: AgentSessionEntity) => {
-    const title = getAgentSessionExportTitle(session)
-    const messages = await getAgentSessionMessagesForExport(session)
-    await exportMarkdownToJoplin(title, messages)
-  }, [])
+  const handleExportSessionYuque = useCallback(
+    async (session: AgentSessionEntity) => {
+      const title = getAgentSessionExportTitle(session)
+      const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
+      await exportMarkdownToYuque(title, markdown)
+    },
+    [getSessionExportOptions]
+  )
 
-  const handleExportSessionSiyuan = useCallback(async (session: AgentSessionEntity) => {
-    const title = getAgentSessionExportTitle(session)
-    const markdown = await agentSessionToMarkdown(session)
-    await exportMarkdownToSiyuan(title, markdown)
-  }, [])
+  const handleExportSessionObsidian = useCallback(
+    async (session: AgentSessionEntity) => {
+      const title = getAgentSessionExportTitle(session)
+      const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
+      await ObsidianExportPopup.show({ title: title.replace(/\\/g, '_'), messages, processingMethod: '3' })
+    },
+    [getSessionExportOptions]
+  )
+
+  const handleExportSessionJoplin = useCallback(
+    async (session: AgentSessionEntity) => {
+      const title = getAgentSessionExportTitle(session)
+      const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
+      await exportMarkdownToJoplin(title, messages)
+    },
+    [getSessionExportOptions]
+  )
+
+  const handleExportSessionSiyuan = useCallback(
+    async (session: AgentSessionEntity) => {
+      const title = getAgentSessionExportTitle(session)
+      const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
+      await exportMarkdownToSiyuan(title, markdown)
+    },
+    [getSessionExportOptions]
+  )
 
   const handleCopySessionImage = useCallback(
     (session: AgentSessionEntity) => {
@@ -1646,8 +1687,8 @@ const Sessions = ({
       exportMenuOptions: exportMenuOptions as SessionItemMenuActions['exportMenuOptions'],
       onAutoRename: handleAutoRenameSession,
       onCopyImage: handleCopySessionImage,
-      onCopyMarkdown: copyAgentSessionAsMarkdown,
-      onCopyPlainText: copyAgentSessionAsPlainText,
+      onCopyMarkdown: handleCopySessionMarkdown,
+      onCopyPlainText: handleCopySessionPlainText,
       onExportImage: handleExportSessionImage,
       onExportJoplin: handleExportSessionJoplin,
       onExportMarkdown: handleExportSessionMarkdown,
@@ -1663,6 +1704,8 @@ const Sessions = ({
     [
       exportMenuOptions,
       handleAutoRenameSession,
+      handleCopySessionMarkdown,
+      handleCopySessionPlainText,
       handleCopySessionImage,
       handleExportSessionImage,
       handleExportSessionJoplin,

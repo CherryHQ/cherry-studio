@@ -27,7 +27,10 @@ interface AgentSessionImageCaptureHostProps {
 
 const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: AgentSessionImageCaptureHostProps) => {
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
-  const loadMessages = useCallback(() => getAgentSessionMessagesForExport(session), [session])
+  const loadMessages = useCallback(
+    () => getAgentSessionMessagesForExport(session, { modelFallback }),
+    [modelFallback, session]
+  )
   const handleLoadError = useCallback(
     (error: unknown) => {
       logger.error('Failed to load agent session messages for image capture', error as Error, {
