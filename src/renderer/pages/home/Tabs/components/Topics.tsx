@@ -10,6 +10,7 @@ import { useOptionalShellActions, useOptionalShellState } from '@renderer/compon
 import {
   type ConversationResourceMenuItem,
   renderAssistantEntityIcon,
+  resolveDefaultCollapsedGroupIds,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
   type ResourceListItemReorderPayload,
@@ -992,7 +993,17 @@ export function Topics({
     ]
   )
 
-  const collapsedTopicState = isRightPanel ? EMPTY_COLLAPSED_TOPIC_STATE : topicExpansion
+  const collapsedTopicState = useMemo(
+    () =>
+      isRightPanel
+        ? EMPTY_COLLAPSED_TOPIC_STATE
+        : resolveDefaultCollapsedGroupIds({
+            collapsedIds: topicExpansion,
+            groupBy: topicGroupBy,
+            items: filteredTopics
+          }),
+    [filteredTopics, isRightPanel, topicExpansion, topicGroupBy]
+  )
   const handleTopicCollapsedStateChange = useCallback(
     (nextCollapsedIds: string[]) => {
       if (isRightPanel) return

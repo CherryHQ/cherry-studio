@@ -5,6 +5,7 @@ import {
   type ConversationResourceMenuItem,
   remapResourceListCollapsedGroupIds,
   renderAgentEntityIcon,
+  resolveDefaultCollapsedGroupIds,
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   ResourceList,
   type ResourceListGroup,
@@ -556,15 +557,21 @@ const Sessions = ({
   }, [displayMode, t])
 
   const collapsedSessionState = useMemo(() => {
+    const resolvedSessionExpansion = resolveDefaultCollapsedGroupIds({
+      collapsedIds: sessionExpansion,
+      groupBy: sessionGroupBy,
+      items: filteredGroupedSessions
+    })
+
     if (displayMode !== 'workdir') {
-      return sessionExpansion
+      return resolvedSessionExpansion
     }
 
-    return remapResourceListCollapsedGroupIds(sessionExpansion, (groupId) => {
+    return remapResourceListCollapsedGroupIds(resolvedSessionExpansion, (groupId) => {
       const path = getWorkdirPathFromSessionGroupId(groupId)
       return path ? (workdirDisplay.groupIdByPath.get(path) ?? groupId) : groupId
     })
-  }, [displayMode, sessionExpansion, workdirDisplay])
+  }, [displayMode, filteredGroupedSessions, sessionExpansion, sessionGroupBy, workdirDisplay])
 
   const handleSessionCollapsedStateChange = useCallback(
     (nextCollapsedIds: string[]) => {

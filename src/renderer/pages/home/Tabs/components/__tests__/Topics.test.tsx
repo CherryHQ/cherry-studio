@@ -369,7 +369,7 @@ const ALL_TOPIC_TIME_GROUP_IDS = [
 
 type TopicGroupCollapseFixture = {
   time: string[]
-  assistant: string[]
+  assistant: string[] | null
 }
 
 // Default fixture: nothing collapsed (everything expanded).
@@ -1980,6 +1980,19 @@ describe('Topics', () => {
     dndMocks.onDragEnd?.({ active: { id: 'topic-a' }, over: { id: 'topic-c' } })
 
     expect(patchSpy).not.toHaveBeenCalled()
+  })
+
+  it('defaults assistant display groups to collapsed before the user changes expansion', () => {
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    setTopicGroupExpansionCache({
+      ...createExpandedTopicGroupExpansionFixture(),
+      assistant: null
+    })
+
+    renderTopicList()
+
+    expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Topic A')).not.toBeInTheDocument()
   })
 
   it('renders assistant groups and creates topics with the selected assistant payload', () => {

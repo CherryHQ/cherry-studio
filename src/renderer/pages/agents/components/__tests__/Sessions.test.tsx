@@ -559,8 +559,8 @@ function getHeaderNewTaskButton() {
 
 type SessionGroupCollapseFixture = {
   time: string[]
-  agent: string[]
-  workdir: string[]
+  agent: string[] | null
+  workdir: string[] | null
 }
 
 // Default fixture: nothing collapsed (everything expanded).
@@ -788,6 +788,18 @@ describe('Sessions', () => {
     expect(
       screen.getByRole('button', { name: 'Project A Workspace' }).querySelector('.lucide-folder-open')
     ).toBeInTheDocument()
+  })
+
+  it('defaults workspace display groups to collapsed before the user changes expansion', () => {
+    setSessionGroupExpansionCache({
+      ...createExpandedSessionGroupExpansionFixture(),
+      workdir: null
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
   })
 
   it('keeps the header new task action enabled without agents and starts a missing-agent draft', () => {
@@ -1051,6 +1063,35 @@ describe('Sessions', () => {
     expect(getSessionGroupExpansionCache().agent).not.toContain(SESSION_PINNED_SECTION_ID)
     expect(getSessionGroupExpansionCache().agent).not.toContain(SESSION_AGENT_SECTION_ID)
     expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
+  })
+
+  it('defaults agent display groups to collapsed before the user changes expansion', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    setSessionGroupExpansionCache({
+      ...createExpandedSessionGroupExpansionFixture(),
+      agent: null
+    })
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-b', name: 'Beta session', agentId: 'agent-b', orderKey: 'b' })
+      ]
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.getByRole('button', { name: 'Alpha agent' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Beta agent' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
   })
 
   it('uses the configured model icon for agent session groups', () => {
