@@ -27,9 +27,9 @@ import { useTranslation } from 'react-i18next'
 
 import { PlaceholderShimmerText } from '../blocks/PlaceholderShimmerText'
 import { useOptionalMessageListUi } from '../MessageListProvider'
-import { colorizeShellOutput, shellColorPalettes, TERMINAL_SURFACE_CLASS } from './agent'
 import { AgentToolsType } from './shared/agentToolTypes'
 import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './shared/GenericTools'
+import { colorizeShellOutput, shellColorPalettes, TERMINAL_SURFACE_CLASS } from './shared/terminalOutputHelpers'
 
 type Translate = (key: string, options?: Record<string, string>) => string
 export interface ToolActivity {
