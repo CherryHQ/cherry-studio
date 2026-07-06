@@ -123,12 +123,22 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     // 614MB download, so drive the bar off that file alone for smooth, monotonic
     // progress; the tiny sidecar files finish in the first moments at 0%.
     if (typeof p.file !== 'string' || !p.file.endsWith('.onnx')) return
-    const percent =
-      typeof p.progress === 'number'
-        ? Math.round(p.progress)
-        : p.total
-          ? Math.round(((p.loaded ?? 0) / p.total) * 100)
-          : 0
+    // transformers.js brackets the file's byte stream with dataless 'initiate'/'done'
+    // events (no loaded/total/progress). Only compute a percent from the events that
+    // actually carry data: map the terminal 'done' to a full bar and drop the empty
+    // leading events. Falling through to 0 for 'done' used to snap the full bar back to
+    // empty for the moment between the last byte and the 'ready' emitted after
+    // registration (the download's visible "100% → 0%" flicker).
+    let percent: number
+    if (typeof p.progress === 'number') {
+      percent = Math.round(p.progress)
+    } else if (p.total) {
+      percent = Math.round(((p.loaded ?? 0) / p.total) * 100)
+    } else if (p.status === 'done') {
+      percent = 100
+    } else {
+      return
+    }
     this.broadcast({ status: p.status, percent, loaded: p.loaded, total: p.total, file: p.file })
   }
 }

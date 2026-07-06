@@ -119,6 +119,30 @@ describe('LocalEmbeddingDownloadService', () => {
     )
   })
 
+  it('holds the bar at 100 through the dataless done event instead of snapping to 0', async () => {
+    loadEmbedding.mockImplementation(async (_source, _repo, _dtype, onProgress) => {
+      // transformers.js brackets the byte stream with dataless 'initiate'/'done' events;
+      // only the middle 'progress' events carry loaded/total.
+      onProgress?.({ status: 'initiate', file: READY_FILE })
+      onProgress?.({ status: 'progress', file: READY_FILE, progress: 100, loaded: 614, total: 614 })
+      onProgress?.({ status: 'done', file: READY_FILE })
+    })
+
+    await localEmbeddingDownloadService.download()
+
+    // The dataless events must never report 0 — that snapped the full bar back to empty
+    // right before the post-registration 'ready' (the "100% → 0%" flicker).
+    expect(broadcastSpy()).not.toHaveBeenCalledWith(
+      'local_model.download_progress',
+      expect.objectContaining({ file: READY_FILE, percent: 0 })
+    )
+    // 'done' means the weights are fully on disk — keep the bar full through registration.
+    expect(broadcastSpy()).toHaveBeenCalledWith(
+      'local_model.download_progress',
+      expect.objectContaining({ status: 'done', percent: 100 })
+    )
+  })
+
   describe('remove', () => {
     it('keeps the weights when a knowledge base still references the model', async () => {
       unregisterMock.mockResolvedValue({ removed: false })
