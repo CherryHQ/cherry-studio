@@ -67,7 +67,7 @@ const UpdateButton: FC<UpdateButtonProps> = ({ onUpdateComplete, onUpdatingChang
   const handleClick = () => {
     if (isUpdating) return
 
-    popup.confirm({
+    void popup.confirm({
       title: t('openclaw.update.modal_title'),
       content: t('openclaw.update.available', {
         latest: updateInfo?.latestVersion,

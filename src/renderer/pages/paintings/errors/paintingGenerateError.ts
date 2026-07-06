@@ -64,7 +64,7 @@ export function presentPaintingGenerateError(error: unknown) {
     return
   }
 
-  popup.error({
+  void popup.error({
     content: message,
     centered: true
   })

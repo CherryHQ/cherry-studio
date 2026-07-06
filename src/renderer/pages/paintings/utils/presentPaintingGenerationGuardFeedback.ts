@@ -17,7 +17,7 @@ export function presentPaintingGenerationGuardFeedback(
 ) {
   if (reason === 'provider_disabled' || reason === 'no_api_key') {
     if (providerId) {
-      popup.warning({
+      void popup.warning({
         content: i18n.t(reason === 'provider_disabled' ? 'error.provider_disabled' : 'error.no_api_key'),
         centered: true,
         closable: true,

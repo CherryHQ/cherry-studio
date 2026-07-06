@@ -206,7 +206,7 @@ export async function restoreFromNutstore(fileName?: string) {
     data = await window.api.backup.restoreFromWebdav({ ...config, fileName })
   } catch (error: any) {
     logger.error('[backup] restoreFromWebdav: Error downloading file from WebDAV:', error as Error)
-    popup.error({
+    void popup.error({
       title: i18n.t('message.restore.failed'),
       content: error.message
     })

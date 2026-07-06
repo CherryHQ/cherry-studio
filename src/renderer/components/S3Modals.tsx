@@ -174,7 +174,7 @@ export function useS3RestoreModal({
       return
     }
 
-    popup.confirm({
+    void popup.confirm({
       title: t('settings.data.s3.restore.confirm.title'),
       content: t('settings.data.s3.restore.confirm.content', { fileName: selectedFile }),
       okText: t('settings.data.s3.restore.confirm.ok'),

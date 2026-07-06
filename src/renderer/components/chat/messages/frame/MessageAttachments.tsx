@@ -30,7 +30,7 @@ const MessageAttachments: FC<Props> = ({ file }) => {
   const handleOpen = () => {
     if (!openFile) return
     void Promise.resolve(openFile(file)).catch(() => {
-      popup.error({ content: t('files.preview.error'), centered: true })
+      void popup.error({ content: t('files.preview.error'), centered: true })
     })
   }
 

@@ -167,7 +167,7 @@ export function useMessageSelectionController({
         return
       }
 
-      popup.confirm({
+      void popup.confirm({
         title: t('message.delete.confirm.title'),
         content: t('message.delete.confirm.content', { count: ids.length }),
         okButtonProps: { danger: true },

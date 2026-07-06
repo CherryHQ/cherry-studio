@@ -377,7 +377,7 @@ const ShortcutSettings: FC = () => {
   }
 
   const handleResetAllShortcuts = () => {
-    popup.confirm({
+    void popup.confirm({
       title: t('settings.shortcuts.reset_defaults_confirm'),
       centered: true,
       onOk: async () => {

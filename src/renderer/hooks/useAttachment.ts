@@ -27,7 +27,7 @@ export function useAttachment() {
       }
     } catch (err) {
       logger.error(`Error opening ${path}:`, err as Error)
-      popup.error({ content: t('files.preview.error'), centered: true })
+      void popup.error({ content: t('files.preview.error'), centered: true })
     }
   }
   return {

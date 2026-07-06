@@ -120,7 +120,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   }, [addApiKey, fetchData, refreshHasToken, t, updateProvider])
 
   const handleLogout = useCallback(() => {
-    popup.confirm({
+    void popup.confirm({
       title: t('settings.provider.oauth.logout'),
       content: t('settings.provider.oauth.logout_confirm'),
       centered: true,

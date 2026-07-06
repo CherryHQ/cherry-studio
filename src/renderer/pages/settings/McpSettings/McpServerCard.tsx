@@ -78,7 +78,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
             await fetchServerVersion({ ...serverForUpdate, isActive: true })
             await window.api.mcp.refreshTools(serverForUpdate.id)
           } catch (error: any) {
-            popup.error({
+            void popup.error({
               title: t('settings.mcp.startError'),
               content: formatMcpError(error),
               centered: true
@@ -90,7 +90,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
           setVersion(null)
         }
       } catch (error: any) {
-        popup.error({
+        void popup.error({
           title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
           content: formatMcpError(error),
           centered: true
@@ -104,7 +104,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
 
   const handleDelete = useCallback(() => {
     try {
-      popup.confirm({
+      void popup.confirm({
         title: t('settings.mcp.deleteServer'),
         content: t('settings.mcp.deleteServerConfirm'),
         centered: true,

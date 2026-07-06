@@ -121,7 +121,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       return
     }
 
-    popup.confirm({
+    void popup.confirm({
       title: t('settings.data.s3.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.s3.manager.delete.confirm.multiple', { count: selectedRowKeys.length }),
@@ -164,7 +164,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       return
     }
 
-    popup.confirm({
+    void popup.confirm({
       title: t('settings.data.s3.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.s3.manager.delete.confirm.single', { fileName }),
@@ -203,7 +203,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       return
     }
 
-    popup.confirm({
+    void popup.confirm({
       title: t('settings.data.s3.restore.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.s3.restore.confirm.content'),

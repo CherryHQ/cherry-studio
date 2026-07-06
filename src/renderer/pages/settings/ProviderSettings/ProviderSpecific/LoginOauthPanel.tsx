@@ -71,7 +71,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
   }, [providerId, ns, t, updateProvider])
 
   const handleLogout = useCallback(() => {
-    popup.confirm({
+    void popup.confirm({
       title: t('settings.provider.oauth.logout'),
       content: t('settings.provider.oauth.logout_confirm'),
       centered: true,

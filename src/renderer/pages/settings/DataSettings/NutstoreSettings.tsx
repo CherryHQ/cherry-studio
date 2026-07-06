@@ -88,7 +88,7 @@ const NutstoreSettings: FC = () => {
 
   const handleLayout = useCallback(async () => {
     const confirmedLogout = await new Promise<boolean>((resolve) => {
-      popup.confirm({
+      void popup.confirm({
         centered: true,
         title: t('settings.data.nutstore.logout.title'),
         content: t('settings.data.nutstore.logout.content'),

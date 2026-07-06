@@ -176,7 +176,7 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
     const onCancel = vi.fn()
 
     act(() => {
-      popup.confirm({ title: 'Migrating data', maskClosable: false, closable: false, onCancel })
+      void popup.confirm({ title: 'Migrating data', maskClosable: false, closable: false, onCancel })
     })
 
     await screen.findByText('Migrating data')

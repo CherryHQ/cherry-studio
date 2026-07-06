@@ -24,7 +24,7 @@ export const useMcpServerTrust = (updateServer: (body: UpdateMcpServerDto) => vo
     async (server: McpServer): Promise<boolean> => {
       const commandPreview = getCommandPreview(server)
       return new Promise<boolean>((resolve) => {
-        popup.confirm({
+        void popup.confirm({
           centered: true,
           title: t('settings.mcp.protocolInstallWarning.title'),
           content: (

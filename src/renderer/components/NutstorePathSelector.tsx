@@ -69,7 +69,7 @@ function FileList(props: FileListProps) {
       } catch (error) {
         if (error instanceof Error) {
           logger.error('Error fetching files:', error)
-          popup.error({
+          void popup.error({
             content: error.message,
             centered: true
           })

@@ -223,7 +223,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   const handleDeleteProvider = useCallback(
     (providerId: Provider['id']) => {
-      popup.confirm({
+      void popup.confirm({
         title: t('settings.provider.delete.title'),
         content: t('settings.provider.delete.content'),
         okButtonProps: { danger: true },

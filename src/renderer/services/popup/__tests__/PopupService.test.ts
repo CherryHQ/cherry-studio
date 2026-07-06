@@ -3,10 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // This suite exercises the real popup store, so opt out of the global services/popup mock.
 vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 
-import { createPopup, popup, POPUP_EXIT_MS, type PopupInjectedProps, popupService } from '../index'
+import { createPopup, popup, POPUP_EXIT_MS, type PopupComponent, popupService } from '../index'
 
 // A trivial popup component — only stored, never rendered here.
-const Noop = (_props: { label: string } & PopupInjectedProps<string | null>) => null
+const Noop: PopupComponent<{ label: string }, string | null> = () => null
 
 let unsubscribe: (() => void) | null = null
 

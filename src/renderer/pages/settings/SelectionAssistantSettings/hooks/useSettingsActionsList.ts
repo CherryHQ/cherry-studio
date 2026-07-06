@@ -68,7 +68,7 @@ export const useActionItems = (
 
   const handleDeleteActionItem = (id: string) => {
     if (!initialItems) return
-    popup.confirm({
+    void popup.confirm({
       centered: true,
       content: t('selection.settings.actions.delete_confirm'),
       onOk: () => {
@@ -79,7 +79,7 @@ export const useActionItems = (
 
   const handleReset = () => {
     if (!initialItems) return
-    popup.confirm({
+    void popup.confirm({
       centered: true,
       content: t('selection.settings.actions.reset.confirm'),
       onOk: () => {

@@ -138,7 +138,7 @@ export function WebdavBackupManager({
       return
     }
 
-    popup.confirm({
+    void popup.confirm({
       title: t('settings.data.webdav.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.webdav.backup.manager.delete.confirm.multiple', { count: selectedRowKeys.length }),
@@ -177,7 +177,7 @@ export function WebdavBackupManager({
       return
     }
 
-    popup.confirm({
+    void popup.confirm({
       title: t('settings.data.webdav.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.webdav.backup.manager.delete.confirm.single', { fileName }),
@@ -210,7 +210,7 @@ export function WebdavBackupManager({
       return
     }
 
-    popup.confirm({
+    void popup.confirm({
       title: customLabels?.restoreConfirmTitle || t('settings.data.webdav.restore.confirm.title'),
       icon: <CircleAlert />,
       content: customLabels?.restoreConfirmContent || t('settings.data.webdav.restore.confirm.content'),

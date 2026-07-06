@@ -422,7 +422,7 @@ const McpSettings: React.FC = () => {
           toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
-          popup.error({
+          void popup.error({
             title: t('settings.mcp.updateError'),
             content: error.message,
             centered: true
@@ -487,7 +487,7 @@ const McpSettings: React.FC = () => {
   const onDeleteMcpServer = useCallback(
     async (serverToDelete: McpServer) => {
       try {
-        popup.confirm({
+        void popup.confirm({
           title: t('settings.mcp.deleteServer'),
           content: t('settings.mcp.deleteServerConfirm'),
           centered: true,
@@ -545,7 +545,7 @@ const McpSettings: React.FC = () => {
           const version = await window.api.mcp.getServerVersion(serverForUpdate.id)
           setServerVersion(version)
         } catch (error: any) {
-          popup.error({
+          void popup.error({
             title: t('settings.mcp.startError'),
             content: formatMcpError(error as McpError),
             centered: true
@@ -557,7 +557,7 @@ const McpSettings: React.FC = () => {
         setServerVersion(null)
       }
     } catch (error: any) {
-      popup.error({
+      void popup.error({
         title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
         content: formatMcpError(error as McpError),
         centered: true

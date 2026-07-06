@@ -116,7 +116,7 @@ export function useMessageLeafCapabilities({
     async (file) => {
       const fileType = parseFileTypes(file.type)
       if (fileType === null) {
-        popup.error({ content: t('files.preview.error'), centered: true })
+        void popup.error({ content: t('files.preview.error'), centered: true })
         return
       }
 
@@ -128,7 +128,7 @@ export function useMessageLeafCapabilities({
       try {
         await safeOpen(fileMetadataToHandle(file))
       } catch {
-        popup.error({ content: t('files.preview.error'), centered: true })
+        void popup.error({ content: t('files.preview.error'), centered: true })
       }
     },
     [preview, t]

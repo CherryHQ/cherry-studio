@@ -167,7 +167,7 @@ export function useHomeMessageListProviderValue({
   useEffect(() => {
     const unsubscribes = [
       EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, async (data: Topic) => {
-        popup.confirm({
+        void popup.confirm({
           title: t('chat.input.clear.title'),
           content: t('chat.input.clear.content'),
           centered: true,
@@ -522,7 +522,7 @@ export function useHomeMessageListProviderValue({
 
   const deleteMessageGroupWithConfirm = useCallback<NonNullable<MessageListActions['deleteMessageGroupWithConfirm']>>(
     (parentId) => {
-      popup.confirm({
+      void popup.confirm({
         title: t('message.group.delete.title'),
         content: t('message.group.delete.content'),
         centered: true,

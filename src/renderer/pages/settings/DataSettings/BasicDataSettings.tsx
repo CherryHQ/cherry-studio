@@ -108,7 +108,7 @@ const BasicDataSettings: React.FC = () => {
   }
 
   const doubleConfirmModalBeforeCopyData = (newPath: string) => {
-    popup.confirm({
+    void popup.confirm({
       title: t('settings.data.app_data.select_not_empty_dir'),
       content: t('settings.data.app_data.select_not_empty_dir_content'),
       centered: true,
@@ -169,7 +169,7 @@ const BasicDataSettings: React.FC = () => {
       </div>
     )
 
-    popup.confirm({
+    void popup.confirm({
       title,
       className,
       width: 'min(600px, 90vw)',
@@ -390,7 +390,7 @@ const BasicDataSettings: React.FC = () => {
   }
 
   const handleClearCache = () => {
-    popup.confirm({
+    void popup.confirm({
       title: t('settings.data.clear_cache.title'),
       content: t('settings.data.clear_cache.confirm'),
       okText: t('settings.data.clear_cache.button'),

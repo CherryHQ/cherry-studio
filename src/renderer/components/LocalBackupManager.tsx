@@ -106,7 +106,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       return
     }
 
-    popup.confirm({
+    void popup.confirm({
       title: t('settings.data.local.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.local.backup.manager.delete.confirm.multiple', { count: selectedRowKeys.length }),
@@ -139,7 +139,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       return
     }
 
-    popup.confirm({
+    void popup.confirm({
       title: t('settings.data.local.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.local.backup.manager.delete.confirm.single', { fileName }),
@@ -166,7 +166,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       return
     }
 
-    popup.confirm({
+    void popup.confirm({
       title: t('settings.data.local.restore.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.local.restore.confirm.content'),

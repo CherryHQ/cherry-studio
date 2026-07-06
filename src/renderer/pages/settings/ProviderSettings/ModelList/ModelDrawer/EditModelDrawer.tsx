@@ -261,7 +261,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
     const { modelId } = parseUniqueModelId(model.id)
 
-    popup.confirm({
+    void popup.confirm({
       title: t('common.delete_confirm'),
       content: t('settings.models.manage.remove_model'),
       okButtonProps: { danger: true },

@@ -173,7 +173,7 @@ export async function restore() {
       })
     } catch (error) {
       logger.error('restore: Error restoring backup file:', error as Error)
-      popup.error({
+      void popup.error({
         title: i18n.t('error.backup.file_format'),
         content: (error as Error).message,
         centered: true
@@ -183,7 +183,7 @@ export async function restore() {
 }
 
 export async function reset() {
-  popup.confirm({
+  void popup.confirm({
     title: i18n.t('common.warning'),
     content: i18n.t('message.reset.confirm.content'),
     centered: true,
@@ -193,7 +193,7 @@ export async function reset() {
       danger: true
     },
     onOk: async () => {
-      popup.confirm({
+      void popup.confirm({
         title: i18n.t('message.reset.double.confirm.title'),
         content: i18n.t('message.reset.double.confirm.content'),
         centered: true,
@@ -393,7 +393,7 @@ export async function restoreFromWebdav(fileName?: string) {
     data = await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath, fileName })
   } catch (error: any) {
     logger.error('[Backup] restoreFromWebdav: Error downloading file from WebDAV:', error)
-    popup.error({
+    void popup.error({
       title: i18n.t('message.restore.failed'),
       content: error.message
     })
@@ -1141,7 +1141,7 @@ export async function backupToLocal({
       })
 
       if (showMessage) {
-        popup.error({
+        void popup.error({
           title: i18n.t('message.backup.failed'),
           content: 'Backup failed'
         })
@@ -1161,7 +1161,7 @@ export async function backupToLocal({
     })
 
     if (showMessage) {
-      popup.error({
+      void popup.error({
         title: i18n.t('message.backup.failed'),
         content: error.message || 'Unknown error'
       })

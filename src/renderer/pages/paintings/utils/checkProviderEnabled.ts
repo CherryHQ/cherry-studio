@@ -24,7 +24,7 @@ export async function checkProviderEnabled(provider: PaintingProviderRuntime): P
 
   if (!provider.isEnabled) {
     return new Promise((_, reject) => {
-      popup.warning({
+      void popup.warning({
         content: i18next.t('error.provider_disabled'),
         centered: true,
         closable: true,
@@ -44,7 +44,7 @@ export async function checkProviderEnabled(provider: PaintingProviderRuntime): P
   }
 
   return new Promise((_, reject) => {
-    popup.warning({
+    void popup.warning({
       content: i18next.t('error.no_api_key'),
       centered: true,
       closable: true,

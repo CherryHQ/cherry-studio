@@ -64,7 +64,7 @@ describe('download', () => {
 
     describe('Direct download support', () => {
       it('should handle local file URLs', () => {
-        download('file:///path/to/document.pdf', 'test.pdf')
+        void download('file:///path/to/document.pdf', 'test.pdf')
 
         const element = mockCreateElement.mock.results[0].value
         expect(element.href).toBe('file:///path/to/document.pdf')
@@ -73,7 +73,7 @@ describe('download', () => {
       })
 
       it('should handle blob URLs', () => {
-        download('blob:http://localhost:3000/12345')
+        void download('blob:http://localhost:3000/12345')
 
         const element = mockCreateElement.mock.results[0].value
         expect(element.href).toBe('blob:http://localhost:3000/12345')
@@ -84,7 +84,7 @@ describe('download', () => {
         const dataUrl =
           'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg=='
 
-        download(dataUrl)
+        void download(dataUrl)
 
         const element = mockCreateElement.mock.results[0].value
         expect(element.href).toBe(dataUrl)
@@ -97,7 +97,7 @@ describe('download', () => {
 
         const svgDataUrl = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg"/>')
 
-        download(svgDataUrl)
+        void download(svgDataUrl)
 
         const element = mockCreateElement.mock.results[0].value
         expect(element.href).toBe(svgDataUrl)
@@ -120,7 +120,7 @@ describe('download', () => {
 
         directDownloadTests.forEach(({ url, expectedExt }) => {
           mockCreateElement.mockClear()
-          download(url)
+          void download(url)
           const element = mockCreateElement.mock.results[0].value
           expect(element.download).toBe(`${now}_download${expectedExt}`)
         })
@@ -133,7 +133,7 @@ describe('download', () => {
           })
         )
 
-        download('data:application/pdf;base64,xxx')
+        void download('data:application/pdf;base64,xxx')
         await waitForAsync()
 
         expect(mockFetch).toHaveBeenCalled()
@@ -143,7 +143,7 @@ describe('download', () => {
         const now = Date.now()
         vi.spyOn(Date, 'now').mockReturnValue(now)
 
-        download('blob:http://localhost:3000/12345')
+        void download('blob:http://localhost:3000/12345')
 
         const element = mockCreateElement.mock.results[0].value
         expect(element.download).toBe(`${now}_diagram.svg`)
@@ -152,14 +152,14 @@ describe('download', () => {
 
     describe('Filename handling', () => {
       it('should extract filename from file path', () => {
-        download('file:///Users/test/Documents/report.pdf')
+        void download('file:///Users/test/Documents/report.pdf')
 
         const element = mockCreateElement.mock.results[0].value
         expect(element.download).toBe('report.pdf')
       })
 
       it('should handle URL encoded filenames', () => {
-        download('file:///path/to/%E6%96%87%E6%A1%A3.pdf') // 编码的"文档.pdf"
+        void download('file:///path/to/%E6%96%87%E6%A1%A3.pdf') // 编码的"文档.pdf"
 
         const element = mockCreateElement.mock.results[0].value
         expect(element.download).toBe('文档.pdf')
@@ -170,7 +170,7 @@ describe('download', () => {
       it('should handle successful network request', async () => {
         mockFetch.mockResolvedValue(createMockResponse())
 
-        download('https://example.com/file.pdf', 'custom.pdf')
+        void download('https://example.com/file.pdf', 'custom.pdf')
         await waitForAsync()
 
         expect(mockFetch).toHaveBeenCalledWith('https://example.com/file.pdf')
@@ -183,7 +183,7 @@ describe('download', () => {
         headers.set('Content-Disposition', 'attachment; filename="server-file.pdf"')
         mockFetch.mockResolvedValue(createMockResponse({ headers }))
 
-        download('https://example.com/files/document.docx')
+        void download('https://example.com/files/document.docx')
         await waitForAsync()
 
         // 验证下载被触发（具体文件名由实现决定）
@@ -196,7 +196,7 @@ describe('download', () => {
 
         mockFetch.mockResolvedValue(createMockResponse())
 
-        download('https://example.com/file.pdf')
+        void download('https://example.com/file.pdf')
         await waitForAsync()
 
         const element = mockCreateElement.mock.results[0].value
@@ -208,7 +208,7 @@ describe('download', () => {
         headers.set('Content-Type', 'application/pdf')
         mockFetch.mockResolvedValue(createMockResponse({ headers }))
 
-        download('https://example.com/download')
+        void download('https://example.com/download')
         await waitForAsync()
 
         const element = mockCreateElement.mock.results[0].value

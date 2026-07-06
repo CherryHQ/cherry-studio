@@ -114,7 +114,7 @@ export const useNotesMenu = ({
           ? t('notes.delete_folder_confirm', { name: node.name })
           : t('notes.delete_note_confirm', { name: node.name })
 
-      popup.confirm({
+      void popup.confirm({
         title: t('notes.delete'),
         content: confirmText,
         centered: true,
