@@ -277,7 +277,7 @@ interface WindowTypeMetadataBase {
   htmlPath: string
   /**
    * Preload script filename (basename with extension) in `src/preload/`.
-   * - Omitted → defaults to `'index.js'`
+   * - Omitted → defaults to `'preload.js'`
    * - Empty string → no preload (for windows with `nodeIntegration: true`)
    * - Otherwise → WM prefixes `'../preload/'` and loads that file
    * Mirrors `htmlPath`'s three-state encoding (omitted / non-empty / empty).

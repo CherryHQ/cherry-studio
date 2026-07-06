@@ -45,7 +45,7 @@ import path from 'node:path'
 import { fileEntryTable } from '@data/db/schemas/file'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type {
   CherryMessagePart,
   CitationReference,
@@ -64,7 +64,7 @@ import type {
 } from '@shared/data/types/message'
 import type { CherryDataPartTypes, CherryToolMeta } from '@shared/data/types/uiParts'
 import { withCherryMeta } from '@shared/data/types/uiParts'
-import type { Base64String, FilePath } from '@shared/types/file/common'
+import type { Base64String, FilePath } from '@shared/types/file'
 import type { SourceUrlUIPart } from 'ai'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
@@ -983,8 +983,8 @@ async function promoteBase64ToFileEntry(
 
   try {
     // Write physical file first. If we crash before the DB insert lands,
-    // the orphan checker won't sweep this file (no file_entry row means
-    // no DB linkage to look up). Same risk model as the rest of
+    // the file sweep can later reclaim this UUID blob because no file_entry
+    // row exists. Same risk model as the rest of
     // FileMigrator's transform path; acceptable for a migration step.
     await fs.mkdir(path.dirname(physicalPath), { recursive: true })
     await fs.writeFile(physicalPath, bytes)

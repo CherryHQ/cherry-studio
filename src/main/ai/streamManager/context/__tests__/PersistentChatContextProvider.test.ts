@@ -21,9 +21,9 @@ import { resolveModels, resolvePersistentSiblingsGroupId } from '../modelResolut
 // resolution machinery. The history is what we assert on.
 const MODEL_ID = createUniqueModelId('openai', 'gpt-4o')
 vi.mock('../modelResolution', () => ({
-  resolveAssistantModelId: vi.fn(async () => ({ assistantId: undefined, defaultModelId: MODEL_ID })),
-  resolveModels: vi.fn(async () => [{ id: MODEL_ID, name: 'GPT-4o', providerId: 'openai', apiModelId: 'gpt-4o' }]),
-  resolvePersistentSiblingsGroupId: vi.fn(async () => 1)
+  resolveAssistantModelId: vi.fn(() => ({ assistantId: undefined, defaultModelId: MODEL_ID })),
+  resolveModels: vi.fn(() => [{ id: MODEL_ID, name: 'GPT-4o', providerId: 'openai', apiModelId: 'gpt-4o' }]),
+  resolvePersistentSiblingsGroupId: vi.fn(() => 1)
 }))
 
 vi.mock('../../../observability', () => ({
@@ -147,12 +147,12 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     )
 
     // A fresh assistant placeholder is created under u2 — no new user row.
-    const children = await messageService.getChildrenByParentId('u2')
+    const children = messageService.getChildrenByParentId('u2')
     expect(children).toHaveLength(1)
     expect(children[0]).toMatchObject({ role: 'assistant', status: 'pending' })
 
     // The persisted steer row is untouched (only the model-facing copy is wrapped).
-    const u2 = await messageService.getById('u2')
+    const u2 = messageService.getById('u2')
     expect(flatten([{ role: 'user', parts: u2.data.parts ?? [] }])[0].text).toBe('actually do X instead')
 
     // History is the full path; only the trailing steer message is system-reminder wrapped.
@@ -208,11 +208,11 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       isHidden: false,
       orderKey: bModelKey
     })
-    vi.mocked(resolveModels).mockResolvedValueOnce([
+    vi.mocked(resolveModels).mockReturnValueOnce([
       { id: MODEL_A, name: 'GPT-4o', providerId: 'openai', apiModelId: 'gpt-4o' },
       { id: MODEL_B, name: 'Claude Sonnet 4.5', providerId: 'anthropic', apiModelId: 'claude-sonnet-4-5' }
-    ] as Awaited<ReturnType<typeof resolveModels>>)
-    vi.mocked(resolvePersistentSiblingsGroupId).mockResolvedValueOnce(42)
+    ] as ReturnType<typeof resolveModels>)
+    vi.mocked(resolvePersistentSiblingsGroupId).mockReturnValueOnce(42)
     // Distinct span per call so index alignment is observable.
     const spanA = { end: vi.fn() }
     const spanB = { end: vi.fn() }
@@ -243,7 +243,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
 
     // One persisted placeholder per model, both in the shared group, each routed to its
     // own request — placeholders[i]/turnRootSpans[i] alignment proven via per-row modelId.
-    const placeholders = await messageService.getChildrenByParentId(prepared.userMessageId!)
+    const placeholders = messageService.getChildrenByParentId(prepared.userMessageId!)
     expect(placeholders).toHaveLength(2)
     const byModel = new Map(placeholders.map((p) => [p.modelId, p]))
     const phA = byModel.get(MODEL_A)
@@ -268,7 +268,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
 
     // One trace tree per topic: both models' `ai.turn` spans are parented under the
     // same container trace, and that id is the topic's persisted ensureTraceId.
-    const containerTraceId = await topicService.ensureTraceId('topic-1')
+    const containerTraceId = topicService.ensureTraceId('topic-1')
     const [callA, callB] = vi.mocked(startAiChildTurnSpan).mock.calls.slice(-2)
     expect(callA[3]).toBe(containerTraceId)
     expect(callB[3]).toBe(containerTraceId)
@@ -408,7 +408,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
       { hasLiveStream: false }
     )
 
-    const anchor = await messageService.getById('a1')
+    const anchor = messageService.getById('a1')
     expect(anchor.status).toBe('pending')
     const toolPart = (anchor.data.parts ?? []).find((p) => p.type === 'tool-fetch_url') as
       | { state: string; approval?: { id: string; approved?: boolean } }
@@ -418,7 +418,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
   })
 
   it("reuses the anchor's model and re-anchors history on the assistant row (no new placeholder)", async () => {
-    const beforeCount = (await messageService.getPathToNode('a1')).length
+    const beforeCount = messageService.getPathToNode('a1').length
 
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
@@ -441,7 +441,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
     expect(prepared.models[0].request.messageId).toBe('a1')
 
     // No placeholder row was created — the path to the anchor is unchanged.
-    const afterCount = (await messageService.getPathToNode('a1')).length
+    const afterCount = messageService.getPathToNode('a1').length
     expect(afterCount).toBe(beforeCount)
 
     // History anchors on the assistant row and carries the approval-responded part.

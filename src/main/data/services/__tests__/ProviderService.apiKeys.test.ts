@@ -5,13 +5,24 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
-import { ErrorCode } from '@shared/data/api'
+import { ErrorCode } from '@shared/data/api/errors'
 import { AddProviderApiKeySchema, ReplaceProviderApiKeysSchema } from '@shared/data/api/schemas/providers'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// The API-key mutators are synchronous under better-sqlite3: failing calls throw
+// inline instead of rejecting a promise. Capture the thrown error to assert its shape.
+function captureError(fn: () => unknown): unknown {
+  try {
+    fn()
+  } catch (error) {
+    return error
+  }
+  throw new Error('Expected the call to throw, but it returned normally')
+}
 
 describe('ProviderService API keys', () => {
   const dbh = setupTestDatabase()
@@ -67,11 +78,11 @@ describe('ProviderService API keys', () => {
   it('adds a new API key as enabled and skips duplicate values', async () => {
     await seedProvider()
 
-    const updated = await providerService.addApiKey('openai', 'sk-new', 'New key')
+    const updated = providerService.addApiKey('openai', 'sk-new', 'New key')
     expect(updated.apiKeys.map((entry) => entry.label)).toEqual(['A', 'B', 'C', 'New key'])
     expect(updated.apiKeys.at(-1)).toMatchObject({ label: 'New key', isEnabled: true })
 
-    await providerService.addApiKey('openai', 'sk-new', 'Duplicate')
+    providerService.addApiKey('openai', 'sk-new', 'Duplicate')
     const keys = await readApiKeys()
     expect(keys.filter((entry) => entry.key === 'sk-new')).toHaveLength(1)
   })
@@ -97,7 +108,7 @@ describe('ProviderService API keys', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    const provider = await providerService.getByProviderId('openai-work')
+    const provider = providerService.getByProviderId('openai-work')
 
     expect(provider.description).toBe('OpenAI - AI model provider')
     expect(provider.websites).toMatchObject({
@@ -111,7 +122,7 @@ describe('ProviderService API keys', () => {
   it('updates API key fields and rejects empty or duplicate key values', async () => {
     await seedProvider()
 
-    const updated = await providerService.updateApiKey('openai', 'key-a', {
+    const updated = providerService.updateApiKey('openai', 'key-a', {
       key: ' sk-updated ',
       label: '',
       isEnabled: false
@@ -126,10 +137,10 @@ describe('ProviderService API keys', () => {
     })
     expect(storedKey?.label).toBeUndefined()
 
-    await expect(providerService.updateApiKey('openai', 'key-a', { key: '   ' })).rejects.toMatchObject({
+    expect(captureError(() => providerService.updateApiKey('openai', 'key-a', { key: '   ' }))).toMatchObject({
       code: ErrorCode.VALIDATION_ERROR
     })
-    await expect(providerService.updateApiKey('openai', 'key-a', { key: 'sk-b' })).rejects.toMatchObject({
+    expect(captureError(() => providerService.updateApiKey('openai', 'key-a', { key: 'sk-b' }))).toMatchObject({
       code: ErrorCode.CONFLICT
     })
   })
@@ -150,7 +161,7 @@ describe('ProviderService API keys', () => {
   it('deletes API keys by id and persists the updated list', async () => {
     await seedProvider()
 
-    const updated = await providerService.deleteApiKey('openai', 'key-b')
+    const updated = providerService.deleteApiKey('openai', 'key-b')
 
     expect(updated.apiKeys.map((entry) => entry.id)).toEqual(['key-a', 'key-c'])
     const storedKeys = await readApiKeys()
@@ -177,7 +188,7 @@ describe('ProviderService API keys', () => {
       apiKeys: [{ id: 'only-key', key: 'sk-only', label: 'Only', isEnabled: true }]
     })
 
-    const updated = await providerService.deleteApiKey('single-key', 'only-key')
+    const updated = providerService.deleteApiKey('single-key', 'only-key')
 
     expect(updated.apiKeys).toEqual([])
     const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'single-key'))
@@ -187,7 +198,7 @@ describe('ProviderService API keys', () => {
   it('throws NOT_FOUND when deleting a missing API key id', async () => {
     await seedProvider()
 
-    await expect(providerService.deleteApiKey('openai', 'missing-key')).rejects.toMatchObject({
+    expect(captureError(() => providerService.deleteApiKey('openai', 'missing-key'))).toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
   })
@@ -199,7 +210,7 @@ describe('ProviderService API keys', () => {
       { id: 'key-new', key: ' sk-new ', label: 'New label', isEnabled: true },
       { id: 'key-disabled', key: 'sk-disabled', isEnabled: false }
     ]
-    const updated = await providerService.replaceApiKeys('openai', replacement)
+    const updated = providerService.replaceApiKeys('openai', replacement)
 
     expect(updated.name).toBe('OpenAI')
     expect(updated.apiKeys).toEqual([
@@ -216,18 +227,20 @@ describe('ProviderService API keys', () => {
   it('rejects invalid replacement API key entries before persisting', async () => {
     await seedProvider()
 
-    await expect(
-      providerService.replaceApiKeys('openai', [{ id: 'key-empty', key: '   ', isEnabled: true }])
-    ).rejects.toMatchObject({
+    expect(
+      captureError(() => providerService.replaceApiKeys('openai', [{ id: 'key-empty', key: '   ', isEnabled: true }]))
+    ).toMatchObject({
       code: ErrorCode.VALIDATION_ERROR
     })
 
-    await expect(
-      providerService.replaceApiKeys('openai', [
-        { id: 'key-a', key: 'sk-duplicate', isEnabled: true },
-        { id: 'key-b', key: ' sk-duplicate ', isEnabled: false }
-      ])
-    ).rejects.toMatchObject({
+    expect(
+      captureError(() =>
+        providerService.replaceApiKeys('openai', [
+          { id: 'key-a', key: 'sk-duplicate', isEnabled: true },
+          { id: 'key-b', key: ' sk-duplicate ', isEnabled: false }
+        ])
+      )
+    ).toMatchObject({
       code: ErrorCode.CONFLICT
     })
 
@@ -257,12 +270,12 @@ describe('ProviderService API keys', () => {
     })
 
     const addBody = AddProviderApiKeySchema.parse({ key: '  sk-shared  ', label: 'shared' })
-    await providerService.addApiKey('parity-add', addBody.key, addBody.label)
+    providerService.addApiKey('parity-add', addBody.key, addBody.label)
 
     const replaceBody = ReplaceProviderApiKeysSchema.parse({
       keys: [{ id: 'replace-key-id', key: '  sk-shared  ', label: 'shared', isEnabled: true }]
     })
-    await providerService.replaceApiKeys('parity-replace', replaceBody.keys)
+    providerService.replaceApiKeys('parity-replace', replaceBody.keys)
 
     const readApiKeysFor = async (providerId: string) => {
       const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, providerId))
@@ -296,31 +309,35 @@ describe('ProviderService API keys', () => {
       authConfig: null
     })
 
-    await expect(providerService.getAuthConfig('azure')).resolves.toEqual({
+    expect(providerService.getAuthConfig('azure')).toEqual({
       type: 'iam-azure',
       apiVersion: '2024-02-01'
     })
-    await expect(providerService.getAuthConfig('custom-no-auth')).resolves.toBeNull()
-    await expect(providerService.getAuthConfig('missing-provider')).rejects.toMatchObject({
-      code: ErrorCode.NOT_FOUND
-    })
+    expect(providerService.getAuthConfig('custom-no-auth')).toBeNull()
+    let err: unknown
+    try {
+      providerService.getAuthConfig('missing-provider')
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
   })
 
   it('rejects API key mutations for the managed CherryAI provider', async () => {
     await seedManagedCherryAiProvider()
 
-    await expect(providerService.addApiKey(CHERRYAI_PROVIDER_ID, 'sk-new')).rejects.toMatchObject({
+    expect(captureError(() => providerService.addApiKey(CHERRYAI_PROVIDER_ID, 'sk-new'))).toMatchObject({
       code: ErrorCode.INVALID_OPERATION
     })
-    await expect(providerService.replaceApiKeys(CHERRYAI_PROVIDER_ID, [])).rejects.toMatchObject({
+    expect(captureError(() => providerService.replaceApiKeys(CHERRYAI_PROVIDER_ID, []))).toMatchObject({
       code: ErrorCode.INVALID_OPERATION
     })
-    await expect(
-      providerService.updateApiKey(CHERRYAI_PROVIDER_ID, 'managed-key', { label: 'Updated' })
-    ).rejects.toMatchObject({
+    expect(
+      captureError(() => providerService.updateApiKey(CHERRYAI_PROVIDER_ID, 'managed-key', { label: 'Updated' }))
+    ).toMatchObject({
       code: ErrorCode.INVALID_OPERATION
     })
-    await expect(providerService.deleteApiKey(CHERRYAI_PROVIDER_ID, 'managed-key')).rejects.toMatchObject({
+    expect(captureError(() => providerService.deleteApiKey(CHERRYAI_PROVIDER_ID, 'managed-key'))).toMatchObject({
       code: ErrorCode.INVALID_OPERATION
     })
 
@@ -332,14 +349,14 @@ describe('ProviderService API keys', () => {
   it('rotates enabled API keys and tolerates missing cached lastUsedKeyId', async () => {
     await seedProvider()
 
-    await expect(providerService.getRotatedApiKey('openai')).resolves.toBe('sk-a')
+    expect(providerService.getRotatedApiKey('openai')).toBe('sk-a')
     expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBe('key-a')
 
-    await expect(providerService.getRotatedApiKey('openai')).resolves.toBe('sk-b')
+    expect(providerService.getRotatedApiKey('openai')).toBe('sk-b')
     expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBe('key-b')
 
     MockMainCacheServiceUtils.setCacheValue('settings.provider.openai.last_used_key_id', 'deleted-key')
-    await expect(providerService.getRotatedApiKey('openai')).resolves.toBe('sk-a')
+    expect(providerService.getRotatedApiKey('openai')).toBe('sk-a')
     expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBe('key-a')
   })
 
@@ -363,7 +380,7 @@ describe('ProviderService API keys', () => {
       ]
     })
 
-    await expect(providerService.getRotatedApiKey('single-enabled')).resolves.toBe('sk-only')
-    await expect(providerService.getRotatedApiKey('all-disabled')).resolves.toBe('')
+    expect(providerService.getRotatedApiKey('single-enabled')).toBe('sk-only')
+    expect(providerService.getRotatedApiKey('all-disabled')).toBe('')
   })
 })

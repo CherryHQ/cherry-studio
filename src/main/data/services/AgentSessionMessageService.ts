@@ -10,8 +10,7 @@ import type { DbOrTx } from '@data/db/types'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
-import { DataApiErrorFactory } from '@shared/data/api'
-import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   AgentSessionMessageEntity,
   CreateAgentSessionMessageDto,
@@ -22,6 +21,7 @@ import {
   AGENT_SESSION_MESSAGES_MAX_LIMIT
 } from '@shared/data/api/schemas/agentSessions'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
@@ -61,20 +61,20 @@ type ListSessionMessagesOptions = {
 }
 
 export class AgentSessionMessageService {
-  async search(query: SessionMessageContentSearchInput) {
+  search(query: SessionMessageContentSearchInput) {
     const db = application.get('DbService').getDb()
     const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
 
-    return await searchWithCursor<SessionMessageSearchRow, SessionMessageContentSearchItem>({
+    return searchWithCursor<SessionMessageSearchRow, SessionMessageContentSearchItem>({
       q: query.q,
       limit: query.limit,
       cursor: query.cursor,
       createdAtFrom: query.createdAtFrom,
       cursorConfig: MESSAGE_CURSOR_CONFIG,
-      fetchRows: async ({ ftsConditions, cursor, createdAtFromMs, offset, chunkSize }: SearchFetchContext) => {
+      fetchRows: ({ ftsConditions, cursor, createdAtFromMs, offset, chunkSize }: SearchFetchContext) => {
         const createdAtCondition = createdAtFromMs !== undefined ? sql`sm.created_at >= ${createdAtFromMs}` : sql`1 = 1`
 
-        return await db.all<SessionMessageSearchRow>(sql`
+        return db.all<SessionMessageSearchRow>(sql`
           SELECT
             sm.id AS "rowId",
             sm.searchable_text AS "searchableText",
@@ -129,17 +129,18 @@ export class AgentSessionMessageService {
    * Cursor wire format: `<createdAtMs>:<id>` — composite (createdAt, id) so
    * the secondary key tiebreaks ties from the ms-precision timestamp.
    */
-  async listSessionMessages(
+  listSessionMessages(
     sessionId: string,
     options: ListSessionMessagesOptions = {}
-  ): Promise<CursorPaginationResponse<AgentSessionMessageEntity>> {
+  ): CursorPaginationResponse<AgentSessionMessageEntity> {
     const database = application.get('DbService').getDb()
 
-    const [session] = await database
+    const [session] = database
       .select({ id: sessionTable.id })
       .from(sessionTable)
       .where(eq(sessionTable.id, sessionId))
       .limit(1)
+      .all()
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 
     const limit = Math.min(options.limit ?? AGENT_SESSION_MESSAGES_DEFAULT_LIMIT, AGENT_SESSION_MESSAGES_MAX_LIMIT)
@@ -150,11 +151,12 @@ export class AgentSessionMessageService {
     const cursor = decodeListCursor(options.cursor, asNumericKey, 'agent-session-message')
     const [anchor] =
       !options.cursor && options.messageId
-        ? await database
+        ? database
             .select({ id: sessionMessagesTable.id, createdAt: sessionMessagesTable.createdAt })
             .from(sessionMessagesTable)
             .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, options.messageId)))
             .limit(1)
+            .all()
         : []
     if (!options.cursor && options.messageId && !anchor) {
       logger.warn('Session message anchor not found, falling back to newest page', {
@@ -176,12 +178,13 @@ export class AgentSessionMessageService {
       )
     }
 
-    const rows = await database
+    const rows = database
       .select()
       .from(sessionMessagesTable)
       .where(and(...filters))
       .orderBy(...ordering.orderBy)
       .limit(limit + 1)
+      .all()
 
     const hasNext = rows.length > limit
     const pageRows = hasNext ? rows.slice(0, limit) : rows
@@ -192,21 +195,22 @@ export class AgentSessionMessageService {
     return { items, nextCursor }
   }
 
-  async deleteSessionMessage(sessionId: string, messageId: string): Promise<void> {
+  deleteSessionMessage(sessionId: string, messageId: string): void {
     if (!messageId) {
       throw DataApiErrorFactory.validation({ messageId: ['must not be empty'] })
     }
     const database = application.get('DbService').getDb()
 
-    const [session] = await database
+    const [session] = database
       .select({ id: sessionTable.id })
       .from(sessionTable)
       .where(eq(sessionTable.id, sessionId))
       .limit(1)
+      .all()
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 
-    const result = await withSqliteErrors(
-      () => application.get('DbService').withWriteTx((tx) => this.deleteSessionMessageTx(tx, sessionId, messageId)),
+    const result = withSqliteErrors(
+      () => this.deleteSessionMessageTx(database, sessionId, messageId),
       defaultHandlersFor('Message', messageId)
     )
     if (result.rowsAffected === 0) {
@@ -214,10 +218,12 @@ export class AgentSessionMessageService {
     }
   }
 
-  async deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): Promise<{ rowsAffected: number }> {
-    return tx
+  deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): { rowsAffected: number } {
+    const result = tx
       .delete(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+      .run()
+    return { rowsAffected: result.changes }
   }
 
   /**
@@ -225,21 +231,21 @@ export class AgentSessionMessageService {
    * resolve turns a prior main-process crash left stuck (the runtime never reached its terminal
    * write, and the in-memory entry map is empty after a restart, so nothing else settles them).
    */
-  async findPendingAssistantMessageIds(): Promise<string[]> {
+  findPendingAssistantMessageIds(): string[] {
     const database = application.get('DbService').getDb()
-    const rows = await database
+    const rows = database
       .select({ id: sessionMessagesTable.id })
       .from(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.role, 'assistant'), eq(sessionMessagesTable.status, 'pending')))
+      .all()
     return rows.map((row) => row.id)
   }
 
   /** Bulk-resolve the given rows to `error` — the boot reconcile of crash-orphaned `pending` rows. */
-  async markMessagesError(ids: string[]): Promise<void> {
+  markMessagesError(ids: string[]): void {
     if (ids.length === 0) return
-    await application.get('DbService').withWriteTx(async (tx) => {
-      await tx.update(sessionMessagesTable).set({ status: 'error' }).where(inArray(sessionMessagesTable.id, ids))
-    })
+    const db = application.get('DbService').getDb()
+    db.update(sessionMessagesTable).set({ status: 'error' }).where(inArray(sessionMessagesTable.id, ids)).run()
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
@@ -259,15 +265,16 @@ export class AgentSessionMessageService {
     }
   }
 
-  async getLastRuntimeResumeToken(sessionId: string): Promise<string | null> {
+  getLastRuntimeResumeToken(sessionId: string): string | null {
     try {
       const database = application.get('DbService').getDb()
-      const result = await database
+      const result = database
         .select({ runtimeResumeToken: sessionMessagesTable.runtimeResumeToken })
         .from(sessionMessagesTable)
         .where(and(eq(sessionMessagesTable.sessionId, sessionId), isNotNull(sessionMessagesTable.runtimeResumeToken)))
         .orderBy(desc(sessionMessagesTable.createdAt))
         .limit(1)
+        .all()
 
       logger.silly('Last runtime resume token result:', {
         runtimeResumeToken: result[0]?.runtimeResumeToken,
@@ -285,25 +292,22 @@ export class AgentSessionMessageService {
 
   // ── Persistence methods ──────────────────────────────────────────
 
-  private async findExistingMessageRow(
-    db: DbOrTx,
-    sessionId: string,
-    messageId: string
-  ): Promise<SessionMessageRow | null> {
-    const rows = await db
+  private findExistingMessageRow(db: DbOrTx, sessionId: string, messageId: string): SessionMessageRow | null {
+    const rows = db
       .select()
       .from(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId)))
       .limit(1)
+      .all()
 
     return rows[0] ?? null
   }
 
-  private async upsertMessage(
+  private upsertMessage(
     db: DbOrTx,
     params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
     timestampMs = Date.now()
-  ): Promise<AgentSessionMessageEntity> {
+  ): AgentSessionMessageEntity {
     const { sessionId, runtimeResumeToken = null, message } = params
     const messageId = message.id ?? uuidv7()
     const status = message.status ?? 'success'
@@ -316,7 +320,7 @@ export class AgentSessionMessageService {
       throw DataApiErrorFactory.validation({ id: ['must be a UUID'] }, 'Agent session message id must be a UUID')
     }
 
-    const existingRow = await this.findExistingMessageRow(db, sessionId, messageId)
+    const existingRow = this.findExistingMessageRow(db, sessionId, messageId)
 
     if (existingRow) {
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
@@ -326,7 +330,7 @@ export class AgentSessionMessageService {
         message.messageSnapshot === undefined ? existingRow.messageSnapshot : message.messageSnapshot
       const stats = message.stats === undefined ? existingRow.stats : message.stats
 
-      await withSqliteErrors(
+      withSqliteErrors(
         () =>
           db
             .update(sessionMessagesTable)
@@ -340,7 +344,8 @@ export class AgentSessionMessageService {
               runtimeResumeToken: runtimeResumeTokenToPersist,
               updatedAt: updatedAtMs
             })
-            .where(eq(sessionMessagesTable.id, existingRow.id)),
+            .where(eq(sessionMessagesTable.id, existingRow.id))
+            .run(),
         defaultHandlersFor('Message', String(existingRow.id))
       )
 
@@ -372,43 +377,43 @@ export class AgentSessionMessageService {
       updatedAt: timestampMs
     }
 
-    const [saved] = await db.insert(sessionMessagesTable).values(insertData).returning()
+    const [saved] = db.insert(sessionMessagesTable).values(insertData).returning().all()
     return this.rowToEntity(saved)
   }
 
-  private async touchSessionUpdatedAt(db: DbOrTx, sessionId: string, timestampMs: number): Promise<void> {
-    await db.update(sessionTable).set({ updatedAt: timestampMs }).where(eq(sessionTable.id, sessionId))
+  private touchSessionUpdatedAt(db: DbOrTx, sessionId: string, timestampMs: number): void {
+    db.update(sessionTable).set({ updatedAt: timestampMs }).where(eq(sessionTable.id, sessionId)).run()
   }
 
-  private async saveMessageTx(
+  private saveMessageTx(
     db: DbOrTx,
     params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
     timestampMs = Date.now()
-  ): Promise<AgentSessionMessageEntity> {
-    const saved = await this.upsertMessage(db, params, timestampMs)
-    await this.touchSessionUpdatedAt(db, params.sessionId, timestampMs)
+  ): AgentSessionMessageEntity {
+    const saved = this.upsertMessage(db, params, timestampMs)
+    this.touchSessionUpdatedAt(db, params.sessionId, timestampMs)
     return saved
   }
 
-  async saveMessage(
+  saveMessage(
     params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
     db?: DbOrTx
-  ): Promise<AgentSessionMessageEntity> {
+  ): AgentSessionMessageEntity {
     const timestampMs = Date.now()
     if (db) return this.saveMessageTx(db, params, timestampMs)
     return application.get('DbService').withWriteTx((tx) => this.saveMessageTx(tx, params, timestampMs))
   }
 
-  async saveMessages(params: CreateAgentSessionMessagesDto): Promise<AgentSessionMessageEntity[]> {
+  saveMessages(params: CreateAgentSessionMessagesDto): AgentSessionMessageEntity[] {
     const { sessionId, runtimeResumeToken, messages } = params
 
-    return application.get('DbService').withWriteTx(async (tx) => {
+    return application.get('DbService').withWriteTx((tx) => {
       const timestampMs = Date.now()
       const saved: AgentSessionMessageEntity[] = []
       for (const message of messages) {
-        saved.push(await this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs))
+        saved.push(this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs))
       }
-      await this.touchSessionUpdatedAt(tx, sessionId, timestampMs)
+      this.touchSessionUpdatedAt(tx, sessionId, timestampMs)
       return saved
     })
   }

@@ -50,6 +50,17 @@ import {
 } from '@shared/utils/model'
 
 import {
+  GEMINI_FLASH_MODEL_REGEX,
+  getRawModelId,
+  isClaude46SeriesModel,
+  isClaude47SeriesModel,
+  isGemini3FlashModel,
+  isGemini3ProModel,
+  isGemini31FlashLiteModel,
+  isGemini31ProModel,
+  withModelIdAndNameAsId
+} from './capabilities'
+import {
   isGPT5FamilyModel,
   isGPT5ProModel,
   isGPT5SeriesModel,
@@ -60,17 +71,6 @@ import {
   isOpenAIOpenWeightModel,
   isSupportedReasoningEffortOpenAIModel
 } from './openai'
-import {
-  GEMINI_FLASH_MODEL_REGEX,
-  getRawModelId,
-  isClaude46SeriesModel,
-  isClaude47SeriesModel,
-  isGemini3FlashModel,
-  isGemini3ProModel,
-  isGemini31FlashLiteModel,
-  isGemini31ProModel,
-  withModelIdAndNameAsId
-} from './utils'
 
 // ── Re-exports (public API preserved) ─────────────────────────────────────
 export const REASONING_REGEX = SHARED_REASONING_REGEX

@@ -45,7 +45,7 @@ BootConfig is the **only** data system available at stage 1 — before the lifec
 ### Synchronous Loading
 
 - Reads `boot-config.json` via `fs.readFileSync` on module import
-- No async, no promises — values available immediately at the top of `src/main/index.ts`
+- No async, no promises — values available immediately at the top of `src/main/main.ts`
 - If the file is missing (first launch), falls back to defaults
 - If the file is corrupt, records the error — the app should not continue with corrupted boot config
 
@@ -80,7 +80,7 @@ Keys follow the same naming convention as preferences: `namespace.key_name`
 ┌─────────────────────────────────────────────────────────────────┐
 │ Early Boot (before lifecycle)                                   │
 │                                                                 │
-│  src/main/index.ts                                              │
+│  src/main/main.ts                                               │
 │       │                                                         │
 │       ▼                                                         │
 │  bootConfigService.get('app.disable_hardware_acceleration')     │
@@ -177,7 +177,7 @@ Utility functions in `src/shared/data/preference/preferenceUtils.ts`:
 | `src/shared/data/bootConfig/bootConfigTypes.ts`   | `BootConfigKey`, `BootConfigPreferenceKeys` mapped type        |
 | `src/shared/data/preference/preferenceUtils.ts`   | `BootConfig.*` prefix routing utilities                        |
 | `src/main/data/PreferenceService.ts`                   | Routes `BootConfig.*` keys to `bootConfigService`              |
-| `src/main/index.ts`                                    | Early boot usage (first import, hardware acceleration check)   |
+| `src/main/main.ts`                                     | Early boot usage (first import, hardware acceleration check)   |
 
 ## Related Documentation
 

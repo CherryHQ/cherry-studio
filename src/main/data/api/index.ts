@@ -14,7 +14,7 @@ export { IpcAdapter } from './core/adapters/IpcAdapter'
 // export { HttpAdapter } from './core/adapters/HttpAdapter' // Future implementation
 
 // Handlers (new type-safe system)
-export { apiHandlers } from './handlers'
+export { apiHandlers } from './handlers/apiHandlers'
 
 // Re-export types for convenience
 export type {
@@ -30,4 +30,4 @@ export type {
   SearchParams,
   ServiceOptions,
   SortParams
-} from '@shared/data/api/apiTypes'
+} from '@shared/data/api/types'

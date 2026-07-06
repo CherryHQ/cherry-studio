@@ -18,7 +18,7 @@ import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model
 
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
-import type { AiStreamRequest } from '../../types/requests'
+import type { AiStreamRequest } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
@@ -28,9 +28,9 @@ import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerCon
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
 /** The topic's assistant identity, snapshotted onto its replies so the header survives deletion. */
-async function resolveAssistantIdentity(assistantId: string | undefined) {
+function resolveAssistantIdentity(assistantId: string | undefined) {
   if (!assistantId) return undefined
-  const a = await assistantDataService.getById(assistantId)
+  const a = assistantDataService.getById(assistantId)
   return { id: a.id, name: a.name, emoji: a.emoji }
 }
 
@@ -147,8 +147,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     ctx: DispatchContext
   ): Promise<PreparedDispatch> {
     // 1. Resolve context
-    const topic = await topicService.getById(req.topicId)
-    const { assistantId, defaultModelId } = await resolveAssistantModelId(topic?.assistantId)
+    const topic = topicService.getById(req.topicId)
+    const { assistantId, defaultModelId } = resolveAssistantModelId(topic?.assistantId)
 
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
     if (req.trigger === 'continue-conversation') {
@@ -166,7 +166,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // with it — `prepareSteerContinuation` reads `userMessage.modelId`. Steer is single-model: if
       // multiple models were @-mentioned, only the first is used (multi-model steer is unsupported).
       const steerModelId = req.mentionedModelIds?.[0] ?? defaultModelId
-      const userMessage = await messageService.create(req.topicId, {
+      const userMessage = messageService.create(req.topicId, {
         role: 'user',
         parentId: req.parentAnchorId,
         data: { parts: req.userMessageParts },
@@ -189,7 +189,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     // 3. Models (single or multi)
     const isRegenerate = req.trigger === 'regenerate-message'
-    const models = await resolveModels(req.mentionedModelIds, defaultModelId)
+    const models = resolveModels(req.mentionedModelIds, defaultModelId)
     const isMultiModel = models.length > 1
 
     if (isRegenerate && !req.parentAnchorId) {
@@ -205,8 +205,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     // Pure compute; backfill happens inside the reservation tx. Resolver short-circuits
     // for non-regenerate, so passing undefined parentAnchorId is harmless.
-    const siblingsGroupId = await resolvePersistentSiblingsGroupId(models, isRegenerate, req.parentAnchorId ?? '')
-    const assistantIdentity = await resolveAssistantIdentity(assistantId)
+    const siblingsGroupId = resolvePersistentSiblingsGroupId(models, isRegenerate, req.parentAnchorId ?? '')
+    const assistantIdentity = resolveAssistantIdentity(assistantId)
 
     // User message + N placeholders in one tx — SQLite rolls back on any failure.
     const userMessageInput =
@@ -226,10 +226,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // Container trace: one trace tree per topic. Each model's `ai.turn` span is
     // a child under it. Spans are created before the DB write, so a failure between
     // here and the handoff to `send()` must end them explicitly or they leak.
-    const containerTraceId = await topicService.ensureTraceId(req.topicId)
+    const containerTraceId = topicService.ensureTraceId(req.topicId)
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, models, containerTraceId)
     try {
-      const { userMessage, placeholders } = await messageService.createUserMessageWithPlaceholders({
+      const { userMessage, placeholders } = messageService.createUserMessageWithPlaceholders({
         topicId: req.topicId,
         userMessage: userMessageInput,
         siblingsGroupId,
@@ -244,7 +244,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
       const shouldAutoNameInitialTurn = !isRegenerate && !req.parentAnchorId
       if (shouldAutoNameInitialTurn) {
-        void topicNamingService.maybeRenameFromFirstUserMessage(req.topicId, userMessage.id)
+        topicNamingService.maybeRenameFromFirstUserMessage(req.topicId, userMessage.id)
       }
 
       const assistantPlaceholders = turnRootSpans.map(({ model, span }, i) => ({
@@ -285,7 +285,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       listeners.push(new TraceFlushListener(req.topicId))
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-      const history = await this.buildHistory(userMessage.id)
+      const history = this.buildHistory(userMessage.id)
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,
         request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
@@ -329,7 +329,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     assistantId: string | undefined,
     defaultModelId: UniqueModelId
   ): Promise<PreparedDispatch> {
-    const anchor = await messageService.getById(req.parentAnchorId)
+    const anchor = messageService.getById(req.parentAnchorId)
     if (anchor.role !== 'assistant') {
       throw new Error(`'continue-conversation' anchor must be an assistant message (got '${anchor.role}')`)
     }
@@ -343,16 +343,16 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // Continue uses the original assistant's model — switching mid-approval invalidates approval semantics.
     // `anchor.modelId` is nullable; coalesce null/undefined away first, then a single boundary cast.
     const continueModelId = (anchor.modelId ?? defaultModelId) as UniqueModelId
-    const [model] = await resolveModels([continueModelId], defaultModelId)
-    const assistantIdentity = await resolveAssistantIdentity(assistantId)
+    const [model] = resolveModels([continueModelId], defaultModelId)
+    const assistantIdentity = resolveAssistantIdentity(assistantId)
 
     // `ai.turn` span under the topic's container trace; end it explicitly if
     // anything below throws or it leaks.
-    const containerTraceId = await topicService.ensureTraceId(req.topicId)
+    const containerTraceId = topicService.ensureTraceId(req.topicId)
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model], containerTraceId)
     const [{ span: rootSpan }] = turnRootSpans
     try {
-      await messageService.update(req.parentAnchorId, {
+      messageService.update(req.parentAnchorId, {
         data: { parts: updatedParts },
         status: 'pending'
       })
@@ -372,7 +372,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const history = await this.buildHistory(anchor.id)
+      const history = this.buildHistory(anchor.id)
       return {
         topicId: req.topicId,
         models: [
@@ -403,7 +403,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     assistantId: string | undefined,
     defaultModelId: UniqueModelId
   ): Promise<PreparedDispatch> {
-    const userMessage = await messageService.getById(req.userMessageId)
+    const userMessage = messageService.getById(req.userMessageId)
     if (userMessage.role !== 'user') {
       throw new Error(`'steer-continuation' anchor must be a user message (got '${userMessage.role}')`)
     }
@@ -412,14 +412,14 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     }
 
     const steerModelId = (userMessage.modelId ?? defaultModelId) as UniqueModelId
-    const [model] = await resolveModels([steerModelId], defaultModelId)
-    const messageSnapshot = buildAssistantMessageSnapshot(model, await resolveAssistantIdentity(assistantId))
+    const [model] = resolveModels([steerModelId], defaultModelId)
+    const messageSnapshot = buildAssistantMessageSnapshot(model, resolveAssistantIdentity(assistantId))
 
-    const containerTraceId = await topicService.ensureTraceId(req.topicId)
+    const containerTraceId = topicService.ensureTraceId(req.topicId)
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model], containerTraceId)
     const [{ span: rootSpan }] = turnRootSpans
     try {
-      const { placeholders } = await messageService.createUserMessageWithPlaceholders({
+      const { placeholders } = messageService.createUserMessageWithPlaceholders({
         topicId: req.topicId,
         userMessage: { mode: 'existing', id: req.userMessageId },
         placeholders: [
@@ -440,7 +440,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         new TraceFlushListener(req.topicId)
       ]
 
-      const history = withSteerReminder(await this.buildHistory(req.userMessageId))
+      const history = withSteerReminder(this.buildHistory(req.userMessageId))
       return {
         topicId: req.topicId,
         models: [
@@ -465,8 +465,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
    * assistant msg for continue-conversation (so the model sees the
    * approval-responded state).
    */
-  private async buildHistory(anchorMessageId: string): Promise<CherryUIMessage[]> {
-    const messagePath = await messageService.getPathToNode(anchorMessageId)
+  private buildHistory(anchorMessageId: string): CherryUIMessage[] {
+    const messagePath = messageService.getPathToNode(anchorMessageId)
     return messagePath.map((msg) => ({
       id: msg.id,
       role: toContentRole(msg.role),

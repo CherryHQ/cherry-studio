@@ -22,10 +22,10 @@ import type {
   MessageListState,
   MessageRuntime
 } from '@renderer/components/chat/messages/types'
-import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
+import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
@@ -156,6 +156,13 @@ export function useAgentMessageListProviderValue({
     [workspacePath]
   )
 
+  const openInExternalApp = useMemo<MessageListActions['openInExternalApp']>(() => {
+    const open = leafCapabilities.openInExternalApp
+    if (!open) return undefined
+
+    return (app, path) => open(app, resolveWorkspaceFilePath(workspacePath, path))
+  }, [leafCapabilities.openInExternalApp, workspacePath])
+
   const abortTool = useCallback((toolId: string) => {
     return window.api.mcp.abortTool(toolId)
   }, [])
@@ -248,6 +255,7 @@ export function useAgentMessageListProviderValue({
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
       openPath,
+      openInExternalApp,
       openArtifactFile,
       openCitationsPanel,
       openAgentToolFlow,
@@ -279,6 +287,7 @@ export function useAgentMessageListProviderValue({
       openCitationsPanel,
       openArtifactFile,
       openAgentToolFlow,
+      openInExternalApp,
       openPath,
       respondToolApproval,
       selectionController.actions,

@@ -159,14 +159,6 @@ export class MainWindowService extends BaseService {
     this.ipcHandle(IpcChannel.Notification_OnClick, (_, notification) => {
       application.get('WindowManager').broadcastToType(WindowType.Main, 'notification-click', notification)
     })
-
-    // Dev-only: force a renderer crash to test render-process-gone recovery
-    // (see the render-process-gone handler in setupMainWindowMonitor).
-    if (isDev) {
-      this.ipcHandle(IpcChannel.MainWindow_CrashRenderProcess, () => {
-        this.mainWindow?.webContents.forcefullyCrashRenderer()
-      })
-    }
   }
 
   /**
@@ -273,7 +265,7 @@ export class MainWindowService extends BaseService {
     // Dangerous API
     if (isDev) {
       mainWindow.webContents.on('will-attach-webview', (_, webPreferences) => {
-        webPreferences.preload = join(__dirname, '../preload/index.js')
+        webPreferences.preload = join(__dirname, '../preload/preload.js')
       })
     }
   }
@@ -341,9 +333,9 @@ export class MainWindowService extends BaseService {
         'https://account.siliconflow.cn/oauth',
         'https://cloud.siliconflow.cn/bills',
         'https://cloud.siliconflow.cn/expensebill',
-        'https://console.aihubmix.com/token',
-        'https://console.aihubmix.com/topup',
-        'https://console.aihubmix.com/statistics',
+        'https://console.inferera.com/token',
+        'https://console.inferera.com/topup',
+        'https://console.inferera.com/statistics',
         'https://dash.302.ai/sso/login',
         'https://dash.302.ai/charge',
         'https://maas.aiionly.com/login'

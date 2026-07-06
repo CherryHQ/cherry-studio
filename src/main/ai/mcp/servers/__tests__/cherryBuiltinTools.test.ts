@@ -233,7 +233,7 @@ describe('cherryBuiltinTools', () => {
   })
 
   it('steers kb_read to re-check the conceptId when the document is not found', async () => {
-    const { DataApiErrorFactory } = await import('@shared/data/api')
+    const { DataApiErrorFactory } = await import('@shared/data/api/errors')
     kbReadConcept.mockRejectedValue(DataApiErrorFactory.notFound('Knowledge concept', 'docs/gone.md'))
 
     const result = await callCherryBuiltinTool('kb_read', { baseId: 'b1', conceptId: 'docs/gone.md' }, signal)
@@ -288,7 +288,7 @@ describe('cherryBuiltinTools', () => {
   })
 
   it('runs kb_list in outline mode (baseId) and returns the outline json with itemType mapped to type', async () => {
-    kbGetOrganizationTree.mockResolvedValue({
+    kbGetOrganizationTree.mockReturnValue({
       baseId: 'b1',
       totalItems: 2,
       truncated: false,
@@ -309,7 +309,7 @@ describe('cherryBuiltinTools', () => {
   })
 
   it('returns an empty-base hint (not an error) when kb_list outline mode finds no items', async () => {
-    kbGetOrganizationTree.mockResolvedValue({ baseId: 'b1', totalItems: 0, truncated: false, nodes: [] })
+    kbGetOrganizationTree.mockReturnValue({ baseId: 'b1', totalItems: 0, truncated: false, nodes: [] })
 
     const result = await callCherryBuiltinTool('kb_list', { baseId: 'b1' }, signal)
 
@@ -359,11 +359,11 @@ describe('cherryBuiltinTools', () => {
   })
 
   it('routes kb_list through KnowledgeService, forwarding positional query/groupId', async () => {
-    listBases.mockResolvedValue([
+    listBases.mockReturnValue([
       { id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 1 },
       { id: 'b2', name: 'Invoices', groupId: 'g2', status: 'completed', documentCount: 1 }
     ])
-    listRootItems.mockResolvedValue([{ type: 'note', status: 'completed', data: { content: 'Soup' } }])
+    listRootItems.mockReturnValue([{ type: 'note', status: 'completed', data: { content: 'Soup' } }])
 
     // groupId selects g2; if query/groupId were swapped this would filter by name instead and drop b2.
     const result = await callCherryBuiltinTool('kb_list', { groupId: 'g2' }, signal)
@@ -379,8 +379,8 @@ describe('cherryBuiltinTools', () => {
     // base.documentCount is the configured retrieval top-K (search results to return), not a count of
     // stored documents — it is usually null. Exposing it made the agent report "0 documents" for a
     // populated base. itemCount (root items) is the real count the agent should see.
-    listBases.mockResolvedValue([{ id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 5 }])
-    listRootItems.mockResolvedValue([
+    listBases.mockReturnValue([{ id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 5 }])
+    listRootItems.mockReturnValue([
       { type: 'note', status: 'completed', data: { content: 'Soup' } },
       { type: 'note', status: 'completed', data: { content: 'Stew' } }
     ])
@@ -392,7 +392,9 @@ describe('cherryBuiltinTools', () => {
   })
 
   it('returns a fixed note (not a raw error) when listing the knowledge bases fails', async () => {
-    listBases.mockRejectedValue(new Error('sqlite gone'))
+    listBases.mockImplementation(() => {
+      throw new Error('sqlite gone')
+    })
 
     const result = await callCherryBuiltinTool('kb_list', {}, signal)
 
@@ -403,8 +405,8 @@ describe('cherryBuiltinTools', () => {
   })
 
   it('forwards the kb_list input to the model-output projection (filtered-empty message)', async () => {
-    listBases.mockResolvedValue([{ id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 1 }])
-    listRootItems.mockResolvedValue([])
+    listBases.mockReturnValue([{ id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 1 }])
+    listRootItems.mockReturnValue([])
 
     // A query that matches nothing → the "matches the filter" message proves `input` reached the
     // projection; dropping the forwarded input would yield the generic "no knowledge bases" message.

@@ -4,7 +4,7 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { TraceMethod } from '@mcp-trace/trace-core'
-import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
+import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
@@ -23,6 +23,7 @@ import {
   type RestoreKnowledgeBaseDto,
   type RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
+import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
 import { estimateTokenCount } from 'tokenx'
 
 import { KnowledgeLockManager } from './KnowledgeLockManager'
@@ -290,12 +291,12 @@ export class KnowledgeService extends BaseService {
   }
 
   protected async onAllReady(): Promise<void> {
-    await this.recoverDeletingItems()
-    await this.recoverInterruptedItems()
+    this.recoverDeletingItems()
+    this.recoverInterruptedItems()
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    const base = await knowledgeBaseService.create(dto)
+    const base = knowledgeBaseService.create(dto)
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
 
     try {
@@ -322,7 +323,7 @@ export class KnowledgeService extends BaseService {
       logger.warn('Failed to remove index store dir during createBase rollback', cleanupError as Error, { baseId })
     }
     try {
-      await knowledgeBaseService.delete(baseId)
+      knowledgeBaseService.delete(baseId)
     } catch (cleanupError) {
       logger.warn('Failed to delete knowledge base row during createBase rollback', cleanupError as Error, { baseId })
     }
@@ -342,7 +343,7 @@ export class KnowledgeService extends BaseService {
       }
 
       try {
-        await knowledgeBaseService.delete(baseId)
+        knowledgeBaseService.delete(baseId)
       } catch (error) {
         const normalizedError = error instanceof Error ? error : new Error(String(error))
         logger.error('Failed to delete knowledge base SQLite row after artifact cleanup', normalizedError, {
@@ -357,7 +358,15 @@ export class KnowledgeService extends BaseService {
   }
 
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
-    const sourceBase = await knowledgeBaseService.getById(dto.sourceBaseId)
+    const sourceBase = knowledgeBaseService.getById(dto.sourceBaseId)
+
+    // Restore always supplies an embedding model (RestoreKnowledgeBaseSchema requires
+    // it). A BM25-only source's searchMode is pinned to 'bm25' by the no-model
+    // invariant, so carrying it over would leave the restored base's semantic search
+    // silently disabled despite it now paying for the full embedding backfill. Drop
+    // it (and the always-null hybridAlpha) so create() applies its own hybrid
+    // default; a source that already had a model keeps its existing preference.
+    const gainsEmbeddings = sourceBase.embeddingModelId === null
 
     const createDto: CreateKnowledgeBaseDto = {
       name: dto.name?.trim() ?? sourceBase.name,
@@ -369,12 +378,12 @@ export class KnowledgeService extends BaseService {
       chunkOverlap: sourceBase.chunkOverlap,
       threshold: sourceBase.threshold,
       documentCount: sourceBase.documentCount,
-      searchMode: sourceBase.searchMode,
-      hybridAlpha: sourceBase.hybridAlpha,
+      searchMode: gainsEmbeddings ? undefined : sourceBase.searchMode,
+      hybridAlpha: gainsEmbeddings ? undefined : sourceBase.hybridAlpha,
       groupId: sourceBase.groupId ?? undefined
     }
 
-    const rootItems = await knowledgeItemService.getRootItemsByBaseId(sourceBase.id)
+    const rootItems = knowledgeItemService.getRootItemsByBaseId(sourceBase.id)
 
     // Partial restore: probe each root's source and skip the ones whose source is genuinely gone, so
     // a single missing source no longer aborts the entire restore. This is the common case for a
@@ -441,12 +450,12 @@ export class KnowledgeService extends BaseService {
     items: KnowledgeAddItemInput[],
     conflictStrategy?: KnowledgeAddConflictStrategy
   ): Promise<KnowledgeAddItemsResult> {
-    await this.assertBaseCanRunRuntimeOperation(baseId, 'addItems')
+    this.assertBaseCanRunRuntimeOperation(baseId, 'addItems')
     return await this.workflowService.addItems(baseId, items, conflictStrategy)
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
-    const rootItemIds = await knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
+    const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
     if (rootItemIds.length === 0) {
       return
     }
@@ -455,8 +464,8 @@ export class KnowledgeService extends BaseService {
   }
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
-    await this.assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
-    const rootItemIds = await knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
+    this.assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
+    const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
     if (rootItemIds.length === 0) {
       return
     }
@@ -466,24 +475,24 @@ export class KnowledgeService extends BaseService {
     await this.workflowService.reindexItems(baseId, rootItemIds)
   }
 
-  async listBases(): Promise<KnowledgeBase[]> {
-    const { items } = await knowledgeBaseService.list({ page: 1, limit: KNOWLEDGE_BASES_MAX_LIMIT })
+  listBases(): KnowledgeBase[] {
+    const { items } = knowledgeBaseService.list({ page: 1, limit: KNOWLEDGE_BASES_MAX_LIMIT })
     return items
   }
 
   /** Whether the user has any knowledge base at all — a cheap count (not a full list) for tool-availability gating. */
-  async hasAnyBase(): Promise<boolean> {
-    const { total } = await knowledgeBaseService.list({ page: 1, limit: 1 })
+  hasAnyBase(): boolean {
+    const { total } = knowledgeBaseService.list({ page: 1, limit: 1 })
     return total > 0
   }
 
-  async listRootItems(baseId: string): Promise<KnowledgeItem[]> {
-    return await knowledgeItemService.getRootItemsByBaseId(baseId)
+  listRootItems(baseId: string): KnowledgeItem[] {
+    return knowledgeItemService.getRootItemsByBaseId(baseId)
   }
 
   @TraceMethod({ spanName: 'Knowledge.search', tag: 'Knowledge' })
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
-    await this.assertBaseCanRunRuntimeOperation(baseId, 'search')
+    this.assertBaseCanRunRuntimeOperation(baseId, 'search')
 
     if (!SEARCH_TOKEN_PATTERN.test(query)) {
       throw DataApiErrorFactory.validation(
@@ -492,9 +501,11 @@ export class KnowledgeService extends BaseService {
       )
     }
 
-    const base = await knowledgeBaseService.getById(baseId)
+    const base = knowledgeBaseService.getById(baseId)
     // Stored search mode and the index store's mode are the same enum now, so no mapping.
-    const mode = base.searchMode
+    // Vector/hybrid retrieval needs an embedding model; a base without one is BM25-only
+    // regardless of its stored preference.
+    const mode = isCompletedVectorKnowledgeBase(base) ? base.searchMode : 'bm25'
     // BM25 is lexical only; skip the embedding round-trip when the query won't use it.
     const queryEmbedding = mode === 'bm25' ? undefined : await embedKnowledgeQuery(base, query)
 
@@ -514,7 +525,7 @@ export class KnowledgeService extends BaseService {
     )
 
     const scoreKind = getInitialSearchScoreKind(base)
-    const visibleSearchResults = await this.toVisibleSearchResults(baseId, matches, scoreKind)
+    const visibleSearchResults = this.toVisibleSearchResults(baseId, matches, scoreKind)
     const topResults = this.trimToTopK(visibleSearchResults, resolvedTopK, baseId)
 
     if (base.rerankModelId) {
@@ -528,12 +539,12 @@ export class KnowledgeService extends BaseService {
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {
     const knowledgeBaseId = toKnowledgeBaseId(baseId)
     const knowledgeItemId = toKnowledgeItemId(itemId)
-    await this.assertBaseCanRunRuntimeOperation(knowledgeBaseId, 'listItemChunks')
+    this.assertBaseCanRunRuntimeOperation(knowledgeBaseId, 'listItemChunks')
     const item = await this.assertItemCanRunChunkOperation(knowledgeBaseId, knowledgeItemId, 'list chunks')
-    await this.assertCompletedContainerHasNoDeletingChildren(knowledgeBaseId, item)
+    this.assertCompletedContainerHasNoDeletingChildren(knowledgeBaseId, item)
 
-    const base = await knowledgeBaseService.getById(knowledgeBaseId)
-    const leafItems = await knowledgeItemService.getSubtreeItems(knowledgeBaseId, [knowledgeItemId], {
+    const base = knowledgeBaseService.getById(knowledgeBaseId)
+    const leafItems = knowledgeItemService.getSubtreeItems(knowledgeBaseId, [knowledgeItemId], {
       includeRoots: true,
       leafOnly: true
     })
@@ -679,7 +690,7 @@ export class KnowledgeService extends BaseService {
     conceptIds: string[],
     operation: string
   ): Promise<{ found: Array<{ conceptId: string; itemId: string }>; notFound: string[] }> {
-    const base = await knowledgeBaseService.getById(baseId)
+    const base = knowledgeBaseService.getById(baseId)
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = await vectorStoreService.getIndexStore(base)
 
@@ -697,7 +708,7 @@ export class KnowledgeService extends BaseService {
         store.getMaterialByRelativePath(conceptId)
       )
       // Identity re-check: the resolved material id must still be a visible item in this base.
-      const item = ref ? (await this.loadVisibleItems(baseId, [ref.materialId])).get(ref.materialId) : undefined
+      const item = ref ? this.loadVisibleItems(baseId, [ref.materialId]).get(ref.materialId) : undefined
       if (ref && item) {
         found.push({ conceptId, itemId: ref.materialId })
       } else {
@@ -721,9 +732,9 @@ export class KnowledgeService extends BaseService {
     conceptId: string,
     operation: string
   ): Promise<{ item: KnowledgeItem; text: string }> {
-    await this.assertBaseCanRunRuntimeOperation(baseId, operation)
+    this.assertBaseCanRunRuntimeOperation(baseId, operation)
 
-    const base = await knowledgeBaseService.getById(baseId)
+    const base = knowledgeBaseService.getById(baseId)
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = await vectorStoreService.getIndexStore(base)
 
@@ -732,7 +743,7 @@ export class KnowledgeService extends BaseService {
       throw DataApiErrorFactory.notFound('Knowledge concept', conceptId)
     }
 
-    const item = (await this.loadVisibleItems(baseId, [ref.materialId])).get(ref.materialId)
+    const item = this.loadVisibleItems(baseId, [ref.materialId]).get(ref.materialId)
     if (!item) {
       throw DataApiErrorFactory.notFound('Knowledge concept', conceptId)
     }
@@ -761,10 +772,10 @@ export class KnowledgeService extends BaseService {
    * capped at {@link KNOWLEDGE_TREE_MAX_NODES}. Throws NOT_FOUND if the base does
    * not exist; available regardless of the base's runtime (search) state.
    */
-  async getOrganizationTree(baseId: string, options: { maxDepth?: number } = {}): Promise<KnowledgeOrganizationTree> {
-    await knowledgeBaseService.getById(baseId)
+  getOrganizationTree(baseId: string, options: { maxDepth?: number } = {}): KnowledgeOrganizationTree {
+    knowledgeBaseService.getById(baseId)
 
-    const items = await knowledgeItemService.getItemsByBaseId(baseId)
+    const items = knowledgeItemService.getItemsByBaseId(baseId)
 
     // Index children by their parent groupId (null = base root); each bucket keeps
     // getItemsByBaseId's createdAt/id order, so siblings emit in a stable order.
@@ -817,12 +828,12 @@ export class KnowledgeService extends BaseService {
    * completed, and reconstruct the chunk metadata (item type / source from the
    * item; chunk index from the unit; token count recomputed from the body).
    */
-  private async toVisibleSearchResults(
+  private toVisibleSearchResults(
     baseId: string,
     matches: KnowledgeIndexSearchMatch[],
     scoreKind: KnowledgeSearchResult['scoreKind']
-  ): Promise<KnowledgeSearchResult[]> {
-    const itemsById = await this.loadVisibleItems(
+  ): KnowledgeSearchResult[] {
+    const itemsById = this.loadVisibleItems(
       baseId,
       matches.map((match) => match.materialId)
     )
@@ -869,25 +880,23 @@ export class KnowledgeService extends BaseService {
   }
 
   /** Fetch the distinct items behind the matches, keeping only those visible in this base (same base, completed). */
-  private async loadVisibleItems(baseId: string, materialIds: string[]): Promise<Map<string, KnowledgeItem>> {
+  private loadVisibleItems(baseId: string, materialIds: string[]): Map<string, KnowledgeItem> {
     const uniqueIds = [...new Set(materialIds)]
     const visibleItems = new Map<string, KnowledgeItem>()
 
-    await Promise.all(
-      uniqueIds.map(async (materialId) => {
-        try {
-          const item = await knowledgeItemService.getById(materialId)
-          if (item.baseId === baseId && item.status === 'completed') {
-            visibleItems.set(materialId, item)
-          }
-        } catch (error) {
-          if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-            return
-          }
-          throw error
+    for (const materialId of uniqueIds) {
+      try {
+        const item = knowledgeItemService.getById(materialId)
+        if (item.baseId === baseId && item.status === 'completed') {
+          visibleItems.set(materialId, item)
         }
-      })
-    )
+      } catch (error) {
+        if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+          continue
+        }
+        throw error
+      }
+    }
 
     return visibleItems
   }
@@ -951,9 +960,9 @@ export class KnowledgeService extends BaseService {
    * kill / crash). Marking them `failed` clears the perpetual spinner and makes
    * them reindexable so the user can finish them on demand.
    */
-  private async recoverInterruptedItems(): Promise<void> {
+  private recoverInterruptedItems(): void {
     try {
-      const failedCount = await knowledgeItemService.failInterruptedItems(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
+      const failedCount = knowledgeItemService.failInterruptedItems(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
       if (failedCount > 0) {
         logger.info('Recovered interrupted knowledge items', { count: failedCount })
       }
@@ -962,10 +971,10 @@ export class KnowledgeService extends BaseService {
     }
   }
 
-  private async recoverDeletingItems(): Promise<void> {
+  private recoverDeletingItems(): void {
     let deletingRootGroups: Awaited<ReturnType<typeof knowledgeItemService.getDeletingRootGroups>>
     try {
-      deletingRootGroups = await knowledgeItemService.getDeletingRootGroups()
+      deletingRootGroups = knowledgeItemService.getDeletingRootGroups()
     } catch (error) {
       logger.error('Failed to scan deleting knowledge items for recovery', error as Error)
       return
@@ -980,7 +989,7 @@ export class KnowledgeService extends BaseService {
       for (let i = 0; i < rootItemIds.length; i += DELETE_RECOVERY_ROOT_CHUNK_SIZE) {
         const rootItemIdChunk = rootItemIds.slice(i, i + DELETE_RECOVERY_ROOT_CHUNK_SIZE)
         try {
-          await jobManager.enqueue(
+          jobManager.enqueue(
             'knowledge.delete-subtree',
             { baseId, rootItemIds: rootItemIdChunk },
             {
@@ -1001,8 +1010,8 @@ export class KnowledgeService extends BaseService {
     }
   }
 
-  private async assertBaseCanRunRuntimeOperation(baseId: string, operation: string): Promise<void> {
-    const base = await knowledgeBaseService.getById(baseId)
+  private assertBaseCanRunRuntimeOperation(baseId: string, operation: string): void {
+    const base = knowledgeBaseService.getById(baseId)
 
     if (base.status !== 'failed') {
       return
@@ -1045,12 +1054,12 @@ export class KnowledgeService extends BaseService {
     return item
   }
 
-  private async assertCompletedContainerHasNoDeletingChildren(baseId: string, item: KnowledgeItem): Promise<void> {
+  private assertCompletedContainerHasNoDeletingChildren(baseId: string, item: KnowledgeItem): void {
     if (item.type !== 'directory') {
       return
     }
 
-    const subtreeItems = await knowledgeItemService.getSubtreeItems(baseId, [item.id])
+    const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, [item.id])
     if (subtreeItems.some((item) => item.status === 'deleting')) {
       throw DataApiErrorFactory.validation(
         { item: [`Knowledge item subtree '${item.id}' is being deleted`] },
@@ -1065,7 +1074,7 @@ export class KnowledgeService extends BaseService {
     const unverifiableSourceItemIds: string[] = []
 
     for (const rootItemId of rootItemIds) {
-      const subtreeItems = await knowledgeItemService.getSubtreeItems(baseId, [rootItemId], { includeRoots: true })
+      const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, [rootItemId], { includeRoots: true })
 
       // Reindex deletes the subtree's vectors before re-reading the source (reindexSubtreeJobHandler),
       // so a root whose source is gone would lose its vectors with nothing to rebuild from — reject up

@@ -23,10 +23,10 @@ export class MessageServiceBackend implements PersistenceBackend {
     this.afterPersist = opts.afterPersist
   }
 
-  async persistAssistant(input: PersistAssistantInput): Promise<void> {
+  persistAssistant(input: PersistAssistantInput): void {
     const { finalMessage, status, stats } = input
     const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
-    await messageService.update(this.opts.assistantMessageId, {
+    messageService.update(this.opts.assistantMessageId, {
       data: { parts },
       status,
       stats: this.opts.stats ?? stats
@@ -34,7 +34,7 @@ export class MessageServiceBackend implements PersistenceBackend {
   }
 
   /** Best-effort: flip the placeholder to `error` so a failed persist doesn't leave a frozen `pending` row. */
-  async markTerminalError(): Promise<void> {
-    await messageService.update(this.opts.assistantMessageId, { status: 'error' })
+  markTerminalError(): void {
+    messageService.update(this.opts.assistantMessageId, { status: 'error' })
   }
 }

@@ -6,7 +6,7 @@
 
 ## 2. Product principles (four)
 
-1. **Low creation barrier** — a name is enough to create a base; no vector/RAG knowledge required. ("Full-text search without embedding configured" is the target state; current v2 still requires an embedding model.)
+1. **Low creation barrier** — a name is enough to create a base; no vector/RAG knowledge required. (A base created without an embedding model is now supported — it is BM25-only full-text search; an embedding model can be added later from the base settings to enable vector/hybrid retrieval.)
 2. **Import means copy** — uploading creates the base's own stable copy/snapshot; later changes to the external source never rewrite the base's content automatically.
 3. **Business state is the user-visible truth** — the UI reflects each material's tracked lifecycle status from `knowledge_item`, never a live filesystem read; the per-base folder is internal, Cherry-managed byte storage the user never browses directly. Index/chunk/cache system assets never appear among the materials.
 4. **The agent is a helper, not unbounded automation** — low-risk tidying executes then reports; refresh-overwrite, delete, and overwriting existing files require confirmation.

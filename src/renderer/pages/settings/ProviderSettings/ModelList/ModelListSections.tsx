@@ -1,4 +1,4 @@
-import { LoadingIcon } from '@renderer/components/Icons'
+import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import type { Model } from '@shared/data/types/model'
 import { isEmpty } from 'es-toolkit/compat'
 import type React from 'react'

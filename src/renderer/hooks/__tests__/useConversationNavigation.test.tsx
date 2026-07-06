@@ -15,11 +15,11 @@ vi.mock('@renderer/hooks/tab', () => ({
   useOptionalTabsContext: () => tabsMock.ctx
 }))
 
-vi.mock('@renderer/components/chat/resources/resourceListRevealEvents', () => ({
+vi.mock('@renderer/services/resourceListRevealEvents', () => ({
   emitResourceListReveal: tabsMock.emitResourceListReveal
 }))
 
-vi.mock('@renderer/components/chat/shell/WindowFrameContext', () => ({
+vi.mock('@renderer/hooks/useWindowFrame', () => ({
   useWindowFrame: () => ({ mode: tabsMock.windowFrameMode })
 }))
 

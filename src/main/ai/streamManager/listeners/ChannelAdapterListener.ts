@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
+import type { ChannelAdapter } from '@main/ai/channels'
 import { sanitizeChannelOutput } from '@main/ai/channels/security'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
@@ -21,9 +21,18 @@ export class ChannelAdapterListener implements StreamListener {
      * deliver a richer `[Task failed] …` summary themselves (see `runAgentTask`), so
      * leaving this on would double-notify every subscribed channel.
      */
-    private readonly suppressErrorMessage = false
+    private readonly suppressErrorMessage = false,
+    /** Inbound message id this run answers, so the reply targets it (e.g. QQ passive reply). */
+    private readonly replyToMessageId?: string | number
   ) {
     this.id = `channel:${adapter.channelId}:${this.platformChatId}`
+  }
+
+  /** Deliver a final message, threading the reply target only when this run has one. */
+  private deliver(text: string): Promise<void> {
+    return this.replyToMessageId !== undefined
+      ? this.adapter.sendMessage(this.platformChatId, text, { replyToMessageId: this.replyToMessageId })
+      : this.adapter.sendMessage(this.platformChatId, text)
   }
 
   // oxlint-disable-next-line no-unused-vars
@@ -53,7 +62,7 @@ export class ChannelAdapterListener implements StreamListener {
       // Adapter finalizes its streaming UI first (e.g. close Feishu card).
       const handled = await this.adapter.onStreamComplete(this.platformChatId, text)
       if (!handled) {
-        await this.adapter.sendMessage(this.platformChatId, text)
+        await this.deliver(text)
       }
     } catch (err) {
       logger.error('Failed to deliver message to channel', {
@@ -72,7 +81,7 @@ export class ChannelAdapterListener implements StreamListener {
     try {
       const handled = await this.adapter.onStreamComplete(this.platformChatId, text)
       if (!handled) {
-        await this.adapter.sendMessage(this.platformChatId, text + '\n\n_(stopped)_')
+        await this.deliver(text + '\n\n_(stopped)_')
       }
     } catch (err) {
       logger.error('Failed to deliver paused message to channel', {
@@ -86,7 +95,7 @@ export class ChannelAdapterListener implements StreamListener {
   async onError(result: StreamErrorResult): Promise<void> {
     if (this.suppressErrorMessage) return
     try {
-      await this.adapter.sendMessage(this.platformChatId, `Error: ${result.error.message ?? 'Unknown error'}`)
+      await this.deliver(`Error: ${result.error.message ?? 'Unknown error'}`)
     } catch (err) {
       logger.error('Failed to deliver error to channel', {
         channelId: this.adapter.channelId,

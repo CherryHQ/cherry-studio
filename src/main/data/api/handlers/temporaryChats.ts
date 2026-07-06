@@ -12,35 +12,35 @@
  */
 
 import { temporaryChatService } from '@data/services/TemporaryChatService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { TemporaryChatSchemas } from '@shared/data/api/schemas/temporaryChats'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const temporaryChatHandlers: HandlersFor<TemporaryChatSchemas> = {
   '/temporary/topics': {
     POST: async ({ body }) => {
-      return await temporaryChatService.createTopic(body)
+      return temporaryChatService.createTopic(body)
     }
   },
 
   '/temporary/topics/:id': {
     DELETE: async ({ params }) => {
-      await temporaryChatService.deleteTopic(params.id)
+      temporaryChatService.deleteTopic(params.id)
       return undefined
     }
   },
 
   '/temporary/topics/:topicId/messages': {
     POST: async ({ params, body }) => {
-      return await temporaryChatService.appendMessage(params.topicId, body)
+      return temporaryChatService.appendMessage(params.topicId, body)
     },
     GET: async ({ params }) => {
-      return await temporaryChatService.listMessages(params.topicId)
+      return temporaryChatService.listMessages(params.topicId)
     }
   },
 
   '/temporary/topics/:id/persist': {
     POST: async ({ params }) => {
-      return await temporaryChatService.persist(params.id)
+      return temporaryChatService.persist(params.id)
     }
   }
 }

@@ -70,9 +70,9 @@ describe('translateService.resolveTranslatePayload', () => {
       'feature.translate.model_prompt',
       'Translate to {{target_language}}: {{text}}'
     )
-    getByKeyMock.mockResolvedValue({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
+    getByKeyMock.mockReturnValue({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
 
-    const payload = await translateService.resolveTranslatePayload('hello', TARGET)
+    const payload = translateService.resolveTranslatePayload('hello', TARGET)
 
     expect(payload.uniqueModelId).toBe('openai::gpt-4o')
     expect(payload.content).toBe('Translate to English: hello')
@@ -85,14 +85,14 @@ describe('translateService.resolveTranslatePayload', () => {
       'feature.translate.model_prompt',
       'Translate to {{target_language}}: {{text}}'
     )
-    getByKeyMock.mockResolvedValue({
+    getByKeyMock.mockReturnValue({
       id: 'dashscope::qwen-mt-turbo',
       providerId: 'dashscope',
       apiModelId: 'qwen-mt-turbo',
       name: 'Qwen MT Turbo'
     })
 
-    const payload = await translateService.resolveTranslatePayload('原文', TARGET)
+    const payload = translateService.resolveTranslatePayload('原文', TARGET)
 
     expect(payload.uniqueModelId).toBe('dashscope::qwen-mt-turbo')
     expect(payload.content).toBe('原文')
@@ -101,19 +101,17 @@ describe('translateService.resolveTranslatePayload', () => {
   it('throws translate.error.not_configured when the translate model preference is unset', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', '' as any)
 
-    await expect(translateService.resolveTranslatePayload('source', TARGET)).rejects.toThrow(
-      'translate.error.not_configured'
-    )
+    expect(() => translateService.resolveTranslatePayload('source', TARGET)).toThrow('translate.error.not_configured')
     expect(getByKeyMock).not.toHaveBeenCalled()
   })
 
   it('throws translate.error.not_configured when the model row is missing', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4o')
-    getByKeyMock.mockRejectedValue(new Error('not found'))
+    getByKeyMock.mockImplementation(() => {
+      throw new Error('not found')
+    })
 
-    await expect(translateService.resolveTranslatePayload('source', TARGET)).rejects.toThrow(
-      'translate.error.not_configured'
-    )
+    expect(() => translateService.resolveTranslatePayload('source', TARGET)).toThrow('translate.error.not_configured')
   })
 })
 
@@ -124,13 +122,13 @@ describe('translateService.open', () => {
       'feature.translate.model_prompt',
       'Translate to {{target_language}}: {{text}}'
     )
-    getByKeyMock.mockResolvedValue({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
-    getByLangCodeMock.mockResolvedValue(TARGET)
+    getByKeyMock.mockReturnValue({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
+    getByLangCodeMock.mockReturnValue(TARGET)
   })
 
   it('uses the renderer-supplied streamId, resolves the DTO, and dispatches via streamManager.streamPrompt', async () => {
     const streamId = 'translate:caller-supplied-id'
-    const result = await translateService.open(fakeSender, {
+    const result = translateService.open(fakeSender, {
       streamId,
       text: 'hello',
       targetLangCode: 'en-us'
@@ -154,7 +152,7 @@ describe('translateService.open', () => {
 
   it('stacks a PersistenceListener when the request carries a messageId', async () => {
     const streamId = 'translate:msg-bound'
-    await translateService.open(fakeSender, {
+    translateService.open(fakeSender, {
       streamId,
       text: 'hello',
       targetLangCode: 'en-us',
@@ -178,10 +176,12 @@ describe('translateService.open', () => {
   it('surfaces a persist failure to the renderer via WebContentsListener.onError (C1)', async () => {
     // TranslationBackend has no markTerminalError, so the only live-renderer signal on a
     // persist failure is onPersistFailed → wcListener.onError. Force the persist to throw.
-    messageGetByIdMock.mockRejectedValue(new Error('db down'))
+    messageGetByIdMock.mockImplementation(() => {
+      throw new Error('db down')
+    })
 
     const streamId = 'translate:persist-fail'
-    await translateService.open(fakeSender, { streamId, text: 'hello', targetLangCode: 'en-us', messageId: 'm1' })
+    translateService.open(fakeSender, { streamId, text: 'hello', targetLangCode: 'en-us', messageId: 'm1' })
 
     const arg = (streamPromptMock.mock.calls as unknown as Array<[{ listener: any }]>)[0][0]
     const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
@@ -198,37 +198,37 @@ describe('translateService.open', () => {
   })
 
   it('rejects a streamId that does not carry the translate prefix', async () => {
-    await expect(
+    expect(() =>
       translateService.open(fakeSender, {
         streamId: 'agent-session:bogus',
         text: 'hello',
         targetLangCode: 'en-us'
       })
-    ).rejects.toThrow(/translate:/)
+    ).toThrow(/translate:/)
     expect(getByLangCodeMock).not.toHaveBeenCalled()
     expect(streamPromptMock).not.toHaveBeenCalled()
   })
 
   it('throws for an invalid lang code without touching the DTO service or stream manager', async () => {
-    await expect(
+    expect(() =>
       translateService.open(fakeSender, {
         streamId: 'translate:abc',
         text: 'hello',
         targetLangCode: 'not-a-real-code' as any
       })
-    ).rejects.toThrow('Invalid target language: not-a-real-code')
+    ).toThrow('Invalid target language: not-a-real-code')
     expect(getByLangCodeMock).not.toHaveBeenCalled()
     expect(streamPromptMock).not.toHaveBeenCalled()
   })
 
   it('throws for the "unknown" sentinel', async () => {
-    await expect(
+    expect(() =>
       translateService.open(fakeSender, {
         streamId: 'translate:abc',
         text: 'hello',
         targetLangCode: 'unknown' as any
       })
-    ).rejects.toThrow('Invalid target language: unknown')
+    ).toThrow('Invalid target language: unknown')
     expect(getByLangCodeMock).not.toHaveBeenCalled()
   })
 })

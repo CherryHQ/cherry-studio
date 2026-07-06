@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageListInitialLoading } from '../MessageListLoading'
 
-vi.mock('@renderer/components/Icons', () => ({
-  LoadingIcon: () => <span data-testid="loading-icon" />
+vi.mock('@renderer/components/icons/LoadingIcon', () => ({
+  default: () => <span data-testid="loading-icon" />
 }))
 
 describe('MessageListInitialLoading', () => {

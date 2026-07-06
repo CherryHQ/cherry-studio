@@ -1,4 +1,15 @@
 import { Button, ButtonGroup, Flex, InfoTooltip, Input, Label, Tooltip } from '@cherrystudio/ui'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingHelpLink,
+  SettingHelpText,
+  SettingHelpTextRow,
+  SettingsContentColumn,
+  SettingSubtitle,
+  SettingTitle,
+  SettingTitleExternalLink
+} from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { WebSearchBasicAuthPatch } from '@renderer/hooks/useWebSearch'
 import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@renderer/utils/api'
@@ -22,17 +33,6 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  SettingDivider,
-  SettingGroup,
-  SettingHelpLink,
-  SettingHelpText,
-  SettingHelpTextRow,
-  SettingsContentColumn,
-  SettingSubtitle,
-  SettingTitle,
-  SettingTitleExternalLink
-} from '../..'
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { useWebSearchProviderCheck } from '../hooks/useWebSearchProviderCheck'
 import { WebSearchApiKeyListPopup } from './WebSearchApiKeyList'

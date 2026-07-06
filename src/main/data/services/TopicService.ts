@@ -4,13 +4,13 @@ import { randomBytes } from 'node:crypto'
 
 import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
+import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
-import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type {
@@ -20,13 +20,13 @@ import type {
   ListTopicsQuery,
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
-import { chatMessageSourceType } from '@shared/data/types/file'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
-import { fileRefService } from './FileRefService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -36,6 +36,8 @@ const logger = loggerService.withContext('DataApi:TopicService')
 
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
+const SQLITE_INARRAY_CHUNK = 500
+const SQLITE_INSERT_CHUNK = 100
 
 type TopicRow = typeof topicTable.$inferSelect
 type TopicEntitySearchItem = Extract<EntitySearchItem, { type: 'topic' }>
@@ -54,6 +56,40 @@ function rowToTopic(row: TopicRow): Topic {
 
 function topicScopePredicate(groupId: string | null): SQL {
   return groupId === null ? isNull(topicTable.groupId) : eq(topicTable.groupId, groupId)
+}
+
+function copyChatMessageFileRefsBySourceIdMapTx(tx: DbOrTx, sourceIdMap: ReadonlyMap<string, string>): void {
+  if (sourceIdMap.size === 0) return
+  const sourceIds = [...sourceIdMap.keys()]
+  const now = Date.now()
+
+  for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
+    const chunk = sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+    const sourceRefs = tx
+      .select()
+      .from(chatMessageFileRefTable)
+      .where(inArray(chatMessageFileRefTable.sourceId, chunk))
+      .all()
+    const values = sourceRefs.flatMap((ref) => {
+      const copiedSourceId = sourceIdMap.get(ref.sourceId)
+      if (!copiedSourceId) return []
+      return [
+        {
+          id: uuidv4(),
+          fileEntryId: ref.fileEntryId,
+          sourceId: copiedSourceId,
+          role: ref.role,
+          createdAt: now,
+          updatedAt: now
+        }
+      ]
+    })
+    for (let j = 0; j < values.length; j += SQLITE_INSERT_CHUNK) {
+      tx.insert(chatMessageFileRefTable)
+        .values(values.slice(j, j + SQLITE_INSERT_CHUNK))
+        .run()
+    }
+  }
 }
 
 // Wire format: `pin:<orderKey>` / `topic:<updatedAt>:<id>` / `topic:` (pin exhausted).
@@ -115,14 +151,15 @@ function buildSearchPredicate(q: string | undefined): SQL | undefined {
 }
 
 export class TopicService {
-  async getById(id: string): Promise<Topic> {
+  getById(id: string): Topic {
     const db = application.get('DbService').getDb()
 
-    const [row] = await db
+    const [row] = db
       .select()
       .from(topicTable)
       .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
       .limit(1)
+      .all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Topic', id)
@@ -131,13 +168,14 @@ export class TopicService {
     return rowToTopic(row)
   }
 
-  async ensureTraceId(topicId: string): Promise<string> {
-    return application.get('DbService').withWriteTx(async (tx) => {
-      const [row] = await tx
+  ensureTraceId(topicId: string): string {
+    return application.get('DbService').withWriteTx((tx) => {
+      const [row] = tx
         .select({ traceId: topicTable.traceId })
         .from(topicTable)
         .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
         .limit(1)
+        .all()
 
       if (!row) {
         throw DataApiErrorFactory.notFound('Topic', topicId)
@@ -147,18 +185,18 @@ export class TopicService {
       }
 
       const traceId = randomBytes(16).toString('hex')
-      await tx.update(topicTable).set({ traceId }).where(eq(topicTable.id, topicId))
+      tx.update(topicTable).set({ traceId }).where(eq(topicTable.id, topicId)).run()
       return traceId
     })
   }
 
-  async create(dto: CreateTopicDto): Promise<Topic> {
+  create(dto: CreateTopicDto): Topic {
     const dbService = application.get('DbService')
     const messageService = getDataService('MessageService')
     const groupId = dto.groupId ?? null
 
-    const row = await dbService.withWriteTx(async (tx) => {
-      const topicRow = (await insertWithOrderKey(
+    const row = dbService.withWriteTx((tx) => {
+      const topicRow = insertWithOrderKey(
         tx,
         topicTable,
         {
@@ -172,8 +210,8 @@ export class TopicService {
           position: 'first',
           scope: topicScopePredicate(groupId)
         }
-      )) as TopicRow
-      await messageService.createRootMessageTx(tx, topicRow.id)
+      ) as TopicRow
+      messageService.createRootMessageTx(tx, topicRow.id)
       return topicRow
     })
 
@@ -182,21 +220,22 @@ export class TopicService {
     return rowToTopic(row)
   }
 
-  async duplicate(sourceTopicId: string, dto: DuplicateTopicDto): Promise<Topic> {
+  duplicate(sourceTopicId: string, dto: DuplicateTopicDto): Topic {
     const dbService = application.get('DbService')
     const messageService = getDataService('MessageService')
 
-    const copiedTopic = await dbService.withWriteTx(async (tx) => {
-      const [sourceTopic] = await tx
+    const copiedTopic = dbService.withWriteTx((tx) => {
+      const [sourceTopic] = tx
         .select()
         .from(topicTable)
         .where(and(eq(topicTable.id, sourceTopicId), isNull(topicTable.deletedAt)))
         .limit(1)
+        .all()
       if (!sourceTopic) throw DataApiErrorFactory.notFound('Topic', sourceTopicId)
 
-      const sourcePathRows = await messageService.getPathRowsToNodeTx(tx, dto.nodeId, { topicId: sourceTopicId })
+      const sourcePathRows = messageService.getPathRowsToNodeTx(tx, dto.nodeId, { topicId: sourceTopicId })
 
-      const newTopicRow = (await insertWithOrderKey(
+      const newTopicRow = insertWithOrderKey(
         tx,
         topicTable,
         {
@@ -212,25 +251,26 @@ export class TopicService {
           position: 'first',
           scope: topicScopePredicate(sourceTopic.groupId ?? null)
         }
-      )) as TopicRow
+      ) as TopicRow
 
       // New topic is a creation path → create its virtual root before copying the path
       // (copyPathRowsTx reparents the copied head onto it).
-      await messageService.createRootMessageTx(tx, newTopicRow.id)
+      messageService.createRootMessageTx(tx, newTopicRow.id)
 
-      const { copiedMessageIds, copiedActiveNodeId } = await messageService.copyPathRowsTx(tx, sourcePathRows, {
+      const { copiedMessageIds, copiedActiveNodeId } = messageService.copyPathRowsTx(tx, sourcePathRows, {
         topicId: newTopicRow.id
       })
 
       // Intentionally copies only topic metadata, root-to-node messages, and chat-message file refs.
       // Pins, tags, trace links, and pruned siblings/descendants stay with their original rows.
-      await fileRefService.copyBySourceIdMapTx(tx, chatMessageSourceType, copiedMessageIds)
+      copyChatMessageFileRefsBySourceIdMapTx(tx, copiedMessageIds)
 
-      const [updatedTopicRow] = await tx
+      const [updatedTopicRow] = tx
         .update(topicTable)
         .set({ activeNodeId: copiedActiveNodeId })
         .where(eq(topicTable.id, newTopicRow.id))
         .returning()
+        .all()
 
       return rowToTopic(updatedTopicRow)
     })
@@ -246,15 +286,16 @@ export class TopicService {
   }
 
   /** Pin state and ordering go through `/pins` and `/topics/:id/order` — not this DTO. */
-  async update(id: string, dto: UpdateTopicDto): Promise<Topic> {
+  update(id: string, dto: UpdateTopicDto): Topic {
     const dbService = application.get('DbService')
 
-    const topic = await dbService.withWriteTx(async (tx) => {
-      const [existing] = await tx
+    const topic = dbService.withWriteTx((tx) => {
+      const [existing] = tx
         .select({ id: topicTable.id })
         .from(topicTable)
         .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
         .limit(1)
+        .all()
       if (!existing) throw DataApiErrorFactory.notFound('Topic', id)
 
       const updates: Partial<typeof topicTable.$inferInsert> = {}
@@ -269,7 +310,7 @@ export class TopicService {
       if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId
       if (dto.groupId !== undefined) updates.groupId = dto.groupId
 
-      const [row] = await tx.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning()
+      const [row] = tx.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning().all()
       if (!row) throw DataApiErrorFactory.notFound('Topic', id)
 
       return rowToTopic(row)
@@ -287,34 +328,31 @@ export class TopicService {
    *
    * TODO: Clean up associated files (images, attachments) from disk.
    */
-  async delete(id: string): Promise<void> {
+  delete(id: string): void {
     const dbService = application.get('DbService')
-    await dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
+    dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
 
     logger.info('Deleted topic', { id })
   }
 
-  async deleteByIds(ids: string[]): Promise<DeleteTopicsResult> {
+  deleteByIds(ids: string[]): DeleteTopicsResult {
     const dbService = application.get('DbService')
-    const deletedIds = await dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
+    const deletedIds = dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
 
     logger.info('Deleted topics', { count: deletedIds.length })
 
     return { deletedIds, deletedCount: deletedIds.length }
   }
 
-  private async deleteManyByIdsTx(
-    tx: DbOrTx,
-    ids: string[],
-    options: { requireAll?: boolean } = {}
-  ): Promise<string[]> {
+  private deleteManyByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean } = {}): string[] {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
 
-    const rows = await tx
+    const rows = tx
       .select({ id: topicTable.id })
       .from(topicTable)
       .where(and(inArray(topicTable.id, uniqueIds), isNull(topicTable.deletedAt)))
+      .all()
     const deletedIds = rows.map((row) => row.id)
 
     if (options.requireAll && deletedIds.length !== uniqueIds.length) {
@@ -325,16 +363,16 @@ export class TopicService {
     if (deletedIds.length === 0) return []
 
     const messageService = getDataService('MessageService')
-    await messageService.purgeByTopicIdsTx(tx, deletedIds)
-    await tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
-    await pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
-    await tx.delete(topicTable).where(inArray(topicTable.id, deletedIds))
+    messageService.purgeByTopicIdsTx(tx, deletedIds)
+    tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
+    pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
+    tx.delete(topicTable).where(inArray(topicTable.id, deletedIds)).run()
 
     return deletedIds
   }
 
-  async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {
-    await application.get('DbService').withWriteTx((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
+  setActiveNode(topicId: string, nodeId: string): { activeNodeId: string } {
+    application.get('DbService').withWriteTx((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
     logger.info('Set active node', { topicId, activeNodeId: nodeId })
     return { activeNodeId: nodeId }
   }
@@ -345,25 +383,22 @@ export class TopicService {
    * and the message belongs to it. Skip validation by passing `assumeValid`
    * when the caller has already verified the (topicId, nodeId) pair.
    */
-  async setActiveNodeTx(
-    tx: DbOrTx,
-    topicId: string,
-    nodeId: string,
-    options: { assumeValid?: boolean } = {}
-  ): Promise<void> {
+  setActiveNodeTx(tx: DbOrTx, topicId: string, nodeId: string, options: { assumeValid?: boolean } = {}): void {
     if (!options.assumeValid) {
-      const [topic] = await tx
+      const [topic] = tx
         .select({ id: topicTable.id })
         .from(topicTable)
         .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
         .limit(1)
+        .all()
       if (!topic) throw DataApiErrorFactory.notFound('Topic', topicId)
 
-      const [message] = await tx
+      const [message] = tx
         .select({ topicId: messageTable.topicId, role: messageTable.role })
         .from(messageTable)
         .where(and(eq(messageTable.id, nodeId), isNull(messageTable.deletedAt)))
         .limit(1)
+        .all()
       if (!message || message.topicId !== topicId) {
         throw DataApiErrorFactory.notFound('Message', nodeId)
       }
@@ -377,20 +412,22 @@ export class TopicService {
       }
     }
 
-    const updated = await tx
+    const updated = tx
       .update(topicTable)
       .set({ activeNodeId: nodeId })
       .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
       .returning({ id: topicTable.id })
+      .all()
     if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
   }
 
-  async clearActiveNodeTx(tx: DbOrTx, topicId: string): Promise<void> {
-    const updated = await tx
+  clearActiveNodeTx(tx: DbOrTx, topicId: string): void {
+    const updated = tx
       .update(topicTable)
       .set({ activeNodeId: null })
       .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
       .returning({ id: topicTable.id })
+      .all()
     if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
   }
 
@@ -401,7 +438,7 @@ export class TopicService {
    * maintained but unused at read time — it's there for a future drag-mode
    * toggle.
    */
-  async listByCursor(query: ListTopicsQuery = {}): Promise<CursorPaginationResponse<Topic>> {
+  listByCursor(query: ListTopicsQuery = {}): CursorPaginationResponse<Topic> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor: Cursor = query.cursor ? decodeCursor(query.cursor) : { section: 'pin', orderKey: '' }
@@ -411,13 +448,14 @@ export class TopicService {
 
     if (cursor.section === 'pin') {
       const pinAfter = cursor.orderKey ? gt(pinTable.orderKey, cursor.orderKey) : undefined
-      const pinRows = await db
+      const pinRows = db
         .select({ topic: topicTable, pinOrderKey: pinTable.orderKey })
         .from(topicTable)
         .innerJoin(pinTable, and(eq(pinTable.entityType, 'topic'), eq(pinTable.entityId, topicTable.id)))
         .where(and(isNull(topicTable.deletedAt), pinAfter, search))
         .orderBy(asc(pinTable.orderKey), asc(topicTable.id))
         .limit(limit + 1)
+        .all()
 
       // Stale pin cursor (anchor row deleted between requests) → 0 rows for a
       // non-empty `cursor.orderKey`. Hand back a topic-section-start cursor so
@@ -461,12 +499,13 @@ export class TopicService {
       )
     }
 
-    const topicRows = await db
+    const topicRows = db
       .select()
       .from(topicTable)
       .where(and(isNull(topicTable.deletedAt), notInArray(topicTable.id, pinnedSubquery), topicAfter, search))
       .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
       .limit(remaining + 1)
+      .all()
 
     const hasMoreInTopic = topicRows.length > remaining
     for (const row of topicRows.slice(0, remaining)) {
@@ -482,7 +521,7 @@ export class TopicService {
     return { items: items.map((i) => i.topic), nextCursor }
   }
 
-  async search(query: { q: string; limit: number; updatedAtFrom?: number }): Promise<TopicEntitySearchItem[]> {
+  search(query: { q: string; limit: number; updatedAtFrom?: number }): TopicEntitySearchItem[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
     const filters: SQL[] = [isNull(topicTable.deletedAt)]
@@ -492,7 +531,7 @@ export class TopicService {
       filters.push(gte(topicTable.updatedAt, query.updatedAtFrom))
     }
 
-    const rows = await db
+    const rows = db
       .select({
         id: topicTable.id,
         name: topicTable.name,
@@ -505,6 +544,7 @@ export class TopicService {
       .where(and(...filters))
       .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
       .limit(limit)
+      .all()
 
     return rows.map((row) => ({
       type: 'topic',
@@ -516,17 +556,18 @@ export class TopicService {
     }))
   }
 
-  async reorder(id: string, anchor: OrderRequest): Promise<void> {
+  reorder(id: string, anchor: OrderRequest): void {
     const db = application.get('DbService').getDb()
-    await db.transaction(async (tx) => {
-      const [target] = await tx
+    db.transaction((tx) => {
+      const [target] = tx
         .select({ groupId: topicTable.groupId })
         .from(topicTable)
         .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
         .limit(1)
+        .all()
       if (!target) throw DataApiErrorFactory.notFound('Topic', id)
 
-      await applyMoves(tx, topicTable, [{ id, anchor }], {
+      applyMoves(tx, topicTable, [{ id, anchor }], {
         pkColumn: topicTable.id,
         scope: topicScopePredicate(target.groupId)
       })
@@ -534,16 +575,17 @@ export class TopicService {
   }
 
   /** Cross-scope (mixed `groupId`) batches are rejected with VALIDATION_ERROR. */
-  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+  reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
 
     const db = application.get('DbService').getDb()
-    await db.transaction(async (tx) => {
+    db.transaction((tx) => {
       const ids = moves.map((m) => m.id)
-      const targets = await tx
+      const targets = tx
         .select({ id: topicTable.id, groupId: topicTable.groupId })
         .from(topicTable)
         .where(and(inArray(topicTable.id, ids), isNull(topicTable.deletedAt)))
+        .all()
 
       if (targets.length !== ids.length) {
         const found = new Set(targets.map((t) => t.id))
@@ -559,37 +601,43 @@ export class TopicService {
       }
 
       const [scopeValue] = [...scopeValues]
-      await applyMoves(tx, topicTable, moves, {
+      applyMoves(tx, topicTable, moves, {
         pkColumn: topicTable.id,
         scope: topicScopePredicate(scopeValue ?? null)
       })
     })
   }
 
-  async deleteByAssistantId(assistantId: string): Promise<DeleteTopicsResult> {
+  deleteByAssistantId(assistantId: string): DeleteTopicsResult {
     const dbService = application.get('DbService')
-    const deletedIds = await dbService.withWriteTx(async (tx) => {
-      const [assistant] = await tx
-        .select({ id: assistantTable.id })
-        .from(assistantTable)
-        .where(and(eq(assistantTable.id, assistantId), isNull(assistantTable.deletedAt)))
-        .limit(1)
-      if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
-
-      const rows = await tx
-        .select({ id: topicTable.id })
-        .from(topicTable)
-        .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
-
-      return await this.deleteManyByIdsTx(
-        tx,
-        rows.map((row) => row.id)
-      )
-    })
+    const deletedIds = dbService.withWriteTx((tx) => this.deleteByAssistantIdTx(tx, assistantId))
 
     logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
 
     return { deletedIds, deletedCount: deletedIds.length }
+  }
+
+  deleteByAssistantIdTx(tx: DbOrTx, assistantId: string, options: { validateAssistant?: boolean } = {}): string[] {
+    if (options.validateAssistant ?? true) {
+      const [assistant] = tx
+        .select({ id: assistantTable.id })
+        .from(assistantTable)
+        .where(and(eq(assistantTable.id, assistantId), isNull(assistantTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+    }
+
+    const rows = tx
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
+      .all()
+
+    return this.deleteManyByIdsTx(
+      tx,
+      rows.map((row) => row.id)
+    )
   }
 }
 

@@ -27,7 +27,7 @@ describe('delete-subtree job handler', () => {
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
     ]
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue(subtreeItems)
     listMock.mockResolvedValue([
       createJobSnapshot({
         id: 'current-job',
@@ -76,7 +76,7 @@ describe('delete-subtree job handler', () => {
       createDirectoryItem('dir-1', 'deleting'),
       createFileItem(FILE_ITEM_ID, 'deleting')
     ]
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue(subtreeItems)
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'delete-job'))
 
@@ -97,7 +97,7 @@ describe('delete-subtree job handler', () => {
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
     ]
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue(subtreeItems)
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'delete-job'))
 
@@ -110,7 +110,7 @@ describe('delete-subtree job handler', () => {
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
     ]
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue(subtreeItems)
     listMock.mockResolvedValue([
       createJobSnapshot({
         id: 'index-job',
@@ -134,7 +134,7 @@ describe('delete-subtree job handler', () => {
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
     ]
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue(subtreeItems)
     listMock.mockResolvedValue([
       createJobSnapshot({
         id: 'index-job',
@@ -154,7 +154,7 @@ describe('delete-subtree job handler', () => {
 
   it('completes when the subtree is already gone', async () => {
     const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue([])
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([])
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['missing-root'] }, 'delete-job'))
 
@@ -167,7 +167,7 @@ describe('delete-subtree job handler', () => {
   it('no-ops when a stale job targets visible rows', async () => {
     const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
     const subtreeItems: KnowledgeItem[] = [createDirectoryItem('dir-1'), createNoteItem('note-1', 'dir-1')]
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue(subtreeItems)
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'delete-job'))
 

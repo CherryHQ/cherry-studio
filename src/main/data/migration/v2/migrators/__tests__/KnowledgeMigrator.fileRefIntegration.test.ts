@@ -7,16 +7,17 @@
 // The protections under test: `KnowledgeMigrator.execute()` must remap
 // assistant knowledge-base refs from legacy IDs to migrated IDs, drop
 // orphaned assistant refs, and migrate legacy file items to knowledge-owned
-// relative paths without creating file_ref rows.
+// relative paths without creating FileManager association rows.
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable } from '@data/db/schemas/assistantRelations'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
@@ -106,20 +107,21 @@ async function seedAssistantKnowledgeBaseRefs(dbh: ReturnType<typeof setupTestDa
     orderKey: 'a0'
   })
 
-  await dbh.client.execute('PRAGMA foreign_keys = OFF')
+  dbh.sqlite.pragma('foreign_keys = OFF')
   try {
     const now = Date.now()
     for (const knowledgeBaseId of knowledgeBaseIds) {
-      await dbh.client.execute({
-        sql: `
+      dbh.sqlite
+        .prepare(
+          `
           INSERT INTO assistant_knowledge_base (assistant_id, knowledge_base_id, created_at, updated_at)
           VALUES (?, ?, ?, ?)
-        `,
-        args: [ASSISTANT_ID, knowledgeBaseId, now, now]
-      })
+        `
+        )
+        .run(ASSISTANT_ID, knowledgeBaseId, now, now)
     }
   } finally {
-    await dbh.client.execute('PRAGMA foreign_keys = ON')
+    dbh.sqlite.pragma('foreign_keys = ON')
   }
 }
 
@@ -170,8 +172,8 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
       .from(assistantKnowledgeBaseTable)
 
     expect(rows).toEqual([{ assistantId: ASSISTANT_ID, knowledgeBaseId: migratedBaseId }])
-    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
-    expect(fkCheck.rows).toHaveLength(0)
+    const fkCheck = dbh.sqlite.pragma('foreign_key_check')
+    expect(fkCheck).toHaveLength(0)
   })
 
   it('drops dangling assistant knowledge base refs when no knowledge data is prepared', async () => {
@@ -271,11 +273,11 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
 
     // The association survives and points at the migrated base id, not the dropped legacy id.
     expect(rows).toEqual([{ assistantId: 'ast-prod-order', knowledgeBaseId: migratedBaseId }])
-    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
-    expect(fkCheck.rows).toHaveLength(0)
+    const fkCheck = dbh.sqlite.pragma('foreign_key_check')
+    expect(fkCheck).toHaveLength(0)
   })
 
-  it('migrates legacy file items to relative paths without creating file_refs', async () => {
+  it('migrates legacy file items to relative paths without creating FileManager refs', async () => {
     const dexieFiles: FileMetadata[] = [
       dexieFileRow({ id: FILE_SURVIVOR_ID }),
       dexieFileRow({ id: FILE_SKIPPED_ID, size: -1 })
@@ -341,14 +343,18 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
       }
     ])
 
-    const fileRefRows = await dbh.db.select({ fileEntryId: fileRefTable.fileEntryId }).from(fileRefTable)
-    expect(fileRefRows).toHaveLength(0)
+    const [chatRefRows, paintingRefRows] = await Promise.all([
+      dbh.db.select({ fileEntryId: chatMessageFileRefTable.fileEntryId }).from(chatMessageFileRefTable),
+      dbh.db.select({ fileEntryId: paintingFileRefTable.fileEntryId }).from(paintingFileRefTable)
+    ])
+    expect(chatRefRows).toHaveLength(0)
+    expect(paintingRefRows).toHaveLength(0)
 
-    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
-    expect(fkCheck.rows).toHaveLength(0)
+    const fkCheck = dbh.sqlite.pragma('foreign_key_check')
+    expect(fkCheck).toHaveLength(0)
   })
 
-  it('migrates more than 999 legacy file items without creating file_refs', async () => {
+  it('migrates more than 999 legacy file items without creating FileManager refs', async () => {
     const FILE_COUNT = 1200
     const dexieFiles: FileMetadata[] = Array.from({ length: FILE_COUNT }, (_, i) =>
       dexieFileRow({ id: fileEntryIdAt(i + 1000) })
@@ -389,11 +395,15 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
       relativePath: `${fileEntryIdAt(1000)}.pdf`
     })
 
-    const refRows = await dbh.db.select({ fileEntryId: fileRefTable.fileEntryId }).from(fileRefTable)
-    expect(refRows).toHaveLength(0)
+    const [chatRefRows, paintingRefRows] = await Promise.all([
+      dbh.db.select({ fileEntryId: chatMessageFileRefTable.fileEntryId }).from(chatMessageFileRefTable),
+      dbh.db.select({ fileEntryId: paintingFileRefTable.fileEntryId }).from(paintingFileRefTable)
+    ])
+    expect(chatRefRows).toHaveLength(0)
+    expect(paintingRefRows).toHaveLength(0)
 
-    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
-    expect(fkCheck.rows).toHaveLength(0)
+    const fkCheck = dbh.sqlite.pragma('foreign_key_check')
+    expect(fkCheck).toHaveLength(0)
   })
 
   it('re-creates an orphan embedding model whose provider survived so the base migrates without a re-index', async () => {
@@ -421,7 +431,7 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
     // No legacy vector store on disk in this harness; a resolved model would otherwise read it and
     // fall into a missing-vector-store `failed` row. Stub dimensions so the resolved base stays
     // `completed`, isolating the resurrection + FK behavior under test.
-    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockReturnValue({ dimensions: 1024, reason: 'ok' })
 
     expect((await migrator.prepare(ctx)).success).toBe(true)
     expect((await migrator.execute(ctx)).success).toBe(true)
@@ -455,8 +465,8 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
       .from(knowledgeBaseTable)
     expect(baseRows).toEqual([{ embeddingModelId: 'openai::text-embedding-3-small', status: 'completed', error: null }])
 
-    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
-    expect(fkCheck.rows).toHaveLength(0)
+    const fkCheck = dbh.sqlite.pragma('foreign_key_check')
+    expect(fkCheck).toHaveLength(0)
   })
 
   it('keeps a base failed when its orphan embedding model provider did not survive', async () => {
@@ -493,7 +503,7 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
       { embeddingModelId: null, status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL }
     ])
 
-    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
-    expect(fkCheck.rows).toHaveLength(0)
+    const fkCheck = dbh.sqlite.pragma('foreign_key_check')
+    expect(fkCheck).toHaveLength(0)
   })
 })

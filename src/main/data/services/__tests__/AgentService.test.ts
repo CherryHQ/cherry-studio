@@ -1,6 +1,9 @@
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -12,11 +15,23 @@ import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { pinService } from '@data/services/PinService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { ErrorCode } from '@shared/data/api'
+import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
+// The data-service layer is synchronous under better-sqlite3: failing calls
+// throw inline instead of rejecting a promise. Capture the thrown error so we
+// can assert on its shape.
+function captureError(fn: () => unknown): unknown {
+  try {
+    fn()
+  } catch (error) {
+    return error
+  }
+  throw new Error('Expected the call to throw, but it returned normally')
+}
 
 vi.mock('@main/apiServer/services/mcp', () => ({
   mcpApiService: {
@@ -31,12 +46,6 @@ vi.mock('@main/apiServer/utils', () => ({
 vi.mock('@main/apiServer/services/models', () => ({
   modelsService: {
     getModels: vi.fn()
-  }
-}))
-
-vi.mock('@main/ai/skills/SkillService', () => ({
-  skillService: {
-    initSkillsForAgent: vi.fn()
   }
 }))
 
@@ -132,7 +141,7 @@ describe('AgentService', () => {
 
   describe('createAgent', () => {
     it('generates a UUID v4 agent ID', async () => {
-      const agent = await agentService.createAgent({
+      const agent = agentService.createAgent({
         type: 'claude-code',
         name: 'UUID ID Test',
         model: TEST_MODEL_ID
@@ -142,7 +151,7 @@ describe('AgentService', () => {
     })
 
     it('persists plan and small models when provided', async () => {
-      const agent = await agentService.createAgent({
+      const agent = agentService.createAgent({
         type: 'claude-code',
         name: 'Model Roles Test',
         model: TEST_MODEL_ID,
@@ -158,13 +167,14 @@ describe('AgentService', () => {
     })
 
     it('does not mislabel non-skill FK failures as stale selected skills', async () => {
-      await expect(
+      const error = captureError(() =>
         agentService.createAgent({
           type: 'claude-code',
           name: 'Missing Model',
           model: 'anthropic::missing-model'
         })
-      ).rejects.toMatchObject({
+      )
+      expect(error).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         details: { resource: 'Agent' },
         message: expect.not.stringContaining('selected skill no longer exists')
@@ -178,30 +188,30 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_existing_a' })
       await insertAgent({ id: 'agent_existing_b' })
 
-      const created = await agentService.createAgent({
+      const created = agentService.createAgent({
         type: 'claude-code',
         name: 'Newest',
         model: TEST_MODEL_ID
       })
 
-      const { agents } = await agentService.listAgents()
+      const { agents } = agentService.listAgents()
       expect(agents.at(-1)?.id).toBe(created.id)
     })
 
     it('defaults disabledTools to an empty array (opt-out, backward-safe)', async () => {
-      const agent = await agentService.createAgent({
+      const agent = agentService.createAgent({
         type: 'claude-code',
         name: 'Disabled Tools Default',
         model: TEST_MODEL_ID
       })
-      const reloaded = await agentService.getAgent(agent.id)
+      const reloaded = agentService.getAgent(agent.id)
       expect(reloaded?.disabledTools).toEqual([])
     })
   })
 
   describe('disabledTools round-trip', () => {
     it('persists disabledTools on create and update', async () => {
-      const created = await agentService.createAgent({
+      const created = agentService.createAgent({
         type: 'claude-code',
         name: 'Disabled Tools',
         model: TEST_MODEL_ID,
@@ -209,10 +219,10 @@ describe('AgentService', () => {
       })
       expect(created.disabledTools).toEqual(['Bash'])
 
-      const updated = await agentService.updateAgent(created.id, { disabledTools: ['Bash', 'Workflow'] })
+      const updated = agentService.updateAgent(created.id, { disabledTools: ['Bash', 'Workflow'] })
       expect(updated?.disabledTools).toEqual(['Bash', 'Workflow'])
 
-      const reloaded = await agentService.getAgent(created.id)
+      const reloaded = agentService.getAgent(created.id)
       expect(reloaded?.disabledTools).toEqual(['Bash', 'Workflow'])
     })
   })
@@ -222,7 +232,7 @@ describe('AgentService', () => {
       await insertMcpServer('mcp_a')
       await insertMcpServer('mcp_b')
 
-      const created = await agentService.createAgent({
+      const created = agentService.createAgent({
         type: 'claude-code',
         name: 'MCP Create',
         model: TEST_MODEL_ID,
@@ -230,7 +240,7 @@ describe('AgentService', () => {
       })
       expect([...(created.mcps ?? [])].sort()).toEqual(['mcp_a', 'mcp_b'])
 
-      const reloaded = await agentService.getAgent(created.id)
+      const reloaded = agentService.getAgent(created.id)
       expect([...(reloaded?.mcps ?? [])].sort()).toEqual(['mcp_a', 'mcp_b'])
     })
 
@@ -238,17 +248,17 @@ describe('AgentService', () => {
       await insertMcpServer('mcp_a')
       await insertMcpServer('mcp_b')
       await insertMcpServer('mcp_c')
-      const created = await agentService.createAgent({
+      const created = agentService.createAgent({
         type: 'claude-code',
         name: 'MCP Replace',
         model: TEST_MODEL_ID,
         mcps: ['mcp_a', 'mcp_b']
       })
 
-      const updated = await agentService.updateAgent(created.id, { mcps: ['mcp_c'] })
+      const updated = agentService.updateAgent(created.id, { mcps: ['mcp_c'] })
       expect(updated?.mcps).toEqual(['mcp_c'])
 
-      const reloaded = await agentService.getAgent(created.id)
+      const reloaded = agentService.getAgent(created.id)
       expect(reloaded?.mcps).toEqual(['mcp_c'])
     })
 
@@ -258,34 +268,34 @@ describe('AgentService', () => {
     // PR fixes.
     it('preserves existing mcps when update omits the field', async () => {
       await insertMcpServer('mcp_a')
-      const created = await agentService.createAgent({
+      const created = agentService.createAgent({
         type: 'claude-code',
         name: 'MCP Preserve',
         model: TEST_MODEL_ID,
         mcps: ['mcp_a']
       })
 
-      const updated = await agentService.updateAgent(created.id, { name: 'Renamed' })
+      const updated = agentService.updateAgent(created.id, { name: 'Renamed' })
       expect(updated?.name).toBe('Renamed')
       expect(updated?.mcps).toEqual(['mcp_a'])
 
-      const reloaded = await agentService.getAgent(created.id)
+      const reloaded = agentService.getAgent(created.id)
       expect(reloaded?.mcps).toEqual(['mcp_a'])
     })
 
     it('clears mcps when update passes an empty array', async () => {
       await insertMcpServer('mcp_a')
-      const created = await agentService.createAgent({
+      const created = agentService.createAgent({
         type: 'claude-code',
         name: 'MCP Clear',
         model: TEST_MODEL_ID,
         mcps: ['mcp_a']
       })
 
-      const updated = await agentService.updateAgent(created.id, { mcps: [] })
+      const updated = agentService.updateAgent(created.id, { mcps: [] })
       expect(updated?.mcps).toEqual([])
 
-      const reloaded = await agentService.getAgent(created.id)
+      const reloaded = agentService.getAgent(created.id)
       expect(reloaded?.mcps).toEqual([])
     })
   })
@@ -295,7 +305,7 @@ describe('AgentService', () => {
       await insertGlobalSkill('skill_a')
       await insertGlobalSkill('skill_b')
 
-      const created = await agentService.createAgent({
+      const created = agentService.createAgent({
         type: 'claude-code',
         name: 'Skill Create',
         model: TEST_MODEL_ID,
@@ -308,8 +318,8 @@ describe('AgentService', () => {
     })
 
     it('writes no skill rows when skillIds is omitted or empty', async () => {
-      const omitted = await agentService.createAgent({ type: 'claude-code', name: 'No Skills', model: TEST_MODEL_ID })
-      const empty = await agentService.createAgent({
+      const omitted = agentService.createAgent({ type: 'claude-code', name: 'No Skills', model: TEST_MODEL_ID })
+      const empty = agentService.createAgent({
         type: 'claude-code',
         name: 'Empty Skills',
         model: TEST_MODEL_ID,
@@ -323,14 +333,15 @@ describe('AgentService', () => {
     })
 
     it('rejects with NOT_FOUND and persists no agent when a skillId does not exist', async () => {
-      await expect(
+      const error = captureError(() =>
         agentService.createAgent({
           type: 'claude-code',
           name: 'Bad Skill',
           model: TEST_MODEL_ID,
           skillIds: ['does_not_exist']
         })
-      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+      )
+      expect(error).toMatchObject({ code: ErrorCode.NOT_FOUND })
 
       const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Bad Skill'))
       expect(agents).toHaveLength(0)
@@ -339,21 +350,22 @@ describe('AgentService', () => {
     it('reports a stale selected skill if the FK races after pre-validation', async () => {
       await insertGlobalSkill('skill_race')
       const originalGetById = agentGlobalSkillService.getById.bind(agentGlobalSkillService)
-      const getByIdSpy = vi.spyOn(agentGlobalSkillService, 'getById').mockImplementationOnce(async (skillId) => {
-        const skill = await originalGetById(skillId)
-        await dbh.db.delete(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, skillId))
+      const getByIdSpy = vi.spyOn(agentGlobalSkillService, 'getById').mockImplementationOnce((skillId) => {
+        const skill = originalGetById(skillId)
+        dbh.db.delete(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, skillId)).run()
         return skill
       })
 
       try {
-        await expect(
+        const error = captureError(() =>
           agentService.createAgent({
             type: 'claude-code',
             name: 'Raced Skill',
             model: TEST_MODEL_ID,
             skillIds: ['skill_race']
           })
-        ).rejects.toMatchObject({
+        )
+        expect(error).toMatchObject({
           code: ErrorCode.INVALID_OPERATION,
           message: expect.stringContaining('selected skill no longer exists')
         })
@@ -370,7 +382,7 @@ describe('AgentService', () => {
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
 
-      const deleted = await agentService.deleteAgent(id)
+      const deleted = agentService.deleteAgent(id)
 
       expect(deleted).toBe(true)
       const rows = await dbh.db.select().from(agentTable)
@@ -380,13 +392,85 @@ describe('AgentService', () => {
     it('purges agent pins on delete (pin table has no FK)', async () => {
       const { id } = await insertAgent({ id: 'agent_with_pin_001' })
       const otherAgent = await insertAgent({ id: 'agent_other_002' })
-      await pinService.pin({ entityType: 'agent', entityId: id })
-      const otherPin = await pinService.pin({ entityType: 'agent', entityId: otherAgent.id })
+      pinService.pin({ entityType: 'agent', entityId: id })
+      const otherPin = pinService.pin({ entityType: 'agent', entityId: otherAgent.id })
 
-      await agentService.deleteAgent(id)
+      agentService.deleteAgent(id)
 
-      const remaining = await pinService.listByEntityType('agent')
+      const remaining = pinService.listByEntityType('agent')
       expect(remaining.map((p) => p.entityId)).toEqual([otherPin.entityId])
+    })
+
+    it('deletes agent sessions atomically when requested', async () => {
+      const { id } = await insertAgent({ id: 'agent_with_sessions_001' })
+      const otherAgent = await insertAgent({ id: 'agent_with_sessions_002' })
+      await dbh.db.insert(agentWorkspaceTable).values([
+        { id: 'workspace-agent-delete-1', name: 'Workspace 1', path: '/tmp/agent-delete-1', orderKey: 'a0' },
+        { id: 'workspace-agent-delete-2', name: 'Workspace 2', path: '/tmp/agent-delete-2', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'session-delete-with-agent',
+          agentId: id,
+          name: '',
+          workspaceId: 'workspace-agent-delete-1',
+          orderKey: 'a0'
+        },
+        {
+          id: 'session-keep-with-other-agent',
+          agentId: otherAgent.id,
+          name: '',
+          workspaceId: 'workspace-agent-delete-2',
+          orderKey: 'a1'
+        }
+      ])
+
+      const deleted = agentService.deleteAgent(id, { deleteSessions: true })
+
+      expect(deleted).toBe(true)
+      const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(agentRows).toHaveLength(0)
+      const sessionRows = await dbh.db.select().from(agentSessionTable)
+      expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
+    })
+
+    it('rolls back the already-deleted sessions when a later delete step fails', async () => {
+      const { id } = await insertAgent({ id: 'agent_delete_rollback_001' })
+      await dbh.db
+        .insert(agentWorkspaceTable)
+        .values({ id: 'workspace-rollback-1', name: 'Workspace', path: '/tmp/agent-rollback-1', orderKey: 'a0' })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-rollback-1',
+        agentId: id,
+        name: '',
+        workspaceId: 'workspace-rollback-1',
+        orderKey: 'a0'
+      })
+
+      // Run the delete inside a real transaction so a mid-transaction failure rolls back;
+      // the default DbService mock just passes the callback through without one.
+      ;(application.get('DbService').withWriteTx as Mock).mockImplementationOnce((fn) =>
+        dbh.db.transaction(fn as never)
+      )
+      // Fail *after* deleteByAgentIdTx has already removed the session rows, so the assertions
+      // below can only pass if that earlier delete is rolled back with the agent delete.
+      const deleteAgentSpy = vi.spyOn(agentService, 'deleteAgentTx').mockImplementationOnce(() => {
+        throw new Error('agent delete failed')
+      })
+
+      try {
+        expect(() => agentService.deleteAgent(id, { deleteSessions: true })).toThrow('agent delete failed')
+      } finally {
+        deleteAgentSpy.mockRestore()
+      }
+
+      const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
+      expect(agentRows).toHaveLength(1)
+      const sessionRows = await dbh.db
+        .select()
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'session-rollback-1'))
+      expect(sessionRows).toHaveLength(1)
     })
   })
 
@@ -404,15 +488,15 @@ describe('AgentService', () => {
         if (e.updates.mcps) events.push({ agentId: e.agentId, mcps: e.updates.mcps })
       })
 
-      await mcpServerService.delete(mcpId)
+      mcpServerService.delete(mcpId)
 
       // MCP server row should be deleted
       const remainingMcps = await dbh.db.select().from(mcpServerTable).where(eq(mcpServerTable.id, mcpId))
       expect(remainingMcps).toHaveLength(0)
 
-      const agent1 = await agentService.getAgent('agent_with_mcp_1')
-      const agent2 = await agentService.getAgent('agent_with_mcp_2')
-      const agent3 = await agentService.getAgent('agent_without_mcp')
+      const agent1 = agentService.getAgent('agent_with_mcp_1')
+      const agent2 = agentService.getAgent('agent_with_mcp_2')
+      const agent3 = agentService.getAgent('agent_without_mcp')
 
       expect(agent1?.mcps).toEqual(['mcp_keep'])
       expect(agent2?.mcps).toEqual([])
@@ -435,9 +519,9 @@ describe('AgentService', () => {
         if (e.updates.mcps) events.push({ agentId: e.agentId, mcps: e.updates.mcps })
       })
 
-      await mcpServerService.delete('mcp_alone')
+      mcpServerService.delete('mcp_alone')
 
-      const agent = await agentService.getAgent('agent_no_ref')
+      const agent = agentService.getAgent('agent_no_ref')
       expect(agent?.mcps).toEqual(['mcp_other'])
 
       expect(events).toHaveLength(0)
@@ -454,9 +538,9 @@ describe('AgentService', () => {
         if (e.updates.mcps) events.push({ agentId: e.agentId, mcps: e.updates.mcps })
       })
 
-      await mcpServerService.delete('mcp_standalone')
+      mcpServerService.delete('mcp_standalone')
 
-      const agent = await agentService.getAgent('agent_empty_mcps')
+      const agent = agentService.getAgent('agent_empty_mcps')
       expect(agent?.mcps).toEqual([])
 
       expect(events).toHaveLength(0)
@@ -471,8 +555,8 @@ describe('AgentService', () => {
         await insertAgent({ name: `Agent ${i}` })
       }
 
-      const page1 = await agentService.listAgents({ limit: 2, offset: 0 })
-      const page2 = await agentService.listAgents({ limit: 2, offset: 2 })
+      const page1 = agentService.listAgents({ limit: 2, offset: 0 })
+      const page2 = agentService.listAgents({ limit: 2, offset: 2 })
 
       expect(page1.agents).toHaveLength(2)
       expect(page2.agents).toHaveLength(2)
@@ -488,7 +572,7 @@ describe('AgentService', () => {
       await insertAgent({ name: 'Alpha' })
       await insertAgent({ name: 'Mango' })
 
-      const { agents } = await agentService.listAgents({ sortBy: 'name', sortOrder: 'asc' })
+      const { agents } = agentService.listAgents({ sortBy: 'name', sortOrder: 'asc' })
 
       const names = agents.map((a) => a.name)
       expect(names).toEqual([...names].sort())
@@ -499,7 +583,7 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_order_a', name: 'A', orderKey: 'a' })
       await insertAgent({ id: 'agent_order_b', name: 'B', orderKey: 'b' })
 
-      const { agents } = await agentService.listAgents()
+      const { agents } = agentService.listAgents()
 
       expect(agents.map((agent) => agent.id)).toEqual(['agent_order_a', 'agent_order_b', 'agent_order_c'])
     })
@@ -508,10 +592,10 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_pin_a', name: 'A', orderKey: 'a' })
       await insertAgent({ id: 'agent_pin_b', name: 'B', orderKey: 'b' })
       await insertAgent({ id: 'agent_pin_c', name: 'C', orderKey: 'c' })
-      await pinService.pin({ entityType: 'agent', entityId: 'agent_pin_c' })
-      await pinService.pin({ entityType: 'agent', entityId: 'agent_pin_b' })
+      pinService.pin({ entityType: 'agent', entityId: 'agent_pin_c' })
+      pinService.pin({ entityType: 'agent', entityId: 'agent_pin_b' })
 
-      const { agents } = await agentService.listAgents()
+      const { agents } = agentService.listAgents()
 
       expect(agents.map((agent) => agent.id)).toEqual(['agent_pin_c', 'agent_pin_b', 'agent_pin_a'])
     })
@@ -520,7 +604,7 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_aaa', name: 'A', updatedAt: 5000, createdAt: 5000 })
       await insertAgent({ id: 'agent_zzz', name: 'Z', updatedAt: 5000, createdAt: 5000 })
 
-      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', sortOrder: 'desc' })
+      const { agents } = agentService.listAgents({ sortBy: 'updatedAt', sortOrder: 'desc' })
 
       const ids = agents.map((a) => a.id)
       expect(ids.indexOf('agent_zzz')).toBeLessThan(ids.indexOf('agent_aaa'))
@@ -529,9 +613,9 @@ describe('AgentService', () => {
     it('sorts by updatedAt without pin-first ordering', async () => {
       await insertAgent({ id: 'agent_updated_old', name: 'Old', updatedAt: 100, createdAt: 100 })
       await insertAgent({ id: 'agent_updated_new', name: 'New', updatedAt: 200, createdAt: 200 })
-      await pinService.pin({ entityType: 'agent', entityId: 'agent_updated_old' })
+      pinService.pin({ entityType: 'agent', entityId: 'agent_updated_old' })
 
-      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', sortOrder: 'desc' })
+      const { agents } = agentService.listAgents({ sortBy: 'updatedAt', sortOrder: 'desc' })
 
       expect(agents.map((agent) => agent.id).slice(0, 2)).toEqual(['agent_updated_new', 'agent_updated_old'])
     })
@@ -540,7 +624,7 @@ describe('AgentService', () => {
       const { id: taggedId } = await insertAgent({ id: 'agent_tag_test_1', name: 'tagged' })
       const { id: untaggedId } = await insertAgent({ id: 'agent_tag_test_2', name: 'untagged' })
 
-      const { agents } = await agentService.listAgents()
+      const { agents } = agentService.listAgents()
 
       const tagged = agents.find((agent) => agent.id === taggedId)
       const untagged = agents.find((agent) => agent.id === untaggedId)
@@ -575,7 +659,7 @@ describe('AgentService', () => {
       // Drop the row; FK is `ON DELETE set null`, so agent.model becomes NULL.
       await dbh.db.delete(userModelTable).where(eq(userModelTable.id, deletedModelId))
 
-      const { agents } = await agentService.listAgents()
+      const { agents } = agentService.listAgents()
       const byId = new Map(agents.map((agent) => [agent.id, agent]))
 
       expect(byId.get(bound.id)?.modelName).toBe('Claude Sonnet 4.5')
@@ -587,7 +671,7 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_search_2', name: 'unrelated', description: 'used for research' })
       await insertAgent({ id: 'agent_search_3', name: 'noise' })
 
-      const { agents } = await agentService.listAgents({ search: 'research' })
+      const { agents } = agentService.listAgents({ search: 'research' })
 
       expect(agents.map((agent) => agent.id).sort()).toEqual(['agent_search_1', 'agent_search_2'])
     })
@@ -611,7 +695,7 @@ describe('AgentService', () => {
       })
       await insertAgent({ id: 'agent_search_miss', name: 'Other', updatedAt: 300 })
 
-      const result = await agentService.search({ q: 'Needle', limit: 5 })
+      const result = agentService.search({ q: 'Needle', limit: 5 })
 
       expect(result).toEqual([
         {
@@ -639,7 +723,7 @@ describe('AgentService', () => {
 
   describe('reorder', () => {
     async function listAgentIds() {
-      const { agents } = await agentService.listAgents()
+      const { agents } = agentService.listAgents()
       return agents.map((agent) => agent.id)
     }
 
@@ -649,7 +733,7 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_reorder_b', name: 'B', orderKey: secondKey })
       await insertAgent({ id: 'agent_reorder_c', name: 'C', orderKey: thirdKey })
 
-      await agentService.reorder('agent_reorder_c', { before: 'agent_reorder_a' })
+      agentService.reorder('agent_reorder_c', { before: 'agent_reorder_a' })
 
       expect(await listAgentIds()).toEqual(['agent_reorder_c', 'agent_reorder_a', 'agent_reorder_b'])
     })
@@ -661,7 +745,7 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_reorder_deleted', name: 'Deleted', orderKey: deletedKey, deletedAt: 123 })
 
       const beforeRejectedMove = await listAgentIds()
-      await expect(agentService.reorder('agent_reorder_deleted', { position: 'first' })).rejects.toMatchObject({
+      expect(captureError(() => agentService.reorder('agent_reorder_deleted', { position: 'first' }))).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
       expect(await listAgentIds()).toEqual(beforeRejectedMove)
@@ -674,19 +758,21 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_reorder_c', name: 'C', orderKey: thirdKey })
       await insertAgent({ id: 'agent_reorder_deleted', name: 'Deleted', orderKey: deletedKey, deletedAt: 123 })
 
-      await agentService.reorderBatch([
+      agentService.reorderBatch([
         { id: 'agent_reorder_b', anchor: { position: 'first' } },
         { id: 'agent_reorder_c', anchor: { after: 'agent_reorder_b' } }
       ])
       expect(await listAgentIds()).toEqual(['agent_reorder_b', 'agent_reorder_c', 'agent_reorder_a'])
 
       const beforeRejectedMove = await listAgentIds()
-      await expect(
-        agentService.reorderBatch([
-          { id: 'agent_reorder_a', anchor: { position: 'first' } },
-          { id: 'agent_reorder_deleted', anchor: { position: 'last' } }
-        ])
-      ).rejects.toMatchObject({
+      expect(
+        captureError(() =>
+          agentService.reorderBatch([
+            { id: 'agent_reorder_a', anchor: { position: 'first' } },
+            { id: 'agent_reorder_deleted', anchor: { position: 'last' } }
+          ])
+        )
+      ).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
       expect(await listAgentIds()).toEqual(beforeRejectedMove)
