@@ -14,8 +14,8 @@
  * renderer-transport boundary.
  */
 
-import type { FileEntryId } from '@shared/data/types/file'
-import type { FileHandle, FilePath } from '@shared/types/file'
+import type { FileEntryId, FileHandle } from '@shared/data/types/file'
+import type { FilePath } from '@shared/types/file'
 
 export async function dispatchHandle<T>(
   handle: FileHandle,

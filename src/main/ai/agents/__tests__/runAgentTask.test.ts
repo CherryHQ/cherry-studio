@@ -7,7 +7,7 @@
  */
 
 import type { JobContext } from '@main/core/job/types'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
@@ -302,6 +302,28 @@ describe('runAgentTask', () => {
       agentId: 'a1',
       name: 'heartbeat',
       workspace: { type: 'user', workspaceId: 'ws-1' }
+    })
+  })
+
+  // Regular tasks carry the workspace bound at creation time (system by
+  // default, since the picker defaults there) straight through to the session.
+  it('binds a non-heartbeat task to the workspace bound on the task', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+
+    const promise = runAgentTask(
+      makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
+    )
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    captured.listeners[0].onDone({ status: 'completed' })
+    await promise
+
+    expect(agentSessionService.create).toHaveBeenCalledWith({
+      agentId: 'a1',
+      name: 'daily-summary',
+      workspace: { type: 'system' }
     })
   })
 

@@ -132,10 +132,9 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
-import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
-import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
-import { SafeNameSchema } from '@shared/data/types/file/essential'
+import { remove as fsRemove, stat as fsStat } from '@main/utils/file'
+import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
+import { AbsolutePathSchema, FileEntryIdSchema, FileHandleSchema, SafeNameSchema } from '@shared/data/types/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   BatchCreateResult,
@@ -146,9 +145,7 @@ import type {
   FileUrlString,
   PhysicalFileMetadata
 } from '@shared/types/file'
-import { SafeExtSchema } from '@shared/types/file/common'
-import type { FileHandle } from '@shared/types/file/handle'
-import { FileHandleSchema } from '@shared/types/file/handle'
+import { SafeExtSchema } from '@shared/types/file'
 import mime from 'mime'
 import * as z from 'zod'
 
@@ -171,6 +168,7 @@ import {
   batchPermanentDelete as internalBatchPermanentDelete,
   batchRestore as internalBatchRestore,
   batchTrash as internalBatchTrash,
+  emptyTrash as internalEmptyTrash,
   permanentDelete as internalPermanentDelete,
   restore as internalRestore,
   trash as internalTrash
@@ -553,6 +551,7 @@ export interface IFileManager {
   /** Batch internal-only — external ids fail like `restore`. */
   batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult>
   batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult>
+  emptyTrash(): Promise<BatchMutationResult>
 
   // ─── Stream ───
 
@@ -1005,6 +1004,10 @@ export class FileManager extends BaseService implements IFileManager {
 
   async batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult> {
     return internalBatchPermanentDelete(this.deps, ids)
+  }
+
+  async emptyTrash(): Promise<BatchMutationResult> {
+    return internalEmptyTrash(this.deps)
   }
 
   async rename(id: FileEntryId, newName: string): Promise<FileEntry> {

@@ -19,11 +19,10 @@ import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
-import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
+import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import { application } from '@main/core/application'
 import type { JobContext } from '@main/core/job/types'
-import { ErrorCode, isDataApiError } from '@shared/data/api'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
@@ -138,6 +137,9 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   // Always create a fresh session per fire. Scheduled tasks are discrete
   // invocations; cross-fire session reuse would only carry stale model
   // context. Persistent state lives in workspace files (heartbeat.md, etc.).
+  // The session inherits the workspace bound on the task at creation time —
+  // system for regular tasks (the picker defaults there), the validated user
+  // workspace for heartbeats.
   const session = agentSessionService.create({
     agentId,
     name: taskName ?? 'Scheduled task',

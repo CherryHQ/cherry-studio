@@ -394,6 +394,8 @@ cancelByIds(ids: string[], error: JobError): void {
 }
 ```
 
+`*Tx` forms also compose **across services**: `JobManager.enqueueTx(tx, type, input)` rides the caller's transaction so a business-state write and its job enqueue commit all-or-nothing (see [Transactional enqueue](../job-and-scheduler/overview.md#transactional-enqueue-enqueuetx)).
+
 ### Rules
 
 | Rule | Rationale |

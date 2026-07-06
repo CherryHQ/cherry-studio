@@ -1,5 +1,5 @@
 import type { RouteDef } from '@shared/ipc/define'
-import { IpcError, IpcErrorCode } from '@shared/ipc/errors'
+import { IpcError, IpcErrorCode } from '@shared/ipc/errors/IpcError'
 import type { IpcContext, IpcHandlersFor } from '@shared/ipc/types'
 
 /**

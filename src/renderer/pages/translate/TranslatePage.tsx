@@ -3,12 +3,12 @@ import { resolveIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { Navbar } from '@renderer/components/app/Navbar'
 // Direct `Selector/model` path: the `Selector` barrel re-exports `ModelSelector`
 // via a nested `export *`, which tsgo fails to resolve on main's program (it
 // resolves fine on feat's full program and via this path). Revert to the barrel
 // once main converges with feat. The `Selector` dir is byte-identical to feat.
-import { ModelSelector } from '@renderer/components/Selector/model'
+import { ModelSelector } from '@renderer/components/ModelSelector'
+import { Navbar } from '@renderer/components/Navbar'
 import { useTranslate, useTranslateHistory } from '@renderer/hooks/translate'
 import { useDetectLang } from '@renderer/hooks/translate/useDetectLang'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
@@ -46,7 +46,7 @@ import type { TranslateHistory } from '@shared/data/types/translate'
 import type { FilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
-import { documentExts, imageExts, textExts } from '@shared/utils/file/fileExtensions'
+import { documentExts, imageExts, textExts } from '@shared/utils/file'
 import { isEmpty } from 'es-toolkit/compat'
 import { CirclePause, History, Languages, SlidersHorizontal } from 'lucide-react'
 import type { ClipboardEvent, DragEvent, FC } from 'react'
@@ -189,7 +189,7 @@ const TranslatePage: FC = () => {
   const [ocrJob, setOcrJob] = useState<OcrJob | null>(null)
   const isOcrRunning = ocrJob !== null
 
-  const textAreaRef = useRef<HTMLTextAreaElement>(null)
+  const inputScrollRef = useRef<HTMLDivElement>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
   const isProgrammaticScroll = useRef(false)
 
@@ -285,7 +285,6 @@ const TranslatePage: FC = () => {
       smoothReset('')
       const translated = await runTranslate(rawText, actualTargetLanguage)
       if (!translated) {
-        smoothReset('')
         return
       }
       window.toast.success(t('translate.complete'))
@@ -405,12 +404,12 @@ const TranslatePage: FC = () => {
   )
 
   const inputScrollHandler = useMemo(
-    () => createInputScrollHandler(outputTextRef, isProgrammaticScroll, isScrollSyncEnabled),
+    () => createInputScrollHandler(inputScrollRef, outputTextRef, isProgrammaticScroll, isScrollSyncEnabled),
     [isScrollSyncEnabled]
   )
 
   const outputScrollHandler = useMemo(
-    () => createOutputScrollHandler(textAreaRef, isProgrammaticScroll, isScrollSyncEnabled),
+    () => createOutputScrollHandler(outputTextRef, inputScrollRef, isProgrammaticScroll, isScrollSyncEnabled),
     [isScrollSyncEnabled]
   )
 
@@ -775,7 +774,7 @@ const TranslatePage: FC = () => {
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 lg:grid-cols-2 lg:grid-rows-1">
           <section className="flex min-h-0 min-w-0 flex-col">
             <TranslateInputPane
-              ref={textAreaRef}
+              ref={inputScrollRef}
               text={translateInput}
               onTextChange={handleInputChange}
               onKeyDown={(event) => {

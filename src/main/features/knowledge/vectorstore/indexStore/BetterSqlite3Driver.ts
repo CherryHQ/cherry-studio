@@ -1,14 +1,11 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 
-import { loggerService } from '@logger'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import Database from 'better-sqlite3'
 import { getLoadablePath } from 'sqlite-vec'
 
 import type { SqliteDriver, SqliteReclaimOutcome, SqliteTransaction, SqlQueryResult, SqlValue } from './types'
-
-const logger = loggerService.withContext('BetterSqlite3Driver')
 
 /**
  * VACUUM in {@link BetterSqlite3Driver.reclaim} only when the freelist is BOTH a large
@@ -44,11 +41,15 @@ function toBindable(value: SqlValue): Bindable {
  * No internal write mutex: every writer (rebuildMaterial / deleteMaterials /
  * reclaimSpace) runs under `KnowledgeLockManager.withBaseMutationLock(baseId)`, a
  * per-base async-mutex that already serializes all writes to a base's index — so the
- * driver never self-serializes. better-sqlite3's single connection makes a manual
- * BEGIN IMMEDIATE transaction inherently atomic; reads run on the same connection and
- * ride WAL / busy_timeout. (Holding BEGIN across a transaction callback's own
- * event-loop yield is safe here precisely because the base lock blocks any other
- * writer from issuing a nested BEGIN.)
+ * driver never self-serializes. better-sqlite3's single connection makes
+ * `transaction` inherently atomic; reads run on the same connection and ride WAL /
+ * busy_timeout. `transaction` uses better-sqlite3's native `db.transaction(fn).immediate`
+ * (BEGIN IMMEDIATE, matching the old libsql 'write' tx) rather than hand-rolled
+ * BEGIN/COMMIT/ROLLBACK: it runs `fn` synchronously to completion in one JS turn, so
+ * BEGIN and COMMIT can never straddle an event-loop yield — no unrelated read on this
+ * connection can ever observe a transaction mid-flight. It also throws `TypeError` if
+ * `fn` returns a Promise, turning an accidental async callback into a loud failure
+ * instead of a silent early commit.
  *
  * NOTE (future KB-owner cleanup): the driver trusts callers to hold the base lock and does not
  * self-check it. A cheap `transactionActive` reentrancy assertion in {@link transaction} could
@@ -60,44 +61,30 @@ export class BetterSqlite3Driver implements SqliteDriver {
 
   constructor(private readonly db: Database.Database) {}
 
-  async execute(sql: string, args: SqlValue[] = []): Promise<SqlQueryResult> {
+  execute(sql: string, args: SqlValue[] = []): SqlQueryResult {
     this.assertOpen()
     const stmt = this.db.prepare(sql)
     const bound = args.map(toBindable)
     // `reader` is true for statements that yield rows (SELECT, row-returning PRAGMA).
     // run() throws on those and all() throws on non-row statements, so split on it.
     if (stmt.reader) {
-      return { rows: stmt.all(...bound) as Array<Record<string, SqlValue>> }
+      return { rows: stmt.all(...bound) as Array<Record<string, SqlValue>>, changes: 0 }
     }
-    stmt.run(...bound)
-    return { rows: [] }
+    const result = stmt.run(...bound)
+    return { rows: [], changes: result.changes }
   }
 
-  async transaction<T>(fn: (tx: SqliteTransaction) => Promise<T>): Promise<T> {
+  transaction<T>(fn: (tx: SqliteTransaction) => T): T {
     this.assertOpen()
     const handle: SqliteTransaction = {
       execute: (sql, args) => this.execute(sql, args)
     }
-    // BEGIN IMMEDIATE acquires the write lock up front (so a read-then-write transaction
-    // never fails mid-way after the read already ran), matching the old libsql 'write' tx.
-    this.db.exec('BEGIN IMMEDIATE')
-    try {
-      const result = await fn(handle)
-      this.db.exec('COMMIT')
-      return result
-    } catch (error) {
-      // Roll back, but never let a rollback failure mask the original error that
-      // triggered it — that original is what callers need to diagnose the write.
-      try {
-        this.db.exec('ROLLBACK')
-      } catch (rollbackError) {
-        logger.warn('Failed to roll back knowledge index store transaction after an error', rollbackError as Error)
-      }
-      throw error
-    }
+    // .immediate acquires the write lock up front (BEGIN IMMEDIATE), so a
+    // read-then-write transaction never fails mid-way after the read already ran.
+    return this.db.transaction((tx: SqliteTransaction) => fn(tx)).immediate(handle)
   }
 
-  async reclaim(preVacuumStatements: readonly string[] = []): Promise<SqliteReclaimOutcome> {
+  reclaim(preVacuumStatements: readonly string[] = []): SqliteReclaimOutcome {
     this.assertOpen()
     // Checkpoint first: frees the WAL (cheap) and folds committed frees from the
     // delete into the main file so freelist_count reflects them. The base lock
@@ -144,7 +131,7 @@ export class BetterSqlite3Driver implements SqliteDriver {
   }
 
   /** Idempotent: a second close() (e.g. shutdown after an explicit deleteStore) is a no-op. */
-  async close(): Promise<void> {
+  close(): void {
     if (this.closed) {
       return
     }
@@ -169,7 +156,7 @@ export class BetterSqlite3Driver implements SqliteDriver {
  * DbService PRAGMA setup. better-sqlite3 keeps one connection, so each PRAGMA is set
  * once and holds for the connection's lifetime — no replay machinery is needed.
  */
-export async function openBetterSqlite3IndexDriver(filePath: string): Promise<BetterSqlite3Driver> {
+export function openBetterSqlite3IndexDriver(filePath: string): BetterSqlite3Driver {
   // better-sqlite3 creates the database FILE but not its parent directory (unlike libsql's
   // file: URL client), so ensure the base's index dir exists before opening.
   mkdirSync(dirname(filePath), { recursive: true })

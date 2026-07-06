@@ -78,9 +78,9 @@ vi.mock('@renderer/i18n', () => ({
   default: { changeLanguage: vi.fn() }
 }))
 
-// Stub the chat message barrel so this lightweight window (which only projects messages)
-// doesn't pull the whole message-rendering package into the test.
-vi.mock('@renderer/components/chat/messages', () => ({
+// Stub the message-list projection helper so this lightweight window (which only projects
+// messages) doesn't pull the whole message-rendering package into the test.
+vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
   toMessageListItem: (message: unknown) => message
 }))
 

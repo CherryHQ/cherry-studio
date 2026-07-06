@@ -27,7 +27,7 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('../../tools/agent/GenericTools', () => ({
+vi.mock('../../tools/shared/GenericTools', () => ({
   getEffectiveStatus: (status: string | undefined, isWaiting: boolean) => {
     if (status === 'pending') return isWaiting ? 'waiting' : 'invoking'
     return status ?? 'pending'

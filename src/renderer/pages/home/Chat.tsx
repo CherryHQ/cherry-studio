@@ -2,10 +2,11 @@ import { dataApiService } from '@data/DataApiService'
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { type ChatPanePosition, ConversationShell } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
+import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
+import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
+import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -224,10 +225,10 @@ const Chat: FC<Props> = (props) => {
       topRightTool={
         <>
           {props.resourcePaneCount && <ResourcePaneCountButton {...props.resourcePaneCount} />}
+          <TopicRightPane.Shortcuts topicId={props.activeTopic.id} />
           <TopicRightPane.Toggle />
         </>
       }
-      topRightToolReserve={props.resourcePaneCount ? 'history' : 'single'}
       sidePanel={
         <CitationsPanel
           open={citationsPanelOpen}

@@ -1,6 +1,6 @@
 import { groupTable } from '@data/db/schemas/group'
 import { GroupService, groupService } from '@data/services/GroupService'
-import { DataApiError, ErrorCode } from '@shared/data/api'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'

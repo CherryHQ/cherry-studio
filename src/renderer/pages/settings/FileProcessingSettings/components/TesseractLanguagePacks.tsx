@@ -1,8 +1,7 @@
 import { Combobox, type ComboboxOption } from '@cherrystudio/ui'
+import { SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingRow, SettingRowTitle } from '../..'
 
 type TesseractLanguagePacksProps = {
   options: ComboboxOption[]

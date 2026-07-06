@@ -604,9 +604,7 @@
         "select_failed": "Không thể chọn thư mục."
       },
       "workspace_status": {
-        "inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}",
-        "missing": "Đường dẫn không gian làm việc không tồn tại: {{path}}",
-        "not_directory": "Đường dẫn không gian làm việc không phải là thư mục: {{path}}"
+        "inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}"
       }
     },
     "settings": {
@@ -1083,41 +1081,6 @@
       "stopped": "Đã dừng"
     },
     "title": "Máy chủ API"
-  },
-  "appMenu": {
-    "about": "Về",
-    "close": "Đóng cửa sổ",
-    "copy": "Sao chép",
-    "cut": "Cắt",
-    "delete": "Xóa",
-    "documentation": "Tài liệu",
-    "edit": "Chỉnh sửa",
-    "feedback": "Phản hồi",
-    "file": "Tập tin",
-    "forceReload": "Tải lại bắt buộc",
-    "front": "Đưa Tất cả Ra Phía Trước",
-    "help": "Giúp",
-    "hide": "Ẩn",
-    "hideOthers": "Ẩn những cái khác",
-    "minimize": "Giảm thiểu",
-    "paste": "Dán",
-    "quit": "Thôi",
-    "redo": "Làm lại",
-    "releases": "Bản phát hành",
-    "reload": "Tải lại",
-    "resetZoom": "Kích thước thực tế",
-    "selectAll": "Chọn Tất Cả",
-    "services": "Dịch vụ",
-    "toggleDevTools": "Bật Công Cụ Dành Cho Nhà Phát Triển",
-    "toggleFullscreen": "Bật toàn màn hình",
-    "undo": "Hoàn tác",
-    "unhide": "Hiển thị tất cả",
-    "view": "Xem",
-    "website": "Trang web",
-    "window": "Cửa sổ",
-    "zoom": "Zoom",
-    "zoomIn": "Thu phóng",
-    "zoomOut": "Alejarse"
   },
   "assistants": {
     "abbr": "Trợ lý",
@@ -1599,6 +1562,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "[to be translated]:Cache {{hit_rate}}%",
+        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "Thông báo này đang được chỉnh sửa trong trình soạn thảo",
       "flow": {
         "branches": "chi nhánh",
@@ -2061,7 +2028,6 @@
     "copy_failed": "Sao chép thất bại",
     "create_success": "Đã tạo thành công",
     "current": "Hiện tại",
-    "cut": "Cắt",
     "default": "Mặc định",
     "delete": "Xóa",
     "delete_confirm": "Bạn có chắc chắn muốn xóa không?",
@@ -2099,7 +2065,6 @@
     "image_preview": "Xem trước hình ảnh",
     "image_url": "URL hình ảnh",
     "image_url_or_upload": "Nhập URL hình ảnh hoặc tải tệp lên",
-    "inspect": "Kiểm tra",
     "invalid_value": "Giá trị không hợp lệ",
     "knowledge_base": "Cơ sở tri thức",
     "language": "Ngôn ngữ",
@@ -2120,7 +2085,6 @@
     "open_in": "Mở trong {{name}}",
     "open_in_new_tab": "Mở trong tab mới",
     "open_sidebar": "Mở thanh bên",
-    "paste": "Pasta",
     "placeholders": {
       "select": {
         "model": "Chọn một mô hình"
@@ -2175,18 +2139,6 @@
     "warning": "Cảnh báo",
     "yesterday": "Hôm qua",
     "you": "Bạn"
-  },
-  "dialog": {
-    "all_files": "Tất cả các tệp",
-    "html_files": "Tập tin HTML",
-    "open_file": "Mở Tệp",
-    "pdf_files": "Tệp PDF",
-    "png_image": "Hình ảnh PNG",
-    "save_as_html": "Lưu dưới dạng HTML",
-    "save_as_pdf": "Lưu dưới dạng PDF",
-    "save_file": "Lưu Tệp",
-    "select_folder": "Chọn thư mục",
-    "word_document": "Tài liệu Word"
   },
   "docs": {
     "title": "Tài liệu"
@@ -4729,6 +4681,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -4781,6 +4734,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Tesseract",
     "together": "Cùng nhau",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Hành trình AI",
     "xirang": "Bang Cloud Xirang",
@@ -6297,12 +6251,6 @@
         "usage": "Cách sử dụng",
         "version": "Phiên bản"
       },
-      "oauth": {
-        "callback": {
-          "message": "Bạn có thể đóng trang này và quay lại Cherry Studio",
-          "title": "Autenticación exitosa"
-        }
-      },
       "prompts": {
         "arguments": "Lập luận",
         "availablePrompts": "Prompts Disponibles",
@@ -6992,6 +6940,17 @@
           "acceleration": "Miền gia tốc",
           "international": "Tên miền quốc tế"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7782,11 +7741,6 @@
     "tooltip": {
       "newline": "Dòng mới"
     }
-  },
-  "tray": {
-    "quit": "Thôi",
-    "show_quick_assistant": "Trợ lý Nhanh",
-    "show_window": "Hiển thị cửa sổ"
   },
   "update": {
     "install": "Cài đặt",

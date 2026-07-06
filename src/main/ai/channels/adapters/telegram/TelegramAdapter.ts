@@ -5,7 +5,7 @@ import {
   type ImageAttachment,
   MAX_FILE_SIZE_BYTES
 } from '@main/utils/downloadAsBase64'
-import { Bot } from 'grammy'
+import { Bot, InputFile } from 'grammy'
 import { convert as toMarkdownV2 } from 'telegram-markdown-v2'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
@@ -345,6 +345,15 @@ class TelegramAdapter extends ChannelAdapter {
         await new Promise((resolve) => setTimeout(resolve, 100))
       }
     }
+  }
+
+  override async sendFile(chatId: string, file: FileAttachment): Promise<void> {
+    if (!this.bot) {
+      throw new Error('Bot is not connected')
+    }
+    const buffer = Buffer.from(file.data, 'base64')
+    await this.bot.api.sendDocument(chatId, new InputFile(buffer, file.filename))
+    this.log.info('Sent file', { chatId, filename: file.filename, size: file.size })
   }
 
   override async onTextUpdate(chatId: string, fullText: string): Promise<void> {

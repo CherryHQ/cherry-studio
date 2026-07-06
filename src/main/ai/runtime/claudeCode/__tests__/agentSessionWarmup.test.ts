@@ -159,6 +159,21 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
   })
 
+  it('strips a trailing API version from Anthropic base URLs before launching Claude Code agents', async () => {
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com/v1' } }
+    })
+    mocks.resolveEffectiveEndpoint.mockReturnValue({ baseUrl: 'https://anthropic.example.com/v1' })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'https://anthropic.example.com'
+    })
+  })
+
   it('routes non-Anthropic provider models through the local API gateway', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -192,6 +207,48 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'openai:gpt-plan-api',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'other:small-api'
     })
+  })
+
+  it('pins cross-provider plan/small models onto the primary for an external-cli (claude-code) agent instead of routing through the gateway', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      model: 'claude-code::sonnet',
+      planModel: 'openai::gpt-plan',
+      smallModel: 'other::small'
+    })
+    mocks.getProviderByProviderId.mockImplementation((providerId: string) =>
+      providerId === 'claude-code'
+        ? {
+            id: 'claude-code',
+            authMethods: ['external-cli'],
+            endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+          }
+        : {
+            id: providerId,
+            endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } }
+          }
+    )
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    // Stays on the subscription login: no gateway, no injected API key, and the
+    // off-provider plan/small models collapse to the primary claude-code model.
+    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
+    expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
+    expect(request?.sdkModelId).toBe('sonnet-api')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'sonnet-api',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'sonnet-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'sonnet-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'sonnet-api'
+    })
+    expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
+    expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
   })
 
   it('rejects Gemini provider models instead of routing them through the API gateway', async () => {

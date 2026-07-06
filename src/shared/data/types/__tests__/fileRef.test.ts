@@ -9,7 +9,7 @@ import {
   paintingSourceType,
   tempSessionFileRefSchema,
   tempSessionSourceType
-} from '../file/ref'
+} from '../file'
 
 const REF_ID = '11111111-2222-4333-8444-000000000001' // UUIDv4
 const ENTRY_ID = '019606a0-0000-7000-8000-000000000001' // UUIDv7

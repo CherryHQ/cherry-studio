@@ -36,7 +36,7 @@ vi.mock('@main/core/application', () => ({
   application: { get: vi.fn(), getPath: mockGetPath }
 }))
 
-vi.mock('@main/utils/language', () => ({
+vi.mock('@main/i18n', () => ({
   getAppLanguage: vi.fn(() => 'en-US'),
   t: vi.fn((key: string) => key)
 }))

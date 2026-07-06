@@ -1,5 +1,5 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -69,7 +69,10 @@ describe('kb_manage', () => {
   it('builds an entry with the agreed namespace + defer policy and is approval-gated', () => {
     expect(entry.name).toBe(KB_MANAGE_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
-    expect(entry.defer).toBe('always')
+    // Approval-gated tools must stay inline (never deferred) — see applyDeferExposition/toolInvoke:
+    // a deferred approval-gated tool is unreachable (stripped from the inline set, and tool_invoke
+    // refuses to run an approval-gated tool blind).
+    expect(entry.defer).toBe('never')
     // Every action mutates the base, so the tool must require user approval.
     expect(entry.tool.needsApproval).toBe(true)
   })

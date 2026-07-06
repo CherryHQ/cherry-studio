@@ -9,7 +9,7 @@
  * shared `observeExternalAccess` wrapper before re-throwing.
  */
 
-import { hash as fsHash } from '@main/utils/file/fs'
+import { hash as fsHash } from '@main/utils/file'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 

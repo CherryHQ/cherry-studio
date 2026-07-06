@@ -8,11 +8,12 @@ import {
   type QuickPanelOpenOptions
 } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import PromptEditDialog from '@renderer/components/resource/dialogs/PromptEditDialog'
+import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { PromptManagementDialog } from '@renderer/components/resourceCatalog/dialogs/manage'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Prompt } from '@shared/data/types/prompt'
-import { Plus, Zap } from 'lucide-react'
+import { Pencil, Plus, Zap } from 'lucide-react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,6 +27,7 @@ const logger = loggerService.withContext('QuickPhrasesButton')
 
 const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false)
   const { t } = useTranslation()
   const {
     isVisible: isQuickPanelVisible,
@@ -118,6 +120,12 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     }
 
     newList.push({
+      label: t('settings.prompts.manage'),
+      icon: <Pencil />,
+      action: () => setIsManageModalOpen(true)
+    })
+
+    newList.push({
       label: t('settings.prompts.add') + '...',
       icon: <Plus />,
       action: () => setIsAddModalOpen(true)
@@ -184,6 +192,8 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     handleAddModalSave,
     isAddModalOpen,
     isCreatingPrompt,
+    isManageModalOpen,
+    setIsManageModalOpen,
     setIsAddModalOpen
   }
 }
@@ -192,17 +202,27 @@ const QuickPhrasesModal = ({
   handleAddModalSave,
   isAddModalOpen,
   isCreatingPrompt,
+  isManageModalOpen,
+  setIsManageModalOpen,
   setIsAddModalOpen
 }: Pick<
   ReturnType<typeof useQuickPhrasesToolController>,
-  'handleAddModalSave' | 'isAddModalOpen' | 'isCreatingPrompt' | 'setIsAddModalOpen'
+  | 'handleAddModalSave'
+  | 'isAddModalOpen'
+  | 'isCreatingPrompt'
+  | 'isManageModalOpen'
+  | 'setIsAddModalOpen'
+  | 'setIsManageModalOpen'
 >) => (
-  <PromptEditDialog
-    open={isAddModalOpen}
-    saving={isCreatingPrompt}
-    onSave={handleAddModalSave}
-    onCancel={() => setIsAddModalOpen(false)}
-  />
+  <>
+    <PromptEditDialog
+      open={isAddModalOpen}
+      saving={isCreatingPrompt}
+      onSave={handleAddModalSave}
+      onCancel={() => setIsAddModalOpen(false)}
+    />
+    <PromptManagementDialog open={isManageModalOpen} onOpenChange={setIsManageModalOpen} />
+  </>
 )
 
 export const QuickPhrasesToolRuntime = (props: Props) => {

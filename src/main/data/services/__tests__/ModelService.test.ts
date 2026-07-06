@@ -11,7 +11,7 @@ import { modelService, UPDATE_MODEL_FIELD_MAP } from '@data/services/ModelServic
 import { pinService } from '@data/services/PinService'
 import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { ErrorCode } from '@shared/data/api'
+import { ErrorCode } from '@shared/data/api/errors'
 import { MODELS_DELETE_MAX_IDS, type UpdateModelDto } from '@shared/data/api/schemas/models'
 import {
   CHERRYAI_DEFAULT_MODEL_ID,
@@ -1102,6 +1102,37 @@ describe('ModelService.delete', () => {
     const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, targetModelId))
     expect(rows).toHaveLength(1)
   })
+
+  it('rejects deletion of a model currently set as the user default', async () => {
+    const targetModelId = createUniqueModelId('openai', 'gpt-4o')
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { id: targetModelId, name: 'GPT-4o' }))
+
+    const prefGet = vi.mocked(application.get('PreferenceService').get)
+    const originalGet = prefGet.getMockImplementation()!
+    prefGet.mockImplementation((key: string) => {
+      if (key === 'chat.default_model_id') return targetModelId
+      return null
+    })
+
+    try {
+      let err: unknown
+      try {
+        modelService.delete('openai', 'gpt-4o')
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.INVALID_OPERATION,
+        status: 400
+      })
+
+      const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, targetModelId))
+      expect(rows).toHaveLength(1)
+    } finally {
+      prefGet.mockImplementation(originalGet)
+    }
+  })
 })
 
 describe('ModelService.bulkDelete', () => {
@@ -1298,6 +1329,47 @@ describe('ModelService.bulkDelete', () => {
 
     expect(openAiRows).toHaveLength(1)
     expect(cherryAiRows).toHaveLength(1)
+  })
+
+  it('rejects bulk delete containing a model set as the user default and rolls back other rows', async () => {
+    const defaultId = createUniqueModelId('openai', 'gpt-4o')
+    const customId = createUniqueModelId('openai', 'gpt-4o-mini')
+
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db
+      .insert(userModelTable)
+      .values([
+        modelRow('openai', 'gpt-4o', { id: defaultId, name: 'GPT-4o' }),
+        modelRow('openai', 'gpt-4o-mini', { id: customId, name: 'GPT-4o mini' })
+      ])
+
+    const prefGet = vi.mocked(application.get('PreferenceService').get)
+    const originalGet = prefGet.getMockImplementation()!
+    prefGet.mockImplementation((key: string) => {
+      if (key === 'chat.default_model_id') return defaultId
+      return null
+    })
+
+    try {
+      let err: unknown
+      try {
+        modelService.bulkDelete([
+          { providerId: 'openai', modelId: 'gpt-4o' },
+          { providerId: 'openai', modelId: 'gpt-4o-mini' }
+        ])
+      } catch (e) {
+        err = e
+      }
+      expect(err).toMatchObject({
+        code: ErrorCode.INVALID_OPERATION,
+        status: 400
+      })
+
+      const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, 'openai'))
+      expect(rows.map((row) => row.id).sort()).toEqual([customId, defaultId].sort())
+    } finally {
+      prefGet.mockImplementation(originalGet)
+    }
   })
 })
 

@@ -7,9 +7,9 @@ BinaryManager is the single lifecycle service responsible for acquiring and mana
 ## Quick links
 
 - Implementation: `src/main/services/BinaryManager.ts`
-- IPC channels: `src/shared/IpcChannel.ts` (`Binary_*`)
+- IPC channels: `src/shared/ipc/schemas/binary.ts` (`binary.*`)
 - Persisted state: `feature.binary.tools` preference + `feature.binary.state_file` path
-- Preset catalog: `src/shared/data/presets/binary-tools.ts`
+- Preset catalog: `src/shared/data/presets/binaryTools.ts`
 - Renderer entry point: `src/renderer/pages/settings/McpSettings/EnvironmentDependencies.tsx`
 
 ## Scope: what belongs and what doesn't
@@ -36,8 +36,8 @@ These are the stable boundaries that survive across versions and renderer reload
 | Path key | `feature.binary.data` → `~/.cherrystudio/binary-manager` | mise install root |
 | Path key | `feature.binary.state_file` → `~/.cherrystudio/binary-manager/state.json` | Install state on disk |
 | Path key | `cherry.bin` → `~/.cherrystudio/bin` | Bundled-binary extraction target |
-| IPC | `binary:install-tool`, `binary:remove-tool`, `binary:get-state`, `binary:search-registry`, `binary:get-tool-dir`, `binary:probe-bundled` | Renderer → main |
-| IPC events | `binary:state-changed`, `binary:reconcile-failed` | Main → renderer |
+| IPC | `binary.install_tool`, `binary.remove_tool`, `binary.get_state`, `binary.search_registry`, `binary.get_tool_dir`, `binary.probe_bundled` | Renderer → main |
+| IPC events | `binary.state_changed`, `binary.reconcile_failed` | Main → renderer |
 | Types | `ManagedBinary`, `BinaryState`, `ToolInstallState` (`src/shared/data/preference/preferenceTypes.ts`) | Both sides |
 
 `ManagedBinary` is `{ name, tool, version? }` where `tool` is a mise tool spec (`npm:foo`, `pipx:bar`, `gh`, `claude`, …). Adding new fields requires regenerating preference schemas via `cd v2-refactor-temp/tools/data-classify && npm run generate`.
@@ -52,7 +52,7 @@ getBinaryPath(name)  →  mise shim → cherry.bin → binary name (PATH fallbac
                         mise-managed bundled     resolved by user shell at exec
 ```
 
-`getBinaryPath()` in `src/main/utils/process.ts` is the **only** path resolver. Direct `os.homedir() + HOME_CHERRY_DIR` joins are forbidden — use `application.getPath('cherry.bin')` / `application.getPath('feature.binary.data')` instead.
+`getBinaryPath()` in `src/main/utils/binaryResolver.ts` is the **only** path resolver. Direct `os.homedir() + HOME_CHERRY_DIR` joins are forbidden — use `application.getPath('cherry.bin')` / `application.getPath('feature.binary.data')` instead.
 
 ## Why state is a file, not DataApi / Preference
 
@@ -97,14 +97,15 @@ These are passthrough — if the user already has either var in their shell env,
 
 **Preset (built-in tool, appears in the predefined list):**
 
-1. Add an entry to `PRESETS_BINARY_TOOLS` in `src/shared/data/presets/binary-tools.ts`:
+1. Add an entry to `PRESETS_BINARY_TOOLS` in `src/shared/data/presets/binaryTools.ts`:
    ```ts
    {
      name: 'gh',           // executable name (also the mise shim name)
      displayName: 'GitHub CLI',
      tool: 'gh',           // mise tool spec — registry entry, npm:..., pipx:..., etc.
-     description: '...',
-     repoUrl: 'https://github.com/cli/cli'
+     icon: 'simple-icons:github', // optional iconify id
+     repoUrl: 'https://github.com/cli/cli',
+     homepage: 'https://cli.github.com/' // optional
    }
    ```
 2. Add a description translation key under `settings.plugins.tools.<name>` in `src/renderer/i18n/locales/en-us.json`, then run `pnpm i18n:sync`.
@@ -113,13 +114,12 @@ These are passthrough — if the user already has either var in their shell env,
 **Custom (user-added from the settings UI):**
 
 1. User clicks "Add Tool" and selects a registry result.
-2. Renderer writes to `feature.binary.tools` preference after `binary:install-tool` succeeds; BinaryManager reconciles saved tools during startup.
+2. Renderer writes to `feature.binary.tools` preference after `binary.install_tool` succeeds; BinaryManager reconciles saved tools during startup.
 
 **To bundle the binary at build time** (so it's available without mise install — only for tools small enough to ship):
 
 1. Add the tool to `scripts/download-binaries.js` with platform-specific URLs and SHA256 checksums.
-2. Add it to the `tools` array in `BinaryManager.extractBundledBinaries()`.
-3. Add it to the `probeList` in `BinaryManager.probeBundled()` so the UI shows the "bundled" state correctly.
+2. Add it to the module-level `BUNDLED_TOOLS` array in `BinaryManager.ts` — a single source consumed by both `extractBundledBinaries()` (boot extraction) and `probeBundled()` (UI "bundled" state), so one entry wires up both.
 
 ## Consumer pattern
 

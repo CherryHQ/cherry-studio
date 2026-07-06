@@ -45,14 +45,15 @@ import {
 } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { application } from '@main/core/application'
-import { isLinux, isWin } from '@main/core/platform'
+import { isLinux, isMac, isWin } from '@main/core/platform'
+import { getAppLanguage, t } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
-import { getPathStatus, type PathStatus } from '@main/utils/file/pathStatus'
-import { getAppLanguage, t } from '@main/utils/language'
-import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
+import { getBinaryPath } from '@main/utils/binaryResolver'
+import { autoDiscoverGitBash } from '@main/utils/commandResolver'
+import { getPathStatus, type PathStatus } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
-import getLoginShellEnvironment from '@main/utils/shell-env'
+import { getShellEnv } from '@main/utils/shellEnv'
 import {
   CHANNEL_SECURITY_PROMPT,
   REPORT_ARTIFACTS_PROMPT,
@@ -68,6 +69,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import type { McpTool } from '@shared/types/mcp'
 import { languageEnglishNameMap } from '@shared/utils/languages'
+import { isExternalCliProvider } from '@shared/utils/provider'
 import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
@@ -460,11 +462,8 @@ function workspacePathErrorMessage(path: string, status: PathStatus): string {
     : t('agent.session.workspace_status.inaccessible', { path })
 }
 
-async function buildEnvironment(
-  _provider: Provider, // retained for API compat; providerId resolved from agent.model
-  agent: AgentEntity
-): Promise<Record<string, string | undefined>> {
-  const loginShellEnv = await getLoginShellEnvironment()
+async function buildEnvironment(provider: Provider, agent: AgentEntity): Promise<Record<string, string | undefined>> {
+  const loginShellEnv = await getShellEnv()
   const customGitBashPath = isWin ? autoDiscoverGitBash() : null
   const bunPath = await getBinaryPath('bun')
 
@@ -498,6 +497,7 @@ async function buildEnvironment(
     ...loginShellEnv,
     ...getProxyEnvironment(process.env),
     CLAUDE_CODE_USE_BEDROCK: '0',
+    CLAUDE_CODE_USE_VERTEX: '0',
     // ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL are injected by the runtime query builder,
     // not duplicated here.
     ANTHROPIC_MODEL: apiModelId,
@@ -528,6 +528,7 @@ async function buildEnvironment(
       'ELECTRON_NO_ATTACH_CONSOLE',
       'CLAUDE_CONFIG_DIR',
       'CLAUDE_CODE_USE_BEDROCK',
+      'CLAUDE_CODE_USE_VERTEX',
       'CLAUDE_CODE_GIT_BASH_PATH',
       'ENABLE_TOOL_SEARCH',
       'CHERRY_STUDIO_NODE_PROXY_RULES',
@@ -544,6 +545,32 @@ async function buildEnvironment(
       } else if (typeof value === 'string') {
         env[key] = value
       }
+    }
+  }
+
+  // Claude Code (login) provider: reuse the user's Claude Code CLI subscription
+  // login (Claude Pro/Max OAuth) instead of an API key. The Claude Agent SDK
+  // falls back to the stored OAuth credential ONLY when no credential is forced
+  // via env, so strip every auth channel that could ride in from the login shell
+  // or user env_vars (which merged above) and silently override it: the API key
+  // / auth token, a base-URL redirect, custom headers (e.g. an inherited
+  // Authorization / x-api-key), and a directly-supplied OAuth token. The
+  // warm-query builder already skips injecting the API key for this provider.
+  // The Agent SDK only falls through to macOS Keychain lookup when CLAUDE_CONFIG_DIR
+  // is absent; Cherry's isolated agent config dir would otherwise mask a valid
+  // CLI login. Elsewhere credentials live in <CLAUDE_CONFIG_DIR>/.credentials.json,
+  // so point at the user's real config dir (their shell's CLAUDE_CONFIG_DIR, or
+  // ~/.claude) rather than Cherry's relocated agent config.
+  if (isExternalCliProvider(provider)) {
+    delete env.ANTHROPIC_API_KEY
+    delete env.ANTHROPIC_AUTH_TOKEN
+    delete env.ANTHROPIC_BASE_URL
+    delete env.ANTHROPIC_CUSTOM_HEADERS
+    delete env.CLAUDE_CODE_OAUTH_TOKEN
+    if (isMac) {
+      delete env.CLAUDE_CONFIG_DIR
+    } else {
+      env.CLAUDE_CONFIG_DIR = loginShellEnv.CLAUDE_CONFIG_DIR || path.join(application.getPath('sys.home'), '.claude')
     }
   }
 
@@ -937,7 +964,7 @@ export function buildMcpServers(
         throw new Error(`Unsupported workspace type: ${String(exhaustive)}`)
       }
     }
-    const clawServer = new ClawServer(agent.id, workspaceSource, sourceChannelId)
+    const clawServer = new ClawServer(agent.id, workspaceSource, session.workspace.path, sourceChannelId)
     mcpList.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
 
     // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the CherryClaw prompt and the

@@ -8,6 +8,8 @@ import type { ReactNode } from 'react'
 
 const logger = loggerService.withContext('ComposerSuggestionExtension')
 
+export const COMPOSER_SUPPRESS_SUGGESTION_META = 'composerSuppressSuggestion'
+
 export interface ComposerSuggestionItem {
   id: string
   label: ReactNode | string
@@ -74,8 +76,9 @@ function createSuggestionRender(source: ComposerSuggestionSource) {
 }
 
 function hasTriggerBoundary(editor: Editor, range: Range) {
-  if (range.from <= 1) return true
-  const before = editor.state.doc.textBetween(Math.max(0, range.from - 1), range.from, '\n', '')
+  const from = Math.max(0, Math.min(range.from, editor.state.doc.content.size))
+  if (from <= 1) return true
+  const before = editor.state.doc.textBetween(Math.max(0, from - 1), from, '\n', '')
   return before.length === 0 || /\s/.test(before)
 }
 
@@ -93,6 +96,7 @@ export function createComposerSuggestionExtension(sources: readonly ComposerSugg
           allowedPrefixes: source.allowedPrefixes,
           startOfLine: source.startOfLine,
           allow: ({ editor, range }) => hasTriggerBoundary(editor, range),
+          shouldShow: ({ transaction }) => !transaction.getMeta(COMPOSER_SUPPRESS_SUGGESTION_META),
           items: async ({ editor, query }) => {
             try {
               const items = await source.items({ editor, query })

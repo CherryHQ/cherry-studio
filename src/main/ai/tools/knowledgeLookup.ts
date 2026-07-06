@@ -25,14 +25,13 @@ import type {
   KbGrepOutput,
   KbListOutput,
   KbListOutputItem,
-  KbManageInput,
   KbManageOutput,
   KbReadInput,
   KbReadOutput,
   KbSearchOutput,
   KbTreeOutput
 } from '@shared/ai/builtinTools'
-import { ErrorCode, isDataApiError } from '@shared/data/api'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type {
   KnowledgeAddItemInput,
   KnowledgeBase,
@@ -415,6 +414,18 @@ export async function listOrOutlineKnowledge(
 /** Longest a derived note title (its first line) may be before it is truncated. */
 const NOTE_TITLE_MAX_CHARS = 80
 
+/** kb_manage input shape shared by both callers: MCP omits an unused field, AI-SDK strict passes null. */
+type ManageKnowledgeInput = {
+  baseId: string
+  action: 'add' | 'delete' | 'refresh'
+  type?: 'file' | 'url' | 'note' | null
+  path?: string | null
+  url?: string | null
+  content?: string | null
+  title?: string | null
+  conceptIds?: string[] | null
+}
+
 /**
  * Apply a destructive knowledge-base change (add / delete / refresh). Like the
  * read cores it never throws: an out-of-scope base, a missing required field, an
@@ -425,7 +436,7 @@ const NOTE_TITLE_MAX_CHARS = 80
  * executes the mutation unconditionally once invoked.
  */
 export async function manageKnowledge(
-  input: KbManageInput,
+  input: ManageKnowledgeInput,
   allowedIds: string[]
 ): Promise<KnowledgeManageResultOrError> {
   if (allowedIds.length > 0 && !allowedIds.includes(input.baseId)) {
@@ -493,7 +504,7 @@ type AddInputResult = { ok: true; input: KnowledgeAddItemInput; source: string }
  * invalid value (e.g. a non-absolute file path) is rejected before it reaches the
  * filesystem boundary. `source` is the identifier reported back as `added`.
  */
-function buildAddInput(input: KbManageInput): AddInputResult {
+function buildAddInput(input: ManageKnowledgeInput): AddInputResult {
   switch (input.type) {
     case 'file': {
       if (!input.path) {
@@ -540,7 +551,7 @@ function firstNonEmptyLine(content: string): string | undefined {
 }
 
 /** A note's display source: the caller-supplied title, else its first non-empty line (truncated), else a placeholder. */
-function deriveNoteSource(content: string, title?: string): string {
+function deriveNoteSource(content: string, title?: string | null): string {
   const explicit = title?.trim()
   if (explicit) return explicit
   // Truncation here differs by role from deriveSampleSource's note branch (a stored id, plain-clipped;

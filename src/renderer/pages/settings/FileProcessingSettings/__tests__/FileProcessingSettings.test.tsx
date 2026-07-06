@@ -5,8 +5,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import FileProcessingSettings from '..'
 import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOcrDeploymentInfo'
+import FileProcessingSettings from '../FileProcessingSettings'
 
 const setPreferencesMock = vi.hoisted(() => vi.fn())
 const setOverridesMock = vi.hoisted(() => vi.fn())
@@ -76,7 +76,7 @@ vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
 }))
 
-vi.mock('@renderer/components/TopView', () => ({
+vi.mock('@renderer/components/TopView/TopView', () => ({
   TopView: {
     show: topViewShowMock,
     hide: topViewHideMock
@@ -142,11 +142,18 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     },
     Dialog: ({ children, open }: React.HTMLAttributes<HTMLDivElement> & { open?: boolean }) =>
       open === false ? null : <>{children}</>,
-    DialogContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-      <div role="dialog" {...props}>
-        {children}
-      </div>
-    ),
+    DialogContent: ({
+      children,
+      closeOnOverlayClick,
+      ...props
+    }: React.HTMLAttributes<HTMLDivElement> & { closeOnOverlayClick?: boolean }) => {
+      void closeOnOverlayClick
+      return (
+        <div role="dialog" {...props}>
+          {children}
+        </div>
+      )
+    },
     DialogHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
     DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
     InfoTooltip: ({

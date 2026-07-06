@@ -1,9 +1,7 @@
 import { Badge, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
-import { EmptyState } from '@renderer/components/chat'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
-import { resolveInlineFilePath } from '@renderer/components/chat/messages/utils/filePath'
 import {
   ArtifactFilePreview,
   ArtifactPaneView,
@@ -28,10 +26,9 @@ import {
   isSelectableFileNode,
   useArtifactFileTreeModel
 } from '@renderer/components/chat/panes/useArtifactFileTreeModel'
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
+import { EmptyState } from '@renderer/components/chat/primitives'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
-import NavbarIcon from '@renderer/components/NavbarIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
@@ -39,8 +36,10 @@ import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessi
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useFileSize } from '@renderer/hooks/useFileSize'
 import { useIsTextFile } from '@renderer/hooks/useIsTextFile'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import {
@@ -51,7 +50,6 @@ import {
   FileText,
   FolderOpen,
   GitBranch,
-  Info,
   Loader2,
   Package,
   Waypoints
@@ -101,7 +99,7 @@ function getFilePreviewTitle(filePath: string): string {
 }
 
 function isFramedFilePreview(filePath: string): boolean {
-  return /\.(html?|pdf)$/i.test(filePath)
+  return /\.(html?|pdf)$/i.test(filePath) || isOfficeDocumentFile(filePath)
 }
 
 interface AgentFlowTab {
@@ -139,6 +137,7 @@ interface AgentRightPaneState {
   fileTreeOpen: boolean
   fileTreeExpandedIds: ReadonlySet<string>
   fileTreeSearchKeyword: string
+  workspaceId?: string
   workspacePath?: string
 }
 
@@ -167,6 +166,7 @@ interface AgentRightPaneProviderProps extends AgentRightPaneMeta {
   defaultOpen?: boolean
   /** Persist open state across the per-branch Shell remount (draft→persistent handoff). */
   onOpenChange?: (open: boolean) => void
+  workspaceId?: string
   workspacePath?: string
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -197,6 +197,7 @@ export function useAgentRightPaneActions(): AgentRightPaneActions {
 
 function AgentRightPaneStateProvider({
   children,
+  workspaceId,
   workspacePath,
   messages,
   partsByMessageId,
@@ -218,7 +219,8 @@ function AgentRightPaneStateProvider({
   const [fileTreeOpen, setFileTreeOpen] = useState(false)
   const [fileTreeExpandedIds, setFileTreeExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
   const [fileTreeSearchKeyword, setFileTreeSearchKeyword] = useState('')
-  const previousWorkspacePathRef = useRef(workspacePath)
+  const workspaceKey = `${workspaceId ?? ''}\0${workspacePath ?? ''}`
+  const previousWorkspaceKeyRef = useRef(workspaceKey)
 
   // Built once here (the provider survives the Host↔Overlay maximize swap), so
   // maximize/minimize no longer remounts + rematerializes the workspace tree.
@@ -274,8 +276,8 @@ function AgentRightPaneStateProvider({
   )
 
   useEffect(() => {
-    if (previousWorkspacePathRef.current === workspacePath) return
-    previousWorkspacePathRef.current = workspacePath
+    if (previousWorkspaceKeyRef.current === workspaceKey) return
+    previousWorkspaceKeyRef.current = workspaceKey
     setSelectedFile(null)
     setFilePreview(null)
     setFileTreeExpandedIds(new Set())
@@ -284,7 +286,7 @@ function AgentRightPaneStateProvider({
     // workspace change must be explicit (previously it rode the pane remount).
     resetFileTreeLazyChildren()
     if (activeTab === FILE_PREVIEW_TAB) openTab('files')
-  }, [activeTab, resetFileTreeLazyChildren, openTab, workspacePath])
+  }, [activeTab, resetFileTreeLazyChildren, openTab, workspaceKey])
 
   // Drop a selection that no longer resolves to a file in the loaded tree
   // (e.g. the watcher reported it removed).
@@ -317,6 +319,7 @@ function AgentRightPaneStateProvider({
         fileTreeOpen,
         fileTreeExpandedIds,
         fileTreeSearchKeyword,
+        workspaceId,
         workspacePath
       },
       actions: {
@@ -364,6 +367,7 @@ function AgentRightPaneStateProvider({
       statusEnabled,
       status,
       traceId,
+      workspaceId,
       workspacePath
     ]
   )
@@ -853,7 +857,7 @@ function AgentRightPaneHighlights({
 
 // Hover-card preview body. Lives inside HoverCardContent so it mounts only when the card opens.
 // Reads the same persisted usage data the Status tab renders.
-function AgentRightPaneInfoCardBody() {
+function AgentRightPaneStatusPreview() {
   const { meta } = useAgentRightPane()
   const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
@@ -873,24 +877,49 @@ function AgentRightPaneInfoCardBody() {
   )
 }
 
-// Shown only in the collapsed state (rendered into ConversationShell's topRightTool, which the shell
-// suppresses while the pane is open/maximized). Hover previews the session; click expands to Status.
-function AgentRightPaneInfoCard({ disabled }: { disabled?: boolean }) {
-  const { meta } = useAgentRightPane()
-  const { openTab } = useShellActions()
+function AgentRightPaneStatusShortcut({ disabled }: { disabled?: boolean }) {
+  const shellState = useShellState()
   const { t } = useTranslation()
-  if (disabled || meta.statusEnabled === false) return null
+  if (disabled || shellState.open || shellState.maximized) return null
+
   return (
     <HoverCard openDelay={150} closeDelay={100}>
       <HoverCardTrigger asChild>
-        <NavbarIcon tone="conversation" aria-label={t('agent.right_pane.info.label')} onClick={() => openTab('status')}>
-          <Info />
-        </NavbarIcon>
+        <Shell.TabShortcut
+          tab="status"
+          label={t('agent.right_pane.tabs.status')}
+          icon={<Activity className="size-3.5" />}
+          tooltip={false}
+        />
       </HoverCardTrigger>
       <HoverCardContent align="end" sideOffset={8} className="w-80 overflow-hidden p-3">
-        <AgentRightPaneInfoCardBody />
+        <AgentRightPaneStatusPreview />
       </HoverCardContent>
     </HoverCard>
+  )
+}
+
+function AgentRightPaneShortcuts() {
+  const { state, meta } = useAgentRightPane()
+  const { t } = useTranslation()
+  const [enableDeveloperMode] = usePreference('app.developer_mode.enabled')
+  const hasFiles = meta.filesEnabled !== false
+  const hasStatus = meta.statusEnabled !== false
+  const traceTopicId = meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : ''
+  const hasTrace = enableDeveloperMode && !!traceTopicId
+
+  return (
+    <>
+      {hasFiles && (
+        <Shell.TabShortcut
+          tab="files"
+          label={state.selectedFile ? getFilePreviewTitle(state.selectedFile) : t('agent.right_pane.tabs.files')}
+          icon={state.selectedFile ? <FileText className="size-3.5" /> : <FolderOpen className="size-3.5" />}
+        />
+      )}
+      {hasStatus && <AgentRightPaneStatusShortcut />}
+      {hasTrace && <Shell.TabShortcut tab="trace" label={t('trace.label')} icon={<Waypoints className="size-3.5" />} />}
+    </>
   )
 }
 
@@ -900,7 +929,7 @@ export const AgentRightPane = Object.assign(AgentRightPaneProvider, {
   Host: AgentRightPaneHost,
   MaximizedOverlay: AgentRightPaneMaximizedOverlay,
   FilesToggle: AgentRightPaneFilesToggle,
-  InfoCard: AgentRightPaneInfoCard
+  Shortcuts: AgentRightPaneShortcuts
 })
 
 export type { AgentToolFlowOpenInput }

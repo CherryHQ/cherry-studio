@@ -95,6 +95,19 @@ class WeChatAdapter extends ChannelAdapter {
     }
   }
 
+  override async sendFile(chatId: string, file: FileAttachment): Promise<void> {
+    if (!this.bot) {
+      throw new Error('Bot is not connected')
+    }
+    // The reverse-engineered WeChat protocol only supports outbound images today
+    // (WeixinBot.sendImage). Document upload would need protocol-level CDN work.
+    if (!file.media_type.startsWith('image/')) {
+      throw new Error(`WeChat can only forward image files, not "${file.media_type}" (${file.filename})`)
+    }
+    await this.bot.sendImage(chatId, Buffer.from(file.data, 'base64'))
+    this.log.info('Sent file', { chatId, filename: file.filename, size: file.size })
+  }
+
   async sendTypingIndicator(chatId: string): Promise<void> {
     if (!this.bot) {
       throw new Error('Bot is not connected')
