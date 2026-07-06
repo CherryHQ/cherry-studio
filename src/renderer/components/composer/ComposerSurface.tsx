@@ -1,8 +1,13 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel/symbols'
-import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem } from '@renderer/components/QuickPanel'
+import type {
+  QuickPanelInputAdapter,
+  QuickPanelInputEvent,
+  QuickPanelListItem,
+  QuickPanelOpenOptions,
+  QuickPanelTriggerInfo
+} from '@renderer/components/QuickPanel'
 import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
 import SendMessageButton from '@renderer/components/SendMessageButton'
@@ -46,16 +51,21 @@ import {
   updateSelectedPromptVariableToken
 } from './promptVariables'
 import {
-  type ComposerRootPanelSelectHandler,
+  COMPOSER_SUPPRESS_SUGGESTION_META,
+  ComposerPanelSymbol,
   type ComposerSuggestionSource,
+  type ComposerUnifiedPanelControl,
+  type ComposerUnifiedPanelResourceProvider,
+  type ComposerUnifiedPanelSelectHandler,
   createComposerSuggestionQuickPanelItem,
-  createRootQuickPanelOpenOptions,
+  createUnifiedQuickPanelOpenOptions,
   getComposerCursorTextOffset,
   getComposerInputLeafText,
   getComposerInputText,
   getComposerPositionAtTextOffset,
   getComposerSuggestionTriggerContext,
   hasComposerQuickPanelTriggerBoundary,
+  hasUnifiedQuickPanelRootContent,
   ROOT_QUICK_PANEL_ALLOWED_PREFIXES
 } from './quickPanel'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
@@ -63,6 +73,10 @@ import { FileComposerToken } from './tokenView'
 import type { ComposerToolLauncher } from './toolLauncher'
 
 const COMPOSER_INPUT_MAX_LENGTH = 40000
+const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
+  { char: ComposerPanelSymbol.Root, pluginKey: 'composer-root-suggestion' },
+  { char: '、', pluginKey: 'composer-root-ideographic-comma-suggestion' }
+] as const
 type ComposerTextInputView = Parameters<NonNullable<NonNullable<EditorOptions['editorProps']>['handleTextInput']>>[0]
 interface ComposerClipboardCopyView {
   state: {
@@ -78,7 +92,7 @@ interface ComposerClipboardCopyView {
 }
 
 export interface ComposerSurfaceActions {
-  focus: () => void
+  focus: (position?: 'start' | 'end' | 'all' | number | boolean | null) => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
@@ -121,16 +135,44 @@ export interface ComposerSurfaceProps {
   onActionsChange?: (actions: ComposerSurfaceActions) => void
   editingState?: ComposerSurfaceEditingState
   getToolLaunchers?: () => ComposerToolLauncher[]
+  toolLaunchersVersion?: number
   resolveSkillMarker?: (marker: string) => ComposerDraftToken | null | undefined
   resolveKnowledgeBaseMarker?: (marker: string) => ComposerDraftToken | null | undefined
   suggestionSources?: readonly ComposerSuggestionSource[]
+  resourceProvider?: ComposerUnifiedPanelResourceProvider
   queueContent?: React.ReactNode
+  rootPanelLeadingItems?: readonly QuickPanelListItem[]
   rootPanelAdditionalItems?: readonly QuickPanelListItem[]
   onRootPanelOpen?: () => void
-  onToolLauncherSelect?: ComposerRootPanelSelectHandler
-  renderLeftControls?: (inputAdapter?: QuickPanelInputAdapter) => React.ReactNode
+  onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
+  renderLeftControls?: (
+    inputAdapter?: QuickPanelInputAdapter,
+    unifiedPanelControl?: ComposerUnifiedPanelControl
+  ) => React.ReactNode
   renderBelowControls?: (inputAdapter?: QuickPanelInputAdapter) => React.ReactNode
   sendAccessory?: React.ReactNode
+}
+
+function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : ''
+}
+
+function getQuickPanelItemsSignature(items?: readonly QuickPanelListItem[]) {
+  return (items ?? [])
+    .map((item, index) =>
+      [
+        item.id ?? index,
+        getQuickPanelItemText(item.label),
+        getQuickPanelItemText(item.description),
+        item.filterText ?? '',
+        item.disabled ? '1' : '0',
+        item.hidden ? '1' : '0',
+        item.isSelected ? '1' : '0',
+        item.isMenu ? '1' : '0',
+        item.alwaysVisible ? '1' : '0'
+      ].join('\u001f')
+    )
+    .join('\u001e')
 }
 
 function removeComposerTokens(editor: Editor, shouldRemove: (token: ComposerSerializedToken) => boolean) {
@@ -241,6 +283,26 @@ function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
   }
 }
 
+function getComposerUnifiedPanelSearchText(
+  inputAdapter: QuickPanelInputAdapter | undefined,
+  queryAnchor: number | undefined,
+  triggerInfo: QuickPanelTriggerInfo | undefined
+) {
+  if (!inputAdapter || queryAnchor === undefined) return ''
+
+  const text = inputAdapter.getText()
+  const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+  if (cursorOffset <= queryAnchor) return ''
+
+  const rawSearchText = text.slice(queryAnchor, cursorOffset)
+  const triggerSymbol = triggerInfo?.type === 'input' ? triggerInfo.originalText?.slice(0, 1) : undefined
+
+  if (triggerSymbol && rawSearchText.startsWith(triggerSymbol)) {
+    return rawSearchText.slice(triggerSymbol.length)
+  }
+  return rawSearchText
+}
+
 const getTokenIds = (tokens: readonly ComposerDraftToken[]) => new Set(tokens.map((token) => token.id))
 const getManagedTokenSignature = (
   tokens: readonly ComposerSerializedToken[],
@@ -253,6 +315,10 @@ const getManagedTokenSignature = (
 
 function shouldDelegateLongTextPasteToFileHandler(text: string) {
   return Boolean(text && text.length > LONG_TEXT_PASTE_THRESHOLD)
+}
+
+function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
+  editor.chain().focus().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertContent(content).run()
 }
 
 function exceedsComposerInputMaxLength(currentText: string, nextText: string, replacedText = '') {
@@ -459,10 +525,13 @@ export default function ComposerSurface({
   onActionsChange,
   editingState,
   getToolLaunchers,
+  toolLaunchersVersion,
   resolveSkillMarker,
   resolveKnowledgeBaseMarker,
   suggestionSources = [],
+  resourceProvider,
   queueContent,
+  rootPanelLeadingItems,
   rootPanelAdditionalItems,
   onRootPanelOpen,
   onToolLauncherSelect,
@@ -589,8 +658,8 @@ export default function ComposerSurface({
     t
   })
 
-  const focusEditor = useCallback(() => {
-    editorRef.current?.commands.focus()
+  const focusEditor = useCallback((position?: 'start' | 'end' | 'all' | number | boolean | null) => {
+    editorRef.current?.commands.focus(position)
   }, [])
 
   const clearEditorFrameAnimationFrame = useCallback(() => {
@@ -736,90 +805,302 @@ export default function ComposerSurface({
   }, [focusEditor, getDraft, handleTextChangeFromTool, handleToggleExpanded, insertToken, onActionsChange, removeToken])
 
   const rootPanelOpenRefreshRequestedRef = useRef(false)
+  const unifiedResourceRequestRef = useRef(0)
+  const unifiedPanelListRefreshKeyRef = useRef<
+    | {
+        signature: string
+        leadingItems?: readonly QuickPanelListItem[]
+        additionalItems?: readonly QuickPanelListItem[]
+      }
+    | undefined
+  >(undefined)
+  const [unifiedResourceItems, setUnifiedResourceItems] = useState<QuickPanelListItem[]>([])
+  // Per-pluginKey record of the last generation the source itself was active at.
+  // Read by onExit so a stale exit cannot borrow another source's active generation
+  // (e.g. when two root sources' onActiveChange/onExit interleave across microtasks).
+  const lastActiveRootSuggestionSessionGenByPluginKeyRef = useRef<Record<string, number>>({})
+  const activeRootSuggestionSessionRef = useRef<{ pluginKey: string; generation: number } | null>(null)
+  const pendingRootSuggestionExitRef = useRef<{ pluginKey: string; generation: number } | null>(null)
   const rootSuggestionStateRef = useRef({
     getToolLaunchers,
     onRootPanelOpen,
     onToolLauncherSelect,
     quickPanel,
-    rootPanelAdditionalItems
+    resourceProvider,
+    rootPanelLeadingItems,
+    rootPanelAdditionalItems,
+    unifiedResourceItems
   })
   rootSuggestionStateRef.current = {
     getToolLaunchers,
     onRootPanelOpen,
     onToolLauncherSelect,
     quickPanel,
-    rootPanelAdditionalItems
+    resourceProvider,
+    rootPanelLeadingItems,
+    rootPanelAdditionalItems,
+    unifiedResourceItems
   }
 
-  const rootSuggestionSource = useMemo<ComposerSuggestionSource>(
-    () => ({
-      pluginKey: 'composer-root-suggestion',
-      char: ComposerPanelSymbol.Root,
-      title: t('settings.quickPanel.title'),
-      renderMode: 'headless',
-      allowedPrefixes: ROOT_QUICK_PANEL_ALLOWED_PREFIXES,
-      items: () => [],
-      onActiveChange: ({ editor, query, range, text }) => {
-        const { getToolLaunchers, onRootPanelOpen, onToolLauncherSelect, quickPanel, rootPanelAdditionalItems } =
-          rootSuggestionStateRef.current
-        const launchers = getToolLaunchers?.() ?? []
-        const { cursorOffset, queryAnchor, textBeforeTrigger, triggerText } = getComposerSuggestionTriggerContext(
-          editor,
-          {
-            range,
-            query,
-            text,
-            triggerChar: ComposerPanelSymbol.Root
-          }
-        )
+  const createUnifiedPanelOptions = useCallback(
+    ({
+      inputAdapter,
+      queryAnchor,
+      resourceItems,
+      triggerInfo
+    }: {
+      inputAdapter?: QuickPanelInputAdapter
+      queryAnchor?: number
+      resourceItems?: readonly QuickPanelListItem[]
+      triggerInfo?: QuickPanelTriggerInfo
+    }): QuickPanelOpenOptions => {
+      const { getToolLaunchers, onToolLauncherSelect, quickPanel, rootPanelAdditionalItems, rootPanelLeadingItems } =
+        rootSuggestionStateRef.current
+      const launchers = getToolLaunchers?.() ?? []
 
+      return createUnifiedQuickPanelOpenOptions(launchers, {
+        onToolLauncherSelect,
+        inputAdapter,
+        quickPanel,
+        title: t('settings.quickPanel.title'),
+        leadingItems: rootPanelLeadingItems,
+        additionalItems: rootPanelAdditionalItems,
+        resourceItems,
+        queryAnchor,
+        triggerInfo
+      })
+    },
+    [t]
+  )
+
+  const loadUnifiedResourceItems = useCallback(
+    async ({
+      inputAdapter,
+      queryAnchor,
+      searchText,
+      triggerInfo
+    }: {
+      inputAdapter?: QuickPanelInputAdapter
+      queryAnchor?: number
+      searchText: string
+      triggerInfo?: QuickPanelTriggerInfo
+    }) => {
+      const trimmedQuery = searchText.trim()
+      const requestId = ++unifiedResourceRequestRef.current
+      const { quickPanel, resourceProvider } = rootSuggestionStateRef.current
+      const panelGeneration = quickPanel.getPanelGeneration()
+
+      if (!resourceProvider || trimmedQuery.length === 0) {
+        setUnifiedResourceItems([])
+        return
+      }
+
+      let resourceItems: QuickPanelListItem[]
+      try {
+        resourceItems = await resourceProvider(trimmedQuery, {
+          inputAdapter,
+          quickPanel,
+          queryAnchor,
+          searchText: trimmedQuery,
+          triggerInfo
+        })
+      } catch {
+        if (requestId !== unifiedResourceRequestRef.current) return
         if (
-          !hasComposerQuickPanelTriggerBoundary(textBeforeTrigger) ||
-          cursorOffset !== queryAnchor + triggerText.length
+          quickPanel.getPanelGeneration() !== panelGeneration ||
+          !quickPanel.isVisible ||
+          quickPanel.symbol !== ComposerPanelSymbol.Root
         ) {
-          if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
-            quickPanel.close('input_prefix_invalid')
-          }
           return
         }
 
-        const triggerInfo = {
-          type: 'input',
-          position: queryAnchor,
-          originalText: triggerText
-        } as const
-
-        if (!rootPanelOpenRefreshRequestedRef.current) {
-          rootPanelOpenRefreshRequestedRef.current = true
-          onRootPanelOpen?.()
-        }
-
-        quickPanel.open(
-          createRootQuickPanelOpenOptions(launchers, {
-            onToolLauncherSelect,
-            inputAdapter: createComposerInputAdapter(editor),
-            quickPanel,
-            title: t('settings.quickPanel.title'),
-            additionalItems: rootPanelAdditionalItems,
+        setUnifiedResourceItems([])
+        quickPanel.updateList(
+          createUnifiedPanelOptions({
+            inputAdapter,
             queryAnchor,
+            resourceItems: [],
+            triggerInfo
+          }).list
+        )
+        return
+      }
+      if (requestId !== unifiedResourceRequestRef.current) return
+      if (
+        quickPanel.getPanelGeneration() !== panelGeneration ||
+        !quickPanel.isVisible ||
+        quickPanel.symbol !== ComposerPanelSymbol.Root
+      ) {
+        return
+      }
+
+      setUnifiedResourceItems(resourceItems)
+      quickPanel.updateList(
+        createUnifiedPanelOptions({
+          inputAdapter,
+          queryAnchor,
+          resourceItems,
+          triggerInfo
+        }).list
+      )
+    },
+    [createUnifiedPanelOptions]
+  )
+
+  const openUnifiedComposerPanel = useCallback(
+    ({
+      inputAdapter,
+      queryAnchor,
+      requestRootPanelOpen = true,
+      triggerInfo
+    }: {
+      inputAdapter?: QuickPanelInputAdapter
+      queryAnchor?: number
+      requestRootPanelOpen?: boolean
+      triggerInfo?: QuickPanelTriggerInfo
+    }) => {
+      const { onRootPanelOpen, quickPanel } = rootSuggestionStateRef.current
+      if (requestRootPanelOpen) {
+        onRootPanelOpen?.()
+      }
+      setUnifiedResourceItems([])
+      quickPanel.open(
+        createUnifiedPanelOptions({
+          inputAdapter,
+          queryAnchor,
+          resourceItems: [],
+          triggerInfo
+        })
+      )
+    },
+    [createUnifiedPanelOptions]
+  )
+
+  const rootSuggestionSources = useMemo<ComposerSuggestionSource[]>(
+    () =>
+      ROOT_QUICK_PANEL_TRIGGER_SOURCES.map(({ char, pluginKey }) => ({
+        pluginKey,
+        char,
+        title: t('settings.quickPanel.title'),
+        renderMode: 'headless',
+        allowedPrefixes: ROOT_QUICK_PANEL_ALLOWED_PREFIXES,
+        items: () => [],
+        onActiveChange: ({ editor, query, range, text }) => {
+          const { onRootPanelOpen, quickPanel } = rootSuggestionStateRef.current
+          const { cursorOffset, queryAnchor, textBeforeTrigger, triggerText } = getComposerSuggestionTriggerContext(
+            editor,
+            {
+              range,
+              query,
+              text,
+              triggerChar: char
+            }
+          )
+
+          if (
+            !hasComposerQuickPanelTriggerBoundary(textBeforeTrigger) ||
+            cursorOffset !== queryAnchor + triggerText.length
+          ) {
+            const activeRootSuggestionSession = activeRootSuggestionSessionRef.current
+            const canCloseRootPanel =
+              !activeRootSuggestionSession || activeRootSuggestionSession.pluginKey === pluginKey
+
+            if (canCloseRootPanel) {
+              activeRootSuggestionSessionRef.current = null
+              pendingRootSuggestionExitRef.current = null
+              rootPanelOpenRefreshRequestedRef.current = false
+
+              if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
+                quickPanel.close('input_prefix_invalid')
+              }
+            }
+            return
+          }
+
+          const lastActiveGenForThisPluginKey =
+            (lastActiveRootSuggestionSessionGenByPluginKeyRef.current[pluginKey] ?? 0) + 1
+          const pendingRootSuggestionExit = pendingRootSuggestionExitRef.current
+          // "Restart" means: I exited (pending records that) and no one — including
+          // myself — has activated me since. So pending.generation must equal the
+          // last active gen I observed before this onActiveChange increments it.
+          const isRestartingExitedRootSource =
+            pendingRootSuggestionExit != null &&
+            pendingRootSuggestionExit.pluginKey === pluginKey &&
+            pendingRootSuggestionExit.generation === lastActiveGenForThisPluginKey - 1
+          if (isRestartingExitedRootSource) {
+            pendingRootSuggestionExitRef.current = null
+          }
+
+          lastActiveRootSuggestionSessionGenByPluginKeyRef.current[pluginKey] = lastActiveGenForThisPluginKey
+          activeRootSuggestionSessionRef.current = {
+            pluginKey,
+            generation: lastActiveGenForThisPluginKey
+          }
+
+          const triggerInfo = {
+            type: 'input',
+            position: queryAnchor,
+            originalText: triggerText
+          } as const
+
+          if (!rootPanelOpenRefreshRequestedRef.current || isRestartingExitedRootSource) {
+            rootPanelOpenRefreshRequestedRef.current = true
+            onRootPanelOpen?.()
+          }
+
+          openUnifiedComposerPanel({
+            inputAdapter: createComposerInputAdapter(editor),
+            queryAnchor,
+            requestRootPanelOpen: false,
             triggerInfo
           })
-        )
-      },
-      onKeyDown: ({ event }) => {
-        return rootSuggestionStateRef.current.quickPanel.dispatchKeyDown(event) ?? false
-      },
-      onExit: () => {
-        rootPanelOpenRefreshRequestedRef.current = false
-        window.setTimeout(() => {
-          const { quickPanel } = rootSuggestionStateRef.current
-          if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
-            quickPanel.close()
-          }
-        }, 0)
-      }
-    }),
-    [t]
+        },
+        onKeyDown: ({ event }) => {
+          return rootSuggestionStateRef.current.quickPanel.dispatchKeyDown(event) ?? false
+        },
+        onExit: () => {
+          // Read this pluginKey's own last-active generation. @tiptap/suggestion
+          // only fires onExit when prev.active was true, so this should be at
+          // least 1; ?? 0 is a defensive fallback for the type system, not a
+          // reachable state.
+          const lastActiveGenForThisPluginKey = lastActiveRootSuggestionSessionGenByPluginKeyRef.current[pluginKey] ?? 0
+          const exitingRootSuggestionSession = { pluginKey, generation: lastActiveGenForThisPluginKey }
+          pendingRootSuggestionExitRef.current = exitingRootSuggestionSession
+
+          window.setTimeout(() => {
+            const activeRootSuggestionSession = activeRootSuggestionSessionRef.current
+            const isExitingSessionStillActive =
+              !activeRootSuggestionSession ||
+              (activeRootSuggestionSession.pluginKey === exitingRootSuggestionSession.pluginKey &&
+                activeRootSuggestionSession.generation === exitingRootSuggestionSession.generation)
+
+            if (!isExitingSessionStillActive) {
+              if (
+                pendingRootSuggestionExitRef.current?.pluginKey === exitingRootSuggestionSession.pluginKey &&
+                pendingRootSuggestionExitRef.current.generation === exitingRootSuggestionSession.generation
+              ) {
+                pendingRootSuggestionExitRef.current = null
+              }
+              return
+            }
+
+            activeRootSuggestionSessionRef.current = null
+            rootPanelOpenRefreshRequestedRef.current = false
+            if (
+              pendingRootSuggestionExitRef.current?.pluginKey === exitingRootSuggestionSession.pluginKey &&
+              pendingRootSuggestionExitRef.current.generation === exitingRootSuggestionSession.generation
+            ) {
+              pendingRootSuggestionExitRef.current = null
+            }
+
+            const { quickPanel } = rootSuggestionStateRef.current
+            if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
+              quickPanel.close()
+            }
+          }, 0)
+        }
+      })),
+    [openUnifiedComposerPanel, t]
   )
 
   const suggestionPanelStateRef = useRef({ quickPanel })
@@ -896,8 +1177,8 @@ export default function ComposerSurface({
   )
 
   const activeSuggestionSources = useMemo(
-    () => (quickPanelEnabled ? [rootSuggestionSource, ...quickPanelSuggestionSources] : []),
-    [quickPanelEnabled, rootSuggestionSource, quickPanelSuggestionSources]
+    () => (quickPanelEnabled ? [...rootSuggestionSources, ...quickPanelSuggestionSources] : []),
+    [quickPanelEnabled, rootSuggestionSources, quickPanelSuggestionSources]
   )
 
   const renderComposerToken = useCallback<ComposerTokenRenderer>(
@@ -912,7 +1193,7 @@ export default function ComposerSurface({
           token={fileToken}
           selected={selected}
           onRemove={() => removeToken(fileToken.id)}
-          removeLabel={t('appMenu.delete')}
+          removeLabel={t('common.delete')}
           tooltipActions={
             pastedTextToken ? (
               <Button
@@ -1173,7 +1454,7 @@ export default function ComposerSurface({
 
         if (clipboardPasteOverride !== null) {
           event.preventDefault()
-          editor.chain().focus().insertContent(clipboardPasteOverride.content).run()
+          insertComposerPastedContent(editor, clipboardPasteOverride.content)
           if (clipboardPasteOverride.files.length > 0) {
             setFiles((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
           }
@@ -1189,12 +1470,21 @@ export default function ComposerSurface({
 
       if (plainTextOverride !== null) {
         event.preventDefault()
-        editorRef.current?.chain().focus().insertContent(plainTextOverride).run()
+        const currentEditor = editorRef.current
+        if (currentEditor) {
+          insertComposerPastedContent(currentEditor, plainTextOverride)
+        }
         return true
       }
 
       if (!pastedText && pastedHtml.includes('data-composer-token')) {
         event.preventDefault()
+        return true
+      }
+
+      if (!pastedText && hasClipboardFiles(event.clipboardData)) {
+        event.preventDefault()
+        void handlePaste(event)
         return true
       }
 
@@ -1229,7 +1519,7 @@ export default function ComposerSurface({
         'composerSurfaceFocus',
         () => {
           if (!createdEditor || createdEditor.isDestroyed) return
-          createdEditor.commands.focus()
+          createdEditor.commands.focus('end')
         },
         0
       )
@@ -1319,40 +1609,92 @@ export default function ComposerSurface({
     quickPanelEnabled && quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root
   const rootQuickPanelQueryAnchor = quickPanel.queryAnchor
   const rootQuickPanelTriggerInfo = quickPanel.triggerInfo
-
   useEffect(() => {
-    if (!isRootQuickPanelVisible) return
+    if (!isRootQuickPanelVisible) {
+      unifiedPanelListRefreshKeyRef.current = undefined
+      return
+    }
 
     const currentQuickPanel = quickPanelRef.current
-    const launchers = getToolLaunchers?.() ?? []
-    currentQuickPanel.updateList(
-      createRootQuickPanelOpenOptions(launchers, {
-        onToolLauncherSelect,
-        inputAdapter,
-        quickPanel: currentQuickPanel,
-        title: t('settings.quickPanel.title'),
-        additionalItems: rootPanelAdditionalItems,
-        queryAnchor: rootQuickPanelQueryAnchor,
-        triggerInfo: rootQuickPanelTriggerInfo
-      }).list
-    )
+    const nextList = createUnifiedPanelOptions({
+      inputAdapter,
+      resourceItems: unifiedResourceItems,
+      queryAnchor: rootQuickPanelQueryAnchor,
+      triggerInfo: rootQuickPanelTriggerInfo
+    }).list
+    // Fold the launcher registry version into the dedup key so a launcher that re-registers with an
+    // identical display signature but a different action payload (e.g. the MCP status launcher after a
+    // status/scope change) still refreshes the open root panel instead of keeping its stale action closure.
+    const nextListSignature = `${toolLaunchersVersion}${getQuickPanelItemsSignature(nextList)}`
+    const previous = unifiedPanelListRefreshKeyRef.current
+    // Display-only signatures cannot see a static root item (e.g. an agent skill row) that is rebuilt with
+    // an unchanged display but a new action closure capturing fresh state (selectedSkills, active topic, ...).
+    // Also refresh whenever the leading/additional array identity changes so the open panel never keeps a
+    // stale closure. Both arrays are memoized upstream, so this only re-runs on genuine content changes.
+    if (
+      previous?.signature === nextListSignature &&
+      previous.leadingItems === rootPanelLeadingItems &&
+      previous.additionalItems === rootPanelAdditionalItems
+    ) {
+      return
+    }
+    unifiedPanelListRefreshKeyRef.current = {
+      signature: nextListSignature,
+      leadingItems: rootPanelLeadingItems,
+      additionalItems: rootPanelAdditionalItems
+    }
+    currentQuickPanel.updateList(nextList)
   }, [
-    getToolLaunchers,
+    createUnifiedPanelOptions,
     inputAdapter,
     isRootQuickPanelVisible,
-    onToolLauncherSelect,
-    rootPanelAdditionalItems,
     rootQuickPanelQueryAnchor,
     rootQuickPanelTriggerInfo,
-    t
+    rootPanelAdditionalItems,
+    rootPanelLeadingItems,
+    toolLaunchersVersion,
+    unifiedResourceItems
+  ])
+
+  useEffect(() => {
+    if (!isRootQuickPanelVisible || !inputAdapter) return
+
+    if (!resourceProvider) {
+      unifiedResourceRequestRef.current += 1
+      setUnifiedResourceItems((items) => (items.length === 0 ? items : []))
+      return
+    }
+
+    const syncResourceItems = () => {
+      void loadUnifiedResourceItems({
+        inputAdapter,
+        queryAnchor: rootQuickPanelQueryAnchor,
+        searchText: getComposerUnifiedPanelSearchText(
+          inputAdapter,
+          rootQuickPanelQueryAnchor,
+          rootQuickPanelTriggerInfo
+        ),
+        triggerInfo: rootQuickPanelTriggerInfo
+      })
+    }
+
+    syncResourceItems()
+    return inputAdapter.subscribeInput?.((event) => {
+      if (event?.isComposing) return
+      syncResourceItems()
+    })
+  }, [
+    inputAdapter,
+    isRootQuickPanelVisible,
+    loadUnifiedResourceItems,
+    resourceProvider,
+    rootQuickPanelQueryAnchor,
+    rootQuickPanelTriggerInfo
   ])
 
   useEffect(() => {
     pasteHandling.init()
-    pasteHandling.registerHandler('inputbar', handlePaste)
-    return () => {
-      pasteHandling.unregisterHandler('inputbar')
-    }
+    return pasteHandling.registerHandler('inputbar', handlePaste)
   }, [handlePaste])
 
   const sendDraft = useCallback(() => {
@@ -1364,6 +1706,36 @@ export default function ComposerSurface({
     const draft = serializeComposerDocument(editor)
     void Promise.resolve(onSendDraft(draft)).finally(focusEditor)
   }, [editor, focusEditor, onSendDraft, sendDisabled, showBlockedSendReason])
+
+  const unifiedPanelAvailable = useMemo(() => {
+    // Recompute when runtime launchers register or unregister.
+    void toolLaunchersVersion
+    if (!quickPanelEnabled) return false
+
+    return hasUnifiedQuickPanelRootContent(getToolLaunchers?.() ?? [], {
+      leadingItems: rootPanelLeadingItems,
+      additionalItems: rootPanelAdditionalItems
+    })
+  }, [getToolLaunchers, quickPanelEnabled, rootPanelAdditionalItems, rootPanelLeadingItems, toolLaunchersVersion])
+
+  const unifiedPanelControl = useMemo<ComposerUnifiedPanelControl>(
+    () => ({
+      available: unifiedPanelAvailable,
+      open: () => {
+        const queryAnchor = inputAdapter?.getCursorOffset?.() ?? textRef.current.length
+        openUnifiedComposerPanel({
+          inputAdapter,
+          queryAnchor,
+          triggerInfo: {
+            type: 'button',
+            position: queryAnchor
+          }
+        })
+        inputAdapter?.focus()
+      }
+    }),
+    [inputAdapter, openUnifiedComposerPanel, unifiedPanelAvailable]
+  )
 
   const quickPanelElement = quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
   const showPauseButton = isLoading && sendDisabled
@@ -1466,7 +1838,9 @@ export default function ComposerSurface({
       <div
         data-composer-toolbar=""
         className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
-        <div className="flex min-w-0 flex-1 items-center overflow-hidden">{renderLeftControls?.(inputAdapter)}</div>
+        <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+          {renderLeftControls?.(inputAdapter, unifiedPanelControl)}
+        </div>
         <div className="flex flex-row items-center gap-1.5">
           {sendAccessory}
           {showPauseButton ? (
@@ -1522,4 +1896,10 @@ export default function ComposerSurface({
       </div>
     </NarrowLayout>
   )
+}
+
+function hasClipboardFiles(data: DataTransfer | null | undefined) {
+  if (!data) return false
+  if (data.files?.length > 0) return true
+  return Array.from(data.items ?? []).some((item) => item.kind === 'file')
 }

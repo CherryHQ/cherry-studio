@@ -64,8 +64,10 @@ vi.mock('@cherrystudio/ui', () => {
       }
       return <span onContextMenu={handleContextMenu}>{children}</span>
     },
-    ContextMenuContent: ({ children }: { children: React.ReactNode }) => (
-      <div data-testid="menu-content">{children}</div>
+    ContextMenuContent: ({ children, ...props }: React.ComponentProps<'div'>) => (
+      <div data-testid="menu-content" {...props}>
+        {children}
+      </div>
     ),
     ContextMenuSeparator: () => <hr />,
     ContextMenuSub: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -181,12 +183,14 @@ function RegisteredTopicCreate({ onExecute }: { onExecute: () => void }) {
 function renderMenu({
   extraItems = [],
   onExecute = vi.fn(),
+  onOpenChange,
   getExtraItems,
   pendingExtraItems,
   location = 'chat.input.tools.context'
 }: {
   extraItems?: readonly CommandContextMenuExtraItem[]
   onExecute?: () => void
+  onOpenChange?: (open: boolean) => void
   getExtraItems?: (
     event: ReactMouseEvent
   ) => readonly CommandContextMenuExtraItem[] | PromiseLike<readonly CommandContextMenuExtraItem[]>
@@ -201,6 +205,7 @@ function renderMenu({
           location={location}
           extraItems={extraItems}
           pendingExtraItems={pendingExtraItems}
+          onOpenChange={onOpenChange}
           getExtraItems={getExtraItems}>
           <button type="button">trigger</button>
         </CommandContextMenu>
@@ -293,6 +298,25 @@ describe('CommandContextMenu', () => {
     })
   })
 
+  it('triggers onOpenChange around native context menus', async () => {
+    const onOpenChange = vi.fn()
+    showNativePopupMenuMock.mockResolvedValueOnce(null)
+
+    renderMenu({
+      location: 'webcontents.context',
+      onOpenChange,
+      extraItems: [{ type: 'item', id: 'tool:branch', label: 'Branch', onSelect: vi.fn() }]
+    })
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'trigger' }))
+
+    expect(onOpenChange).toHaveBeenCalledWith(true)
+
+    await waitFor(() => {
+      expect(showNativePopupMenuMock).toHaveBeenCalled()
+      expect(onOpenChange).toHaveBeenLastCalledWith(false)
+    })
+  })
+
   it('uses event-time extra items for native menus', async () => {
     const onSelect = vi.fn()
     showNativePopupMenuMock.mockResolvedValueOnce({ type: 'custom', id: 'tool:fresh' })
@@ -352,6 +376,34 @@ describe('CommandContextMenu', () => {
     fireEvent.click(screen.getByRole('button', { name: /Web Search/ }))
 
     await waitFor(() => expect(onSelect).toHaveBeenCalledOnce())
+  })
+
+  it('stops pointer and mouse down events from bubbling out of cherry context menu content', () => {
+    const onPointerDown = vi.fn()
+    const onMouseDown = vi.fn()
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+
+    render(
+      <div onPointerDown={onPointerDown} onMouseDown={onMouseDown}>
+        <CommandContextKeyProvider>
+          <CommandProvider>
+            <RegisteredTopicCreate onExecute={vi.fn()} />
+            <CommandContextMenu
+              location="webcontents.context"
+              extraItems={[{ type: 'item', id: 'tool:web-search', label: 'Web Search', onSelect: vi.fn() }]}>
+              <button type="button">trigger</button>
+            </CommandContextMenu>
+          </CommandProvider>
+        </CommandContextKeyProvider>
+      </div>
+    )
+
+    const menuContent = screen.getByTestId('menu-content')
+    fireEvent.pointerDown(menuContent)
+    fireEvent.mouseDown(menuContent)
+
+    expect(onPointerDown).not.toHaveBeenCalled()
+    expect(onMouseDown).not.toHaveBeenCalled()
   })
 
   it('renders extra item shortcutCommand in cherry mode', () => {

@@ -3,22 +3,14 @@ import fs from 'node:fs'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CompletedKnowledgeBase, KnowledgeBase } from '@shared/data/types/knowledge'
 import { isCompletedKnowledgeBase } from '@shared/data/types/knowledge'
 
 import { isIndexableKnowledgeItem } from '../utils/items'
 import { deleteKnowledgeBaseDir, getKnowledgeVectorStoreFilePathSync } from '../utils/storage/pathStorage'
-import { openBetterSqlite3IndexDriver } from './indexStore/BetterSqlite3Driver'
-import { betterSqlite3VectorIndex } from './indexStore/BetterSqlite3VectorIndex'
-import { ensureIndexMeta, hasAnyMaterial, readIndexSchemaVersion } from './indexStore/indexMeta'
-import { KnowledgeIndexStore } from './indexStore/KnowledgeIndexStore'
-import {
-  createKnowledgeIndexSchema,
-  KNOWLEDGE_INDEX_SCHEMA_VERSION,
-  resetKnowledgeIndexSchema
-} from './indexStore/schema'
-import type { SqliteDriver } from './indexStore/types'
+import { createKnowledgeIndexStoreAtPath } from './indexStore/createIndexStore'
+import type { KnowledgeIndexStore } from './indexStore/KnowledgeIndexStore'
 
 const logger = loggerService.withContext('KnowledgeVectorStoreService')
 
@@ -121,42 +113,17 @@ export class KnowledgeVectorStoreService extends BaseService {
   }
 
   private openIndexStore(base: CompletedKnowledgeBase): KnowledgeIndexStore {
-    const dbPath = getKnowledgeVectorStoreFilePathSync(base.id)
-    const driver = openBetterSqlite3IndexDriver(dbPath)
-    try {
-      // An index.sqlite from an older schema layout cannot be migrated in place —
-      // `CREATE ... IF NOT EXISTS` never retrofits a new column/trigger onto an
-      // existing table. When the stored schema_version differs from the current
-      // constant, drop and recreate this rebuildable derived index so the new DDL
-      // applies cleanly; the base then re-indexes from knowledge_item. A fresh/blank
-      // file has no stored version (null) and falls through to the normal create.
-      // (A stale-version file swapped in from another base is rebuilt here rather than
-      // refused by the base_id check below — but the reset drops its rows, so no other
-      // base's data is ever served; only the explicit refusal diagnostic is skipped.)
-      const storedVersion = readIndexSchemaVersion(driver)
-      if (storedVersion !== null && storedVersion !== KNOWLEDGE_INDEX_SCHEMA_VERSION) {
-        logger.warn('Knowledge index schema version mismatch — rebuilding the derived index', {
-          baseId: base.id,
-          storedVersion,
-          expectedVersion: KNOWLEDGE_INDEX_SCHEMA_VERSION
-        })
-        resetKnowledgeIndexSchema(driver)
-      } else {
-        createKnowledgeIndexSchema(driver)
-      }
-      // Stamp + verify the meta identity row before handing out the store,
-      // so an index.sqlite swapped in from another base is rejected here (§4.1).
-      // That is the only refusal — a blank/recreated file is stamped as fresh and
-      // mounts empty; reportInvisibleIndexContents below makes that state loud.
-      ensureIndexMeta(driver, { baseId: base.id })
-      this.reportInvisibleIndexContents(driver, base.id)
-      return new KnowledgeIndexStore(driver, betterSqlite3VectorIndex)
-    } catch (error) {
-      // Close the driver opened above so a failed open never leaks the index file
-      // handle (which on Windows would later block deleting the base dir).
-      driver.close()
-      throw error
-    }
+    // The canonical open sequence (driver → version-aware schema → meta → store) lives in
+    // createKnowledgeIndexStoreAtPath, shared with the v1→v2 vector migrator. The empty-index
+    // diagnostic runs through the factory's `afterOpen` hook — INSIDE its close-on-throw region
+    // and BEFORE the store is returned — so a throwing probe still closes the driver (a leaked
+    // index.sqlite handle would later block deleting the base dir on Windows). Keeping this fully
+    // synchronous (the factory and the probe are sync) preserves the single-flight open invariant
+    // getIndexStore relies on: no `await` runs between its cache-miss and cache-set.
+    return createKnowledgeIndexStoreAtPath(getKnowledgeVectorStoreFilePathSync(base.id), {
+      baseId: base.id,
+      afterOpen: (store) => this.reportInvisibleIndexContents(store, base.id)
+    })
   }
 
   /**
@@ -172,8 +139,8 @@ export class KnowledgeVectorStoreService extends BaseService {
    * NOT_FOUND is what turns that into a loud failure instead of a cached
    * forever-empty store).
    */
-  private reportInvisibleIndexContents(driver: SqliteDriver, baseId: string): void {
-    if (hasAnyMaterial(driver)) {
+  private reportInvisibleIndexContents(store: KnowledgeIndexStore, baseId: string): void {
+    if (store.hasAnyMaterial()) {
       return
     }
 

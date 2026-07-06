@@ -10,8 +10,7 @@ import type { DbOrTx } from '@data/db/types'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
-import { DataApiErrorFactory } from '@shared/data/api'
-import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   AgentSessionMessageEntity,
   CreateAgentSessionMessageDto,
@@ -22,6 +21,7 @@ import {
   AGENT_SESSION_MESSAGES_MAX_LIMIT
 } from '@shared/data/api/schemas/agentSessions'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'

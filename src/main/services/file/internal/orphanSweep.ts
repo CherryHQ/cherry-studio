@@ -108,7 +108,7 @@ export type DbSweepReport = DbSweepStats & DbSweepOutcome
 // `OrphanReport` (the wire shape returned by `FileManager.runSweep` and
 // consumed by the cleanup UI) is defined in shared so the FileIpcApi
 // interface can reference it; re-exported here for main-side callers.
-export type { OrphanReport } from '@shared/types/file/sweep'
+export type { OrphanReport } from '@shared/types/file'
 
 /**
  * Run both DB-level passes (temp-session ref prune + orphan-entry report) and

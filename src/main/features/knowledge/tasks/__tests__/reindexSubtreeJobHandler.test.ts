@@ -303,9 +303,12 @@ describe('reindex-subtree job handler', () => {
       jobId: 'reindex-job',
       type: 'knowledge.reindex-subtree',
       scheduleId: null,
+      parentId: null,
       status: 'failed',
+      input: { baseId: 'kb-1', rootItemIds: ['dir-1', 'note-1'] },
       error: { code: 'FAILED', message: 'reset failed', retryable: false },
-      attempt: 3
+      attempt: 3,
+      metadata: {}
     })
 
     expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['dir-1', 'note-1'], 'failed', {
@@ -332,9 +335,12 @@ describe('reindex-subtree job handler', () => {
       jobId: 'reindex-job',
       type: 'knowledge.reindex-subtree',
       scheduleId: null,
+      parentId: null,
       status: 'cancelled',
+      input: { baseId: 'kb-1', rootItemIds: ['dir-1', 'note-1'] },
       error: { code: 'CANCELLED', message: 'JobManager shutdown', retryable: false },
-      attempt: 1
+      attempt: 1,
+      metadata: {}
     })
 
     // A quit-cancelled reindex stores the bare error code (not "Reindex job cancelled: …") so the
@@ -370,9 +376,12 @@ describe('reindex-subtree job handler', () => {
       jobId: 'reindex-job',
       type: 'knowledge.reindex-subtree',
       scheduleId: null,
+      parentId: null,
       status: 'cancelled',
+      input: { baseId: 'kb-1', rootItemIds: ['dir-1', 'note-1'] },
       error: { code: 'CANCELLED', message: 'cancelled', retryable: false },
-      attempt: 1
+      attempt: 1,
+      metadata: {}
     })
 
     expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
@@ -408,9 +417,12 @@ describe('reindex-subtree job handler', () => {
       jobId: 'reindex-job',
       type: 'knowledge.reindex-subtree',
       scheduleId: null,
+      parentId: null,
       status: 'failed',
+      input: { baseId: 'kb-1', rootItemIds: [FILE_ITEM_ID] },
       error: { code: 'FAILED', message: 'reset failed', retryable: false },
-      attempt: 3
+      attempt: 3,
+      metadata: {}
     })
 
     expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()

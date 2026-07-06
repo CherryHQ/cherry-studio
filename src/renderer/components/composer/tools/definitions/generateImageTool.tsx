@@ -1,4 +1,4 @@
-import { defineTool, registerTool, TopicType } from '@renderer/components/composer/tools/types'
+import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
 import { isGenerateImageModel } from '@renderer/utils/model'
 import { Image } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -47,7 +47,5 @@ const generateImageTool = defineTool({
     runtime: ({ context }) => <GenerateImageComposerRuntime context={context} />
   }
 })
-
-registerTool(generateImageTool)
 
 export default generateImageTool

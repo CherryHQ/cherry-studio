@@ -1,10 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import {
-  MessageEditingProvider,
-  useMessageEditing
-} from '@renderer/components/chat/messages/editing/MessageEditingContext'
+import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
   ComposerToolDerivedStateProvider,
@@ -13,12 +10,14 @@ import {
   useComposerTokenReconcile,
   useComposerToolDispatch,
   useComposerToolLauncherActions,
+  useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { AssistantSelector } from '@renderer/components/resource'
-import { ModelSelector } from '@renderer/components/Selector'
+import { ModelSelector } from '@renderer/components/ModelSelector'
+import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
@@ -44,7 +43,7 @@ import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 import { isNonChatModel } from '@shared/utils/model'
-import { Bot } from 'lucide-react'
+import { Bot, MessageSquarePlus } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -70,7 +69,6 @@ import {
   COMPOSER_SELECTOR_BUTTON_CLASS,
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
-  type ComposerNewConversationAction,
   ComposerToolbarControls,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
@@ -282,23 +280,18 @@ const ChatComposerContextControls = ({
   )
 }
 
-type ChatComposerControlProps = Omit<ChatComposerContextControlsProps, 'side'> & {
-  newConversationAction?: ComposerNewConversationAction
-}
+type ChatComposerControlProps = Omit<ChatComposerContextControlsProps, 'side'>
 
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
 type ChatComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
 type ChatComposerControlsRenderer = (props: ChatComposerControlProps) => ChatComposerControlSlots
 
 const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
-  renderLeftControls: (inputAdapter) => (
+  renderLeftControls: (inputAdapter, unifiedPanelControl) => (
     <ComposerToolbarControls
       inputAdapter={inputAdapter}
-      newConversationAction={props.newConversationAction}
-      // Classic layout hides the assistant trigger (switching lives in the left rail), freeing the
-      // toolbar's leading slot — so the tool menu sits before the context controls. Modern layout keeps
-      // the trigger, so the menu stays after.
-      toolMenuPlacement={props.showAssistantTrigger === false ? 'afterContext' : 'beforeContext'}
+      unifiedPanelControl={unifiedPanelControl}
+      toolMenuPlacement="beforeContext"
       renderContextControls={({ side, iconOnly }) => (
         <ChatComposerContextControls {...props} side={side} iconOnly={iconOnly} />
       )}
@@ -307,9 +300,9 @@ const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
 })
 
 const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
-  renderLeftControls: (inputAdapter) => (
+  renderLeftControls: (inputAdapter, unifiedPanelControl) => (
     <div className={COMPOSER_TOOLBAR_CLASS}>
-      <ComposerToolMenuControls inputAdapter={inputAdapter} newConversationAction={props.newConversationAction} />
+      <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
     </div>
   ),
   renderBelowControls: () => (
@@ -430,6 +423,7 @@ const ChatComposerInner = ({
   const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
+  const toolLaunchersVersion = useComposerToolLauncherVersion()
   const {
     assistant,
     isLoading: isAssistantLoading,
@@ -689,6 +683,51 @@ const ChatComposerInner = ({
     onCreateEmptyTopic
   ])
 
+  const rootPanelLeadingItems = useMemo<QuickPanelListItem[]>(() => {
+    const label = t('chat.conversation.new')
+
+    if (topicLayout === 'classic') {
+      if (!onCreateEmptyTopic) return []
+
+      const disabled = isAssistantLoading || hasMissingPersistedAssistant
+      return [
+        {
+          id: 'composer:new-conversation',
+          label,
+          icon: <MessageSquarePlus size={16} />,
+          disabled,
+          filterText: label,
+          action: () => {
+            handleCreateEmptyTopic()
+          }
+        }
+      ]
+    }
+
+    if (!onNewTopic) return []
+
+    return [
+      {
+        id: 'composer:new-conversation',
+        label,
+        icon: <MessageSquarePlus size={16} />,
+        filterText: label,
+        action: () => {
+          addNewTopic()
+        }
+      }
+    ]
+  }, [
+    addNewTopic,
+    handleCreateEmptyTopic,
+    hasMissingPersistedAssistant,
+    isAssistantLoading,
+    onCreateEmptyTopic,
+    onNewTopic,
+    t,
+    topicLayout
+  ])
+
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
       Object.assign(actionsRef.current, actions)
@@ -700,7 +739,7 @@ const ChatComposerInner = ({
     return EventEmitter.on(EVENT_NAMES.FOCUS_CHAT_COMPOSER, (payload) => {
       const topicId = typeof payload === 'object' && payload ? (payload as { topicId?: string }).topicId : undefined
       if (topicId !== streamScopeKey) return
-      actionsRef.current.focus()
+      actionsRef.current.focus('end')
     })
   }, [actionsRef, streamScopeKey])
 
@@ -841,10 +880,10 @@ const ChatComposerInner = ({
           return
         }
 
-        const editedParts = await buildEditedMessageParts(draft)
-        if (!editedParts) return
-
         try {
+          const editedParts = await buildEditedMessageParts(draft)
+          if (!editedParts) return
+
           await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, editedParts)
           restoreSavedDraft()
           stopEditing()
@@ -956,14 +995,6 @@ const ChatComposerInner = ({
     shouldAutoSelectCreatedAssistant: Boolean(onDraftAssistantChange),
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
     showAssistantTrigger: topicLayout !== 'classic',
-    newConversationAction:
-      topicLayout === 'classic' && onCreateEmptyTopic
-        ? {
-            label: t('chat.conversation.new'),
-            disabled: isAssistantLoading || hasMissingPersistedAssistant,
-            onClick: handleCreateEmptyTopic
-          }
-        : undefined,
     onAssistantChange: handleAssistantChange,
     onModelSelect: handleModelSelect,
     onMentionedModelsSelect: handleMentionedModelsSelect,
@@ -1056,6 +1087,8 @@ const ChatComposerInner = ({
         onFocus={() => setSearching(false)}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
+        toolLaunchersVersion={toolLaunchersVersion}
+        rootPanelLeadingItems={rootPanelLeadingItems}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
         {...controlSlots}
       />

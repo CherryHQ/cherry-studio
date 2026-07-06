@@ -29,6 +29,7 @@ function buildInput(
     material: { relativePath },
     content: { text },
     units,
+    usesEmbeddings: true,
     embeddings: hashes.map((embeddingTextHash) => ({ embeddingTextHash, vector }))
   }
 }
@@ -175,6 +176,7 @@ describe('KnowledgeIndexStore', () => {
         { unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 6 },
         { unitType: 'chunk', unitIndex: 0, charStart: 7, charEnd: 12 }
       ],
+      usesEmbeddings: true,
       embeddings: [{ embeddingTextHash: hashEmbeddingText('broken'), vector: [0.1, 0.2, 0.3] }]
     }
     await expect(store.rebuildMaterial('m1', broken)).rejects.toThrow()
@@ -217,6 +219,23 @@ describe('KnowledgeIndexStore', () => {
     expect(await count('search_unit')).toBe(0)
   })
 
+  it('rejects a BM25-only rebuild (usesEmbeddings: false) that supplies embeddings anyway', async () => {
+    // Step 6 writes whatever `embeddings` holds unconditionally — only the coverage
+    // check is gated on usesEmbeddings — so this combination would silently write
+    // orphan vectors into an index nothing ever queries or GCs.
+    const contradiction: RebuildMaterialInput = {
+      material: { relativePath: 'doc.md' },
+      content: { text: 'lexical only' },
+      units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 12 }],
+      usesEmbeddings: false,
+      embeddings: [{ embeddingTextHash: hashEmbeddingText('lexical only'), vector: [0.1, 0.2, 0.3] }]
+    }
+    await expect(store.rebuildMaterial('m1', contradiction)).rejects.toThrow('usesEmbeddings: false')
+
+    expect(await count('material')).toBe(0)
+    expect(await count('search_unit')).toBe(0)
+  })
+
   it('rolls back a rebuild that leaves a unit embedding hash without a vector', async () => {
     await store.rebuildMaterial('m1', buildInput('keep this safe', [[0, 4]]))
 
@@ -227,6 +246,7 @@ describe('KnowledgeIndexStore', () => {
       material: { relativePath: 'doc.md' },
       content: { text: 'drifted body text' },
       units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 7 }],
+      usesEmbeddings: true,
       embeddings: [{ embeddingTextHash: hashEmbeddingText('not the sliced body'), vector: [0.1, 0.2, 0.3] }]
     }
     await expect(store.rebuildMaterial('m1', drifted)).rejects.toThrow('without a vector')

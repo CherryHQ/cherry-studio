@@ -1,11 +1,11 @@
+import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
+import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
   RefreshProvider,
   TranslationOverlayProvider,
   TranslationOverlaySetterProvider
-} from '@renderer/components/chat/messages/blocks'
-import { MessageEditingProvider } from '@renderer/components/chat/messages/editing/MessageEditingContext'
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
+} from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'

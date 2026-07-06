@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
-import type { SerializedTreeNode } from '@shared/utils/file/tree'
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import type { SerializedTreeNode } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { type PropsWithChildren, useState } from 'react'
@@ -74,6 +75,14 @@ const mocks = vi.hoisted(() => ({
     filePath: string
     refreshKey: number
   }>,
+  officePreviewPanelProps: [] as Array<{
+    filePath: string
+    fileName?: string
+    sourceFilePath?: string
+    sourceSize?: number
+    refreshKey?: number
+  }>,
+  officePreviewPanelModuleLoadCount: 0,
   pdfPreviewPanelModuleLoadCount: 0,
   artifactFileTreeWidth: null as number | null,
   setArtifactFileTreeWidth: vi.fn((width: number) => {
@@ -254,7 +263,8 @@ vi.mock('motion/react', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
+vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
+  ...(await importActual<typeof ChatPrimitives>()),
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
     <div data-testid="empty-state">
       <span>{title}</span>
@@ -263,6 +273,30 @@ vi.mock('@renderer/components/chat', () => ({
   ),
   LoadingState: ({ rows }: { rows?: number }) => <div data-testid="loading-state" data-rows={rows} />
 }))
+
+vi.mock('@renderer/components/ArtifactPreview/office/OfficePreviewPanel', () => {
+  mocks.officePreviewPanelModuleLoadCount += 1
+  return {
+    default: (props: {
+      filePath: string
+      fileName?: string
+      sourceFilePath?: string
+      sourceSize?: number
+      refreshKey?: number
+    }) => {
+      mocks.officePreviewPanelProps.push(props)
+      return (
+        <div
+          data-testid="office-preview-panel"
+          data-file-name={props.fileName}
+          data-file-path={props.filePath}
+          data-refresh-key={props.refreshKey}
+        />
+      )
+    },
+    __esModule: true
+  }
+})
 
 vi.mock('@renderer/components/FileTree', () => ({
   FileTree: ({
@@ -327,7 +361,7 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   )
 }))
 
-vi.mock('../PdfPreviewPanel', () => {
+vi.mock('@renderer/components/ArtifactPreview/pdf/PdfPreviewPanel', () => {
   mocks.pdfPreviewPanelModuleLoadCount += 1
 
   return {
@@ -353,7 +387,7 @@ vi.mock('@data/hooks/useCache', () => ({
       : [null, vi.fn()]
 }))
 
-vi.mock('@renderer/components/Icons/SvgIcon', () => ({
+vi.mock('@renderer/components/icons/SvgIcon', () => ({
   FinderIcon: (props: React.SVGProps<SVGSVGElement>) => <svg aria-hidden="true" {...props} />
 }))
 
@@ -383,6 +417,7 @@ describe('ArtifactPane', () => {
     vi.clearAllMocks()
     mocks.artifactFileTreeWidth = null
     mocks.pdfPreviewPanelProps.length = 0
+    mocks.officePreviewPanelProps.length = 0
     mocks.nextTreeId = 0
     // Default: every test gets an empty tree unless it queues a fixture
     // via `mockWorkspaceTree(...)` (which calls `mockResolvedValueOnce`).
@@ -1566,8 +1601,23 @@ describe('ArtifactPane', () => {
     expect(screen.queryByText('agent.preview_pane.too_large.title')).not.toBeInTheDocument()
   })
 
+  it('does not load the Office preview module while previewing regular text files', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.log'])
+    mocks.fsReadText.mockResolvedValue('boot at 12:00')
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.log')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-notes.log'))
+
+    await waitFor(() => expect(screen.getByTestId('code-viewer')).toHaveTextContent('boot at 12:00'))
+    expect(mocks.officePreviewPanelModuleLoadCount).toBe(0)
+  })
+
   it.each(['report.xlsx', 'report.xlsm', 'proposal.docx', 'legacy.doc', 'legacy.xls', 'slides.ppt', 'slides.pptx'])(
-    'shows the Office document state for %s without reading source content',
+    'routes Office documents to the shared preview panel for %s without reading source content',
     async (fileName) => {
       mockWorkspaceTree('/tmp/workspace', [fileName])
 
@@ -1578,8 +1628,13 @@ describe('ArtifactPane', () => {
 
       fireEvent.click(screen.getByTestId(`tree-node-${fileName}`))
 
-      await waitFor(() => expect(screen.getByText(`unsupported ${fileName.split('.').pop()}`)).toBeInTheDocument())
-      expect(screen.getByText('agent.preview_pane.office.description')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByTestId('office-preview-panel')).toBeInTheDocument())
+      expect(screen.getByTestId('office-preview-panel')).toHaveAttribute('data-file-name', fileName)
+      expect(mocks.officePreviewPanelProps.at(-1)).toMatchObject({
+        filePath: fileName,
+        fileName,
+        sourceFilePath: `/tmp/workspace/${fileName}`
+      })
       expect(screen.queryByText('agent.preview_pane.code_unavailable')).not.toBeInTheDocument()
       expect(screen.queryByText('agent.preview_pane.too_large.title')).not.toBeInTheDocument()
       expect(screen.queryByTestId('pdf-preview-panel')).not.toBeInTheDocument()
@@ -1588,6 +1643,28 @@ describe('ArtifactPane', () => {
       expect(mocks.isTextFile).not.toHaveBeenCalledWith(`/tmp/workspace/${fileName}`)
     }
   )
+
+  it('restarts the selected Office preview job when refresh is clicked', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['proposal.docx'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-proposal.docx')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-proposal.docx'))
+
+    await waitFor(() => expect(screen.getByTestId('office-preview-panel')).toHaveAttribute('data-refresh-key', '0'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+
+    await waitFor(() => expect(screen.getByTestId('office-preview-panel')).toHaveAttribute('data-refresh-key', '1'))
+    expect(mocks.officePreviewPanelProps.at(-1)).toMatchObject({
+      filePath: 'proposal.docx',
+      refreshKey: 1
+    })
+    expect(mocks.fsReadText).not.toHaveBeenCalled()
+  })
 
   it('renders non-markdown text files through CodeViewer with the resolved language', async () => {
     mockWorkspaceTree('/tmp/workspace', ['config.json'])

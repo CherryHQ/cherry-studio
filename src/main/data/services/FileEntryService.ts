@@ -27,7 +27,7 @@ import {
 } from '@data/db/schemas/fileRelations'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { FileEntryListResponse, FileEntryStats } from '@shared/data/api/schemas/files'
 import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
 import {
@@ -37,7 +37,7 @@ import {
   InternalEntrySchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import { chatMessageSourceType, paintingSourceType } from '@shared/data/types/file/ref'
+import { chatMessageSourceType, paintingSourceType } from '@shared/data/types/file'
 import { and, asc, count, eq, isNotNull, isNull, type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
@@ -159,6 +159,9 @@ export interface FileEntryService {
    * Un-parseable rows are skipped with a warning (see `rowToFileEntrySafe`).
    */
   findMany(query?: FindEntriesQuery): FileEntry[]
+
+  /** Tx-scoped variant of `findMany` for composing write flows. */
+  findManyTx(tx: DbOrTx, query?: FindEntriesQuery): FileEntry[]
 
   /**
    * Cursor-and-count list backing `GET /files/entries`. Returns
@@ -419,6 +422,10 @@ class FileEntryServiceImpl implements FileEntryService {
   }
 
   findMany(query: FindEntriesQuery = {}): FileEntry[] {
+    return this.findManyTx(this.getDb(), query)
+  }
+
+  findManyTx(tx: DbOrTx, query: FindEntriesQuery = {}): FileEntry[] {
     const conditions: SQL[] = []
     if (query.origin) {
       conditions.push(eq(fileEntryTable.origin, query.origin))
@@ -429,7 +436,7 @@ class FileEntryServiceImpl implements FileEntryService {
       conditions.push(isNull(fileEntryTable.deletedAt))
     }
 
-    let queryBuilder = this.getDb()
+    let queryBuilder = tx
       .select()
       .from(fileEntryTable)
       .where(and(...conditions))

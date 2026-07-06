@@ -21,7 +21,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import {
   exportMarkdownToObsidian,
   messagesToMarkdown,
@@ -413,7 +413,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
 
   return (
     <Dialog open={openState} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>{i18n.t('chat.topics.export.obsidian_atributes')}</DialogTitle>
         </DialogHeader>

@@ -7,8 +7,9 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { KnowledgeRagConfigFormValues, KnowledgeSelectOption } from '../types'
-import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues, normalizeKnowledgeError } from '../utils'
+import type { KnowledgeRagConfigFormValues } from '../types'
+import { normalizeKnowledgeError } from '../utils/error'
+import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues } from '../utils/rag'
 
 const logger = loggerService.withContext('useKnowledgeRagConfig')
 
@@ -51,17 +52,16 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
       }))
   }, [fileProcessorOverrides, t])
 
-  const searchModeOptions = useMemo<KnowledgeSelectOption[]>(
-    () => [
-      { value: 'hybrid', label: t('knowledge.rag.search_mode.hybrid') },
-      { value: 'vector', label: t('knowledge.rag.search_mode.vector') },
-      { value: 'bm25', label: t('knowledge.rag.search_mode.bm25') }
-    ],
-    [t]
-  )
-
-  const save = async (values: KnowledgeRagConfigFormValues) => {
+  const save = async (
+    values: KnowledgeRagConfigFormValues,
+    embeddingModelOverride?: { embeddingModelId: string | null; dimensions: number | null }
+  ) => {
     const patch = buildKnowledgeRagConfigPatch(initialValues, values)
+
+    if (embeddingModelOverride) {
+      patch.embeddingModelId = embeddingModelOverride.embeddingModelId
+      patch.dimensions = embeddingModelOverride.dimensions
+    }
 
     try {
       return await trigger({
@@ -81,7 +81,6 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
   return {
     initialValues,
     fileProcessorOptions,
-    searchModeOptions,
     save,
     isLoading,
     error

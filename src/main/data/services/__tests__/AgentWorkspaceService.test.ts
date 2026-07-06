@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentWorkspaceService, agentWorkspaceService } from '@data/services/AgentWorkspaceService'
-import { ErrorCode } from '@shared/data/api'
+import { ErrorCode } from '@shared/data/api/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { mkdtemp, stat } from 'fs/promises'

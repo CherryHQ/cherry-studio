@@ -1,8 +1,5 @@
 import { cacheService } from '@data/CacheService'
-import {
-  MessageEditingProvider,
-  useMessageEditing
-} from '@renderer/components/chat/messages/editing/MessageEditingContext'
+import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -211,7 +208,8 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerToolLauncherActions: () => ({
     getLaunchers: vi.fn(() => []),
     dispatchLauncher: vi.fn()
-  })
+  }),
+  useComposerToolLauncherVersion: () => 0
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
@@ -259,7 +257,7 @@ vi.mock('@renderer/components/EmojiIcon', () => ({
   default: ({ emoji }: { emoji: string }) => <span>{emoji}</span>
 }))
 
-vi.mock('@renderer/components/Selector', () => ({
+vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({
     onSelect,
     trigger,
@@ -314,7 +312,7 @@ vi.mock('@renderer/components/Selector', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resource', () => ({
+vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   AssistantSelector: ({ autoSelectOnCreate, onChange, trigger, value }: any) => (
     <div
       data-testid="assistant-selector"
@@ -328,7 +326,7 @@ vi.mock('@renderer/components/resource', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resource/dialogs/ResourceEditDialogHost', () => ({
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit/ResourceEditDialogHost', () => ({
   ResourceEditDialogHost: ({ target, onOpenChange }: any) => (
     <div data-testid="resource-edit-dialog-host" data-kind={target?.kind ?? ''} data-id={target?.id ?? ''}>
       <button type="button" onClick={() => onOpenChange(false)}>
@@ -972,37 +970,97 @@ describe('ChatComposer', () => {
     expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
   })
 
-  it('renders the classic-layout empty topic action before the tool menu and passes the selected assistant', () => {
+  it('puts the classic-layout empty topic action first in the slash panel and passes the selected assistant', () => {
     mocks.topicLayout = 'classic'
     const onCreateEmptyTopic = vi.fn()
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
 
     const leftControls = screen.getByTestId('composer-left-controls')
-    const newTopicButton = within(leftControls).getByRole('button', { name: 'chat.conversation.new' })
     const modelButton = within(leftControls).getByRole('button', { name: /Model A/ })
     const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
-    expect(newTopicButton.querySelector('svg')).toHaveClass('lucide-message-square-plus')
-    expect(newTopicButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(modelButton.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(toolMenuButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(within(leftControls).queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
 
-    fireEvent.click(newTopicButton)
+    const newTopicItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
+    expect(newTopicItem).toEqual(
+      expect.objectContaining({
+        id: 'composer:new-conversation',
+        label: 'chat.conversation.new',
+        disabled: false,
+        filterText: 'chat.conversation.new'
+      })
+    )
+    newTopicItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: newTopicItem
+    })
 
     expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
   })
 
-  it('hides the empty topic action outside classic layout or without a handler', () => {
+  it('disables the classic-layout empty topic slash action while the assistant is loading', () => {
+    mocks.topicLayout = 'classic'
+    mocks.assistantLoading = true
+    const onCreateEmptyTopic = vi.fn()
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
+
+    expect(mocks.surfaceProps?.rootPanelLeadingItems?.[0]).toEqual(
+      expect.objectContaining({
+        id: 'composer:new-conversation',
+        disabled: true
+      })
+    )
+
+    mocks.commandHandlers.get('topic.create')?.()
+
+    expect(onCreateEmptyTopic).not.toHaveBeenCalled()
+  })
+
+  it('puts the modern-layout new topic action first in the slash panel', () => {
+    mocks.topicLayout = 'modern'
+    const onNewTopic = vi.fn()
+    const onCreateEmptyTopic = vi.fn()
+
+    render(
+      <ChatComposer topic={topic} onSend={vi.fn()} onNewTopic={onNewTopic} onCreateEmptyTopic={onCreateEmptyTopic} />
+    )
+
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+
+    const newTopicItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
+    expect(newTopicItem).toEqual(
+      expect.objectContaining({
+        id: 'composer:new-conversation',
+        label: 'chat.conversation.new'
+      })
+    )
+    newTopicItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: newTopicItem
+    })
+
+    expect(onNewTopic).toHaveBeenCalledWith(undefined)
+    expect(onCreateEmptyTopic).not.toHaveBeenCalled()
+  })
+
+  it('hides the empty topic slash panel action without a handler for the active layout', () => {
     mocks.topicLayout = 'modern'
     const onCreateEmptyTopic = vi.fn()
 
     const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
 
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+    expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([])
 
     mocks.topicLayout = 'classic'
     rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+    expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([])
   })
 
   it('sends unlinked home topics through the default model fallback', async () => {
@@ -2469,6 +2527,69 @@ describe('ChatComposer', () => {
     expect(forkAndResend).toHaveBeenCalledWith('message-1', [{ type: 'text', text: 'new text' }])
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
+    expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1')
+    expect(mocks.toastError).toHaveBeenCalledWith('message.error.operation_unavailable')
+  })
+
+  it('keeps editing and errors out when buildEditedMessageParts fails (e.g. attachment builder rejects)', async () => {
+    const editMessage = vi.fn().mockResolvedValue(undefined)
+    const resend = vi.fn().mockResolvedValue(undefined)
+    const forkAndResend = vi.fn().mockResolvedValue(undefined)
+    mocks.chatWrite = { pause: vi.fn(), editMessage, resend, forkAndResend }
+
+    vi.mocked(window.api.file.createInternalEntry).mockRejectedValue(new Error('filesystem error'))
+
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+
+    const newFile = {
+      id: 'file-1',
+      name: 'doc.pdf',
+      path: '/tmp/doc.pdf',
+      size: 100,
+      mime: 'application/pdf',
+      composerFileKind: 'file',
+      fileTokenSourceId: 'source-1'
+    }
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={[{ type: 'text', text: 'old' }] as any} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    act(() => {
+      mocks.files = [newFile as any]
+      mocks.surfaceProps?.onTextChange('new text')
+    })
+
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('new text'))
+
+    const fileToken = {
+      id: 'file:source-1',
+      kind: 'file' as const,
+      label: 'doc.pdf',
+      payload: newFile,
+      index: 0,
+      textOffset: 0
+    }
+
+    await expect(
+      mocks.surfaceProps?.onSendDraft({
+        text: 'new text',
+        tokens: [fileToken]
+      })
+    ).resolves.toBeUndefined()
+
+    expect(forkAndResend).not.toHaveBeenCalled()
     expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1')
     expect(mocks.toastError).toHaveBeenCalledWith('message.error.operation_unavailable')
   })

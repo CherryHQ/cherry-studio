@@ -65,7 +65,7 @@ vi.mock('@renderer/utils/model', () => ({
   }
 }))
 
-vi.mock('@renderer/components/Icons/SvgIcon', () => ({
+vi.mock('@renderer/components/icons/SvgIcon', () => ({
   MdiLightbulbAutoOutline: () => <span data-testid="thinking-auto-icon" />,
   MdiLightbulbOffOutline: () => <span data-testid="thinking-off-icon" />,
   MdiLightbulbOn: () => <span data-testid="thinking-on-icon" />,

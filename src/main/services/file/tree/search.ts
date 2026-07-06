@@ -18,7 +18,8 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
-import { getBinaryExecutionEnv, getBinaryPath } from '@main/utils/process'
+import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBinaryPath } from '@main/utils/binaryResolver'
 import type { DirectoryEntry, DirectoryListOptions, FilePath } from '@shared/types/file'
 
 import { defaultRipgrepGlobArgs } from './gitignore'

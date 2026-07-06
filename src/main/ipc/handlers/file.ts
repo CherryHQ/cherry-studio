@@ -1,11 +1,9 @@
 import { application } from '@application'
-import { safeOpen, showInFolder as showPathInFolder } from '@main/services/file'
-import { dispatchHandle } from '@main/services/file/internal/dispatch'
-import { getMetadataByPath } from '@main/services/file/utils/metadata'
+import { dispatchHandle, getMetadataByPath, safeOpen, showInFolder as showPathInFolder } from '@main/services/file'
+import type { FileHandle } from '@shared/data/types/file'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import type { FileHandle } from '@shared/types/file'
-import type { CreateInternalEntryIpcParams } from '@shared/types/file/ipc'
+import type { CreateInternalEntryIpcParams } from '@shared/types/file'
 
 /**
  * Thin adapters for FileManager-backed file routes. Pure SQL file-entry reads stay
@@ -49,6 +47,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.batch_trash': async ({ ids }) => application.get('FileManager').batchTrash(ids),
   'file.batch_restore': async ({ ids }) => application.get('FileManager').batchRestore(ids),
   'file.batch_permanent_delete': async ({ ids }) => application.get('FileManager').batchPermanentDelete(ids),
+  'file.empty_trash': async () => application.get('FileManager').emptyTrash(),
   'file.rename': async ({ id, newName }) => application.get('FileManager').rename(id, newName),
   'file.open': async (handle) => {
     const fileManager = application.get('FileManager')

@@ -1,4 +1,4 @@
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel/symbols'
+import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { render, waitFor } from '@testing-library/react'

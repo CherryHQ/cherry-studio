@@ -7,15 +7,12 @@ import { checkModelsHealth } from '../checkModelsHealth'
 
 const checkApiMock = vi.fn()
 
-vi.mock('@renderer/services/ApiService', () => ({
-  checkApi: (...args: unknown[]) => checkApiMock(...args)
-}))
-
 vi.mock('../../utils/healthCheck', async () => {
   const actual = await vi.importActual<typeof HealthCheckUtils>('../../utils/healthCheck')
   return {
     ...actual,
-    aggregateApiKeyResults: vi.fn(actual.aggregateApiKeyResults)
+    aggregateApiKeyResults: vi.fn(actual.aggregateApiKeyResults),
+    checkApi: (...args: unknown[]) => checkApiMock(...args)
   }
 })
 

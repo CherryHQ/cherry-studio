@@ -1,5 +1,6 @@
 import { extractFtsTokens, needsLikeFallback, toFtsLikePattern, toFtsMatchQuery } from './ftsQuery'
 import { computeSearchTextId, computeUnitId, hashContentText, hashEmbeddingText } from './hashing'
+import { hasAnyMaterial as indexHasAnyMaterial } from './indexMeta'
 import type {
   KnowledgeIndexSearchInput,
   KnowledgeIndexSearchMatch,
@@ -46,6 +47,16 @@ export class KnowledgeIndexStore {
    * an insert failure rolls back without destroying the prior index (§5.2).
    */
   async rebuildMaterial(materialId: string, input: RebuildMaterialInput): Promise<void> {
+    // usesEmbeddings: false means a BM25-only rebuild — step 6 below writes whatever
+    // `embeddings` holds unconditionally (only the step 6b coverage check is gated on
+    // the flag), so a caller bug that sets both would silently write orphan vectors
+    // into an index nothing ever queries or GCs. Fail loud instead.
+    if (!input.usesEmbeddings && input.embeddings.length > 0) {
+      throw new Error(
+        `Knowledge index rebuild for material ${materialId} set usesEmbeddings: false but supplied ${input.embeddings.length} embeddings`
+      )
+    }
+
     const now = Date.now()
     const contentHash = hashContentText(input.content.text)
 
@@ -145,8 +156,9 @@ export class KnowledgeIndexStore {
         ])
       }
 
-      // 6b. Coverage check: every unit's re-derived embedding hash must resolve to a
-      //     vector, or roll the rebuild back. This catches two failure modes:
+      // 6b. Coverage check (vector bases only): every unit's re-derived embedding
+      //     hash must resolve to a vector, or roll the rebuild back. This catches two
+      //     failure modes:
       //     (a) the caller hashes its chunk text while this store hashes the re-sliced
       //         body, so an offset/hash mismatch would leave a unit silently absent
       //         from vector search; and
@@ -155,7 +167,10 @@ export class KnowledgeIndexStore {
       //         drop a hash it reported present before this rebuild writes, and the job
       //         then skips re-embedding it. Failing loud rolls back; the job's retry
       //         re-reads (the hash is now absent), re-embeds it, and converges.
-      this.assertEmbeddingCoverage(tx, materialId, [...new Set(units.map((unit) => unit.embeddingTextHash))])
+      //     A BM25-only base stores no vectors, so the check does not apply.
+      if (input.usesEmbeddings) {
+        this.assertEmbeddingCoverage(tx, materialId, [...new Set(units.map((unit) => unit.embeddingTextHash))])
+      }
 
       // 7. Mark the material's current content (failure/lifecycle state is the
       //    authority of knowledge_item, not this derived index).
@@ -417,6 +432,53 @@ export class KnowledgeIndexStore {
   /** Whether the backing driver has been closed (see {@link SqliteDriver.isClosed}). */
   isClosed(): boolean {
     return this.driver.isClosed()
+  }
+
+  /**
+   * Whether the index holds at least one material row. Synchronous (delegates to
+   * the {@link indexHasAnyMaterial} probe) so the store-open diagnostic can run
+   * inside the fully-synchronous open path without breaking its single-flight
+   * guarantee (see KnowledgeVectorStoreService).
+   */
+  hasAnyMaterial(): boolean {
+    return indexHasAnyMaterial(this.driver)
+  }
+
+  /**
+   * Row counts across the index's tables plus the number of `search_text` rows
+   * whose embedding-text hash has no stored embedding (a unit silently absent from
+   * vector search). Used by the v1→v2 vector migrator's post-build validation.
+   */
+  describeIndexCounts(): { materials: number; units: number; embeddings: number; unitsMissingEmbedding: number } {
+    return {
+      materials: this.tableCount('material'),
+      units: this.tableCount('search_unit'),
+      embeddings: this.tableCount('embedding'),
+      unitsMissingEmbedding: this.countUnitsMissingEmbedding()
+    }
+  }
+
+  /**
+   * Fold the WAL back into the main db file (TRUNCATE) so the committed pages are
+   * durable in `index.sqlite` itself and the next opener sees a self-contained
+   * store. Used by the vector migrator before closing a freshly built store.
+   */
+  checkpoint(): void {
+    this.driver.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+  }
+
+  private tableCount(table: string): number {
+    const result = this.driver.execute(`SELECT count(*) AS count FROM ${table}`)
+    return Number(result.rows[0]?.count ?? 0)
+  }
+
+  private countUnitsMissingEmbedding(): number {
+    const result = this.driver.execute(
+      `SELECT count(*) AS count FROM search_text st
+       LEFT JOIN embedding e ON e.embedding_text_hash = st.embedding_text_hash
+       WHERE e.embedding_text_hash IS NULL`
+    )
+    return Number(result.rows[0]?.count ?? 0)
   }
 
   private requireQueryEmbedding(input: KnowledgeIndexSearchInput): number[] {

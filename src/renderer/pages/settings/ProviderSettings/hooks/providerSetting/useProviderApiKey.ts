@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { useProvider, useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProvider'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { debounce } from 'es-toolkit/compat'
