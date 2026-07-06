@@ -73,7 +73,9 @@ export const UpdateMessageSchema = z.strictObject({
   /** Update status */
   status: MessageStatusSchema.optional(),
   /** Update statistics */
-  stats: MessageStatsSchema.nullable().optional()
+  stats: MessageStatsSchema.nullable().optional(),
+  /** Backfill the producing-author snapshot (continue path recovers it for null-snapshot rows) */
+  messageSnapshot: MessageSnapshotSchema.nullable().optional()
 })
 export type UpdateMessageDto = z.infer<typeof UpdateMessageSchema>
 

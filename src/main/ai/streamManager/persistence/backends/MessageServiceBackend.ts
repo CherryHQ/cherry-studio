@@ -9,7 +9,7 @@ export interface MessageServiceBackendOptions {
   assistantMessageId: string
   /** Wins over `input.stats` — only set by callers replaying pre-computed stats. */
   stats?: MessageStats
-  /** Parity with the listener signature; unused by the write. */
+  /** Author snapshot to persist on finalize — backfills continued rows whose anchor had none. */
   messageSnapshot?: MessageSnapshot
   /** Post-success hook (topic auto-rename, usage reporting, …). */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>
@@ -29,7 +29,8 @@ export class MessageServiceBackend implements PersistenceBackend {
     messageService.update(this.opts.assistantMessageId, {
       data: { parts },
       status,
-      stats: this.opts.stats ?? stats
+      stats: this.opts.stats ?? stats,
+      ...(this.opts.messageSnapshot && { messageSnapshot: this.opts.messageSnapshot })
     })
   }
 
