@@ -1,5 +1,5 @@
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { render } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `WebviewContainer` renders an Electron `<webview>` element which JSDOM can't
@@ -24,13 +24,19 @@ const mocks = vi.hoisted(() => ({
   openedKeepAliveMiniApps: [] as MiniApp[],
   currentMiniAppId: '',
   tabs: [] as { id: string; url: string }[],
-  activeTabId: ''
+  activeTabId: '',
+  setOpenedKeepAliveMiniApps: vi.fn(),
+  setCurrentMiniAppId: vi.fn(),
+  setMiniAppShow: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
     openedKeepAliveMiniApps: mocks.openedKeepAliveMiniApps,
-    currentMiniAppId: mocks.currentMiniAppId
+    currentMiniAppId: mocks.currentMiniAppId,
+    setOpenedKeepAliveMiniApps: mocks.setOpenedKeepAliveMiniApps,
+    setCurrentMiniAppId: mocks.setCurrentMiniAppId,
+    setMiniAppShow: mocks.setMiniAppShow
   })
 }))
 
@@ -42,9 +48,12 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 vi.mock('@renderer/utils/webviewStateManager', () => ({
+  clearWebviewState: vi.fn(),
   getWebviewLoaded: () => false,
   setWebviewLoaded: vi.fn()
 }))
+
+import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 
 import MiniAppTabsPool from '../MiniAppTabsPool'
 
@@ -56,17 +65,29 @@ const renderedAppUrls = (container: HTMLElement): string[] =>
 
 describe('MiniAppTabsPool', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     mocks.openedKeepAliveMiniApps = []
     mocks.currentMiniAppId = ''
     mocks.tabs = []
     mocks.activeTabId = ''
+    mocks.setOpenedKeepAliveMiniApps.mockImplementation((value: MiniApp[] | ((prev: MiniApp[]) => MiniApp[])) => {
+      mocks.openedKeepAliveMiniApps = typeof value === 'function' ? value(mocks.openedKeepAliveMiniApps) : value
+    })
+    mocks.setCurrentMiniAppId.mockImplementation((value: string) => {
+      mocks.currentMiniAppId = value
+    })
+    mocks.setMiniAppShow.mockImplementation(() => undefined)
   })
 
   it('renders webviews in stable appId-sorted order regardless of LRU order', () => {
     // Three apps. The hook returns them in LRU order (most-recent last).
     mocks.openedKeepAliveMiniApps = [stubApp('charlie'), stubApp('alpha'), stubApp('bravo')]
     mocks.currentMiniAppId = 'alpha'
-    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    mocks.tabs = [
+      { id: 't1', url: '/app/mini-app/alpha' },
+      { id: 't2', url: '/app/mini-app/bravo' },
+      { id: 't3', url: '/app/mini-app/charlie' }
+    ]
     mocks.activeTabId = 't1'
 
     const { container, rerender } = render(<MiniAppTabsPool />)
@@ -93,12 +114,21 @@ describe('MiniAppTabsPool', () => {
   it('keeps DOM order stable when an app is added (only the new one inserts in sort position)', () => {
     mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('charlie')]
     mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [
+      { id: 't1', url: '/app/mini-app/alpha' },
+      { id: 't2', url: '/app/mini-app/charlie' }
+    ]
     const { container, rerender } = render(<MiniAppTabsPool />)
     expect(renderedAppIds(container)).toEqual(['alpha', 'charlie'])
 
     // Adding "bravo" must place it between alpha/charlie alphabetically — the
     // existing two webviews retain their DOM positions.
     mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('charlie'), stubApp('bravo')]
+    mocks.tabs = [
+      { id: 't1', url: '/app/mini-app/alpha' },
+      { id: 't2', url: '/app/mini-app/bravo' },
+      { id: 't3', url: '/app/mini-app/charlie' }
+    ]
     rerender(<MiniAppTabsPool />)
     expect(renderedAppIds(container)).toEqual(['alpha', 'bravo', 'charlie'])
   })
@@ -106,6 +136,10 @@ describe('MiniAppTabsPool', () => {
   it('updates WebviewContainer props when an opened app changes without changing appId', () => {
     mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
     mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [
+      { id: 't1', url: '/app/mini-app/alpha' },
+      { id: 't2', url: '/app/mini-app/bravo' }
+    ]
     const { container, rerender } = render(<MiniAppTabsPool />)
     expect(renderedAppIds(container)).toEqual(['alpha', 'bravo'])
     expect(renderedAppUrls(container)).toEqual(['https://alpha.example.com', 'https://bravo.example.com'])
@@ -118,5 +152,62 @@ describe('MiniAppTabsPool', () => {
 
     expect(renderedAppIds(container)).toEqual(['alpha', 'bravo'])
     expect(renderedAppUrls(container)).toEqual(['https://renamed-alpha.example.com', 'https://bravo.example.com'])
+  })
+
+  it('evicts keep-alive apps that no tab still references', async () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+    mocks.currentMiniAppId = 'bravo'
+    mocks.tabs = [
+      { id: 't1', url: '/app/mini-app/alpha' },
+      { id: 'home', url: '/app/translate' }
+    ]
+    mocks.activeTabId = 'home'
+
+    render(<MiniAppTabsPool />)
+
+    await waitFor(() => expect(mocks.openedKeepAliveMiniApps.map((app) => app.appId)).toEqual(['alpha']))
+    expect(clearWebviewState).toHaveBeenCalledWith('bravo')
+    expect(mocks.setCurrentMiniAppId).toHaveBeenCalledWith('')
+    expect(mocks.setMiniAppShow).toHaveBeenCalledWith(false)
+  })
+
+  it('moves global current state to the active mini app when the previous current app is evicted', async () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+    mocks.currentMiniAppId = 'bravo'
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 't1'
+
+    render(<MiniAppTabsPool />)
+
+    await waitFor(() => expect(mocks.openedKeepAliveMiniApps.map((app) => app.appId)).toEqual(['alpha']))
+    expect(clearWebviewState).toHaveBeenCalledWith('bravo')
+    expect(mocks.setCurrentMiniAppId).toHaveBeenCalledWith('alpha')
+    expect(mocks.setMiniAppShow).toHaveBeenCalledWith(true)
+  })
+
+  it('clears global current state when the active mini app is not kept alive', async () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('bravo')]
+    mocks.currentMiniAppId = 'bravo'
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 't1'
+
+    render(<MiniAppTabsPool />)
+
+    await waitFor(() => expect(mocks.openedKeepAliveMiniApps).toEqual([]))
+    expect(clearWebviewState).toHaveBeenCalledWith('bravo')
+    expect(mocks.setCurrentMiniAppId).toHaveBeenCalledWith('')
+    expect(mocks.setMiniAppShow).toHaveBeenCalledWith(false)
+  })
+
+  it('keeps a webview alive from URL-only mini app tabs', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha')]
+    mocks.currentMiniAppId = 'alpha'
+    mocks.tabs = [{ id: 't1', url: '/app/mini-app/alpha' }]
+    mocks.activeTabId = 't1'
+
+    render(<MiniAppTabsPool />)
+
+    expect(mocks.openedKeepAliveMiniApps.map((app) => app.appId)).toEqual(['alpha'])
+    expect(clearWebviewState).not.toHaveBeenCalled()
   })
 })
