@@ -297,9 +297,16 @@ function isReasoningMessagePart(part: CherryMessagePart): boolean {
   return (part.type as string) === 'reasoning' && !!(part as ReasoningUIPart).text?.trim()
 }
 
+function getToolPartName(part: CherryMessagePart): string {
+  const toolPart = part as { toolName?: string; type?: string }
+  if (toolPart.toolName?.trim()) return toolPart.toolName
+  if (toolPart.type?.startsWith('tool-')) return toolPart.type.replace(/^tool-/, '')
+  return ''
+}
+
 function isFoldableToolPart(part: CherryMessagePart): boolean {
   if (!isToolUIPart(part)) return false
-  return !isAskUserQuestionToolName((part as { toolName?: string }).toolName)
+  return !isAskUserQuestionToolName(getToolPartName(part))
 }
 
 function isTrailingHoldPart(part: CherryMessagePart): boolean {

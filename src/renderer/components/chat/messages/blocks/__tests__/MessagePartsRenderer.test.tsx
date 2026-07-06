@@ -1064,6 +1064,26 @@ describe('MessagePartsRenderer', () => {
     expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-tool-name', 'AskUserQuestion')
   })
 
+  it('does not fold AskUserQuestion parts that omit toolName', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts(
+      [
+        {
+          type: 'tool-AskUserQuestion',
+          toolCallId: 'ask',
+          state: 'input-available',
+          input: { questions: [{ header: '合并', question: '是否提交 Approve 审查并合并此 PR?', options: [] }] }
+        }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    expect(screen.queryByRole('button', { name: /tool calls/ })).toBeNull()
+    expect(screen.queryByTestId('tool-history-preview')).toBeNull()
+    expect(screen.getByTestId('mock-message-tools')).toHaveAttribute('data-tool-name', 'AskUserQuestion')
+  })
+
   it('keeps AskUserQuestion outside the folded toolgroup', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 
