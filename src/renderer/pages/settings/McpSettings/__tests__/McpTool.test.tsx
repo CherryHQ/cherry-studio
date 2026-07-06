@@ -118,10 +118,12 @@ vi.mock('@cherrystudio/ui', async () => {
 })
 
 describe('McpToolsSection', () => {
+  const toolDescription = 'A long tool description that should remain clamped inside the tooltip trigger wrapper.'
+
   const tool: McpTool = {
     id: 'server__very_long_tool_name',
     name: 'Very long MCP tool name that should stay truncated in the table',
-    description: 'A long tool description that should remain clamped inside the tooltip trigger wrapper.',
+    description: toolDescription,
     type: 'mcp',
     serverId: '123e4567-e89b-42d3-a456-426614174000',
     serverName: 'Demo MCP Server',
@@ -147,7 +149,7 @@ describe('McpToolsSection', () => {
 
     expect(screen.getByText(tool.name)).toHaveClass('truncate')
 
-    const description = screen.getByText(tool.description)
+    const description = screen.getByText(toolDescription)
     expect(description).toHaveClass('line-clamp-1', 'block', 'w-full', 'min-w-0')
 
     const trigger = description.closest('[data-slot="tooltip-trigger"]')
