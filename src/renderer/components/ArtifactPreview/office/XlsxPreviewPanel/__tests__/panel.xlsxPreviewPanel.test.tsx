@@ -77,14 +77,50 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => mocks.logger }
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  Tooltip: ({ children }: PropsWithChildren<{ content?: string; delay?: number }>) => <>{children}</>
-}))
+vi.mock('@cherrystudio/ui', async () => {
+  const React = await import('react')
+  const TabsContext = React.createContext<{ value?: string; onValueChange?: (v: string) => void }>({})
+  return {
+    Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    Tooltip: ({ children }: PropsWithChildren<{ content?: string; delay?: number }>) => <>{children}</>,
+    Tabs: ({
+      value,
+      onValueChange,
+      children
+    }: PropsWithChildren<{
+      value?: string
+      onValueChange?: (v: string) => void
+      variant?: string
+      className?: string
+    }>) => <TabsContext value={{ value, onValueChange }}>{children}</TabsContext>,
+    TabsList: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
+      <div role="tablist" {...props}>
+        {children}
+      </div>
+    ),
+    TabsTrigger: ({
+      value,
+      children,
+      ...props
+    }: PropsWithChildren<{ value: string } & React.ComponentPropsWithoutRef<'button'>>) => {
+      const ctx = React.use(TabsContext)
+      return (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={ctx.value === value}
+          onClick={() => ctx.onValueChange?.(value)}
+          {...props}>
+          {children}
+        </button>
+      )
+    }
+  }
+})
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' ')

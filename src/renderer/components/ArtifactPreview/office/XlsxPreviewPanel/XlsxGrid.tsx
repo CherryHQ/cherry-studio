@@ -398,6 +398,69 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     onSelectCell?.(null)
   }, [onSelectCell])
 
+  // 键盘移动选中格:虚拟化下目标格可能未挂载,移动后须 scrollToIndex 保证可见
+  const moveSelection = useCallback(
+    (dRow: number, dCol: number) => {
+      // 未选中时首次方向键落到 A1,而非从 A1 再前进一格
+      if (!selected) {
+        selectCell(1, 1)
+        rowVirtualizer.scrollToIndex(0)
+        colVirtualizer.scrollToIndex(0)
+        return
+      }
+      // 从合并区出发时,前进方向要越过整个合并区,避免落回同一 master 卡住
+      const merge = findMerge(selected.row, selected.col)
+      let nextRow = selected.row
+      let nextCol = selected.col
+      if (dRow > 0) nextRow = (merge?.bottom ?? selected.row) + 1
+      else if (dRow < 0) nextRow = selected.row - 1
+      if (dCol > 0) nextCol = (merge?.right ?? selected.col) + 1
+      else if (dCol < 0) nextCol = selected.col - 1
+      nextRow = Math.min(Math.max(nextRow, 1), rowCount)
+      nextCol = Math.min(Math.max(nextCol, 1), colCount)
+      selectCell(nextRow, nextCol)
+      rowVirtualizer.scrollToIndex(nextRow - 1)
+      colVirtualizer.scrollToIndex(nextCol - 1)
+    },
+    [selected, findMerge, rowCount, colCount, selectCell, rowVirtualizer, colVirtualizer]
+  )
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      switch (e.key) {
+        case 'Escape':
+          clearSelection()
+          return
+        case 'ArrowUp':
+          e.preventDefault()
+          moveSelection(-1, 0)
+          return
+        case 'ArrowDown':
+          e.preventDefault()
+          moveSelection(1, 0)
+          return
+        case 'ArrowLeft':
+          e.preventDefault()
+          moveSelection(0, -1)
+          return
+        case 'ArrowRight':
+          e.preventDefault()
+          moveSelection(0, 1)
+          return
+        case 'Enter':
+        case ' ': {
+          e.preventDefault()
+          const target = selected ?? { row: 1, col: 1 }
+          selectCell(target.row, target.col)
+          rowVirtualizer.scrollToIndex(target.row - 1)
+          colVirtualizer.scrollToIndex(target.col - 1)
+          return
+        }
+      }
+    },
+    [clearSelection, moveSelection, selected, selectCell, rowVirtualizer, colVirtualizer]
+  )
+
   // 选中格(或其合并区)的像素矩形,供弹层定位;selected 恒为 master(见 selectCell)
   const selectedRect = useMemo(() => {
     if (!selected) return null
@@ -423,9 +486,12 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       data-testid="xlsx-grid-scroll"
       className="relative h-full w-full overflow-auto bg-background"
       onScroll={handleScroll}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') clearSelection()
-      }}
+      onKeyDown={handleKeyDown}
+      role="grid"
+      aria-label={sheet.name}
+      aria-readonly
+      aria-rowcount={rowCount}
+      aria-colcount={colCount}
       tabIndex={0}>
       <div className="relative" style={{ width: totalWidth, height: totalHeight }}>
         {/* 列表头(sticky top):A B C…。盒子在滚动坐标系定位,内容整体缩放 */}
@@ -476,34 +542,39 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
           {/* 单元格层:双向虚拟滚动。任何被合并覆盖的单元格(含 master)在此层置空内容——
               master 的内容+样式由下方独立的合并层渲染,避免重复;这里只保留背景占位。 */}
           <div className="absolute">
-            {virtualRows.map((vr) =>
-              virtualCols.map((vc) => {
-                const row = vr.index + 1
-                const col = vc.index + 1
-                const isCovered = Boolean(findMerge(row, col))
-                const cell = isCovered ? undefined : getCell(row, col)
-                const style = isCovered ? undefined : getStyle(cell)
-                const isSelected = !isCovered && selected?.row === row && selected?.col === col
-                return (
-                  <div
-                    key={`${vr.key}:${vc.key}`}
-                    onClick={() => selectCell(row, col)}
-                    role="gridcell"
-                    aria-selected={isSelected}>
-                    <CellView
-                      cell={cell}
-                      style={style}
-                      isFirstRow={row === 1}
-                      isFirstCol={col === 1}
-                      top={axisOffset(rowLayout, vr.index)}
-                      left={axisOffset(colLayout, vc.index)}
-                      width={colLayout.sizes[vc.index]}
-                      height={rowLayout.sizes[vr.index]}
-                    />
-                  </div>
-                )
-              })
-            )}
+            {virtualRows.map((vr) => {
+              const row = vr.index + 1
+              return (
+                <div key={vr.key} role="row" aria-rowindex={row}>
+                  {virtualCols.map((vc) => {
+                    const col = vc.index + 1
+                    const isCovered = Boolean(findMerge(row, col))
+                    const cell = isCovered ? undefined : getCell(row, col)
+                    const style = isCovered ? undefined : getStyle(cell)
+                    const isSelected = !isCovered && selected?.row === row && selected?.col === col
+                    return (
+                      <div
+                        key={vc.key}
+                        onClick={() => selectCell(row, col)}
+                        role="gridcell"
+                        aria-colindex={col}
+                        aria-selected={isSelected}>
+                        <CellView
+                          cell={cell}
+                          style={style}
+                          isFirstRow={row === 1}
+                          isFirstCol={col === 1}
+                          top={axisOffset(rowLayout, vr.index)}
+                          left={axisOffset(colLayout, vc.index)}
+                          width={colLayout.sizes[vc.index]}
+                          height={rowLayout.sizes[vr.index]}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })}
           </div>
 
           {/* 合并层:独立于单元格虚拟化,master 滚出视口但合并区与视口相交时依然渲染;命中测试优先于单元格层(DOM 顺序在后) */}
@@ -515,20 +586,25 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
               return (
                 <div
                   key={`merge:${merge.top}:${merge.left}:${merge.bottom}:${merge.right}`}
-                  onClick={() => selectCell(masterRow, masterCol)}
-                  role="gridcell"
-                  aria-selected={isSelected}
-                  data-testid="xlsx-grid-merge-cell">
-                  <CellView
-                    cell={cell}
-                    style={style}
-                    isFirstRow={masterRow === 1}
-                    isFirstCol={masterCol === 1}
-                    top={rect.y}
-                    left={rect.x}
-                    width={rect.width}
-                    height={rect.height}
-                  />
+                  role="row"
+                  aria-rowindex={masterRow}
+                  onClick={() => selectCell(masterRow, masterCol)}>
+                  <div
+                    role="gridcell"
+                    aria-colindex={masterCol}
+                    aria-selected={isSelected}
+                    data-testid="xlsx-grid-merge-cell">
+                    <CellView
+                      cell={cell}
+                      style={style}
+                      isFirstRow={masterRow === 1}
+                      isFirstCol={masterCol === 1}
+                      top={rect.y}
+                      left={rect.x}
+                      width={rect.width}
+                      height={rect.height}
+                    />
+                  </div>
                 </div>
               )
             })}

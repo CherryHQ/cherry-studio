@@ -1,5 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
+import { Button, Tabs, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { AlertCircle, FileSpreadsheet, ZoomIn, ZoomOut } from 'lucide-react'
@@ -188,27 +187,15 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
 
       {/* 底部栏(对齐 Excel):sheet 标签在左,选中格信息居右,缩放控件在最右 */}
       <div className="flex shrink-0 items-center gap-2 border-border-subtle border-t bg-background px-2 py-1">
-        <div
-          role="tablist"
-          aria-label={t('xlsx_preview.sheet_tabs_label')}
-          className="flex min-w-0 shrink gap-1 overflow-x-auto">
-          {sheets.map((sheet) => (
-            <button
-              key={sheet.name}
-              type="button"
-              role="tab"
-              aria-selected={sheet.name === activeSheet.name}
-              className={cn(
-                'shrink-0 whitespace-nowrap rounded px-2 py-1 text-xs',
-                sheet.name === activeSheet.name
-                  ? 'bg-accent font-medium text-foreground'
-                  : 'text-foreground-muted hover:bg-accent hover:text-foreground'
-              )}
-              onClick={() => setActiveSheetName(sheet.name)}>
-              {sheet.name}
-            </button>
-          ))}
-        </div>
+        <Tabs value={activeSheet.name} onValueChange={setActiveSheetName} variant="line" className="min-w-0 shrink">
+          <TabsList aria-label={t('xlsx_preview.sheet_tabs_label')} className="min-w-0 gap-1 overflow-x-auto">
+            {sheets.map((sheet) => (
+              <TabsTrigger key={sheet.name} value={sheet.name} className="shrink-0 px-2 py-1 text-xs">
+                {sheet.name}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
 
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2 text-foreground-muted text-xs">
           {statusBarText && (

@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   colRange: [] as MockVirtualItem[],
   lastRowOptions: null as any,
   lastColOptions: null as any,
+  rowScrollToIndex: vi.fn(),
+  colScrollToIndex: vi.fn(),
   useVirtualizer: vi.fn()
 }))
 
@@ -62,7 +64,8 @@ const virtualizerImpl = (options: any) => {
       const range = isHorizontal ? mocks.colRange : mocks.rowRange
       const last = range[range.length - 1]
       return last ? last.start + last.size : 0
-    }
+    },
+    scrollToIndex: isHorizontal ? mocks.colScrollToIndex : mocks.rowScrollToIndex
   }
 }
 
@@ -365,6 +368,88 @@ describe('XlsxGrid — cell selection', () => {
 
     fireEvent.keyDown(screen.getByTestId('xlsx-grid-scroll'), { key: 'Escape' })
     expect(onSelectCell).toHaveBeenCalledWith(null)
+  })
+})
+
+describe('XlsxGrid — keyboard selection', () => {
+  beforeEach(() => {
+    showHeaderRange()
+  })
+
+  it('lands on A1 on the first arrow key when nothing is selected', () => {
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+
+    fireEvent.keyDown(screen.getByTestId('xlsx-grid-scroll'), { key: 'ArrowDown' })
+    expect(onSelectCell).toHaveBeenLastCalledWith(expect.objectContaining({ address: 'A1' }))
+  })
+
+  it('moves the selection with the arrow keys and reports each target cell', () => {
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown' }) // → A1 (initial landing)
+    // A1 is a merge master (rows 1, cols 1-4); ArrowDown must clear the whole merge to row 2.
+    fireEvent.keyDown(scroll, { key: 'ArrowDown' })
+    expect(onSelectCell).toHaveBeenLastCalledWith(expect.objectContaining({ address: 'A2' }))
+    fireEvent.keyDown(scroll, { key: 'ArrowRight' })
+    expect(onSelectCell).toHaveBeenLastCalledWith(expect.objectContaining({ address: 'B2' }))
+  })
+
+  it('scrolls the moved-to cell into view (virtualized cells may be unmounted)', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown' }) // → A1
+    fireEvent.keyDown(scroll, { key: 'ArrowDown' }) // → A2 (row index 1, col index 0)
+    expect(mocks.rowScrollToIndex).toHaveBeenLastCalledWith(1)
+    expect(mocks.colScrollToIndex).toHaveBeenLastCalledWith(0)
+  })
+
+  it('does not move past the top/left edge', () => {
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown' }) // → A1
+    fireEvent.keyDown(scroll, { key: 'ArrowUp' }) // clamp at row 1
+    fireEvent.keyDown(scroll, { key: 'ArrowLeft' }) // clamp at col 1
+    expect(onSelectCell).toHaveBeenLastCalledWith(expect.objectContaining({ address: 'A1' }))
+  })
+
+  it('selects the current cursor cell on Enter', () => {
+    const onSelectCell = vi.fn()
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} onSelectCell={onSelectCell} />)
+    const scroll = screen.getByTestId('xlsx-grid-scroll')
+
+    fireEvent.keyDown(scroll, { key: 'ArrowDown' }) // → A1
+    fireEvent.keyDown(scroll, { key: 'ArrowDown' }) // → A2
+    onSelectCell.mockClear()
+    fireEvent.keyDown(scroll, { key: 'Enter' })
+    expect(onSelectCell).toHaveBeenLastCalledWith(expect.objectContaining({ address: 'A2' }))
+  })
+})
+
+describe('XlsxGrid — grid semantics', () => {
+  beforeEach(() => {
+    showHeaderRange()
+  })
+
+  it('exposes the focusable scroll container as a grid with row/col counts', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    const grid = screen.getByRole('grid')
+    expect(grid).toHaveAttribute('tabindex', '0')
+    expect(grid).toHaveAttribute('aria-rowcount')
+    expect(grid).toHaveAttribute('aria-colcount')
+  })
+
+  it('wraps cells in rows and exposes 1-based row/col indices on gridcells', () => {
+    render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
+    const quarterCell = screen.getByText('Quarter').closest('[role="gridcell"]') as HTMLElement
+    // A2 → col index 1, inside row index 2.
+    expect(quarterCell).toHaveAttribute('aria-colindex', '1')
+    expect(quarterCell.closest('[role="row"]')).toHaveAttribute('aria-rowindex', '2')
   })
 })
 
