@@ -1,6 +1,4 @@
 // Unit tests for ExportOrchestrator — .cbu production (full-preset, DB + blob slice).
-import Database from 'better-sqlite3'
-import StreamZip from 'node-stream-zip'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -9,21 +7,23 @@ import { join } from 'node:path'
 import type { ReadonlyBackupRegistry } from '@main/data/db/backup/contributorTypes'
 import { BACKUP_DOMAINS } from '@main/data/db/backup/domains'
 import { appStateTable } from '@main/data/db/schemas/appState'
-import { assistantKnowledgeBaseTable } from '@main/data/db/schemas/assistantRelations'
 import { assistantTable } from '@main/data/db/schemas/assistant'
-import { chatMessageFileRefTable } from '@main/data/db/schemas/fileRelations'
+import { assistantKnowledgeBaseTable } from '@main/data/db/schemas/assistantRelations'
 import { fileEntryTable } from '@main/data/db/schemas/file'
+import { chatMessageFileRefTable } from '@main/data/db/schemas/fileRelations'
 import { knowledgeBaseTable } from '@main/data/db/schemas/knowledge'
 import { messageTable } from '@main/data/db/schemas/message'
 import { topicTable } from '@main/data/db/schemas/topic'
+import type { BackupProgressUpdate } from '@shared/types/backup'
 import { setupTestDatabase } from '@test-helpers/db'
+import Database from 'better-sqlite3'
+import StreamZip from 'node-stream-zip'
 import { describe, expect, it } from 'vitest'
 
-import type { BackupProgressUpdate } from '@shared/types/backup'
 import { SqliteBackupCopier, StubBackupCopier } from './BackupDbCopier'
+import { contributorManager } from './contributors/ContributorManager'
 import { SqliteBackupStripper, StubStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
-import { contributorManager } from './contributors/ContributorManager'
 
 /**
  * Minimal registry stub — the orchestrator's first slice only calls `topoSort`.
@@ -59,6 +59,7 @@ const newOrch = (dir: string, fixture: string) =>
     tempDir: dir,
     filesRoot: join(dir, 'files-root'),
     knowledgeRoot: join(dir, 'kb-root'),
+    notesRoot: () => join(dir, 'notes-root'),
     // StubStripper — the STUB_REGISTRY describe never runs lite (lite e2e is in
     // the real-registry describe below); a stub satisfies the required dep.
     stripper: new StubStripper()
@@ -274,9 +275,18 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       // Fixture blobs at the live filesystem roots.
       const filesRoot = await mkdtemp(join(tmpdir(), 'cs-files-root-'))
       const kbRoot = await mkdtemp(join(tmpdir(), 'cs-kb-root-'))
+      const notesRoot = await mkdtemp(join(tmpdir(), 'cs-notes-root-'))
       await writeFile(join(filesRoot, 'f1.txt'), 'hello')
       await mkdir(join(kbRoot, 'kb1'), { recursive: true })
       await writeFile(join(kbRoot, 'kb1', 'source.md'), 'doc')
+      // Seed Notes markdown bodies (PREFERENCES file resource) — one at root, one
+      // nested, one with an uppercase .MD ext — to exercise recursive collect,
+      // sub-dir-preserving stage, and case-insensitive ext matching (Notes UI treats
+      // .MD == .md, so the collector must too or uppercase-ext notes silently drop).
+      await writeFile(join(notesRoot, 'note1.md'), '# note 1')
+      await mkdir(join(notesRoot, 'sub'), { recursive: true })
+      await writeFile(join(notesRoot, 'sub', 'note2.md'), '# note 2')
+      await writeFile(join(notesRoot, 'note3.MD'), '# note 3')
 
       // Snapshot the live test DB (holds the seeded file_entry + knowledge_base) via
       // SqliteBackupCopier; the orchestrator then opens its own read-only handle on
@@ -285,11 +295,13 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       const orch = new ExportOrchestrator({
         copier: new SqliteBackupCopier(liveRow.file),
         // Real registry: collectFileResources runs the actual contributor hooks
-        // (FILE_STORAGE → f1, KNOWLEDGE → kb1, PAINTINGS → none) against the snapshot.
+        // (FILE_STORAGE → f1, KNOWLEDGE → kb1, PAINTINGS → none, PREFERENCES → notes)
+        // against the snapshot.
         registry: contributorManager.getRegistry(),
         tempDir: dir,
         filesRoot,
         knowledgeRoot: kbRoot,
+        notesRoot: () => notesRoot,
         // Full preset strips ALWAYS_STRIP tables (app_state / job) via step 2.5.
         stripper: new SqliteBackupStripper()
       })
@@ -309,12 +321,17 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       expect(manifest.files.total).toBe(1)
       expect(manifest.files.totalBytes).toBe(5)
       expect(manifest.knowledge.bases).toEqual(['kb1'])
+      // notes: all seeded markdown bodies staged (POSIX relpaths, sub-dir preserved,
+      // uppercase .MD included — case-insensitive ext match).
+      expect(new Set(manifest.notes.paths)).toEqual(new Set(['note1.md', 'sub/note2.md', 'note3.MD']))
 
       // archive holds the staged blobs.
       const { zip, entries } = await openZip(out)
       try {
         expect(entries).toContain('files/f1')
         expect(entries).toContain('knowledge/kb1/source.md')
+        expect(entries).toContain('notes/note1.md')
+        expect(entries).toContain('notes/sub/note2.md')
 
         // backup.sqlite: ALWAYS_STRIP tables (app_state / job) are stripped on full
         // too (step 2.5 runs every preset), while included business rows survive.
@@ -367,6 +384,7 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         tempDir: dir,
         filesRoot,
         knowledgeRoot: kbRoot,
+        notesRoot: () => join(dir, 'notes-root'),
         stripper: new SqliteBackupStripper()
       })
       const out = join(dir, 'missing.cbu')
@@ -445,6 +463,13 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       // app_state (ALWAYS_STRIP) — runtime state, must be stripped even on lite.
       await dbh.db.insert(appStateTable).values([{ key: 'migration_v2_status', value: 'completed' }])
 
+      // Seed a REAL Notes markdown body under the notes root. lite must NOT archive it
+      // (file resources are lite-excluded; only the `note` overlay rows travel in the DB
+      // copy). Guards the preset gate that skips PREFERENCES.collectFileResources in lite
+      // — without the gate, this note would leak into the lite archive.
+      await mkdir(join(dir, 'notes-root'), { recursive: true })
+      await writeFile(join(dir, 'notes-root', 'secret.md'), '# must NOT appear in lite archive')
+
       const liveRow = dbh.sqlite.prepare('PRAGMA database_list').get() as { file: string }
       const orch = new ExportOrchestrator({
         copier: new SqliteBackupCopier(liveRow.file),
@@ -452,6 +477,7 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         tempDir: dir,
         filesRoot: join(dir, 'files-root'),
         knowledgeRoot: join(dir, 'kb-root'),
+        notesRoot: () => join(dir, 'notes-root'),
         // Real stripper — runs step 2.5 against the copy.
         stripper: new SqliteBackupStripper()
       })
@@ -472,14 +498,18 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       )
       expect(manifest.includeFiles).toBe(false)
       expect(manifest.includeKnowledgeFiles).toBe(false)
+      // lite excludes file resources: a REAL note is seeded above, yet the preset gate
+      // skips PREFERENCES.collectFileResources → no notes staged.
+      expect(manifest.notes.paths).toEqual([])
 
-      // archive: only manifest.json + backup.sqlite; no files/ or knowledge/.
+      // archive: only manifest.json + backup.sqlite; no files/ or knowledge/ or notes/.
       const { zip, entries } = await openZip(out)
       try {
         expect(entries).toContain('manifest.json')
         expect(entries).toContain('backup.sqlite')
         expect(entries.some((e) => e.startsWith('files/'))).toBe(false)
         expect(entries.some((e) => e.startsWith('knowledge/'))).toBe(false)
+        expect(entries.some((e) => e.startsWith('notes/'))).toBe(false)
 
         // backup.sqlite: excluded tables empty, junction referrers cascade-pruned,
         // included rows preserved.

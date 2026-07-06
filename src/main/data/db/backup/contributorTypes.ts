@@ -181,6 +181,15 @@ export interface BackupContextBase {
 /** Context for collectFileResources — reads live DB file metadata only. */
 export interface FileResourceContext extends BackupContextBase {
   readonly liveDb: BackupReadonlyDb
+  /**
+   * Notes markdown root — BackupService resolves it from the feature.notes.path
+   * preference (falling back to the managed feature.notes.data when unset/invalid),
+   * so a custom Notes dir (e.g. ~/Documents/MyNotes) is scanned, not just the
+   * managed default. PREFERENCES.collectFileResources scans it case-insensitively
+   * for `.md` files. undefined in unit tests (or when Notes isn't wired) → the hook
+   * returns an empty set and skips notes collection.
+   */
+  readonly notesRoot?: string
 }
 
 /** Context for beforeArchive — may write the backup copy (own domain only). */

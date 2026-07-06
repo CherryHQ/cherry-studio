@@ -5,7 +5,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { BACKUP_FORMAT_VERSION, readManifest, writeManifest, type BackupManifest } from './manifest'
+import { BACKUP_FORMAT_VERSION, type BackupManifest,readManifest, writeManifest } from './manifest'
 
 const SAMPLE: BackupManifest = {
   backupFormatVersion: BACKUP_FORMAT_VERSION,
@@ -18,7 +18,8 @@ const SAMPLE: BackupManifest = {
   schemaMigrationId: '0001_abc.sql',
   producerAppVersion: '1.0.0',
   files: { ids: [], total: 0, totalBytes: 0 },
-  knowledge: { bases: [] }
+  knowledge: { bases: [] },
+  notes: { paths: [] }
 }
 
 describe('manifest round-trip', () => {

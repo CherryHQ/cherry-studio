@@ -23,24 +23,24 @@
 // side land in follow-up slices.
 
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { stat, statfs } from 'node:fs/promises'
-import { join } from 'node:path'
-
-import { and, eq, isNull, sum } from 'drizzle-orm'
+import { join, resolve } from 'node:path'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { BaseService, Emitter, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { fileEntryTable } from '@main/data/db/schemas/file'
-import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/backup'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/backup'
+import { and, eq, isNull, sum } from 'drizzle-orm'
 import { app } from 'electron'
 
 import { SqliteBackupCopier } from './BackupDbCopier'
-import { SqliteBackupStripper } from './ExcludedDomainStripper'
-import { ExportOrchestrator } from './ExportOrchestrator'
 import { contributorManager } from './contributors'
 import { InsufficientDiskSpaceError } from './errors'
+import { SqliteBackupStripper } from './ExcludedDomainStripper'
+import { ExportOrchestrator } from './ExportOrchestrator'
 
 /** Renderer-facing export request (renderer passes preset + path; service fills the rest). */
 export interface BackupV2StartOptions {
@@ -70,6 +70,8 @@ export class BackupService extends BaseService {
   private readonly _onProgress = new Emitter<BackupProgressUpdate>()
   /** The single active export (null when idle). */
   private activeExport: ActiveExport | null = null
+  /** Service logger — Notes-root fallback warnings land here so they are observable. */
+  private readonly logger = loggerService.withContext('backup')
 
   protected onInit(): void {
     // Bridge progress emitter → renderer broadcast (WindowManager.broadcastToType).
@@ -101,6 +103,10 @@ export class BackupService extends BaseService {
       tempDir: application.getPath('feature.backup.temp'),
       filesRoot: application.getPath('feature.files.data'),
       knowledgeRoot: application.getPath('feature.knowledgebase.data'),
+      // Notes markdown bodies (PREFERENCES file resource) — full preset only.
+      // Notes root is preference-driven (feature.notes.path may sit outside the
+      // managed data dir), so resolve it fresh per export — see resolveNotesRoot.
+      notesRoot: () => this.resolveNotesRoot(),
       stripper: new SqliteBackupStripper()
     })
 
@@ -233,5 +239,38 @@ export class BackupService extends BaseService {
       throw new Error('backup: migration journal has no entries (cannot derive schemaMigrationId)')
     }
     return String(last.when)
+  }
+
+  /**
+   * Resolve the effective Notes markdown root for backup. Mirrors the renderer's
+   * resolveNotesPath (NotesService.ts): the user-visible Notes dir is the
+   * feature.notes.path preference when set + valid, else the managed default
+   * (feature.notes.data, a static path namespace). Backup must scan the same root
+   * the user sees — hard-wiring the default would silently miss the notes of anyone
+   * who configured a custom dir (e.g. ~/Documents/MyNotes). Called per export so a
+   * mid-session preference change takes effect on the next backup.
+   */
+  private resolveNotesRoot(): string {
+    const defaultRoot = application.getPath('feature.notes.data')
+    const prefRaw = application.get('PreferenceService').get('feature.notes.path')
+    const pref = typeof prefRaw === 'string' ? prefRaw.trim() : ''
+    // No custom dir configured (fresh user, or never opened Notes settings) → default.
+    if (!pref) return defaultRoot
+    const candidate = resolve(pref)
+    if (candidate === defaultRoot) return defaultRoot
+    // Validate the custom dir exists + is a directory. An inaccessible custom dir
+    // falls back to the managed default — matching the renderer, which shows the
+    // default Notes tree when the configured dir is unavailable. Warn so the
+    // fallback is observable rather than a silent partial backup.
+    try {
+      if (statSync(candidate).isDirectory()) return candidate
+    } catch {
+      // stat failed (missing / permission) — fall through to default + warn below.
+    }
+    this.logger.warn('custom Notes root unavailable, backing up the managed default', {
+      candidate,
+      defaultRoot
+    })
+    return defaultRoot
   }
 }

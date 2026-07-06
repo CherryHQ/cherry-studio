@@ -10,11 +10,11 @@
 //   - feature.knowledgebase.data (per-base dirs: <baseId>/)
 
 import { copyFile, cp, mkdir, rm, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
-import { and, inArray, isNull } from 'drizzle-orm'
 import type { BackupReadonlyDb } from '@main/data/db/backup/contexts'
 import { fileEntryTable } from '@main/data/db/schemas/file'
+import { and, inArray, isNull } from 'drizzle-orm'
 
 /** True if `e` is a Node fs error with the given code (e.g. 'ENOENT' = source gone). */
 const isErrnoCode = (e: unknown, code: string): boolean =>
@@ -33,6 +33,12 @@ export interface StageKnowledgeResult {
   readonly missing: readonly string[]
 }
 
+/** Result of staging notes markdown: which relative paths copied, which were missing. */
+export interface StageNotesResult {
+  readonly paths: readonly string[]
+  readonly missing: readonly string[]
+}
+
 /**
  * Port: stage file blobs + knowledge base dirs into temp dirs. Injected into
  * ExportOrchestrator so the IO + DB resolution is testable in isolation.
@@ -40,6 +46,11 @@ export interface StageKnowledgeResult {
 export interface FileStager {
   stageFiles(fileIds: ReadonlySet<string>, destDir: string): Promise<StageFilesResult>
   stageKnowledge(baseIds: ReadonlySet<string>, destDir: string): Promise<StageKnowledgeResult>
+  stageNotes(
+    notesRoot: string,
+    relPaths: ReadonlySet<string>,
+    destDir: string
+  ): Promise<StageNotesResult>
 }
 
 /**
@@ -185,18 +196,63 @@ export class SqliteFileStager implements FileStager {
     }
     return { bases, missing }
   }
+
+  /**
+   * Copy each `<notesRoot>/<relPath>` markdown file to `<destDir>/<relPath>`,
+   * preserving sub-directory structure (mkdir recursive). Missing/unreadable
+   * sources (ENOENT / EACCES / EPERM) are skip-and-continue — recorded in
+   * `missing` rather than aborting the export — matching stageFiles/stageKnowledge.
+   * Other errors (ENOSPC etc.) throw. Empty input returns
+   * `{ paths: [], missing: [] }`.
+   */
+  async stageNotes(
+    notesRoot: string,
+    relPaths: ReadonlySet<string>,
+    destDir: string
+  ): Promise<StageNotesResult> {
+    if (relPaths.size === 0) return { paths: [], missing: [] }
+    await mkdir(destDir, { recursive: true })
+
+    const staged: string[] = []
+    const missing: string[] = []
+    for (const rel of relPaths) {
+      const src = join(notesRoot, rel)
+      const dest = join(destDir, rel)
+      // Ensure the destination sub-directory exists (rel may be `sub/note.md`).
+      await mkdir(dirname(dest), { recursive: true })
+      try {
+        await copyFile(src, dest)
+      } catch (e) {
+        // ENOENT = source gone; EACCES/EPERM = source unreadable (mode 000) or dest
+        // permission issue — treat as missing per the stager contract. ENOSPC and
+        // other system errors still abort (dest write fail — the archive would
+        // otherwise omit a body its DB overlay references).
+        if (isErrnoCode(e, 'ENOENT') || isErrnoCode(e, 'EACCES') || isErrnoCode(e, 'EPERM')) {
+          missing.push(rel)
+          continue
+        }
+        throw e
+      }
+      staged.push(rel)
+    }
+    return { paths: staged, missing }
+  }
 }
 
 /** Test double — records calls + returns canned results. No IO. */
 export class StubFileStager implements FileStager {
   constructor(
     private readonly filesResult: StageFilesResult = { total: 0, totalBytes: 0, missing: [] },
-    private readonly knowledgeResult: StageKnowledgeResult = { bases: [], missing: [] }
+    private readonly knowledgeResult: StageKnowledgeResult = { bases: [], missing: [] },
+    private readonly notesResult: StageNotesResult = { paths: [], missing: [] }
   ) {}
   async stageFiles(): Promise<StageFilesResult> {
     return this.filesResult
   }
   async stageKnowledge(): Promise<StageKnowledgeResult> {
     return this.knowledgeResult
+  }
+  async stageNotes(): Promise<StageNotesResult> {
+    return this.notesResult
   }
 }
