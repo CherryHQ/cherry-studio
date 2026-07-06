@@ -59,10 +59,11 @@ export class KnowledgeVectorSourceReader {
   }
 
   /**
-   * Read only the `uniqueLoaderId`/`source` columns — never the pageContent or vector BLOB. This
-   * lets directory expansion build its loader→source map without synchronously reading and
-   * float32-decoding a whole base's vectors, which on large folders froze the migration UI and
-   * risked OOM. Path resolution and the embedjs guard are shared with {@link loadBase}, so both
+   * Read only the *distinct* `uniqueLoaderId`/`source` pairs — never the pageContent or vector
+   * BLOB. This lets directory expansion build its loader→source map without synchronously reading
+   * and float32-decoding a whole base's vectors, which on large folders froze the migration UI and
+   * risked OOM; the `DISTINCT` also keeps the returned rows down to one per loader instead of one
+   * per chunk. Path resolution and the embedjs guard are shared with {@link loadBase}, so both
    * reads see the exact same set of loaders.
    */
   async loadBaseLoaderSources(baseId: string): Promise<LegacyKnowledgeLoaderSourceLoadResult> {
@@ -118,7 +119,11 @@ export class KnowledgeVectorSourceReader {
   }
 
   private readLegacyLoaderSourceRows(db: Database.Database): LegacyKnowledgeLoaderSourceRow[] {
-    const statement = db.prepare(`SELECT uniqueLoaderId, source FROM ${LEGACY_VECTOR_TABLE_NAME}`)
+    // `DISTINCT` dedups in SQLite so this materializes only the unique loader/source pairs the
+    // caller folds into its map — not one JS object per legacy vector chunk. A large folder can
+    // have thousands of chunks under a single loader; without `DISTINCT` that's thousands of
+    // redundant allocations here for a map that keeps one entry per loader.
+    const statement = db.prepare(`SELECT DISTINCT uniqueLoaderId, source FROM ${LEGACY_VECTOR_TABLE_NAME}`)
     const rows = statement.all() as Array<Record<string, unknown>>
 
     return rows.map((row) => ({

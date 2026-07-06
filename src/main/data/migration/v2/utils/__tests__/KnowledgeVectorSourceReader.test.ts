@@ -212,6 +212,30 @@ describe('KnowledgeVectorSourceReader', () => {
       })
     })
 
+    it('returns one row per distinct loader/source pair, not one per chunk', async () => {
+      // A single folder/file is stored as many chunk rows under the same loader; the caller only
+      // needs the unique loader→source pairs, so the reader must dedup in SQL rather than hand the
+      // map builder one JS object per chunk.
+      const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
+      const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
+
+      await createLegacyVectorDb(dbPath, [
+        { id: 'r1', pageContent: 'chunk-1', uniqueLoaderId: 'loader-a', source: '/docs/a.md', vector: [1, 2] },
+        { id: 'r2', pageContent: 'chunk-2', uniqueLoaderId: 'loader-a', source: '/docs/a.md', vector: [3, 4] },
+        { id: 'r3', pageContent: 'chunk-3', uniqueLoaderId: 'loader-a', source: '/docs/a.md', vector: [5, 6] },
+        { id: 'r4', pageContent: 'chunk-4', uniqueLoaderId: 'loader-b', source: '/docs/b.md', vector: [7, 8] }
+      ])
+
+      await expect(reader.loadBaseLoaderSources('kb-1')).resolves.toEqual({
+        status: 'ok',
+        dbPath,
+        rows: [
+          { uniqueLoaderId: 'loader-a', source: '/docs/a.md' },
+          { uniqueLoaderId: 'loader-b', source: '/docs/b.md' }
+        ]
+      })
+    })
+
     it('shares the missing / directory / not_embedjs outcomes with loadBase', async () => {
       const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
 
