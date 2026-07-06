@@ -25,7 +25,7 @@ import {
 } from '@main/data/db/backup/dbSchemaRefs'
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
 import { ALWAYS_STRIP_TABLES, INFRASTRUCTURE_TABLES, RUNTIME_EXCLUDED_FILE_REF_SOURCES } from '@main/data/db/backup/exclusions'
-import { allSourceTypes, type FileRefSourceType } from '@shared/data/types/file/ref'
+import { allSourceTypes, type FileRefSourceType } from '@shared/data/types/file'
 
 import { ContributorFinalizeError, type ContributorFinalizePayload } from './ContributorFinalizeError'
 import { type FinalizedRegistryData, ReadonlyBackupRegistryImpl } from './ReadonlyBackupRegistryImpl'
@@ -143,7 +143,7 @@ export function finalize(
       if (!declared) fail({ invariant: 7, domain: c.domain, reference: o.reference, reason: 'reference-not-declared' })
       // default action is ReferenceKind→action; an override equal to the default is redundant.
       const defaultAction =
-        declared!.kind === 'optional' ? 'SET_NULL' : declared!.kind === 'owning' ? 'DELETE_ROW' : 'cascade-prune'
+        declared.kind === 'optional' ? 'SET_NULL' : declared.kind === 'owning' ? 'DELETE_ROW' : 'cascade-prune'
       if (defaultAction === o.action)
         fail({ invariant: 7, domain: c.domain, reference: o.reference, reason: 'redundant-override' })
       if (!o.reason) fail({ invariant: 7, domain: c.domain, reference: o.reference, reason: 'empty-reason' })
@@ -155,10 +155,10 @@ export function finalize(
     for (const table of c.schema.tables) {
       const pk = c.schema.primaryKeys.find((fact) => fact.table === table)
       if (!pk) fail({ invariant: 8, table, expectedColumns: '<missing-pk-fact>' })
-      if (pk!.kind === 'autoincrement') fail({ invariant: 22, table, kind: 'autoincrement' })
-      if (pk!.ambiguous === true) fail({ invariant: 9, table })
+      if (pk.kind === 'autoincrement') fail({ invariant: 22, table, kind: 'autoincrement' })
+      if (pk.ambiguous === true) fail({ invariant: 9, table })
       const codegenColumns = DB_COLUMNS_BY_TABLE[table]
-      for (const col of pk!.columns) {
+      for (const col of pk.columns) {
         if (!codegenColumns.some((entry) => entry.name === col)) {
           fail({ invariant: 8, table, expectedColumns: String(col) })
         }

@@ -1,4 +1,4 @@
-import type { FileRefSourceType } from '@shared/data/types/file/ref'
+import type { FileRefSourceType } from '@shared/data/types/file'
 
 // Backup neutral layer — global exclusion-set constants.
 //

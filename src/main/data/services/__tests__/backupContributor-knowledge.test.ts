@@ -88,8 +88,8 @@ describe('KNOWLEDGE collectFileResources (collectKnowledgeBaseIds)', () => {
     // searchMode='bm25' satisfies status_error_check without an embeddingModelId FK
     // (the embeddingModelId NULL + dimensions NULL + bm25 branch).
     await dbh.db.insert(knowledgeBaseTable).values([
-      { id: 'kb1', name: 'a', status: 'completed', chunkSize: 100, chunkOverlap: 20, searchMode: 'bm25' },
-      { id: 'kb2', name: 'b', status: 'completed', chunkSize: 100, chunkOverlap: 20, searchMode: 'bm25' }
+      { id: 'kb1', name: 'a', status: 'completed', chunkSize: 100, chunkOverlap: 20 },
+      { id: 'kb2', name: 'b', status: 'completed', chunkSize: 100, chunkOverlap: 20 }
     ])
     const ids = await collectKnowledgeBaseIds(new BackupReadonlyDb(dbh.db))
     expect(ids).toEqual(new Set(['kb1', 'kb2']))
