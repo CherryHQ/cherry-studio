@@ -1,7 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import { useModels } from '@renderer/hooks/useModel'
-import { ipcApi } from '@renderer/ipc'
-import { useIpcOn } from '@renderer/ipc/useIpcOn'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { LocalModelStatus } from '@shared/data/presets/localModel'
 import { Download, Loader2 } from 'lucide-react'

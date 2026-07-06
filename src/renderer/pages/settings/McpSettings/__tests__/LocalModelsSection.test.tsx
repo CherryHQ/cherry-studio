@@ -14,10 +14,7 @@ const { progressHandlers } = vi.hoisted(() => ({
 }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (...args: unknown[]) => mockRequest(...args) }
-}))
-
-vi.mock('@renderer/ipc/useIpcOn', () => ({
+  ipcApi: { request: (...args: unknown[]) => mockRequest(...args) },
   useIpcOn: (_event: string, handler: (p: ProgressPayload) => void) => {
     progressHandlers.push(handler)
   }

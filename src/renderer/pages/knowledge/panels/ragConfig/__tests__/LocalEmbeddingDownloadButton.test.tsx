@@ -12,10 +12,7 @@ const mockRefetch = vi.fn().mockResolvedValue(undefined)
 let progressHandler: ((p: ProgressPayload) => void) | undefined
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (...args: unknown[]) => mockRequest(...args) }
-}))
-
-vi.mock('@renderer/ipc/useIpcOn', () => ({
+  ipcApi: { request: (...args: unknown[]) => mockRequest(...args) },
   useIpcOn: (_event: string, handler: (p: ProgressPayload) => void) => {
     progressHandler = handler
   }

@@ -1,6 +1,5 @@
 import { Badge, Button } from '@cherrystudio/ui'
-import { ipcApi } from '@renderer/ipc'
-import { useIpcOn } from '@renderer/ipc/useIpcOn'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
 import type { LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
 import { Boxes, Download, ScanText, Trash2, X } from 'lucide-react'
