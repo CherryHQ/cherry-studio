@@ -1918,6 +1918,7 @@
   "code": {
     "add_provider_hint": "Add provider in Settings → Model Service",
     "add_provider_hint_anthropic_messages": "Configure an Anthropic Messages endpoint in Settings → Model Service",
+    "add_provider_hint_gemini": "Configure a Gemini endpoint in Settings → Model Service",
     "add_provider_hint_openai_responses": "Configure an OpenAI Responses endpoint in Settings → Model Service",
     "adv": {
       "claude": {
@@ -2088,6 +2089,9 @@
     "no_providers_title": "No enabled providers",
     "no_tools": "No tools available",
     "not_installed": "Not installed",
+    "own_login": {
+      "title": "{{toolName}} account login"
+    },
     "providerless_hint": "This tool authenticates through its own login flow — just pick a working directory and launch it. Run the tool once to sign in.",
     "providers": "Providers",
     "raw_config": "Raw Config (JSON)",

@@ -10,9 +10,12 @@ export {
 export { clearCliConfig } from './clear'
 export {
   type CliConfigWriteArgs,
+  isOwnLoginConfigurable,
   readCliConfigDraft,
   readCliConfigFiles,
-  writeCliConfigDraft
+  readOwnLoginCliConfigDraft,
+  writeCliConfigDraft,
+  writeOwnLoginCliConfigDraft
 } from './draft'
 export { validateCliConfigDraftForWrite } from './draftFiles'
 export { formatCliConfigDraftFile, updateCliConfigDraftConfig } from './draftUpdater'

@@ -282,5 +282,22 @@ describe('CodeCliService', () => {
       // Providerless CLIs skip the provider/model guards, so control reaches the directory guard.
       expect(result.message).toContain('Directory does not exist')
     })
+
+    it('exempts an own-login run of a login-capable tool from the provider/model requirement', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run(CodeCli.CLAUDE_CODE, '', '', '/tmp/project', { ownLogin: true })
+
+      // ownLogin skips the provider/model guards for login-capable tools, so control reaches the directory guard.
+      expect(result.message).toContain('Directory does not exist')
+    })
+
+    it('still requires a provider for a non-login-capable tool even when ownLogin is set', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run(CodeCli.OPEN_CODE, '', '', '/tmp/project', { ownLogin: true })
+
+      expect(result).toEqual({ success: false, message: 'Provider ID is required for opencode', command: '' })
+    })
   })
 })

@@ -1918,6 +1918,7 @@
   "code": {
     "add_provider_hint": "在 设置 → 模型服务 添加服务商",
     "add_provider_hint_anthropic_messages": "在 设置 → 模型服务 配置 Anthropic Messages 端点",
+    "add_provider_hint_gemini": "在 设置 → 模型服务 配置 Gemini 端点",
     "add_provider_hint_openai_responses": "在 设置 → 模型服务 配置 OpenAI Responses 端点",
     "adv": {
       "claude": {
@@ -2088,6 +2089,9 @@
     "no_providers_title": "没有已启用的服务商",
     "no_tools": "暂无工具",
     "not_installed": "未安装",
+    "own_login": {
+      "title": "{{toolName}} 账号登录"
+    },
     "providerless_hint": "该工具通过自带的登录流程进行认证 — 只需选择工作目录即可启动。请先运行一次该工具完成登录。",
     "providers": "服务商",
     "raw_config": "原始配置 (JSON)",

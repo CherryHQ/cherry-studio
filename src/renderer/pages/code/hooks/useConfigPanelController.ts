@@ -2,25 +2,30 @@ import { loggerService } from '@renderer/services/LoggerService'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type { CodeCli } from '@shared/types/codeCli'
+import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli } from '@shared/types/codeCli'
 import { useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   clearCliConfig,
   type CliConfigConnection,
+  type CliConfigFileDraft,
   extractConnectionFromCliConfigDraft,
+  isOwnLoginConfigurable,
   parseConfiguredModelId,
   resolveCliConfigApplyContext,
   sanitizeCliConfigBlob,
-  writeCliConfigDraft
+  writeCliConfigDraft,
+  writeOwnLoginCliConfigDraft
 } from '../cliConfig'
+import type { OwnLoginConfigPanelProps } from '../components/configEditPanel/OwnLoginConfigPanel'
 import type { ConfigEditPanelProps, ConfigEditPanelSubmitValues } from '../components/configEditPanel/types'
 
 const logger = loggerService.withContext('useConfigPanelController')
 
 interface UseConfigPanelControllerOptions {
   selectedCliTool: CodeCli
+  toolName: string
   currentProviderId: string | null
   providerConfigs: Record<string, CliProviderConfig>
   upsertProviderConfig: (
@@ -35,12 +40,14 @@ interface UseConfigPanelControllerOptions {
 interface ConfigPanelController {
   configPanelKey?: string
   configPanelProps?: ConfigEditPanelProps
+  ownLoginConfigPanelProps?: OwnLoginConfigPanelProps
   openConfigurePanel: (provider: Provider) => void
   onToggleCurrent: (provider: Provider) => void
 }
 
 export function useConfigPanelController({
   selectedCliTool,
+  toolName,
   currentProviderId,
   providerConfigs,
   upsertProviderConfig,
@@ -151,6 +158,27 @@ export function useConfigPanelController({
       inFlightToolsRef.current.add(selectedCliTool)
       const isEnabling = currentProviderId !== provider.id
       void (async () => {
+        // Virtual "own login" entry: the CLI falls back to its own stored login. Always scrub the
+        // Cherry-managed credentials/model first (this also clears credential-only side files like
+        // Codex auth.json / Gemini .env), then — for configurable tools on select — layer the saved
+        // tool params back on. Finally mark the reserved id current (or clear it when re-toggled).
+        if (provider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
+          try {
+            await clearCliConfig({ cliTool: selectedCliTool })
+            if (isEnabling && isOwnLoginConfigurable(selectedCliTool)) {
+              await writeOwnLoginCliConfigDraft({
+                cliTool: selectedCliTool,
+                configBlob: providerConfigs[CLI_OWN_LOGIN_PROVIDER_ID]?.config
+              })
+            }
+          } catch (err) {
+            logger.error('Failed to apply CLI config on own-login toggle:', err as Error)
+            window.toast.error(t('code.apply_failed'))
+          }
+          await setCurrentProvider(isEnabling ? CLI_OWN_LOGIN_PROVIDER_ID : null)
+          setCurrentCliConfigConnection(null)
+          return
+        }
         if (!isEnabling) {
           try {
             await clearCliConfig({ cliTool: selectedCliTool })
@@ -210,19 +238,57 @@ export function useConfigPanelController({
     ]
   )
 
+  const handleOwnLoginSubmit = useCallback(
+    async (values: { config: Record<string, unknown>; cliConfigFiles?: CliConfigFileDraft[] }) => {
+      const sanitizedConfig = sanitizeCliConfigBlob(selectedCliTool, values.config)
+      await upsertProviderConfig(CLI_OWN_LOGIN_PROVIDER_ID, { modelId: '', config: sanitizedConfig })
+      logger.info('Updated own-login config', { toolId: selectedCliTool })
+
+      // Re-apply to the CLI config file when own login is the active selection. Hand-edited raw
+      // files (if any) are written verbatim; otherwise the file is rebuilt from the tool params.
+      if (currentProviderId === CLI_OWN_LOGIN_PROVIDER_ID) {
+        try {
+          await writeOwnLoginCliConfigDraft({
+            cliTool: selectedCliTool,
+            configBlob: sanitizedConfig,
+            files: values.cliConfigFiles
+          })
+          setCurrentCliConfigConnection(null)
+        } catch (err) {
+          logger.error('Failed to inject own-login config on edit:', err as Error)
+          window.toast.error(t('code.apply_failed'))
+        }
+      }
+    },
+    [selectedCliTool, currentProviderId, upsertProviderConfig, setCurrentCliConfigConnection, t]
+  )
+
+  const isEditingOwnLogin = editingProvider?.id === CLI_OWN_LOGIN_PROVIDER_ID
+
   return {
     configPanelKey: editingProvider ? `${selectedCliTool}:${editingProvider.id}` : undefined,
-    configPanelProps: editingProvider
-      ? {
-          onClose: closePanel,
-          cliTool: selectedCliTool,
-          provider: editingProvider,
-          providerConfig: providerConfigs[editingProvider.id] ?? null,
-          isCurrentProvider: currentProviderId === editingProvider.id,
-          modelFilter: makeModelFilter(editingProvider.id),
-          onSubmit: handlePanelSubmit
-        }
-      : undefined,
+    configPanelProps:
+      editingProvider && !isEditingOwnLogin
+        ? {
+            onClose: closePanel,
+            cliTool: selectedCliTool,
+            provider: editingProvider,
+            providerConfig: providerConfigs[editingProvider.id] ?? null,
+            isCurrentProvider: currentProviderId === editingProvider.id,
+            modelFilter: makeModelFilter(editingProvider.id),
+            onSubmit: handlePanelSubmit
+          }
+        : undefined,
+    ownLoginConfigPanelProps:
+      editingProvider && isEditingOwnLogin
+        ? {
+            onClose: closePanel,
+            cliTool: selectedCliTool,
+            toolName,
+            providerConfig: providerConfigs[CLI_OWN_LOGIN_PROVIDER_ID] ?? null,
+            onSubmit: handleOwnLoginSubmit
+          }
+        : undefined,
     openConfigurePanel,
     onToggleCurrent: handleToggleCurrent
   }

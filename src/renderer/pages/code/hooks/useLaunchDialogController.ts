@@ -19,6 +19,7 @@ interface UseLaunchDialogControllerOptions {
   toolName: string
   directory?: string
   enabledProvider?: Provider
+  isOwnLoginSelected: boolean
   currentProviderConfig?: CliProviderConfig | null
   selectedTerminal?: string
   upsertProviderConfig: (
@@ -41,6 +42,7 @@ export function useLaunchDialogController({
   toolName,
   directory,
   enabledProvider,
+  isOwnLoginSelected,
   currentProviderConfig,
   selectedTerminal,
   upsertProviderConfig,
@@ -65,12 +67,14 @@ export function useLaunchDialogController({
   // opens a terminal running the CLI in the provider's directory. Provider-less
   // tools (qoder / copilot) launch with a directory only.
   const handleLaunch = useCallback(async () => {
-    const isProviderless = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
-    if (!directory || (!isProviderless && !enabledProvider)) {
+    // Provider-less tools (qoder/copilot) and the virtual "own login" option both
+    // launch with a directory only — no Cherry provider/model is injected.
+    const runWithoutProvider = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool) || isOwnLoginSelected
+    if (!directory || (!runWithoutProvider && !enabledProvider)) {
       window.toast.error(t('code.folder_placeholder'))
       return
     }
-    if (isProviderless) {
+    if (runWithoutProvider) {
       try {
         setLaunching(true)
         const runResult = await ipcApi.request('code_cli.run', {
@@ -78,7 +82,7 @@ export function useLaunchDialogController({
           model: '',
           providerId: '',
           directory,
-          options: { terminal: selectedTerminal ?? undefined }
+          options: { terminal: selectedTerminal ?? undefined, ownLogin: isOwnLoginSelected || undefined }
         })
         if (!runResult.success) {
           window.toast.error(runResult.message)
@@ -135,6 +139,7 @@ export function useLaunchDialogController({
     currentProviderConfig,
     directory,
     enabledProvider,
+    isOwnLoginSelected,
     upsertProviderConfig,
     selectedCliTool,
     selectedTerminal,

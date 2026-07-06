@@ -27,7 +27,13 @@ import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
-import { CodeCli, TerminalApp, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
+import {
+  CodeCli,
+  LOGIN_CAPABLE_CLI_TOOLS,
+  TerminalApp,
+  type TerminalConfig,
+  type TerminalConfigWithCommand
+} from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
 import { sanitizeProviderName } from '@shared/utils/provider'
 import { spawn } from 'child_process'
@@ -496,7 +502,7 @@ export class CodeCliService extends BaseService {
     model: string,
     providerId: string,
     directory: string,
-    options: { autoUpdateToLatest?: boolean; terminal?: string; loginFlow?: boolean } = {}
+    options: { autoUpdateToLatest?: boolean; terminal?: string; loginFlow?: boolean; ownLogin?: boolean } = {}
   ): Promise<CodeToolsRunResult> {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     const env: Record<string, string> = { ...getBinaryExecutionEnv() }
@@ -510,12 +516,16 @@ export class CodeCliService extends BaseService {
 
     const isLoginFlow = cliTool === CodeCli.CLAUDE_CODE && options.loginFlow === true
     const isProviderlessCli = cliTool === CodeCli.QODER_CLI || cliTool === CodeCli.GITHUB_COPILOT_CLI
-    if (!isProviderlessCli && !isLoginFlow && providerId.trim().length === 0) {
+    // "Own login" run: the CLI uses its own stored account login, so no Cherry
+    // provider/model is injected (the renderer already cleared any prior config).
+    // Gated to login-capable tools so a genuinely missing provider still errors.
+    const isOwnLoginRun = options.ownLogin === true && LOGIN_CAPABLE_CLI_TOOLS.has(cliTool as CodeCli)
+    if (!isProviderlessCli && !isLoginFlow && !isOwnLoginRun && providerId.trim().length === 0) {
       const message = `Provider ID is required for ${cliTool}`
       logger.error(message)
       return { success: false, message, command: '' }
     }
-    if (!isProviderlessCli && !isLoginFlow && model.trim().length === 0) {
+    if (!isProviderlessCli && !isLoginFlow && !isOwnLoginRun && model.trim().length === 0) {
       const message = `Model is required for ${cliTool}`
       logger.error(message)
       return { success: false, message, command: '' }

@@ -5,6 +5,7 @@ import { Fragment } from 'react'
 import { CodeCliContentPanel } from './CodeCliContentPanel'
 import { CodeCliSidebar } from './CodeCliSidebar'
 import { ConfigEditPanel } from './configEditPanel/ConfigEditPanel'
+import { OwnLoginConfigPanel } from './configEditPanel/OwnLoginConfigPanel'
 import { LaunchDialog } from './LaunchDialog'
 
 export interface CodeCliPageViewProps {
@@ -15,6 +16,7 @@ export interface CodeCliPageViewProps {
   removeDialogProps: ComponentProps<typeof ConfirmDialog>
   configPanelKey?: string
   configPanelProps?: ComponentProps<typeof ConfigEditPanel>
+  ownLoginConfigPanelProps?: ComponentProps<typeof OwnLoginConfigPanel>
 }
 
 export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
@@ -24,7 +26,8 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
   launchDialogProps,
   removeDialogProps,
   configPanelKey,
-  configPanelProps
+  configPanelProps,
+  ownLoginConfigPanelProps
 }) => {
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden text-foreground">
@@ -47,6 +50,11 @@ export const CodeCliPageView: FC<CodeCliPageViewProps> = ({
       {configPanelProps && (
         <Fragment key={configPanelKey}>
           <ConfigEditPanel {...configPanelProps} />
+        </Fragment>
+      )}
+      {ownLoginConfigPanelProps && (
+        <Fragment key={configPanelKey}>
+          <OwnLoginConfigPanel {...ownLoginConfigPanelProps} />
         </Fragment>
       )}
     </div>

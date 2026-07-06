@@ -2,13 +2,14 @@ import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { loggerService } from '@renderer/services/LoggerService'
 import { CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
-import { CodeCli } from '@shared/types/codeCli'
+import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { clearCliConfig } from '../cliConfig'
 import type { CodeCliPageViewProps } from '../components/CodeCliPageView'
 import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
+import { OWN_LOGIN_PROVIDER } from '../constants/ownLoginProvider'
 import type { CodeToolMeta, VersionStatus } from '../types/codeCli'
 import { useBinaryActions } from './useBinaryActions'
 import { useBunInstallationCache } from './useBunInstallationCache'
@@ -65,13 +66,15 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     },
     [t]
   )
+  const showOwnLoginCard = LOGIN_CAPABLE_CLI_TOOLS.has(selectedCliTool)
   const { supportedProviders, onReorder: handleReorder } = useSortedSupportedProviders({
     providers,
     currentToolState,
     selectedCliTool,
     filterProviders,
     reorderProviders,
-    onReorderError: handleReorderError
+    onReorderError: handleReorderError,
+    ownLoginProvider: showOwnLoginCard ? OWN_LOGIN_PROVIDER : null
   })
 
   const enabledProvider = currentProviderId ? supportedProviders.find((p) => p.id === currentProviderId) : undefined
@@ -86,18 +89,23 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     [selectedCliTool]
   )
   const isProviderlessTool = PROVIDERLESS_CLI_TOOLS.has(selectedCliTool)
-  const canLaunch = isProviderlessTool || !!enabledProvider
+  const isOwnLoginSelected = currentProviderId === CLI_OWN_LOGIN_PROVIDER_ID
+  const canLaunch = isProviderlessTool || isOwnLoginSelected || !!enabledProvider
   const isOpenClawTool = selectedCliTool === CodeCli.OPENCLAW
   const activeMeta = activeTool ? toMeta(activeTool) : null
   const toolName = activeMeta?.label ?? ''
   const statuses = useCliVersionStatuses(CLI_TOOL_IDS)
   const versionStatus: VersionStatus = statuses[selectedCliTool] ?? { installed: false, canUpgrade: false }
   const cliPreset = CLI_TOOL_PRESET_MAP[selectedCliTool]
+  // The synthetic own-login entry is always available, so nudge to "select a provider" only when a
+  // real provider exists to select — otherwise own-login is the sole option and no nag is warranted.
+  const hasRealSupportedProvider = supportedProviders.some((p) => p.id !== CLI_OWN_LOGIN_PROVIDER_ID)
   const showProviderSelectionHint =
-    !!cliPreset && versionStatus.installed && !isProviderlessTool && supportedProviders.length > 0 && !currentProviderId
+    !!cliPreset && versionStatus.installed && !isProviderlessTool && hasRealSupportedProvider && !currentProviderId
 
   const configPanel = useConfigPanelController({
     selectedCliTool,
+    toolName,
     currentProviderId,
     providerConfigs,
     upsertProviderConfig,
@@ -110,6 +118,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     toolName,
     directory,
     enabledProvider,
+    isOwnLoginSelected,
     currentProviderConfig,
     selectedTerminal,
     upsertProviderConfig,
@@ -189,6 +198,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     launchDialogProps: launchDialog.launchDialogProps,
     removeDialogProps: removeDialog.removeDialogProps,
     configPanelKey: configPanel.configPanelKey,
-    configPanelProps: configPanel.configPanelProps
+    configPanelProps: configPanel.configPanelProps,
+    ownLoginConfigPanelProps: configPanel.ownLoginConfigPanelProps
   }
 }

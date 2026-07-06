@@ -6,7 +6,7 @@ import type {
   CodeCliId,
   CodeCliToolState
 } from '@shared/data/preference/preferenceTypes'
-import { CodeCli } from '@shared/types/codeCli'
+import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { useCallback, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useCodeCli')
@@ -118,7 +118,14 @@ export const useCodeCli = () => {
         for (let i = 0; i < orderedIds.length; i++) {
           const id = orderedIds[i]
           const existing = nextProviders[id]
-          if (!existing) continue
+          if (!existing) {
+            // The virtual own-login entry has no real config; persist a placeholder so its drag
+            // position sticks. Real unconfigured providers are still skipped (no empty configs).
+            if (id === CLI_OWN_LOGIN_PROVIDER_ID) {
+              nextProviders[id] = { modelId: '', sortIndex: i, createdAt: now }
+            }
+            continue
+          }
           nextProviders[id] = { ...existing, sortIndex: i, createdAt: existing.createdAt ?? now }
         }
         return { ...prev, providers: nextProviders }

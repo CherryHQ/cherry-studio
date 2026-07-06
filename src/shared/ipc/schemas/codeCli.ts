@@ -31,7 +31,8 @@ export const codeCliRequestSchemas = {
         .object({
           autoUpdateToLatest: z.boolean().optional(),
           terminal: z.string().optional(),
-          loginFlow: z.boolean().optional()
+          loginFlow: z.boolean().optional(),
+          ownLogin: z.boolean().optional()
         })
         .optional()
         .default({})

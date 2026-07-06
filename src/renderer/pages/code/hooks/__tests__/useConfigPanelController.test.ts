@@ -1,13 +1,16 @@
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
+import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   clearCliConfig: vi.fn(),
   writeCliConfigDraft: vi.fn(),
+  writeOwnLoginCliConfigDraft: vi.fn(),
+  isOwnLoginConfigurable: vi.fn(),
   resolveCliConfigApplyContext: vi.fn(),
-  parseConfiguredModelId: vi.fn()
+  parseConfiguredModelId: vi.fn(),
+  sanitizeCliConfigBlob: vi.fn()
 }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
@@ -21,13 +24,17 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('../../cliConfig/clear', () => ({ clearCliConfig: mocks.clearCliConfig }))
-vi.mock('../../cliConfig/draft', () => ({ writeCliConfigDraft: mocks.writeCliConfigDraft }))
+vi.mock('../../cliConfig/draft', () => ({
+  writeCliConfigDraft: mocks.writeCliConfigDraft,
+  writeOwnLoginCliConfigDraft: mocks.writeOwnLoginCliConfigDraft,
+  isOwnLoginConfigurable: mocks.isOwnLoginConfigurable
+}))
 vi.mock('../../cliConfig/applyContext', () => ({
   parseConfiguredModelId: mocks.parseConfiguredModelId,
   resolveCliConfigApplyContext: mocks.resolveCliConfigApplyContext
 }))
 vi.mock('../../cliConfig/parser', () => ({ extractConnectionFromCliConfigDraft: vi.fn() }))
-vi.mock('../../cliConfig/sanitize', () => ({ sanitizeCliConfigBlob: vi.fn() }))
+vi.mock('../../cliConfig/sanitize', () => ({ sanitizeCliConfigBlob: mocks.sanitizeCliConfigBlob }))
 
 const { useConfigPanelController } = await import('../useConfigPanelController')
 
@@ -36,6 +43,7 @@ const flushMicrotasks = () => new Promise((resolve) => setTimeout(resolve, 0))
 function baseOptions() {
   return {
     selectedCliTool: CodeCli.CLAUDE_CODE,
+    toolName: 'Claude Code',
     currentProviderId: 'p1',
     providerConfigs: {},
     upsertProviderConfig: vi.fn().mockResolvedValue('p1'),
@@ -48,6 +56,10 @@ function baseOptions() {
 describe('useConfigPanelController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Only Claude Code's own-login entry is configurable (writes tool params); the rest clear-on-select.
+    mocks.isOwnLoginConfigurable.mockImplementation((tool: string) => tool === CodeCli.CLAUDE_CODE)
+    // Identity sanitize: keep the blob as-is so assertions can match the input.
+    mocks.sanitizeCliConfigBlob.mockImplementation((_tool: string, blob: unknown) => blob)
     window.toast = { error: vi.fn() } as any
   })
 
@@ -118,6 +130,122 @@ describe('useConfigPanelController', () => {
         result.current.onToggleCurrent(provider)
       })
       expect(mocks.writeCliConfigDraft).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('own-login toggle (via onToggleCurrent with the reserved id)', () => {
+    const ownLoginProvider = { id: CLI_OWN_LOGIN_PROVIDER_ID } as Provider
+
+    beforeEach(() => {
+      // clearAllMocks() keeps prior mockImplementations (e.g. the never-resolving one from the
+      // in-flight guard tests); restore resolved apply mocks so the toggle can proceed.
+      mocks.clearCliConfig.mockReset()
+      mocks.clearCliConfig.mockResolvedValue(undefined)
+      mocks.writeOwnLoginCliConfigDraft.mockReset()
+      mocks.writeOwnLoginCliConfigDraft.mockResolvedValue(undefined)
+    })
+
+    it('selects own-login for a configurable tool: scrubs credentials, then writes the saved tool params', async () => {
+      const options = {
+        ...baseOptions(),
+        providerConfigs: { [CLI_OWN_LOGIN_PROVIDER_ID]: { config: { effortLevel: 'high' } } } as any
+      }
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      await act(async () => {
+        result.current.onToggleCurrent(ownLoginProvider)
+        await flushMicrotasks()
+      })
+
+      // Credentials/model (incl. credential-only side files) are scrubbed first, then params applied.
+      expect(mocks.clearCliConfig).toHaveBeenCalledWith({ cliTool: CodeCli.CLAUDE_CODE })
+      expect(mocks.writeOwnLoginCliConfigDraft).toHaveBeenCalledWith({
+        cliTool: CodeCli.CLAUDE_CODE,
+        configBlob: { effortLevel: 'high' }
+      })
+      expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_OWN_LOGIN_PROVIDER_ID)
+      expect(options.setCurrentCliConfigConnection).toHaveBeenCalledWith(null)
+      // Own-login never falls through to the provider-injection path.
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+    })
+
+    it('selects own-login for a non-configurable tool: only clears, no tool params', async () => {
+      const options = { ...baseOptions(), selectedCliTool: CodeCli.GEMINI_CLI, currentProviderId: 'p1' }
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      await act(async () => {
+        result.current.onToggleCurrent(ownLoginProvider)
+        await flushMicrotasks()
+      })
+
+      expect(mocks.clearCliConfig).toHaveBeenCalledWith({ cliTool: CodeCli.GEMINI_CLI })
+      expect(mocks.writeOwnLoginCliConfigDraft).not.toHaveBeenCalled()
+      expect(options.setCurrentProvider).toHaveBeenCalledWith(CLI_OWN_LOGIN_PROVIDER_ID)
+    })
+
+    it('deselects own-login when it is already current: clears the injected config', async () => {
+      const options = { ...baseOptions(), currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID }
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      await act(async () => {
+        result.current.onToggleCurrent(ownLoginProvider)
+        await flushMicrotasks()
+      })
+
+      expect(mocks.clearCliConfig).toHaveBeenCalledWith({ cliTool: CodeCli.CLAUDE_CODE })
+      expect(mocks.writeOwnLoginCliConfigDraft).not.toHaveBeenCalled()
+      expect(options.setCurrentProvider).toHaveBeenCalledWith(null)
+    })
+
+    it('saves own-login config and re-applies when own-login is the active selection', async () => {
+      const options = { ...baseOptions(), currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID }
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      // Open the own-login config panel so its onSubmit is exposed.
+      act(() => {
+        result.current.openConfigurePanel(ownLoginProvider)
+      })
+      const submit = result.current.ownLoginConfigPanelProps?.onSubmit
+      expect(submit).toBeTypeOf('function')
+
+      await act(async () => {
+        await submit?.({ config: { effortLevel: 'high' } })
+      })
+
+      expect(options.upsertProviderConfig).toHaveBeenCalledWith(CLI_OWN_LOGIN_PROVIDER_ID, {
+        modelId: '',
+        config: { effortLevel: 'high' }
+      })
+      expect(mocks.writeOwnLoginCliConfigDraft).toHaveBeenCalledWith({
+        cliTool: CodeCli.CLAUDE_CODE,
+        configBlob: { effortLevel: 'high' },
+        files: undefined
+      })
+    })
+
+    it('writes hand-edited raw files verbatim when own-login config is saved with raw edits', async () => {
+      const options = { ...baseOptions(), currentProviderId: CLI_OWN_LOGIN_PROVIDER_ID }
+      const { result } = renderHook(() => useConfigPanelController(options))
+
+      act(() => {
+        result.current.openConfigurePanel(ownLoginProvider)
+      })
+      const rawFiles = [
+        { target: 'claude-settings', label: 'settings.json', path: '/tmp/s.json', language: 'json', content: '{}' }
+      ] as any
+
+      await act(async () => {
+        await result.current.ownLoginConfigPanelProps?.onSubmit({
+          config: { effortLevel: 'high' },
+          cliConfigFiles: rawFiles
+        })
+      })
+
+      expect(mocks.writeOwnLoginCliConfigDraft).toHaveBeenCalledWith({
+        cliTool: CodeCli.CLAUDE_CODE,
+        configBlob: { effortLevel: 'high' },
+        files: rawFiles
+      })
     })
   })
 })

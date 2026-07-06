@@ -1,5 +1,6 @@
 import type { Provider } from '@shared/data/types/provider'
-import { render, screen } from '@testing-library/react'
+import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -10,6 +11,11 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: { children: ReactNode }) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   EmptyState: ({ title }: { title: string }) => <div>{title}</div>,
   ReorderableList: <T,>(props: {
     items: T[]
@@ -43,6 +49,8 @@ describe('ConfigList', () => {
   it('matches provider settings list spacing', () => {
     render(
       <ConfigList
+        selectedCliTool={CodeCli.CLAUDE_CODE}
+        toolName="Claude Code"
         providers={[provider]}
         providerConfigs={{}}
         currentProviderId={null}
@@ -59,6 +67,8 @@ describe('ConfigList', () => {
   it('does not pass a placeholder model name when a provider has no configured model', () => {
     render(
       <ConfigList
+        selectedCliTool={CodeCli.CLAUDE_CODE}
+        toolName="Claude Code"
         providers={[provider]}
         providerConfigs={{}}
         currentProviderId={null}
@@ -71,5 +81,48 @@ describe('ConfigList', () => {
 
     expect(screen.getByTestId('provider-card')).toHaveAttribute('data-model-name', '')
     expect(screen.queryByText('settings.models.empty')).not.toBeInTheDocument()
+  })
+
+  it('renders a Configure button on the own-login row for a configurable tool', () => {
+    const onConfigure = vi.fn()
+    const ownLogin = { id: CLI_OWN_LOGIN_PROVIDER_ID, name: 'own login' } as Provider
+    render(
+      <ConfigList
+        selectedCliTool={CodeCli.CLAUDE_CODE}
+        toolName="Claude Code"
+        providers={[ownLogin, provider]}
+        providerConfigs={{}}
+        currentProviderId={CLI_OWN_LOGIN_PROVIDER_ID}
+        resolveMeta={() => ({ providerName: 'Anthropic' })}
+        onConfigure={onConfigure}
+        onToggleCurrent={vi.fn()}
+        onReorder={vi.fn()}
+      />
+    )
+
+    // The mocked ProviderCard has no Configure button, so the only one belongs to the own-login row.
+    fireEvent.click(screen.getByText('code.configure'))
+    expect(onConfigure).toHaveBeenCalledWith(ownLogin)
+  })
+
+  it('omits the Configure button on the own-login row for a non-configurable tool', () => {
+    // OPEN_CODE is not in OWN_LOGIN_CONFIGURABLE_TOOLS, so the row is a bare toggle with no Configure.
+    const ownLogin = { id: CLI_OWN_LOGIN_PROVIDER_ID, name: 'own login' } as Provider
+    render(
+      <ConfigList
+        selectedCliTool={CodeCli.OPEN_CODE}
+        toolName="OpenCode"
+        providers={[ownLogin]}
+        providerConfigs={{}}
+        currentProviderId={null}
+        resolveMeta={() => ({ providerName: 'OpenCode' })}
+        onConfigure={vi.fn()}
+        onToggleCurrent={vi.fn()}
+        onReorder={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('code.own_login.title')).toBeInTheDocument()
+    expect(screen.queryByText('code.configure')).not.toBeInTheDocument()
   })
 })

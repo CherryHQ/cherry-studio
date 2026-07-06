@@ -2,7 +2,7 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
-import type { CodeCli } from '@shared/types/codeCli'
+import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli } from '@shared/types/codeCli'
 import { useEffect, useState } from 'react'
 
 import {
@@ -33,7 +33,8 @@ export function useCurrentCliConfigConnection({
 
   useEffect(() => {
     let cancelled = false
-    if (!enabledProvider) {
+    // The virtual own-login entry has no app-side credential to reconcile against a CLI config file.
+    if (!enabledProvider || enabledProvider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
       setCurrentCliConfigConnection(null)
       return
     }

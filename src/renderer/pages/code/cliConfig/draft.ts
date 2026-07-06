@@ -30,6 +30,12 @@ import {
   writeExternalConfigFile
 } from './file'
 import {
+  buildCodexOwnLoginConfig,
+  buildGeminiOwnLoginSettings,
+  buildKimiOwnLoginConfig,
+  buildQwenOwnLoginConfig
+} from './ownLogin'
+import {
   modelSupportsReasoningEffort,
   resolveClaudeBaseUrl,
   resolveCodexBaseUrl,
@@ -360,4 +366,97 @@ export async function writeCliConfigDraft(args: {
     throw error
   }
   return undefined
+}
+
+/**
+ * Login-capable tools whose "own login" entry also exposes a config panel (tool
+ * params only, no model/credentials). Each must have a `buildOwnLoginConfigDraftFiles`
+ * case. Qoder / GitHub Copilot are fully provider-less and never reach here.
+ */
+const OWN_LOGIN_CONFIGURABLE_TOOLS = new Set<string>([
+  CodeCli.CLAUDE_CODE,
+  CodeCli.OPENAI_CODEX,
+  CodeCli.GEMINI_CLI,
+  CodeCli.QWEN_CODE,
+  CodeCli.KIMI_CODE
+])
+
+export function isOwnLoginConfigurable(cliTool: string): boolean {
+  return OWN_LOGIN_CONFIGURABLE_TOOLS.has(cliTool)
+}
+
+/**
+ * Build the tool-param config file for an "own login" selection: the user's tool
+ * params (permission mode / effort / toggles) with no credentials or model, so
+ * the CLI keeps using its own stored account login. The per-tool builders strip
+ * every Cherry-managed credential/model/provider key and re-apply only the tool
+ * params. Credential-only side files (Codex `auth.json`, Gemini `.env`) carry no
+ * tool params and are scrubbed by `clearCliConfig` on select, not here.
+ */
+async function buildOwnLoginConfigDraftFiles(
+  cliTool: string,
+  configBlob: Record<string, unknown>
+): Promise<CliConfigFileDraft[]> {
+  const blob = sanitizeCliConfigBlob(cliTool, configBlob)
+  switch (cliTool) {
+    case CodeCli.CLAUDE_CODE: {
+      const existing = await readAndParseDraftFile('claude-settings', parseJsonOrThrow)
+      return [
+        await makeDraftFile(
+          'claude-settings',
+          renderJsonFile(
+            buildClaudeConfig(existing, blob, { apiKey: '', baseUrl: '', model: '', writePrimaryModel: false })
+          )
+        )
+      ]
+    }
+    case CodeCli.OPENAI_CODEX: {
+      const config = await readAndParseDraftFile('codex-config', parseTomlOrThrow)
+      return [await makeDraftFile('codex-config', stringifyToml(buildCodexOwnLoginConfig(config, blob)))]
+    }
+    case CodeCli.GEMINI_CLI: {
+      const settings = await readAndParseDraftFile('gemini-settings', parseJsonOrThrow)
+      return [await makeDraftFile('gemini-settings', renderJsonFile(buildGeminiOwnLoginSettings(settings, blob)))]
+    }
+    case CodeCli.QWEN_CODE: {
+      const existing = await readAndParseDraftFile('qwen-settings', parseJsonOrThrow)
+      return [await makeDraftFile('qwen-settings', renderJsonFile(buildQwenOwnLoginConfig(existing, blob)))]
+    }
+    case CodeCli.KIMI_CODE: {
+      const existing = await readAndParseDraftFile('kimi-config', parseTomlOrThrow)
+      return [await makeDraftFile('kimi-config', stringifyToml(buildKimiOwnLoginConfig(existing, blob)))]
+    }
+    default:
+      throw new Error(`Own-login config is not supported for ${cliTool}`)
+  }
+}
+
+/**
+ * Build (but do not write) the "own login" CLI config file draft — the raw file
+ * preview shown in the config panel's advanced editor, so power users can hand-
+ * edit `settings.json` on top of the tool params.
+ */
+export async function readOwnLoginCliConfigDraft(args: {
+  cliTool: string
+  configBlob?: Record<string, unknown>
+}): Promise<CliConfigFileDraft[]> {
+  return buildOwnLoginConfigDraftFiles(args.cliTool, args.configBlob ?? {})
+}
+
+/**
+ * Apply an "own login" config to the CLI config file without writing any
+ * credentials/model. Writes hand-edited `files` verbatim when provided,
+ * otherwise rebuilds them from the tool params. Reuses `writeCliConfigDraft`'s
+ * files path (snapshot + rollback), bypassing the credential-requiring
+ * `resolveContext`.
+ */
+export async function writeOwnLoginCliConfigDraft(args: {
+  cliTool: string
+  configBlob?: Record<string, unknown>
+  files?: CliConfigFileDraft[]
+}): Promise<void> {
+  const files = args.files?.length
+    ? args.files
+    : await buildOwnLoginConfigDraftFiles(args.cliTool, args.configBlob ?? {})
+  await writeCliConfigDraft({ cliTool: args.cliTool, files })
 }

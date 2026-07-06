@@ -50,6 +50,8 @@ function getAddProviderHintKey(cliTool: CodeCli): string {
       return 'code.add_provider_hint_anthropic_messages'
     case CodeCli.OPENAI_CODEX:
       return 'code.add_provider_hint_openai_responses'
+    case CodeCli.GEMINI_CLI:
+      return 'code.add_provider_hint_gemini'
     default:
       return 'code.add_provider_hint'
   }
@@ -118,6 +120,8 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
         ) : (
           <>
             <ConfigList
+              selectedCliTool={selectedCliTool}
+              toolName={activeMeta.label}
               providers={supportedProviders}
               providerConfigs={providerConfigs}
               currentProviderId={currentProviderId}

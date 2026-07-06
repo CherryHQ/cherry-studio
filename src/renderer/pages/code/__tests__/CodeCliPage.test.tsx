@@ -1,7 +1,7 @@
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 import type { CliProviderConfig, CodeCliToolState } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
+import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,6 +13,7 @@ const {
   readCliConfigFilesMock,
   extractConnectionFromCliConfigDraftMock,
   writeCliConfigDraftMock,
+  writeOwnLoginCliConfigDraftMock,
   useCodeCliMock,
   upsertProviderConfigMock,
   setCurrentProviderMock,
@@ -31,6 +32,7 @@ const {
   readCliConfigFilesMock: vi.fn(),
   extractConnectionFromCliConfigDraftMock: vi.fn(),
   writeCliConfigDraftMock: vi.fn(),
+  writeOwnLoginCliConfigDraftMock: vi.fn(),
   useCodeCliMock: vi.fn(),
   upsertProviderConfigMock: vi.fn(),
   setCurrentProviderMock: vi.fn(),
@@ -179,7 +181,10 @@ vi.mock('../cliConfig/clear', () => ({
 
 vi.mock('../cliConfig/draft', () => ({
   readCliConfigFiles: (...args: unknown[]) => readCliConfigFilesMock(...args),
-  writeCliConfigDraft: (...args: unknown[]) => writeCliConfigDraftMock(...args)
+  writeCliConfigDraft: (...args: unknown[]) => writeCliConfigDraftMock(...args),
+  writeOwnLoginCliConfigDraft: (...args: unknown[]) => writeOwnLoginCliConfigDraftMock(...args),
+  // Literal (not CodeCli.CLAUDE_CODE) — vi.mock factories are hoisted above imports.
+  isOwnLoginConfigurable: (cliTool: string) => cliTool === 'claude-code'
 }))
 
 vi.mock('../cliConfig/parser', () => ({
@@ -264,6 +269,22 @@ vi.mock('../components/configEditPanel/ConfigEditPanel', () => ({
           })
         }>
         save detailed config
+      </button>
+    </div>
+  )
+}))
+
+vi.mock('../components/configEditPanel/OwnLoginConfigPanel', () => ({
+  OwnLoginConfigPanel: ({
+    toolName,
+    onSubmit
+  }: {
+    toolName: string
+    onSubmit: (values: { config: Record<string, unknown> }) => Promise<void>
+  }) => (
+    <div data-testid="own-login-config-panel" data-tool-name={toolName}>
+      <button type="button" onClick={() => void onSubmit({ config: { effortLevel: 'high' } })}>
+        save own-login
       </button>
     </div>
   )
@@ -511,13 +532,16 @@ describe('CodeCliPage', () => {
     expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'true')
   })
 
-  it('does not show the provider selection hint when no supported providers exist', () => {
+  it('offers the own-login entry (and no selection hint) when no real providers exist', () => {
     mockProviders.splice(0, mockProviders.length)
     mockCodeCliState()
 
     render(<CodeCliPage />)
 
+    // Login-capable tools always surface the virtual own-login row, so there is no empty state and
+    // the "select a provider" hint is suppressed (own-login is the only option, nothing to nag about).
     expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
-    expect(screen.getByTestId('empty-config-list')).toBeInTheDocument()
+    expect(screen.queryByTestId('empty-config-list')).not.toBeInTheDocument()
+    expect(screen.getByText(`toggle ${CLI_OWN_LOGIN_PROVIDER_ID}`)).toBeInTheDocument()
   })
 })

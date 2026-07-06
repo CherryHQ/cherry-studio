@@ -10,6 +10,8 @@ interface UseSortedSupportedProvidersOptions {
   filterProviders: (providers: Provider[]) => Provider[]
   reorderProviders: (providerIds: string[]) => Promise<void>
   onReorderError: (error: unknown) => void
+  /** Synthetic "own login" entry to include in the list (login-capable tools only). */
+  ownLoginProvider?: Provider | null
 }
 
 export function useSortedSupportedProviders({
@@ -18,7 +20,8 @@ export function useSortedSupportedProviders({
   selectedCliTool,
   filterProviders,
   reorderProviders,
-  onReorderError
+  onReorderError,
+  ownLoginProvider
 }: UseSortedSupportedProvidersOptions): {
   supportedProviders: Provider[]
   onReorder: (nextProviders: Provider[]) => Promise<void>
@@ -28,7 +31,8 @@ export function useSortedSupportedProviders({
   )
 
   const supportedProviders = useMemo(() => {
-    const filtered = filterProviders(providers)
+    // The synthetic own-login entry is prepended so it sorts/reorders alongside real providers.
+    const filtered = ownLoginProvider ? [ownLoginProvider, ...filterProviders(providers)] : filterProviders(providers)
     const entries = new Map(Object.entries(currentToolState.providers))
     const baseSorted = [...filtered]
       .map((provider, index) => ({
@@ -59,7 +63,7 @@ export function useSortedSupportedProviders({
       if (bi !== undefined) return 1
       return (stableIndex.get(a.id) ?? 0) - (stableIndex.get(b.id) ?? 0)
     })
-  }, [filterProviders, providers, currentToolState, optimisticProviderOrder, selectedCliTool])
+  }, [filterProviders, providers, currentToolState, optimisticProviderOrder, selectedCliTool, ownLoginProvider])
 
   const handleReorder = useCallback(
     async (nextProviders: Provider[]) => {

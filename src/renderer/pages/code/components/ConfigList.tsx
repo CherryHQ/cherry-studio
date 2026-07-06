@@ -1,12 +1,17 @@
 import { EmptyState, ReorderableList } from '@cherrystudio/ui'
+import { isOwnLoginConfigurable } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
+import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli } from '@shared/types/codeCli'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ProviderCard } from './ConfigCard'
+import { OwnLoginCard } from './OwnLoginCard'
 
 export interface ConfigListProps {
+  selectedCliTool: CodeCli
+  toolName: string
   providers: Provider[]
   providerConfigs: Record<string, CliProviderConfig>
   currentProviderId: string | null
@@ -20,6 +25,8 @@ export interface ConfigListProps {
 /** Enabled-provider list for a tool. Drag a row to reorder (persisted via
  * `onReorder`); empty-state fallback when no provider matches the tool. */
 export const ConfigList: FC<ConfigListProps> = ({
+  selectedCliTool,
+  toolName,
   providers,
   providerConfigs,
   currentProviderId,
@@ -48,6 +55,19 @@ export const ConfigList: FC<ConfigListProps> = ({
       onReorder={onReorder}
       gap="0.5rem"
       renderItem={(provider, _index, { dragging }) => {
+        if (provider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
+          return (
+            <OwnLoginCard
+              toolId={selectedCliTool}
+              toolName={toolName}
+              selected={currentProviderId === provider.id}
+              configurable={isOwnLoginConfigurable(selectedCliTool)}
+              dragging={dragging}
+              onToggle={() => onToggleCurrent(provider)}
+              onConfigure={() => onConfigure(provider)}
+            />
+          )
+        }
         const cfg = providerConfigs[provider.id]
         const meta = resolveMeta(provider, cfg)
         const modelName =
