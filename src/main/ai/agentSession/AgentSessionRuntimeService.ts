@@ -761,6 +761,11 @@ export class AgentSessionRuntimeService extends BaseService {
     this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
+      // Defensively close so the loop terminating for ANY reason (including a bug thrown from
+      // handleRuntimeEvent) disposes the connection. Both drivers' close() is idempotent.
+      void Promise.resolve(connection.close()).catch((error) =>
+        logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
+      )
       if (entry.connection === connection) {
         entry.connection = undefined
         entry.connectionModelId = undefined

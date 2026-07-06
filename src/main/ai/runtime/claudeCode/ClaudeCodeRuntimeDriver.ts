@@ -29,6 +29,7 @@ import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashComma
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 
+import { AsyncEventQueue } from '../asyncEventQueue'
 import type {
   AgentRuntimeConnectInput,
   AgentRuntimeConnection,
@@ -50,43 +51,6 @@ const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 
 // Re-exported from its relocated neutral home so existing importers/tests keep working.
 export { buildAgentUserContent }
-
-class AsyncEventQueue<T> implements AsyncIterable<T> {
-  private readonly items: T[] = []
-  private readonly waiters: Array<(result: IteratorResult<T>) => void> = []
-  private closed = false
-
-  push(item: T): void {
-    if (this.closed) return
-    const waiter = this.waiters.shift()
-    if (waiter) {
-      waiter({ value: item, done: false })
-      return
-    }
-    this.items.push(item)
-  }
-
-  close(): void {
-    if (this.closed) return
-    this.closed = true
-    while (this.waiters.length > 0) {
-      this.waiters.shift()?.({ value: undefined as T, done: true })
-    }
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<T> {
-    return {
-      next: () => {
-        const item = this.items.shift()
-        if (item) return Promise.resolve({ value: item, done: false })
-        if (this.closed) return Promise.resolve({ value: undefined as T, done: true })
-        return new Promise<IteratorResult<T>>((resolve) => {
-          this.waiters.push(resolve)
-        })
-      }
-    }
-  }
-}
 
 class SdkInputQueue implements AsyncIterable<SDKUserMessage> {
   private readonly messages: SDKUserMessage[] = []
@@ -511,14 +475,6 @@ function toSdkUserMessage(
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const
-
-  async prewarmSession(sessionId: string): Promise<void> {
-    await application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
-  }
-
-  closeSessionWarm(sessionId: string): void {
-    application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
-  }
 
   async validateSession(session: AgentSessionEntity): Promise<void> {
     const cwd = session.workspace?.path
