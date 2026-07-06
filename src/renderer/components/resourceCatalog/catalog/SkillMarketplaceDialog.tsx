@@ -37,6 +37,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
   const [query, setQuery] = useState('')
   const [activeSource, setActiveSource] = useState<SkillSearchSource>(DEFAULT_SEARCH_SOURCE)
   const [installedSources, setInstalledSources] = useState<Set<string>>(() => new Set())
+  const [searchDebouncing, setSearchDebouncing] = useState(false)
   const pendingInstallSourcesRef = useRef<Set<string>>(new Set())
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasQuery = query.trim() !== ''
@@ -53,6 +54,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
     setQuery('')
     setActiveSource(DEFAULT_SEARCH_SOURCE)
     setInstalledSources(new Set())
+    setSearchDebouncing(false)
     pendingInstallSourcesRef.current.clear()
     clear()
   }, [clear, clearPendingSearch, open])
@@ -92,13 +94,16 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
     (value: string) => {
       setQuery(value)
       clearPendingSearch()
+      clear()
       if (value.trim()) {
+        setSearchDebouncing(true)
         searchDebounceRef.current = setTimeout(() => {
           searchDebounceRef.current = null
+          setSearchDebouncing(false)
           void search(value)
         }, SEARCH_DEBOUNCE_MS)
       } else {
-        clear()
+        setSearchDebouncing(false)
       }
     },
     [clear, clearPendingSearch, search]
@@ -186,7 +191,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
           <SkillSearchBody
             query={query}
             error={error}
-            searching={searching}
+            searching={searching || searchDebouncing}
             results={visibleResults}
             installedSources={installedSources}
             isInstalling={isInstalling}

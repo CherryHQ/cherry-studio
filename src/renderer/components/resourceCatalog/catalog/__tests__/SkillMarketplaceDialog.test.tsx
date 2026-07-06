@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { SkillSearchResult } from '@shared/types/skill'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,6 +14,7 @@ const installMock = vi.fn()
 const isInstallingMock = vi.fn()
 const toastSuccess = vi.fn()
 const toastError = vi.fn()
+const SEARCH_DEBOUNCE_MS = 300
 
 const resultsFixture: SkillSearchResult[] = [
   {
@@ -178,6 +179,23 @@ function renderDialog(props: Partial<ComponentProps<typeof SkillMarketplaceDialo
   return render(<SkillMarketplaceDialog open onOpenChange={vi.fn()} onInstalled={vi.fn()} {...props} />)
 }
 
+function typeSearchQuery(query: string) {
+  vi.useFakeTimers()
+  try {
+    fireEvent.change(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), {
+      target: { value: query }
+    })
+    act(() => {
+      vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS)
+    })
+  } finally {
+    vi.useRealTimers()
+  }
+
+  expect(searchMock).toHaveBeenLastCalledWith(query)
+  expect(screen.queryByText('common.loading')).not.toBeInTheDocument()
+}
+
 describe('SkillMarketplaceDialog', () => {
   it('renders source tabs and filters results by selected source', async () => {
     const user = userEvent.setup()
@@ -192,11 +210,7 @@ describe('SkillMarketplaceDialog', () => {
     ]
     renderDialog()
 
-    await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'react')
-
-    await waitFor(() => {
-      expect(searchMock).toHaveBeenLastCalledWith('react')
-    })
+    typeSearchQuery('react')
     const sourceTabs = screen.getAllByRole('radio')
     expect(sourceTabs.map((tab) => tab.textContent)).toEqual(['skills.sh1', 'claude-plugins.dev2', 'clawhub.ai'])
     expect(sourceTabs[0]).toHaveAttribute('aria-checked', 'true')
@@ -236,10 +250,18 @@ describe('SkillMarketplaceDialog', () => {
       fireEvent.change(input, { target: { value: 'rea' } })
       fireEvent.change(input, { target: { value: 'react' } })
 
-      vi.advanceTimersByTime(299)
+      expect(clearMock).toHaveBeenCalledTimes(4)
+      expect(screen.getByText('common.loading')).toBeInTheDocument()
+      expect(screen.queryByText('React Skill')).not.toBeInTheDocument()
+
+      act(() => {
+        vi.advanceTimersByTime(299)
+      })
       expect(searchMock).not.toHaveBeenCalled()
 
-      vi.advanceTimersByTime(1)
+      act(() => {
+        vi.advanceTimersByTime(1)
+      })
       expect(searchMock).toHaveBeenCalledTimes(1)
       expect(searchMock).toHaveBeenCalledWith('react')
     } finally {
@@ -248,11 +270,10 @@ describe('SkillMarketplaceDialog', () => {
   })
 
   it('selects a source with results when the default source has no matches', async () => {
-    const user = userEvent.setup()
     skillSearchState.results = [resultsFixture[1]]
     renderDialog()
 
-    await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'react')
+    typeSearchQuery('react')
 
     await waitFor(() => {
       expect(screen.getByRole('radio', { name: /skills.sh/ })).toHaveAttribute('aria-checked', 'true')
@@ -263,12 +284,11 @@ describe('SkillMarketplaceDialog', () => {
   })
 
   it('shows a localized marketplace error message when search fails', async () => {
-    const user = userEvent.setup()
     skillSearchState.results = []
     skillSearchState.error = 'Search failed'
     renderDialog()
 
-    await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'react')
+    typeSearchQuery('react')
 
     expect(screen.getByText('common.error')).toBeInTheDocument()
     expect(screen.getByText('library.skill_marketplace.search_failed_description')).toBeInTheDocument()
@@ -281,7 +301,7 @@ describe('SkillMarketplaceDialog', () => {
     const onOpenChange = vi.fn()
     renderDialog({ onInstalled, onOpenChange })
 
-    await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'code')
+    typeSearchQuery('code')
     await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
 
     await waitFor(() => {
@@ -294,7 +314,6 @@ describe('SkillMarketplaceDialog', () => {
   })
 
   it('keeps other install buttons enabled while one install is in progress', async () => {
-    const user = userEvent.setup()
     skillSearchState.results = [
       resultsFixture[0],
       {
@@ -309,7 +328,7 @@ describe('SkillMarketplaceDialog', () => {
     )
     renderDialog()
 
-    await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'code')
+    typeSearchQuery('code')
 
     expect(screen.getByRole('dialog')).toHaveAttribute('data-close-on-overlay-click', 'true')
     const installButtons = screen.getAllByRole('button', { name: /settings.skills.install/ })
@@ -331,7 +350,7 @@ describe('SkillMarketplaceDialog', () => {
     isInstallingMock.mockImplementation((key?: string) => (key ? false : true))
     renderDialog()
 
-    await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'code')
+    typeSearchQuery('code')
     const installButtons = screen.getAllByRole('button', { name: /settings.skills.install/ })
     await user.click(installButtons[0])
     await user.click(installButtons[1])
@@ -353,7 +372,7 @@ describe('SkillMarketplaceDialog', () => {
     )
     renderDialog()
 
-    await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'code')
+    typeSearchQuery('code')
     const installButton = screen.getByRole('button', { name: /settings.skills.install/ })
     await user.click(installButton)
     await user.click(installButton)
@@ -372,7 +391,7 @@ describe('SkillMarketplaceDialog', () => {
     installMock.mockResolvedValueOnce({ skill: null, error: 'clone failed' })
     renderDialog({ onOpenChange })
 
-    await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'code')
+    typeSearchQuery('code')
     await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
 
     await waitFor(() => {
