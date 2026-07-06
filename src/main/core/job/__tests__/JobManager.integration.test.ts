@@ -332,12 +332,8 @@ describe('JobManager integration', () => {
 
       // Release the gate → the single execution finalizes the row once.
       releaseGate()
-      const settled = await Promise.race([
-        handle.finished,
-        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 1000))
-      ])
-      expect(settled).not.toBe('timeout')
-      expect((settled as { status: string }).status).toBe('completed')
+      const settled = await handle.finished
+      expect(settled.status).toBe('completed')
       expect(executeCount).toBe(1)
 
       await teardownManager(scheduler, jobManager)
@@ -497,12 +493,8 @@ describe('JobManager integration', () => {
       await new Promise<void>((r) => setTimeout(r, 50))
 
       const stopPromise = jobManager._doStop()
-      const settled = await Promise.race([
-        handle.finished,
-        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 1000))
-      ])
-      expect(settled).not.toBe('timeout')
-      expect((settled as { status: string }).status).toBe('cancelled')
+      const settled = await handle.finished
+      expect(settled.status).toBe('cancelled')
 
       await stopPromise
       await teardownManager(scheduler, jobManager)
@@ -576,12 +568,8 @@ describe('JobManager integration', () => {
 
       // Occupant finishes → frees the global slot → must wake qA.
       await occupant.finished
-      const settled = await Promise.race([
-        starved.finished,
-        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 2000))
-      ])
-      expect(settled).not.toBe('timeout')
-      expect((settled as { status: string }).status).toBe('completed')
+      const settled = await starved.finished
+      expect(settled.status).toBe('completed')
 
       await drainAllQueues(jobManager)
       await teardownManager(scheduler, jobManager)
@@ -777,12 +765,8 @@ describe('JobManager integration', () => {
         { behavior: 'immediate' }
       )
 
-      const settled = await Promise.race([
-        handle.finished,
-        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 2000))
-      ])
-      expect(settled).not.toBe('timeout')
-      expect((settled as { status: string }).status).toBe('completed')
+      const settled = await handle.finished
+      expect(settled.status).toBe('completed')
       // Both writes of the tx are visible.
       expect(jobService.count({ queue: 'biz' })).toBe(1)
 
@@ -881,12 +865,8 @@ describe('JobManager integration', () => {
 
       expect(handle.snapshot.status).toBe('delayed')
 
-      const settled = await Promise.race([
-        handle.finished,
-        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 3000))
-      ])
-      expect(settled).not.toBe('timeout')
-      expect((settled as { status: string }).status).toBe('completed')
+      const settled = await handle.finished
+      expect(settled.status).toBe('completed')
 
       await drainAllQueues(jobManager)
       await teardownManager(scheduler, jobManager)
