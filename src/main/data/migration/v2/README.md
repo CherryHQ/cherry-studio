@@ -87,7 +87,7 @@ Path Safety section above.
 
 1. Extend `BaseMigrator` in `migrators/`
 2. Implement `prepare`, `execute`, `validate` methods
-3. Register in `migrators/index.ts`
+3. Add it to the `getAllMigrators()` list in `migrators/migratorRegistry.ts`
 4. Use `ctx.paths` for all filesystem paths — **NEVER** call `app.getPath()` directly
 
 ### Key Contracts

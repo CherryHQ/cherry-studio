@@ -9,10 +9,7 @@ import { type InsertUserModelRow, userModelTable } from '@data/db/schemas/userMo
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
-import {
-  needsProcessedArtifactReservation,
-  reserveImportedFileRelativePath
-} from '@main/features/knowledge/utils/storage/pathStorage'
+import { needsProcessedArtifactReservation, reserveImportedFileRelativePath } from '@main/features/knowledge'
 import { copy, ensureDir } from '@main/utils/file'
 import { sanitizeFilename } from '@main/utils/legacyFile'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
