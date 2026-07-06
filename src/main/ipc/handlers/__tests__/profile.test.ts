@@ -7,7 +7,7 @@ const { appGetMock, createInternalEntryMock, permanentDeleteMock, transcodeMock 
   transcodeMock: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
-vi.mock('@main/services/file/utils/entityImageWebp', () => ({ transcodeToEntityWebp: transcodeMock }))
+vi.mock('@main/services/entityImageWebp', () => ({ transcodeToEntityWebp: transcodeMock }))
 
 import { profileHandlers } from '../profile'
 

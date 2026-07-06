@@ -24,9 +24,9 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import type { DbType } from '@data/db/types'
 import { insertSingleFileRefTx, type SingleFileRefSourceType } from '@data/services/utils/logoRef'
 import { loggerService } from '@logger'
-import { transcodeToEntityWebp } from '@main/services/file/utils/entityImageWebp'
+import { transcodeToEntityWebp } from '@main/services/entityImageWebp'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file/common'
+import type { FilePath } from '@shared/types/file'
 import { v7 as uuidv7 } from 'uuid'
 
 const logger = loggerService.withContext('ImageMigration')

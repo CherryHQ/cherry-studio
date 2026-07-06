@@ -18,7 +18,7 @@ const {
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@data/services/ProviderService', () => ({ providerService: { update: providerUpdateMock } }))
 vi.mock('@data/services/MiniAppService', () => ({ miniAppService: { update: miniAppUpdateMock } }))
-vi.mock('@main/services/file/utils/entityImageWebp', () => ({ transcodeToEntityWebp: transcodeMock }))
+vi.mock('@main/services/entityImageWebp', () => ({ transcodeToEntityWebp: transcodeMock }))
 
 import { entityLogoService } from '../EntityLogoService'
 
