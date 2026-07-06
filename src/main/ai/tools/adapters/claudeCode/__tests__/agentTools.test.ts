@@ -78,6 +78,15 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.isDisabled('Bash')).toBe(true)
   })
 
+  it('honors disabledTools for notify and config autonomy tools', async () => {
+    const snapshot = await createClaudeAgentToolPolicySnapshot(
+      makeAgent(['mcp__cherry-tools__notify', 'mcp__cherry-tools__config'])
+    )
+    expect(snapshot.isDisabled('mcp__cherry-tools__notify')).toBe(true)
+    expect(snapshot.isDisabled('mcp__cherry-tools__config')).toBe(true)
+    expect(snapshot.isDisabled('mcp__cherry-tools__cron')).toBe(false)
+  })
+
   it('keeps prior MCP descriptors when a later server listing fails', async () => {
     mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))

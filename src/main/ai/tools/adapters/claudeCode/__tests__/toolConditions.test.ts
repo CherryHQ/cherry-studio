@@ -38,6 +38,14 @@ describe('resolveDisallowedTools', () => {
     expect(disallowed.has('BashOutput')).toBe(true)
   })
 
+  it('honors user opt-outs for notify and config autonomy tools', () => {
+    const disallowed = new Set(
+      resolveDisallowedTools({ disabledTools: ['mcp__cherry-tools__notify', 'mcp__cherry-tools__config'] })
+    )
+    expect(disallowed.has('mcp__cherry-tools__notify')).toBe(true)
+    expect(disallowed.has('mcp__cherry-tools__config')).toBe(true)
+  })
+
   it('disabling the "Knowledge Search" toggle also revokes kb_list and kb_read (they dependsOn kb_search)', () => {
     // kb_read returns whole documents and kb_list browses every base — strictly more than kb_search's
     // chunks — so the visible kb_search toggle must honestly cover them, not leave read access reachable.

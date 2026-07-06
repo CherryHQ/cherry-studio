@@ -323,14 +323,14 @@ const CLAUDE_TOOL_REGISTRY = {
   CherryNotify: {
     name: 'mcp__cherry-tools__notify',
     category: 'orchestration',
-    exposure: 'internal',
+    exposure: 'user',
     description: 'Sends a notification through a connected channel',
     mcpServer: 'cherry-tools'
   },
   CherryConfig: {
     name: 'mcp__cherry-tools__config',
     category: 'orchestration',
-    exposure: 'internal',
+    exposure: 'user',
     description: 'Inspects and manages this agent configuration and channels',
     mcpServer: 'cherry-tools'
   },
@@ -399,7 +399,9 @@ const MCP_TOOL_LABELS: Record<string, string> = {
   'mcp__cherry-tools__kb_search': 'Knowledge Search',
   'mcp__cherry-tools__kb_manage': 'Manage Knowledge',
   'mcp__agent-memory__memory': 'Memory',
-  'mcp__cherry-tools__cron': 'Scheduler'
+  'mcp__cherry-tools__cron': 'Scheduler',
+  'mcp__cherry-tools__notify': 'Notify',
+  'mcp__cherry-tools__config': 'Configuration'
 }
 
 /**
