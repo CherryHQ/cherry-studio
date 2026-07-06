@@ -13,6 +13,7 @@ import { ClaudeCodeTraceBridgeService, NodeTraceService, TraceStorageService } f
 import { ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode'
 import { AiStreamManager } from '@main/ai/streamManager'
 import { JobManager } from '@main/core/job/JobManager'
+import type { ServiceConstructor } from '@main/core/lifecycle'
 import { PowerService } from '@main/core/power/PowerService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { WindowManager } from '@main/core/window/WindowManager'
@@ -44,8 +45,6 @@ import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
 import { WebSearchService } from '@main/services/webSearch'
 import { WebviewService } from '@main/services/WebviewService'
-
-import type { ServiceConstructor } from '../lifecycle'
 
 /**
  * Centralized service registry.

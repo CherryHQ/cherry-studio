@@ -23,7 +23,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
-import { MODEL_ENDPOINT_OPTIONS } from './ModelDrawer/helpers'
+import { MODEL_ENDPOINT_OPTIONS } from './ModelDrawer'
 
 const logger = loggerService.withContext('ProviderSettings:NewApiBatchAddModelPopup')
 

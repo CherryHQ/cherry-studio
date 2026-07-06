@@ -22,10 +22,15 @@ import { useTranslation } from 'react-i18next'
 
 import { SidebarShellActions } from '../layout/ShellTabBarActions'
 import UserPopup from '../Popups/UserPopup'
-import { Sidebar as UISidebar } from '../Sidebar'
-import { getSidebarDisplayWidth, getSidebarLayout, normalizeSidebarWidth } from '../Sidebar/constants'
-import { UserAvatar } from '../Sidebar/primitives'
-import type { SidebarUser, SidebarVisibleLayout } from '../Sidebar/types'
+import {
+  getSidebarDisplayWidth,
+  getSidebarLayout,
+  normalizeSidebarWidth,
+  Sidebar as UISidebar,
+  type SidebarUser,
+  type SidebarVisibleLayout,
+  UserAvatar
+} from '../Sidebar'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
 const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
