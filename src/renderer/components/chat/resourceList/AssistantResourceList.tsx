@@ -15,7 +15,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ConversationResourceMenuItem } from './base'
@@ -107,6 +107,10 @@ export function AssistantResourceList({
       })),
     [apiTopics, topicPinnedIdSet]
   )
+  const topicsRef = useRef(topics)
+  useEffect(() => {
+    topicsRef.current = topics
+  }, [topics])
 
   const entities = useMemo<ResourceEntityRailItem[]>(() => {
     const hasDefaultAssistantTopics = topics.some((topic) => !topic.assistantId)
@@ -216,7 +220,7 @@ export function AssistantResourceList({
     async (assistantId: string) => {
       if (clearingTopicsAssistantId || deletingAssistantId) return
 
-      const targetTopics = topics.filter((topic) => topic.assistantId === assistantId)
+      const targetTopics = topicsRef.current.filter((topic) => topic.assistantId === assistantId)
       if (targetTopics.length === 0) return
 
       setClearingTopicsAssistantId(assistantId)
@@ -232,6 +236,14 @@ export function AssistantResourceList({
           }
         })
         if (!confirmed) return
+
+        // Re-validate against the latest topics after the confirm dialog: the list may
+        // have changed while it was open, and TopicService.deleteByAssistantId() has no
+        // at-least-one guard of its own, so bail out if nothing is left to clear.
+        const latestTargetTopicIds = new Set(
+          topicsRef.current.filter((topic) => topic.assistantId === assistantId).map((topic) => topic.id)
+        )
+        if (latestTargetTopicIds.size === 0) return
 
         const result = await deleteTopicsByAssistantId(assistantId)
         await refreshTopics()
@@ -251,8 +263,7 @@ export function AssistantResourceList({
       deletingAssistantId,
       onCreateTopicAfterClear,
       refreshTopics,
-      t,
-      topics
+      t
     ]
   )
 

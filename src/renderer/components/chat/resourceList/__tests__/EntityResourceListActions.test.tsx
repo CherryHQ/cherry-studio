@@ -1,6 +1,6 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -374,6 +374,49 @@ describe('classic layout entity resource list actions', () => {
     expect(onSelectTopic).not.toHaveBeenCalled()
     expect(window.toast.success).toHaveBeenCalledWith('assistants.clear.success_title:1')
     expect(window.modal.success).not.toHaveBeenCalled()
+  })
+
+  it('does not clear assistant topics when the list empties while the confirm dialog is open', async () => {
+    assistantDataMocks.topics = [
+      { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' },
+      { id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }
+    ]
+    let resolveConfirm!: (value: boolean) => void
+    const confirmPromise = new Promise<boolean>((resolve) => {
+      resolveConfirm = resolve
+    })
+    window.modal.confirm = vi.fn().mockReturnValue(confirmPromise)
+    const onCreateTopicAfterClear = vi.fn()
+
+    const props = {
+      activeAssistantId: 'assistant-1',
+      onSelectTopic: vi.fn(),
+      onCreateTopicAfterClear,
+      onStartDraftAssistant: vi.fn()
+    }
+    const { rerender } = render(<AssistantResourceList {...props} />)
+
+    fireEvent.click(
+      within(screen.getByTestId('assistant-1-context-menu')).getByRole('button', {
+        name: 'assistants.clear.menu_title'
+      })
+    )
+    await waitFor(() => expect(window.modal.confirm).toHaveBeenCalledTimes(1))
+
+    // While the confirm dialog is open the topic list drains (e.g. cleared elsewhere).
+    // Re-render so the rail sees the latest topics before the user confirms.
+    assistantDataMocks.topics = [{ id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }]
+    rerender(<AssistantResourceList {...props} />)
+
+    await act(async () => {
+      resolveConfirm(true)
+      await confirmPromise
+    })
+
+    expect(assistantDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
+    expect(assistantDataMocks.refreshTopics).not.toHaveBeenCalled()
+    expect(onCreateTopicAfterClear).not.toHaveBeenCalled()
+    expect(window.toast.success).not.toHaveBeenCalled()
   })
 
   it('keeps the default assistant visible in the classic assistant rail', () => {
