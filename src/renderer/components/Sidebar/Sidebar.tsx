@@ -119,7 +119,7 @@ export function Sidebar({
       <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
           className={cn(
-            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
+            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:no-drag]',
             isMac && 'pt-[env(titlebar-area-height)]'
           )}
           onClick={(event) => event.stopPropagation()}
@@ -133,7 +133,7 @@ export function Sidebar({
             floatingPointerInsideRef.current = true
             clearHoverDismiss()
           }}>
-          <div className="flex h-14 shrink-0 items-center gap-2.5 px-4 [-webkit-app-region:drag]">
+          <div className="flex h-14 shrink-0 items-center gap-2.5 px-4">
             {renderLogo()}
             <span className="truncate text-sidebar-foreground text-sm">{title}</span>
           </div>
@@ -200,12 +200,11 @@ export function Sidebar({
       ref={sidebarRef}
       style={{ width: actualWidth }}
       className={cn(
-        'group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col [-webkit-app-region:drag]',
+        'group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col [-webkit-app-region:no-drag]',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
       {/* Header */}
-      <div
-        className={`flex shrink-0 items-center [-webkit-app-region:drag] ${layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'}`}>
+      <div className={`flex shrink-0 items-center ${layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'}`}>
         {renderLogo(layout === 'icon' ? 'sm' : 'default')}
         {layout === 'full' && <span className="truncate text-sidebar-foreground text-sm">{title}</span>}
       </div>

@@ -179,6 +179,15 @@ function dragResizeFrom(width: number, moves: number | number[]) {
   return { setWidth, onResizePreview, onHoverChange, unmount }
 }
 
+function expectSidebarRootNoDrag(root: HTMLElement) {
+  const dragRegions = [root, ...Array.from(root.querySelectorAll<HTMLElement>('*'))].filter((element) =>
+    element.classList.contains('[-webkit-app-region:drag]')
+  )
+
+  expect(root).toHaveClass('[-webkit-app-region:no-drag]')
+  expect(dragRegions).toHaveLength(0)
+}
+
 describe('Sidebar resize handle', () => {
   it('keeps the existing handle width and opts out of window drag regions', () => {
     const { container } = render(
@@ -291,6 +300,33 @@ describe('Sidebar resize handle', () => {
     expect(resizeHandle).toHaveClass('h-full', 'w-full', 'cursor-col-resize')
     expect(hotZone).toHaveClass('absolute', 'inset-y-0', 'left-0', 'z-50', 'w-4')
     expect(hotZone).toHaveClass('[-webkit-app-region:no-drag]')
+  })
+
+  it('keeps the docked sidebar out of window drag regions', () => {
+    const { container } = render(
+      <Sidebar width={SIDEBAR_FULL_THRESHOLD} setWidth={vi.fn()} active={{ activeItem: 'chat' }} entries={entries} />
+    )
+
+    const root = container.firstElementChild as HTMLElement
+
+    expectSidebarRootNoDrag(root)
+  })
+
+  it('keeps the floating sidebar out of window drag regions', () => {
+    const { container } = render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        active={{ activeItem: 'chat' }}
+        entries={entries}
+        isFloating
+        onDismiss={vi.fn()}
+      />
+    )
+
+    const panel = container.querySelector('.slide-in-from-left-2') as HTMLElement
+
+    expectSidebarRootNoDrag(panel)
   })
 
   it('restores a hidden sidebar by dragging wider from the hot zone', () => {
