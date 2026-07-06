@@ -31,6 +31,9 @@ function dateToExcelSerial(date: Date): number {
   )
 }
 
+/** Date.prototype.toISOString() 的固定形态(毫秒 + Z);字符串日期路径的唯一准入 */
+const ISO_DATE_STRING_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+
 export function formatCellValue(raw: unknown, numFmt: string | undefined, date1904: boolean): string {
   const pattern = numFmt ?? 'General'
   void date1904
@@ -48,9 +51,10 @@ export function formatCellValue(raw: unknown, numFmt: string | undefined, date19
     }
   }
 
-  // ISO 字符串形态的日期(见 parseWorkbook:raw 存 ISO 字符串)在 formula 结果回填等场景下
-  // 可能以字符串形式传入;仅当能解析成合法日期且带有日期类格式时才转换,否则按普通字符串处理。
-  if (typeof raw === 'string' && numFmt && numfmt.isDateFormat(numFmt)) {
+  // ISO 字符串形态的日期(见 parseWorkbook:Date 的 raw 一律存 toISOString() 产物)在 formula
+  // 结果回填等场景下可能以字符串形式传入;只认严格的 toISOString 形态,避免 "1" 这类文本单元格
+  // 被 Date 构造器的宽松解析当成日期渲染,其余字符串按普通文本处理。
+  if (typeof raw === 'string' && numFmt && numfmt.isDateFormat(numFmt) && ISO_DATE_STRING_RE.test(raw)) {
     const parsed = new Date(raw)
     if (!Number.isNaN(parsed.getTime())) {
       const serial = dateToExcelSerial(parsed)

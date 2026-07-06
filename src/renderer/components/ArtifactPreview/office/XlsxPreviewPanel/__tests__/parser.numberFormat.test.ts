@@ -63,4 +63,23 @@ describe('formatCellValue', () => {
     const date = new Date(Date.UTC(2024, 0, 1))
     expect(formatCellValue(date, '0', false)).toBe('45292')
   })
+
+  it('strict toISOString-shaped string with a date format renders as a date', () => {
+    // parseWorkbook 对 Date 存 toISOString() 形态;公式结果回填走此路径
+    expect(formatCellValue('2026-01-15T00:00:00.000Z', 'yyyy-mm-dd', false)).toBe('2026-01-15')
+  })
+
+  it.each([
+    ['1'], // new Date("1") 在 V8 下是合法日期(2001-01-01),严格 ISO 守门必须拦下
+    ['2026'],
+    ['Jan 15 2026'],
+    ['2026-01-15'], // 仅日期无时间部分,不是 toISOString 产物
+    ['2026-01-15T00:00:00Z'] // 缺毫秒,不是 toISOString 产物
+  ])('literal text %s with a date-like numFmt stays text', (raw) => {
+    expect(formatCellValue(raw, 'yyyy-mm-dd', false)).toBe(raw)
+  })
+
+  it('ISO-shaped but impossible date falls through to plain text', () => {
+    expect(formatCellValue('2026-13-45T00:00:00.000Z', 'yyyy-mm-dd', false)).toBe('2026-13-45T00:00:00.000Z')
+  })
 })
