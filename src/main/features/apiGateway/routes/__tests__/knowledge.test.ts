@@ -18,7 +18,7 @@ const { mockList, mockGetById, mockSearch } = vi.hoisted(() => ({
 vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: { list: mockList, getById: mockGetById }
 }))
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: { get: vi.fn(() => ({ search: mockSearch })) }
 }))
 vi.mock('@logger', () => ({
