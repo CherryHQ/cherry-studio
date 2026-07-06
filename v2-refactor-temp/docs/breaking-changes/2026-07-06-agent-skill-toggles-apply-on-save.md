@@ -2,7 +2,7 @@
 title: Agent skill toggles in the edit dialog now apply on Save
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#16781"
 date: 2026-07-06
 ---
 
