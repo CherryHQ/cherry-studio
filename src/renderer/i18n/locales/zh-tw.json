@@ -8,7 +8,7 @@
       },
       "model": {
         "supported_providers": "支援的服務商",
-        "tooltip": "目前，僅支援 Anthropic 端點的模型可供 Agent 功能使用。",
+        "tooltip": "目前大多數聊天模型可供 Agent 使用，暫不支援 Gemini 服務商。",
         "view_providers": "檢視支援的服務商"
       },
       "title": "新增 Agent",
@@ -1460,6 +1460,7 @@
       "pause": "暫停",
       "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 選擇工具或操作",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
+      "resize_height": "調整輸入框高度",
       "resource_panel": {
         "categories": {
           "agents": "智能體",
@@ -1478,6 +1479,7 @@
         },
         "title": "資源"
       },
+      "restore": "還原",
       "send": "傳送",
       "send_failed": "訊息傳送失敗",
       "settings": "設定",
