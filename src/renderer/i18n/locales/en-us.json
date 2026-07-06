@@ -499,6 +499,7 @@
         "label": "Pre-approved tools",
         "placeholder": "Select pre-approved tools"
       },
+      "auto_rename": "Generate task name",
       "create": {
         "error": {
           "failed": "Failed to add a session"
@@ -519,7 +520,7 @@
         "workdir": "Work directory"
       },
       "edit": {
-        "title": "Edit session"
+        "title": "Edit task name"
       },
       "empty": {
         "description": "Tasks will appear here after you start one.",

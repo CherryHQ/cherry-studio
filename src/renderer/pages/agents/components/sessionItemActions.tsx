@@ -257,7 +257,7 @@ sessionActionRegistry.registerCommand({
 sessionActionRegistry.registerAction({
   id: 'session.auto-rename',
   commandId: 'session.auto-rename',
-  label: ({ t }) => t('chat.topics.auto_rename'),
+  label: ({ t }) => t('agent.session.auto_rename'),
   icon: () => <Sparkles size={14} />,
   order: 10,
   surface: 'menu'
@@ -266,7 +266,7 @@ sessionActionRegistry.registerAction({
 sessionActionRegistry.registerAction({
   id: 'session.rename',
   commandId: 'session.rename',
-  label: ({ t }) => t('common.rename'),
+  label: ({ t }) => t('agent.session.edit.title'),
   icon: () => <EditIcon size={14} />,
   order: 20,
   surface: 'menu'

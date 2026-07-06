@@ -80,6 +80,8 @@ describe('session item actions', () => {
       'session.export',
       'session.copy'
     ])
+    expect(actions.find((action) => action.id === 'session.auto-rename')?.label).toBe('agent.session.auto_rename')
+    expect(actions.find((action) => action.id === 'session.rename')?.label).toBe('agent.session.edit.title')
     expect(actions.find((action) => action.id === 'session.toggle-pin')?.label).toBe('agent.session.unpin.title')
 
     const renameAction = actions.find((action) => action.id === 'session.rename')

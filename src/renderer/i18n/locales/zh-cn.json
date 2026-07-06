@@ -499,6 +499,7 @@
         "label": "预先授权工具",
         "placeholder": "选择预先授权的工具"
       },
+      "auto_rename": "生成任务名",
       "create": {
         "error": {
           "failed": "添加会话失败"
@@ -519,7 +520,7 @@
         "workdir": "工作目录"
       },
       "edit": {
-        "title": "编辑会话"
+        "title": "编辑任务名"
       },
       "empty": {
         "description": "开始任务后，任务记录会显示在这里。",
@@ -558,7 +559,7 @@
       },
       "new": "新任务",
       "pin": {
-        "title": "置顶任务"
+        "title": "固定任务"
       },
       "reorder": {
         "error": {
@@ -570,7 +571,7 @@
         "title": "搜索任务"
       },
       "unpin": {
-        "title": "取消置顶任务"
+        "title": "取消固定任务"
       },
       "update": {
         "error": {

@@ -467,7 +467,8 @@ vi.mock('react-i18next', () => ({
         'agent.session.empty.description': 'Tasks will appear here after you start one.',
         'agent.session.empty.title': 'No tasks yet',
         'agent.edit.title': 'Edit Agent',
-        'agent.session.edit.title': 'Edit task',
+        'agent.session.auto_rename': 'Generate task name',
+        'agent.session.edit.title': 'Edit task name',
         'agent.session.file_manager.file_explorer': 'File Explorer',
         'agent.session.file_manager.files': 'Files',
         'agent.session.file_manager.finder': 'Finder',
@@ -1434,7 +1435,7 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     fireEvent.doubleClick(screen.getByText('Alpha session'))
-    const input = screen.getByLabelText('Edit task')
+    const input = screen.getByLabelText('Edit task name')
     expect(input).toHaveFocus()
     fireEvent.change(input, { target: { value: 'Renamed session' } })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -1454,12 +1455,12 @@ describe('Sessions', () => {
     fireEvent.contextMenu(screen.getByText('Alpha session'))
     const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
-    fireEvent.click(within(menuContent as HTMLElement).getByRole('menuitem', { name: 'Rename' }))
+    fireEvent.click(within(menuContent as HTMLElement).getByRole('menuitem', { name: 'Edit task name' }))
 
     expect(sessionDataMocks.updateSession).not.toHaveBeenCalled()
 
     const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveTextContent('Edit task')
+    expect(dialog).toHaveTextContent('Edit task name')
     const input = within(dialog).getByLabelText('Name')
     expect(sessionDataMocks.updateSession).not.toHaveBeenCalled()
 

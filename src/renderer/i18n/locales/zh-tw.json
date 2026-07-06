@@ -499,6 +499,7 @@
         "label": "預先授權工具",
         "placeholder": "選擇預先授權的工具"
       },
+      "auto_rename": "產生任務名",
       "create": {
         "error": {
           "failed": "無法新增工作階段"
@@ -519,7 +520,7 @@
         "workdir": "工作目錄"
       },
       "edit": {
-        "title": "編輯工作階段"
+        "title": "編輯任務名"
       },
       "empty": {
         "description": "開始任務後，任務記錄會顯示在這裡。",
