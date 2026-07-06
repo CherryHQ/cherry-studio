@@ -200,10 +200,8 @@ export function finalize(
   // (B) exhaustiveness subset: every JSON column on an owned table must be EITHER a
   //     declared jsonSoftReference OR listed in exemptJsonCols (with a reason). A JSON
   //     column carrying soft refs that is neither declared nor exempted would silently
-  //     drop cross-entity links on restore. Skipped until the contributor opts into the
-  //     exhaustive regime by declaring at least one jsonSoftReference or exemptJsonCols
-  //     (Phase 2 guard — Phase 3 wires these on every real contributor; TODO Phase 3:
-  //     drop the opt-in gate so ALL owned JSON columns are exhaustively covered).
+  //     drop cross-entity links on restore. UNCONDITIONAL (no opt-in gate) — the loop
+  //     below iterates every owned (non-excluded) table's every DB_JSON_COLUMNS column.
   for (const c of contributors) {
     const owned = new Set<DbTableName>(c.schema.tables)
     // (A) declared ⊆ DB_JSON_COLUMNS (columns exist + are genuinely JSON).
