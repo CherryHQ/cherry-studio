@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   prompt: vi.fn(),
   compact: vi.fn(),
   steer: vi.fn(),
+  clearQueue: vi.fn(),
   abort: vi.fn(),
   dispose: vi.fn(),
   getContextUsage: vi.fn(),
@@ -79,6 +80,7 @@ const fakeSession = {
   prompt: mocks.prompt,
   compact: mocks.compact,
   steer: mocks.steer,
+  clearQueue: mocks.clearQueue,
   abort: mocks.abort,
   dispose: mocks.dispose,
   getContextUsage: mocks.getContextUsage
@@ -111,13 +113,13 @@ const input: AgentRuntimeConnectInput = {
   modelId: 'p::m'
 }
 
-function userInput(text: string): AgentRuntimeUserInput {
+function userInput(text: string, systemReminder = false): AgentRuntimeUserInput {
   return {
     message: {
       id: `msg-${text}`,
       data: { parts: [{ type: 'text' as const, text }] }
     } as AgentRuntimeUserInput['message'],
-    systemReminder: true
+    systemReminder
   }
 }
 
@@ -172,6 +174,7 @@ beforeEach(() => {
   mocks.prompt.mockResolvedValue(undefined)
   mocks.compact.mockResolvedValue({})
   mocks.steer.mockResolvedValue(undefined)
+  mocks.clearQueue.mockReturnValue({ steering: [], followUp: [] })
   mocks.abort.mockResolvedValue(undefined)
   mocks.getContextUsage.mockReturnValue(undefined)
   mocks.createAgentSession.mockImplementation(async (opts: Record<string, unknown>) => {
@@ -223,7 +226,7 @@ describe('PiRuntimeConnection', () => {
     )
   })
 
-  it('rejects invalid or unmatched resume tokens', async () => {
+  it('rejects a malformed resume token (path separators / traversal / illegal chars)', async () => {
     await expect(new PiRuntimeConnection({ ...input, resumeToken: '/tmp/evil.jsonl' }).start()).rejects.toThrow(
       'valid session id inside Cherry-owned session dir'
     )
@@ -233,11 +236,18 @@ describe('PiRuntimeConnection', () => {
     await expect(new PiRuntimeConnection({ ...input, resumeToken: 'foo/bar' }).start()).rejects.toThrow(
       'valid session id inside Cherry-owned session dir'
     )
-    await expect(new PiRuntimeConnection({ ...input, resumeToken: 'missing-id' }).start()).rejects.toThrow(
-      'no pi session file found for resume token'
-    )
     expect(mocks.sessionOpen).not.toHaveBeenCalled()
     expect(mocks.createAgentSession).not.toHaveBeenCalled()
+  })
+
+  it('falls back to a fresh session with the same id when a valid token has no file on disk', async () => {
+    // pi flushes the JSONL lazily, so a token can point at a session that never persisted. That must
+    // degrade to a new empty session (same id) instead of bricking every future turn.
+    mocks.readdirSync.mockReturnValue([])
+
+    await new PiRuntimeConnection({ ...input, resumeToken: 'missing-id' }).start()
+    expect(mocks.sessionOpen).not.toHaveBeenCalled()
+    expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: SESSION_ID })
   })
 
   it('emits turn-complete only on agent_end, not per turn_end, plus a resume token', async () => {
@@ -297,6 +307,25 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.prompt).not.toHaveBeenCalled()
   })
 
+  it('wraps a systemReminder send as a steer reminder and never treats it as /compact', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('/compact', true))
+    await Promise.resolve()
+
+    expect(mocks.compact).not.toHaveBeenCalled()
+    expect(mocks.prompt).toHaveBeenCalledWith(
+      [
+        '<system-reminder>',
+        'The user sent the following message:',
+        '/compact',
+        '',
+        'Please address this message and continue with your tasks.',
+        '</system-reminder>'
+      ].join('\n'),
+      undefined
+    )
+  })
+
   it('completes the host turn after a manual compact succeeds', async () => {
     const conn = await new PiRuntimeConnection(input).start()
     conn.send(userInput('/compact'))
@@ -331,14 +360,33 @@ describe('PiRuntimeConnection', () => {
     expect(await nextEventWithin(conn.events)).toBeUndefined()
   })
 
-  it('surfaces compact rejection as an error and clears the manual turn flag', async () => {
+  it('settles a failed manual compact with exactly one error terminal (no turn-complete)', async () => {
+    // Real pi emits compaction_end (with the error) synchronously BEFORE compact() rejects, so the
+    // failure must settle once via that event; the later rejection is a guarded no-op.
     mocks.compact.mockRejectedValueOnce(new Error('compact rejected'))
     const conn = await new PiRuntimeConnection(input).start()
     conn.send(userInput('/compact'))
+    mocks.subscribeCb!({
+      type: 'compaction_end',
+      reason: 'manual',
+      result: undefined,
+      aborted: false,
+      willRetry: false,
+      errorMessage: 'context too large'
+    } as unknown as AgentSessionEvent)
 
     const events = await collectUntilTerminal(conn.events)
-    expect(events.find((e) => e.type === 'error')).toMatchObject({ error: new Error('compact rejected') })
+    const terminals = events.filter((e) => e.type === 'error' || e.type === 'turn-complete')
+    expect(terminals).toHaveLength(1)
+    expect(terminals[0]).toMatchObject({ type: 'error' })
+    expect(String((terminals[0] as { error: Error }).error)).toContain('context too large')
+    // The late compact() rejection must not push a second terminal.
+    expect(await nextEventWithin(conn.events)).toBeUndefined()
+  })
 
+  it('settles a successful manual compact with exactly one turn-complete terminal', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('/compact'))
     mocks.subscribeCb!({
       type: 'compaction_end',
       reason: 'manual',
@@ -346,7 +394,12 @@ describe('PiRuntimeConnection', () => {
       aborted: false,
       willRetry: false
     } as unknown as AgentSessionEvent)
-    expect(await nextEventWithin(conn.events)).toMatchObject({ type: 'compaction-complete' })
+
+    const events = await collectUntilTerminal(conn.events)
+    const terminals = events.filter((e) => e.type === 'error' || e.type === 'turn-complete')
+    expect(terminals).toHaveLength(1)
+    expect(terminals[0]).toMatchObject({ type: 'turn-complete' })
+    // The compact() resolve is a no-op once compaction_end already settled the turn.
     expect(await nextEventWithin(conn.events)).toBeUndefined()
   })
 
@@ -413,6 +466,28 @@ describe('PiRuntimeConnection', () => {
     const completeIndex = events.findIndex((e) => e.type === 'turn-complete')
     expect(events[undeliveredIndex]).toMatchObject({ type: 'steer-undelivered', inputs: [steer] })
     expect(undeliveredIndex).toBeLessThan(completeIndex)
+  })
+
+  it('clears pi steering queue on an errored turn with an undelivered steer (no duplicate re-inject)', async () => {
+    mocks.isStreaming = true
+    const conn = await new PiRuntimeConnection(input).start()
+    const steer = userInput('too late on error')
+    expect(conn.redirect(steer)).toBe(true)
+
+    mocks.isStreaming = false
+    const cb = mocks.subscribeCb!
+    cb({
+      type: 'turn_end',
+      message: { role: 'assistant', stopReason: 'error', usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } },
+      toolResults: []
+    } as unknown as AgentSessionEvent)
+    cb({ type: 'agent_end', messages: [{ role: 'assistant', errorMessage: 'boom' }], willRetry: false } as never)
+
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.find((e) => e.type === 'steer-undelivered')).toMatchObject({ inputs: [steer] })
+    expect(mocks.clearQueue).toHaveBeenCalledOnce()
+    // The turn still surfaces the error terminal; steer-undelivered precedes it.
+    expect(events.at(-1)?.type).toBe('error')
   })
 
   it('surfaces steer rejection as an error and un-stashes the input', async () => {

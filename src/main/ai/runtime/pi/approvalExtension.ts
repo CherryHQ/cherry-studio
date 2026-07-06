@@ -20,6 +20,8 @@
  * part by the time the approval request references its `toolCallId`.
  */
 import { randomUUID } from 'node:crypto'
+import os from 'node:os'
+import path from 'node:path'
 
 import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
 import type { ExtensionAPI, ExtensionContext, ExtensionFactory, ToolCallEvent } from '@earendil-works/pi-coding-agent'
@@ -35,14 +37,23 @@ import { PI_TRANSPORT } from './piStreamAdapter'
 
 const logger = loggerService.withContext('PiApprovalExtension')
 
-/** pi built-in read-only tools — auto-approved in every permission mode. */
+/** pi built-in read-only tools — auto-approved in every permission mode, but only when their
+ *  `path` resolves inside the session workspace (see {@link isToolPathInsideWorkspace}). */
 const READ_ONLY_TOOLS = new Set(['read', 'grep', 'find', 'ls'])
-/** pi built-in edit-class tools — auto-approved in `acceptEdits` (still gated in `default`). */
+/** pi built-in edit-class tools — auto-approved in `acceptEdits` (still gated in `default`), same
+ *  workspace-path scoping as the read-only set. */
 const EDIT_TOOLS = new Set(['edit', 'write'])
+
+/** Unicode spaces pi's `normalizePath` folds to a plain space before resolving (reproduced here so
+ *  containment matches pi's own `resolveToCwd`). */
+const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g
 
 export interface PiApprovalContext {
   /** Agent-session id — keys the neutral registry so close()/abort target the right approvals. */
   sessionId: string
+  /** Session workspace root — the auto-approve fast-path only skips approval when a tool's resolved
+   *  `path` stays inside this directory; anything outside falls through to a normal approval prompt. */
+  workspacePath: string
   /** Push a chunk into the connection's event stream (bound to the AsyncEventQueue). */
   emit: (chunk: CherryUIMessageChunk) => void
   /** Live permission mode; read at fire-time so a mid-session `applyPolicyUpdate` takes effect. */
@@ -86,7 +97,7 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
 
       // (4) approval by permission mode.
       const mode = ctx.getPermissionMode() ?? 'default'
-      if (!requiresApproval(mode, toolName)) return
+      if (!requiresApproval(mode, toolName, input, ctx.workspacePath)) return
 
       const approvalId = randomUUID()
       const decision = await new Promise<DispatchDecision>((resolve) => {
@@ -122,12 +133,57 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
 }
 
 /** Whether a tool must surface an approval request under the given mode. */
-function requiresApproval(mode: AgentPermissionMode, toolName: string): boolean {
+function requiresApproval(
+  mode: AgentPermissionMode,
+  toolName: string,
+  input: Record<string, unknown>,
+  workspacePath: string
+): boolean {
   if (mode === 'bypassPermissions') return false
-  if (READ_ONLY_TOOLS.has(toolName)) return false
-  if (mode === 'acceptEdits' && EDIT_TOOLS.has(toolName)) return false
+  // The read-only / acceptEdits fast-paths only skip approval when the tool's target path stays
+  // inside the workspace; an out-of-workspace read/write falls through to a normal prompt so a
+  // prompt-injected model can't auto-touch ~/.ssh, Cherry's SQLite, ~/.zshrc, LaunchAgents, etc.
+  if (READ_ONLY_TOOLS.has(toolName)) return !isToolPathInsideWorkspace(input, workspacePath)
+  if (mode === 'acceptEdits' && EDIT_TOOLS.has(toolName)) return !isToolPathInsideWorkspace(input, workspacePath)
   // `default` (and the unsupported-for-pi `plan`) gate everything else.
   return true
+}
+
+/**
+ * Conservative containment check for the auto-approve fast-path. Reproduces the SECURITY-relevant
+ * parts of pi's `resolveToCwd(path, cwd)` (see @earendil-works/pi-coding-agent path-utils): a
+ * missing/empty `path` defaults to the workspace root, `~`/`~/…` expand to the home dir, a leading
+ * `@` is stripped, absolute paths pass through, and everything else joins onto the workspace. Any
+ * ambiguity (non-string path, `file://` URL, resolution failure) is treated as OUTSIDE so approval
+ * is required. All six auto-eligible tools (read/grep/find/ls/edit/write) take a `path` arg.
+ */
+function isToolPathInsideWorkspace(input: Record<string, unknown>, workspacePath: string): boolean {
+  const raw = input.path
+  // grep/find/ls default a missing/empty path to "." → the workspace root, which is inside.
+  if (raw === undefined || raw === null || raw === '') return true
+  if (typeof raw !== 'string') return false
+
+  const resolved = resolveToolPath(raw, workspacePath)
+  if (resolved === undefined) return false
+
+  // Same relative-path containment idiom pi uses in `getCwdRelativePath`.
+  const rel = path.relative(workspacePath, resolved)
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel))
+}
+
+/** Resolve a raw tool `path` to an absolute path, mirroring pi's `resolveToCwd`; returns undefined
+ *  for inputs whose resolution is ambiguous (e.g. `file://` URLs) so the caller requires approval. */
+function resolveToolPath(raw: string, workspacePath: string): string | undefined {
+  let p = raw.replace(UNICODE_SPACES, ' ')
+  if (p.startsWith('@')) p = p.slice(1) // pi's stripAtPrefix
+  if (p === '~') p = os.homedir()
+  else if (p.startsWith('~/') || (process.platform === 'win32' && p.startsWith('~\\'))) {
+    p = path.join(os.homedir(), p.slice(2))
+  } else if (p.startsWith('file://')) {
+    // pi resolves file:// via fileURLToPath; the target can be anywhere, so stay conservative.
+    return undefined
+  }
+  return path.isAbsolute(p) ? path.resolve(p) : path.resolve(workspacePath, p)
 }
 
 /** Replace the tool input in place with the renderer's edited copy (pi mutates `event.input`). */

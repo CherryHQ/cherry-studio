@@ -161,6 +161,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         createPiProviderExtension(injection.providerName, injection.providerConfig),
         createPiApprovalExtension({
           sessionId: this.input.sessionId,
+          workspacePath,
           emit: (chunk) => this.eventQueue.push({ type: 'chunk', chunk }),
           getPermissionMode: () => this.permissionMode,
           isDisabled: (toolName) => this.disabledTools.has(toolName)
@@ -174,9 +175,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     })
     await resourceLoader.reload()
 
-    const sessionManager = this.resumeToken
-      ? pi.SessionManager.open(resolveResumeTokenSessionFile(this.resumeToken, sessionDir), sessionDir, workspacePath)
-      : pi.SessionManager.create(workspacePath, sessionDir, { id: this.input.sessionId })
+    const sessionManager = this.resolveSessionManager(pi, workspacePath, sessionDir)
 
     const { session: piSession } = await pi.createAgentSession({
       cwd: workspacePath,
@@ -201,14 +200,39 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     return this
   }
 
+  /**
+   * Pick the session manager for this connection. A fresh session (no resume token) is created with
+   * the Cherry session id. On resume, a format-valid token whose file is missing on disk falls back
+   * to a fresh session with the SAME id — pi flushes the JSONL lazily (nothing until the first
+   * assistant message), so a token emitted before that flush points at a never-persisted session; a
+   * hard failure here would brick the session forever (e.g. a first turn of `/compact` or a preflight
+   * rejection). A malformed token still throws — that's the resume-dir attack-surface guard.
+   */
+  private resolveSessionManager(pi: Awaited<ReturnType<typeof loadPiSdk>>, workspacePath: string, sessionDir: string) {
+    if (!this.resumeToken) {
+      return pi.SessionManager.create(workspacePath, sessionDir, { id: this.input.sessionId })
+    }
+    const file = resolveResumeTokenSessionFile(this.resumeToken, sessionDir)
+    if (file) return pi.SessionManager.open(file, sessionDir, workspacePath)
+    logger.warn('pi resume token has no session file on disk; creating a fresh session with the same id', {
+      sessionId: this.input.sessionId
+    })
+    return pi.SessionManager.create(workspacePath, sessionDir, { id: this.input.sessionId })
+  }
+
   send(input: AgentRuntimeUserInput): void {
-    const content = buildAgentUserContent(input.message)
     const session = this.session
     if (!session) {
       this.eventQueue.push({ type: 'error', error: new Error('pi session is not started') })
       return
     }
-    const manualCompact = parseManualCompactCommand(content)
+    const rawContent = buildAgentUserContent(input.message)
+
+    // A `systemReminder` message is a steer the host re-queued as its own turn (an undelivered steer
+    // or a mid-turn-queued message). It must reach pi wrapped as a redirect (invariant 7, mirroring
+    // the claude driver) and is never a manual `/compact` command — so skip the compact parse and
+    // only wrapped, non-reminder text is considered for `/compact`.
+    const manualCompact = input.systemReminder ? undefined : parseManualCompactCommand(rawContent)
     if (manualCompact) {
       this.manualCompactInFlight = true
       void session.compact(manualCompact.instructions || undefined).then(
@@ -216,6 +240,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         // settles the no-op case where pi resolves without emitting any compaction event.
         () => this.maybeCompleteManualCompactTurn(),
         (error) => {
+          // pi always emits compaction_end (which already settled the turn and cleared the flag)
+          // before rejecting, so this is normally a no-op. Only settle here defensively if the flag
+          // is somehow still set (compaction_end never arrived) — never push a second terminal.
+          if (!this.manualCompactInFlight) return
           this.manualCompactInFlight = false
           if (this.closed) return
           logger.error('pi compact failed', error as Error)
@@ -228,6 +256,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // Native steer lives in redirect() (plan D6); send() starts normal turns. pi only exposes
     // `/compact` as an SDK method; other Claude CLI commands stay Claude-only slash text.
     // `followUp` is a defensive guard in case a message arrives while a turn is still winding down.
+    const content = input.systemReminder ? wrapSteerReminder(rawContent) : rawContent
     const options = session.isStreaming ? ({ streamingBehavior: 'followUp' } as const) : undefined
     void session.prompt(content, options).catch((error) => {
       if (this.closed) return
@@ -340,7 +369,13 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       }
       this.maybeEmitResumeToken()
       const undelivered = this.pendingSteers.splice(0).map((pending) => pending.input)
-      if (undelivered.length > 0) this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
+      if (undelivered.length > 0) {
+        // pi does NOT drain its steering queue when a turn ends (its error path especially leaves the
+        // queue intact), so the un-delivered steer would re-inject into the NEXT run and the model
+        // would see it twice. Drop pi's queue here — the host re-queues these steers as the next turn.
+        this.session?.clearQueue()
+        this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
+      }
       if (this.lastStopReason === 'error') {
         const message = lastErrorMessage(event.messages)
         this.eventQueue.push({ type: 'error', error: new Error(message ?? 'pi agent turn failed') })
@@ -356,8 +391,17 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // Retry pending — a later compaction_end settles it (mirrors the agent_end willRetry hold).
     if (event.willRetry) return
     if (event.errorMessage || event.aborted) {
+      // A failed manual /compact is a host turn: settle it with EXACTLY ONE terminal error (never
+      // turn-complete, which would report the failure as a junk empty-assistant success and feed the
+      // resume-token brick). pi always emits this compaction_end before `compact()` rejects, so
+      // clearing the flag here makes the later reject handler a no-op.
+      if (this.manualCompactInFlight) {
+        this.manualCompactInFlight = false
+        this.eventQueue.push({ type: 'error', error: new Error(event.errorMessage ?? 'pi compaction aborted') })
+        return
+      }
+      // Auto-compaction failure stays non-terminal — the surrounding turn owns the terminal event.
       this.eventQueue.push({ type: 'compaction-error', error: event.errorMessage ?? 'pi compaction aborted' })
-      this.maybeCompleteManualCompactTurn()
       return
     }
     this.eventQueue.push({ type: 'compaction-complete', anchor: buildCompactionAnchor(event.reason, event.result) })
@@ -417,7 +461,14 @@ function normalizeDisabledTools(disabledTools: string[] | undefined | null): Set
   return new Set((disabledTools ?? []).map((tool) => tool.toLowerCase()))
 }
 
-function resolveResumeTokenSessionFile(resumeToken: string, sessionDir: string): string {
+/**
+ * Resolve a resume token to its on-disk pi session file. Returns `null` when the token is
+ * format-valid but no matching file exists yet (pi persists the JSONL lazily, so a token can point
+ * at a session that never flushed) — the caller degrades to a fresh session instead of failing.
+ * Throws only on a malformed token (path separators / traversal / illegal chars), which stays
+ * fail-closed as the resume-dir attack-surface guard.
+ */
+function resolveResumeTokenSessionFile(resumeToken: string, sessionDir: string): string | null {
   if (
     !resumeToken ||
     resumeToken !== path.basename(resumeToken) ||
@@ -440,8 +491,7 @@ function resolveResumeTokenSessionFile(resumeToken: string, sessionDir: string):
     .filter((entry) => entry.endsWith(`_${resumeToken}.jsonl`))
     .sort()
     .at(-1)
-  if (!match) throw new Error('no pi session file found for resume token in Cherry-owned session dir')
-  return path.join(sessionDir, match)
+  return match ? path.join(sessionDir, match) : null
 }
 
 /** pi triggers `manual` on `compact()`, `threshold`/`overflow` automatically — Cherry's

@@ -13,9 +13,12 @@ const { toolApprovalRegistry } = await import('../toolApproval/ToolApprovalRegis
 
 type Handler = (event: unknown, ctx: unknown) => Promise<{ block?: boolean; reason?: string } | undefined>
 
+const WORKSPACE = '/work/space'
+
 /** Build the gate, capturing its `tool_call` handler + emitted chunks. */
 function buildGate(
   overrides: Partial<{
+    workspacePath: string
     getPermissionMode: () => AgentPermissionMode | undefined
     isDisabled: (toolName: string) => boolean
   }> = {}
@@ -24,6 +27,7 @@ function buildGate(
   let handler!: Handler
   const factory = createPiApprovalExtension({
     sessionId: 's1',
+    workspacePath: WORKSPACE,
     emit: (chunk) => emitted.push(chunk),
     getPermissionMode: () => 'default',
     isDisabled: () => false,
@@ -154,5 +158,59 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     await flush()
     expect(toolApprovalRegistry.abort('s1', 'pi-session-closed')).toBe(1)
     await expect(pending).resolves.toEqual({ block: true, reason: 'pi-session-closed' })
+  })
+
+  describe('workspace path scoping for the auto-approve fast-path', () => {
+    it('still auto-allows a read with a relative in-workspace path', async () => {
+      const { handler, emitted } = buildGate()
+      await expect(handler(toolEvent('read', { path: 'src/index.ts' }), extCtx)).resolves.toBeUndefined()
+      expect(emitted).toHaveLength(0)
+    })
+
+    it('still auto-allows grep/find/ls with no path (defaults to the workspace root)', async () => {
+      const { handler, emitted } = buildGate()
+      for (const tool of ['grep', 'find', 'ls']) {
+        await expect(handler(toolEvent(tool, {}), extCtx)).resolves.toBeUndefined()
+      }
+      expect(emitted).toHaveLength(0)
+    })
+
+    it('requires approval for a read whose absolute path is outside the workspace', async () => {
+      const { handler, emitted } = buildGate()
+      void handler(toolEvent('read', { path: '/etc/passwd' }), extCtx)
+      await flush()
+      expect(emitted).toHaveLength(1)
+      expect(emitted[0].type).toBe('tool-approval-request')
+    })
+
+    it('requires approval for a read that escapes the workspace via `~`', async () => {
+      const { handler, emitted } = buildGate()
+      void handler(toolEvent('read', { path: '~/.ssh/id_rsa' }), extCtx)
+      await flush()
+      expect(emitted).toHaveLength(1)
+      expect(emitted[0].type).toBe('tool-approval-request')
+    })
+
+    it('requires approval for a read that traverses out of the workspace', async () => {
+      const { handler, emitted } = buildGate()
+      void handler(toolEvent('read', { path: '../../etc/passwd' }), extCtx)
+      await flush()
+      expect(emitted).toHaveLength(1)
+      expect(emitted[0].type).toBe('tool-approval-request')
+    })
+
+    it('acceptEdits gates an edit whose absolute path is outside the workspace', async () => {
+      const { handler, emitted } = buildGate({ getPermissionMode: () => 'acceptEdits' })
+      void handler(toolEvent('edit', { path: '/Users/v/.zshrc', edits: [] }), extCtx)
+      await flush()
+      expect(emitted).toHaveLength(1)
+      expect(emitted[0].type).toBe('tool-approval-request')
+    })
+
+    it('acceptEdits still auto-allows a write with a relative in-workspace path', async () => {
+      const { handler, emitted } = buildGate({ getPermissionMode: () => 'acceptEdits' })
+      await expect(handler(toolEvent('write', { path: 'out.txt', content: 'x' }), extCtx)).resolves.toBeUndefined()
+      expect(emitted).toHaveLength(0)
+    })
   })
 })
