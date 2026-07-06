@@ -165,6 +165,11 @@ vi.mock('@cherrystudio/ui', () => {
       <button type="button" disabled={disabled} onClick={onSelect}>
         {children}
       </button>
+    ),
+    Tooltip: ({ children, content }: { children: React.ReactNode; content?: React.ReactNode }) => (
+      <span data-testid="mock-tooltip" data-content={typeof content === 'string' ? content : undefined}>
+        {children}
+      </span>
     )
   }
 })
@@ -639,6 +644,44 @@ describe('CommandContextMenu', () => {
     await waitFor(() => {
       expect(onSelect).toHaveBeenCalledOnce()
     })
+  })
+
+  it('keeps disabled popup extra item descriptions in a tooltip in cherry mode', () => {
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+    const onSelect = vi.fn()
+
+    render(
+      <CommandContextKeyProvider>
+        <CommandProvider>
+          <CommandPopupMenu
+            location="webcontents.context"
+            extraItems={[
+              {
+                type: 'item',
+                id: 'tool:branch',
+                label: 'New Branch',
+                description: 'You are already at the end of this branch.',
+                enabled: false,
+                onSelect
+              }
+            ]}>
+            <button type="button">trigger-popup</button>
+          </CommandPopupMenu>
+        </CommandProvider>
+      </CommandContextKeyProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'trigger-popup' }))
+
+    expect(screen.getByText('New Branch')).toBeInTheDocument()
+    expect(screen.queryByText('You are already at the end of this branch.')).not.toBeInTheDocument()
+    expect(screen.getByTestId('mock-tooltip')).toHaveAttribute(
+      'data-content',
+      'You are already at the end of this branch.'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /New Branch/ }))
+    expect(onSelect).not.toHaveBeenCalled()
   })
 
   it('triggers onOpenChange(true) when right-clicked in cherry mode, and onOpenChange(false) when selecting item', async () => {

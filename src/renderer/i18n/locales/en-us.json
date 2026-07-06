@@ -1586,6 +1586,11 @@
       "new": {
         "branch": {
           "created": "New Branch Created",
+          "disabled": {
+            "active": "This node is already selected. Continue typing to extend the branch from here.",
+            "latest": "You are already at the end of this branch. Continue typing to extend it.",
+            "no_follow_up": "There is no follow-up after this message yet. Switch to this node and continue typing instead."
+          },
           "label": "New Branch"
         },
         "context": "New Context"
