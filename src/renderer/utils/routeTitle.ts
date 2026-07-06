@@ -1,4 +1,4 @@
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 
 /** Base URL for parsing relative route paths */
 const BASE_URL = 'https://www.cherry-ai.com/'

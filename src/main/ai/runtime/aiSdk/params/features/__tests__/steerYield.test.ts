@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 const hasPendingSteer = vi.fn()
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: { get: vi.fn(() => ({ hasPendingSteer })) }
 }))
 vi.mock('../../../../agentSession/topic', () => ({
