@@ -10,7 +10,6 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { getModelLogo } from '@renderer/config/models'
 import type {
   ModelHealthCheckGenerationOutput,
   ModelHealthCheckSkipReason,
@@ -18,6 +17,7 @@ import type {
 } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
+import { getModelLogo } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import { CheckCircle2, Info, Loader2, XCircle } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'

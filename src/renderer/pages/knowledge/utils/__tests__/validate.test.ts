@@ -6,7 +6,7 @@ import {
   getKnowledgeRagConfigFormState,
   parseOptionalInteger,
   parseRequiredInteger
-} from '..'
+} from '../validate'
 
 const createFormValues = (overrides: Partial<KnowledgeRagConfigFormValues> = {}): KnowledgeRagConfigFormValues => ({
   fileProcessorId: null,

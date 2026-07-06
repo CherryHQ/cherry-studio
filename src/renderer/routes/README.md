@@ -76,7 +76,7 @@ This project provides two navigation methods:
 Open a new Tab or switch to an existing Tab using the `useTabs` hook:
 
 ```typescript
-import { useTabs } from '@renderer/hooks/useTabs'
+import { useTabs } from '@renderer/hooks/tab'
 
 function MyComponent() {
   const { openTab, closeTab } = useTabs()
@@ -175,8 +175,8 @@ AppShell
 src/renderer/
 ├── routes/                    # Route pages (TanStack Router file-based routing)
 │   ├── __root.tsx            # Root route (renders Outlet)
-│   ├── index.tsx             # / Home page
 │   ├── settings.tsx          # /settings
+│   ├── settings.index.tsx    # /settings/ index route (flat dot form — never a bare index.tsx)
 │   └── README.md             # This document
 ├── components/layout/
 │   ├── AppShell.tsx          # Main layout (Sidebar + TabBar + Content)

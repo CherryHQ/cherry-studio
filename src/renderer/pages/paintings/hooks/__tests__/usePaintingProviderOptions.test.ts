@@ -1,14 +1,22 @@
 import type { Model } from '@shared/data/types/model'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 import { buildPaintingProviderOptions } from '../usePaintingProviderOptions'
 
-function model(providerId: string, imageCapable: boolean): Model {
+function model(providerId: string, imageCapableOrOverrides: boolean | Partial<Model>): Model {
+  const overrides =
+    typeof imageCapableOrOverrides === 'boolean'
+      ? { capabilities: imageCapableOrOverrides ? [MODEL_CAPABILITY.IMAGE_GENERATION] : [] }
+      : imageCapableOrOverrides
+
   return {
     providerId,
-    capabilities: imageCapable ? [MODEL_CAPABILITY.IMAGE_GENERATION] : []
-  } as unknown as Model
+    capabilities: [],
+    isHidden: false,
+    isEnabled: true,
+    ...overrides
+  } as Model
 }
 
 const RUNNING_OVMS = { ovmsSupported: true, ovmsStatus: 'running' as const }
@@ -36,6 +44,36 @@ describe('buildPaintingProviderOptions', () => {
       ...NO_OVMS
     })
     expect(result).not.toContain('text-only-prov')
+  })
+
+  it('excludes image-generation-capable models that explicitly output text only', () => {
+    const result = buildPaintingProviderOptions({
+      models: [
+        model('openai', {
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+          outputModalities: [MODALITY.TEXT]
+        })
+      ],
+      newApiProviderIds: [],
+      ...NO_OVMS
+    })
+
+    expect(result).toEqual([])
+  })
+
+  it('keeps image-generation models that output image', () => {
+    const result = buildPaintingProviderOptions({
+      models: [
+        model('openrouter', {
+          capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+          outputModalities: [MODALITY.TEXT, MODALITY.IMAGE]
+        })
+      ],
+      newApiProviderIds: [],
+      ...NO_OVMS
+    })
+
+    expect(result).toEqual(['openrouter'])
   })
 
   it('does not duplicate a provider that has multiple image-capable v2 models', () => {

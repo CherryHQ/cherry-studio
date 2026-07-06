@@ -9,6 +9,14 @@ import type { CodeEditorHandles } from '../types'
 
 const mocks = vi.hoisted(() => {
   const replacement = { changes: 'inserted-text' }
+  const scrollEffect = { type: 'scroll-to-bottom' }
+  const scrollDOM = {
+    addEventListener: vi.fn(),
+    clientHeight: 100,
+    removeEventListener: vi.fn(),
+    scrollHeight: 200,
+    scrollTop: 100
+  }
 
   return {
     codeMirrorProps: undefined as { onCreateEditor?: (view: unknown) => void } | undefined,
@@ -16,6 +24,12 @@ const mocks = vi.hoisted(() => {
     focus: vi.fn(),
     replacement,
     replaceSelection: vi.fn(() => replacement),
+    scrollDOM,
+    scrollEffect,
+    scrollIntoView: vi.fn<(position: number, options: { y: string; x: string }) => typeof scrollEffect>(
+      () => scrollEffect
+    ),
+    scrollListener: undefined as (() => void) | undefined,
     scrollToLine: vi.fn()
   }
 })
@@ -23,12 +37,16 @@ const mocks = vi.hoisted(() => {
 vi.mock('@uiw/react-codemirror', () => ({
   default: (props: { onCreateEditor?: (view: unknown) => void }) => {
     mocks.codeMirrorProps = props
+    mocks.scrollDOM.addEventListener.mockImplementation((event: string, listener: () => void) => {
+      if (event === 'scroll') mocks.scrollListener = listener
+    })
     props.onCreateEditor?.({
       dispatch: mocks.dispatch,
       focus: mocks.focus,
-      scrollDOM: { scrollHeight: 120 },
+      scrollDOM: mocks.scrollDOM,
       state: {
         doc: {
+          length: 'Current content'.length,
           toString: () => 'Current content'
         },
         replaceSelection: mocks.replaceSelection
@@ -44,6 +62,7 @@ vi.mock('@uiw/react-codemirror', () => ({
   },
   EditorView: {
     lineWrapping: 'line-wrapping',
+    scrollIntoView: mocks.scrollIntoView,
     theme: vi.fn(() => 'editor-theme')
   }
 }))
@@ -62,6 +81,13 @@ describe('CodeEditor', () => {
     mocks.dispatch.mockClear()
     mocks.focus.mockClear()
     mocks.replaceSelection.mockClear()
+    mocks.scrollDOM.addEventListener.mockClear()
+    mocks.scrollDOM.removeEventListener.mockClear()
+    mocks.scrollDOM.clientHeight = 100
+    mocks.scrollDOM.scrollHeight = 200
+    mocks.scrollDOM.scrollTop = 100
+    mocks.scrollIntoView.mockClear()
+    mocks.scrollListener = undefined
     mocks.scrollToLine.mockClear()
   })
 
@@ -86,5 +112,74 @@ describe('CodeEditor', () => {
     expect(mocks.replaceSelection).toHaveBeenCalledWith('${variable}')
     expect(mocks.dispatch).toHaveBeenCalledWith(mocks.replacement)
     expect(mocks.focus).toHaveBeenCalledTimes(1)
+  })
+
+  it('scrolls the internal editor to the document bottom when streaming content grows', () => {
+    const { rerender } = render(
+      <CodeEditor
+        value="Current content"
+        language="markdown"
+        options={{ stream: true }}
+        expanded={false}
+        autoScrollToBottom
+      />
+    )
+    mocks.dispatch.mockClear()
+    mocks.scrollIntoView.mockClear()
+
+    rerender(
+      <CodeEditor
+        value="Current content\nnext line"
+        language="markdown"
+        options={{ stream: true }}
+        expanded={false}
+        autoScrollToBottom
+      />
+    )
+
+    expect(mocks.scrollIntoView).toHaveBeenCalledWith(expect.any(Number), {
+      y: 'end',
+      x: 'nearest'
+    })
+    expect(mocks.scrollIntoView.mock.calls[0][0]).toBeGreaterThan('Current content'.length)
+    expect(mocks.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        effects: mocks.scrollEffect
+      })
+    )
+  })
+
+  it('does not force the editor back to bottom after the user scrolls away', () => {
+    const { rerender } = render(
+      <CodeEditor
+        value="Current content"
+        language="markdown"
+        options={{ stream: true }}
+        expanded={false}
+        autoScrollToBottom
+      />
+    )
+
+    mocks.scrollDOM.scrollTop = 20
+    mocks.scrollListener?.()
+    mocks.dispatch.mockClear()
+    mocks.scrollIntoView.mockClear()
+
+    rerender(
+      <CodeEditor
+        value="Current content\nnext line"
+        language="markdown"
+        options={{ stream: true }}
+        expanded={false}
+        autoScrollToBottom
+      />
+    )
+
+    expect(mocks.scrollIntoView).not.toHaveBeenCalled()
+    expect(mocks.dispatch).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        effects: mocks.scrollEffect
+      })
+    )
   })
 })

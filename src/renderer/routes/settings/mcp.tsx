@@ -1,4 +1,4 @@
-import McpSettings from '@renderer/pages/settings/McpSettings'
+import McpSettings from '@renderer/pages/settings/McpSettings/McpSettingsPage'
 import { createFileRoute } from '@tanstack/react-router'
 
 // MCP 布局路由：McpSettings 作为布局组件，使用 Outlet 渲染子路由

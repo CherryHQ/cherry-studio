@@ -6,7 +6,7 @@
  */
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import type { WebDavConfig } from '@shared/types/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'

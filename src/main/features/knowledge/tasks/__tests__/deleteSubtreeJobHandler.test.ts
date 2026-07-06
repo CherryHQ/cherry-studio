@@ -11,12 +11,13 @@ import {
   createNoteItem,
   deleteItemsByIdsMock,
   deleteKnowledgeItemFilesBestEffortMock,
-  deleteMaterialMock,
+  deleteMaterialsMock,
   FILE_ITEM_ID,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeLockManager,
-  listMock
+  listMock,
+  reclaimSpaceMock
 } from './jobHandlerTestUtils'
 
 describe('delete-subtree job handler', () => {
@@ -26,7 +27,7 @@ describe('delete-subtree job handler', () => {
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
     ]
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue(subtreeItems)
     listMock.mockResolvedValue([
       createJobSnapshot({
         id: 'current-job',
@@ -63,8 +64,10 @@ describe('delete-subtree job handler', () => {
     expect(cancelMock).toHaveBeenCalledWith('check-job', 'knowledge-delete-subtree')
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-delete-subtree')
     expect(cancelMock).not.toHaveBeenCalledWith('unrelated-job', expect.anything())
-    expect(deleteMaterialMock).toHaveBeenCalledWith('note-1')
+    expect(deleteMaterialsMock).toHaveBeenCalledWith(['note-1'])
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['dir-1', 'note-1'])
+    // The freed index pages are reclaimed once, after the purge.
+    expect(reclaimSpaceMock).toHaveBeenCalledTimes(1)
   })
 
   it('routes file cleanup through best-effort delete before hard-deleting rows', async () => {
@@ -73,7 +76,7 @@ describe('delete-subtree job handler', () => {
       createDirectoryItem('dir-1', 'deleting'),
       createFileItem(FILE_ITEM_ID, 'deleting')
     ]
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue(subtreeItems)
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'delete-job'))
 
@@ -94,7 +97,7 @@ describe('delete-subtree job handler', () => {
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
     ]
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue(subtreeItems)
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'delete-job'))
 
@@ -107,7 +110,7 @@ describe('delete-subtree job handler', () => {
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
     ]
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue(subtreeItems)
     listMock.mockResolvedValue([
       createJobSnapshot({
         id: 'index-job',
@@ -121,7 +124,7 @@ describe('delete-subtree job handler', () => {
       'cancel failed'
     )
 
-    expect(deleteMaterialMock).not.toHaveBeenCalled()
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
   })
 
@@ -131,7 +134,7 @@ describe('delete-subtree job handler', () => {
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
     ]
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue(subtreeItems)
     listMock.mockResolvedValue([
       createJobSnapshot({
         id: 'index-job',
@@ -145,32 +148,32 @@ describe('delete-subtree job handler', () => {
       'Job cancel timed out: index-job'
     )
 
-    expect(deleteMaterialMock).not.toHaveBeenCalled()
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
   })
 
   it('completes when the subtree is already gone', async () => {
     const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue([])
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([])
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['missing-root'] }, 'delete-job'))
 
     expect(listMock).not.toHaveBeenCalled()
     expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
-    expect(deleteMaterialMock).not.toHaveBeenCalled()
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
   })
 
   it('no-ops when a stale job targets visible rows', async () => {
     const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
     const subtreeItems: KnowledgeItem[] = [createDirectoryItem('dir-1'), createNoteItem('note-1', 'dir-1')]
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue(subtreeItems)
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'delete-job'))
 
     expect(listMock).not.toHaveBeenCalled()
     expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
-    expect(deleteMaterialMock).not.toHaveBeenCalled()
+    expect(deleteMaterialsMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
   })
 })

@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
-import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
+import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 import { classifySqliteError, defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '../sqliteErrors'
 
 /**
- * Build a synthetic error that mimics a raw libsql SqliteError:
+ * Build a synthetic error that mimics a raw better-sqlite3 SqliteError:
  *   - an Error instance
  *   - a `.code` property matching SQLite extended error codes
  *   - a `.message` matching the authentic SQLite text format
@@ -26,6 +26,22 @@ function wrapInDrizzleError(inner: Error): Error {
   return outer
 }
 
+/**
+ * Invoke `fn` and return the value it throws. `withSqliteErrors` is now a
+ * synchronous call (better-sqlite3 engine), so a constraint violation surfaces
+ * as a thrown value rather than a rejected promise — capture it to assert on
+ * its shape. Throws if `fn` returns normally so a missing throw never passes
+ * silently.
+ */
+function captureThrow(fn: () => unknown): unknown {
+  try {
+    fn()
+  } catch (e) {
+    return e
+  }
+  throw new Error('expected fn to throw, but it returned normally')
+}
+
 describe('classifySqliteError', () => {
   let warnSpy: MockInstance
 
@@ -44,7 +60,7 @@ describe('classifySqliteError', () => {
   })
 
   it('classifies PRIMARYKEY and ROWID constraint violations as UNIQUE (no fallback warn)', () => {
-    // Observed in real libsql output when a PK collides:
+    // A PK collision carries:
     //   code = 'SQLITE_CONSTRAINT_PRIMARYKEY'
     //   message = 'SQLITE_CONSTRAINT_PRIMARYKEY: UNIQUE constraint failed: t.id'
     // The extended codes differ from SQLITE_CONSTRAINT_UNIQUE but the
@@ -146,89 +162,99 @@ describe('classifySqliteError', () => {
 })
 
 describe('withSqliteErrors', () => {
-  it('returns the operation result on success', async () => {
-    await expect(withSqliteErrors(async () => 42, {})).resolves.toBe(42)
+  it('returns the operation result on success', () => {
+    expect(withSqliteErrors(() => 42, {})).toBe(42)
   })
 
-  it('throws the handler result when a matching constraint is raised', async () => {
+  it('throws the handler result when a matching constraint is raised', () => {
     const uniq = makeSqliteError('SQLITE_CONSTRAINT_UNIQUE', 'UNIQUE constraint failed: t.x')
 
-    await expect(
-      withSqliteErrors(
-        async () => {
-          throw uniq
-        },
-        {
-          unique: () => DataApiErrorFactory.conflict('boom', 'T')
-        }
+    expect(
+      captureThrow(() =>
+        withSqliteErrors(
+          () => {
+            throw uniq
+          },
+          {
+            unique: () => DataApiErrorFactory.conflict('boom', 'T')
+          }
+        )
       )
-    ).rejects.toMatchObject({ code: ErrorCode.CONFLICT, message: 'boom' })
+    ).toMatchObject({ code: ErrorCode.CONFLICT, message: 'boom' })
   })
 
-  it('rethrows the original error unchanged when the constraint type has no handler', async () => {
+  it('rethrows the original error unchanged when the constraint type has no handler', () => {
     const fkErr = makeSqliteError('SQLITE_CONSTRAINT_FOREIGNKEY', 'FOREIGN KEY constraint failed')
 
-    await expect(
-      withSqliteErrors(
-        async () => {
-          throw fkErr
-        },
-        {
-          unique: () => DataApiErrorFactory.conflict('x', 'T')
-        }
+    expect(
+      captureThrow(() =>
+        withSqliteErrors(
+          () => {
+            throw fkErr
+          },
+          {
+            unique: () => DataApiErrorFactory.conflict('x', 'T')
+          }
+        )
       )
-    ).rejects.toBe(fkErr)
+    ).toBe(fkErr)
   })
 
-  it('rethrows non-SQLite errors unchanged', async () => {
+  it('rethrows non-SQLite errors unchanged', () => {
     const net = new Error('EHOSTUNREACH')
 
-    await expect(
-      withSqliteErrors(
-        async () => {
-          throw net
-        },
-        {
-          unique: () => DataApiErrorFactory.conflict('x', 'T')
-        }
+    expect(
+      captureThrow(() =>
+        withSqliteErrors(
+          () => {
+            throw net
+          },
+          {
+            unique: () => DataApiErrorFactory.conflict('x', 'T')
+          }
+        )
       )
-    ).rejects.toBe(net)
+    ).toBe(net)
   })
 
-  it('passes the parsed columns array to the unique handler', async () => {
+  it('passes the parsed columns array to the unique handler', () => {
     const uniq = makeSqliteError('SQLITE_CONSTRAINT_UNIQUE', 'UNIQUE constraint failed: user.email, user.tenant_id')
     let received: string[] | undefined
 
-    await withSqliteErrors(
-      async () => {
-        throw uniq
-      },
-      {
-        unique: (cols) => {
-          received = cols
-          return DataApiErrorFactory.conflict('x', 'User')
+    captureThrow(() =>
+      withSqliteErrors(
+        () => {
+          throw uniq
+        },
+        {
+          unique: (cols) => {
+            received = cols
+            return DataApiErrorFactory.conflict('x', 'User')
+          }
         }
-      }
-    ).catch(() => {})
+      )
+    )
 
     expect(received).toEqual(['user.email', 'user.tenant_id'])
   })
 
-  it('passes the constraintName to the check handler', async () => {
+  it('passes the constraintName to the check handler', () => {
     const chk = makeSqliteError('SQLITE_CONSTRAINT_CHECK', 'CHECK constraint failed: status_enum')
     let received: string | undefined = 'sentinel'
 
-    await withSqliteErrors(
-      async () => {
-        throw chk
-      },
-      {
-        check: (name) => {
-          received = name
-          return DataApiErrorFactory.validation({ _root: ['x'] }, 'x')
+    captureThrow(() =>
+      withSqliteErrors(
+        () => {
+          throw chk
+        },
+        {
+          check: (name) => {
+            received = name
+            return DataApiErrorFactory.validation({ _root: ['x'] }, 'x')
+          }
         }
-      }
-    ).catch(() => {})
+      )
+    )
 
     expect(received).toBe('status_enum')
   })
@@ -247,59 +273,65 @@ describe('withSqliteErrors', () => {
 })
 
 describe('defaultHandlersFor', () => {
-  it('maps UNIQUE to a CONFLICT DataApiError with a templated message', async () => {
+  it('maps UNIQUE to a CONFLICT DataApiError with a templated message', () => {
     const uniq = makeSqliteError('SQLITE_CONSTRAINT_UNIQUE', 'UNIQUE constraint failed: tag.name')
 
-    await expect(
-      withSqliteErrors(
-        async () => {
-          throw uniq
-        },
-        defaultHandlersFor('Tag', 'my-tag')
+    expect(
+      captureThrow(() =>
+        withSqliteErrors(
+          () => {
+            throw uniq
+          },
+          defaultHandlersFor('Tag', 'my-tag')
+        )
       )
-    ).rejects.toMatchObject({
+    ).toMatchObject({
       code: ErrorCode.CONFLICT,
       message: "Tag 'my-tag' already exists"
     })
   })
 
-  it('maps FOREIGN KEY to NOT_FOUND by default (insert semantics)', async () => {
+  it('maps FOREIGN KEY to NOT_FOUND by default (insert semantics)', () => {
     const fkErr = makeSqliteError('SQLITE_CONSTRAINT_FOREIGNKEY', 'FOREIGN KEY constraint failed')
 
-    await expect(
-      withSqliteErrors(
-        async () => {
-          throw fkErr
-        },
-        defaultHandlersFor('Tag', 'abc')
+    expect(
+      captureThrow(() =>
+        withSqliteErrors(
+          () => {
+            throw fkErr
+          },
+          defaultHandlersFor('Tag', 'abc')
+        )
       )
-    ).rejects.toMatchObject({
+    ).toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
   })
 
-  it('maps CHECK to VALIDATION_ERROR with the constraint name when present', async () => {
+  it('maps CHECK to VALIDATION_ERROR with the constraint name when present', () => {
     const chk = makeSqliteError('SQLITE_CONSTRAINT_CHECK', 'CHECK constraint failed: status_enum')
 
-    await expect(
-      withSqliteErrors(
-        async () => {
-          throw chk
-        },
-        defaultHandlersFor('Tag', 'my-tag')
+    expect(
+      captureThrow(() =>
+        withSqliteErrors(
+          () => {
+            throw chk
+          },
+          defaultHandlersFor('Tag', 'my-tag')
+        )
       )
-    ).rejects.toMatchObject({
+    ).toMatchObject({
       code: ErrorCode.VALIDATION_ERROR,
       message: expect.stringContaining('status_enum')
     })
   })
 
-  it('maps NOT NULL to VALIDATION_ERROR with field-level errors per column', async () => {
+  it('maps NOT NULL to VALIDATION_ERROR with field-level errors per column', () => {
     const notNull = makeSqliteError('SQLITE_CONSTRAINT_NOTNULL', 'NOT NULL constraint failed: tag.color')
 
     try {
-      await withSqliteErrors(
-        async () => {
+      withSqliteErrors(
+        () => {
           throw notNull
         },
         defaultHandlersFor('Tag', 'my-tag')
@@ -315,36 +347,40 @@ describe('defaultHandlersFor', () => {
     }
   })
 
-  it('spread override: the overridden key wins, others retain defaults', async () => {
+  it('spread override: the overridden key wins, others retain defaults', () => {
     const fkErr = makeSqliteError('SQLITE_CONSTRAINT_FOREIGNKEY', 'FOREIGN KEY constraint failed')
 
-    await expect(
-      withSqliteErrors(
-        async () => {
-          throw fkErr
-        },
-        {
-          ...defaultHandlersFor('Tag', 'abc'),
-          foreignKey: () => DataApiErrorFactory.invalidOperation("Cannot delete Tag 'abc': still referenced")
-        } satisfies SqliteErrorHandlers
+    expect(
+      captureThrow(() =>
+        withSqliteErrors(
+          () => {
+            throw fkErr
+          },
+          {
+            ...defaultHandlersFor('Tag', 'abc'),
+            foreignKey: () => DataApiErrorFactory.invalidOperation("Cannot delete Tag 'abc': still referenced")
+          } satisfies SqliteErrorHandlers
+        )
       )
-    ).rejects.toMatchObject({
+    ).toMatchObject({
       code: ErrorCode.INVALID_OPERATION
     })
 
     // Non-overridden keys retain defaults
     const uniq = makeSqliteError('SQLITE_CONSTRAINT_UNIQUE', 'UNIQUE constraint failed: tag.name')
-    await expect(
-      withSqliteErrors(
-        async () => {
-          throw uniq
-        },
-        {
-          ...defaultHandlersFor('Tag', 'my-tag'),
-          foreignKey: () => DataApiErrorFactory.invalidOperation('x')
-        } satisfies SqliteErrorHandlers
+    expect(
+      captureThrow(() =>
+        withSqliteErrors(
+          () => {
+            throw uniq
+          },
+          {
+            ...defaultHandlersFor('Tag', 'my-tag'),
+            foreignKey: () => DataApiErrorFactory.invalidOperation('x')
+          } satisfies SqliteErrorHandlers
+        )
       )
-    ).rejects.toMatchObject({
+    ).toMatchObject({
       code: ErrorCode.CONFLICT,
       message: "Tag 'my-tag' already exists"
     })

@@ -5,7 +5,7 @@
 import { application } from '@application'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   CreateTranslateHistoryDto,
   TranslateHistoryListResponse,
@@ -36,7 +36,7 @@ function rowToTranslateHistory(row: typeof translateHistoryTable.$inferSelect): 
 }
 
 export class TranslateHistoryService {
-  async list(query: TranslateHistoryQuery): Promise<TranslateHistoryListResponse> {
+  list(query: TranslateHistoryQuery): TranslateHistoryListResponse {
     const db = application.get('DbService').getDb()
     const { limit } = query
 
@@ -70,18 +70,18 @@ export class TranslateHistoryService {
 
     const where = conditions.length > 0 ? and(...conditions) : undefined
 
-    const [rows, [{ count }]] = await Promise.all([
-      db
-        .select()
-        .from(translateHistoryTable)
-        .where(where)
-        .orderBy(...ordering.orderBy)
-        .limit(limit + 1),
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(translateHistoryTable)
-        .where(filterConditions.length > 0 ? and(...filterConditions) : undefined)
-    ])
+    const rows = db
+      .select()
+      .from(translateHistoryTable)
+      .where(where)
+      .orderBy(...ordering.orderBy)
+      .limit(limit + 1)
+      .all()
+    const [{ count }] = db
+      .select({ count: sql<number>`count(*)` })
+      .from(translateHistoryTable)
+      .where(filterConditions.length > 0 ? and(...filterConditions) : undefined)
+      .all()
     const pageRows = rows.slice(0, limit)
 
     return {
@@ -94,9 +94,9 @@ export class TranslateHistoryService {
     }
   }
 
-  async getById(id: string): Promise<TranslateHistory> {
+  getById(id: string): TranslateHistory {
     const db = application.get('DbService').getDb()
-    const [row] = await db.select().from(translateHistoryTable).where(eq(translateHistoryTable.id, id)).limit(1)
+    const [row] = db.select().from(translateHistoryTable).where(eq(translateHistoryTable.id, id)).limit(1).all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('TranslateHistory', id)
@@ -105,10 +105,10 @@ export class TranslateHistoryService {
     return rowToTranslateHistory(row)
   }
 
-  async create(dto: CreateTranslateHistoryDto): Promise<TranslateHistory> {
+  create(dto: CreateTranslateHistoryDto): TranslateHistory {
     const db = application.get('DbService').getDb()
 
-    const [row] = await db
+    const [row] = db
       .insert(translateHistoryTable)
       .values({
         sourceText: dto.sourceText,
@@ -117,6 +117,7 @@ export class TranslateHistoryService {
         targetLanguage: dto.targetLanguage
       })
       .returning()
+      .all()
 
     if (!row) {
       throw DataApiErrorFactory.database(new Error('Insert did not return a row'), 'create translate history')
@@ -126,11 +127,11 @@ export class TranslateHistoryService {
     return rowToTranslateHistory(row)
   }
 
-  async update(id: string, dto: UpdateTranslateHistoryDto): Promise<TranslateHistory> {
+  update(id: string, dto: UpdateTranslateHistoryDto): TranslateHistory {
     const db = application.get('DbService').getDb()
 
-    return await db.transaction(async (tx) => {
-      const [current] = await tx.select().from(translateHistoryTable).where(eq(translateHistoryTable.id, id)).limit(1)
+    return db.transaction((tx) => {
+      const [current] = tx.select().from(translateHistoryTable).where(eq(translateHistoryTable.id, id)).limit(1).all()
 
       if (!current) {
         throw DataApiErrorFactory.notFound('TranslateHistory', id)
@@ -147,11 +148,12 @@ export class TranslateHistoryService {
         return rowToTranslateHistory(current)
       }
 
-      const [row] = await tx
+      const [row] = tx
         .update(translateHistoryTable)
         .set(updates)
         .where(eq(translateHistoryTable.id, id))
         .returning()
+        .all()
 
       if (!row) {
         throw DataApiErrorFactory.notFound('TranslateHistory', id)
@@ -162,25 +164,25 @@ export class TranslateHistoryService {
     })
   }
 
-  async delete(id: string): Promise<void> {
+  delete(id: string): void {
     const db = application.get('DbService').getDb()
 
-    await db.transaction(async (tx) => {
-      const [row] = await tx.select().from(translateHistoryTable).where(eq(translateHistoryTable.id, id)).limit(1)
+    db.transaction((tx) => {
+      const [row] = tx.select().from(translateHistoryTable).where(eq(translateHistoryTable.id, id)).limit(1).all()
 
       if (!row) {
         throw DataApiErrorFactory.notFound('TranslateHistory', id)
       }
 
-      await tx.delete(translateHistoryTable).where(eq(translateHistoryTable.id, id))
+      tx.delete(translateHistoryTable).where(eq(translateHistoryTable.id, id)).run()
     })
 
     logger.info('Deleted translate history', { id })
   }
 
-  async clearAll(): Promise<void> {
+  clearAll(): void {
     const db = application.get('DbService').getDb()
-    await db.delete(translateHistoryTable)
+    db.delete(translateHistoryTable).run()
     logger.info('Cleared all translate histories')
   }
 }

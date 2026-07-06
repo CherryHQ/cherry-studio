@@ -1,27 +1,27 @@
-export enum codeCLI {
-  qwenCode = 'qwen-code',
-  claudeCode = 'claude-code',
-  geminiCli = 'gemini-cli',
-  openaiCodex = 'openai-codex',
-  qoderCli = 'qoder-cli',
-  githubCopilotCli = 'github-copilot-cli',
-  kimiCli = 'kimi-cli',
-  openCode = 'opencode'
+export enum CodeCli {
+  QWEN_CODE = 'qwen-code',
+  CLAUDE_CODE = 'claude-code',
+  GEMINI_CLI = 'gemini-cli',
+  OPENAI_CODEX = 'openai-codex',
+  QODER_CLI = 'qoder-cli',
+  GITHUB_COPILOT_CLI = 'github-copilot-cli',
+  KIMI_CLI = 'kimi-cli',
+  OPEN_CODE = 'opencode'
 }
 
-export enum terminalApps {
-  systemDefault = 'Terminal',
-  iterm2 = 'iTerm2',
-  kitty = 'kitty',
-  alacritty = 'Alacritty',
-  wezterm = 'WezTerm',
-  ghostty = 'Ghostty',
-  tabby = 'Tabby',
+export enum TerminalApp {
+  SYSTEM_DEFAULT = 'Terminal',
+  ITERM2 = 'iTerm2',
+  KITTY = 'kitty',
+  ALACRITTY = 'Alacritty',
+  WEZTERM = 'WezTerm',
+  GHOSTTY = 'Ghostty',
+  TABBY = 'Tabby',
   // Windows terminals
-  windowsTerminal = 'WindowsTerminal',
-  powershell = 'PowerShell',
-  cmd = 'CMD',
-  wsl = 'WSL'
+  WINDOWS_TERMINAL = 'WindowsTerminal',
+  POWERSHELL = 'PowerShell',
+  CMD = 'CMD',
+  WSL = 'WSL'
 }
 
 export interface TerminalConfig {
@@ -33,12 +33,4 @@ export interface TerminalConfig {
 
 export interface TerminalConfigWithCommand extends TerminalConfig {
   command: (directory: string, fullCommand: string) => { command: string; args: string[] }
-}
-
-// Git Bash path configuration types
-export type GitBashPathSource = 'manual' | 'auto'
-
-export interface GitBashPathInfo {
-  path: string | null
-  source: GitBashPathSource | null
 }

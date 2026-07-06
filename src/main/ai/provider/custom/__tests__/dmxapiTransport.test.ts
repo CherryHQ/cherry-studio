@@ -2,13 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createDmxapiTransport } from '../dmxapi/dmxapiTransport'
 
-vi.mock('i18next', () => ({
-  default: {
-    t: (key: string) => key
-  }
-}))
-
-vi.mock('@renderer/i18n', () => ({ default: { t: (k: string) => k } }))
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 /**
  * Covers the family-based DMXAPI transport request building (openai-flat

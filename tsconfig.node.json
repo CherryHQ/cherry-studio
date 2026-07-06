@@ -6,7 +6,7 @@
     "incremental": true,
     "moduleResolution": "bundler",
     "paths": {
-      "@application": ["./src/main/core/application"],
+      "@application": ["./src/main/core/application/Application"],
       "@cherrystudio/provider-registry": ["./packages/provider-registry/src/index.ts"],
       "@cherrystudio/provider-registry/node": ["./packages/provider-registry/src/registry-loader.ts"],
       "@data/*": ["./src/main/data/*"],

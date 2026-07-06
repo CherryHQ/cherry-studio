@@ -16,7 +16,6 @@ vi.mock('@application', async () => {
 
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { createDefaultOrphanCheckerRegistry } = await import('@main/services/file/orphanCheckerRegistry')
 const { read, readByPath } = await import('../read')
 
 import type { FileManagerDeps } from '../../deps'
@@ -51,8 +50,7 @@ describe('internal/content/read', () => {
         set: vi.fn(),
         invalidate: vi.fn(),
         clear: vi.fn()
-      },
-      orphanRegistry: createDefaultOrphanCheckerRegistry()
+      }
     }
   })
 

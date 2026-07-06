@@ -8,7 +8,7 @@ import type { TranslateLanguage } from '@shared/data/types/translate'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { type MutationFeedbackOptions, useMutationFeedback } from './_mutationFeedback'
+import { type MutationFeedbackOptions, useMutationFeedback } from './useMutationFeedback'
 
 const logger = loggerService.withContext('translate/useTranslateLanguages')
 

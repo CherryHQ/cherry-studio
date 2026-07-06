@@ -75,8 +75,8 @@ describe('MigrationWindowManager', () => {
     }
   )
 
-  // In-flow stages: close is intercepted so the renderer can confirm before quitting.
-  it.each<MigrationStage>(['backup_required', 'backup_progress', 'backup_confirmed', 'migration'])(
+  // In-flow stage: close is intercepted so the renderer can confirm before quitting.
+  it.each<MigrationStage>(['migration'])(
     'intercepts a close during the %s stage and asks the renderer to confirm',
     (stage) => {
       manager.setStage(stage)
@@ -90,7 +90,7 @@ describe('MigrationWindowManager', () => {
   )
 
   it('closes the window and quits once the renderer confirms quit', () => {
-    manager.setStage('backup_progress')
+    manager.setStage('migration')
     manager.confirmQuit()
 
     expect(fakeWindow.close).toHaveBeenCalledTimes(1)
@@ -156,7 +156,7 @@ describe('MigrationWindowManager', () => {
 
     it('re-prompts instead of force-quitting after the renderer acks a dismissal', () => {
       const requester = wireRequester()
-      manager.setStage('backup_confirmed')
+      manager.setStage('migration')
 
       fakeWindow.emit('close', { preventDefault: vi.fn() }) // pending = true
       manager.clearCloseConfirm() // renderer dismissed the dialog (CancelClose)
@@ -195,7 +195,7 @@ describe('MigrationWindowManager', () => {
       fakeWindow.emit('close', { preventDefault: vi.fn() }) // pending = true
 
       manager.setStage('error') // leaves the in-flow set → clears pending
-      manager.setStage('backup_confirmed') // retry re-enters an in-flow stage
+      manager.setStage('migration') // re-enters the in-flow migration stage
       fakeWindow.webContents.send.mockClear()
 
       const event = { preventDefault: vi.fn() }

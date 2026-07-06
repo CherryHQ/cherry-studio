@@ -1257,12 +1257,18 @@ export class ClaudeCodeStreamAdapter {
     const promptTokens = usage.inputTokens.total ?? 0
     const completionTokens = usage.outputTokens.total ?? 0
     const thoughtsTokens = usage.outputTokens.reasoning
+    const noCacheTokens = usage.inputTokens.noCache
+    const cacheReadTokens = usage.inputTokens.cacheRead
+    const cacheWriteTokens = usage.inputTokens.cacheWrite
     return {
       modelId: this.modelId,
       totalTokens: promptTokens + completionTokens,
       promptTokens,
       completionTokens,
-      ...(thoughtsTokens !== undefined ? { thoughtsTokens } : {})
+      ...(thoughtsTokens !== undefined ? { thoughtsTokens } : {}),
+      ...(noCacheTokens !== undefined ? { noCacheTokens } : {}),
+      ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
+      ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {})
     }
   }
 }

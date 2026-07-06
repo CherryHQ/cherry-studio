@@ -1,6 +1,6 @@
 import { use } from 'react'
 
-import { QuickPanelContext } from './provider'
+import { QuickPanelContext } from './QuickPanelProvider'
 
 export const useQuickPanel = () => {
   const context = use(QuickPanelContext)

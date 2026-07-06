@@ -1049,7 +1049,8 @@ describe('MessagePartsRenderer', () => {
       msg({ role: 'user' })
     )
 
-    expect(screen.getByText('Docs')).toBeInTheDocument()
-    expect(document.querySelector('[data-composer-token-kind="knowledge"]')).toBeInTheDocument()
+    const token = document.querySelector('[data-composer-token-kind="knowledge"]')
+    expect(token).toBeInTheDocument()
+    expect(token).toHaveTextContent('Docs')
   })
 })

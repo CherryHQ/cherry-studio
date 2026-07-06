@@ -19,7 +19,7 @@ export const windowRequestSchemas = {
 }
 ```
 
-Register it in the composition (`src/shared/ipc/schemas/index.ts`):
+Register it in the composition (`src/shared/ipc/schemas/ipcSchemas.ts`):
 
 ```ts
 export const ipcRequestSchemas = {
@@ -41,7 +41,7 @@ export const windowHandlers: IpcHandlersFor<typeof windowRequestSchemas> = {
 }
 ```
 
-Register it (`src/main/ipc/handlers/index.ts`):
+Register it (`src/main/ipc/handlers/ipcHandlers.ts`):
 
 ```ts
 export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
@@ -66,7 +66,7 @@ const info = await ipcApi.request('app.get_info') // void input → no second ar
 
 To signal a failure the renderer must branch on, throw an `IpcError` with a **domain code** — `IpcApiService` serializes it into `{ ok: false, error }` and the renderer facade rebuilds the `IpcError` and rejects. Do **not** throw the framework codes (`VALIDATION_FAILED` / `ROUTE_NOT_FOUND` / `FORBIDDEN_SENDER` / `INTERNAL`) by hand — the router owns those, and any uncaught non-`IpcError` throw is normalized to `INTERNAL` for you. See the [error model](./ipc-overview.md#error-codes--ipcerrorcode) for the framework-vs-domain-code rule and why codes live under `errors/`, not `schemas/`.
 
-Put the domain's codes in `@shared/ipc/errors/<domain>.ts` as an `as const` map, and import it **directly** on both sides (no barrel — there is no aggregated `errors/index.ts` export of domain codes):
+Put the domain's codes in `@shared/ipc/errors/<domain>.ts` as an `as const` map, and import it **directly** on both sides (no barrel — `errors/` has no aggregating index; each domain map is imported directly):
 
 ```ts
 // src/shared/ipc/errors/file.ts — the domain's code map (zod-free, value-importable by both processes)
@@ -75,7 +75,7 @@ export const fileErrorCodes = { FILE_NOT_FOUND: 'FILE_NOT_FOUND' } as const
 
 ```ts
 // main handler (src/main/ipc/handlers/file.ts)
-import { IpcError } from '@shared/ipc/errors'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 
 'file.read_doc': async ({ path }) => {
@@ -89,7 +89,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 
 ```ts
 // renderer — branch on the rebuilt IpcError's `code` using the same constant
-import { IpcError } from '@shared/ipc/errors'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 
 try {
@@ -110,7 +110,7 @@ export type WindowEventSchemas = {
 }
 ```
 
-Register it in the composition (`schemas/index.ts`):
+Register it in the composition (`schemas/ipcSchemas.ts`):
 
 ```ts
 export type IpcEventSchemas = WindowEventSchemas & AppEventSchemas

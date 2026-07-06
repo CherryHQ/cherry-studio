@@ -1,5 +1,8 @@
-import type { MessageMenuBarScope } from '@renderer/config/registry/messageMenuBar'
-import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenuBarConfig } from '@renderer/config/registry/messageMenuBar'
+import type { MessageMenuBarScope } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
+import {
+  DEFAULT_MESSAGE_MENUBAR_SCOPE,
+  getMessageMenuBarConfig
+} from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import type { Topic } from '@renderer/types/topic'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
@@ -9,7 +12,7 @@ import type { FC } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useMessageParts } from '../blocks'
+import { useMessageParts } from '../blocks/MessagePartsContext'
 import {
   useMessageListActions,
   useMessageListSelection,

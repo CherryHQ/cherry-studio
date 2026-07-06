@@ -127,8 +127,8 @@ const FIXTURE_ROWS = [
 describe('keysetOrdering — direction coverage against real SQLite', () => {
   const dbh = setupTestDatabase()
 
-  beforeAll(async () => {
-    await dbh.client.execute(
+  beforeAll(() => {
+    dbh.sqlite.exec(
       'CREATE TABLE IF NOT EXISTS fx_keyset_cursor_test (id TEXT PRIMARY KEY, num_key INTEGER NOT NULL, str_key TEXT NOT NULL)'
     )
   })

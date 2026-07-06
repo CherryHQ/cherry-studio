@@ -215,7 +215,7 @@ export class PreferencesMigrator extends BaseMigrator {
       const timestamp = Date.now()
 
       // Use transaction for atomic insert
-      await db.transaction(async (tx) => {
+      db.transaction((tx) => {
         // Batch insert all preferences
         const insertValues = this.preparedItems.map((item) => ({
           scope,
@@ -229,7 +229,7 @@ export class PreferencesMigrator extends BaseMigrator {
         const BATCH_SIZE = 100
         for (let i = 0; i < insertValues.length; i += BATCH_SIZE) {
           const batch = insertValues.slice(i, i + BATCH_SIZE)
-          await tx.insert(preferenceTable).values(batch)
+          tx.insert(preferenceTable).values(batch).run()
 
           // Report progress
           const progress = Math.round(((i + batch.length) / insertValues.length) * 100)
@@ -262,7 +262,7 @@ export class PreferencesMigrator extends BaseMigrator {
 
     try {
       // Count validation
-      const result = await db
+      const result = db
         .select({ count: sql<number>`count(*)` })
         .from(preferenceTable)
         .where(eq(preferenceTable.scope, 'default'))
@@ -273,7 +273,7 @@ export class PreferencesMigrator extends BaseMigrator {
       // Sample validation - check critical keys
       const criticalKeys = ['app.language', 'ui.theme_mode', 'app.zoom_factor']
       for (const key of criticalKeys) {
-        const record = await db
+        const record = db
           .select()
           .from(preferenceTable)
           .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, key)))

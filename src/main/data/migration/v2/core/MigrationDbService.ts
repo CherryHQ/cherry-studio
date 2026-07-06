@@ -9,25 +9,23 @@
 
 import { CUSTOM_SQL_STATEMENTS } from '@data/db/customSqls'
 import type { DbType } from '@data/db/types'
-import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
+import Database from 'better-sqlite3'
 import { sql } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/libsql'
-import { migrate } from 'drizzle-orm/libsql/migrator'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import fs from 'fs'
 import path from 'path'
-import { pathToFileURL } from 'url'
 
 import type { MigrationPaths } from './MigrationPaths'
 
 const logger = loggerService.withContext('MigrationDbService')
 
 export class MigrationDbService {
-  private db: DbType
-
-  private constructor(db: DbType) {
-    this.db = db
-  }
+  private constructor(
+    private readonly db: DbType,
+    private readonly sqlite: Database.Database
+  ) {}
 
   /**
    * Create a MigrationDbService with connection, WAL, schema migrations, and custom SQL.
@@ -36,45 +34,42 @@ export class MigrationDbService {
    * All paths come from the pre-resolved MigrationPaths object — never
    * from `app.getPath()` directly. See MigrationPaths.ts for why.
    */
-  static async create(paths: MigrationPaths): Promise<MigrationDbService> {
+  static create(paths: MigrationPaths): MigrationDbService {
     ensureDatabaseIntegrity(paths.databaseFile)
 
-    const dbUrl = pathToFileURL(paths.databaseFile).href
-    const client = createClient({ url: dbUrl })
-    const db = drizzle({ client, casing: 'snake_case' })
+    const sqlite = new Database(paths.databaseFile)
+    const db = drizzle({ client: sqlite, casing: 'snake_case' })
 
     try {
-      // WAL mode persisted in DB file — no replay needed
-      await db.run(sql`PRAGMA journal_mode = WAL`)
-      // Per-connection PRAGMA — use setPragma() to survive transaction() reconnects
-      client.setPragma('PRAGMA synchronous = NORMAL')
+      // WAL mode persisted in DB file; synchronous=NORMAL is WAL's safe pairing.
+      sqlite.pragma('journal_mode = WAL')
+      sqlite.pragma('synchronous = NORMAL')
       logger.info('WAL mode configured')
     } catch (error) {
       logger.warn('Failed to configure WAL mode', error as Error)
     }
 
     // Schema migrations
-    await migrate(db, { migrationsFolder: paths.migrationsFolder })
+    migrate(db, { migrationsFolder: paths.migrationsFolder })
 
-    // Keep foreign keys OFF for the ENTIRE migration, on every connection. setPragma() (vs a
-    // one-shot db.run) is required because it replays across @libsql/client's post-transaction
-    // connection swaps — see DbService.configurePragmas() for the full libsql pragma-replay
-    // background. Must run AFTER migrate(), whose finally block forces FK = ON on its connection.
+    // Keep foreign keys OFF for the ENTIRE migration. better-sqlite3's single persistent
+    // connection makes this one PRAGMA hold for every statement until close() — no replay
+    // needed (migrate() restores FK = ON on its own connection, so this must run AFTER it).
     //
-    // This lets bulk inserts carry not-yet-resolved references; integrity is then verified after
-    // all migrators complete (MigrationEngine.verifyForeignKeys), with each migrator also
-    // self-checking its own tables via BaseMigrator.assertOwnedForeignKeys. FK enforcement is
-    // restored implicitly: this migration client is disposed via close() when migration ends, and
-    // normal runtime uses DbService's own client (which registers foreign_keys = ON).
-    client.setPragma('PRAGMA foreign_keys = OFF')
+    // This lets bulk inserts carry not-yet-resolved references; integrity is then verified
+    // after all migrators complete (MigrationEngine.verifyForeignKeys), with each migrator
+    // also self-checking its own tables via BaseMigrator.assertOwnedForeignKeys. FK
+    // enforcement is restored implicitly: this migration connection is disposed via close()
+    // when migration ends, and normal runtime uses DbService's own connection (foreign_keys = ON).
+    sqlite.pragma('foreign_keys = OFF')
 
     // Custom SQL (triggers, FTS, etc.) — all idempotent
     for (const statement of CUSTOM_SQL_STATEMENTS) {
-      await db.run(sql.raw(statement))
+      db.run(sql.raw(statement))
     }
 
     logger.info('Migration database ready')
-    return new MigrationDbService(db)
+    return new MigrationDbService(db, sqlite)
   }
 
   getDb(): DbType {
@@ -83,7 +78,7 @@ export class MigrationDbService {
 
   close(): void {
     try {
-      ;(this.db as any).$client?.close()
+      this.sqlite.close()
       logger.info('Migration database connection closed')
     } catch (error) {
       logger.warn('Failed to close migration database connection', error as Error)

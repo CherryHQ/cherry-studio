@@ -13,7 +13,7 @@ import { importChatGPTConversations } from '@renderer/services/import'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { TopView } from '../TopView'
+import { TopView } from '../TopView/TopView'
 
 const logger = loggerService.withContext('ImportPopup')
 

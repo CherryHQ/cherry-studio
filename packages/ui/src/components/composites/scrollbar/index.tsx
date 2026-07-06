@@ -1,6 +1,6 @@
 // Original: src/renderer/components/scrollbar/index.tsx
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { throttle } from 'lodash'
+import { throttle } from 'es-toolkit/compat'
 import * as React from 'react'
 
 export interface ScrollbarProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {

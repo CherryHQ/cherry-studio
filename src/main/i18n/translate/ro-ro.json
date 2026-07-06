@@ -1,0 +1,87 @@
+{
+  "agent": {
+    "session": {
+      "workspace_status": {
+        "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
+        "missing": "Calea către spațiul de lucru nu există: {{path}}",
+        "not_directory": "Calea spațiului de lucru nu este un director: {{path}}"
+      }
+    }
+  },
+  "appMenu": {
+    "about": "Despre",
+    "close": "Închide fereastra",
+    "copy": "Copiază",
+    "cut": "Decupează",
+    "delete": "Șterge",
+    "documentation": "Documentație",
+    "edit": "Editare",
+    "feedback": "Feedback",
+    "file": "Fișier",
+    "forceReload": "Reîncărcare forțată",
+    "front": "Adu toate în față",
+    "help": "Ajutor",
+    "hide": "Ascunde",
+    "hideOthers": "Ascunde celelalte",
+    "minimize": "Minimizează",
+    "paste": "Lipește",
+    "quit": "Ieșire",
+    "redo": "Refă",
+    "releases": "Lansări",
+    "reload": "Reîncarcă",
+    "resetZoom": "Dimensiune reală",
+    "selectAll": "Selectează tot",
+    "services": "Servicii",
+    "toggleDevTools": "Comută instrumentele pentru dezvoltatori",
+    "toggleFullscreen": "Comută ecranul complet",
+    "undo": "Anulează",
+    "unhide": "Afișează toate",
+    "view": "Vizualizare",
+    "website": "Site web",
+    "window": "Fereastră",
+    "zoom": "Zoom",
+    "zoomIn": "Mărește",
+    "zoomOut": "Micșorează"
+  },
+  "common": {
+    "copy": "Copiază",
+    "cut": "Decupează",
+    "inspect": "Inspectează",
+    "paste": "Lipește"
+  },
+  "dialog": {
+    "all_files": "Toate fișierele",
+    "html_files": "Fișiere HTML",
+    "open_file": "Deschide fișier",
+    "pdf_files": "Fișiere PDF",
+    "png_image": "Imagine PNG",
+    "save_as_html": "Salvează ca HTML",
+    "save_as_pdf": "Salvează ca PDF",
+    "save_file": "Salvează fișier",
+    "select_folder": "Selectează folderul",
+    "word_document": "Document Word"
+  },
+  "paintings": {
+    "generate_failed": "Nu s-a putut genera imaginea",
+    "image_mix_failed": "Nu s-au putut combina imaginile"
+  },
+  "selection": {
+    "name": "Asistent de selecție"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "Poți închide această pagină și te poți întoarce la Cherry Studio",
+          "title": "Autentificare reușită"
+        }
+      }
+    },
+    "title": "Setări"
+  },
+  "tray": {
+    "quit": "Ieșire",
+    "show_quick_assistant": "Asistent rapid",
+    "show_window": "Afișează fereastra"
+  }
+}

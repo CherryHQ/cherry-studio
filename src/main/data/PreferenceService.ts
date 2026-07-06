@@ -22,7 +22,7 @@ import {
 import { IpcChannel } from '@shared/IpcChannel'
 import { and, eq } from 'drizzle-orm'
 import { BrowserWindow } from 'electron'
-import { isEqual } from 'lodash'
+import { isEqual } from 'es-toolkit/compat'
 
 import { preferenceTable } from './db/schemas/preference'
 
@@ -327,14 +327,15 @@ export class PreferenceService extends BaseService {
         return
       }
 
-      await application.get('DbService').withWriteTx((tx) =>
-        tx
-          .update(preferenceTable)
-          .set({
-            value: value as any
-          })
-          .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
-      )
+      application
+        .get('DbService')
+        .getDb()
+        .update(preferenceTable)
+        .set({
+          value: value as any
+        })
+        .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
+        .run()
 
       // Update memory cache immediately — safe after type guard + cache key check
       ;(this.cache as Record<string, unknown>)[key] = value
@@ -448,14 +449,14 @@ export class PreferenceService extends BaseService {
 
       // Write changed preference values to DB
       if (Object.keys(actualUpdates).length > 0) {
-        await application.get('DbService').withWriteTx(async (tx) => {
+        application.get('DbService').withWriteTx((tx) => {
           for (const [key, value] of Object.entries(actualUpdates)) {
-            await tx
-              .update(preferenceTable)
+            tx.update(preferenceTable)
               .set({
                 value
               })
               .where(and(eq(preferenceTable.scope, DefaultScope), eq(preferenceTable.key, key)))
+              .run()
           }
         })
 

@@ -1,17 +1,15 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
 
 import { CUSTOM_SQL_STATEMENTS } from '@data/db/customSqls'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { DbType, ISeeder } from '@data/db/types'
-import type { Client } from '@libsql/client'
-import { createClient } from '@libsql/client'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import Database from 'better-sqlite3'
 import { sql } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/libsql'
-import { migrate } from 'drizzle-orm/libsql/migrator'
+import { drizzle } from 'drizzle-orm/better-sqlite3'
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { afterAll, beforeAll, beforeEach } from 'vitest'
 
 import { resolveMigrationsPath } from './internal/migrationsPath'
@@ -25,8 +23,12 @@ export interface TestDatabaseOptions {
 export interface TestDatabaseHandle {
   /** Drizzle DB instance — same type as production `DbService.getDb()`. */
   readonly db: DbType
-  /** Underlying LibSQL client — use for `client.execute` escape hatch. */
-  readonly client: Client
+  /**
+   * Raw better-sqlite3 connection under the same DB — the native escape hatch
+   * for SQL/PRAGMA a test needs to issue outside Drizzle (e.g. `sqlite.prepare(...).all()`,
+   * `sqlite.pragma('foreign_key_check')`).
+   */
+  readonly sqlite: Database.Database
 }
 
 /**
@@ -46,7 +48,7 @@ let activeHarnessCount = 0
  *   `MockMainDbServiceUtils` so that any production code calling
  *   `application.get('DbService').getDb()` transparently hits the test DB.
  * - `beforeEach` truncates user tables while keeping schema intact.
- * - `afterAll` closes the client, removes the tmpdir, and resets mocks.
+ * - `afterAll` closes the connection, removes the tmpdir, and resets mocks.
  *
  * Usage:
  *
@@ -60,11 +62,11 @@ let activeHarnessCount = 0
  *     })
  *   })
  *
- * Returns a lazy handle; `.db`/`.client` throw if accessed before the
+ * Returns a lazy handle; `.db`/`.sqlite` throw if accessed before the
  * `beforeAll` hook has run.
  */
 export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDatabaseHandle {
-  let client: Client | null = null
+  let sqlite: Database.Database | null = null
   let db: DbType | null = null
   let tempDir: string | null = null
 
@@ -79,32 +81,29 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
 
     tempDir = mkdtempSync(join(tmpdir(), 'cs-test-db-'))
     const dbPath = join(tempDir, 'test.db')
-    client = createClient({ url: pathToFileURL(dbPath).href })
-    db = drizzle({ client, casing: 'snake_case' })
+    sqlite = new Database(dbPath)
+    db = drizzle({ client: sqlite, casing: 'snake_case' })
 
-    // Durable per-connection PRAGMAs — the patched @libsql/client replays
-    // these on every connection reset (e.g. after db.transaction()).
-    client.setPragma('PRAGMA foreign_keys = ON')
-    client.setPragma('PRAGMA synchronous = NORMAL')
+    // Per-connection PRAGMAs — better-sqlite3 keeps one connection, so set once.
+    sqlite.pragma('foreign_keys = ON')
+    sqlite.pragma('synchronous = NORMAL')
 
     // Mirror DbService.onInit(): migrations first, then custom SQL.
-    await migrate(db, { migrationsFolder: resolveMigrationsPath() })
+    migrate(db, { migrationsFolder: resolveMigrationsPath() })
     for (const stmt of CUSTOM_SQL_STATEMENTS) {
-      await db.run(sql.raw(stmt))
+      db.run(sql.raw(stmt))
     }
 
     if (options.seeders?.length) {
-      await new SeedRunner(db).runAll(options.seeders)
+      new SeedRunner(db).runAll(options.seeders)
     }
 
     // Sanity: FK enforcement on, DB not corrupt. Fail loudly if not.
-    const fkResult = await client.execute('PRAGMA foreign_keys')
-    const fkValue = Number(fkResult.rows[0]?.[0] ?? 0)
+    const fkValue = Number(sqlite.pragma('foreign_keys', { simple: true }) ?? 0)
     if (fkValue !== 1) {
       throw new Error(`Harness init: PRAGMA foreign_keys expected 1, got ${fkValue}`)
     }
-    const integrityResult = await client.execute('PRAGMA integrity_check')
-    const integrityValue = String(integrityResult.rows[0]?.[0])
+    const integrityValue = String(sqlite.pragma('integrity_check', { simple: true }))
     if (integrityValue !== 'ok') {
       throw new Error(`Harness init: PRAGMA integrity_check failed — ${integrityValue}`)
     }
@@ -114,16 +113,16 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
     MockMainDbServiceUtils.setIsReady(true)
   })
 
-  beforeEach(async () => {
-    if (!db || !client) {
+  beforeEach(() => {
+    if (!db || !sqlite) {
       throw new Error('Test database not initialised — setupTestDatabase() beforeAll did not run')
     }
-    await truncateAll(db, client)
+    truncateAll(db, sqlite)
   })
 
   afterAll(async () => {
     try {
-      client?.close()
+      sqlite?.close()
     } catch {
       // best-effort close
     }
@@ -134,6 +133,7 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
         // best-effort cleanup — tmpdir will be reaped by the OS
       }
     }
+    sqlite = null
     MockMainDbServiceUtils.resetMocks()
     activeHarnessCount = Math.max(0, activeHarnessCount - 1)
   })
@@ -148,11 +148,11 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
       }
       return db
     },
-    get client(): Client {
-      if (!client) {
-        throw new Error('setupTestDatabase(): handle.client accessed before beforeAll ran.')
+    get sqlite(): Database.Database {
+      if (!sqlite) {
+        throw new Error('setupTestDatabase(): handle.sqlite accessed before beforeAll ran.')
       }
-      return client
+      return sqlite
     }
   }
 }

@@ -8,5 +8,10 @@ export const knowledgeDataSourceCheckboxClassName =
 
 // Shared column template for the data-source list. The header row and every data
 // row use this same grid so columns stay aligned: checkbox / name (flex) / type /
-// status / updated-at / actions.
-export const KNOWLEDGE_ITEM_ROW_GRID = 'grid grid-cols-[2.5rem_minmax(0,1fr)_6rem_8rem_8rem_3rem] items-center gap-2'
+// status / updated-at. The row context menu replaces the old trailing actions
+// column. Each row is its own grid (the virtualizer renders them independently), so
+// the meta columns must be fixed widths — `auto`/`max-content` would size per-row and
+// break alignment between rows. They're tightened to fit their widest label (status
+// fits "File Processing", updated fits "59 minutes ago") and stay put on shrink, so
+// the flexible name column absorbs all the freed space.
+export const KNOWLEDGE_ITEM_ROW_GRID = 'grid grid-cols-[2.5rem_minmax(0,1fr)_4rem_7rem_6rem] items-center gap-2'

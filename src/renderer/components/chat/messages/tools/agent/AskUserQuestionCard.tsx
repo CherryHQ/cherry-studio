@@ -5,11 +5,11 @@ import { CheckCircle2, ChevronLeft, ChevronRight, HelpCircle } from 'lucide-reac
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { type AskUserQuestionItem, parseAskUserQuestionToolInput } from '../shared/agentToolTypes'
+import { SkeletonValue } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
 import { useAskUserQuestionOptimisticInput } from './AskUserQuestionOptimisticContext'
-import { SkeletonValue } from './GenericTools'
-import { type AskUserQuestionItem, parseAskUserQuestionToolInput } from './types'
 
 const logger = loggerService.withContext('AskUserQuestionCard')
 

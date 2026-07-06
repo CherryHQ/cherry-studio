@@ -131,8 +131,8 @@ export class PromptMigrator extends BaseMigrator {
         }
       }
 
-      await db.transaction(async (tx) => {
-        await tx.insert(promptTable).values(rows)
+      db.transaction((tx) => {
+        tx.insert(promptTable).values(rows).run()
       })
 
       logger.info('Prompt migration completed', { processedCount: rows.length })
@@ -154,7 +154,7 @@ export class PromptMigrator extends BaseMigrator {
     const db = ctx.db
 
     try {
-      const promptResult = await db.select({ count: sql<number>`count(*)` }).from(promptTable).get()
+      const promptResult = db.select({ count: sql<number>`count(*)` }).from(promptTable).get()
       const targetCount = promptResult?.count ?? 0
 
       logger.info('Validation counts', {

@@ -1,5 +1,5 @@
 import { Button, Flex, Textarea } from '@cherrystudio/ui'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

@@ -1,7 +1,7 @@
 import type { ModelMessage, StepResult, ToolSet } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { AgentLoopHooks, ErrorContext, ToolExecutionEndEvent, ToolExecutionStartEvent } from '../../loop'
+import type { AgentLoopHooks, ErrorContext, ToolExecutionEndEvent, ToolExecutionStartEvent } from '../../loop/types'
 import { composeHooks } from '../composeHooks'
 
 const TOOL_START_EVENT: ToolExecutionStartEvent = {

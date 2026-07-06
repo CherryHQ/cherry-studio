@@ -180,8 +180,7 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     sourceTable: 'skills',
     targetTable: 'agent_global_skill',
     // Legacy `skills.created_at` / `updated_at` are already stored as INTEGER
-    // epoch-milliseconds (see resources/database/drizzle/0005_normal_doomsday.sql),
-    // so no strftime() wrapping is needed — copy through verbatim.
+    // epoch-milliseconds, so no strftime() wrapping is needed — copy through verbatim.
     columns: [
       'id',
       'name',
@@ -201,8 +200,7 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   {
     sourceTable: 'agent_skills',
     targetTable: 'agent_skill',
-    // Legacy `agent_skills.created_at` / `updated_at` are already INTEGER epoch-ms
-    // (see resources/database/drizzle/0006_famous_fallen_one.sql) — no wrapping.
+    // Legacy `agent_skills.created_at` / `updated_at` are already INTEGER epoch-ms — no wrapping.
     columns: ['agent_id', 'skill_id', notNullCol('is_enabled', '0'), 'created_at', 'updated_at'],
     // Only import agent_skill rows whose agent and skill were both successfully
     // migrated; orphaned rows would fail the FK checks.
@@ -213,9 +211,8 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
   {
     sourceTable: 'channels',
     targetTable: 'agent_channel',
-    // Legacy `channels.created_at` / `updated_at` are NULLABLE INTEGER epoch-ms
-    // (resources/database/drizzle/0004_busy_giant_girl.sql:21-22). v2
-    // `agent_channel` uses `createUpdateTimestamps` (`notNull().$defaultFn(...)`) —
+    // Legacy `channels.created_at` / `updated_at` are NULLABLE INTEGER epoch-ms.
+    // v2 `agent_channel` uses `createUpdateTimestamps` (`notNull().$defaultFn(...)`) —
     // a JS-side default that raw INSERT...SELECT bypasses, so a legacy NULL
     // would trip SQLITE_CONSTRAINT_NOTNULL. COALESCE to "now" mirrors the
     // pattern used for task_run_logs above.

@@ -50,7 +50,7 @@ vi.mock('@renderer/data/CacheService', () => ({
   }
 }))
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/utils/model', () => ({
   getThinkModelType: (...args: unknown[]) => mocks.getThinkModelType(...args),
   isDoubaoThinkingAutoModel: (...args: unknown[]) => mocks.isDoubaoThinkingAutoModel(...args),
   isFixedReasoningModel: (...args: unknown[]) => mocks.isFixedReasoningModel(...args),
@@ -65,7 +65,7 @@ vi.mock('@renderer/config/models', () => ({
   }
 }))
 
-vi.mock('@renderer/components/Icons/SvgIcon', () => ({
+vi.mock('@renderer/components/icons/SvgIcon', () => ({
   MdiLightbulbAutoOutline: () => <span data-testid="thinking-auto-icon" />,
   MdiLightbulbOffOutline: () => <span data-testid="thinking-off-icon" />,
   MdiLightbulbOn: () => <span data-testid="thinking-on-icon" />,

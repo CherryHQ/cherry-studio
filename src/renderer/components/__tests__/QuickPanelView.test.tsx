@@ -249,12 +249,7 @@ describe('QuickPanelView', () => {
 
       const panelBody = screen.getByTestId('quick-panel-body')
       expect(panelBody).toHaveClass('rounded-xl', 'border', 'border-border/80', 'bg-popover', 'text-popover-foreground')
-      expect(panelBody).toHaveClass(
-        'translate-y-0',
-        'scale-100',
-        'opacity-100',
-        'shadow-[0_18px_44px_rgba(15,23,42,0.16),0_4px_12px_rgba(15,23,42,0.10)]'
-      )
+      expect(panelBody).toHaveClass('translate-y-0', 'scale-100', 'opacity-100', 'shadow-none')
       expect(panelBody.className).not.toContain('bg-background')
     })
 

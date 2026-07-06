@@ -2,9 +2,10 @@
   "name": "@cherrystudio/provider-registry",
   "version": "0.0.1-alpha.1",
   "description": "Provider and Model Registry",
-  "main": "dist/index.js",
+  "private": true,
+  "main": "dist/index.cjs",
   "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
+  "types": "dist/index.d.cts",
   "packageManager": "pnpm@10.27.0",
   "scripts": {
     "build": "tsdown",
@@ -12,19 +13,14 @@
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
-    "import:modelsdev": "tsx scripts/import-modelsdev.ts",
-    "import:aihubmix": "tsx scripts/import-aihubmix.ts",
-    "import:openrouter": "tsx scripts/import-openrouter.ts",
-    "import:all": "pnpm import:modelsdev && pnpm import:aihubmix && pnpm import:openrouter",
-    "sync:all": "tsx scripts/generate-providers.ts",
-    "generate:provider-models": "tsx scripts/generate-provider-models.ts",
-    "populate:reasoning": "tsx scripts/populate-reasoning-data.ts",
-    "pipeline": "pnpm import:all && pnpm sync:all && pnpm generate:provider-models && pnpm populate:reasoning"
+    "generate": "tsx scripts/generate-catalog.ts --write && biome format --write data/models.json data/provider-models.json data/providers.json",
+    "generate:check": "tsx scripts/generate-catalog.ts --report"
   },
   "author": "Cherry Studio",
   "license": "MIT",
   "files": [
-    "dist/**/*"
+    "dist/**/*",
+    "data/**/*"
   ],
   "repository": {
     "type": "git",
@@ -36,20 +32,31 @@
   "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "react-native": "./dist/index.js",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js",
-      "default": "./dist/index.js"
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      },
+      "react-native": "./dist/index.cjs",
+      "default": "./dist/index.mjs"
     },
     "./node": {
-      "types": "./src/registry-loader.ts",
-      "import": "./dist/registry-loader.mjs",
-      "require": "./dist/registry-loader.js",
-      "default": "./dist/registry-loader.js"
+      "import": {
+        "types": "./dist/registry-loader.d.mts",
+        "default": "./dist/registry-loader.mjs"
+      },
+      "require": {
+        "types": "./dist/registry-loader.d.cts",
+        "default": "./dist/registry-loader.cjs"
+      },
+      "default": "./dist/registry-loader.cjs"
     }
   },
   "devDependencies": {
+    "@ai-sdk/provider-utils": "^4.0.23",
     "@types/json-schema": "^7.0.15",
     "@types/node": "^24.10.2",
     "dotenv": "^17.2.3",

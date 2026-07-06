@@ -33,7 +33,6 @@ export const FileGrid = memo(function FileGrid({
   files,
   selectedIds,
   onSelect,
-  onContextMenuOpen,
   onOpen,
   onDelete,
   isTrash,
@@ -44,8 +43,7 @@ export const FileGrid = memo(function FileGrid({
 }: {
   files: FileItem[]
   selectedIds: Set<string>
-  onSelect: (id: string, multi: boolean) => void
-  onContextMenuOpen: (id: string) => void
+  onSelect: (id: string) => void
   onOpen: (file: FileItem) => void
   onDelete: (id: string) => void
   isTrash: boolean
@@ -92,12 +90,12 @@ export const FileGrid = memo(function FileGrid({
         const shapeClass = isImage ? 'aspect-square rounded-lg' : 'h-[72px] rounded-t-lg'
         const bgClass = isImage ? '' : typeBgColors[file.type]
         return (
-          <FileContextMenu key={file.id} file={file} isTrash={isTrash} onOpen={onContextMenuOpen} actions={menuActions}>
+          <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions}>
             <div
-              onClick={(e) => {
+              onClick={() => {
                 if (isRenaming) return
                 if (previewUrl) return
-                onSelect(file.id, e.metaKey || e.ctrlKey)
+                onSelect(file.id)
               }}
               onDoubleClick={() => {
                 if (!isRenaming && !previewUrl && !file.isMissing) onOpen(file)
@@ -136,35 +134,34 @@ export const FileGrid = memo(function FileGrid({
                 <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                   <Button
                     variant="ghost"
+                    size="icon-sm"
                     onClick={(e) => {
                       e.stopPropagation()
                       onDelete(file.id)
                     }}
                     title={file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
-                    className="flex h-5 w-5 items-center justify-center rounded p-0 text-muted-foreground/35 transition-colors hover:text-destructive/80">
-                    <Trash2 size={10} />
+                    className="size-6 min-h-0 rounded bg-background/95 p-0 text-destructive/75 shadow-sm backdrop-blur transition-colors hover:bg-background hover:text-destructive">
+                    <Trash2 className="size-3" />
                   </Button>
                 </div>
               </div>
-              {!isImage && (
-                <div className="px-2 py-1.5">
-                  {isRenaming ? (
-                    <InlineRename
-                      value={file.name}
-                      onConfirm={(v) => onRenameConfirm(file.id, v)}
-                      onCancel={onRenameCancel}
-                      className="w-full px-1.5 text-center"
-                    />
-                  ) : (
-                    <p className="truncate text-foreground text-sm" title={file.name}>
-                      {file.name}
-                    </p>
-                  )}
-                  <div className="mt-0.5 flex items-center gap-1">
-                    <span className="text-muted-foreground/50 text-xs">{file.size}</span>
-                  </div>
+              <div className="px-2 py-1.5">
+                {isRenaming ? (
+                  <InlineRename
+                    value={file.name}
+                    onConfirm={(v) => onRenameConfirm(file.id, v)}
+                    onCancel={onRenameCancel}
+                    className="w-full px-1.5 text-center"
+                  />
+                ) : (
+                  <p className="truncate text-foreground text-sm" title={file.name}>
+                    {file.name}
+                  </p>
+                )}
+                <div className="mt-0.5 flex items-center gap-1">
+                  <span className="text-muted-foreground/50 text-xs">{file.size}</span>
                 </div>
-              )}
+              </div>
             </div>
           </FileContextMenu>
         )

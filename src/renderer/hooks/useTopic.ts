@@ -26,7 +26,7 @@ import { loggerService } from '@logger'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
-import { ErrorCode } from '@shared/data/api/apiErrors'
+import { ErrorCode } from '@shared/data/api/errors'
 import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
@@ -211,13 +211,14 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
  *
  * `q` triggers server-side LIKE search on `topic.name`.
  */
-export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: number }) {
+export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: number; enabled?: boolean }) {
   const query = opts?.q?.trim() ? { q: opts.q.trim() } : undefined
   const loadAll = opts?.loadAll === true
   const pageSize = opts?.pageSize ?? (loadAll ? LOAD_ALL_TOPIC_PAGE_SIZE : DEFAULT_TOPIC_PAGE_SIZE)
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     query,
-    limit: pageSize
+    limit: pageSize,
+    enabled: opts?.enabled
   })
   const topics = useInfiniteFlatItems(pages)
   const isFullyLoaded = !loadAll || (!isLoading && !hasNext)

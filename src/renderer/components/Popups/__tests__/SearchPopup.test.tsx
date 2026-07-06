@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   show: vi.fn()
 }))
 
-vi.mock('../../TopView', () => ({
+vi.mock('../../TopView/TopView', () => ({
   TopView: {
     hide: mocks.hide,
     show: mocks.show
@@ -51,25 +51,30 @@ vi.mock('@cherrystudio/ui', async () => {
       ) : null,
     DialogContent: ({
       children,
-      closeOnOverlayClick,
+      className,
+      overlayClassName,
       overlayProps
-    }: PropsWithChildren<{ closeOnOverlayClick?: boolean; overlayProps?: ComponentProps<'div'> }>) => {
+    }: PropsWithChildren<{
+      className?: string
+      overlayClassName?: string
+      overlayProps?: ComponentProps<'div'>
+    }>) => {
       const context = React.use(DialogContext)
 
       return (
         <>
           <div
             data-testid="dialog-overlay"
+            className={overlayClassName}
             {...overlayProps}
             onClick={(event) => {
               overlayProps?.onClick?.(event)
-              // Match the real DialogContent: the overlay only closes when closeOnOverlayClick is set.
-              if (closeOnOverlayClick) {
-                context?.onOpenChange?.(false)
-              }
+              context?.onOpenChange?.(false)
             }}
           />
-          <div data-testid="dialog-content">{children}</div>
+          <div data-testid="dialog-content" className={className}>
+            {children}
+          </div>
         </>
       )
     },
@@ -116,5 +121,16 @@ describe('SearchPopup', () => {
     await waitFor(() => {
       expect(screen.queryByLabelText('Search input')).not.toBeInTheDocument()
     })
+  })
+
+  it('renders above chat shell overlays', () => {
+    mocks.show.mockImplementation((element: ReactElement) => {
+      render(element)
+    })
+
+    void SearchPopup.show()
+
+    expect(screen.getByTestId('dialog-overlay')).toHaveClass('z-1001')
+    expect(screen.getByTestId('dialog-content')).toHaveClass('z-1001')
   })
 })

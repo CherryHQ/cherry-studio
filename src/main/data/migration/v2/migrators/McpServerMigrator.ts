@@ -103,6 +103,11 @@ export class McpServerMigrator extends BaseMigrator {
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
     if (this.preparedResults.length === 0) {
+      // Always publish the (empty) mapping so downstream migrators can distinguish
+      // "ran with zero servers" from "never ran". Without this, AssistantMigrator
+      // throws a fatal error when assistants still reference now-deleted servers,
+      // instead of gracefully dropping those dangling refs.
+      ctx.sharedData.set('mcpServerIdMapping', new Map<string, string>())
       return { success: true, processedCount: 0 }
     }
 
@@ -111,10 +116,10 @@ export class McpServerMigrator extends BaseMigrator {
       const rows = this.preparedResults.map((r) => r.row)
 
       const BATCH_SIZE = 100
-      await ctx.db.transaction(async (tx) => {
+      ctx.db.transaction((tx) => {
         for (let i = 0; i < rows.length; i += BATCH_SIZE) {
           const batch = rows.slice(i, i + BATCH_SIZE)
-          await tx.insert(mcpServerTable).values(batch)
+          tx.insert(mcpServerTable).values(batch).run()
           processed += batch.length
         }
       })
@@ -147,7 +152,7 @@ export class McpServerMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const serverResult = await ctx.db.select({ count: sql<number>`count(*)` }).from(mcpServerTable).get()
+      const serverResult = ctx.db.select({ count: sql<number>`count(*)` }).from(mcpServerTable).get()
       const serverCount = serverResult?.count ?? 0
       const errors: { key: string; message: string }[] = []
 
@@ -158,7 +163,7 @@ export class McpServerMigrator extends BaseMigrator {
         })
       }
 
-      const sample = await ctx.db.select().from(mcpServerTable).limit(3).all()
+      const sample = ctx.db.select().from(mcpServerTable).limit(3).all()
       for (const server of sample) {
         if (!server.id || !server.name) {
           errors.push({ key: server.id ?? 'unknown', message: 'Missing required field (id or name)' })

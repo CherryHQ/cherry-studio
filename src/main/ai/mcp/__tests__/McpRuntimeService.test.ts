@@ -13,7 +13,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({ McpCatalogService: mcpCatalogMock } as Record<string, unknown>)
 })
 
-const getByIdMock = vi.fn<(id: string) => Promise<McpServer>>()
+const getByIdMock = vi.fn<(id: string) => McpServer>()
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: {
     getById: (id: string) => getByIdMock(id)
@@ -191,7 +191,7 @@ describe('McpRuntimeService.getServerLogs (mcp-env)', () => {
   it('returns connect-time logs appended under the server key', async () => {
     const service = new McpRuntimeService()
     const server = { id: 'server-1', name: 'srv', env: { REGISTRY: 'x' } } as unknown as McpServer
-    getByIdMock.mockResolvedValue(server)
+    getByIdMock.mockReturnValue(server)
 
     const entry = { timestamp: 1, level: 'info' as const, message: 'Server connected', source: 'client' }
     ;(service as any).emitServerLog(server, entry)
@@ -240,7 +240,7 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
     getByIdMock.mockReset()
     mcpCatalogMock.clearSharedToolsCache.mockReset()
     mcpCatalogMock.refreshTools.mockReset().mockResolvedValue(undefined)
-    getByIdMock.mockResolvedValue({ id: 'server-1', name: 'docs', isActive: true } as McpServer)
+    getByIdMock.mockReturnValue({ id: 'server-1', name: 'docs', isActive: true } as McpServer)
   })
 
   // listTools is cache-only, so a failed restart must clear the shared tools cache —

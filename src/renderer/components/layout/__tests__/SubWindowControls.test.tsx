@@ -1,4 +1,4 @@
-import type { Tab } from '@renderer/hooks/useTabs'
+import type { Tab } from '@renderer/hooks/tab'
 import { IpcChannel } from '@shared/IpcChannel'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import type * as ReactI18nextModule from 'react-i18next'
@@ -15,7 +15,7 @@ const tab: Tab = {
 }
 
 // Detached sub-window hosts exactly one tab; controls read it directly.
-vi.mock('@renderer/hooks/useTabs', () => ({
+vi.mock('@renderer/hooks/tab', () => ({
   useTabs: () => ({ tabs: [tab], activeTabId: 'topic-1' })
 }))
 

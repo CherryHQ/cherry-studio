@@ -9,7 +9,7 @@
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
-import type { OffsetPaginationResponse } from '../apiTypes'
+import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from './jobs'
@@ -22,6 +22,7 @@ export const AgentNameAtomSchema = z.string().min(1)
 export const ModelIdAtomSchema = z.string().min(1)
 export const TimeoutMinutesAtomSchema = z.number().min(1).nullable().optional()
 export const AgentToolNameSetSchema = z.array(z.string()).transform((items) => Array.from(new Set(items)))
+export const AgentSkillIdSetSchema = z.array(z.string().min(1)).transform((items) => Array.from(new Set(items)))
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
@@ -173,10 +174,19 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 // Agent DTOs (derived via .pick() from AgentEntitySchema — Rule C)
 // ============================================================================
 
-export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS })
+export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
+  /**
+   * Create-only: ids of pre-existing global skills to enable for the new agent.
+   * Writes `agent_skill` join rows in the same create transaction. Editing an
+   * existing agent's skills goes through the skill toggle IPC (which also manages
+   * workspace symlinks), NOT PATCH /agents — so this is intentionally absent from
+   * AGENT_MUTABLE_FIELDS / UpdateAgentSchema to avoid a dual-write path.
+   */
+  skillIds: AgentSkillIdSetSchema.optional()
+})
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 
-// Update picks directly from the entity (not from Create) to avoid .default([]) bleeding into partial updates.
+// Update picks directly from the entity (not from Create) so create-only fields never bleed into partial updates.
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial()
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
@@ -230,6 +240,15 @@ export const ListAgentsQuerySchema = z.strictObject({
 export type ListAgentsQueryParams = z.input<typeof ListAgentsQuerySchema>
 export type ListAgentsQuery = z.output<typeof ListAgentsQuerySchema>
 
+export const DeleteAgentQuerySchema = z.strictObject({
+  /**
+   * Delete the agent's sessions in the same main-process transaction.
+   * Omitted/false preserves the historical "delete agent only" behavior.
+   */
+  deleteSessions: z.boolean().optional()
+})
+export type DeleteAgentQueryParams = z.input<typeof DeleteAgentQuerySchema>
+
 // ============================================================================
 // API Schema definitions
 // ============================================================================
@@ -260,6 +279,7 @@ export type AgentSchemas = {
     }
     DELETE: {
       params: { agentId: string }
+      query?: DeleteAgentQueryParams
       response: void
     }
   }

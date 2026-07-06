@@ -17,6 +17,7 @@ export interface CodeEditorHandles {
   scrollToLine?: (lineNumber: number, options?: { highlight?: boolean }) => void
   getContent?: () => string
   insertText?: (text: string) => boolean
+  focus?: () => void
 }
 
 export interface CodeEditorProps {
@@ -114,4 +115,10 @@ export interface CodeEditorProps {
    * @default true
    */
   wrapped?: boolean
+  /**
+   * Keep the internal editor scroller pinned to the document bottom while content grows.
+   * Intended for streaming, collapsed code blocks.
+   * @default false
+   */
+  autoScrollToBottom?: boolean
 }

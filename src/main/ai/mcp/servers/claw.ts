@@ -1,9 +1,10 @@
+import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflowService'
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
+import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -91,20 +92,27 @@ const CRON_TOOL: Tool = {
 const NOTIFY_TOOL: Tool = {
   name: 'notify',
   description:
-    'Send a notification message to the user through connected channels (e.g. Telegram). Use this to proactively inform the user about task results, status updates, or any important information.',
+    'Send a notification to the user through connected channels (e.g. Telegram). Provide a message, a file to forward from your workspace, or both. Use this to proactively deliver task results, status updates, or produced files. File support by channel: Telegram/Feishu forward any file; WeChat images only; Discord/Slack/QQ do not support files yet (a file_path to those returns an error).',
   inputSchema: {
     type: 'object',
     properties: {
       message: {
         type: 'string',
-        description: 'The notification message to send to the user'
+        description: 'The notification message to send to the user. Optional if file_path is provided.'
+      },
+      file_path: {
+        type: 'string',
+        description:
+          'Optional: path to a file in your workspace to forward to the user (relative to the workspace, or an absolute path inside it). The file must reside within the session workspace.'
       },
       channel_id: {
         type: 'string',
         description: 'Optional: send to a specific channel only (omit to send to all notify-enabled channels)'
       }
     },
-    required: ['message']
+    // Enforce "message or file_path" so MCP clients can pre-validate; the handler re-checks
+    // the trimmed values (empty strings must still be rejected).
+    anyOf: [{ required: ['message'] }, { required: ['file_path'] }]
   }
 }
 
@@ -214,11 +222,18 @@ class ClawServer {
   public mcpServer: McpServer
   private agentId: string
   private workspace: AgentSessionWorkspaceSource
+  private workspacePath: string
   private sourceChannelId: string | undefined
 
-  constructor(agentId: string, workspace: AgentSessionWorkspaceSource, sourceChannelId?: string) {
+  constructor(
+    agentId: string,
+    workspace: AgentSessionWorkspaceSource,
+    workspacePath: string,
+    sourceChannelId?: string
+  ) {
     this.agentId = agentId
     this.workspace = workspace
+    this.workspacePath = workspacePath
     this.sourceChannelId = sourceChannelId
     this.mcpServer = new McpServer(
       {
@@ -251,7 +266,7 @@ class ClawServer {
               case 'add':
                 return await this.addJob(args)
               case 'list':
-                return await this.listJobs()
+                return this.listJobs()
               case 'remove':
                 return await this.removeJob(args)
               default:
@@ -264,9 +279,9 @@ class ClawServer {
             const action = args.action
             switch (action) {
               case 'status':
-                return await this.configStatus()
+                return this.configStatus()
               case 'rename':
-                return await this.configRename(args)
+                return this.configRename(args)
               case 'add_channel':
                 return await this.configAddChannel(args)
               case 'update_channel':
@@ -276,9 +291,9 @@ class ClawServer {
               case 'reconnect_channel':
                 return await this.configReconnectChannel(args)
               case 'complete_bootstrap':
-                return await this.configCompleteBootstrap()
+                return this.configCompleteBootstrap()
               case 'reset_bootstrap':
-                return await this.configResetBootstrap()
+                return this.configResetBootstrap()
               default:
                 throw new McpError(
                   ErrorCode.InvalidParams,
@@ -352,8 +367,8 @@ class ClawServer {
     }
   }
 
-  private async listJobs() {
-    const { tasks } = await taskService.listTasks(this.agentId, { limit: 100 })
+  private listJobs() {
+    const { tasks } = taskService.listTasks(this.agentId, { limit: 100 })
 
     if (tasks.length === 0) {
       return { content: [{ type: 'text' as const, text: 'No scheduled jobs.' }] }
@@ -365,8 +380,11 @@ class ClawServer {
   }
 
   private async sendNotification(args: Record<string, string | undefined>) {
-    const message = args.message
-    if (!message) throw new McpError(ErrorCode.InvalidParams, "'message' is required for notify")
+    const message = args.message?.trim()
+    const filePath = args.file_path?.trim()
+    if (!message && !filePath) {
+      throw new McpError(ErrorCode.InvalidParams, "Provide 'message', 'file_path', or both for notify")
+    }
 
     const targetChannelId = args.channel_id
     let adapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
@@ -386,46 +404,86 @@ class ClawServer {
       }
     }
 
-    let sent = 0
+    // Resolve the file once before dispatch so a bad path fails fast (one error,
+    // not one per chat). Guard errors surface as a clean isError result via the
+    // CallTool catch. Done after the no-adapters guard so we don't read up to
+    // 100MB off disk only to discover there's nowhere to send it.
+    const file = filePath ? await resolveWorkspaceFile(this.workspacePath, filePath) : undefined
+    const sanitizedMessage = message ? sanitizeChannelOutput(message).text : undefined
+
+    let messagesSent = 0
+    let filesSent = 0
     const errors: string[] = []
+
+    const recordError = (adapter: ChannelAdapter, chatId: string, what: string, err: unknown) => {
+      const errMsg = err instanceof Error ? err.message : String(err)
+      errors.push(`${adapter.channelId}/${chatId} (${what}): ${errMsg}`)
+      // Log the raw error, not just its message, so the SDK's cause chain and any
+      // attached `response` payload survive to the logs for diagnosis.
+      logger.warn(`Failed to send ${what} via notify`, {
+        agentId: this.agentId,
+        channelId: adapter.channelId,
+        chatId,
+        error: err
+      })
+    }
 
     for (const adapter of adapters) {
       for (const chatId of adapter.notifyChatIds) {
-        try {
-          await adapter.sendMessage(chatId, message)
-          sent++
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err)
-          errors.push(`${adapter.channelId}/${chatId}: ${errMsg}`)
-          logger.warn('Failed to send notification', {
-            agentId: this.agentId,
-            channelId: adapter.channelId,
-            chatId,
-            error: errMsg
-          })
+        // Message and file are independent — one failing must not skip the other.
+        if (sanitizedMessage) {
+          try {
+            await adapter.sendMessage(chatId, sanitizedMessage)
+            messagesSent++
+          } catch (err) {
+            recordError(adapter, chatId, 'message', err)
+          }
+        }
+        if (file) {
+          try {
+            await adapter.sendFile(chatId, file)
+            filesSent++
+          } catch (err) {
+            recordError(adapter, chatId, 'file', err)
+          }
         }
       }
     }
 
-    const parts = [`Notification sent to ${sent} chat(s).`]
-    if (errors.length > 0) {
-      parts.push(`Errors: ${errors.join('; ')}`)
-    }
+    const parts: string[] = []
+    if (sanitizedMessage) parts.push(`Message sent to ${messagesSent} chat(s).`)
+    if (file) parts.push(`File "${file.filename}" sent to ${filesSent} chat(s).`)
+    if (errors.length > 0) parts.push(`Errors: ${errors.join('; ')}`)
 
-    logger.info('Notification sent via notify tool', { agentId: this.agentId, sent, errors: errors.length })
+    logger.info('Notification sent via notify tool', {
+      agentId: this.agentId,
+      messagesSent,
+      filesSent,
+      errors: errors.length
+    })
+
+    // A requested payload that reached nobody because every attempt failed is a failed
+    // tool call — otherwise the agent sees success while the user received nothing
+    // (unsupported adapter, platform size reject, etc.). Zero recipients with no failed
+    // attempts (no chats configured) stays a normal result.
+    const messageFailed = sanitizedMessage !== undefined && messagesSent === 0
+    const fileFailed = file !== undefined && filesSent === 0
+    const deliveryFailed = errors.length > 0 && (messageFailed || fileFailed)
+
     return {
-      content: [{ type: 'text' as const, text: parts.join(' ') }]
+      content: [{ type: 'text' as const, text: parts.join(' ') }],
+      ...(deliveryFailed ? { isError: true } : {})
     }
   }
 
   // ── Config tool handlers ──────────────────────────────────────────
 
-  private async configStatus() {
-    const agent = await agentService.getAgent(this.agentId)
+  private configStatus() {
+    const agent = agentService.getAgent(this.agentId)
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
 
     const config = agent.configuration
-    const channels = await channelService.listChannels({ agentId: this.agentId })
+    const channels = channelService.listChannels({ agentId: this.agentId })
 
     const adapterStatuses = application.get('ChannelManager').getAdapterStatuses(this.agentId)
     const statusMap = new Map(adapterStatuses.map((s) => [s.channelId, s.connected]))
@@ -493,7 +551,7 @@ class ClawServer {
     const needsQr = type === 'wechat' || (type === 'feishu' && !cfg.app_id && !cfg.app_secret)
 
     if (needsQr) {
-      const newChannel = await channelService.createChannel({
+      const newChannel = channelService.createChannel({
         type: channelType,
         name,
         agentId: this.agentId,
@@ -587,7 +645,7 @@ class ClawServer {
     const channelId = args.channel_id as string | undefined
     if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for update_channel")
 
-    const existing = await channelService.getChannel(channelId)
+    const existing = channelService.getChannel(channelId)
     if (!existing) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     const updates: Record<string, unknown> = {}
@@ -609,7 +667,7 @@ class ClawServer {
     const channelId = args.channel_id as string | undefined
     if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for remove_channel")
 
-    const channel = await channelService.getChannel(channelId)
+    const channel = channelService.getChannel(channelId)
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     await agentChannelWorkflowService.deleteChannel(channelId)
@@ -624,7 +682,7 @@ class ClawServer {
     const channelId = args.channel_id as string | undefined
     if (!channelId) throw new McpError(ErrorCode.InvalidParams, "'channel_id' is required for reconnect_channel")
 
-    const channel = await channelService.getChannel(channelId)
+    const channel = channelService.getChannel(channelId)
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
     const needsQr = channel.type === 'wechat' || (channel.type === 'feishu' && !channel.config.app_id)
@@ -681,11 +739,11 @@ class ClawServer {
     }
   }
 
-  private async configRename(args: Record<string, unknown>) {
+  private configRename(args: Record<string, unknown>) {
     const name = args.name as string | undefined
     if (!name || !name.trim()) throw new McpError(ErrorCode.InvalidParams, "'name' is required for rename")
 
-    await agentService.updateAgent(this.agentId, { name: name.trim() })
+    agentService.updateAgent(this.agentId, { name: name.trim() })
 
     logger.info('Agent renamed via config tool', { agentId: this.agentId, name: name.trim() })
     return {
@@ -693,12 +751,12 @@ class ClawServer {
     }
   }
 
-  private async configCompleteBootstrap() {
-    const agent = await agentService.getAgent(this.agentId)
+  private configCompleteBootstrap() {
+    const agent = agentService.getAgent(this.agentId)
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
 
     const existingConfig = agent.configuration
-    await agentService.updateAgent(this.agentId, {
+    agentService.updateAgent(this.agentId, {
       configuration: { ...existingConfig, bootstrap_completed: true } as AgentConfiguration
     })
 
@@ -710,12 +768,12 @@ class ClawServer {
     }
   }
 
-  private async configResetBootstrap() {
-    const agent = await agentService.getAgent(this.agentId)
+  private configResetBootstrap() {
+    const agent = agentService.getAgent(this.agentId)
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
 
     const existingConfig = agent.configuration
-    await agentService.updateAgent(this.agentId, {
+    agentService.updateAgent(this.agentId, {
       configuration: { ...existingConfig, bootstrap_completed: false } as AgentConfiguration
     })
 

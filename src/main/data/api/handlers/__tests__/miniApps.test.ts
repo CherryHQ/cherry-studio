@@ -73,9 +73,7 @@ describe('miniAppHandlers', () => {
       appId: 'my-app',
       name: 'My App',
       url: 'https://my.app',
-      logo: 'application',
-      bordered: true,
-      supportedRegions: ['CN', 'Global'] as ('CN' | 'Global')[]
+      logo: 'application'
     }
 
     it('should parse body and delegate to service', async () => {
@@ -93,6 +91,16 @@ describe('miniAppHandlers', () => {
 
       expect(createMock).toHaveBeenCalledWith(validBody)
       expect(result).toEqual(created)
+    })
+
+    it('should accept file URLs before delegating to service', async () => {
+      const body = { ...validBody, url: 'file:///Users/test/custom-app/index.html' }
+      createMock.mockResolvedValueOnce({ ...body, presetMiniAppId: null, status: 'enabled', orderKey: 'a0' })
+
+      const result = await miniAppHandlers['/mini-apps'].POST({ body })
+
+      expect(createMock).toHaveBeenCalledWith(body)
+      expect(result).toMatchObject({ url: body.url })
     })
 
     it('should reject missing required fields before calling the service', async () => {
@@ -120,6 +128,22 @@ describe('miniAppHandlers', () => {
       expect(createMock).not.toHaveBeenCalled()
     })
 
+    it('should reject malformed URLs before calling the service', async () => {
+      await expect(
+        miniAppHandlers['/mini-apps'].POST({ body: { ...validBody, url: 'not a url' } } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(createMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject unsupported URL protocols before calling the service', async () => {
+      await expect(
+        miniAppHandlers['/mini-apps'].POST({ body: { ...validBody, url: 'javascript:alert(1)' } } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(createMock).not.toHaveBeenCalled()
+    })
+
     it('should reject body with empty logo before calling the service', async () => {
       await expect(
         miniAppHandlers['/mini-apps'].POST({ body: { ...validBody, logo: '' } } as never)
@@ -128,17 +152,9 @@ describe('miniAppHandlers', () => {
       expect(createMock).not.toHaveBeenCalled()
     })
 
-    it('should reject body with invalid region before calling the service', async () => {
+    it('should reject unsupported create metadata before calling the service', async () => {
       await expect(
-        miniAppHandlers['/mini-apps'].POST({ body: { ...validBody, supportedRegions: ['EU'] } } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
-
-      expect(createMock).not.toHaveBeenCalled()
-    })
-
-    it('should reject body with empty supportedRegions before calling the service', async () => {
-      await expect(
-        miniAppHandlers['/mini-apps'].POST({ body: { ...validBody, supportedRegions: [] } } as never)
+        miniAppHandlers['/mini-apps'].POST({ body: { ...validBody, supportedRegions: ['CN'] } } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(createMock).not.toHaveBeenCalled()
@@ -233,9 +249,64 @@ describe('miniAppHandlers', () => {
       expect(result).toMatchObject({ status: 'disabled' })
     })
 
+    it('should parse custom display fields and delegate to service', async () => {
+      const updated = {
+        appId: 'custom-app',
+        presetMiniAppId: null,
+        status: 'enabled',
+        sortOrder: 0,
+        name: 'Renamed App',
+        url: 'https://renamed.app',
+        logo: 'data:image/png;base64,avatar'
+      }
+      updateMock.mockResolvedValueOnce(updated)
+
+      const result = await miniAppHandlers['/mini-apps/:appId'].PATCH({
+        params: { appId: 'custom-app' },
+        body: { name: 'Renamed App', url: 'https://renamed.app', logo: 'data:image/png;base64,avatar' }
+      })
+
+      expect(updateMock).toHaveBeenCalledWith('custom-app', {
+        name: 'Renamed App',
+        url: 'https://renamed.app',
+        logo: 'data:image/png;base64,avatar'
+      })
+      expect(result).toMatchObject({ name: 'Renamed App' })
+    })
+
     it('should reject invalid status in PATCH body before calling the service', async () => {
       await expect(
         miniAppHandlers['/mini-apps/:appId'].PATCH({ params: { appId: 'openai' }, body: { status: 'banned' } } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject invalid custom display fields before calling the service', async () => {
+      await expect(
+        miniAppHandlers['/mini-apps/:appId'].PATCH({ params: { appId: 'custom-app' }, body: { name: '' } } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject invalid custom URLs before calling the service', async () => {
+      await expect(
+        miniAppHandlers['/mini-apps/:appId'].PATCH({
+          params: { appId: 'custom-app' },
+          body: { url: 'ftp://example.com/app' }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject unsupported custom metadata before calling the service', async () => {
+      await expect(
+        miniAppHandlers['/mini-apps/:appId'].PATCH({
+          params: { appId: 'custom-app' },
+          body: { background: '#fff' }
+        } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(updateMock).not.toHaveBeenCalled()

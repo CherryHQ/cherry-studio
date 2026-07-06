@@ -2,7 +2,7 @@ import type { ActionTool } from '@renderer/components/ActionTools'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import CodeToolButton from '../button'
+import CodeToolButton from '../CodeToolButton'
 
 const mocks = vi.hoisted(() => ({
   Tooltip: vi.fn(({ children, title, content }) => (

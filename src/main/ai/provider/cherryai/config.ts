@@ -1,1 +1,0 @@
-export const CLIENT_SECRET = import.meta.env.MAIN_VITE_CHERRYAI_CLIENT_SECRET

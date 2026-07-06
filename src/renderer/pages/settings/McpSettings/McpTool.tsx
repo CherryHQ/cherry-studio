@@ -1,6 +1,6 @@
 import type { ColumnDef } from '@cherrystudio/ui'
 import { Badge, ColFlex, DataTable, Flex, InfoTooltip, RequiredMark, Switch, Tooltip } from '@cherrystudio/ui'
-import { McpLogo } from '@renderer/components/Icons'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { useIsToolAutoApproved } from '@renderer/hooks/useMcpServer'
 import type { McpTool } from '@renderer/types/tool'
 import type { McpServer } from '@shared/data/types/mcpServer'

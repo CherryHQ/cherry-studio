@@ -2,8 +2,8 @@ import { cn } from '@renderer/utils/style'
 import { ChevronDown } from 'lucide-react'
 import { type KeyboardEvent, type ReactNode, useId, useState } from 'react'
 
+import { StreamingContext } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
-import { StreamingContext } from './GenericTools'
 
 export function AgentToolDisclosureLabel({
   label,

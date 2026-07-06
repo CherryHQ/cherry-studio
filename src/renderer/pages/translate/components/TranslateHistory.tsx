@@ -152,13 +152,42 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
     [updateHistory]
   )
   const showHistoryActions = showStared || history.length > 0
+  const header = (
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <span className="truncate font-semibold text-base text-foreground">{`${t('translate.history.title')} (${total})`}</span>
+      <span className="flex-1" />
+      {!selectedItem && showHistoryActions && (
+        <div className="flex shrink-0 items-center gap-1">
+          <IconButton
+            size="md"
+            tone="star"
+            active={showStared}
+            onClick={() => setShowStared((v) => !v)}
+            aria-label={t('translate.history.filter.starred')}
+            aria-pressed={showStared}>
+            <Star size={14} className={cn(showStared && 'fill-amber-500')} />
+          </IconButton>
+          {history.length > 0 && (
+            <IconButton
+              size="md"
+              tone="destructive"
+              onClick={() => setConfirmClearOpen(true)}
+              aria-label={t('translate.history.clear')}>
+              <Trash2 size={14} />
+            </IconButton>
+          )}
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <>
       <PageSidePanel
         open={isOpen}
         onClose={handleClose}
-        title={`${t('translate.history.title')} (${total})`}
+        header={header}
+        headerClassName="pb-0"
         closeLabel={t('translate.close')}
         bodyClassName="flex min-h-0 flex-col">
         <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -172,28 +201,6 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
             />
           ) : (
             <>
-              {showHistoryActions && (
-                <div className="flex shrink-0 items-center justify-end gap-1">
-                  <IconButton
-                    size="md"
-                    tone="star"
-                    active={showStared}
-                    onClick={() => setShowStared((v) => !v)}
-                    aria-label={t('translate.history.filter.starred')}
-                    aria-pressed={showStared}>
-                    <Star size={14} className={cn(showStared && 'fill-amber-500')} />
-                  </IconButton>
-                  {history.length > 0 && (
-                    <IconButton
-                      size="md"
-                      tone="destructive"
-                      onClick={() => setConfirmClearOpen(true)}
-                      aria-label={t('translate.history.clear')}>
-                      <Trash2 size={14} />
-                    </IconButton>
-                  )}
-                </div>
-              )}
               {deferredHistory.length > 0 ? (
                 <div className="min-h-0 flex-1">
                   <DynamicVirtualList
@@ -294,17 +301,17 @@ const HistoryRow: FC<{
         <Star size={10} className={cn(item.star && 'fill-amber-500')} />
       </IconButton>
       <div className="flex items-center gap-1.5 pr-5">
-        <span className="rounded bg-muted px-1 py-px text-muted-foreground text-xs">
+        <span className="rounded bg-muted px-1 py-px text-muted-foreground text-sm">
           {item._sourceEmoji} {item._sourceLabel}
         </span>
         <ArrowRight size={8} className="text-foreground-muted" />
-        <span className="rounded bg-primary/10 px-1 py-px text-primary text-xs">
+        <span className="rounded bg-primary/10 px-1 py-px text-primary text-sm">
           {item._targetEmoji} {item._targetLabel}
         </span>
-        <span className="ml-auto text-foreground-muted text-xs">{item._createdAtLabel}</span>
+        <span className="ml-auto text-foreground-muted text-sm">{item._createdAtLabel}</span>
       </div>
-      <p className="line-clamp-1 text-muted-foreground text-xs">{item.sourceText}</p>
-      <p className="line-clamp-1 text-foreground text-xs">{item.targetText}</p>
+      <p className="line-clamp-1 text-muted-foreground text-sm">{item.sourceText}</p>
+      <p className="line-clamp-1 text-foreground text-sm">{item.targetText}</p>
     </div>
   )
 }
@@ -338,24 +345,31 @@ const HistoryDetail: FC<{
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <button
         type="button"
         onClick={onBack}
-        className="mb-3 flex items-center gap-1 rounded-md text-foreground-secondary text-xs transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+        className="mb-3 flex items-center gap-1 rounded-md text-foreground-secondary text-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
         <ChevronRight size={11} className="rotate-180" />
         <span>{t('translate.history.back')}</span>
       </button>
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-sm bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
+          <span className="rounded-sm bg-muted px-1.5 py-0.5 text-muted-foreground text-sm">
             {item._sourceEmoji} {item._sourceLabel}
           </span>
           <ArrowRight size={10} className="text-foreground-muted" />
-          <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-primary text-xs">
+          <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-primary text-sm">
             {item._targetEmoji} {item._targetLabel}
           </span>
           <span className="flex-1" />
+          <IconButton
+            size="sm"
+            tone="destructive"
+            onClick={() => setConfirmDeleteOpen(true)}
+            aria-label={t('translate.history.delete')}>
+            <Trash2 size={11} />
+          </IconButton>
           <IconButton
             size="sm"
             tone="star"
@@ -365,27 +379,27 @@ const HistoryDetail: FC<{
             aria-pressed={!!item.star}>
             <Star size={11} className={cn(item.star && 'fill-amber-500')} />
           </IconButton>
-          <span className="text-foreground-muted text-xs">{item._createdAtLabel}</span>
+          <span className="text-foreground-muted text-sm">{item._createdAtLabel}</span>
         </div>
         <div className="rounded-md bg-muted/40 p-3">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-foreground-muted text-xs">{t('translate.history.source')}</span>
+            <span className="text-foreground-muted text-sm">{t('translate.history.source')}</span>
             <IconButton size="sm" onClick={() => void onCopy(item.sourceText)} aria-label={t('common.copy')}>
               <Copy size={10} />
             </IconButton>
           </div>
-          <p className="wrap-break-word max-h-50 overflow-y-auto whitespace-pre-wrap text-foreground text-xs leading-relaxed">
+          <p className="wrap-break-word max-h-50 overflow-y-auto whitespace-pre-wrap text-foreground text-sm leading-relaxed">
             {item.sourceText}
           </p>
         </div>
         <div className="rounded-md border border-border bg-accent/40 p-3">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-foreground-secondary text-xs">{t('translate.history.target')}</span>
+            <span className="text-foreground-secondary text-sm">{t('translate.history.target')}</span>
             <IconButton size="sm" onClick={() => void onCopy(item.targetText)} aria-label={t('common.copy')}>
               <Copy size={10} />
             </IconButton>
           </div>
-          <p className="wrap-break-word max-h-50 overflow-y-auto whitespace-pre-wrap text-foreground text-xs leading-relaxed">
+          <p className="wrap-break-word max-h-50 overflow-y-auto whitespace-pre-wrap text-foreground text-sm leading-relaxed">
             {item.targetText}
           </p>
         </div>
@@ -393,24 +407,17 @@ const HistoryDetail: FC<{
           <button
             type="button"
             onClick={() => onReuse(item)}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent py-1.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent py-1.5 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
             <Repeat size={11} />
             <span>{t('translate.history.reuse')}</span>
           </button>
           <button
             type="button"
             onClick={() => void onCopy(item.targetText)}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary py-1.5 text-primary-foreground text-xs transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary py-1.5 text-primary-foreground text-sm transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
             <Copy size={11} />
             <span>{t('translate.history.copy_target')}</span>
           </button>
-          <IconButton
-            size="md"
-            tone="destructive"
-            onClick={() => setConfirmDeleteOpen(true)}
-            aria-label={t('translate.history.delete')}>
-            <Trash2 size={12} />
-          </IconButton>
         </div>
       </div>
       <ConfirmDialog

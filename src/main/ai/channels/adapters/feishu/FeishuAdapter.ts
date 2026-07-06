@@ -1,6 +1,3 @@
-import { Readable } from 'node:stream'
-import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
-
 import { application } from '@application'
 import * as Lark from '@larksuiteoapi/node-sdk'
 import { WindowType } from '@main/core/window/types'
@@ -14,6 +11,7 @@ import { isSlashCommand } from '../../constants'
 import { FlushController } from '../../FlushController'
 import { FILE_EXTENSION_MIME_MAP, splitMessage } from '../../utils'
 import { registrationBegin, registrationPoll } from './FeishuAppRegistration'
+import { createFeishuHttpInstance } from './FeishuHttpInstance'
 
 const FEISHU_MAX_LENGTH = 4000
 
@@ -64,105 +62,6 @@ function resolveDomain(domain: FeishuDomain): Lark.Domain {
     default:
       return Lark.Domain.Feishu
   }
-}
-
-/**
- * A lightweight HttpInstance adapter for the Lark SDK using Node.js native fetch.
- * We use fetch instead of Electron's net.fetch because Lark SDK
- * sometimes sends GET requests with a body and non-ASCII header values,
- * both of which Electron's net.fetch rejects.
- */
-function createElectronHttpInstance(): Lark.HttpInstance {
-  async function doRequest(method: string, url: string, data?: unknown, opts?: Record<string, any>): Promise<any> {
-    const headers: Record<string, string> = { ...opts?.headers }
-    let body: string | FormData | undefined
-
-    if (data !== undefined && data !== null) {
-      if (typeof data === 'string') {
-        body = data
-      } else if (data instanceof FormData) {
-        body = data
-      } else {
-        body = JSON.stringify(data)
-        if (!headers['Content-Type'] && !headers['content-type']) {
-          headers['Content-Type'] = 'application/json'
-        }
-      }
-    }
-
-    const fetchUrl = new URL(url)
-    if (opts?.params) {
-      for (const [key, value] of Object.entries(opts.params)) {
-        fetchUrl.searchParams.set(key, String(value))
-      }
-    }
-
-    const upperMethod = method.toUpperCase()
-
-    // Use Node.js native fetch instead of Electron's net.fetch here because:
-    // 1. net.fetch rejects GET requests with a body (Lark SDK sends payload on GET)
-    // 2. net.fetch rejects header values with non-ASCII chars (Lark SDK sends Chinese filenames)
-    const res = await fetch(fetchUrl.toString(), {
-      method: upperMethod,
-      headers,
-      ...(upperMethod !== 'GET' && upperMethod !== 'HEAD' && body ? { body } : {})
-    })
-
-    const isStream = opts?.responseType === 'stream'
-    const responseData = isStream
-      ? res.body
-        ? Readable.fromWeb(res.body as NodeReadableStream)
-        : Readable.from([])
-      : await res.text().then((text) => {
-          if (!text) {
-            return ''
-          }
-
-          try {
-            return JSON.parse(text)
-          } catch {
-            return text
-          }
-        })
-    const responseHeaders = Object.fromEntries(res.headers.entries())
-
-    if (!res.ok) {
-      const detail =
-        typeof responseData === 'string'
-          ? responseData
-          : (responseData as { msg?: string; message?: string } | null)?.msg ||
-            (responseData as { msg?: string; message?: string } | null)?.message ||
-            res.statusText
-      const error = new Error(`Feishu HTTP ${res.status}: ${detail}`)
-      ;(error as Error & { response?: unknown }).response = {
-        data: responseData,
-        headers: responseHeaders,
-        status: res.status,
-        statusText: res.statusText
-      }
-      throw error
-    }
-
-    if (opts?.$return_headers) {
-      return {
-        data: responseData,
-        headers: responseHeaders
-      }
-    }
-
-    return responseData
-  }
-
-  return {
-    request: (opts: any) => doRequest(opts.method || 'GET', opts.url, opts.data, opts),
-    get: (url: string, opts?: any) => doRequest('GET', url, undefined, opts),
-    delete: (url: string, opts?: any) => doRequest('DELETE', url, undefined, opts),
-    head: (url: string, opts?: any) => doRequest('HEAD', url, undefined, opts),
-    options: (url: string, opts?: any) => doRequest('OPTIONS', url, undefined, opts),
-    post: (url: string, data?: any, opts?: any) => doRequest('POST', url, data, opts),
-    put: (url: string, data?: any, opts?: any) => doRequest('PUT', url, data, opts),
-    patch: (url: string, data?: any, opts?: any) => doRequest('PATCH', url, data, opts)
-  } as Lark.HttpInstance
 }
 
 function unwrapFeishuResponse<T>(response: unknown): FeishuApiResponse<T> {
@@ -508,7 +407,7 @@ class FeishuAdapter extends ChannelAdapter {
       appSecret: this.appSecret,
       appType: Lark.AppType.SelfBuild,
       domain: larkDomain,
-      httpInstance: createElectronHttpInstance()
+      httpInstance: createFeishuHttpInstance()
     })
 
     const eventDispatcher = new Lark.EventDispatcher({
@@ -654,6 +553,64 @@ class FeishuAdapter extends ChannelAdapter {
         await new Promise((resolve) => setTimeout(resolve, 100))
       }
     }
+  }
+
+  override async sendFile(chatId: string, file: FileAttachment): Promise<void> {
+    if (!this.client) {
+      throw new Error('Client is not connected')
+    }
+
+    const buffer = Buffer.from(file.data, 'base64')
+
+    // Images go through the image API so they render inline; everything else is
+    // uploaded as a generic file (`stream`) and delivered as a file message.
+    //
+    // NOTE: unlike `im.message.create`, the SDK's upload endpoints return the
+    // unwrapped data object ({image_key} / {file_key}) — not a {code,msg,data}
+    // envelope — so they must NOT go through `ensureFeishuSuccess`. Two failure
+    // shapes exist: an HTTP error rejects (the http instance surfaces status +
+    // detail), while an HTTP 200 carrying a business error (code != 0, e.g. an
+    // oversize image) resolves to null after the SDK discards code/msg — so for
+    // that path we log and throw an enriched, cause-hinting error ourselves.
+    if (file.media_type.startsWith('image/')) {
+      const uploaded = await this.client.im.image.create({ data: { image_type: 'message', image: buffer } })
+      const imageKey = uploaded?.image_key
+      if (!imageKey) {
+        this.log.warn('Feishu image upload returned no image_key', { chatId, filename: file.filename, size: file.size })
+        throw new Error(
+          `Feishu rejected the image upload for "${file.filename}" (no image_key) — likely over Feishu's image size limit (~10MB) or the bot lacks image-send capability`
+        )
+      }
+
+      ensureFeishuSuccess(
+        await this.client.im.message.create({
+          params: { receive_id_type: 'chat_id' },
+          data: { receive_id: chatId, msg_type: 'image', content: JSON.stringify({ image_key: imageKey }) }
+        }),
+        'Send Feishu image'
+      )
+    } else {
+      const uploaded = await this.client.im.file.create({
+        data: { file_type: 'stream', file_name: file.filename, file: buffer }
+      })
+      const fileKey = uploaded?.file_key
+      if (!fileKey) {
+        this.log.warn('Feishu file upload returned no file_key', { chatId, filename: file.filename, size: file.size })
+        throw new Error(
+          `Feishu rejected the file upload for "${file.filename}" (no file_key) — likely over Feishu's file size limit (~30MB) or the bot lacks file-send capability`
+        )
+      }
+
+      ensureFeishuSuccess(
+        await this.client.im.message.create({
+          params: { receive_id_type: 'chat_id' },
+          data: { receive_id: chatId, msg_type: 'file', content: JSON.stringify({ file_key: fileKey }) }
+        }),
+        'Send Feishu file'
+      )
+    }
+
+    this.log.info('Sent file', { chatId, filename: file.filename, size: file.size, mediaType: file.media_type })
   }
 
   async sendTypingIndicator(chatId: string): Promise<void> {

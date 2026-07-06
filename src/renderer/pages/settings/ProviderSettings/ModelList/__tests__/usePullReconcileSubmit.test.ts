@@ -21,7 +21,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 
-vi.mock('../modelSync', () => ({
+vi.mock('../../utils/modelSync', () => ({
   toCreateModelDto: (providerId: string, model: Model) => ({
     providerId,
     modelId: model.apiModelId ?? model.id.split('::').at(-1) ?? model.id,

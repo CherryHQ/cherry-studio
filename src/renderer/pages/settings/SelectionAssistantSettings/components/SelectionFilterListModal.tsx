@@ -1,5 +1,5 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
-import { isWin } from '@renderer/config/constant'
+import { isWin } from '@renderer/utils/platform'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'

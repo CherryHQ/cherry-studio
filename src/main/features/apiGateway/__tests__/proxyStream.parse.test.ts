@@ -13,7 +13,7 @@ const { mockStreamPrompt, captured } = vi.hoisted(() => ({
   captured: { opts: undefined as { uniqueModelId?: string; listener?: StreamListener } | undefined }
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) =>
       name === 'AiStreamManager' ? { streamPrompt: mockStreamPrompt, abort: vi.fn() } : undefined

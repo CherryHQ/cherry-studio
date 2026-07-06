@@ -7,7 +7,7 @@ import type {
   StreamDonePayload,
   StreamErrorPayload
 } from '@shared/ai/transport'
-import { type FileEntry, FileEntrySchema } from '@shared/data/types/file/fileEntry'
+import { type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { ModelSchema, type UniqueModelId } from '@shared/data/types/model'
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'

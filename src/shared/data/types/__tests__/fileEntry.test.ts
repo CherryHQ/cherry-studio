@@ -1,6 +1,7 @@
+import { SafeExtSchema } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
-import { FileEntryIdSchema, FileEntrySchema, SafeExtSchema, SafeNameSchema } from '../file'
+import { FileEntryIdSchema, FileEntrySchema, SafeNameSchema } from '../file'
 
 // ─── Helpers ───
 

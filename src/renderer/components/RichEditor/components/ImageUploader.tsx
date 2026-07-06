@@ -112,7 +112,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
 
   return (
     <Dialog open={visible} onOpenChange={(open) => !open && handleCancel()}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>{t('richEditor.imageUploader.title')}</DialogTitle>
         </DialogHeader>

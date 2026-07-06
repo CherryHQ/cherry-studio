@@ -2,8 +2,8 @@ import * as crypto from 'node:crypto'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
-import { pathExists } from '@main/utils/file'
 import { copyDirectoryRecursive, deleteDirectoryRecursive } from '@main/utils/fileOperations'
+import { pathExists } from '@main/utils/legacyFile'
 import { findSkillMdPath } from '@main/utils/markdownParser'
 import * as fs from 'fs'
 

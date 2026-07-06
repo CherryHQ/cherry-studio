@@ -12,7 +12,7 @@ import {
   useUpdateKnowledgeBase
 } from '../useKnowledgeBase'
 
-type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'>
+type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'>
 
 const mockUseQuery = vi.fn()
 const mockUseMutation = vi.fn()
@@ -130,9 +130,7 @@ describe('useCreateKnowledgeBase', () => {
     mockIpcRequest.mockResolvedValueOnce(createdBase)
     const input: CreateKnowledgeBaseInput = {
       name: '  Base 2  ',
-      groupId: 'group-2',
-      embeddingModelId: 'openai::text-embedding-3-small',
-      dimensions: 2048
+      groupId: 'group-2'
     }
 
     const { result } = renderHook(() => useCreateKnowledgeBase())
@@ -146,9 +144,7 @@ describe('useCreateKnowledgeBase', () => {
     expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.create_base', {
       base: {
         name: 'Base 2',
-        groupId: 'group-2',
-        embeddingModelId: 'openai::text-embedding-3-small',
-        dimensions: 2048
+        groupId: 'group-2'
       }
     })
     expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases')
@@ -166,9 +162,7 @@ describe('useCreateKnowledgeBase', () => {
     })
     mockIpcRequest.mockResolvedValueOnce(createdBase)
     const input: CreateKnowledgeBaseInput = {
-      name: 'Base 3',
-      embeddingModelId: 'openai::text-embedding-3-small',
-      dimensions: 1536
+      name: 'Base 3'
     }
 
     const { result } = renderHook(() => useCreateKnowledgeBase())
@@ -179,9 +173,7 @@ describe('useCreateKnowledgeBase', () => {
 
     expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.create_base', {
       base: {
-        name: 'Base 3',
-        embeddingModelId: 'openai::text-embedding-3-small',
-        dimensions: 1536
+        name: 'Base 3'
       }
     })
   })
@@ -190,9 +182,7 @@ describe('useCreateKnowledgeBase', () => {
     const createError = new Error('create failed')
     mockIpcRequest.mockRejectedValueOnce(createError)
     const input: CreateKnowledgeBaseInput = {
-      name: 'Base 4',
-      embeddingModelId: 'openai::text-embedding-3-small',
-      dimensions: 1536
+      name: 'Base 4'
     }
     const { result } = renderHook(() => useCreateKnowledgeBase())
 
@@ -205,8 +195,7 @@ describe('useCreateKnowledgeBase', () => {
     expect(result.current.createError).toBe(createError)
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to create knowledge base', createError, {
       name: 'Base 4',
-      groupId: undefined,
-      embeddingModelId: 'openai::text-embedding-3-small'
+      groupId: undefined
     })
   })
 })

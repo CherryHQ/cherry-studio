@@ -64,6 +64,7 @@ local
 .zed/*
 !.zed/settings.json.example
 CLAUDE.local.md
+AGENTS.override.md
 
 # vitest
 coverage

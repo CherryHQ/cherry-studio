@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { isBlockedSourceFile } from '../assistant'
+import { isAllowedAssistantNavigationPath, isBlockedSourceFile } from '../assistant'
 
 describe('isBlockedSourceFile', () => {
   it('blocks every dotenv variant (except the .env.example template)', () => {
@@ -31,5 +31,20 @@ describe('isBlockedSourceFile', () => {
     for (const name of ['index.ts', 'README.md', 'package.json', 'env.ts']) {
       expect(isBlockedSourceFile(name)).toBe(false)
     }
+  })
+})
+
+describe('isAllowedAssistantNavigationPath', () => {
+  it('allows exact routes and nested routes only', () => {
+    expect(isAllowedAssistantNavigationPath('/')).toBe(true)
+    expect(isAllowedAssistantNavigationPath('/agents')).toBe(true)
+    expect(isAllowedAssistantNavigationPath('/agents/assistant-1')).toBe(true)
+    expect(isAllowedAssistantNavigationPath('/settings/provider')).toBe(true)
+  })
+
+  it('blocks removed routes and prefix lookalikes', () => {
+    expect(isAllowedAssistantNavigationPath('/store')).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/app/library')).toBe(false)
+    expect(isAllowedAssistantNavigationPath('/agents-legacy')).toBe(false)
   })
 })

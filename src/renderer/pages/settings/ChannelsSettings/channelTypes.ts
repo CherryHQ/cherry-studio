@@ -1,3 +1,5 @@
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+
 export type AvailableChannel = {
   type: 'telegram' | 'feishu' | 'qq' | 'wechat' | 'discord' | 'slack'
   name: string
@@ -71,6 +73,7 @@ export type ChannelData = {
   name: string
   agentId?: string | null
   sessionId?: string | null
+  workspace?: AgentSessionWorkspaceSource
   config: Record<string, unknown>
   isActive: boolean
   permissionMode?: string | null

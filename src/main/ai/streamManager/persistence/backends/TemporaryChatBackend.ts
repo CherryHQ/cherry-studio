@@ -25,10 +25,10 @@ export class TemporaryChatBackend implements PersistenceBackend {
 
   constructor(private readonly opts: TemporaryChatBackendOptions) {}
 
-  async persistAssistant(input: PersistAssistantInput): Promise<void> {
+  persistAssistant(input: PersistAssistantInput): void {
     const { finalMessage, status, stats } = input
     const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
-    await temporaryChatService.appendMessage(this.opts.topicId, {
+    temporaryChatService.appendMessage(this.opts.topicId, {
       role: 'assistant',
       data: { parts },
       status,

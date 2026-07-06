@@ -1,4 +1,3 @@
-import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { ComposerClipboardFragment, ComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
 import { createComposerAttachmentFromComposerClipboardToken } from '@renderer/utils/message/composerClipboard'
@@ -12,6 +11,9 @@ import {
 } from './composerTokenMarkers'
 import { createPromptVariableMarkerRule } from './promptVariables'
 import type { ComposerDraftToken } from './tokens'
+
+/** Pasted text longer than this (in characters) is offered as a file attachment instead of inlined. */
+export const LONG_TEXT_PASTE_THRESHOLD = 1500
 
 interface ComposerPlainTextPasteOptions {
   promptVariableStartIndex?: number

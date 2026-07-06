@@ -1,9 +1,9 @@
 import { CodeEditor, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useRef, useState } from 'react'
 
-import { TopView } from '../TopView'
+import { TopView } from '../TopView/TopView'
 
 const CLOSE_ANIMATION_MS = 200
 

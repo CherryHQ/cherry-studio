@@ -49,7 +49,7 @@ vi.mock('../useProviderEndpoints', () => ({
   useProviderEndpoints: (...args: any[]) => useProviderEndpointsMock(...args)
 }))
 
-vi.mock('@renderer/services/ApiService', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettings/utils/healthCheck', () => ({
   checkApi: (...args: any[]) => checkApiMock(...args)
 }))
 
@@ -105,8 +105,8 @@ describe('useProviderConnectionCheck', () => {
       commitInputApiKeyNow: commitInputApiKeyNowMock
     })
     useProviderEndpointsMock.mockReturnValue({
-      apiHost: 'https://open.cherryin.cc',
-      anthropicApiHost: 'https://anthropic.cherryin.cc'
+      apiHost: 'https://open.cherryin.net',
+      anthropicApiHost: 'https://open.cherryin.net'
     })
   })
 

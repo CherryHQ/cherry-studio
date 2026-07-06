@@ -3,12 +3,16 @@ import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { formatFileSize } from '@renderer/utils/file'
 import { useTranslation } from 'react-i18next'
 
+import type {
+  ReadToolInput as ReadToolInputType,
+  ReadToolOutput as ReadToolOutputType,
+  TextOutput
+} from '../shared/agentToolTypes'
+import { AgentToolsType } from '../shared/agentToolTypes'
+import { ClickableFilePath } from '../shared/ClickableFilePath'
+import { SkeletonValue, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
-import { ClickableFilePath } from './ClickableFilePath'
-import { SkeletonValue, ToolHeader, TruncatedIndicator } from './GenericTools'
-import type { ReadToolInput as ReadToolInputType, ReadToolOutput as ReadToolOutputType, TextOutput } from './types'
-import { AgentToolsType } from './types'
 
 const removeSystemReminderTags = (text: string): string => {
   return text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/gi, '')

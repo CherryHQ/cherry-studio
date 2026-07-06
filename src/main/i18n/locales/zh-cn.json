@@ -1,0 +1,87 @@
+{
+  "agent": {
+    "session": {
+      "workspace_status": {
+        "inaccessible": "工作区路径不可访问：{{path}}",
+        "missing": "工作区路径不存在：{{path}}",
+        "not_directory": "工作区路径不是目录：{{path}}"
+      }
+    }
+  },
+  "appMenu": {
+    "about": "关于",
+    "close": "关闭窗口",
+    "copy": "复制",
+    "cut": "剪切",
+    "delete": "删除",
+    "documentation": "文档",
+    "edit": "编辑",
+    "feedback": "反馈",
+    "file": "文件",
+    "forceReload": "强制重新加载",
+    "front": "全部置于顶层",
+    "help": "帮助",
+    "hide": "隐藏",
+    "hideOthers": "隐藏其他",
+    "minimize": "最小化",
+    "paste": "粘贴",
+    "quit": "退出",
+    "redo": "重做",
+    "releases": "版本发布",
+    "reload": "重新加载",
+    "resetZoom": "实际大小",
+    "selectAll": "全选",
+    "services": "服务",
+    "toggleDevTools": "切换开发者工具",
+    "toggleFullscreen": "切换全屏",
+    "undo": "撤销",
+    "unhide": "全部显示",
+    "view": "视图",
+    "website": "网站",
+    "window": "窗口",
+    "zoom": "缩放",
+    "zoomIn": "放大",
+    "zoomOut": "缩小"
+  },
+  "common": {
+    "copy": "复制",
+    "cut": "剪切",
+    "inspect": "检查",
+    "paste": "粘贴"
+  },
+  "dialog": {
+    "all_files": "所有文件",
+    "html_files": "HTML 文件",
+    "open_file": "打开文件",
+    "pdf_files": "PDF 文件",
+    "png_image": "PNG 图片",
+    "save_as_html": "保存为 HTML",
+    "save_as_pdf": "保存为 PDF",
+    "save_file": "保存文件",
+    "select_folder": "选择文件夹",
+    "word_document": "Word 文档"
+  },
+  "paintings": {
+    "generate_failed": "生成图像失败",
+    "image_mix_failed": "图像混合失败"
+  },
+  "selection": {
+    "name": "划词助手"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "您可以关闭此页面并返回 Cherry Studio",
+          "title": "认证成功"
+        }
+      }
+    },
+    "title": "设置"
+  },
+  "tray": {
+    "quit": "退出",
+    "show_quick_assistant": "快捷助手",
+    "show_window": "显示窗口"
+  }
+}

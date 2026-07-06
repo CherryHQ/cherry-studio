@@ -34,7 +34,7 @@ vi.mock('node:fs/promises', () => ({
   default: { lstat: lstatMock, rmdir: rmdirMock }
 }))
 
-vi.mock('@main/utils/file/fs', () => ({
+vi.mock('@main/utils/file', () => ({
   copy: copyMock,
   write: writeMock,
   ensureDir: ensureDirMock,

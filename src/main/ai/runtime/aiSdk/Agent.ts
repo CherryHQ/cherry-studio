@@ -8,8 +8,8 @@ import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChu
 
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
-import type { AgentLoopHooks, AgentLoopParams } from './loop'
-import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/internal'
+import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
+import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
 import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
 

@@ -80,6 +80,25 @@ async execute(ctx: JobContext<RemotePollInput>): Promise<RemoteResult> {
 
 Anti-pattern: `while (true)` (cannot be cancelled), `await sleep(N)` without signal (delays cancellation by up to N ms).
 
+## Settled event (`onSettled`)
+
+`onSettled?(event: JobSettledEvent<TPayload>)` fires once when a job reaches a terminal state (errors are caught + logged, never propagated). The event is a projection of the persisted terminal snapshot — no `jobService.getById` reverse lookup needed:
+
+| Field | Type | Notes |
+|---|---|---|
+| `jobId` | `string` | |
+| `type` | `string` | |
+| `scheduleId` | `string \| null` | Set when the job came from a schedule fire |
+| `parentId` | `string \| null` | `opts.parentId` at enqueue; `null` for root jobs |
+| `status` | `'completed' \| 'failed' \| 'cancelled'` | |
+| `input` | `TPayload` | Persisted input payload, typed via the handler registration |
+| `output` | `unknown` (optional) | Handler return value on `completed` |
+| `error` | `JobError \| null` | |
+| `attempt` | `number` | |
+| `metadata` | `Readonly<Record<string, unknown>>` | Final value — includes every `patchMetadata` merge |
+
+`JobContext` exposes the same row-level parent linkage during execution: `ctx.parentId` is `opts.parentId` at enqueue, or `null` for root jobs.
+
 ## 3. Schedule identity: `(type, name)` model
 
 A schedule row in `jobScheduleTable` is identified by the pair `(type, name)`. A `type` can host any number of **named** schedules plus at most one **singleton** (unnamed). The `(type, name)` pair is DB-unique.

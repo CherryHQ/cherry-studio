@@ -10,7 +10,7 @@ describe('MiniAppSeeder', () => {
 
   it('should insert all preset miniApps on empty table', async () => {
     const seed = new MiniAppSeeder()
-    await seed.run(dbh.db)
+    seed.run(dbh.db)
 
     const rows = await dbh.db.select().from(miniAppTable)
     expect(rows).toHaveLength(PRESETS_MINI_APPS.length)
@@ -35,7 +35,7 @@ describe('MiniAppSeeder', () => {
     })
 
     const seed = new MiniAppSeeder()
-    await seed.run(dbh.db)
+    seed.run(dbh.db)
 
     const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
     expect(row.name).toBe(preset.name)
@@ -53,7 +53,7 @@ describe('MiniAppSeeder', () => {
     })
 
     const seed = new MiniAppSeeder()
-    await seed.run(dbh.db)
+    seed.run(dbh.db)
 
     const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
     expect(row.status).toBe('disabled')
@@ -71,7 +71,7 @@ describe('MiniAppSeeder', () => {
     })
 
     const seed = new MiniAppSeeder()
-    await seed.run(dbh.db)
+    seed.run(dbh.db)
 
     const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'my-custom-app'))
     expect(row).toBeDefined()
@@ -95,7 +95,7 @@ describe('MiniAppSeeder', () => {
     })
 
     const seed = new MiniAppSeeder()
-    await seed.run(dbh.db)
+    seed.run(dbh.db)
 
     const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
     expect(row.presetMiniAppId).toBeNull()

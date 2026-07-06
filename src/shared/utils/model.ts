@@ -65,11 +65,20 @@ export const isGenerateAudioModel = (model: Model): boolean =>
 export const isEditImageModel = (model: Model): boolean =>
   !!(model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) && model.inputModalities?.includes(MODALITY.IMAGE))
 
+// A dedicated speech-to-text model is identified by the explicit AUDIO_TRANSCRIPT
+// capability only. Accepting audio as an *input modality* does NOT make a model
+// speech-to-text — multimodal chat LLMs (Gemini, GPT-4o, …) take audio input yet are
+// still general chat models, and keying on the modality wrongly classified them as
+// non-chat (via `isNonChatModel`) and hid them from every model picker.
 export const isSpeechToTextModel = (model: Model): boolean =>
-  !!(model.capabilities.includes(MODEL_CAPABILITY.AUDIO_TRANSCRIPT) || model.inputModalities?.includes(MODALITY.AUDIO))
+  model.capabilities.includes(MODEL_CAPABILITY.AUDIO_TRANSCRIPT)
 
+// Mirror of `isSpeechToTextModel`: a dedicated text-to-speech model is identified by
+// the explicit AUDIO_GENERATION capability only. Producing audio as an *output
+// modality* does NOT make a model text-to-speech — multimodal chat LLMs can emit audio
+// yet still chat, and keying on the modality wrongly classified them as non-chat.
 export const isTextToSpeechModel = (model: Model): boolean =>
-  !!(model.capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION) || model.outputModalities?.includes(MODALITY.AUDIO))
+  model.capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION)
 
 /** Check if model is a dedicated text-to-image model (no text chat) */
 export const isTextToImageModel = (model: Model): boolean =>

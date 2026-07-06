@@ -3,7 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 // Direct `Selector/model` path: the `Selector` barrel's nested `export *` isn't
 // resolved by tsgo on main's program (resolves on feat's). Transitional; reverts
 // to the barrel once main converges with feat.
-import { ModelSelector } from '@renderer/components/Selector/model'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { ChevronDown, X } from 'lucide-react'

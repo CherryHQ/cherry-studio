@@ -1,4 +1,4 @@
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { useEffect, useState } from 'react'
 

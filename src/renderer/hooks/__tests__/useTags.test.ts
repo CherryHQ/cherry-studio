@@ -1,4 +1,4 @@
-import { DataApiError, ErrorCode } from '@shared/data/api'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Tag } from '@shared/data/types/tag'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

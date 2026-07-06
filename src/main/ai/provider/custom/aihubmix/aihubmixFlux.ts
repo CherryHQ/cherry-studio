@@ -1,8 +1,9 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
+import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
-import { readErrorMessage } from '@shared/ai/readErrorMessage'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import { readErrorMessage } from '../readErrorMessage'
 import { createAbortError, fileToDataUrl, waitWithSignal } from '../transportUtils'
 
 /**
@@ -105,7 +106,7 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
     })
 
     if (!response.ok) {
-      const message = await readErrorMessage(response, 'paintings.generate_failed')
+      const message = await readErrorMessage(response, t('paintings.generate_failed'))
       throw createPaintingGenerateError('REMOTE_ERROR', { message })
     }
 
@@ -143,7 +144,7 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
           signal: options.signal
         })
         if (!response.ok) {
-          const message = await readErrorMessage(response, 'paintings.generate_failed')
+          const message = await readErrorMessage(response, t('paintings.generate_failed'))
           throw new Error(message)
         }
         json = (await response.json()) as typeof json

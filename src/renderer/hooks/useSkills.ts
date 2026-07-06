@@ -1,6 +1,6 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { searchSkills } from '@renderer/services/SkillSearchService'
+import { searchSkills } from '@renderer/utils/skillSearch'
 import type { InstalledSkill, LocalSkill, SkillResult, SkillSearchResult } from '@shared/types/skill'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 

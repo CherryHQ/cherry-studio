@@ -6,7 +6,7 @@ const { fetchUrls, searchKeywords } = vi.hoisted(() => ({
   searchKeywords: vi.fn()
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'WebSearchService') return { fetchUrls, searchKeywords }

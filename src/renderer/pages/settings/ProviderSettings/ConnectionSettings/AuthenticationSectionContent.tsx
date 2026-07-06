@@ -1,3 +1,6 @@
+import { useProvider } from '@renderer/hooks/useProvider'
+import { isLoginBasedProvider } from '@shared/utils/provider'
+
 import { useProviderConnectionCheck } from '../hooks/providerSetting/useProviderConnectionCheck'
 import ApiHost from './ApiHost'
 import ApiKey from './ApiKey'
@@ -13,6 +16,14 @@ export function AuthenticationSectionContent({
   onOpenModelHealthCheck
 }: AuthenticationSectionContentProps) {
   const connectionCheck = useProviderConnectionCheck(providerId)
+  const { provider } = useProvider(providerId)
+
+  // Login-based providers (claude-code CLI login, codex/grok OAuth) accept no API
+  // key — their sign-in panels render through the provider-specific registry, so
+  // suppress the generic api-key/host UI. Derived from registry `authMethods`.
+  if (provider && isLoginBasedProvider(provider)) {
+    return null
+  }
 
   return (
     <>

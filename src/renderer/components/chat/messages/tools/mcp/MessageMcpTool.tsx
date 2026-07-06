@@ -1,8 +1,8 @@
 import { CircularProgress, Flex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
-import { CopyIcon } from '@renderer/components/Icons'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { McpToolResponse } from '@renderer/types/mcpTool'
 import { Check, ShieldCheck, Wrench } from 'lucide-react'
@@ -16,9 +16,9 @@ import {
   useOptionalMessageListActions,
   useOptionalMessageListUi
 } from '../../MessageListProvider'
-import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../agent/GenericTools'
 import { useToolApproval } from '../hooks/useToolApproval'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, ResponseSection } from '../shared/ArgsTable'
+import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../shared/GenericTools'
 import { ToolDisclosure, type ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
 

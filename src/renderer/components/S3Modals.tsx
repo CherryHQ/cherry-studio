@@ -89,7 +89,7 @@ export function S3BackupModal({
           handleCancel()
         }
       }}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>{t('settings.data.s3.backup.modal.title')}</DialogTitle>
         </DialogHeader>
@@ -245,7 +245,7 @@ export function S3RestoreModal({
           handleCancel()
         }
       }}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>{t('settings.data.s3.restore.modal.title')}</DialogTitle>
         </DialogHeader>

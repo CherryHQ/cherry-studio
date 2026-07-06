@@ -1,18 +1,16 @@
 import type { UseNavigateResult } from '@tanstack/react-router'
 
-// Tab 导航服务 - 用于在非 React 组件中进行路由导航
-interface INavigationService {
-  navigate: UseNavigateResult<string> | null
-  setNavigate: (navigateFunc: UseNavigateResult<string>) => void
-}
+/**
+ * Bridges the router's `navigate` to non-React callers (e.g. settings deep-links).
+ * Holds the navigate fn set once per window by the app shell, so it is a stateful
+ * singleton capability (naming-conventions §5.2).
+ */
+class NavigationService {
+  navigate: UseNavigateResult<string> | null = null
 
-const NavigationService: INavigationService = {
-  navigate: null,
-
-  setNavigate: (navigateFunc: UseNavigateResult<string>): void => {
-    NavigationService.navigate = navigateFunc
-    window.navigate = NavigationService.navigate
+  setNavigate(navigateFunc: UseNavigateResult<string>): void {
+    this.navigate = navigateFunc
   }
 }
 
-export default NavigationService
+export const navigationService = new NavigationService()

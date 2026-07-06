@@ -2,9 +2,11 @@ import { dataApiService } from '@data/DataApiService'
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { type ChatPanePosition, ConversationShell } from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
+import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
+import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
+import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
+import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -32,15 +34,17 @@ interface Props {
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   showResourceListControls?: boolean
   sidebarOpen?: boolean
   onSidebarToggle?: () => void
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
+  resourcePaneCount?: ResourcePaneCountButtonProps
 }
 
-const ChatInner: FC<Props> = (props) => {
+const Chat: FC<Props> = (props) => {
   const { updateTopic: patchTopic } = useTopicMutations()
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
@@ -218,7 +222,13 @@ const ChatInner: FC<Props> = (props) => {
           onSidebarToggle={props.onSidebarToggle}
         />
       }
-      topRightTool={<TopicRightPane.Toggle disabled={branchPaneDisabled} />}
+      topRightTool={
+        <>
+          {props.resourcePaneCount && <ResourcePaneCountButton {...props.resourcePaneCount} />}
+          <TopicRightPane.Shortcuts topicId={props.activeTopic.id} />
+          <TopicRightPane.Toggle />
+        </>
+      }
       sidePanel={
         <CitationsPanel
           open={citationsPanelOpen}
@@ -232,6 +242,7 @@ const ChatInner: FC<Props> = (props) => {
           topic={props.activeTopic}
           onOpenCitationsPanel={handleOpenCitationsPanel}
           onNewTopic={props.onNewTopic}
+          onCreateEmptyTopic={props.onCreateEmptyTopic}
           locateMessageId={locateMessageId}
           onLocateMessageHandled={handleLocateMessageHandled}
           onBranchLiveStateChange={handleBranchLiveStateChange}
@@ -279,11 +290,5 @@ const ChatInner: FC<Props> = (props) => {
     />
   )
 }
-
-const Chat: FC<Props> = (props) => (
-  <TopicRightPane>
-    <ChatInner {...props} />
-  </TopicRightPane>
-)
 
 export default Chat

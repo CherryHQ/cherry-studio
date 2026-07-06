@@ -1,4 +1,4 @@
-import { isFunctionCallingModel } from '@renderer/config/models'
+import { isFunctionCallingModel } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 
 /**

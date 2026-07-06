@@ -104,14 +104,10 @@ export class ProtocolService extends BaseService {
           handleNavigateProtocolUrl(urlObj)
           return
         case 'oauth':
-          // CherryIN OAuth callback. CherryInOauthService delivers the result
-          // point-to-point to the renderer that started the flow, so the `code`
-          // never reaches unrelated windows. PPIO/Nutstore deep links use
-          // different hosts and still go through the broadcast fallback below.
           application
-            .get('CherryInOauthService')
-            .handleOAuthCallback(urlObj)
-            .catch((error) => logger.error('Failed to handle CherryIN OAuth callback', error as Error))
+            .get('OAuthRuntimeService')
+            .handleDeepLinkCallback(urlObj)
+            .catch((error) => logger.error('Failed to handle OAuth callback', error as Error))
           return
       }
 

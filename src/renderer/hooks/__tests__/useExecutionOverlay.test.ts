@@ -1,56 +1,69 @@
+import type { ExecutionTerminal } from '@renderer/services/aiTransport'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ExecutionTerminal } from '../../transport/TopicStreamSubscription'
-
 // ── Controllable fake TopicStreamSubscription ───────────────────────────
 const { fake } = vi.hoisted(() => {
-  type Branch = { stream: ReadableStream<unknown>; controller: ReadableStreamDefaultController<unknown> }
+  type Branch = {
+    executionId: string
+    anchorMessageId?: string
+    stream: ReadableStream<unknown>
+    controller: ReadableStreamDefaultController<unknown>
+  }
   const branches = new Map<string, Branch>()
   const terminalCbs = new Set<(id: string, t: ExecutionTerminal) => void>()
+  const keyOf = (executionId: string, anchorMessageId?: string) =>
+    JSON.stringify([executionId, anchorMessageId ?? null])
+  const findBranch = (executionId: string, anchorMessageId?: string) => {
+    const exact = branches.get(keyOf(executionId, anchorMessageId))
+    if (exact || anchorMessageId !== undefined) return exact
+    return [...branches.values()].find((branch) => branch.executionId === executionId)
+  }
   const api = {
     branches,
     terminalCbs,
-    register(executionId: string) {
-      let b = branches.get(executionId)
+    register(executionId: string, anchorMessageId?: string) {
+      const key = keyOf(executionId, anchorMessageId)
+      let b = branches.get(key)
       if (!b) {
         let controller!: ReadableStreamDefaultController<unknown>
         const stream = new ReadableStream<unknown>({ start: (c) => (controller = c) })
-        b = { stream, controller }
-        branches.set(executionId, b)
+        b = { executionId, anchorMessageId, stream, controller }
+        branches.set(key, b)
       }
       return b.stream
     },
-    unregister(executionId: string) {
-      const b = branches.get(executionId)
+    unregister(executionId: string, anchorMessageId?: string) {
+      const key = keyOf(executionId, anchorMessageId)
+      const b = branches.get(key)
       try {
         b?.controller.close()
       } catch {
         /* already closed */
       }
-      branches.delete(executionId)
+      branches.delete(key)
     },
     onExecutionTerminal(cb: (id: string, t: ExecutionTerminal) => void) {
       terminalCbs.add(cb)
       return () => terminalCbs.delete(cb)
     },
     // test helpers
-    emit(executionId: string, chunk: CherryUIMessageChunk) {
-      branches.get(executionId)?.controller.enqueue(chunk)
+    emit(executionId: string, chunk: CherryUIMessageChunk, anchorMessageId?: string) {
+      findBranch(executionId, anchorMessageId)?.controller.enqueue(chunk)
     },
-    close(executionId: string) {
+    close(executionId: string, anchorMessageId?: string) {
       try {
-        branches.get(executionId)?.controller.close()
+        findBranch(executionId, anchorMessageId)?.controller.close()
       } catch {
         /* noop */
       }
     },
-    terminal(executionId: string, t: ExecutionTerminal) {
-      for (const cb of terminalCbs) cb(executionId, t)
-      api.close(executionId)
+    terminal(executionId: string, t: ExecutionTerminal, anchorMessageId?: string) {
+      for (const cb of terminalCbs) cb(executionId, { ...t, anchorMessageId })
+      api.close(executionId, anchorMessageId)
     },
     reset() {
       branches.clear()
@@ -77,12 +90,19 @@ const exec = (executionId: UniqueModelId, anchorMessageId?: string): ActiveExecu
 const asst = (id: string, parts: CherryUIMessage['parts'] = []): CherryUIMessage =>
   ({ id, role: 'assistant', parts }) as CherryUIMessage
 
-function streamText(executionId: string, textId: string, text: string, opts?: { startId?: string }) {
-  if (opts?.startId) fake.emit(executionId, { type: 'start', messageId: opts.startId } as CherryUIMessageChunk)
-  fake.emit(executionId, { type: 'text-start', id: textId } as CherryUIMessageChunk)
-  fake.emit(executionId, { type: 'text-delta', id: textId, delta: text } as CherryUIMessageChunk)
-  fake.emit(executionId, { type: 'text-end', id: textId } as CherryUIMessageChunk)
-  fake.emit(executionId, { type: 'finish' } as CherryUIMessageChunk)
+function streamText(
+  executionId: string,
+  textId: string,
+  text: string,
+  opts?: { startId?: string; anchorMessageId?: string }
+) {
+  if (opts?.startId) {
+    fake.emit(executionId, { type: 'start', messageId: opts.startId } as CherryUIMessageChunk, opts.anchorMessageId)
+  }
+  fake.emit(executionId, { type: 'text-start', id: textId } as CherryUIMessageChunk, opts?.anchorMessageId)
+  fake.emit(executionId, { type: 'text-delta', id: textId, delta: text } as CherryUIMessageChunk, opts?.anchorMessageId)
+  fake.emit(executionId, { type: 'text-end', id: textId } as CherryUIMessageChunk, opts?.anchorMessageId)
+  fake.emit(executionId, { type: 'finish' } as CherryUIMessageChunk, opts?.anchorMessageId)
 }
 
 function textOf(parts: CherryUIMessage['parts'] | undefined): string {
@@ -134,6 +154,27 @@ describe('useExecutionOverlay', () => {
     await waitFor(() => expect(textOf(result.current.overlay['anchor-2'])).toBe('round-2'))
     // No "round-1 + round-2" on the new anchor; old anchor not re-streamed.
     expect(textOf(result.current.overlay['anchor-2'])).toBe('round-2')
+    expect(result.current.overlay['anchor-1']).toBeUndefined()
+  })
+
+  it('N2b — same model direct anchor switch starts a fresh reader', async () => {
+    const ui1 = [asst('anchor-1')]
+    const { result, rerender } = renderHook(
+      ({ execs, ui }: { execs: ActiveExecution[]; ui: CherryUIMessage[] }) => useExecutionOverlay(TOPIC, execs, ui),
+      { initialProps: { execs: [exec(A, 'anchor-1')], ui: ui1 } }
+    )
+
+    streamText(A, 't1', 'round-1', { anchorMessageId: 'anchor-1' })
+    await waitFor(() => expect(textOf(result.current.overlay['anchor-1'])).toBe('round-1'))
+
+    const ui2 = [asst('anchor-1', [{ type: 'text', text: 'round-1' }]), asst('anchor-2')]
+    await act(async () => {
+      rerender({ execs: [exec(A, 'anchor-2')], ui: ui2 })
+      await Promise.resolve()
+    })
+
+    streamText(A, 't2', 'round-2', { anchorMessageId: 'anchor-2' })
+    await waitFor(() => expect(textOf(result.current.overlay['anchor-2'])).toBe('round-2'))
     expect(result.current.overlay['anchor-1']).toBeUndefined()
   })
 

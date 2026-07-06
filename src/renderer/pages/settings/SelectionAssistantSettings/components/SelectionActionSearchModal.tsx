@@ -203,7 +203,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
 
   return (
     <Dialog open={isModalOpen} onOpenChange={(next) => !next && onCancel()}>
-      <DialogContent className="sm:max-w-120">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-120">
         <DialogHeader>
           <DialogTitle>{t('selection.settings.search_modal.title')}</DialogTitle>
         </DialogHeader>

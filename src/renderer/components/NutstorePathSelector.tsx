@@ -1,6 +1,6 @@
 import { Button, Input, RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { FolderIcon as NutstoreFolderIcon } from '@renderer/components/Icons/NutstoreIcons'
+import { FolderIcon as NutstoreFolderIcon } from '@renderer/components/icons/NutstoreIcons'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

@@ -1,5 +1,5 @@
 import { ThinkingToolRuntime } from '@renderer/components/composer/tools/components/ThinkingButton'
-import { defineTool, registerTool, TopicType } from '@renderer/components/composer/tools/types'
+import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
 
 const thinkingTool = defineTool({
   key: 'thinking',
@@ -17,7 +17,5 @@ const thinkingTool = defineTool({
     )
   }
 })
-
-registerTool(thinkingTool)
 
 export default thinkingTool

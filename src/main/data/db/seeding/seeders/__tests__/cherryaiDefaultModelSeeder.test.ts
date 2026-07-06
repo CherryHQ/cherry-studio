@@ -43,7 +43,7 @@ describe('CherryAiDefaultModelSeeder', () => {
   }
 
   it('seeds CherryAI provider, Qwen model, and missing default model preferences', async () => {
-    await new CherryAiDefaultModelSeeder().run(dbh.db)
+    new CherryAiDefaultModelSeeder().run(dbh.db)
 
     const [provider] = await dbh.db
       .select()
@@ -110,7 +110,7 @@ describe('CherryAiDefaultModelSeeder', () => {
       }
     ])
 
-    await new CherryAiDefaultModelSeeder().run(dbh.db)
+    new CherryAiDefaultModelSeeder().run(dbh.db)
 
     expect(await readPreferenceValue('chat.default_model_id')).toBe('openai::gpt-4o')
     expect(await readPreferenceValue('topic.naming.model_id')).toBe('openai::gpt-4o-mini')
@@ -127,7 +127,7 @@ describe('CherryAiDefaultModelSeeder', () => {
       }))
     )
 
-    await new CherryAiDefaultModelSeeder().run(dbh.db)
+    new CherryAiDefaultModelSeeder().run(dbh.db)
 
     for (const key of DEFAULT_MODEL_PREFERENCE_KEYS) {
       expect(await readPreferenceValue(key)).toBeNull()
@@ -143,7 +143,7 @@ describe('CherryAiDefaultModelSeeder', () => {
       }))
     )
 
-    await new CherryAiDefaultModelSeeder().run(dbh.db)
+    new CherryAiDefaultModelSeeder().run(dbh.db)
 
     for (const key of DEFAULT_MODEL_PREFERENCE_KEYS) {
       expect(await readPreferenceValue(key)).toBe('')
@@ -158,7 +158,7 @@ describe('CherryAiDefaultModelSeeder', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    await new CherryAiDefaultModelSeeder().run(dbh.db)
+    new CherryAiDefaultModelSeeder().run(dbh.db)
 
     const [provider] = await dbh.db
       .select()

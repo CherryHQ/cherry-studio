@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { AssistantMigrator } from '../AssistantMigrator'
 import { ChatMigrator } from '../ChatMigrator'
-import { getAllMigrators } from '../index'
+import { getAllMigrators } from '../migratorRegistry'
 import { PromptMigrator } from '../PromptMigrator'
 import { TranslateMigrator } from '../TranslateMigrator'
 

@@ -92,19 +92,9 @@ export function useMigrationProgress() {
     }
   }, [applyMigrationStageTiming])
 
-  const returnToIntroduction = useCallback(() => {
-    void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReturnToIntroduction)
-  }, [])
-
-  const returnToBackupChoice = useCallback(() => {
-    void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReturnToBackupChoice)
-  }, [])
-
   return {
     progress,
-    lastError,
-    returnToIntroduction,
-    returnToBackupChoice
+    lastError
   }
 }
 
@@ -112,18 +102,6 @@ export function useMigrationProgress() {
  * Hook for migration actions
  */
 export function useMigrationActions() {
-  const proceedToBackup = useCallback(() => {
-    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ProceedToBackup)
-  }, [])
-
-  const confirmBackup = useCallback(() => {
-    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.BackupCompleted)
-  }, [])
-
-  const showBackupDialog = useCallback(() => {
-    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ShowBackupDialog)
-  }, [])
-
   const startMigration = useCallback(async (payload: StartMigrationPayload) => {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.StartMigration, payload)
   }, [])
@@ -145,9 +123,6 @@ export function useMigrationActions() {
   }, [])
 
   return {
-    proceedToBackup,
-    confirmBackup,
-    showBackupDialog,
     startMigration,
     retry,
     cancel,

@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import { codeCLI } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -37,13 +37,13 @@ vi.mock('../CodeHeroIllustrationIcon', () => ({
 }))
 
 const claudeTool = {
-  value: codeCLI.claudeCode,
+  value: CodeCli.CLAUDE_CODE,
   label: 'Claude Code',
   icon: () => <span />
 } as const
 
 const codexTool = {
-  value: codeCLI.openaiCodex,
+  value: CodeCli.OPENAI_CODEX,
   label: 'OpenAI Codex',
   icon: () => <span />
 } as const

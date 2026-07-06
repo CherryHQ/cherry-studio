@@ -1,5 +1,5 @@
-import { useImageTools } from '@renderer/components/ActionTools/hooks/useImageTools'
-import { LoadingIcon } from '@renderer/components/Icons'
+import { useImageTools } from '@renderer/components/ActionTools'
+import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import { memo, useImperativeHandle } from 'react'
 
 import ImageToolbar from './ImageToolbar'

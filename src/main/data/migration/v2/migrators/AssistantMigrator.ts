@@ -244,10 +244,10 @@ export class AssistantMigrator extends BaseMigrator {
       // Uses the migrator-side helper per data-ordering-guide.md §5.
       const orderedAssistantRows = assignOrderKeysInSequence(sanitizedAssistantRows)
 
-      await ctx.db.transaction(async (tx) => {
+      ctx.db.transaction((tx) => {
         for (let i = 0; i < orderedAssistantRows.length; i += BATCH_SIZE) {
           const batch = orderedAssistantRows.slice(i, i + BATCH_SIZE)
-          await tx.insert(assistantTable).values(batch)
+          tx.insert(assistantTable).values(batch).run()
           processed += batch.length
         }
 
@@ -273,7 +273,9 @@ export class AssistantMigrator extends BaseMigrator {
           })
           .filter((row): row is NonNullable<typeof row> => row !== null)
         for (let i = 0; i < mcpServerRows.length; i += BATCH_SIZE) {
-          await tx.insert(assistantMcpServerTable).values(mcpServerRows.slice(i, i + BATCH_SIZE))
+          tx.insert(assistantMcpServerTable)
+            .values(mcpServerRows.slice(i, i + BATCH_SIZE))
+            .run()
         }
         if (allMcpServerRows.length !== mcpServerRows.length) {
           logger.info(`Filtered ${allMcpServerRows.length - mcpServerRows.length} dangling mcp_server references`)
@@ -297,7 +299,11 @@ export class AssistantMigrator extends BaseMigrator {
             : new Map<string, string>()
         const allKnowledgeBaseRows = this.preparedResults.flatMap((r) => r.knowledgeBases)
         const existingKnowledgeBaseIds = new Set(
-          (await tx.select({ id: knowledgeBaseTable.id }).from(knowledgeBaseTable)).map((r) => r.id)
+          tx
+            .select({ id: knowledgeBaseTable.id })
+            .from(knowledgeBaseTable)
+            .all()
+            .map((r) => r.id)
         )
         const knowledgeBaseRows = allKnowledgeBaseRows
           .map((row) => {
@@ -312,7 +318,9 @@ export class AssistantMigrator extends BaseMigrator {
             return false
           })
         for (let i = 0; i < knowledgeBaseRows.length; i += BATCH_SIZE) {
-          await tx.insert(assistantKnowledgeBaseTable).values(knowledgeBaseRows.slice(i, i + BATCH_SIZE))
+          tx.insert(assistantKnowledgeBaseTable)
+            .values(knowledgeBaseRows.slice(i, i + BATCH_SIZE))
+            .run()
         }
         if (allKnowledgeBaseRows.length !== knowledgeBaseRows.length) {
           logger.info(
@@ -335,16 +343,17 @@ export class AssistantMigrator extends BaseMigrator {
           const tagRows = [...uniqueTagNames].map((name) => ({ name }))
           let insertedTagRowCount = 0
           for (let i = 0; i < tagRows.length; i += BATCH_SIZE) {
-            const insertedRows = await tx
+            const insertedRows = tx
               .insert(tagTable)
               .values(tagRows.slice(i, i + BATCH_SIZE))
               .onConflictDoNothing()
               .returning({ id: tagTable.id })
+              .all()
             insertedTagRowCount += insertedRows.length
           }
 
           // Query back to get tag IDs (name → id mapping)
-          const insertedTags = await tx.select({ id: tagTable.id, name: tagTable.name }).from(tagTable)
+          const insertedTags = tx.select({ id: tagTable.id, name: tagTable.name }).from(tagTable).all()
           const tagNameToId = new Map(insertedTags.map((t) => [t.name, t.id]))
           const missingTagNames = [...uniqueTagNames].filter((name) => !tagNameToId.has(name))
           if (missingTagNames.length > 0) {
@@ -363,11 +372,12 @@ export class AssistantMigrator extends BaseMigrator {
 
           let insertedAssociationCount = 0
           for (let i = 0; i < entityTagRows.length; i += BATCH_SIZE) {
-            const insertedRows = await tx
+            const insertedRows = tx
               .insert(entityTagTable)
               .values(entityTagRows.slice(i, i + BATCH_SIZE))
               .onConflictDoNothing()
               .returning({ tagId: entityTagTable.tagId })
+              .all()
             insertedAssociationCount += insertedRows.length
           }
 
@@ -385,7 +395,7 @@ export class AssistantMigrator extends BaseMigrator {
       // (order 1.8) already created its bases and we just remapped each junction row's knowledgeBaseId
       // legacy→new and dropped any unmapped ref above, so the engine's final verifyForeignKeys() is
       // the single source of truth for them.
-      await this.assertOwnedForeignKeys(ctx.db, [assistantTable, assistantMcpServerTable, tagTable, entityTagTable])
+      this.assertOwnedForeignKeys(ctx.db, [assistantTable, assistantMcpServerTable, tagTable, entityTagTable])
 
       // FK whitelist for ChatMigrator. v2 has no system-reserved 'default' row,
       // so the set contains only the migrated user assistants (including the
@@ -414,7 +424,7 @@ export class AssistantMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const result = await ctx.db.select({ count: sql<number>`count(*)` }).from(assistantTable).get()
+      const result = ctx.db.select({ count: sql<number>`count(*)` }).from(assistantTable).get()
       const count = result?.count ?? 0
       const errors: { key: string; message: string }[] = []
 
@@ -425,7 +435,7 @@ export class AssistantMigrator extends BaseMigrator {
         })
       }
 
-      const sample = await ctx.db.select().from(assistantTable).limit(3).all()
+      const sample = ctx.db.select().from(assistantTable).limit(3).all()
       for (const assistant of sample) {
         if (!assistant.id || !assistant.name) {
           errors.push({ key: assistant.id ?? 'unknown', message: 'Missing required field (id or name)' })

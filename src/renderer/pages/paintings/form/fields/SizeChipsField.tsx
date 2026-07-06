@@ -9,7 +9,7 @@ const MIN_THUMB = 6
 const DEFAULT_COLUMNS = 3
 
 const chipClass = {
-  base: 'flex min-h-10 min-w-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[10px] px-2 py-1 text-[11px] leading-tight transition-all',
+  base: 'flex min-h-10 min-w-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[10px] px-1 py-1 text-[11px] leading-tight transition-all',
   active: 'bg-secondary-active text-foreground ring-1 ring-[var(--color-border-active)]',
   inactive: 'bg-muted text-muted-foreground/60 hover:bg-secondary-hover hover:text-foreground',
   disabled: 'cursor-not-allowed opacity-50'
@@ -90,9 +90,12 @@ function RatioShape({ ratio, selected }: { ratio: Dim; selected: boolean }) {
 
 function RatioThumb({ value, selected }: { value: string; selected: boolean }) {
   const ratio = parseRatio(value)
+  // Resolution tiers (`1K`/`2K`/`4K`) have no aspect ratio — render the label
+  // alone, centered, instead of reserving an empty thumb slot above it.
+  if (!ratio) return null
   return (
     <span className="flex shrink-0 items-center justify-center" style={{ width: MAX_THUMB, height: MAX_THUMB }}>
-      {ratio ? <RatioShape ratio={ratio} selected={selected} /> : null}
+      <RatioShape ratio={ratio} selected={selected} />
     </span>
   )
 }

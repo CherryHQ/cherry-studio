@@ -443,6 +443,202 @@ describe('useChatVirtualizerRuntime', () => {
     expect(runtime!.isScrollToBottomButtonVisible).toBe(false)
   })
 
+  it('scrolls to top instantly and releases the top anchor', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 0
+      const view = render(
+        <RuntimeDomProbe
+          items={['message-a']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => 700 })
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
+      runtime!.vlistHandleRef.current = createHandle({ getItemOffset: vi.fn(() => 300) })
+
+      view.rerender(
+        <RuntimeDomProbe
+          items={['message-a']}
+          handleRef={handleRef}
+          preserveScrollAnchor
+          scrollToTopKey="message-a"
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      raf.tick()
+      expect(runtime!.wrappedItems.some((item) => item.kind === 'spacer')).toBe(true)
+
+      act(() => {
+        scrollTop = 300
+        handle!.scrollToTop('instant')
+      })
+      expect(scrollTop).toBe(0)
+
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+
+      expect(scrollTop).toBe(0)
+    } finally {
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
+  it('scrolls to top smoothly with the RAF-driven runtime scroller', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 500
+      render(
+        <RuntimeDomProbe
+          items={['message-a']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+
+      act(() => {
+        handle!.scrollToTop('smooth')
+      })
+      expect(scrollTop).toBe(500)
+
+      raf.tick()
+      expect(scrollTop).toBeGreaterThan(0)
+      expect(scrollTop).toBeLessThan(500)
+
+      raf.tick(50)
+      expect(scrollTop).toBe(0)
+    } finally {
+      raf.restore()
+    }
+  })
+
+  it('replaces an in-flight smooth scroll when scrolling to top', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 0
+      render(
+        <RuntimeDomProbe
+          items={['message-a']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'scrollHeight', () => 1200)
+      setElementMetric(scroller, 'clientHeight', () => 400)
+
+      act(() => {
+        handle!.scrollToBottom('smooth')
+      })
+      raf.tick()
+      const bottomScrollProgress = scrollTop
+      expect(bottomScrollProgress).toBeGreaterThan(0)
+
+      act(() => {
+        handle!.scrollToTop('smooth')
+      })
+      raf.tick()
+      expect(scrollTop).toBeLessThan(bottomScrollProgress)
+
+      raf.tick(50)
+      expect(scrollTop).toBe(0)
+    } finally {
+      raf.restore()
+    }
+  })
+
+  it('replaces an in-flight smooth scroll when scrolling to bottom', () => {
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 800
+      render(
+        <RuntimeDomProbe
+          items={['message-a']}
+          handleRef={handleRef}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'scrollHeight', () => 1200)
+      setElementMetric(scroller, 'clientHeight', () => 400)
+
+      act(() => {
+        handle!.scrollToTop('smooth')
+      })
+      raf.tick()
+      const topScrollProgress = scrollTop
+      expect(topScrollProgress).toBeLessThan(800)
+
+      act(() => {
+        handle!.scrollToBottom('smooth')
+      })
+      raf.tick()
+      expect(scrollTop).toBeGreaterThan(topScrollProgress)
+
+      raf.tick(50)
+      expect(scrollTop).toBe(800)
+    } finally {
+      raf.restore()
+    }
+  })
+
   it('resets bottom-follow state when pinning a message to the viewport top', () => {
     let runtime: ChatVirtualizerRuntime<string> | undefined
     let handle: MessageVirtualListHandle | null = null
@@ -477,6 +673,46 @@ describe('useChatVirtualizerRuntime', () => {
     )
 
     expect(handle!.isAtBottom()).toBe(false)
+  })
+
+  it('does not pin a follow-up steered into a still-streaming turn', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      // Render 1: a turn is already streaming (preserveScrollAnchor is true) and no
+      // new user-message key has arrived yet.
+      const view = render(
+        <RuntimeDomProbe items={['user-a']} preserveScrollAnchor onRuntime={(nextRuntime) => (runtime = nextRuntime)} />
+      )
+      const getSpacerHeight = () => runtime!.wrappedItems.find((item) => item.kind === 'spacer')?.height ?? 0
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', { configurable: true, get: () => 0 })
+      Object.defineProperty(scroller, 'scrollHeight', { configurable: true, get: () => 900 + getSpacerHeight() })
+      Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
+      runtime!.vlistHandleRef.current = createHandle({ getItemOffset: vi.fn(() => 300) })
+
+      // Render 2: a queued follow-up is steered into the live turn — a new user
+      // message (`user-b`) arrives while streaming continues. Because a turn was
+      // already streaming just before it, the message must NOT pin to the top, so
+      // no anchor spacer is created (the pin path is what created the instability).
+      view.rerender(
+        <RuntimeDomProbe
+          items={['user-a', 'user-b']}
+          preserveScrollAnchor
+          scrollToTopKey="user-b"
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      raf.tick()
+
+      expect(getSpacerHeight()).toBe(0)
+    } finally {
+      restoreResizeObserver()
+      raf.restore()
+    }
   })
 
   it('keeps bottom-follow suppressed while the user is still pinned to the top', () => {

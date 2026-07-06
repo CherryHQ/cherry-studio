@@ -42,7 +42,7 @@ injection (see Steering below).
 
 ### Hooks model
 
-`AgentLoopHooks` (in `loop/index.ts`) defines six keys:
+`AgentLoopHooks` (in `loop/types.ts`) defines six keys:
 
 ```
 onStart, prepareStep, onStepFinish, onToolExecutionStart, onToolExecutionEnd,
@@ -70,7 +70,7 @@ Observer hooks (`agent.on(key, fn)`) compose into the same pass via
 AI SDK v6's `ToolLoopAgentSettings` doesn't expose tool-level callbacks
 (`onStepFinish` fires per LLM step, not per tool, and lacks
 `durationMs`). The agent loop wraps each tool's `execute` with a small
-shim (`wrapToolsWithExecutionHooks` in `loop/internal.ts`) that:
+shim (`wrapToolsWithExecutionHooks` in `loop/hookRunner.ts`) that:
 
 - emits `onToolExecutionStart` with `{ callId, toolName, input, messages }`
 - captures `durationMs` (excluding hook latency)
@@ -78,7 +78,7 @@ shim (`wrapToolsWithExecutionHooks` in `loop/internal.ts`) that:
 
 The shape mirrors AI SDK v7's
 `experimental_onToolExecutionStart/End`. When v7 lands the shim removes
-and hook signatures stay stable. Cited in `loop/index.ts`:27.
+and hook signatures stay stable. Cited in `loop/types.ts`:27.
 
 ### Steering (abort + restart)
 

@@ -1,7 +1,7 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ComponentPropsWithoutRef } from 'react'
 
-import { SkeletonSpan } from '../agent/GenericTools'
+import { SkeletonSpan } from './GenericTools'
 
 /**
  * Format argument value for display in table

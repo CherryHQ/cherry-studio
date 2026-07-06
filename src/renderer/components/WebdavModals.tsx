@@ -70,7 +70,7 @@ export function WebdavBackupModal({
 
   return (
     <Dialog open={isModalVisible} onOpenChange={(nextOpen) => !nextOpen && handleCancel()}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>{customLabels?.modalTitle || t('settings.data.webdav.backup.modal.title')}</DialogTitle>
         </DialogHeader>

@@ -5,7 +5,7 @@
  * Includes endpoints for tree visualization and conversation view.
  */
 
-import type { CursorPaginationParams } from '@shared/data/api/apiTypes'
+import type { CursorPaginationParams } from '@shared/data/api/types'
 import type { BranchMessagesResponse, Message, MessageData, TreeResponse } from '@shared/data/types/message'
 import {
   ContentMessageRoleSchema,

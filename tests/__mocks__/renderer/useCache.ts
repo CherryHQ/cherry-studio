@@ -16,6 +16,13 @@ import { vi } from 'vitest'
  * Provides comprehensive mocks for all cache management hooks
  */
 
+/**
+ * Setter input mirroring production's `CacheSetStateAction` (value or updater).
+ * Lightweight: `prev` is plain (not readonly) — the mock only needs to resolve
+ * functional updaters so functional-update call sites run under the mock.
+ */
+type SetAction<V> = V | ((prev: V) => V)
+
 // Mock cache state storage (using string for memory cache to support template keys)
 const mockMemoryCache = new Map<string, any>()
 const mockSharedCache = new Map<SharedCacheKey, any>()
@@ -139,7 +146,7 @@ export const mockUseCache = vi.fn(
   <K extends UseCacheKey>(
     key: K,
     initValue?: InferUseCacheValue<K>
-  ): [InferUseCacheValue<K>, (value: InferUseCacheValue<K>) => void] => {
+  ): [InferUseCacheValue<K>, (value: SetAction<InferUseCacheValue<K>>) => void] => {
     // Get current value
     let currentValue = mockMemoryCache.get(key)
     if (currentValue === undefined) {
@@ -149,9 +156,15 @@ export const mockUseCache = vi.fn(
       }
     }
 
-    // Mock setValue function
-    const setValue = vi.fn((value: InferUseCacheValue<K>) => {
-      mockMemoryCache.set(key, value)
+    // Mock setValue function (mirrors production: resolves functional updaters
+    // against the latest stored value with the same default fallback)
+    const setValue = vi.fn((value: SetAction<InferUseCacheValue<K>>) => {
+      if (typeof value === 'function') {
+        const prev = (mockMemoryCache.get(key) ?? getDefaultValue(key)) as InferUseCacheValue<K>
+        mockMemoryCache.set(key, value(prev))
+      } else {
+        mockMemoryCache.set(key, value)
+      }
       notifyMemorySubscribers(key)
     })
 
@@ -166,7 +179,7 @@ export const mockUseSharedCache = vi.fn(
   <K extends SharedCacheKey>(
     key: K,
     initValue?: InferSharedCacheValue<K>
-  ): [InferSharedCacheValue<K>, (value: InferSharedCacheValue<K>) => void] => {
+  ): [InferSharedCacheValue<K>, (value: SetAction<InferSharedCacheValue<K>>) => void] => {
     // Get current value
     let currentValue = mockSharedCache.get(key)
     if (currentValue === undefined) {
@@ -178,9 +191,15 @@ export const mockUseSharedCache = vi.fn(
       }
     }
 
-    // Mock setValue function
-    const setValue = vi.fn((value: InferSharedCacheValue<K>) => {
-      mockSharedCache.set(key, value)
+    // Mock setValue function (mirrors production functional-updater handling)
+    const setValue = vi.fn((value: SetAction<InferSharedCacheValue<K>>) => {
+      if (typeof value === 'function') {
+        const prev = (mockSharedCache.get(key) ??
+          DefaultSharedCache[key as keyof SharedCacheSchema]) as InferSharedCacheValue<K>
+        mockSharedCache.set(key, value(prev))
+      } else {
+        mockSharedCache.set(key, value)
+      }
       notifySharedSubscribers(key)
     })
 
@@ -195,7 +214,7 @@ export const mockUsePersistCache = vi.fn(
   <K extends RendererPersistCacheKey>(
     key: K,
     initValue?: RendererPersistCacheSchema[K]
-  ): [RendererPersistCacheSchema[K], (value: RendererPersistCacheSchema[K]) => void] => {
+  ): [RendererPersistCacheSchema[K], (value: SetAction<RendererPersistCacheSchema[K]>) => void] => {
     // Get current value
     let currentValue = mockPersistCache.get(key)
     if (currentValue === undefined) {
@@ -205,9 +224,14 @@ export const mockUsePersistCache = vi.fn(
       }
     }
 
-    // Mock setValue function
-    const setValue = vi.fn((value: RendererPersistCacheSchema[K]) => {
-      mockPersistCache.set(key, value)
+    // Mock setValue function (mirrors production functional-updater handling)
+    const setValue = vi.fn((value: SetAction<RendererPersistCacheSchema[K]>) => {
+      if (typeof value === 'function') {
+        const prev = (mockPersistCache.get(key) ?? DefaultRendererPersistCache[key]) as RendererPersistCacheSchema[K]
+        mockPersistCache.set(key, value(prev))
+      } else {
+        mockPersistCache.set(key, value)
+      }
       notifyPersistSubscribers(key)
     })
 

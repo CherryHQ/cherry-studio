@@ -1,4 +1,4 @@
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
 import { type PropsWithChildren } from 'react'
 import { useTranslation } from 'react-i18next'
 

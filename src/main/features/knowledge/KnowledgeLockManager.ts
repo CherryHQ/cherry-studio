@@ -3,7 +3,7 @@ import { Mutex } from 'async-mutex'
 export class KnowledgeLockManager {
   private readonly baseMutexes = new Map<string, Mutex>()
 
-  async withBaseMutationLock<T>(baseId: string, task: () => Promise<T>): Promise<T> {
+  async withBaseMutationLock<T>(baseId: string, task: () => T | Promise<T>): Promise<T> {
     const mutex = this.getBaseMutex(baseId)
     const release = await mutex.acquire()
 

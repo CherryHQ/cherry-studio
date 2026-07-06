@@ -1,7 +1,7 @@
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory, ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api'
+import { DataApiErrorFactory, ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type {
   ContentSearchFilters,
   ContentSearchGroup,
@@ -26,7 +26,7 @@ type ContentSearchAdapterInput<T extends ContentSearchSourceType> = {
 }
 
 type ContentSearchSourceAdapter<T extends ContentSearchSourceType> = {
-  search(input: ContentSearchAdapterInput<T>): Promise<Extract<ContentSearchGroup, { sourceType: T }>>
+  search(input: ContentSearchAdapterInput<T>): Extract<ContentSearchGroup, { sourceType: T }>
 }
 
 function toSourceCursorError(sourceType: ContentSearchSourceType, error: unknown): unknown {
@@ -60,8 +60,8 @@ function withSourceContext(sourceType: ContentSearchSourceType, error: unknown) 
 
 export const CONTENT_SEARCH_SOURCE_ADAPTERS = {
   'topic-message': {
-    async search(input) {
-      const result = await messageService.search({
+    search(input) {
+      const result = messageService.search({
         q: input.q,
         ...(input.filter?.topicId ? { topicId: input.filter.topicId } : {}),
         cursor: input.cursor,
@@ -77,8 +77,8 @@ export const CONTENT_SEARCH_SOURCE_ADAPTERS = {
     }
   },
   'session-message': {
-    async search(input) {
-      const result = await agentSessionMessageService.search({
+    search(input) {
+      const result = agentSessionMessageService.search({
         q: input.q,
         ...(input.filter?.sessionId ? { sessionId: input.filter.sessionId } : {}),
         cursor: input.cursor,
@@ -95,11 +95,11 @@ export const CONTENT_SEARCH_SOURCE_ADAPTERS = {
   }
 } satisfies { [K in ContentSearchSourceType]: ContentSearchSourceAdapter<K> }
 
-async function searchContentSource(
+function searchContentSource(
   sourceType: ContentSearchSourceType,
   query: ContentSearchQuery,
   limit: number
-): Promise<ContentSearchGroup> {
+): ContentSearchGroup {
   try {
     const input = {
       q: query.q,
@@ -110,12 +110,12 @@ async function searchContentSource(
 
     switch (sourceType) {
       case 'topic-message':
-        return await CONTENT_SEARCH_SOURCE_ADAPTERS[sourceType].search({
+        return CONTENT_SEARCH_SOURCE_ADAPTERS[sourceType].search({
           ...input,
           filter: query.filters?.[sourceType]
         })
       case 'session-message':
-        return await CONTENT_SEARCH_SOURCE_ADAPTERS[sourceType].search({
+        return CONTENT_SEARCH_SOURCE_ADAPTERS[sourceType].search({
           ...input,
           filter: query.filters?.[sourceType]
         })
@@ -131,7 +131,7 @@ async function searchContentSource(
 }
 
 export class ContentSearchService {
-  async search(query: ContentSearchQuery): Promise<ContentSearchResponse> {
+  search(query: ContentSearchQuery): ContentSearchResponse {
     const requestedSources = new Set(query.sources ?? contentSearchSourceTypes)
     const sources = contentSearchSourceTypes.filter((sourceType) => requestedSources.has(sourceType))
     const limit = Math.min(
@@ -141,7 +141,7 @@ export class ContentSearchService {
 
     // Content search is all-or-nothing: one failed source fails the full query
     // with source context instead of returning silently partial groups.
-    const groups = await Promise.all(sources.map((sourceType) => searchContentSource(sourceType, query, limit)))
+    const groups = sources.map((sourceType) => searchContentSource(sourceType, query, limit))
 
     return {
       query: query.q,

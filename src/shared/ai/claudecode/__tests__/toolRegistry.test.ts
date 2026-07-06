@@ -37,4 +37,10 @@ describe('claudeUserFacingTools', () => {
     expect(byName.get('mcp__cherry-tools__web_search')?.label).toBe('Web Search')
     expect(byName.get('Bash')?.label).toBe('Bash')
   })
+
+  it('exposes the mutating kb_manage tool but hides the read-only kb deep tools', () => {
+    expect(byName.has('mcp__cherry-tools__kb_manage')).toBe(true) // user — its own toggle
+    expect(byName.get('mcp__cherry-tools__kb_manage')?.label).toBe('Manage Knowledge')
+    expect(byName.has('mcp__cherry-tools__kb_read')).toBe(false) // internal — follows kb capability
+  })
 })

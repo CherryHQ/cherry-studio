@@ -151,7 +151,7 @@ export interface CherryFileMeta {
    * FileEntryId for internal files (v1→v2 migrator preserves this from
    * `OldFileBlock.file.id` / `OldImageBlock.file.id`). External (user-path)
    * files have no fileEntryId. Consumed by `ChatMigrator` to backfill
-   * `file_ref` rows after migration.
+   * `chat_message_file_ref` rows after migration.
    */
   fileEntryId?: string
   /** Composer file token association identity. Not a path, filename, or file storage id. */

@@ -1,12 +1,12 @@
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import { useImmersiveNavbar, useReportImmersiveNarrow } from '@renderer/components/chat/layout/ImmersiveNavbarContext'
-import { LoadingIcon } from '@renderer/components/Icons'
+import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { captureScrollable, captureScrollableAsDataURL } from '@renderer/utils/image'
+import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -173,6 +173,16 @@ const MessageList = () => {
     messageListRef.current?.scrollToBottom('instant')
   }, [])
 
+  // Navigation buttons scroll through the virtua-aware runtime handle (smooth,
+  // remeasure-safe) rather than a raw scrollTo on the virtualized scroller.
+  const navigateToTop = useCallback(() => {
+    messageListRef.current?.scrollToTop('smooth')
+  }, [])
+
+  const navigateToBottom = useCallback(() => {
+    messageListRef.current?.scrollToBottom('smooth')
+  }, [])
+
   const scrollToMessageById = useCallback((messageId: string) => {
     const target = messageByIdRef.current.get(messageId)
     if (!target) return
@@ -286,7 +296,7 @@ const MessageList = () => {
         throw new Error('Topic image export is unavailable')
       }
 
-      const imageData = await captureScrollableAsDataURL(captureRef)
+      const imageData = await captureScrollableAsDataUrl(captureRef)
       if (!imageData) {
         throw new Error('Failed to capture topic image')
       }
@@ -559,7 +569,13 @@ const MessageList = () => {
         <MessageOutline message={activeOutlineMessage} multiModelMessageStyle={activeOutline.multiModelMessageStyle} />
       )}
       {messageNavigation === 'buttons' && (
-        <MessageNavigation containerId="messages" messages={messages} scrollToMessageId={scrollToMessageById} />
+        <MessageNavigation
+          containerId="messages"
+          messages={messages}
+          scrollToMessageId={scrollToMessageById}
+          scrollToTop={navigateToTop}
+          scrollToBottom={navigateToBottom}
+        />
       )}
       {meta.selectionLayer && (
         <SelectionBox

@@ -1,14 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock i18n before importing the module
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: {
     t: vi.fn((key: string) => {
       const translations: Record<string, string> = {
         'common.chat': '聊天',
         'agent.session.group.conversation': '对话',
         'agent.sidebar_title': '任务',
-        'title.store': '资源',
         'title.work': '工作',
         'title.paintings': '绘画',
         'title.translate': '翻译',

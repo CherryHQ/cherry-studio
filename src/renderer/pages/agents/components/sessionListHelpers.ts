@@ -13,7 +13,7 @@ import {
   type ResourceListItemReorderPayload,
   type ResourceListTimeBucket,
   withResourceListGroupIdPrefix
-} from '@renderer/components/chat/resources'
+} from '@renderer/components/chat/resourceList/base'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'

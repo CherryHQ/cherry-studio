@@ -34,6 +34,15 @@ vi.mock('@renderer/components/NavbarIcon', () => ({
   )
 }))
 
+vi.mock('@renderer/hooks/command', () => ({
+  useResolvedCommand: () => ({
+    enabled: true,
+    execute: vi.fn(),
+    label: '',
+    shortcutLabel: ''
+  })
+}))
+
 vi.mock('../Tools', () => ({
   default: () => <span>tools</span>
 }))
@@ -42,6 +51,10 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key
   })
+}))
+
+vi.mock('i18next', () => ({
+  t: (key: string) => key
 }))
 
 import AgentContent from '../AgentContent'

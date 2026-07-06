@@ -32,7 +32,7 @@ SDK's `ModelMessage[]`. Per-part routing:
 
 - `text` → `{ role, content: [{ type: 'text', text }] }`
 - `tool-*` → AI SDK tool-call / tool-result shapes
-- `file` → `resolveFileUIPart` dispatch (PDF inlined as base64;
+- `file` → `materializeNativeFilePart` dispatch (PDF inlined as base64;
   large-file-upload path is stubbed pending the port)
 - `image` → base64 inlined
 - `reasoning` → `{ role, content: [{ type: 'reasoning', text }] }` (only
@@ -40,7 +40,7 @@ SDK's `ModelMessage[]`. Per-part routing:
 
 ### `fileProcessor.ts`
 
-`resolveFileUIPart(part, model, provider)` returns AI SDK content
+`materializeNativeFilePart(part, model, provider)` returns AI SDK content
 parts. Currently base64-inline only for everything; the large-file
 upload path is queued as
 [`large-file-upload-port.md`](./large-file-upload-port.md).

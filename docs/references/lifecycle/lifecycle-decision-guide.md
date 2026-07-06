@@ -8,7 +8,7 @@
 
 | Category              | Examples                                                 |
 | --------------------- | -------------------------------------------------------- |
-| DB connections        | SQLite / LibSQL, Drizzle ORM                             |
+| DB connections        | SQLite / better-sqlite3, Drizzle ORM                     |
 | Network services      | HTTP server, mDNS browser, WebSocket server              |
 | Native / OS resources | `SelectionHook` (system thread), `Tray`, `BrowserWindow` |
 | File system           | `chokidar` watcher, Winston DailyRotateFile transport    |

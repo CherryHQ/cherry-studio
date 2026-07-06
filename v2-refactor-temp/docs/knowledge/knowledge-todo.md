@@ -71,7 +71,7 @@
 
 - 收敛失败清理与恢复体验。
   - shutdown 不再 fail items；重启后由 startup recovery 自动重新 dispatch（handler 入口对 `item.status === 'completed'` 早退）。
-  - delete / reindex 走业务层 list + filter + `jobManager.cancel`，残留 vectors 由 `LibSQLVectorStore.replaceByExternalId` 的单事务原子性保证不出现双倍 chunk。
+  - delete / reindex 走业务层 list + filter + `jobManager.cancel`，残留 vectors 由 `KnowledgeIndexStore.rebuildMaterial` 的单事务原子性保证不出现双倍 chunk。
   - 后续若需要更明确的用户可见恢复入口或后台修复任务，可在此基础上构建。
   - 参考：`src/main/services/knowledge/runtime/KnowledgeRuntimeService.ts`
 

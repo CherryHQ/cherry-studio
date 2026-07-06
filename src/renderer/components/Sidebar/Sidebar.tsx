@@ -1,70 +1,61 @@
-import { isMac } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef } from 'react'
 
 import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
 import { DefaultLogo } from './primitives'
-import { SidebarDocked } from './SidebarDocked'
 import { SidebarFooter, type SidebarFooterActions } from './SidebarFooter'
-import { SidebarMenu } from './SidebarMenu'
+import { SidebarList } from './SidebarList'
 import { SidebarTooltip } from './Tooltip'
-import type { SidebarMenuItem, SidebarTab, SidebarUser } from './types'
+import type { ResolvedSidebarEntry, SidebarActiveState, SidebarUser } from './types'
 import { useSidebarResize } from './useSidebarResize'
 
 export interface SidebarProps {
   width: number
   setWidth: (width: number) => void
-  activeItem: string
-  items: SidebarMenuItem[]
+  entries: ResolvedSidebarEntry[]
+  active: SidebarActiveState
   title?: string
   logo?: React.ReactNode
-  activeTabId?: string
-  dockedTabs?: SidebarTab[]
   user?: SidebarUser
   isFloating?: boolean
   searchLabel?: string
   extensionsLabel?: string
   actions?: SidebarFooterActions
-  onItemClick: (id: string) => void
   onHoverChange?: (visible: boolean) => void
   onResizePreview?: (width: number | null) => void
   onSearchClick?: () => void
   onExtensionsClick?: () => void
-  onMiniAppTabClick?: (tabId: string) => void
-  onStartSidebarDrag?: (e: React.MouseEvent, tabId: string) => void
-  onCloseDockedTab?: (tabId: string) => void
+  onEntriesReorder?: (event: { oldIndex: number; newIndex: number }) => void
   onDismiss?: () => void
 }
 
 export function Sidebar({
   width,
   setWidth,
-  activeItem,
-  items,
+  entries,
+  active,
   title = '',
   logo,
-  activeTabId,
-  dockedTabs = [],
   user,
   isFloating = false,
   searchLabel = '',
   extensionsLabel = '',
   actions,
-  onItemClick,
   onHoverChange,
   onResizePreview,
   onSearchClick,
   onExtensionsClick,
-  onMiniAppTabClick,
-  onStartSidebarDrag,
-  onCloseDockedTab,
+  onEntriesReorder,
   onDismiss
 }: SidebarProps) {
   const isMacTransparentWindow = useMacTransparentWindow()
   const { sidebarRef, startResizing } = useSidebarResize(width, setWidth, onResizePreview)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const contextMenuOpenRef = useRef(false)
+  const floatingPointerInsideRef = useRef(false)
   const layout = getSidebarLayout(width)
   const showFooter = Boolean(extensionsLabel || user || onExtensionsClick || actions)
   const showSearch = Boolean(onSearchClick)
@@ -80,18 +71,46 @@ export function Sidebar({
     </div>
   )
 
-  useEffect(() => {
-    return () => {
-      if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
-    }
-  }, [])
-
   const handleDismiss = useCallback(() => {
     onDismiss?.()
   }, [onDismiss])
 
-  const menuProps = { items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }
-  const dockedProps = { dockedTabs, activeTabId, onMiniAppTabClick, onStartSidebarDrag, onCloseDockedTab }
+  const clearHoverDismiss = useCallback(() => {
+    if (!hoverTimeout.current) return
+
+    clearTimeout(hoverTimeout.current)
+    hoverTimeout.current = null
+  }, [])
+
+  const scheduleHoverDismiss = useCallback(() => {
+    clearHoverDismiss()
+    hoverTimeout.current = setTimeout(handleDismiss, 300)
+  }, [clearHoverDismiss, handleDismiss])
+
+  useEffect(() => clearHoverDismiss, [clearHoverDismiss])
+
+  const handleContextMenuOpenChange = useCallback(
+    (open: boolean) => {
+      contextMenuOpenRef.current = open
+
+      if (open) {
+        clearHoverDismiss()
+        return
+      }
+
+      if (isFloating && !floatingPointerInsideRef.current) {
+        scheduleHoverDismiss()
+      }
+    },
+    [clearHoverDismiss, isFloating, scheduleHoverDismiss]
+  )
+
+  const listProps = {
+    entries,
+    active,
+    onReorder: onEntriesReorder,
+    onContextMenuOpenChange: handleContextMenuOpenChange
+  }
   const footerProps = { user, actions, extensionsLabel, onExtensionsClick }
 
   // --- Floating sidebar ---
@@ -105,11 +124,14 @@ export function Sidebar({
           )}
           onClick={(event) => event.stopPropagation()}
           onMouseLeave={() => {
-            if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
-            hoverTimeout.current = setTimeout(handleDismiss, 300)
+            floatingPointerInsideRef.current = false
+            if (!contextMenuOpenRef.current) {
+              scheduleHoverDismiss()
+            }
           }}
           onMouseEnter={() => {
-            if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
+            floatingPointerInsideRef.current = true
+            clearHoverDismiss()
           }}>
           <div className="flex h-14 shrink-0 items-center gap-2.5 px-4 [-webkit-app-region:drag]">
             {renderLogo()}
@@ -131,8 +153,7 @@ export function Sidebar({
           )}
 
           <div className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
-            <SidebarMenu layout="full" {...menuProps} />
-            <SidebarDocked layout="full" {...dockedProps} />
+            <SidebarList layout="full" {...listProps} />
           </div>
 
           {showFooter && (
@@ -215,8 +236,7 @@ export function Sidebar({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
-        <SidebarMenu layout={layout} {...menuProps} />
-        <SidebarDocked layout={layout} {...dockedProps} />
+        <SidebarList layout={layout} {...listProps} />
       </div>
 
       {/* Footer */}

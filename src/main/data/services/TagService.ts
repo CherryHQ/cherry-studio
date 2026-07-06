@@ -32,7 +32,7 @@ import { entityTagTable, type TagRow, tagTable } from '@data/db/schemas/tagging'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateTagDto, SetTagEntitiesDto, SyncEntityTagsDto, UpdateTagDto } from '@shared/data/api/schemas/tags'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Tag } from '@shared/data/types/tag'
@@ -91,14 +91,14 @@ export class TagService {
     return application.get('DbService').getDb()
   }
 
-  private async assertTagsExistTx(tx: Pick<DbType, 'select'>, tagIds: string[]): Promise<void> {
+  private assertTagsExistTx(tx: Pick<DbType, 'select'>, tagIds: string[]): void {
     const uniqueTagIds = [...new Set(tagIds)]
 
     if (uniqueTagIds.length === 0) {
       return
     }
 
-    const existingTags = await tx.select({ id: tagTable.id }).from(tagTable).where(inArray(tagTable.id, uniqueTagIds))
+    const existingTags = tx.select({ id: tagTable.id }).from(tagTable).where(inArray(tagTable.id, uniqueTagIds)).all()
     const existingTagIds = new Set(existingTags.map((tag) => tag.id))
     const missingTagIds = uniqueTagIds.filter((tagId) => !existingTagIds.has(tagId))
 
@@ -110,16 +110,16 @@ export class TagService {
   /**
    * List all tags
    */
-  async list(): Promise<Tag[]> {
-    const rows = await this.db.select().from(tagTable).orderBy(asc(tagTable.name))
+  list(): Tag[] {
+    const rows = this.db.select().from(tagTable).orderBy(asc(tagTable.name)).all()
     return rows.map(rowToTag)
   }
 
   /**
    * Get a tag by ID
    */
-  async getById(id: string): Promise<Tag> {
-    const [row] = await this.db.select().from(tagTable).where(eq(tagTable.id, id)).limit(1)
+  getById(id: string): Tag {
+    const [row] = this.db.select().from(tagTable).where(eq(tagTable.id, id)).limit(1).all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Tag', id)
@@ -131,8 +131,8 @@ export class TagService {
   /**
    * Create a new tag
    */
-  async create(dto: CreateTagDto): Promise<Tag> {
-    const [row] = await withSqliteErrors(
+  create(dto: CreateTagDto): Tag {
+    const [row] = withSqliteErrors(
       () =>
         this.db
           .insert(tagTable)
@@ -140,7 +140,8 @@ export class TagService {
             name: dto.name,
             color: dto.color
           })
-          .returning(),
+          .returning()
+          .all(),
       {
         ...defaultHandlersFor('Tag', dto.name),
         unique: () => DataApiErrorFactory.conflict(`Tag with name '${dto.name}' already exists`, 'Tag')
@@ -155,7 +156,7 @@ export class TagService {
   /**
    * Update an existing tag
    */
-  async update(id: string, dto: UpdateTagDto): Promise<Tag> {
+  update(id: string, dto: UpdateTagDto): Tag {
     const updates: Partial<typeof tagTable.$inferInsert> = {}
     if (dto.name !== undefined) updates.name = dto.name
     if (dto.color !== undefined) updates.color = dto.color
@@ -164,8 +165,8 @@ export class TagService {
       return this.getById(id)
     }
 
-    const [row] = await withSqliteErrors(
-      () => this.db.update(tagTable).set(updates).where(eq(tagTable.id, id)).returning(),
+    const [row] = withSqliteErrors(
+      () => this.db.update(tagTable).set(updates).where(eq(tagTable.id, id)).returning().all(),
       {
         ...defaultHandlersFor('Tag', dto.name ?? id),
         unique: () =>
@@ -190,8 +191,8 @@ export class TagService {
   /**
    * Delete a tag (hard delete, cascades to entity_tag via FK)
    */
-  async delete(id: string): Promise<void> {
-    const [row] = await this.db.delete(tagTable).where(eq(tagTable.id, id)).returning({ id: tagTable.id })
+  delete(id: string): void {
+    const [row] = this.db.delete(tagTable).where(eq(tagTable.id, id)).returning({ id: tagTable.id }).all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Tag', id)
@@ -203,8 +204,8 @@ export class TagService {
   /**
    * Get tags for a specific entity
    */
-  async getTagsByEntity(entityType: EntityType, entityId: string): Promise<Tag[]> {
-    const rows = await this.db
+  getTagsByEntity(entityType: EntityType, entityId: string): Tag[] {
+    const rows = this.db
       .select({
         id: tagTable.id,
         name: tagTable.name,
@@ -216,6 +217,7 @@ export class TagService {
       .innerJoin(tagTable, eq(entityTagTable.tagId, tagTable.id))
       .where(and(eq(entityTagTable.entityType, entityType), eq(entityTagTable.entityId, entityId)))
       .orderBy(asc(tagTable.name))
+      .all()
 
     return rows.map(rowToTag)
   }
@@ -235,16 +237,12 @@ export class TagService {
    * Pass `tx` from inside a transaction to read freshly-synced bindings
    * atomically (e.g. after `syncEntityTagsTx`).
    */
-  async getTagsByEntitiesTx(
-    tx: Pick<DbType, 'select'>,
-    entityType: EntityType,
-    entityIds: string[]
-  ): Promise<Map<string, Tag[]>> {
+  getTagsByEntitiesTx(tx: Pick<DbType, 'select'>, entityType: EntityType, entityIds: string[]): Map<string, Tag[]> {
     const result = new Map<string, Tag[]>()
     if (entityIds.length === 0) return result
     for (const id of entityIds) result.set(id, [])
 
-    const rows = await tx
+    const rows = tx
       .select({
         entityId: entityTagTable.entityId,
         id: tagTable.id,
@@ -257,6 +255,7 @@ export class TagService {
       .innerJoin(tagTable, eq(entityTagTable.tagId, tagTable.id))
       .where(and(eq(entityTagTable.entityType, entityType), inArray(entityTagTable.entityId, entityIds)))
       .orderBy(asc(entityTagTable.entityId), asc(tagTable.name))
+      .all()
 
     for (const row of rows) {
       result.get(row.entityId)?.push(rowToTag(row))
@@ -264,14 +263,15 @@ export class TagService {
     return result
   }
 
-  async getEntityIdsByTagsTx(tx: Pick<DbType, 'select'>, entityType: EntityType, tagIds: string[]): Promise<string[]> {
+  getEntityIdsByTagsTx(tx: Pick<DbType, 'select'>, entityType: EntityType, tagIds: string[]): string[] {
     const uniqueTagIds = [...new Set(tagIds)]
     if (uniqueTagIds.length === 0) return []
 
-    const rows = await tx
+    const rows = tx
       .select({ entityId: entityTagTable.entityId })
       .from(entityTagTable)
       .where(and(eq(entityTagTable.entityType, entityType), inArray(entityTagTable.tagId, uniqueTagIds)))
+      .all()
 
     return [...new Set(rows.map((row) => row.entityId))]
   }
@@ -280,14 +280,15 @@ export class TagService {
    * Sync tags for an entity (replace all tag associations).
    * Performs diff-based sync: only deletes removed and inserts added associations.
    */
-  async syncEntityTags(entityType: EntityType, entityId: string, dto: SyncEntityTagsDto): Promise<void> {
+  syncEntityTags(entityType: EntityType, entityId: string, dto: SyncEntityTagsDto): void {
     const desiredTagIds = [...new Set(dto.tagIds)]
 
-    await this.db.transaction(async (tx) => {
-      const existing = await tx
+    this.db.transaction((tx) => {
+      const existing = tx
         .select({ tagId: entityTagTable.tagId })
         .from(entityTagTable)
         .where(and(eq(entityTagTable.entityType, entityType), eq(entityTagTable.entityId, entityId)))
+        .all()
 
       const existingIds = new Set(existing.map((row) => row.tagId))
       const desiredIds = new Set(desiredTagIds)
@@ -296,8 +297,7 @@ export class TagService {
       const toAdd = desiredTagIds.filter((tagId) => !existingIds.has(tagId))
 
       if (toRemove.length > 0) {
-        await tx
-          .delete(entityTagTable)
+        tx.delete(entityTagTable)
           .where(
             and(
               eq(entityTagTable.entityType, entityType),
@@ -305,11 +305,14 @@ export class TagService {
               inArray(entityTagTable.tagId, toRemove)
             )
           )
+          .run()
       }
 
       if (toAdd.length > 0) {
-        await this.assertTagsExistTx(tx, toAdd)
-        await tx.insert(entityTagTable).values(toAdd.map((tagId) => ({ entityType, entityId, tagId })))
+        this.assertTagsExistTx(tx, toAdd)
+        tx.insert(entityTagTable)
+          .values(toAdd.map((tagId) => ({ entityType, entityId, tagId })))
+          .run()
       }
     })
 
@@ -332,18 +335,19 @@ export class TagService {
    * per-operation log correlation. The public `syncEntityTags` wrapper keeps
    * its "Synced entity tags" log for direct-entry PUT /tags/entities calls.
    */
-  async syncEntityTagsTx(
+  syncEntityTagsTx(
     tx: Pick<DbType, 'select' | 'insert' | 'delete'>,
     entityType: EntityType,
     entityId: string,
     tagIds: string[]
-  ): Promise<void> {
+  ): void {
     const desiredTagIds = [...new Set(tagIds)]
 
-    const existing = await tx
+    const existing = tx
       .select({ tagId: entityTagTable.tagId })
       .from(entityTagTable)
       .where(and(eq(entityTagTable.entityType, entityType), eq(entityTagTable.entityId, entityId)))
+      .all()
 
     const existingIds = new Set(existing.map((row) => row.tagId))
     const desiredIds = new Set(desiredTagIds)
@@ -352,8 +356,7 @@ export class TagService {
     const toAdd = desiredTagIds.filter((tagId) => !existingIds.has(tagId))
 
     if (toRemove.length > 0) {
-      await tx
-        .delete(entityTagTable)
+      tx.delete(entityTagTable)
         .where(
           and(
             eq(entityTagTable.entityType, entityType),
@@ -361,11 +364,14 @@ export class TagService {
             inArray(entityTagTable.tagId, toRemove)
           )
         )
+        .run()
     }
 
     if (toAdd.length > 0) {
-      await this.assertTagsExistTx(tx, toAdd)
-      await tx.insert(entityTagTable).values(toAdd.map((tagId) => ({ entityType, entityId, tagId })))
+      this.assertTagsExistTx(tx, toAdd)
+      tx.insert(entityTagTable)
+        .values(toAdd.map((tagId) => ({ entityType, entityId, tagId })))
+        .run()
     }
   }
 
@@ -373,7 +379,7 @@ export class TagService {
    * Get tag IDs for multiple entities of the same type (batch query).
    * Used by other services (e.g., AssistantService) to efficiently load tags.
    */
-  async getTagIdsByEntities(entityType: EntityType, entityIds: string[]): Promise<Map<string, string[]>> {
+  getTagIdsByEntities(entityType: EntityType, entityIds: string[]): Map<string, string[]> {
     const result = new Map<string, string[]>()
 
     if (entityIds.length === 0) {
@@ -384,11 +390,12 @@ export class TagService {
       result.set(id, [])
     }
 
-    const rows = await this.db
+    const rows = this.db
       .select({ entityId: entityTagTable.entityId, tagId: entityTagTable.tagId })
       .from(entityTagTable)
       .where(and(eq(entityTagTable.entityType, entityType), inArray(entityTagTable.entityId, entityIds)))
       .orderBy(asc(entityTagTable.entityId), asc(entityTagTable.createdAt), asc(entityTagTable.tagId))
+      .all()
 
     for (const row of rows) {
       result.get(row.entityId)?.push(row.tagId)
@@ -401,20 +408,21 @@ export class TagService {
    * Bulk set entities for a tag (replace all entity associations for this tag).
    * Performs diff-based sync to preserve unchanged association timestamps.
    */
-  async setEntities(tagId: string, dto: SetTagEntitiesDto): Promise<void> {
+  setEntities(tagId: string, dto: SetTagEntitiesDto): void {
     const desiredEntities = dedupeEntityBindings(dto.entities)
 
-    await this.db.transaction(async (tx) => {
-      const [tag] = await tx.select({ id: tagTable.id }).from(tagTable).where(eq(tagTable.id, tagId)).limit(1)
+    this.db.transaction((tx) => {
+      const [tag] = tx.select({ id: tagTable.id }).from(tagTable).where(eq(tagTable.id, tagId)).limit(1).all()
 
       if (!tag) {
         throw DataApiErrorFactory.notFound('Tag', tagId)
       }
 
-      const existing = await tx
+      const existing = tx
         .select({ entityType: entityTagTable.entityType, entityId: entityTagTable.entityId })
         .from(entityTagTable)
         .where(eq(entityTagTable.tagId, tagId))
+        .all()
 
       const existingKeys = new Set(existing.map((entity) => entityBindingKey(entity)))
       const desiredKeys = new Set(desiredEntities.map((entity) => entityBindingKey(entity)))
@@ -424,11 +432,15 @@ export class TagService {
 
       const deleteCondition = buildEntityBindingCondition(toRemove)
       if (deleteCondition) {
-        await tx.delete(entityTagTable).where(and(eq(entityTagTable.tagId, tagId), deleteCondition))
+        tx.delete(entityTagTable)
+          .where(and(eq(entityTagTable.tagId, tagId), deleteCondition))
+          .run()
       }
 
       if (toAdd.length > 0) {
-        await tx.insert(entityTagTable).values(toAdd.map((entity) => ({ ...entity, tagId })))
+        tx.insert(entityTagTable)
+          .values(toAdd.map((entity) => ({ ...entity, tagId })))
+          .run()
       }
     })
 
@@ -443,10 +455,10 @@ export class TagService {
    * Signature is tx-first to match the polymorphic-purge convention
    * (see PinService.purgeForEntityTx).
    */
-  async purgeForEntityTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): Promise<void> {
-    await tx
-      .delete(entityTagTable)
+  purgeForEntityTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityId: string): void {
+    tx.delete(entityTagTable)
       .where(and(eq(entityTagTable.entityType, entityType), eq(entityTagTable.entityId, entityId)))
+      .run()
 
     logger.info('Purged tags for entity', { entityType, entityId })
   }
@@ -455,11 +467,11 @@ export class TagService {
    * Bulk variant of `purgeForEntityTx` — same semantics, takes a list of entity
    * ids. Empty input is a no-op. Single aggregated log line.
    */
-  async purgeForEntitiesTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityIds: string[]): Promise<void> {
+  purgeForEntitiesTx(tx: Pick<DbType, 'delete'>, entityType: EntityType, entityIds: string[]): void {
     if (entityIds.length === 0) return
-    await tx
-      .delete(entityTagTable)
+    tx.delete(entityTagTable)
       .where(and(eq(entityTagTable.entityType, entityType), inArray(entityTagTable.entityId, entityIds)))
+      .run()
 
     logger.info('Purged tags for entities', { entityType, count: entityIds.length })
   }

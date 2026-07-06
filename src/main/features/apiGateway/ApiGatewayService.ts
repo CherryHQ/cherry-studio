@@ -56,7 +56,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   protected async onReady(): Promise<void> {
-    this.desiredEnabled = await this.shouldAutoStart()
+    this.desiredEnabled = this.shouldAutoStart()
     this.reconciler.request()
     await this.reconciler.flush()
   }
@@ -201,7 +201,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
     // over IPC would be an anti-pattern.
   }
 
-  private async shouldAutoStart(): Promise<boolean> {
+  private shouldAutoStart(): boolean {
     try {
       const config = this.getCurrentConfig()
       // Never log the raw API key — redact before emitting.
@@ -212,7 +212,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       }
 
       try {
-        const { total } = await agentService.listAgents({ limit: 1 })
+        const { total } = agentService.listAgents({ limit: 1 })
         if (total > 0) {
           logger.info(`Detected ${total} agent(s), auto-starting API gateway`)
           return true

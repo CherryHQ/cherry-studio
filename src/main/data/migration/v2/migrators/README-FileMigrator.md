@@ -39,7 +39,7 @@ No cross-migrator shared state is published: per migration-plan §2.9 the v1 fil
 
 - Legacy v1 `ext` field may include a leading dot (`.pdf`, `.txt`) or be empty
 - Leading dot is stripped before writing (`pdf`, `txt`)
-- Empty / whitespace-only / missing ext → `null` in `file_entry.ext` (matches the `SafeExtSchema` whitespace guard in essential.ts so the migrated rows pass the same validation as v2-native writes)
+- Empty / whitespace-only / missing ext → `null` in `file_entry.ext` (matches the `SafeExtSchema` whitespace guard in shared file `common.ts` so the migrated rows pass the same validation as v2-native writes)
 
 ### Timestamp Conversion
 
@@ -74,7 +74,7 @@ No cross-migrator shared state is published: per migration-plan §2.9 the v1 fil
 
 ## Idempotency
 
-The migrator is safe to re-run. `MigrationEngine.verifyAndClearNewTables` clears `file_ref` and `file_entry` before each run, so `execute()` always starts from empty tables. The v1 id is preserved verbatim, so the engine-layer clear is the sole invariant — no `onConflict` guard or per-row pre-check is needed at the migrator layer.
+The migrator is safe to re-run. `MigrationEngine.verifyAndClearNewTables` clears the file association tables and `file_entry` before each run, so `execute()` always starts from empty tables. The v1 id is preserved verbatim, so the engine-layer clear is the sole invariant — no `onConflict` guard or per-row pre-check is needed at the migrator layer.
 
 ## Validate Behavior
 

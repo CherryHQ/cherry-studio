@@ -2,7 +2,7 @@ import {
   type AskUserQuestionToolInput,
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
-} from '@renderer/components/chat/messages/tools/agent/types'
+} from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { APPROVAL_REQUESTED } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalMatch } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart } from '@shared/data/types/message'

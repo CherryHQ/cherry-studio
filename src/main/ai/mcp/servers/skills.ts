@@ -200,7 +200,7 @@ class SkillsServer {
     })
     // Enable the freshly-installed skill for the CURRENT agent only. Other
     // agents remain untouched — skill enablement is per-agent.
-    const enabled = await skillService.toggle({
+    const enabled = skillService.toggle({
       skillId: installed.id,
       agentId: this.agentId,
       isEnabled: true
@@ -346,7 +346,7 @@ class SkillsServer {
     const installed = await skillService.installFromDirectory({ directoryPath: skillDir })
     // Same per-agent scope as installSkill above — register only enables the
     // skill for the current agent, not globally.
-    const enabled = await skillService.toggle({
+    const enabled = skillService.toggle({
       skillId: installed.id,
       agentId: this.agentId,
       isEnabled: true

@@ -25,7 +25,7 @@ export async function assembleSystemPrompt(input: AssembleSystemPromptInput): Pr
 
   const sections: string[] = []
 
-  // FIXME： maybe break cache
+  // `anthropic-cache` checks the original assistant prompt for volatile time variables before caching.
   if (assistant?.prompt) {
     const resolved = await replacePromptVariables(assistant.prompt, model.name)
     if (resolved) sections.push(resolved)

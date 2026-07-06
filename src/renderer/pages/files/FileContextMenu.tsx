@@ -25,27 +25,24 @@ export interface FileContextMenuActions {
  * Built on the @cherrystudio/ui ContextMenu primitive (Radix), which provides
  * cursor positioning, click-outside/Escape dismiss, viewport collision, keyboard
  * navigation, and focus management.
- *
- * `onOpen` lets the owner select the right-clicked item when needed; callers can
- * leave existing multi-selection untouched when the item is already selected.
  */
 export function FileContextMenu({
   file,
   isTrash,
-  onOpen,
   actions,
-  children
+  children,
+  showRename = true
 }: {
   file: FileItem
   isTrash: boolean
-  onOpen: (id: string) => void
   actions: FileContextMenuActions
   children: React.ReactNode
+  showRename?: boolean
 }) {
   return (
-    <ContextMenu onOpenChange={(open) => open && onOpen(file.id)}>
+    <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <FileContextMenuContent file={file} isTrash={isTrash} actions={actions} />
+      <FileContextMenuContent file={file} isTrash={isTrash} actions={actions} showRename={showRename} />
     </ContextMenu>
   )
 }
@@ -53,21 +50,31 @@ export function FileContextMenu({
 function FileContextMenuContent({
   file,
   isTrash,
-  actions
+  actions,
+  showRename
 }: {
   file: FileItem
   isTrash: boolean
   actions: FileContextMenuActions
+  showRename: boolean
 }) {
   const { t } = useTranslation()
+  const canUseFileActions = !file.isMissing
+  const canRename = canUseFileActions && showRename
+  const canShowInFolder = canUseFileActions
+  const hasPrimaryAction = canRename || canShowInFolder
 
   if (isTrash) {
     return (
       <ContextMenuContent className="min-w-32">
-        <ContextMenuItem onSelect={() => actions.onRestore(file.id)}>
-          <ContextMenuItemContent icon={<RotateCcw size={12} />}>{t('files.restore')}</ContextMenuItemContent>
-        </ContextMenuItem>
-        <ContextMenuSeparator />
+        {!file.isMissing && (
+          <>
+            <ContextMenuItem onSelect={() => actions.onRestore(file.id)}>
+              <ContextMenuItemContent icon={<RotateCcw size={12} />}>{t('files.restore')}</ContextMenuItemContent>
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
         <ContextMenuItem variant="destructive" onSelect={() => actions.onDelete(file.id)}>
           <ContextMenuItemContent icon={<Trash2 size={12} />}>{t('files.permanent_delete')}</ContextMenuItemContent>
         </ContextMenuItem>
@@ -77,15 +84,17 @@ function FileContextMenuContent({
 
   return (
     <ContextMenuContent className="min-w-32">
-      <ContextMenuItem onSelect={() => actions.onRename(file.id)}>
-        <ContextMenuItemContent icon={<Pencil size={12} />}>{t('files.rename')}</ContextMenuItemContent>
-      </ContextMenuItem>
-      {file.origin === 'external' && (
+      {canRename && (
+        <ContextMenuItem onSelect={() => actions.onRename(file.id)}>
+          <ContextMenuItemContent icon={<Pencil size={12} />}>{t('files.rename')}</ContextMenuItemContent>
+        </ContextMenuItem>
+      )}
+      {canShowInFolder && (
         <ContextMenuItem onSelect={() => actions.onShowInFolder(file.id)}>
           <ContextMenuItemContent icon={<FolderClosed size={12} />}>{t('files.show_in_folder')}</ContextMenuItemContent>
         </ContextMenuItem>
       )}
-      <ContextMenuSeparator />
+      {hasPrimaryAction && <ContextMenuSeparator />}
       <ContextMenuItem variant="destructive" onSelect={() => actions.onDelete(file.id)}>
         <ContextMenuItemContent icon={<Trash2 size={12} />}>
           {file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}

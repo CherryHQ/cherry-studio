@@ -1,5 +1,5 @@
 import { QuickPhrasesToolRuntime } from '@renderer/components/composer/tools/components/QuickPhrasesButton'
-import { defineTool, registerTool, TopicType } from '@renderer/components/composer/tools/types'
+import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
 
 const quickPhrasesTool = defineTool({
   key: 'quick_phrases',
@@ -19,7 +19,5 @@ const quickPhrasesTool = defineTool({
     }
   }
 })
-
-registerTool(quickPhrasesTool)
 
 export default quickPhrasesTool

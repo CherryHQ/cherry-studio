@@ -1,19 +1,21 @@
-import { ClickableFilePath } from '@renderer/components/chat/messages/tools/agent/ClickableFilePath'
-import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
-import { isWin } from '@renderer/config/constant'
+import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
+import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
+import HtmlArtifactsCard from '@renderer/components/CodeBlockView/HtmlArtifactsCard'
+import { isInlineFilePath, normalizeInlineFilePath } from '@renderer/utils/filePath'
 import { getCodeBlockId } from '@renderer/utils/markdown'
+import { isWin } from '@renderer/utils/platform'
 import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
 import { useIsCodeFenceIncomplete } from 'streamdown'
 
 import { useMessageRenderConfig, useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
-import { isInlineFilePath, normalizeInlineFilePath } from '../utils/filePath'
 
 interface Props {
   children: string
   className?: string
   node?: Omit<Node, 'type'>
   blockId: string // Message block id
+  isStreaming?: boolean
   [key: string]: any
 }
 
@@ -23,7 +25,7 @@ const INLINE_FILE_PATH_CODE_CLASS = `${INLINE_CODE_CLASS} max-w-full align-middl
 
 const mergeClassNames = (...classNames: Array<string | undefined>) => classNames.filter(Boolean).join(' ')
 
-const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
+const CodeBlock: React.FC<Props> = ({ children, className, node, blockId, isStreaming = false }) => {
   const languageMatch = /language-([\w-+]+)/.exec(className || '')
   const isMultiline = children?.includes('\n')
   const detectedLanguage = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
@@ -87,7 +89,11 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
     }
 
     return (
-      <CodeBlockView language={language} onSave={handleSave} editable={canSaveCodeBlock}>
+      <CodeBlockView
+        language={language}
+        onSave={handleSave}
+        editable={canSaveCodeBlock}
+        isStreaming={isStreaming || isIncomplete}>
         {children}
       </CodeBlockView>
     )

@@ -38,7 +38,7 @@
  *   "nothing streamed this render" — composer state change, scroll, etc.).
  */
 
-import type { TranslationOverlayEntry } from '@renderer/components/chat/messages/blocks'
+import type { TranslationOverlayEntry } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useMemo, useRef } from 'react'
 

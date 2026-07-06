@@ -1,4 +1,5 @@
-import { getToolsForScope, TopicType } from '@renderer/components/composer/tools/types'
+import { getToolsForScope } from '@renderer/components/composer/tools/builtinTools'
+import { TopicType } from '@renderer/components/composer/tools/types'
 import { describe, expect, it, vi } from 'vitest'
 
 const { mockIsGenerateImageModel, mockIsReasoningModel, mockIsSupportedToolUse } = vi.hoisted(() => ({
@@ -7,7 +8,7 @@ const { mockIsGenerateImageModel, mockIsReasoningModel, mockIsSupportedToolUse }
   mockIsSupportedToolUse: vi.fn()
 }))
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/utils/model', () => ({
   isGenerateImageModel: (...args: unknown[]) => mockIsGenerateImageModel(...args),
   isReasoningModel: (...args: unknown[]) => mockIsReasoningModel(...args)
 }))
@@ -32,7 +33,7 @@ vi.mock('@renderer/components/composer/tools/components/WebSearchButton', () => 
   WebSearchToolRuntime: () => null
 }))
 
-vi.mock('@renderer/hooks/agents/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: () => ({ agent: undefined })
 }))
 
@@ -45,14 +46,10 @@ vi.mock('@renderer/hooks/useMcpServer', () => ({
 }))
 
 describe('composer tool visibility', () => {
-  it('keeps assistant core capabilities discoverable when the current model cannot enable them', async () => {
+  it('keeps assistant core capabilities discoverable when the current model cannot enable them', () => {
     mockIsGenerateImageModel.mockReturnValue(false)
     mockIsReasoningModel.mockReturnValue(false)
     mockIsSupportedToolUse.mockReturnValue(false)
-
-    await import('../definitions/generateImageTool')
-    await import('../definitions/knowledgeBaseTool')
-    await import('../definitions/thinkingTool')
 
     const tools = getToolsForScope(TopicType.Chat, {
       assistant: {
@@ -73,9 +70,7 @@ describe('composer tool visibility', () => {
     )
   })
 
-  it('shows MCP status in chat and agent session scopes only', async () => {
-    await import('../definitions/mcpStatusTool')
-
+  it('shows MCP status in chat and agent session scopes only', () => {
     const model = {
       id: 'text-only',
       providerId: 'provider-1',

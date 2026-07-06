@@ -1,4 +1,5 @@
 import type * as TranslateHooks from '@renderer/hooks/translate'
+import type * as TranslateUtils from '@renderer/utils/translate'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -32,15 +33,16 @@ const translateCoreMock = vi.hoisted(() => ({
   detectLanguage: vi.fn(),
   setTimeoutTimer: vi.fn(),
   translateText: vi.fn(),
-  determineTargetLanguage: vi.fn(),
   isAbortError: vi.fn(),
   formatErrorMessageWithPrefix: vi.fn((_: unknown, prefix: string) => prefix)
 }))
 const loggerWarnMock = vi.hoisted(() => vi.fn())
+const loggerErrorMock = vi.hoisted(() => vi.fn())
 const clipboardWriteTextMock = vi.hoisted(() => vi.fn())
 const toastLoadingMock = vi.hoisted(() => vi.fn())
 const toastCloseToastMock = vi.hoisted(() => vi.fn())
 const modelSelectorMock = vi.hoisted(() => vi.fn())
+const exportContentToNotesMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -68,19 +70,19 @@ vi.mock('@cherrystudio/ui/icons', () => ({
   resolveIcon: () => undefined
 }))
 
-vi.mock('@renderer/components/app/Navbar', () => ({
+vi.mock('@renderer/components/Navbar', () => ({
   Navbar: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   NavbarCenter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
 }))
 
-vi.mock('@renderer/components/Selector/model', () => ({
+vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: (props: { trigger: React.ReactNode }) => {
     modelSelectorMock(props)
     return <>{props.trigger}</>
   }
 }))
 
-vi.mock('@renderer/context/CodeStyleProvider', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({
     shikiMarkdownIt: vi.fn().mockResolvedValue('')
   })
@@ -139,6 +141,17 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: translateCoreMock.setTimeoutTimer })
 }))
 
+vi.mock('@renderer/hooks/useSmoothStream', () => ({
+  useSmoothStream: ({ onUpdate }: { onUpdate: (text: string) => void }) => ({
+    reset: (text = '') => onUpdate(text),
+    update: (text: string) => onUpdate(text)
+  })
+}))
+
+vi.mock('@renderer/services/ExportService', () => ({
+  exportContentToNotes: exportContentToNotesMock
+}))
+
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: ipcRequestMock }
 }))
@@ -146,7 +159,7 @@ vi.mock('@renderer/ipc', () => ({
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
-      error: vi.fn(),
+      error: loggerErrorMock,
       warn: loggerWarnMock,
       info: vi.fn(),
       debug: vi.fn()
@@ -177,12 +190,11 @@ vi.mock('@renderer/utils/input', () => ({
   getTextFromDropEvent: dropMock.getTextFromDropEvent
 }))
 
-vi.mock('@renderer/utils/translate', () => ({
+vi.mock('@renderer/utils/translate', async (importOriginal) => ({
+  ...(await importOriginal<typeof TranslateUtils>()),
   createInputScrollHandler: () => vi.fn(),
   createOutputScrollHandler: () => vi.fn(),
-  determineTargetLanguage: translateCoreMock.determineTargetLanguage,
-  translateText: translateCoreMock.translateText,
-  UNKNOWN_LANG_CODE: 'unknown'
+  translateText: translateCoreMock.translateText
 }))
 
 vi.mock('../components/IconButton', () => ({
@@ -251,8 +263,20 @@ vi.mock('../components/TranslateLanguageBar', () => ({
 }))
 
 vi.mock('../components/TranslateOutputPane', () => ({
-  default: ({ translating }: { translating: boolean }) => (
-    <div data-testid="translate-output-pane">{translating && <span>translate.processing</span>}</div>
+  default: ({
+    translating,
+    translatedContent,
+    onExportToNotes
+  }: {
+    translating: boolean
+    translatedContent: string
+    onExportToNotes?: () => void | Promise<void>
+  }) => (
+    <div data-testid="translate-output-pane">
+      {translating && <span>translate.processing</span>}
+      <span data-testid="translate-output-content">{translatedContent}</span>
+      <button type="button" aria-label="notes.save" onClick={() => void onExportToNotes?.()} />
+    </div>
   )
 }))
 
@@ -317,18 +341,19 @@ describe('TranslatePage', () => {
     translateCoreMock.setTimeoutTimer.mockReset()
     translateCoreMock.translateText.mockReset()
     translateCoreMock.translateText.mockResolvedValue('translated text')
-    translateCoreMock.determineTargetLanguage.mockReset()
-    translateCoreMock.determineTargetLanguage.mockReturnValue({ success: true, language: 'zh-cn' })
     translateCoreMock.isAbortError.mockReset()
     translateCoreMock.isAbortError.mockReturnValue(false)
     translateCoreMock.formatErrorMessageWithPrefix.mockReset()
     translateCoreMock.formatErrorMessageWithPrefix.mockImplementation((_: unknown, prefix: string) => prefix)
     loggerWarnMock.mockReset()
+    loggerErrorMock.mockReset()
     clipboardWriteTextMock.mockReset()
     modelSelectorMock.mockReset()
     clipboardWriteTextMock.mockResolvedValue(undefined)
     toastLoadingMock.mockReset()
     toastCloseToastMock.mockReset()
+    exportContentToNotesMock.mockReset()
+    exportContentToNotesMock.mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -365,6 +390,62 @@ describe('TranslatePage', () => {
     render(<TranslatePage />)
 
     expect(modelSelectorMock).toHaveBeenCalledWith(expect.objectContaining({ showTagFilter: false }))
+  })
+
+  it('exports the trimmed current translation result to notes using the first translated line as title', async () => {
+    MockUseCacheUtils.setCacheValue('translate.output', '\nFirst translated line\nSecond translated line\n')
+    MockUsePreferenceUtils.setPreferenceValue('feature.notes.path', '/notes')
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.save' }))
+
+    await waitFor(() =>
+      expect(exportContentToNotesMock).toHaveBeenCalledWith(
+        'First translated line',
+        'First translated line\nSecond translated line',
+        '/notes'
+      )
+    )
+  })
+
+  it('keeps commas and periods in the first translated line when exporting to notes', async () => {
+    MockUseCacheUtils.setCacheValue('translate.output', 'Hello, world.\nSecond translated line')
+    MockUsePreferenceUtils.setPreferenceValue('feature.notes.path', '/notes')
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.save' }))
+
+    await waitFor(() =>
+      expect(exportContentToNotesMock).toHaveBeenCalledWith(
+        'Hello, world.',
+        'Hello, world.\nSecond translated line',
+        '/notes'
+      )
+    )
+  })
+
+  it('logs failures when exporting the current translation result to notes', async () => {
+    const exportError = new Error('export failed')
+    MockUseCacheUtils.setCacheValue('translate.output', 'First translated line\nSecond translated line')
+    MockUsePreferenceUtils.setPreferenceValue('feature.notes.path', '/notes')
+    exportContentToNotesMock.mockRejectedValueOnce(exportError)
+
+    render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'notes.save' }))
+
+    await waitFor(() =>
+      expect(exportContentToNotesMock).toHaveBeenCalledWith(
+        'First translated line',
+        'First translated line\nSecond translated line',
+        '/notes'
+      )
+    )
+    await waitFor(() => {
+      expect(loggerErrorMock).toHaveBeenCalledWith('Failed to export output to notes:', exportError)
+    })
   })
 
   it('appends selected file text to the latest input after async read completes', async () => {
@@ -676,9 +757,8 @@ describe('TranslatePage', () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.source_language': 'zh-cn',
-      'feature.translate.page.target_language': 'en-us'
+      'feature.translate.page.target_language': 'zh-cn'
     })
-    translateCoreMock.determineTargetLanguage.mockReturnValueOnce({ success: false, errorType: 'same_language' })
 
     const { rerender } = render(<TranslatePage />)
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
@@ -689,10 +769,11 @@ describe('TranslatePage', () => {
     expect(translateCoreMock.translateText).not.toHaveBeenCalled()
   })
 
-  it('shows unknown-language warning and skips translate when detection returns unknown', async () => {
+  it('continues translating with the selected target when auto detection returns unknown', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
-      'feature.translate.page.source_language': 'auto'
+      'feature.translate.page.source_language': 'auto',
+      'feature.translate.page.target_language': 'en-us'
     })
     translateCoreMock.detectLanguage.mockResolvedValueOnce('unknown')
 
@@ -701,8 +782,123 @@ describe('TranslatePage', () => {
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
-    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.error.detect.unknown'))
-    expect(translateCoreMock.translateText).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
+        'hello',
+        'en-us',
+        expect.any(Function),
+        expect.any(AbortSignal)
+      )
+    )
+    expect((window as any).toast.error).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
+        sourceText: 'hello',
+        targetText: 'translated text',
+        sourceLanguage: 'unknown',
+        targetLanguage: 'en-us'
+      })
+    )
+  })
+
+  it('continues translating with the selected target when auto detection throws', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'auto',
+      'feature.translate.page.target_language': 'en-us'
+    })
+    const detectError = new Error('detect failed')
+    translateCoreMock.detectLanguage.mockRejectedValueOnce(detectError)
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() =>
+      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
+        'hello',
+        'en-us',
+        expect.any(Function),
+        expect.any(AbortSignal)
+      )
+    )
+    expect((window as any).toast.error).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
+        sourceText: 'hello',
+        targetText: 'translated text',
+        sourceLanguage: 'unknown',
+        targetLanguage: 'en-us'
+      })
+    )
+  })
+
+  it('continues translating with the selected target when auto detection returns unknown in bidirectional mode', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'auto',
+      'feature.translate.page.target_language': 'en-us',
+      'feature.translate.page.bidirectional_enabled': true,
+      'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn']
+    })
+    translateCoreMock.detectLanguage.mockResolvedValueOnce('unknown')
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() =>
+      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
+        'hello',
+        'en-us',
+        expect.any(Function),
+        expect.any(AbortSignal)
+      )
+    )
+    expect((window as any).toast.warning).not.toHaveBeenCalledWith('translate.language.not_pair')
+    await waitFor(() =>
+      expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
+        sourceText: 'hello',
+        targetText: 'translated text',
+        sourceLanguage: 'unknown',
+        targetLanguage: 'en-us'
+      })
+    )
+  })
+
+  it('uses the detected source language to choose the opposite bidirectional target', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'auto',
+      'feature.translate.page.bidirectional_enabled': true,
+      'feature.translate.page.bidirectional_pair': ['en-us', 'zh-cn']
+    })
+    translateCoreMock.detectLanguage.mockResolvedValueOnce('zh-cn')
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: '你好' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() =>
+      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
+        '你好',
+        'en-us',
+        expect.any(Function),
+        expect.any(AbortSignal)
+      )
+    )
+    expect(translateCoreMock.detectLanguage).toHaveBeenCalledWith('你好')
+    await waitFor(() =>
+      expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
+        sourceText: '你好',
+        targetText: 'translated text',
+        sourceLanguage: 'zh-cn',
+        targetLanguage: 'en-us'
+      })
+    )
   })
 
   it('swallows abort errors from translate without showing success-side effects', async () => {
@@ -833,6 +1029,49 @@ describe('TranslatePage', () => {
     expect((window as any).toast.info).toHaveBeenCalledWith('translate.info.aborted')
   })
 
+  it('keeps streamed translation text when stop is clicked', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn',
+      'feature.translate.page.auto_copy': true
+    })
+    const abortError = new Error('aborted')
+    let signal: AbortSignal | undefined
+    translateCoreMock.translateText.mockImplementationOnce(
+      (
+        _text: string,
+        _targetLanguage: string,
+        onResponse?: (text: string, isComplete: boolean) => void,
+        abortSignal?: AbortSignal
+      ) => {
+        signal = abortSignal
+        onResponse?.('partial text', false)
+
+        return new Promise<string>((_resolve, reject) => {
+          abortSignal?.addEventListener('abort', () => reject(abortError), { once: true })
+        })
+      }
+    )
+    translateCoreMock.isAbortError.mockImplementation((error: unknown) => error === abortError)
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('partial text'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.stop' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'common.stop' }))
+
+    expect(signal?.aborted).toBe(true)
+    await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('partial text'))
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('partial text')
+    expect((window as any).toast.info).toHaveBeenCalledWith('translate.info.aborted')
+    expect((window as any).toast.success).not.toHaveBeenCalled()
+    expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
+    expect(translateCoreMock.setTimeoutTimer).not.toHaveBeenCalledWith('auto-copy', expect.any(Function), 100)
+  })
+
   it('schedules auto-copy after successful translation when auto-copy is enabled', async () => {
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'feature.translate.model_id': 'openai::gpt-4.1',
@@ -854,7 +1093,7 @@ describe('TranslatePage', () => {
         sourceText: 'hello',
         targetText: 'translated text',
         sourceLanguage: 'zh-cn',
-        targetLanguage: 'zh-cn'
+        targetLanguage: 'en-us'
       })
     )
     expect((window as any).toast.success).toHaveBeenCalledWith('translate.complete')

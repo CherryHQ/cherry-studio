@@ -1,5 +1,5 @@
-import { IpcError } from '@shared/ipc/errors'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))

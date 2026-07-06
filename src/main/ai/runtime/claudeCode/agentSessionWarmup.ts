@@ -1,16 +1,16 @@
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { application } from '@main/core/application'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost } from '@shared/utils/api'
-import { isGeminiProvider } from '@shared/utils/provider'
+import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
+import { isExternalCliProvider, isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
@@ -18,6 +18,8 @@ import { withDeepSeek1mSuffix } from './deepseekContext'
 import { createClaudeCodeQueryOptions } from './queryOptions'
 import { buildClaudeCodeSessionSettings } from './settingsBuilder'
 import type { ClaudeCodeSettings } from './types'
+
+const OLLAMA_CLAUDE_CODE_AUTH_TOKEN = 'ollama'
 
 export interface ClaudeCodeAgentSessionQueryRequest extends WarmQueryRequest {
   settings: ClaudeCodeSettings
@@ -46,20 +48,20 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   sessionId: string,
   effectiveResume?: string
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
-  const session = await agentSessionService.getById(sessionId)
+  const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
 
-  const agent = await agentService.getAgent(session.agentId)
+  const agent = agentService.getAgent(session.agentId)
   if (!agent?.model) return undefined
 
   const uniqueModelId = agent.model
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const provider = await providerService.getByProviderId(providerId)
-  const model = await modelService.getByKey(providerId, modelId)
+  const provider = providerService.getByProviderId(providerId)
+  const model = modelService.getByKey(providerId, modelId)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
   const route = await resolveClaudeCodeRuntimeRoute(agent, provider, model, modelId, baseUrl)
   const resumeSessionId =
-    effectiveResume ?? (await agentSessionMessageService.getLastRuntimeResumeToken(session.id)) ?? undefined
+    effectiveResume ?? agentSessionMessageService.getLastRuntimeResumeToken(session.id) ?? undefined
   const settings = mergeRuntimeSettings(
     await buildClaudeCodeSessionSettings(session, provider, { lastAgentSessionId: resumeSessionId }),
     route
@@ -98,13 +100,33 @@ async function resolveClaudeCodeRuntimeRoute(
     provider: primaryProvider
   }
   const opusRef = primaryRef
-  const sonnetRef = await resolveRuntimeModelRef(agent.planModel ?? agent.model, primaryRef)
-  const haikuRef = await resolveRuntimeModelRef(agent.smallModel ?? agent.model, primaryRef)
+  const sonnetRef = resolveRuntimeModelRef(agent.planModel ?? agent.model, primaryRef)
+  const haikuRef = resolveRuntimeModelRef(agent.smallModel ?? agent.model, primaryRef)
   const modelRefs = [primaryRef, opusRef, sonnetRef, haikuRef]
 
   const geminiRef = modelRefs.find((ref) => ref.provider && isGeminiProvider(ref.provider))
   if (geminiRef) {
     throw new Error(`Gemini provider models are not supported by Claude Code agents: ${geminiRef.providerId}`)
+  }
+
+  // External-cli (e.g. claude-code) authenticates only through the SDK's
+  // subscription login, which can serve *only* this provider's own models. A
+  // plan/small model pointing at another provider can't run on that login — and
+  // must not fall through to the gateway branch below, which would inject an API
+  // key (abandoning the login) and ship an unresolvable `claude-code:*` id to
+  // the gateway, bricking the agent. Pin every sub-model back onto the primary
+  // so the agent still runs on the subscription login.
+  if (isExternalCliProvider(primaryProvider)) {
+    const pinToPrimary = (ref: RuntimeModelRef) =>
+      ref.providerId === primaryProvider.id ? ref.apiModelId : primaryRef.apiModelId
+    return {
+      modelIds: {
+        primary: primaryRef.apiModelId,
+        opus: pinToPrimary(opusRef),
+        sonnet: pinToPrimary(sonnetRef),
+        haiku: pinToPrimary(haikuRef)
+      }
+    }
   }
 
   const shouldUseGateway = modelRefs.some(
@@ -126,9 +148,11 @@ async function resolveClaudeCodeRuntimeRoute(
   }
 
   const anthropicBaseUrl = resolveAnthropicBaseUrl(primaryProvider, primaryBaseUrl)
+  const providerApiKey = providerService.getRotatedApiKey(primaryProvider.id)
+  const runtimeApiKey = providerApiKey || (isOllamaProvider(primaryProvider) ? OLLAMA_CLAUDE_CODE_AUTH_TOKEN : '')
   return {
     baseUrl: anthropicBaseUrl,
-    apiKey: await providerService.getRotatedApiKey(primaryProvider.id),
+    apiKey: runtimeApiKey,
     modelIds: {
       primary: withDeepSeek1mSuffix(primaryRef.apiModelId, anthropicBaseUrl),
       opus: withDeepSeek1mSuffix(opusRef.apiModelId, anthropicBaseUrl),
@@ -138,19 +162,27 @@ async function resolveClaudeCodeRuntimeRoute(
   }
 }
 
-async function resolveRuntimeModelRef(
+function resolveRuntimeModelRef(
   uniqueModelId: UniqueModelId | null | undefined,
   fallback: RuntimeModelRef
-): Promise<RuntimeModelRef> {
+): RuntimeModelRef {
   if (!uniqueModelId) return fallback
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   if (providerId === fallback.providerId && modelId === fallback.modelId) return fallback
 
   try {
-    const [provider, model] = await Promise.all([
-      providerService.getByProviderId(providerId).catch(() => undefined),
-      modelService.getByKey(providerId, modelId).catch(() => undefined)
-    ])
+    let provider: ReturnType<typeof providerService.getByProviderId> | undefined
+    try {
+      provider = providerService.getByProviderId(providerId)
+    } catch {
+      provider = undefined
+    }
+    let model: ReturnType<typeof modelService.getByKey> | undefined
+    try {
+      model = modelService.getByKey(providerId, modelId)
+    } catch {
+      model = undefined
+    }
     return {
       providerId,
       modelId,
@@ -194,7 +226,7 @@ function resolveAnthropicBaseUrl(provider: Provider, baseUrl: string) {
   // Claude SDK manages API versioning itself — ANTHROPIC_BASE_URL must not include /v1.
   const anthropicEndpointUrl = provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl
   const rawBaseUrl = anthropicEndpointUrl || baseUrl
-  return rawBaseUrl ? formatApiHost(rawBaseUrl, false) : undefined
+  return rawBaseUrl ? withoutTrailingApiVersion(formatApiHost(rawBaseUrl, false)) : undefined
 }
 
 function mergeRuntimeSettings(settings: ClaudeCodeSettings, route: ClaudeCodeRuntimeRoute): ClaudeCodeSettings {

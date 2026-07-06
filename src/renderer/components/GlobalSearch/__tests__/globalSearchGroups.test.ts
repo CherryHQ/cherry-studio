@@ -7,6 +7,7 @@ import {
   createRecentRouteEntryFromTab,
   createRecentSessionEntryFromSession,
   createRecentTopicEntryFromTopic,
+  getDisplayGlobalSearchRecentEntries,
   getGlobalSearchTypes,
   getMessageSearchSources,
   GLOBAL_MESSAGE_SEARCH_GROUP_COLLAPSED_LIMIT,
@@ -14,6 +15,7 @@ import {
   GLOBAL_SEARCH_ENTITY_GROUP_COLLAPSED_LIMIT,
   GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT,
   GLOBAL_SEARCH_RECENT_ITEM_LIMIT,
+  sanitizeGlobalSearchRecentEntries,
   upsertGlobalSearchRecentEntry
 } from '../globalSearchGroups'
 
@@ -75,6 +77,71 @@ describe('globalSearchGroups', () => {
     expect(unchanged).toBe(entries)
     expect(changed).not.toBe(entries)
     expect(changed[0]).toEqual(expect.objectContaining({ kind: 'topic', topicId: 'topic-1', lastAccessTime: 30 }))
+  })
+
+  it('filters legacy assistant library route recents', () => {
+    const entries = [
+      {
+        kind: 'route' as const,
+        url: '/app/library?resourceType=assistant',
+        title: 'Library',
+        lastAccessTime: 30
+      },
+      {
+        kind: 'route' as const,
+        url: '/app/settings',
+        title: 'Settings',
+        lastAccessTime: 20
+      }
+    ]
+
+    expect(sanitizeGlobalSearchRecentEntries(entries)).toEqual([
+      {
+        kind: 'route',
+        url: '/app/settings',
+        title: 'Settings',
+        lastAccessTime: 20
+      }
+    ])
+    expect(
+      upsertGlobalSearchRecentEntry(entries, {
+        kind: 'route',
+        url: '/app/library',
+        title: 'Library',
+        lastAccessTime: 40
+      })
+    ).toEqual([
+      {
+        kind: 'route',
+        url: '/app/settings',
+        title: 'Settings',
+        lastAccessTime: 20
+      }
+    ])
+    expect(
+      getDisplayGlobalSearchRecentEntries([
+        ...entries,
+        {
+          kind: 'topic',
+          topicId: 'topic-1',
+          title: 'Topic',
+          lastAccessTime: 10
+        }
+      ])
+    ).toEqual([
+      {
+        kind: 'route',
+        url: '/app/settings',
+        title: 'Settings',
+        lastAccessTime: 20
+      },
+      {
+        kind: 'topic',
+        topicId: 'topic-1',
+        title: 'Topic',
+        lastAccessTime: 10
+      }
+    ])
   })
 
   it('shows recent items only before a search query is entered', () => {
@@ -162,6 +229,16 @@ describe('globalSearchGroups', () => {
   })
 
   it('creates entity-level recent entries and skips coarse chat routes', () => {
+    expect(
+      createRecentRouteEntryFromTab({
+        id: 'library',
+        type: 'route',
+        url: '/app/library',
+        title: 'Library',
+        lastAccessTime: 10
+      })
+    ).toBeNull()
+
     expect(
       createRecentRouteEntryFromTab({
         id: 'chat',

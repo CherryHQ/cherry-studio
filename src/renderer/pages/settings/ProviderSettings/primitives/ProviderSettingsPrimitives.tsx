@@ -5,7 +5,21 @@ import type { ReactNode } from 'react'
 
 import { providerSettingsTypography } from './classNames'
 
-export * from './classNames'
+export {
+  actionClasses,
+  apiKeyListClasses,
+  authConnectionClasses,
+  customHeaderDrawerClasses,
+  drawerClasses,
+  fieldClasses,
+  modelListClasses,
+  modelSyncClasses,
+  oauthCardClasses,
+  providerDetailColumnClasses,
+  providerListClasses,
+  providerSettingsTypography,
+  sectionHeadingClasses
+} from './classNames'
 
 export function ProviderSettingsContainer({
   className,

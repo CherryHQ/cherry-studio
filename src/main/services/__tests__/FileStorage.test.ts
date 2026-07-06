@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `t` pulls in i18n + preference machinery that isn't initialized under test; the
 // dialog title it produces is irrelevant to these contracts, so stub it to the key.
-vi.mock('@main/utils/language', () => ({ t: (key: string) => key }))
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 import { fileStorage } from '../FileStorage'
 

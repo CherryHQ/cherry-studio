@@ -78,7 +78,8 @@ export const MockCherrystudioUI = {
   ),
   ContextMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
   Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
-  DialogContent: ({ children, showCloseButton, ...props }: any) => {
+  DialogContent: ({ children, closeOnOverlayClick, showCloseButton, ...props }: any) => {
+    void closeOnOverlayClick
     void showCloseButton
     return (
       <div role="dialog" {...props}>

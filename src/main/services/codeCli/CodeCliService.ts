@@ -22,11 +22,13 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
-import { removeEnvProxy } from '@main/utils'
+import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { getFunctionalKeys, parseJSONC } from '@main/utils/jsonc'
-import { getBinaryExecutionEnv, getBinaryPath, isBinaryExists } from '@main/utils/process'
+import { removeEnvProxy } from '@main/utils/processRunner'
+import { getShellEnv } from '@main/utils/shellEnv'
 import { IpcChannel } from '@shared/IpcChannel'
-import { codeCLI, terminalApps, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
+import { CodeCli, TerminalApp, type TerminalConfig, type TerminalConfigWithCommand } from '@shared/types/codeCli'
 import type { CodeToolsRunResult } from '@shared/types/codeTools'
 import { spawn } from 'child_process'
 import semver from 'semver'
@@ -83,7 +85,7 @@ export class CodeCliService extends BaseService {
         model: string,
         directory: string,
         env: Record<string, string>,
-        options?: { autoUpdateToLatest?: boolean; terminal?: string }
+        options?: { autoUpdateToLatest?: boolean; terminal?: string; loginFlow?: boolean }
       ) => this.run(event, cliTool, model, directory, env, options)
     )
     this.ipcHandle(IpcChannel.CodeCli_GetAvailableTerminals, () => this.getAvailableTerminalsForPlatform())
@@ -96,6 +98,52 @@ export class CodeCliService extends BaseService {
     this.ipcHandle(IpcChannel.CodeCli_RemoveCustomTerminalPath, (_, terminalId: string) =>
       this.removeCustomTerminalPath(terminalId)
     )
+    // `checkClaudeLogin` is exposed through the IpcApi `oauth.check_external_login`
+    // route (see src/main/ipc/handlers/oauth.ts), not a legacy IpcChannel.
+  }
+
+  /**
+   * Read-only probe of whether the user already has a Claude Code CLI
+   * subscription login (Claude Pro/Max OAuth) usable by the Agent SDK. Never
+   * reads or stores the credential value itself — only its presence.
+   *
+   * macOS: the OAuth token lives in the global login Keychain under the generic
+   * password service `Claude Code-credentials` (independent of CLAUDE_CONFIG_DIR);
+   * we query existence without `-w` so no secret is read and no ACL prompt fires.
+   * Linux/Windows: it lives in `<CLAUDE_CONFIG_DIR>/.credentials.json` (default
+   * `~/.claude`). A present token may still be expired — the SDK refreshes on use;
+   * this is a best-effort "is the user signed in" hint for the settings UI.
+   */
+  public async checkClaudeLogin(): Promise<boolean> {
+    if (isMac) {
+      try {
+        await execAsync('security find-generic-password -s "Claude Code-credentials"', { timeout: 3000 })
+        return true
+      } catch {
+        // `security` exits non-zero when the keychain item is absent — the
+        // normal "not signed in" signal, so this path stays silent.
+        return false
+      }
+    }
+    try {
+      // Resolve from the same source the runtime uses (settingsBuilder reads the
+      // shell CLAUDE_CONFIG_DIR), not raw process.env: a GUI-launched Electron
+      // process does not inherit rc-exported vars, so probing process.env alone
+      // falsely reports "not signed in".
+      const shellEnv = await getShellEnv()
+      const configDir =
+        shellEnv.CLAUDE_CONFIG_DIR ||
+        process.env.CLAUDE_CONFIG_DIR ||
+        path.join(application.getPath('sys.home'), '.claude')
+      return fs.existsSync(path.join(configDir, '.credentials.json'))
+    } catch (error) {
+      // A probe failure here (e.g. login-shell env resolution throwing on a
+      // broken rc file) is NOT "not signed in" — log it so a genuinely
+      // signed-in user's stuck "not signed in" card is diagnosable instead of
+      // silently swallowed.
+      logger.warn('Failed to probe Claude login state; reporting not signed in', error as Error)
+      return false
+    }
   }
 
   protected async onStop(): Promise<void> {
@@ -126,21 +174,21 @@ export class CodeCliService extends BaseService {
   // npm package name used only for version registry lookups (not installation)
   private async getPackageName(cliTool: string) {
     switch (cliTool) {
-      case codeCLI.claudeCode:
+      case CodeCli.CLAUDE_CODE:
         return '@anthropic-ai/claude-code'
-      case codeCLI.geminiCli:
+      case CodeCli.GEMINI_CLI:
         return '@google/gemini-cli'
-      case codeCLI.openaiCodex:
+      case CodeCli.OPENAI_CODEX:
         return '@openai/codex'
-      case codeCLI.qwenCode:
+      case CodeCli.QWEN_CODE:
         return '@qwen-code/qwen-code'
-      case codeCLI.qoderCli:
+      case CodeCli.QODER_CLI:
         return '@qodercn-ai/qoderclicn'
-      case codeCLI.githubCopilotCli:
+      case CodeCli.GITHUB_COPILOT_CLI:
         return '@github/copilot'
-      case codeCLI.kimiCli:
+      case CodeCli.KIMI_CLI:
         return 'kimi-cli'
-      case codeCLI.openCode:
+      case CodeCli.OPEN_CODE:
         return 'opencode-ai'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
@@ -149,21 +197,21 @@ export class CodeCliService extends BaseService {
 
   private getToolInstallSpec(cliTool: string): { name: string; tool: string } {
     switch (cliTool) {
-      case codeCLI.claudeCode:
+      case CodeCli.CLAUDE_CODE:
         return { name: 'claude', tool: 'claude' }
-      case codeCLI.geminiCli:
+      case CodeCli.GEMINI_CLI:
         return { name: 'gemini', tool: 'npm:@google/gemini-cli' }
-      case codeCLI.openaiCodex:
+      case CodeCli.OPENAI_CODEX:
         return { name: 'codex', tool: 'codex' }
-      case codeCLI.qwenCode:
+      case CodeCli.QWEN_CODE:
         return { name: 'qwen', tool: 'npm:@qwen-code/qwen-code' }
-      case codeCLI.qoderCli:
+      case CodeCli.QODER_CLI:
         return { name: 'qoderclicn', tool: 'npm:@qodercn-ai/qoderclicn' }
-      case codeCLI.githubCopilotCli:
+      case CodeCli.GITHUB_COPILOT_CLI:
         return { name: 'copilot', tool: 'npm:@github/copilot' }
-      case codeCLI.kimiCli:
+      case CodeCli.KIMI_CLI:
         return { name: 'kimi', tool: 'pipx:kimi-cli' }
-      case codeCLI.openCode:
+      case CodeCli.OPEN_CODE:
         return { name: 'opencode', tool: 'opencode' }
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
@@ -172,21 +220,21 @@ export class CodeCliService extends BaseService {
 
   public async getCliExecutableName(cliTool: string) {
     switch (cliTool) {
-      case codeCLI.claudeCode:
+      case CodeCli.CLAUDE_CODE:
         return 'claude'
-      case codeCLI.geminiCli:
+      case CodeCli.GEMINI_CLI:
         return 'gemini'
-      case codeCLI.openaiCodex:
+      case CodeCli.OPENAI_CODEX:
         return 'codex'
-      case codeCLI.qwenCode:
+      case CodeCli.QWEN_CODE:
         return 'qwen'
-      case codeCLI.qoderCli:
+      case CodeCli.QODER_CLI:
         return 'qoderclicn'
-      case codeCLI.githubCopilotCli:
+      case CodeCli.GITHUB_COPILOT_CLI:
         return 'copilot'
-      case codeCLI.kimiCli:
+      case CodeCli.KIMI_CLI:
         return 'kimi'
-      case codeCLI.openCode:
+      case CodeCli.OPEN_CODE:
         return 'opencode'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
@@ -473,11 +521,11 @@ export class CodeCliService extends BaseService {
   private async checkWindowsTerminalAvailability(terminal: TerminalConfig): Promise<TerminalConfig | null> {
     try {
       switch (terminal.id) {
-        case terminalApps.cmd:
+        case TerminalApp.CMD:
           // CMD is always available on Windows
           return terminal
 
-        case terminalApps.powershell:
+        case TerminalApp.POWERSHELL:
           // Check for PowerShell in PATH
           try {
             await execAsync('powershell -Command "Get-Host"', {
@@ -493,7 +541,7 @@ export class CodeCliService extends BaseService {
             }
           }
 
-        case terminalApps.windowsTerminal:
+        case TerminalApp.WINDOWS_TERMINAL:
           // Check for Windows Terminal via where command (doesn't launch the terminal)
           try {
             await execAsync('where wt', { timeout: 3000 })
@@ -502,7 +550,7 @@ export class CodeCliService extends BaseService {
             return null
           }
 
-        case terminalApps.wsl:
+        case TerminalApp.WSL:
           // Check for WSL
           try {
             await execAsync('wsl --status', { timeout: 3000 })
@@ -538,7 +586,7 @@ export class CodeCliService extends BaseService {
 
     // Fallback to PATH check
     try {
-      const command = terminal.id === terminalApps.alacritty ? 'alacritty' : 'wezterm'
+      const command = terminal.id === TerminalApp.ALACRITTY ? 'alacritty' : 'wezterm'
       await execAsync(`${command} --version`, { timeout: 3000 })
       return terminal
     } catch {
@@ -636,7 +684,7 @@ export class CodeCliService extends BaseService {
   private async getTerminalConfig(terminalId?: string): Promise<TerminalConfigWithCommand> {
     const availableTerminals = await this.getAvailableTerminals()
     const terminalCommands = isWin ? WINDOWS_TERMINALS_WITH_COMMANDS : MACOS_TERMINALS_WITH_COMMANDS
-    const defaultTerminal = isWin ? terminalApps.cmd : terminalApps.systemDefault
+    const defaultTerminal = isWin ? TerminalApp.CMD : TerminalApp.SYSTEM_DEFAULT
 
     if (terminalId) {
       let requestedTerminal = terminalCommands.find(
@@ -855,7 +903,7 @@ export class CodeCliService extends BaseService {
     _model: string,
     directory: string,
     env: Record<string, string>,
-    options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
+    options: { autoUpdateToLatest?: boolean; terminal?: string; loginFlow?: boolean } = {}
   ): Promise<CodeToolsRunResult> {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     env = { ...getBinaryExecutionEnv(), ...env }
@@ -968,7 +1016,7 @@ export class CodeCliService extends BaseService {
     let baseCommand = `"${executablePath}"`
 
     // Special handling for qwen-code: add --auth-type openai for version >= 0.12.3
-    if (cliTool === codeCLI.qwenCode) {
+    if (cliTool === CodeCli.QWEN_CODE) {
       // Use semver for proper version comparison (handles v-prefix, prereleases, etc.)
       const coerced = semver.coerce(installedVersion)
       const needsAuthType = installedVersion && coerced && semver.gte(coerced, '0.12.3')
@@ -981,7 +1029,7 @@ export class CodeCliService extends BaseService {
     }
 
     // Add configuration parameters for OpenAI Codex using command line args
-    if (cliTool === codeCLI.openaiCodex && env.CHERRY_CODEX_PROVIDER_ID) {
+    if (cliTool === CodeCli.OPENAI_CODEX && env.CHERRY_CODEX_PROVIDER_ID) {
       const providerId = env.CHERRY_CODEX_PROVIDER_ID
       const providerName = env.CHERRY_CODEX_PROVIDER_NAME || providerId
       const normalizedBaseUrl = env.CHERRY_CODEX_BASE_URL.replace(/\/$/, '')
@@ -1000,7 +1048,7 @@ export class CodeCliService extends BaseService {
     }
 
     // Special handling for OpenCode: generate config file and add --model flag
-    if (cliTool === codeCLI.openCode) {
+    if (cliTool === CodeCli.OPEN_CODE) {
       const baseUrl = env.OPENCODE_BASE_URL
       const modelId = _model
       const modelName = env.OPENCODE_MODEL_NAME || modelId
@@ -1026,6 +1074,15 @@ export class CodeCliService extends BaseService {
 
       // Add --model flag with dynamic provider prefix to avoid race conditions
       baseCommand = `${baseCommand} --model Cherry-${providerName}/${modelId}`
+    }
+
+    // The Claude Code settings panel lands its terminal on the login flow rather
+    // than a bare REPL. Modeled as a fixed boolean, NOT a free-form arg string:
+    // this command is assembled into a shell string (and a Windows .bat), and
+    // CodeCli_Run has no sender validation, so a renderer-supplied string would
+    // be a shell-injection surface. A plain launch from the CLI page is unaffected.
+    if (options.loginFlow) {
+      baseCommand = `${baseCommand} /login`
     }
 
     switch (platform) {

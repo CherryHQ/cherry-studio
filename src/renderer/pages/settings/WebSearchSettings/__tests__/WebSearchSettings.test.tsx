@@ -6,8 +6,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import WebSearchSettings from '..'
 import type * as WebSearchApiKeyListHook from '../hooks/useWebSearchApiKeyList'
+import WebSearchSettings from '../WebSearchSettings'
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 const toastSuccessMock = vi.fn()

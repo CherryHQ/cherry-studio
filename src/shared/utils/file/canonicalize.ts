@@ -29,7 +29,7 @@
  * (written under the old rule) from new queries (running under the new
  * rule). Any such change MUST ship with a paired Drizzle migration that
  * re-canonicalizes every existing `file_entry.externalPath` and re-points
- * `file_ref` rows whose canonical forms now collide. See
+ * association rows whose canonical forms now collide. See
  * `docs/references/file/file-manager-architecture.md §1.2 Rule evolution
  * discipline`.
  */

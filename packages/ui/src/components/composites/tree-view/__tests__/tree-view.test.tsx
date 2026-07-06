@@ -95,6 +95,32 @@ describe('TreeView', () => {
     expect(lastCall.has('root')).toBe(true)
   })
 
+  it('allows expansion when canHaveChildren is true even before children are loaded', async () => {
+    const onExpandedChange = vi.fn()
+    const user = userEvent.setup()
+    const lazyData: Node[] = [{ id: 'lazy', name: 'Lazy' }]
+    const lazyAdapter: TreeNodeAdapter<Node> = {
+      getId: (n) => n.id,
+      getChildren: (n) => n.children,
+      canHaveChildren: () => true
+    }
+
+    render(
+      <TreeView
+        data={lazyData}
+        adapter={lazyAdapter}
+        renderRow={renderRow}
+        expandedIds={new Set()}
+        onExpandedChange={onExpandedChange}
+      />
+    )
+
+    await user.dblClick(screen.getByTestId('row-lazy'))
+
+    const lastCall = onExpandedChange.mock.calls.at(-1)?.[0] as Set<string>
+    expect(lastCall.has('lazy')).toBe(true)
+  })
+
   it('selects on click and reports through onSelectedChange', async () => {
     const onSelectedChange = vi.fn()
     const user = userEvent.setup()

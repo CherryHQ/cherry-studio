@@ -138,18 +138,6 @@ export type LanFileStartMessage = {
   chunkSize: number
 }
 
-/**
- * File chunk data (JSON format)
- * @deprecated Use binary frame format in protocol v1. This type is kept for reference only.
- */
-export type LanFileChunkMessage = {
-  type: 'file_chunk'
-  transferId: string
-  chunkIndex: number
-  data: string // Base64 encoded
-  chunkChecksum: string // SHA-256 of this chunk
-}
-
 /** Notification that all chunks have been sent */
 export type LanFileEndMessage = {
   type: 'file_end'
@@ -171,19 +159,6 @@ export type LanFileStartAckMessage = {
   transferId: string
   accepted: boolean
   message?: string // Rejection reason
-}
-
-/**
- * Acknowledgment of file chunk received
- * @deprecated Protocol v1 uses streaming mode without per-chunk acknowledgment.
- * This type is kept for backward compatibility reference only.
- */
-export type LanFileChunkAckMessage = {
-  type: 'file_chunk_ack'
-  transferId: string
-  chunkIndex: number
-  received: boolean
-  message?: string
 }
 
 /** Final result of file transfer */

@@ -1,4 +1,5 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
+import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { ModelMessage } from 'ai'
 
@@ -18,6 +19,9 @@ export interface RequestContext {
   readonly assistant?: Assistant
 
   readonly abortSignal?: AbortSignal
+
+  /** Attachments the `read_file` tool may read this request (filename → entry allow-list). */
+  readonly fileAttachments?: ReadonlyArray<FileAttachmentRef>
 }
 
 /** Per-call context: {@link RequestContext} + AI SDK's per-`execute` fields. */

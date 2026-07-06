@@ -224,7 +224,12 @@
           "runFailed": "Nu s-a reușit executarea sarcinii",
           "updateFailed": "Nu s-a reușit actualizarea sarcinii"
         },
-        "intervalPlaceholder": "Interval în minute",
+        "frequency": {
+          "everyPrefix": "La fiecare",
+          "everySuffix": "minute",
+          "label": "Frecvență de execuție"
+        },
+        "intervalPlaceholder": "Cel puțin 1",
         "intervalUnit": "minute",
         "lastRun": "Ultima rulare",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Interval",
-          "label": "Tip program",
           "once": "O singură dată"
         },
-        "scheduleValue": "Valoare program",
         "status": {
           "active": "Activă",
           "completed": "Finalizată",
@@ -277,7 +280,7 @@
           "minutesAgo": "acum {{count}}m"
         },
         "timeout": {
-          "label": "Timeout",
+          "label": "Timp maxim de execuție",
           "placeholder": "Fără limită"
         },
         "title": "Sarcini programate"
@@ -553,6 +556,7 @@
       "list": {
         "title": "Sarcini"
       },
+      "new": "Sarcină nouă",
       "pin": {
         "title": "Fixează sarcina"
       },
@@ -562,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Căutare sarcini"
+        "placeholder": "Căutare sarcini",
+        "title": "Căutare sarcini"
       },
       "unpin": {
         "title": "Anulați fixarea sarcinii"
@@ -599,9 +604,7 @@
         "select_failed": "Nu s-a reușit selectarea folderului."
       },
       "workspace_status": {
-        "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
-        "missing": "Calea către spațiul de lucru nu există: {{path}}",
-        "not_directory": "Calea spațiului de lucru nu este un director: {{path}}"
+        "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}"
       }
     },
     "settings": {
@@ -932,6 +935,10 @@
           "description": "Execută comenzi shell în mediul tău",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "Adaugă, șterge sau reîmprospătează documente în bazele tale de cunoștințe",
+          "label": "Gestionează cunoștințele"
+        },
         "CherryKbSearch": {
           "description": "Caută în bazele tale de cunoștințe",
           "label": "Căutare de cunoștințe"
@@ -1074,41 +1081,6 @@
       "stopped": "Oprit"
     },
     "title": "Server API"
-  },
-  "appMenu": {
-    "about": "Despre",
-    "close": "Închide fereastra",
-    "copy": "Copiază",
-    "cut": "Decupează",
-    "delete": "Șterge",
-    "documentation": "Documentație",
-    "edit": "Editare",
-    "feedback": "Feedback",
-    "file": "Fișier",
-    "forceReload": "Reîncărcare forțată",
-    "front": "Adu toate în față",
-    "help": "Ajutor",
-    "hide": "Ascunde",
-    "hideOthers": "Ascunde celelalte",
-    "minimize": "Minimizează",
-    "paste": "Lipește",
-    "quit": "Ieșire",
-    "redo": "Refă",
-    "releases": "Lansări",
-    "reload": "Reîncarcă",
-    "resetZoom": "Dimensiune reală",
-    "selectAll": "Selectează tot",
-    "services": "Servicii",
-    "toggleDevTools": "Comută instrumentele pentru dezvoltatori",
-    "toggleFullscreen": "Comută ecranul complet",
-    "undo": "Anulează",
-    "unhide": "Afișează toate",
-    "view": "Vizualizare",
-    "website": "Site web",
-    "window": "Fereastră",
-    "zoom": "Zoom",
-    "zoomIn": "Mărește",
-    "zoomOut": "Micșorează"
   },
   "assistants": {
     "abbr": "Asistenți",
@@ -1590,6 +1562,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "[to be translated]:Cache {{hit_rate}}%",
+        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "Acest mesaj este editat în compozitor",
       "flow": {
         "branches": "ramuri",
@@ -2052,7 +2028,6 @@
     "copy_failed": "Copiere eșuată",
     "create_success": "Creat cu succes",
     "current": "Curent",
-    "cut": "Decupează",
     "default": "Implicit",
     "delete": "Șterge",
     "delete_confirm": "Ești sigur că vrei să ștergi?",
@@ -2090,7 +2065,6 @@
     "image_preview": "Previzualizare imagine",
     "image_url": "URL imagine",
     "image_url_or_upload": "Introdu URL-ul imaginii sau încarcă fișierul",
-    "inspect": "Inspectează",
     "invalid_value": "Valoare invalidă",
     "knowledge_base": "Bază de cunoștințe",
     "language": "Limbă",
@@ -2111,7 +2085,6 @@
     "open_in": "Deschide în {{name}}",
     "open_in_new_tab": "Deschide în filă nouă",
     "open_sidebar": "Deschide bara laterală",
-    "paste": "Lipește",
     "placeholders": {
       "select": {
         "model": "Selectează un model"
@@ -2166,18 +2139,6 @@
     "warning": "Avertisment",
     "yesterday": "Ieri",
     "you": "Tu"
-  },
-  "dialog": {
-    "all_files": "Toate fișierele",
-    "html_files": "Fișiere HTML",
-    "open_file": "Deschide fișier",
-    "pdf_files": "Fișiere PDF",
-    "png_image": "Imagine PNG",
-    "save_as_html": "Salvează ca HTML",
-    "save_as_pdf": "Salvează ca PDF",
-    "save_file": "Salvează fișier",
-    "select_folder": "Selectează folderul",
-    "word_document": "Document Word"
   },
   "docs": {
     "title": "Documentație"
@@ -3159,12 +3120,22 @@
           "agent_title": "Agent nou",
           "assistant_title": "Asistent Nou",
           "avatar_aria": "Alege avatar",
+          "back": "Înapoi",
+          "capability": {
+            "import": "Import skill",
+            "no_skills": "Nicio abilitate instalată",
+            "search": "Abilități de căutare"
+          },
           "description_placeholder": "Descrie pentru ce este...",
-          "dialog_description": "Creați un asistent sau agent ușor.",
-          "model_placeholder": "Selectați un model",
-          "model_required": "Vă rugăm să selectați un model",
+          "guided_progress": "Configurare ghidată · Pasul {{current}} din {{total}}",
           "name_placeholder": "Introduceți un nume",
-          "name_required": "Introduceți un nume",
+          "next": "Următorul",
+          "step": {
+            "basic": "Informații de bază",
+            "capability": "Abilități",
+            "knowledge": "Cunoștințe",
+            "persona": "Persoană"
+          },
           "submit": "Creează",
           "submit_failed": "Crearea a eșuat"
         },
@@ -3873,64 +3844,6 @@
       "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Adaugă în Launchpad",
-    "add_to_sidebar": "Adaugă în bara laterală",
-    "popup": {
-      "close": "Închide MinApp",
-      "devtools": "Instrumente pentru dezvoltatori",
-      "goBack": "Înapoi",
-      "goForward": "Mergeți înainte",
-      "minimize": "Minimizează MinApp",
-      "openExternal": "Deschide în browser",
-      "open_link_external_off": "Curent: Deschide linkurile în fereastra implicită",
-      "open_link_external_on": "Curent: Deschide linkurile în browser",
-      "refresh": "Reîmprospătare",
-      "rightclick_copyurl": "Click dreapta pentru a copia adresa URL"
-    },
-    "remove_from_launchpad": "Elimină din Launchpad",
-    "remove_from_sidebar": "Elimină din bara laterală",
-    "sidebar": {
-      "close": {
-        "title": "Închide"
-      },
-      "closeall": {
-        "title": "Închide tot"
-      },
-      "hide": {
-        "title": "Ascunde"
-      },
-      "remove_custom": {
-        "title": "Șterge aplicația personalizată"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Căutare AI Baidu",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Agent Minimax CN",
-    "minimax-global": "Agent Minimax",
-    "nami-ai": "Nami AI",
-    "nami-ai-search": "Căutare Nami AI",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "miniApp": {
     "add_to_launchpad": "Adaugă în Launchpad",
     "add_to_sidebar": "Adaugă în bara laterală",
@@ -3941,15 +3854,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Nu s-a reușit fixarea mini-aplicației",
     "popup": {
-      "close": "Închide MiniApp",
       "devtools": "Instrumente dezvoltator",
       "goBack": "Mergi înapoi",
       "goForward": "Mergi înainte",
       "openExternal": "Deschide în browser",
       "open_link_external_off": "Curent: Deschide linkurile în fereastra implicită",
       "open_link_external_on": "Curent: Deschide linkurile în browser",
-      "refresh": "Reîmprospătează",
-      "rightclick_copyurl": "Clic dreapta pentru a copia URL-ul"
+      "refresh": "Reîmprospătează"
     },
     "remove_from_launchpad": "Elimină din Launchpad",
     "remove_from_sidebar": "Elimină din bara laterală",
@@ -3961,17 +3872,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Închide"
-      },
-      "closeall": {
-        "title": "Închide tot"
-      },
       "hide": {
         "title": "Ascunde"
-      },
-      "remove_custom": {
-        "title": "Șterge aplicația personalizată"
       }
     },
     "title": "MiniApp",
@@ -3991,7 +3893,6 @@
     "minimax-agent": "Agent Minimax CN",
     "minimax-global": "Agent Minimax",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -4777,10 +4678,10 @@
     "baichuan": "Baichuan",
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -4833,7 +4734,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Tesseract",
     "together": "Together",
-    "tokenflux": "TokenFlux",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",
@@ -5325,6 +5226,7 @@
     "assistant": {
       "create_new": "Asistent Nou",
       "empty_text": "Niciun asistent încă",
+      "filter": "Asistenți de filtrare",
       "multi_hint": "(exclusiv în mod reciproc cu multi-model)",
       "multi_label": "Asistenți multipli în paralel",
       "search_placeholder": "Asistenți de căutare…"
@@ -6349,12 +6251,6 @@
         "usage": "Utilizare",
         "version": "Versiune"
       },
-      "oauth": {
-        "callback": {
-          "message": "Poți închide această pagină și te poți întoarce la Cherry Studio",
-          "title": "Autentificare reușită"
-        }
-      },
       "prompts": {
         "arguments": "Argumente",
         "availablePrompts": "Prompturi disponibile",
@@ -6504,6 +6400,12 @@
         "show_estimated_tokens": "Afișează numărul estimat de tokeni",
         "title": "Setări intrare"
       },
+      "layout": {
+        "classic": "Clasic",
+        "conversation": "Vizualizare conversație",
+        "modern": "Modern",
+        "work": "Vizualizare lucru"
+      },
       "markdown_rendering_input_message": "Randare Markdown mesaj intrare",
       "metrics": "{{time_first_token_millsec}}ms până la primul token | {{token_speed}} tok/sec",
       "model": {
@@ -6523,37 +6425,24 @@
     "miniApps": {
       "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise atinge valoarea setată",
       "cache_description": "Setează numărul maxim de mini-aplicații active de păstrat în memorie",
-      "cache_settings": "Setări cache",
       "cache_title": "Limită cache mini-aplicații",
       "custom": {
-        "conflicting_ids": "ID-uri conflictuale cu aplicațiile implicite: {{ids}}",
-        "duplicate_ids": "ID-uri duplicate găsite: {{ids}}",
-        "edit_description": "Editează configurația mini-aplicației personalizate aici. Fiecare aplicație ar trebui să includă câmpurile id, name, url și logo.",
+        "create_title": "Creează miniaplicație personalizată",
         "edit_title": "Editează mini-aplicație personalizată",
-        "id": "ID",
-        "id_error": "ID-ul este obligatoriu.",
-        "id_placeholder": "Introdu ID",
-        "logo": "Logo",
         "logo_file": "Încarcă fișier logo",
-        "logo_upload_button": "Încarcă",
         "logo_upload_error": "Încărcarea logo-ului a eșuat.",
         "logo_upload_label": "Încarcă logo",
-        "logo_upload_success": "Logo încărcat cu succes.",
-        "logo_url": "URL logo",
-        "logo_url_label": "URL logo",
-        "logo_url_placeholder": "Introdu URL logo",
         "name": "Nume",
-        "name_error": "Numele este obligatoriu.",
         "name_placeholder": "Introdu nume",
-        "placeholder": "Introdu configurația mini-aplicației personalizate (format JSON)",
+        "remove_confirm_description": "Ștergi mini-aplicația personalizată \"{{name}}\"? Această acțiune nu poate fi anulată.",
+        "remove_confirm_title": "Ștergi miniaplicația personalizată?",
         "remove_error": "Eliminarea mini-aplicației personalizate a eșuat.",
         "remove_success": "Mini-aplicația personalizată a fost eliminată cu succes.",
-        "save": "Salvează",
         "save_error": "Salvarea mini-aplicației personalizate a eșuat.",
         "save_success": "Mini-aplicația personalizată a fost salvată cu succes.",
         "title": "Personalizat",
         "url": "URL",
-        "url_error": "URL-ul este obligatoriu.",
+        "url_invalid": "Introduceți un URL http, https sau file valid.",
         "url_placeholder": "Introdu URL"
       },
       "disabled": "Mini-aplicații ascunse",
@@ -6575,65 +6464,8 @@
         "title": "Filtru zonă aplicație miniatură"
       },
       "reset_tooltip": "Resetează la implicit",
-      "title": "Setări mini-aplicații",
-      "visible": "Mini-aplicații vizibile"
-    },
-    "miniapps": {
-      "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise va atinge valoarea stabilită",
-      "cache_description": "Setează numărul maxim de mini-aplicații active de păstrat în memorie",
-      "cache_settings": "Setări Cache",
-      "cache_title": "Limita Cache Mini App",
-      "custom": {
-        "conflicting_ids": "ID-uri în conflict cu aplicațiile implicite: {{ids}}",
-        "duplicate_ids": "ID-uri duplicate găsite: {{ids}}",
-        "edit_description": "Editează aici configurația miniaplicației personalizate. Fiecare aplicație ar trebui să includă câmpurile id, name, url și logo.",
-        "edit_title": "Editează Mini App personalizat",
-        "id": "ID",
-        "id_error": "ID este obligatoriu.",
-        "id_placeholder": "Introduceți ID",
-        "logo": "Siglă",
-        "logo_file": "Încarcă fișierul logo",
-        "logo_upload_button": "Încărcare",
-        "logo_upload_error": "Încărcarea logo-ului a eșuat.",
-        "logo_upload_label": "Încarcă sigla",
-        "logo_upload_success": "Logo încărcat cu succes.",
-        "logo_url": "URL logo",
-        "logo_url_label": "URL logo",
-        "logo_url_placeholder": "Introduceți URL-ul logo-ului",
-        "name": "Nume",
-        "name_error": "Numele este obligatoriu.",
-        "name_placeholder": "Introduceți numele",
-        "placeholder": "Introduceți configurația personalizată pentru mini-aplicație (format JSON)",
-        "remove_error": "Nu s-a reușit eliminarea miniaplicației personalizate.",
-        "remove_success": "Mini-aplicația personalizată a fost eliminată cu succes.",
-        "save": "Salvează",
-        "save_error": "Nu s-a reușit salvarea mini-aplicației personalizate.",
-        "save_success": "Mini-aplicația personalizată a fost salvată cu succes.",
-        "title": "Personalizat",
-        "url": "URL",
-        "url_error": "Este necesar un URL.",
-        "url_placeholder": "Introduceți URL"
-      },
-      "disabled": "Mini Aplicații Ascunse",
-      "display_title": "Setări de afișare Mini App",
-      "empty": "Apasă pictograma de ascundere pe o aplicație din stânga și aceasta va fi mutată aici",
-      "hide_app": "Ascunde {{name}}",
-      "open_link_external": {
-        "title": "Deschide linkurile în fereastră nouă în browser"
-      },
-      "region": {
-        "auto": "Detectare automată",
-        "cn": "China",
-        "description": "Filtrarea mini-programelor nesuportate în funcție de regiune",
-        "global": "Global",
-        "title": "Filtru Mini Program"
-      },
-      "reset_tooltip": "Resetare la valorile implicite",
-      "show_app": "Arată {{name}}",
-      "sidebar_description": "Afișează miniaplicațiile active în bara laterală",
-      "sidebar_title": "Afișare Mini Aplicații Active în Bara Laterală",
       "title": "Setări Mini Apps",
-      "visible": "Mini Aplicații Vizibile"
+      "visible": "Mini-aplicații vizibile"
     },
     "model": "Model implicit",
     "models": {
@@ -6784,6 +6616,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Unele modele sunt utilizate ca model implicit și nu pot fi eliminate.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -7105,9 +6938,19 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Domeniu de accelerație",
-          "backup": "Domeniu de rezervă",
           "international": "Domeniu internațional"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7578,6 +7421,7 @@
           "exa": "API de căutare neuronală pentru aplicații AI, optimizat pentru recuperare semantică pe web.",
           "exa_mcp": "Expune căutarea Exa către agenți prin serverul Exa MCP.",
           "fetch": "Furnizor încorporat de preluare URL. Preia conținutul paginilor web de la o adresă URL pentru a îmbogăți rezultatele căutării.",
+          "firecrawl": "Serviciu de căutare și crawler Firecrawl, optimizat pentru a transforma site-urile web în Markdown.",
           "jina": "API-urile de căutare și citire Jina Reader pentru recuperarea conținutului web curat.",
           "querit": "Serviciu de căutare pentru aplicații AI cu rezultate de recuperare web.",
           "searxng": "Motor de metacăutare gratuit pe internet, auto-găzduibil, care caută în multe surse.",
@@ -7897,11 +7741,6 @@
     "tooltip": {
       "newline": "Linie nouă"
     }
-  },
-  "tray": {
-    "quit": "Ieșire",
-    "show_quick_assistant": "Asistent rapid",
-    "show_window": "Afișează fereastra"
   },
   "update": {
     "install": "Instalează",

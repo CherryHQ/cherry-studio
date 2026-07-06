@@ -6,6 +6,13 @@ import ProviderHeader from '../ProviderHeader'
 const useProviderMock = vi.fn()
 const useProviderMetaMock = vi.fn()
 const useProviderEnableMock = vi.fn()
+// Keep t() returning raw keys: the renderer setup now initializes real i18n, but
+// these assertions match on stable key strings, not translated copy.
+vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
+  useTranslation: () => ({ t: (key: string) => key })
+}))
+
 vi.mock('@cherrystudio/ui', () => {
   return {
     Switch: ({ checked, onCheckedChange }: any) => (

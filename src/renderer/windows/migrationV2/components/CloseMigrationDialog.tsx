@@ -1,9 +1,8 @@
 /**
  * In-flow close confirmation.
  *
- * Shown when the user tries to close the migration window during an in-flow stage
- * (backup choice / backup progress / backup confirmed / migration — main intercepts the
- * native close and asks the renderer to open this dialog). "Continue" is the prominent
+ * Shown when the user tries to close the migration window during the in-flow migration stage
+ * (main intercepts the native close and asks the renderer to open this dialog). "Continue" is the prominent
  * default and keeps the window; "Quit" exits the app (via the provided `onConfirm`).
  * Escape / backdrop dismiss == continue, so an accidental dismissal never quits.
  */

@@ -26,14 +26,14 @@ export class TranslationBackend implements PersistenceBackend {
 
   constructor(private readonly opts: TranslationBackendOptions) {}
 
-  async persistAssistant(input: PersistAssistantInput): Promise<void> {
+  persistAssistant(input: PersistAssistantInput): void {
     // Discard-on-cancel: paused/error stops never touch the message row.
     if (input.status !== 'success') return
 
     const accumulated = extractText(input.finalMessage)
     if (!accumulated) return
 
-    const message = await messageService.getById(this.opts.messageId)
+    const message = messageService.getById(this.opts.messageId)
     const existingParts = message.data?.parts ?? []
     const baseParts = existingParts.filter((p) => p.type !== 'data-translation')
 
@@ -46,7 +46,7 @@ export class TranslationBackend implements PersistenceBackend {
       }
     } as CherryMessagePart
 
-    await messageService.update(this.opts.messageId, {
+    messageService.update(this.opts.messageId, {
       data: { ...message.data, parts: [...baseParts, translationPart] }
     })
   }

@@ -1,11 +1,18 @@
 import { application } from '@application'
 import type { InsertJobRow, JobRow } from '@data/db/schemas/job'
+import type { DbOrTx } from '@data/db/types'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
-import { Application } from '@main/core/application/Application'
-import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { Disposable } from '@main/core/lifecycle/event'
+import {
+  BaseService,
+  DependsOn,
+  type Disposable,
+  Injectable,
+  Phase,
+  ServicePhase,
+  SHUTDOWN_TIMEOUT_MS
+} from '@main/core/lifecycle'
 import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
@@ -152,9 +159,9 @@ export class JobManager extends BaseService {
     // that depends on a registered handler (startup recovery, schedule
     // arming, dispatching) is deferred to `onAllReady` so business services
     // have had their own `onInit` window to call `registerHandler`.
-    this.registerInterval(() => void this.runGC(), GC_INTERVAL_MS)
-    this.registerInterval(async () => {
-      const promoted = await jobService.promoteDelayedDue(Date.now())
+    this.registerInterval(() => this.runGC(), GC_INTERVAL_MS)
+    this.registerInterval(() => {
+      const promoted = jobService.promoteDelayedDue(Date.now())
       if (promoted > 0) {
         logger.debug('Promoted delayed jobs', { count: promoted })
         this.dispatchAll()
@@ -238,7 +245,7 @@ export class JobManager extends BaseService {
   private async runStartupRecoveryFlow(): Promise<void> {
     try {
       if (this._isShuttingDown) return
-      const stats = await runStartupRecovery(this.handlers, (id) => this.inFlightExecuted.has(id))
+      const stats = runStartupRecovery(this.handlers, (id) => this.inFlightExecuted.has(id))
       logger.info('Startup recovery complete', stats)
     } catch (err) {
       logger.error('Startup recovery failed', err as Error)
@@ -246,7 +253,7 @@ export class JobManager extends BaseService {
 
     if (this._isShuttingDown) return
     try {
-      const activeQueues = await jobService.getDistinctActiveQueues()
+      const activeQueues = jobService.getDistinctActiveQueues()
       for (const { queue, type } of activeQueues) {
         if (this._isShuttingDown) return
         const handler = this.handlers.get(type)
@@ -268,7 +275,7 @@ export class JobManager extends BaseService {
     if (this._isShuttingDown) return
     let schedules: JobScheduleSnapshot[] = []
     try {
-      schedules = await jobScheduleService.listEnabled()
+      schedules = jobScheduleService.listEnabled()
       await this.detectAndDispatchOverdue(schedules)
     } catch (err) {
       logger.error('Overdue detection failed', err as Error)
@@ -324,15 +331,13 @@ export class JobManager extends BaseService {
         .map((id) => this.finishedResolvers.get(id)?.promise)
         .filter((p): p is Promise<JobSnapshot> => p !== undefined)
 
-      const timeout = new Promise<'timeout'>((resolve) =>
-        setTimeout(() => resolve('timeout'), Application.SHUTDOWN_TIMEOUT_MS)
-      )
+      const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), SHUTDOWN_TIMEOUT_MS))
       const winner = await Promise.race([Promise.allSettled(pendingPromises).then(() => 'done' as const), timeout])
 
       if (winner === 'timeout') {
         logger.warn('JobManager.onStop timed out — pending jobs will be recovered on next start', {
           inFlight: inFlight.length,
-          timeoutMs: Application.SHUTDOWN_TIMEOUT_MS
+          timeoutMs: SHUTDOWN_TIMEOUT_MS
         })
       } else {
         logger.info('JobManager.onStop: all in-flight jobs settled')
@@ -387,20 +392,16 @@ export class JobManager extends BaseService {
   // ---------------- enqueue / cancel / list / get ----------------
 
   /**
-   * Persist a new job row and (if status is `pending`) dispatch it. If
-   * `opts.idempotencyKey` matches an existing non-terminal job, returns the
-   * existing handle without creating a new row. If `opts.scheduledAt` is in
-   * the future the row is stored in `delayed` state and a `once` schedule
-   * arms its promotion at the target time.
-   *
-   * @param type - JobRegistry key (compile-time validated via declaration merging)
-   * @param input - Strongly-typed payload bound to `type` via JobRegistry
-   * @param opts - Optional queue / priority / idempotency / scheduling overrides
-   * @returns Handle with `id`, initial `snapshot`, and a `finished` promise
-   * @throws Error with code `JOB_UNKNOWN_TYPE` if no handler is registered for `type`
-   * @throws Error with code `JOB_PAYLOAD_TOO_LARGE` if input JSON exceeds 1MB
+   * Validation + row construction shared by `enqueue` and `enqueueTx`. Pure —
+   * no queue registration, no DB access, no side effects. `ensureQueue` stays
+   * at the call sites AFTER their idempotency check, so an idempotency hit
+   * does not register a stray in-memory queue entry.
    */
-  async enqueue<K extends JobType>(type: K, input: JobPayloadOf<K>, opts: EnqueueOptions = {}): Promise<JobHandle> {
+  private prepareEnqueue<K extends JobType>(
+    type: K,
+    input: JobPayloadOf<K>,
+    opts: EnqueueOptions
+  ): { handler: JobHandler; queueName: string; insertRow: InsertJobRow } {
     const handler = this.handlers.get(type)
     if (!handler) {
       throw this.makeError(JOB_ERROR_CODES.UNKNOWN_TYPE, `No handler registered for type "${type}"`, {
@@ -437,22 +438,7 @@ export class JobManager extends BaseService {
       })
     }
 
-    if (opts.idempotencyKey) {
-      const existing = await jobService.findActiveByIdempotencyKey(opts.idempotencyKey)
-      if (existing) {
-        logger.info('idempotencyKey match — returning existing handle', {
-          type,
-          key: opts.idempotencyKey,
-          existingId: existing.id
-        })
-        return this.handleFor(existing)
-      }
-    }
-
     const queueName = opts.queue ?? handler.defaultQueue?.(input as never) ?? type
-    const concurrency = handler.defaultConcurrency ?? 1
-    this.ensureQueue(queueName, concurrency)
-
     const now = Date.now()
     const scheduledAt = opts.scheduledAt ?? now
     const status = scheduledAt > now ? 'delayed' : 'pending'
@@ -475,7 +461,41 @@ export class JobManager extends BaseService {
       timeoutMs: opts.timeoutMs ?? handler.defaultTimeoutMs ?? null
     }
 
-    const snapshot = await jobService.create(insertRow)
+    return { handler, queueName, insertRow }
+  }
+
+  /**
+   * Persist a new job row and (if status is `pending`) dispatch it. If
+   * `opts.idempotencyKey` matches an existing non-terminal job, returns the
+   * existing handle without creating a new row. If `opts.scheduledAt` is in
+   * the future the row is stored in `delayed` state and a `once` schedule
+   * arms its promotion at the target time.
+   *
+   * @param type - JobRegistry key (compile-time validated via declaration merging)
+   * @param input - Strongly-typed payload bound to `type` via JobRegistry
+   * @param opts - Optional queue / priority / idempotency / scheduling overrides
+   * @returns Handle with `id`, initial `snapshot`, and a `finished` promise
+   * @throws Error with code `JOB_UNKNOWN_TYPE` if no handler is registered for `type`
+   * @throws Error with code `JOB_PAYLOAD_TOO_LARGE` if input JSON exceeds 1MB
+   */
+  enqueue<K extends JobType>(type: K, input: JobPayloadOf<K>, opts: EnqueueOptions = {}): JobHandle {
+    const { handler, queueName, insertRow } = this.prepareEnqueue(type, input, opts)
+
+    if (opts.idempotencyKey) {
+      const existing = jobService.findActiveByIdempotencyKey(opts.idempotencyKey)
+      if (existing) {
+        logger.info('idempotencyKey match — returning existing handle', {
+          type,
+          key: opts.idempotencyKey,
+          existingId: existing.id
+        })
+        return this.handleFor(existing)
+      }
+    }
+
+    this.ensureQueue(queueName, handler.defaultConcurrency ?? 1)
+
+    const snapshot = jobService.create(insertRow)
     this.publishState(snapshot)
     const handle = this.handleFor(snapshot)
 
@@ -490,8 +510,91 @@ export class JobManager extends BaseService {
       type,
       queue: queueName,
       status: snapshot.status,
-      scheduledAt
+      scheduledAt: insertRow.scheduledAt
     })
+    return handle
+  }
+
+  /**
+   * Transactional variant of `enqueue`: the job INSERT goes through the
+   * caller's transaction, so a business-state write and its job enqueue
+   * commit (or roll back) atomically.
+   *
+   * Contract:
+   *   - Call inside a `DbService.withWriteTx` callback and pass its `tx`.
+   *     (A bare db handle also works but is pointless — use `enqueue`.)
+   *   - Post-commit side effects (publishState, dispatch / delayed arming)
+   *     are deferred by one microtask. better-sqlite3 transactions are fully
+   *     synchronous, so the microtask runs strictly after COMMIT / ROLLBACK.
+   *   - If the caller's tx rolls back, the returned handle's `finished` never
+   *     resolves — the resolver is discarded, no `failed` snapshot is
+   *     synthesized (same policy as onStop). Normally the rollback's throw
+   *     propagates through `withWriteTx` to the caller, so the handle never
+   *     escapes anyway.
+   *   - If `opts.idempotencyKey` collides with the partial unique index at
+   *     INSERT time, the typed error aborts the WHOLE caller transaction —
+   *     business writes roll back too. That is what atomicity demands, but
+   *     callers must expect it.
+   */
+  enqueueTx<K extends JobType>(tx: DbOrTx, type: K, input: JobPayloadOf<K>, opts: EnqueueOptions = {}): JobHandle {
+    const { handler, queueName, insertRow } = this.prepareEnqueue(type, input, opts)
+
+    if (opts.idempotencyKey) {
+      const existing = jobService.findActiveByIdempotencyKeyTx(tx, opts.idempotencyKey)
+      if (existing) {
+        logger.info('idempotencyKey match — returning existing handle (tx)', {
+          type,
+          key: opts.idempotencyKey,
+          existingId: existing.id
+        })
+        // The existing row's dispatch already happened — no microtask needed.
+        return this.handleFor(existing)
+      }
+    }
+
+    this.ensureQueue(queueName, handler.defaultConcurrency ?? 1)
+
+    const snapshot = jobService.createTx(tx, insertRow)
+    const handle = this.handleFor(snapshot)
+
+    // Post-commit side effects, deferred one microtask past the synchronous
+    // transaction. Re-read the row instead of trusting the insert-time
+    // snapshot: a rollback leaves no row (clean up and stop), and the caller's
+    // synchronous code may have already moved the job on (publish the truth,
+    // and never dispatch a row that is no longer pending). A crash between
+    // COMMIT and this microtask leaves a pending row for startup recovery.
+    queueMicrotask(() => {
+      try {
+        const persisted = jobService.getById(snapshot.id)
+        if (!persisted) {
+          this.finishedResolvers.delete(snapshot.id)
+          logger.warn('enqueueTx: row absent after tx — rolled back, resolver discarded', {
+            id: snapshot.id,
+            type
+          })
+          return
+        }
+        this.publishState(persisted)
+        logger.info('Job enqueued (tx)', {
+          id: persisted.id,
+          type,
+          queue: persisted.queue,
+          status: persisted.status,
+          scheduledAt: insertRow.scheduledAt
+        })
+        if (this._isShuttingDown) return // no new dispatch in the shutdown window; recovery resurrects the row
+        if (persisted.status === 'pending') {
+          void this.dispatch(persisted.queue)
+        } else if (persisted.status === 'delayed') {
+          this.armDelayedJob(persisted)
+        }
+      } catch (err) {
+        // A microtask has no caller — an uncaught throw here would surface as
+        // a process-level uncaughtException.
+        logger.error('enqueueTx: post-commit side effects failed', { id: snapshot.id, type, err })
+      }
+    })
+
     return handle
   }
 
@@ -523,12 +626,12 @@ export class JobManager extends BaseService {
     }
 
     const dbService = application.get('DbService')
-    await dbService.withWriteTx((tx) => jobService.setCancelRequestedTx(tx, jobId))
+    jobService.setCancelRequestedTx(dbService.getDb(), jobId)
 
     const controller = this.abortControllers.get(jobId)
     if (controller) {
       controller.abort(new Error(`Job cancelled${reason ? `: ${reason}` : ''}`))
-      const snapshot = await jobService.getById(jobId)
+      const snapshot = jobService.getById(jobId)
       const handler = snapshot ? this.handlers.get(snapshot.type) : undefined
       const graceMs = handler?.cancelTimeoutMs ?? DEFAULT_CANCEL_TIMEOUT_MS
       // Wait on the executor signal — populated by `spawnExecute` regardless of
@@ -561,7 +664,7 @@ export class JobManager extends BaseService {
     // dispatch cannot promote a cancelRequested row to running between the
     // tx above and this branch, so the snapshot here is guaranteed terminal-
     // or-cancellable.)
-    const snapshot = await jobService.getById(jobId)
+    const snapshot = jobService.getById(jobId)
     if (snapshot && (snapshot.status === 'pending' || snapshot.status === 'delayed')) {
       await this.finalizeJob(jobId, 'cancelled', undefined, {
         code: JOB_ERROR_CODES.CANCELLED,
@@ -595,10 +698,7 @@ export class JobManager extends BaseService {
    * @throws Error if both `filter.queue` and `filter.type` are undefined
    * @throws Error with code `JOB_CANCEL_REASON_TOO_LONG` if `reason` exceeds 500 chars
    */
-  async cancelMany(
-    filter: { queue?: string; type?: string },
-    reason?: string
-  ): Promise<{ aborted: number; transitioned: number }> {
+  cancelMany(filter: { queue?: string; type?: string }, reason?: string): { aborted: number; transitioned: number } {
     if (!filter.queue && !filter.type) {
       throw new Error('cancelMany: filter must specify queue or type (empty filter rejected)')
     }
@@ -608,7 +708,7 @@ export class JobManager extends BaseService {
       })
     }
     const dbService = application.get('DbService')
-    const result = await dbService.withWriteTx((tx) =>
+    const result = dbService.withWriteTx((tx) =>
       jobService.cancelManyTx(tx, filter, {
         code: JOB_ERROR_CODES.CANCELLED,
         message: reason ?? 'Cancelled by cancelMany',
@@ -658,13 +758,13 @@ export class JobManager extends BaseService {
    * @throws Error with code `JOB_SCHEDULE_NAME_CONFLICT` if `(type, name)` already exists
    * @throws Error with code `JOB_SCHEDULE_SINGLETON_EXISTS` if `name` omitted on a multi-instance type
    */
-  async registerJobSchedule<K extends JobType>(input: JobScheduleRegistrationInput<K>): Promise<{ id: string }> {
+  registerJobSchedule<K extends JobType>(input: JobScheduleRegistrationInput<K>): { id: string } {
     if (!this.handlers.has(input.type)) {
       throw this.makeError(JOB_ERROR_CODES.UNKNOWN_TYPE, `No handler for schedule type "${input.type}"`, {
         type: input.type
       })
     }
-    const snapshot = await jobScheduleService.create({
+    const snapshot = jobScheduleService.create({
       type: input.type,
       name: input.name ?? null,
       trigger: input.trigger,
@@ -702,10 +802,10 @@ export class JobManager extends BaseService {
    * @param id - Schedule row id
    * @returns `true` if the row existed and was updated; `false` if not found
    */
-  async resumeJobScheduleById(id: string): Promise<boolean> {
-    const updated = await jobScheduleService.setEnabled(id, true)
+  resumeJobScheduleById(id: string): boolean {
+    const updated = jobScheduleService.setEnabled(id, true)
     if (updated) {
-      const snapshot = await jobScheduleService.getById(id)
+      const snapshot = jobScheduleService.getById(id)
       if (snapshot) this.armSchedule(snapshot)
     }
     return updated
@@ -723,16 +823,16 @@ export class JobManager extends BaseService {
    * @returns `true` if fired; `false` if no schedule exists for `id`
    */
   async triggerJobScheduleNowById(id: string): Promise<boolean> {
-    const schedule = await jobScheduleService.getById(id)
+    const schedule = jobScheduleService.getById(id)
     if (!schedule) return false
     const triggered = await application.get('SchedulerService').triggerNow(`schedule:${id}`)
     if (triggered) return true
     // Fallback path (non-cron OR cron not currently armed in this process).
-    await this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
+    this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
       scheduleId: schedule.id
     })
     try {
-      await jobScheduleService.markFired(schedule.id, Date.now(), null)
+      jobScheduleService.markFired(schedule.id, Date.now(), null)
     } catch (err) {
       logger.warn('markFired failed after manual trigger — lastRun may be stale', {
         scheduleId: schedule.id,
@@ -795,7 +895,7 @@ export class JobManager extends BaseService {
    * @throws Error with code `JOB_SCHEDULE_NOT_FOUND_BY_NAME` if `(type, name)` is unknown
    */
   async pauseJobSchedule<K extends JobType>(type: K, name?: string | null): Promise<boolean> {
-    const id = await this.resolveScheduleIdByName(type, name)
+    const id = this.resolveScheduleIdByName(type, name)
     return this.pauseJobScheduleById(id)
   }
 
@@ -808,7 +908,7 @@ export class JobManager extends BaseService {
    * @throws Error with code `JOB_SCHEDULE_NAME_REQUIRED` / `JOB_SCHEDULE_NOT_FOUND_BY_NAME`
    */
   async resumeJobSchedule<K extends JobType>(type: K, name?: string | null): Promise<boolean> {
-    const id = await this.resolveScheduleIdByName(type, name)
+    const id = this.resolveScheduleIdByName(type, name)
     return this.resumeJobScheduleById(id)
   }
 
@@ -821,7 +921,7 @@ export class JobManager extends BaseService {
    * @throws Error with code `JOB_SCHEDULE_NAME_REQUIRED` / `JOB_SCHEDULE_NOT_FOUND_BY_NAME`
    */
   async triggerJobScheduleNow<K extends JobType>(type: K, name?: string | null): Promise<boolean> {
-    const id = await this.resolveScheduleIdByName(type, name)
+    const id = this.resolveScheduleIdByName(type, name)
     return this.triggerJobScheduleNowById(id)
   }
 
@@ -834,7 +934,7 @@ export class JobManager extends BaseService {
    * @throws Error with code `JOB_SCHEDULE_NAME_REQUIRED` / `JOB_SCHEDULE_NOT_FOUND_BY_NAME`
    */
   async unregisterJobSchedule<K extends JobType>(type: K, name?: string | null): Promise<boolean> {
-    const id = await this.resolveScheduleIdByName(type, name)
+    const id = this.resolveScheduleIdByName(type, name)
     return this.unregisterJobScheduleById(id)
   }
 
@@ -859,8 +959,8 @@ export class JobManager extends BaseService {
    * @param patch Partial update
    * @returns Updated snapshot, or null if no row matches `id`
    */
-  async updateJobSchedule(id: string, patch: UpdateJobScheduleDto): Promise<JobScheduleSnapshot | null> {
-    const updated = await jobScheduleService.update(id, patch)
+  updateJobSchedule(id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
+    const updated = jobScheduleService.update(id, patch)
     if (!updated) return null
 
     const needsRearm = patch.trigger !== undefined || patch.enabled !== undefined
@@ -889,22 +989,24 @@ export class JobManager extends BaseService {
    * @returns The snapshot, or `null` if no row matches `(type, name)`
    * @throws Error with code `JOB_SCHEDULE_NAME_REQUIRED` if `type` has multiple schedules and `name` is omitted
    */
-  async getJobSchedule<K extends JobType>(type: K, name?: string | null): Promise<JobScheduleSnapshot | null> {
-    const id = await this.resolveScheduleIdByName(type, name).catch((err) => {
+  getJobSchedule<K extends JobType>(type: K, name?: string | null): JobScheduleSnapshot | null {
+    let id: string
+    try {
+      id = this.resolveScheduleIdByName(type, name)
+    } catch (err) {
       // For "name required" errors, surface them. For "not found", return null.
       if (err instanceof Error && err.message.includes(JOB_ERROR_CODES.SCHEDULE_NOT_FOUND_BY_NAME)) return null
       throw err
-    })
-    if (typeof id !== 'string') return null
+    }
     return jobScheduleService.getById(id)
   }
 
-  private async resolveScheduleIdByName(type: string, name?: string | null): Promise<string> {
+  private resolveScheduleIdByName(type: string, name?: string | null): string {
     // Map nullish name to the singleton sentinel `''` so the underlying lookup
     // can rely on a uniform string key (DB column is NOT NULL DEFAULT '').
     const nameKey = name ?? ''
     if (name == null) {
-      const candidates = await jobScheduleService.listAll({ type })
+      const candidates = jobScheduleService.listAll({ type })
       if (candidates.length > 1) {
         throw this.makeError(
           JOB_ERROR_CODES.SCHEDULE_NAME_REQUIRED,
@@ -914,9 +1016,9 @@ export class JobManager extends BaseService {
       }
       if (candidates.length === 1) return candidates[0].id
     }
-    const snapshot = await jobScheduleService.getByTypeAndName(type, nameKey)
+    const snapshot = jobScheduleService.getByTypeAndName(type, nameKey)
     if (!snapshot) {
-      const knownNames = await jobScheduleService.listNamesForType(type)
+      const knownNames = jobScheduleService.listNamesForType(type)
       throw this.makeError(JOB_ERROR_CODES.SCHEDULE_NOT_FOUND_BY_NAME, `Schedule not found for type "${type}"`, {
         type,
         name: name ?? null,
@@ -963,19 +1065,19 @@ export class JobManager extends BaseService {
     if (!queue) return
 
     // Layer 1 first (per-queue) serializes ticks against the same queue and
-    // avoids wasted writeMutex traffic. Layer 0 (the global write mutex inside
-    // DbService.withWriteTx) serializes all writes across the app to dodge
-    // libsql issue #288. Lock acquisition order is fixed: Layer 1 outside,
-    // Layer 0 inside (via withWriteTx).
+    // avoids wasted write contention. Layer 0 (SQLite's single-writer lock,
+    // taken by DbService.withWriteTx via BEGIN IMMEDIATE) serializes all writes
+    // across the app. Lock acquisition order is fixed: Layer 1 outside, Layer 0
+    // inside (via withWriteTx).
     const releaseQueue = await queue.mutex.acquire()
     let claimed: JobRow | null = null
 
     try {
       const dbService = application.get('DbService')
-      claimed = await dbService.withWriteTx(async (tx) => {
-        const queueRunning = await jobService.countRunningByQueueTx(tx, queueName)
+      claimed = dbService.withWriteTx((tx) => {
+        const queueRunning = jobService.countRunningByQueueTx(tx, queueName)
         if (queueRunning >= queue.concurrency) return null
-        const globalRunning = await jobService.countRunningGlobalTx(tx)
+        const globalRunning = jobService.countRunningGlobalTx(tx)
         if (globalRunning >= this.globalMaxConcurrency) {
           this.globalCapReached = true
           return null
@@ -1074,6 +1176,7 @@ export class JobManager extends BaseService {
       jobId: row.id,
       input: row.input,
       attempt: row.attempt,
+      parentId: row.parentId,
       signal: controller.signal,
       metadata: initialMetadata,
       patchMetadata: async (patch) => {
@@ -1082,7 +1185,7 @@ export class JobManager extends BaseService {
         // sync with the durable state and the handler observes the failure.
         const merged = { ...row.metadata, ...patch }
         const dbService = application.get('DbService')
-        await dbService.withWriteTx((tx) => jobService.setMetadataTx(tx, row.id, merged))
+        jobService.setMetadataTx(dbService.getDb(), row.id, merged)
         row.metadata = merged
       },
       reportProgress: (progress, detail) => {
@@ -1205,13 +1308,13 @@ export class JobManager extends BaseService {
     const dbService = application.get('DbService')
     let txFailed: Error | undefined
     try {
-      await dbService.withWriteTx((tx) => jobService.setTerminalTx(tx, jobId, status, output, error))
+      jobService.setTerminalTx(dbService.getDb(), jobId, status, output, error)
     } catch (err) {
       txFailed = err as Error
       logger.error('finalizeJob: tx failed — synthesizing failed snapshot to release slot', { jobId, status, err })
     }
 
-    const persisted = await jobService.getById(jobId)
+    const persisted = jobService.getById(jobId)
     const snapshot: JobSnapshot | null = persisted ?? (txFailed ? this.synthesizeFailedSnapshot(jobId, txFailed) : null)
 
     if (!snapshot) {
@@ -1234,10 +1337,13 @@ export class JobManager extends BaseService {
           jobId,
           type: snapshot.type,
           scheduleId: snapshot.scheduleId,
+          parentId: snapshot.parentId,
           status: snapshot.status as 'completed' | 'failed' | 'cancelled',
+          input: snapshot.input,
           output: snapshot.output,
           error: snapshot.error,
-          attempt: snapshot.attempt
+          attempt: snapshot.attempt,
+          metadata: snapshot.metadata
         })
       } catch (settledErr) {
         logger.warn('handler.onSettled threw — ignoring', {
@@ -1321,11 +1427,11 @@ export class JobManager extends BaseService {
   ): Promise<void> {
     const dbService = application.get('DbService')
     try {
-      await dbService.withWriteTx((tx) => jobService.setDelayedRetryTx(tx, jobId, nextAttempt, scheduledAt, error))
+      jobService.setDelayedRetryTx(dbService.getDb(), jobId, nextAttempt, scheduledAt, error)
     } catch (retryWriteErr) {
-      // mutex + libsql default IMMEDIATE + 50ms BUSY retry cover transient
-      // SQLITE_BUSY; this fallback defends against persistent non-BUSY
-      // failures (SQLITE_CORRUPT / FULL / CONSTRAINT, driver bugs, etc.)
+      // The single-statement write commits on the one better-sqlite3
+      // connection; this fallback defends against persistent failures
+      // (SQLITE_CORRUPT / FULL / CONSTRAINT, driver bugs, etc.)
       // that would otherwise leave the row stuck in `running` until
       // restart. Degrading to a terminal `failed` with retryable=true
       // surfaces the failure to UI/monitoring while finalizeJob's
@@ -1345,8 +1451,8 @@ export class JobManager extends BaseService {
 
     const scheduler = application.get('SchedulerService')
     const retryId = `retry:${jobId}:${nextAttempt}`
-    scheduler.registerSchedule(retryId, { kind: 'once', at: scheduledAt }, async () => {
-      await jobService.promoteDelayedDue(Date.now())
+    scheduler.registerSchedule(retryId, { kind: 'once', at: scheduledAt }, () => {
+      jobService.promoteDelayedDue(Date.now())
       void this.dispatch(queue)
     })
     logger.info('Retry scheduled', { jobId, nextAttempt, scheduledAt, queue })
@@ -1381,7 +1487,7 @@ export class JobManager extends BaseService {
     const disp = scheduler.registerSchedule(scheduleKey, trigger, async () => {
       const firedAt = Date.now()
       try {
-        await this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
+        this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
           scheduleId: schedule.id
         })
       } catch (err) {
@@ -1396,7 +1502,7 @@ export class JobManager extends BaseService {
       } finally {
         try {
           const nextRun = scheduler.getNextRun(scheduleKey)
-          await jobScheduleService.markFired(schedule.id, firedAt, nextRun?.getTime() ?? null)
+          jobScheduleService.markFired(schedule.id, firedAt, nextRun?.getTime() ?? null)
         } catch (markErr) {
           logger.warn('markFired failed — nextRun may be stale', {
             scheduleId: schedule.id,
@@ -1423,8 +1529,8 @@ export class JobManager extends BaseService {
     const scheduler = application.get('SchedulerService')
     const jobKey = `job:${snapshot.id}`
     const scheduledMs = Date.parse(snapshot.scheduledAt)
-    scheduler.registerSchedule(jobKey, { kind: 'once', at: scheduledMs }, async () => {
-      await jobService.promoteDelayedDue(Date.now())
+    scheduler.registerSchedule(jobKey, { kind: 'once', at: scheduledMs }, () => {
+      jobService.promoteDelayedDue(Date.now())
       void this.dispatch(snapshot.queue)
     })
   }
@@ -1462,7 +1568,7 @@ export class JobManager extends BaseService {
       }
       if (action.shouldEnqueue) {
         const scheduledAt = nowMs + action.enqueueDelayMs
-        await this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
+        this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
           scheduleId: schedule.id,
           scheduledAt
         })
@@ -1481,17 +1587,17 @@ export class JobManager extends BaseService {
    * exception isolation prevents a crash but does not log, so each step
    * surfaces its own error.
    */
-  private async runGC(): Promise<void> {
+  private runGC(): void {
     const cutoff = Date.now() - GC_TERMINAL_TTL_MS
     let byTtl = 0
     let byCount = 0
     try {
-      byTtl = await jobService.pruneTerminalOlderThan(cutoff)
+      byTtl = jobService.pruneTerminalOlderThan(cutoff)
     } catch (err) {
       logger.error('GC: pruneTerminalOlderThan failed', { err: (err as Error).message })
     }
     try {
-      byCount = await jobService.pruneTerminalKeepLatestPerType(GC_KEEP_PER_TYPE)
+      byCount = jobService.pruneTerminalKeepLatestPerType(GC_KEEP_PER_TYPE)
     } catch (err) {
       logger.error('GC: pruneTerminalKeepLatestPerType failed', { err: (err as Error).message })
     }

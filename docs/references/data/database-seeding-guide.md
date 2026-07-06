@@ -28,7 +28,7 @@ export interface ISeeder {
 
 Reads journal entries from `app_state` (key = `seed:<name>`), compares version strings, skips if they match, calls `seeder.run(db)` if they differ, then writes the journal entry after the seeder returns. Skips `bootstrap-only` seeders once the bootstrap window is closed (see [Execution Policies](#execution-policies)), and writes the window marker after the first fully-successful pass. Each seeder owns its own transaction boundaries.
 
-**`seeding/index.ts`** (`src/main/data/db/seeding/index.ts`)
+**`seeding/seederRegistry.ts`** (`src/main/data/db/seeding/seederRegistry.ts`)
 
 Exports an ordered array of `ISeeder` instances. This is the only place you need to register a new seeder.
 
@@ -65,7 +65,7 @@ Each seeder declares how it relates to re-runs via `executionPolicy` (mirrors Li
 
 **Why there is no `run-once`**: "execute once ever, ignore content changes" is migration-tool semantics (Liquibase's default for incremental deltas) — that responsibility belongs to Drizzle migrations and the v2 migrators, not seeding. For seed data, ignoring version changes silently desyncs the database from the data source. Its legitimate use cases are already covered: new-installs-only → `bootstrap-only`; one-time for everyone → `run-on-change` + idempotent guard; data fixes → migrations.
 
-**Ordering**: array order in `seeding/index.ts` is execution order. Cross-seeder **data** dependencies (e.g. `CherryAiDefaultModelSeeder` must precede `DefaultAssistantSeeder` because of the `assistant.modelId` FK) are expressed by ordering. `bootstrap-only` imposes no ordering constraints of its own, but a bootstrap seeder that checks domain tables for emptiness is sensitive to earlier seeders writing those tables within the same first pass — keep that in mind when inserting seeders before one.
+**Ordering**: array order in `seeding/seederRegistry.ts` is execution order. Cross-seeder **data** dependencies (e.g. `CherryAiDefaultModelSeeder` must precede `DefaultAssistantSeeder` because of the `assistant.modelId` FK) are expressed by ordering. `bootstrap-only` imposes no ordering constraints of its own, but a bootstrap seeder that checks domain tables for emptiness is sensitive to earlier seeders writing those tables within the same first pass — keep that in mind when inserting seeders before one.
 
 ## Version Strategies
 
@@ -156,9 +156,9 @@ export class MyDataSeeder implements ISeeder {
 }
 ```
 
-### 2. Register in `index.ts`
+### 2. Register in `seederRegistry.ts`
 
-Add the instance to the `seeders` array in `src/main/data/db/seeding/index.ts`:
+Add the instance to the `seeders` array in `src/main/data/db/seeding/seederRegistry.ts`:
 
 ```typescript
 import { MyDataSeeder } from './myDataSeeder'

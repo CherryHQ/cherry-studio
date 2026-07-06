@@ -1,13 +1,20 @@
 import { Badge, Button, type ComboboxOption, Input, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import {
+  SettingHelpLink,
+  SettingHelpText,
+  SettingHelpTextRow,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useLanguages } from '@renderer/hooks/translate'
-import { formatApiKeys, splitApiKeyString, validateApiHost } from '@renderer/utils/api'
+import { formatApiKeys, joinApiKeyString, splitApiKeyString, validateApiHost } from '@renderer/utils/api'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { List, SquareCheckBig } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingRow, SettingRowTitle, SettingTitle } from '../..'
 import {
   type FileProcessingMenuEntry,
   getProcessorApiKeyWebsite,
@@ -62,12 +69,12 @@ export function ProcessorPanel({
       ? defaultImageProcessor === processor.id
       : defaultDocumentProcessor === processor.id
 
-  const [apiKeysInput, setApiKeysInput] = useState(() => processor.apiKeys?.join(', ') ?? '')
+  const [apiKeysInput, setApiKeysInput] = useState(() => joinApiKeyString(processor.apiKeys ?? []))
   const [apiHostInput, setApiHostInput] = useState(entry.capability.apiHost ?? '')
   const [modelIdInput, setModelIdInput] = useState(entry.capability.modelId ?? '')
 
   useEffect(() => {
-    setApiKeysInput(processor.apiKeys?.join(', ') ?? '')
+    setApiKeysInput(joinApiKeyString(processor.apiKeys ?? []))
     setApiHostInput(entry.capability.apiHost ?? '')
     setModelIdInput(entry.capability.modelId ?? '')
   }, [entry.key])
@@ -122,7 +129,10 @@ export function ProcessorPanel({
     await FileProcessingApiKeyListPopup.show({
       processorId: processor.id,
       apiKeys: splitApiKeyString(formatApiKeys(apiKeysInput)),
-      onSetApiKeys,
+      onSetApiKeys: async (processorId, apiKeys) => {
+        await onSetApiKeys(processorId, apiKeys)
+        setApiKeysInput(joinApiKeyString(apiKeys))
+      },
       title: `${processorName} ${t('settings.provider.api.key.list.title')}`
     })
   }, [apiKeysInput, onSetApiKeys, processor.id, processorName, t])

@@ -1,4 +1,5 @@
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
+import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -6,7 +7,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageListProvider } from '../../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../../types'
-import { setInlineFilePathHomePath } from '../../../utils/filePath'
 import { MessageReportArtifacts } from '../ReportArtifacts'
 
 vi.mock('react-i18next', async (importOriginal) => ({
@@ -14,8 +14,12 @@ vi.mock('react-i18next', async (importOriginal) => ({
   useTranslation: () => ({
     t: (key: string) => {
       if (key === 'common.preview') return 'Preview'
+      if (key === 'common.copied') return 'Copied'
+      if (key === 'common.copy') return 'Copy'
       if (key === 'chat.input.tools.open_file') return 'Open File'
       if (key === 'chat.input.tools.open_file_error') return 'Failed to open file'
+      if (key === 'chat.input.tools.file_not_found') return 'File not found'
+      if (key === 'agent.session.file_manager.finder') return 'Finder'
       return key
     }
   })
@@ -23,6 +27,12 @@ vi.mock('react-i18next', async (importOriginal) => ({
 
 vi.mock('@iconify/react', () => ({
   Icon: ({ icon }: { icon: string }) => <span data-icon={icon} />
+}))
+
+vi.mock('@renderer/utils/platform', () => ({
+  isMac: true,
+  isWin: false,
+  platform: 'darwin'
 }))
 
 const renderWithProvider = (ui: ReactElement, actions: MessageListProviderValue['actions'] = {}) => {
@@ -172,6 +182,48 @@ describe('MessageReportArtifacts', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open File report.html' }))
     await waitFor(() => {
       expect(openPath).toHaveBeenCalledWith('/Users/alice/Desktop/report.html')
+    })
+  })
+
+  it('runs artifact actions from the right-click context menu', async () => {
+    const openPath = vi.fn().mockResolvedValue(undefined)
+    const showInFolder = vi.fn().mockResolvedValue(undefined)
+    const copyText = vi.fn().mockResolvedValue(undefined)
+
+    renderWithProvider(
+      <MessageReportArtifacts
+        toolResponses={[
+          {
+            id: 'tool-call-1',
+            toolCallId: 'tool-call-1',
+            tool: { id: 'report-artifacts', name: 'report_artifacts', type: 'builtin' },
+            status: 'done',
+            arguments: {
+              artifacts: [{ path: 'dist/report.md' }]
+            }
+          } as NormalToolResponse
+        ]}
+      />,
+      { openPath, showInFolder, copyText }
+    )
+
+    const previewButton = screen.getByRole('button', { name: 'Preview report.md' })
+    expect(previewButton).toHaveAttribute('aria-disabled', 'true')
+    expect(previewButton).not.toBeDisabled()
+
+    const openContextMenu = () => fireEvent.contextMenu(screen.getByText('report.md'))
+
+    openContextMenu()
+    fireEvent.click(screen.getByRole('button', { name: 'Open File' }))
+    openContextMenu()
+    fireEvent.click(screen.getByRole('button', { name: 'Finder' }))
+    openContextMenu()
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
+
+    await waitFor(() => {
+      expect(openPath).toHaveBeenCalledWith('dist/report.md')
+      expect(showInFolder).toHaveBeenCalledWith('dist/report.md')
+      expect(copyText).toHaveBeenCalledWith('dist/report.md', { successMessage: 'Copied' })
     })
   })
 })

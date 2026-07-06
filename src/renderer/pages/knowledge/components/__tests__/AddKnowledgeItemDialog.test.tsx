@@ -139,6 +139,7 @@ vi.mock('@cherrystudio/ui', async () => {
     }) => {
       const { open } = React.use(DialogContext)
       const dialogProps = { ...props }
+      delete dialogProps.closeOnOverlayClick
       delete dialogProps.showCloseButton
 
       return open ? (

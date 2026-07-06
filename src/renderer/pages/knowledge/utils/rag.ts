@@ -1,9 +1,36 @@
-import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
-import type { KnowledgeRagConfigFormValues } from '../types'
+import type { KnowledgeRagConfigFormValues, KnowledgeSelectOption } from '../types'
 import { parseRequiredInteger } from './validate'
+
+const DEFAULT_KNOWLEDGE_DOCUMENT_COUNT = 6
+const DEFAULT_KNOWLEDGE_THRESHOLD = 0.0
+
+type KnowledgeSearchModeTranslator = (
+  key: 'knowledge.rag.search_mode.bm25' | 'knowledge.rag.search_mode.hybrid' | 'knowledge.rag.search_mode.vector'
+) => string
+
+/**
+ * Options for the search-mode picker, keyed on the *pending* embeddingModelId (the
+ * form's current value, not the base's persisted one) so picking a model and a
+ * search mode in the same edit works — vector/hybrid retrieval needs a model.
+ */
+export const buildKnowledgeSearchModeOptions = (
+  embeddingModelId: string | null,
+  t: KnowledgeSearchModeTranslator
+): KnowledgeSelectOption[] => {
+  const bm25Option = { value: 'bm25', label: t('knowledge.rag.search_mode.bm25') }
+  if (embeddingModelId === null) {
+    return [bm25Option]
+  }
+
+  return [
+    { value: 'hybrid', label: t('knowledge.rag.search_mode.hybrid') },
+    { value: 'vector', label: t('knowledge.rag.search_mode.vector') },
+    bm25Option
+  ]
+}
 
 export const createKnowledgeRagConfigFormValues = (base: KnowledgeBase): KnowledgeRagConfigFormValues => ({
   fileProcessorId: base.fileProcessorId ?? null,

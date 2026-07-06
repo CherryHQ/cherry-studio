@@ -29,30 +29,30 @@ import { getModels } from '../models'
 describe('api gateway model listing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.listProviders.mockResolvedValue([
+    mocks.listProviders.mockReturnValue([
       { id: CHERRYAI_PROVIDER_ID, name: 'CherryAI' },
       { id: 'openai', name: 'OpenAI' }
     ])
     mocks.listModels.mockImplementation(({ providerId }: { providerId: string }) => {
       if (providerId === CHERRYAI_PROVIDER_ID) {
-        return Promise.resolve([
+        return [
           {
             id: 'cherryai::qwen',
             providerId: CHERRYAI_PROVIDER_ID,
             apiModelId: CHERRYAI_DEFAULT_MODEL_ID,
             ownedBy: 'CherryAI'
           }
-        ])
+        ]
       }
 
-      return Promise.resolve([
+      return [
         {
           id: 'openai::gpt-4o',
           providerId: 'openai',
           apiModelId: 'gpt-4o',
           ownedBy: 'OpenAI'
         }
-      ])
+      ]
     })
   })
 

@@ -1,0 +1,87 @@
+{
+  "agent": {
+    "session": {
+      "workspace_status": {
+        "inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
+        "missing": "ワークスペースパスが存在しません: {{path}}",
+        "not_directory": "ワークスペースパスがディレクトリではありません: {{path}}"
+      }
+    }
+  },
+  "appMenu": {
+    "about": "について",
+    "close": "ウィンドウを閉じる",
+    "copy": "コピー",
+    "cut": "切る",
+    "delete": "削除",
+    "documentation": "ドキュメント",
+    "edit": "編集",
+    "feedback": "フィードバック",
+    "file": "ファイル",
+    "forceReload": "強制再読み込み",
+    "front": "すべてを前面に移動",
+    "help": "助け",
+    "hide": "隠す",
+    "hideOthers": "他を隠す",
+    "minimize": "最小化",
+    "paste": "ペースト",
+    "quit": "やめる",
+    "redo": "やり直し",
+    "releases": "リリース",
+    "reload": "リロード",
+    "resetZoom": "実寸",
+    "selectAll": "すべて選択",
+    "services": "サービス",
+    "toggleDevTools": "開発者ツールを切り替え",
+    "toggleFullscreen": "全画面表示を切り替え",
+    "undo": "元に戻す",
+    "unhide": "すべて表示",
+    "view": "表示",
+    "website": "ウェブサイト",
+    "window": "窓",
+    "zoom": "ズーム",
+    "zoomIn": "ズームイン",
+    "zoomOut": "ズームアウト"
+  },
+  "common": {
+    "copy": "コピー",
+    "cut": "切り取り",
+    "inspect": "検査",
+    "paste": "貼り付け"
+  },
+  "dialog": {
+    "all_files": "すべてのファイル",
+    "html_files": "HTMLファイル",
+    "open_file": "ファイルを開く",
+    "pdf_files": "PDFファイル",
+    "png_image": "PNG画像",
+    "save_as_html": "HTMLとして保存",
+    "save_as_pdf": "PDFとして保存",
+    "save_file": "ファイルを保存",
+    "select_folder": "フォルダを選択",
+    "word_document": "ワード文書"
+  },
+  "paintings": {
+    "generate_failed": "画像の生成に失敗しました",
+    "image_mix_failed": "画像の混合に失敗しました"
+  },
+  "selection": {
+    "name": "テキスト選択ツール"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "このページを閉じてCherry Studioに戻ることができます",
+          "title": "認証成功"
+        }
+      }
+    },
+    "title": "設定"
+  },
+  "tray": {
+    "quit": "終了",
+    "show_quick_assistant": "クイックアシスタント",
+    "show_window": "ウィンドウを表示"
+  }
+}

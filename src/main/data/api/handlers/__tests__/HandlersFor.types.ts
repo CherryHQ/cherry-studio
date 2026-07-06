@@ -16,8 +16,8 @@
  * automatically.
  */
 
-import type { ApiHandler, ApiMethods, HandlersFor } from '@shared/data/api/apiTypes'
 import type { TopicSchemas } from '@shared/data/api/schemas/topics'
+import type { ApiHandler, ApiMethods, HandlersFor } from '@shared/data/api/types'
 
 // ----------------------------------------------------------------------------
 // Control: the pre-refactor hand-rolled mapped type, verbatim from how each

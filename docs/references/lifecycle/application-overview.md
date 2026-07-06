@@ -15,10 +15,11 @@ For lifecycle internals (phases, hooks, states, decorators, events), see [Lifecy
 
 ## Quick Start
 
-Both `application` and `serviceList` are barrel-exported from the `@application` path alias (configured in `tsconfig.node.json` and `electron.vite.config.ts`):
+`application` is imported from the `@application` path alias, which resolves directly to `Application.ts` (configured in `tsconfig.node.json` and `electron.vite.config.ts`). The bootstrap-internal `serviceList` is imported directly from `serviceRegistry.ts` — it is not part of the `@application` surface, so importing the locator never pulls in the whole service graph:
 
 ```typescript
-import { application, serviceList } from '@application'
+import { application } from '@application'
+import { serviceList } from '@main/core/application/serviceRegistry'
 
 // 1. Register all services
 application.registerAll(serviceList)
@@ -250,7 +251,6 @@ import { application } from '@application'
 
 ```
 application/
-├── Application.ts      # Application singleton + lazy proxy
-├── serviceRegistry.ts  # Central service registry (add services here)
-└── index.ts            # Barrel export
+├── Application.ts      # Application singleton + lazy proxy — the `@application` alias target
+└── serviceRegistry.ts  # Central service registry (add services here); imported directly, no barrel
 ```

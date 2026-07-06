@@ -24,13 +24,13 @@ describe('DefaultAssistantSeeder', () => {
 
   async function runCherryAiModelDependencySeed() {
     // Provides the CherryAI model row the default assistant's modelId FK requires
-    await new CherryAiDefaultModelSeeder().run(dbh.db)
+    new CherryAiDefaultModelSeeder().run(dbh.db)
   }
 
   it('seeds the default assistant when only the CherryAI default model dependency seed has run', async () => {
     await runCherryAiModelDependencySeed()
 
-    await new DefaultAssistantSeeder().run(dbh.db)
+    new DefaultAssistantSeeder().run(dbh.db)
 
     const [assistant] = await dbh.db.select().from(assistantTable).limit(1)
     const [provider] = await dbh.db
@@ -63,6 +63,23 @@ describe('DefaultAssistantSeeder', () => {
     })
     expect(model?.id).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     expect(preference?.value).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+
+    const [topic] = await dbh.db.select().from(topicTable).limit(1)
+    expect(topic?.id).toMatch(UUID_V4_PATTERN)
+    expect(topic).toMatchObject({
+      name: '',
+      assistantId: assistant.id,
+      groupId: null,
+      activeNodeId: null
+    })
+
+    const messages = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, topic.id))
+    expect(messages).toHaveLength(1)
+    expect(messages[0]).toMatchObject({
+      parentId: null,
+      role: 'root',
+      data: { parts: [] }
+    })
   })
 
   it('does not seed the default assistant when an active assistant already exists', async () => {
@@ -74,7 +91,7 @@ describe('DefaultAssistantSeeder', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    await new DefaultAssistantSeeder().run(dbh.db)
+    new DefaultAssistantSeeder().run(dbh.db)
 
     const rows = await dbh.db.select().from(assistantTable)
     expect(rows).toHaveLength(1)
@@ -87,7 +104,7 @@ describe('DefaultAssistantSeeder', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    await new DefaultAssistantSeeder().run(dbh.db)
+    new DefaultAssistantSeeder().run(dbh.db)
 
     const rows = await dbh.db.select().from(assistantTable)
     expect(rows).toHaveLength(0)
@@ -111,7 +128,7 @@ describe('DefaultAssistantSeeder', () => {
       ])
     )
 
-    await new DefaultAssistantSeeder().run(dbh.db)
+    new DefaultAssistantSeeder().run(dbh.db)
 
     const rows = await dbh.db.select().from(assistantTable)
     expect(rows).toHaveLength(0)

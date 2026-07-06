@@ -14,7 +14,7 @@
 
 | Primitive | Resource | State | Backing | Lifecycle |
 |---|---|---|---|---|
-| FileManager | `FileEntry` rows (internal + external) + content bytes | DB + filesystem | `file_entry` / `file_ref` SQLite tables | always-on `WhenReady` service |
+| FileManager | `FileEntry` rows (internal + external) + content bytes | DB + filesystem | `file_entry` + file association tables | always-on `WhenReady` service |
 | DirectoryTreeBuilder | In-memory `TreeDirRoot` mirror + chokidar watcher | Pure runtime | None — FS is the source of truth | per-`(rootPath, options)`; refcounted |
 
 Neither subsumes the other:
@@ -339,7 +339,7 @@ The hook handles four overlapping concerns:
 
 | Concern | Owner | Cross-reference |
 |---|---|---|
-| Filesystem watching | `createDirectoryWatcher` (transport) | [`watcher/`](../../../src/main/services/file/watcher) |
+| Filesystem watching | `createDirectoryWatcher` (transport) | [`watcher.ts`](../../../src/main/services/file/watcher.ts) |
 | `FileEntry` rows + atomic writes | FileManager | [`file-manager-architecture.md`](./file-manager-architecture.md) |
 | `noteTable` sparse-state metadata | Notes domain (renderer + DataApi) | not part of tree concerns |
 | `.gitignore` parsing | `gitignore.ts` (this module) | private to the tree primitive |

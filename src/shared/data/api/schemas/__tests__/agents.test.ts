@@ -43,4 +43,15 @@ describe('AgentEntitySchema', () => {
     ).toEqual(['Bash', 'Read'])
     expect(UpdateAgentSchema.parse({ disabledTools: ['Read', 'Read'] }).disabledTools).toEqual(['Read'])
   })
+
+  it('deduplicates create-only skillIds at the API parse boundary', () => {
+    expect(
+      CreateAgentSchema.parse({
+        type: 'claude-code',
+        name: 'Agent',
+        model: 'openai::gpt-4',
+        skillIds: ['skill-a', 'skill-b', 'skill-a']
+      }).skillIds
+    ).toEqual(['skill-a', 'skill-b'])
+  })
 })

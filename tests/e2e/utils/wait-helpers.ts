@@ -20,7 +20,7 @@ export async function waitForAppReady(page: Page, timeout: number = 60000): Prom
       '[class*="Sidebar"]', // Sidebar component
       '[class*="TabsContainer"]', // Tabs container
       '[class*="home-navbar"]', // Home navbar
-      '[class*="Container"]' // Generic container from styled-components
+      '[class*="Container"]' // Generic generated container class
     ].join(', '),
     {
       state: 'visible',

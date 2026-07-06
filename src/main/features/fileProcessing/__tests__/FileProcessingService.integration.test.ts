@@ -210,7 +210,7 @@ describe('FileProcessingService.startJob — routing', () => {
   function makeSvc() {
     const svc = new FileProcessingService()
     ;(svc as unknown as { onInit(): void }).onInit()
-    enqueueMock.mockResolvedValue({
+    enqueueMock.mockReturnValue({
       id: 'job-test-1',
       snapshot: {
         id: 'job-test-1',

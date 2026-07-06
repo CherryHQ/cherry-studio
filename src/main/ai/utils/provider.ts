@@ -46,8 +46,8 @@ export function getExtraHeaders(provider: Provider): Record<string, string> {
   return provider.settings?.extraHeaders ?? {}
 }
 
-export async function defaultHeaders(provider: Provider): Promise<Record<string, string>> {
-  const apiKey = await providerService.getRotatedApiKey(provider.id)
+export function defaultHeaders(provider: Provider): Record<string, string> {
+  const apiKey = providerService.getRotatedApiKey(provider.id)
   return {
     ...defaultAppHeaders(),
     ...(apiKey ? { Authorization: `Bearer ${apiKey}`, 'X-Api-Key': apiKey } : {}),

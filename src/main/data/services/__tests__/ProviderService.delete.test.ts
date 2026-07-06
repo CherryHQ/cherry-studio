@@ -35,7 +35,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    await expect(providerService.delete('openai')).rejects.toThrow(/Cannot delete preset provider/)
+    expect(() => providerService.delete('openai')).toThrow(/Cannot delete preset provider/)
 
     // Verify row is still present
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'openai'))
@@ -50,7 +50,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    await expect(providerService.delete('openai-work')).resolves.toBeUndefined()
+    expect(providerService.delete('openai-work')).toBeUndefined()
 
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'openai-work'))
     expect(rows).toHaveLength(0)
@@ -69,7 +69,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    await expect(providerService.delete('zai')).rejects.toThrow(/Cannot delete preset provider/)
+    expect(() => providerService.delete('zai')).toThrow(/Cannot delete preset provider/)
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'zai'))
     expect(rows).toHaveLength(1)
   })
@@ -84,7 +84,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    await expect(providerService.delete('zai-personal')).resolves.toBeUndefined()
+    expect(providerService.delete('zai-personal')).toBeUndefined()
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'zai-personal'))
     expect(rows).toHaveLength(0)
   })
@@ -97,7 +97,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    await expect(providerService.delete('my-local-llm')).resolves.toBeUndefined()
+    expect(providerService.delete('my-local-llm')).toBeUndefined()
 
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'my-local-llm'))
     expect(rows).toHaveLength(0)
@@ -148,11 +148,11 @@ describe('ProviderService.delete — preset protection boundary', () => {
     ])
     const targetPins: Pin[] = []
     for (const entityId of targetModelIds) {
-      targetPins.push(await pinService.pin({ entityType: 'model', entityId }))
+      targetPins.push(pinService.pin({ entityType: 'model', entityId }))
     }
-    const siblingPin = await pinService.pin({ entityType: 'model', entityId: siblingModelId })
+    const siblingPin = pinService.pin({ entityType: 'model', entityId: siblingModelId })
 
-    await providerService.delete('openai-work')
+    providerService.delete('openai-work')
 
     const pins = await dbh.db.select().from(pinTable)
     for (const pin of targetPins) {
@@ -196,7 +196,7 @@ describe('ProviderService.delete — preset protection boundary', () => {
       { entityType: 'model', entityId: claude, orderKey: 'a2' }
     ])
 
-    await providerService.delete('openai-work')
+    providerService.delete('openai-work')
 
     expect(purgeForEntitiesTxSpy).toHaveBeenCalledTimes(1)
     const [, entityType, entityIds] = purgeForEntitiesTxSpy.mock.calls[0]
@@ -217,6 +217,6 @@ describe('ProviderService.delete — preset protection boundary', () => {
   })
 
   it('throws notFound when the provider row does not exist (no silent zero-row delete)', async () => {
-    await expect(providerService.delete('does-not-exist')).rejects.toThrow(/not found/i)
+    expect(() => providerService.delete('does-not-exist')).toThrow(/not found/i)
   })
 })

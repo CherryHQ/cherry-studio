@@ -8,7 +8,7 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
-import { TopView } from '@renderer/components/TopView'
+import { TopView } from '@renderer/components/TopView/TopView'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import type { ProviderType } from '@renderer/types/provider'

@@ -47,7 +47,9 @@ const chunks: KnowledgeItemChunk[] = [
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-    <button {...props}>{children}</button>
+    <button type="button" {...props}>
+      {children}
+    </button>
   ),
   EmptyState: ({ title, description }: { title?: ReactNode; description?: ReactNode }) => (
     <div>
@@ -76,7 +78,7 @@ vi.mock('@renderer/utils/time', () => ({
   formatRelativeTime: () => '刚刚'
 }))
 
-vi.mock('@renderer/pages/knowledge/utils', () => ({
+vi.mock('@renderer/pages/knowledge/utils/error', () => ({
   normalizeKnowledgeError: (error: unknown) => (error instanceof Error ? error : new Error(String(error)))
 }))
 

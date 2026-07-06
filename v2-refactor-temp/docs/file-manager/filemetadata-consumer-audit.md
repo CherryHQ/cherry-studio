@@ -181,11 +181,10 @@ interface FileMetadata {
 - `src/renderer/pages/files/FilesPage.tsx:50` — 主页，`useLiveQuery<FileMetadata[]>`
 - `src/renderer/pages/files/FileList.tsx` / `ContentView.tsx` — 表格与详情
 
-**Paintings（8 个文件）**：
+**Paintings（7 个文件）**：
 
 - `DmxapiPage.tsx`、`PpioPage.tsx`、`AihubmixPage.tsx`、`OvmsPage.tsx`、`NewApiPage.tsx`、`SiliconPage.tsx`、`ZhipuPage.tsx`（图像 provider 专用页）
 - `components/ImageUploader.tsx` — 图像上传器
-- `utils/TokenFluxService.ts` — 下载图像转 `FileMetadata[]`
 
 **Translate（1 个文件）**：
 
@@ -273,7 +272,7 @@ interface FileMetadata {
 | `save(_, fileName, content, options?)` → `File_Save`                        | `string`                                       | `SaveDialog` + writeFile（`MessageMenubar`、`MarkdownExportSettings`、`HtmlArtifactsCard`、`CodeBlockView`、`export.ts`、`AssistantPresetCard`、`useChatContext`） | 对话框选保存位置+写                        | `FileIpcApi.save({content,filters?,defaultPath?})`                                         |
 | `saveImage(_, name, data)` → `File_SaveImage`                               | `boolean`                                      | `Messages`、`MessageMenubar`、`HtmlArtifactsPopup`、`export.ts`                                                                                                    | 保存为 PNG（对话框）                       | 并入 `save`（数据是 base64）                                                               |
 | `selectFolder(_, options?)` → `File_SelectFolder`                           | `string \| null`                               | `BackupService`、`useCodeCli`、`KnowledgeDirectories`、`AgentModal`、`AccessibleDirsSetting`、`MarkdownExportSettings`、`NotesSettings`、`exportExcel`             | Folder 对话框                              | `FileIpcApi.select({directory:true})`                                                      |
-| `downloadFile(_, url)` → `File_Download`                                    | `FileMetadata`                                 | 6 个 paintings 页、`TokenFluxService`                                                                                                                              | 下载 URL 为受管文件                        | `FileIpcApi.createEntry({origin:'internal',content:URLString})`                            |
+| `downloadFile(_, url)` → `File_Download`                                    | `FileMetadata`                                 | 6 个 paintings 页                                                                                                                                                  | 下载 URL 为受管文件                        | `FileIpcApi.createEntry({origin:'internal',content:URLString})`                            |
 | `copyFile(_, id, destPath)` → `File_Copy`                                   | `void`                                         | 目前**没有搜到明确 renderer 调用**（preload 暴露为 `file.copy`）                                                                                                   | 受管文件导出到外部                         | `FileIpcApi.copy` 语义不同（新建 internal entry），导出需要 `read + save` 组合             |
 | `getDirectoryStructure(_, path)` → `File_GetDirectoryStructure`             | `NotesTreeNode[]`                              | `NotesService`、`NotesPage`                                                                                                                                        | Notes 专用递归目录树                       | **移除**（`handler-mapping.md:79`），DataApi 替代                                          |
 | `listDirectory(_, path, options?)` → `File_ListDirectory`                   | `string[]`                                     | `useResourcePanel` (@-mention 资源面板)                                                                                                                            | ripgrep fuzzy 搜索                         | `FileIpcApi.listDirectory(path, options)`                                                  |
@@ -436,7 +435,7 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 **关键入口点**：
 
 - 上传参考图：`ImageUploader.tsx`（多 provider 共用） → `FileManager.uploadFile` → 更新 state
-- AI 生成：`Dmxapi/Aihubmix/Ppio/Ovms/NewApi/Silicon/Zhipu/TokenFlux` Page → `window.api.file.{download,saveBase64Image}` → `FileManager.addFile`
+- AI 生成：`Dmxapi/Aihubmix/Ppio/Ovms/NewApi/Silicon/Zhipu` Page → `window.api.file.{download,saveBase64Image}` → `FileManager.addFile`
 - 删除保护：`FilesPage:63-77 handleBatchDelete` 和 `FileAction.handleDelete` 检查 `paintings` 里是否引用，引用时拒绝删
 
 **新模型映射建议**：

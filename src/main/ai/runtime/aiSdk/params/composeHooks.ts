@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 
-import type { AgentLoopHooks, ErrorContext } from '../loop'
+import type { AgentLoopHooks, ErrorContext } from '../loop/types'
 
 const logger = loggerService.withContext('composeHooks')
 

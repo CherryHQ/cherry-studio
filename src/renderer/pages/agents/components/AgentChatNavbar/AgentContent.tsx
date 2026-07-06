@@ -1,6 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import { CommandTooltip } from '@renderer/components/command'
-import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/Icons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useResolvedCommand } from '@renderer/hooks/command'
 import type { AgentEntity } from '@shared/data/types/agent'
@@ -26,17 +26,9 @@ const AgentContent = ({
   onSidebarToggle
 }: AgentContentProps) => {
   const { t } = useTranslation()
-  const [preferredShowSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const [preferredShowSidebar] = usePreference('topic.tab.show')
   const showSidebar = sidebarOpen ?? preferredShowSidebar
   const newSession = useResolvedCommand('topic.create')
-  const toggleShowSidebar = () => {
-    if (onSidebarToggle) {
-      onSidebarToggle()
-      return
-    }
-
-    void setShowSidebar(!showSidebar)
-  }
 
   return (
     <div className="flex w-full justify-between">
@@ -44,27 +36,16 @@ const AgentContent = ({
         {showSidebarControls && (
           <>
             {showSidebar && (
-              <CommandTooltip command="app.sidebar.toggle" label={t('navbar.hide_sidebar')} delay={800}>
-                <NavbarIcon tone="conversation" aria-pressed={showSidebar} onClick={toggleShowSidebar}>
-                  <SidebarCollapseIcon />
-                </NavbarIcon>
-              </CommandTooltip>
+              <ConversationSidebarToggleButton sidebarOpen={showSidebar} onSidebarToggle={onSidebarToggle} />
             )}
             {!showSidebar && (
               <>
-                <CommandTooltip
-                  command="app.sidebar.toggle"
-                  label={t('navbar.show_sidebar')}
-                  delay={800}
-                  placement="right">
-                  <NavbarIcon
-                    tone="conversation"
-                    aria-pressed={showSidebar}
-                    onClick={toggleShowSidebar}
-                    style={{ marginRight: 2 }}>
-                    <SidebarExpandIcon />
-                  </NavbarIcon>
-                </CommandTooltip>
+                <ConversationSidebarToggleButton
+                  sidebarOpen={showSidebar}
+                  onSidebarToggle={onSidebarToggle}
+                  tooltipPlacement="right"
+                  style={{ marginRight: 2 }}
+                />
                 <CommandTooltip
                   command="topic.create"
                   label={t('agent.session.add.title')}

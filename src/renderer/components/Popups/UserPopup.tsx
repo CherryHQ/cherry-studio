@@ -25,8 +25,8 @@ import { isEmoji } from '@renderer/utils/naming'
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import EmojiPicker from '../EmojiPicker'
-import { TopView } from '../TopView'
+import { EmojiPicker } from '../EmojiPicker'
+import { TopView } from '../TopView/TopView'
 
 const CLOSE_ANIMATION_MS = 200
 

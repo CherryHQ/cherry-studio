@@ -5,8 +5,8 @@ import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { useCallback } from 'react'
 
-import { fetchResolvedProviderModels, toCreateModelDto } from '../ModelList/modelSync'
 import { chunkArray } from '../utils/chunkArray'
+import { fetchResolvedProviderModels, toCreateModelDto } from '../utils/modelSync'
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from './providerSetting/constants'
 
 const logger = loggerService.withContext('ProviderSettings:ModelSync')

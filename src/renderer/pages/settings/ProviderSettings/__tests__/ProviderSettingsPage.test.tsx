@@ -23,7 +23,7 @@ vi.mock('../hooks/useProviderDeepLinkImport', () => ({
 }))
 
 vi.mock('../ProviderList', () => ({
-  default: ({ selectedProviderId, onSelectProvider }: any) => (
+  ProviderList: ({ selectedProviderId, onSelectProvider }: any) => (
     <div>
       <div data-testid="selected-provider-id">{selectedProviderId ?? ''}</div>
       <button type="button" onClick={() => onSelectProvider('openai')}>

@@ -22,7 +22,7 @@ WINDOW_TYPE_REGISTRY[WindowType.MyWindow] = {
   type: WindowType.MyWindow,
   lifecycle: 'singleton',       // or 'default' or 'pooled'
   htmlPath: 'my-window.html',
-  // preload omitted → defaults to 'index.js'. Write basename (with extension)
+  // preload omitted → defaults to 'preload.js'. Write basename (with extension)
   // to select a different file in src/preload/. Empty string → no preload.
   // preload: 'simplest.js',
   showMode: 'auto',             // 'auto' | 'immediate' | 'manual'
@@ -123,7 +123,7 @@ If your window needs custom show timing, set `showMode: 'manual'` in the registr
 - [ ] Added `WindowType` enum value in `types.ts`
 - [ ] Registered metadata in `WINDOW_TYPE_REGISTRY` in `windowRegistry.ts`
 - [ ] Chose the correct lifecycle mode (`default` / `singleton` / `pooled`)
-- [ ] Set `preload` filename if not using the default (`'index.js'`)
+- [ ] Set `preload` filename if not using the default (`'preload.js'`)
 - [ ] Set `showMode` behavior (`'auto'` / `'immediate'` / `'manual'`)
 - [ ] Set `behavior.macShowInDock: false` ONLY for helper windows (floating panels, selection overlays); primary app windows leave it at the default `true`. Use `wm.behavior.setMacShowInDockByType(type, value)` for runtime tray-mode transitions, not a different registry default.
 - [ ] Declared `behavior.hideOnBlur` / `behavior.alwaysOnTop` / `behavior.visibleOnAllWorkspaces` as needed

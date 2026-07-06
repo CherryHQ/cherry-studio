@@ -1,6 +1,10 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
-import { ResourceList, useResourceListActions, useResourceListRowState } from '@renderer/components/chat/resources'
+import {
+  ResourceList,
+  useResourceListActions,
+  useResourceListRowState
+} from '@renderer/components/chat/resourceList/base'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -53,7 +57,7 @@ const SessionItem = ({
   const { isFulfilled: isStreamFulfilled, isPending: isStreamPending, markSeen } = useTopicStreamStatus(topicId)
   const channelIcon = getChannelTypeIcon(channelType)
   const isActive = rowState.selected
-  const sessionName = session.name ?? session.id
+  const sessionName = !session.isNameManuallyEdited && !session.name.trim() ? t('agent.session.new') : session.name
   const isRenaming = renamingTopics?.includes(topicId) === true
   const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''

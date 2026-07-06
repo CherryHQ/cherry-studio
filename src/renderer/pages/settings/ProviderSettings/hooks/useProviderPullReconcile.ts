@@ -3,9 +3,9 @@ import { useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { buildModelListSyncPreview } from '../ModelList/buildModelListSyncPreview'
-import { ModelSyncError } from '../ModelList/modelSync'
-import type { ModelSyncPreviewResponse } from '../ModelList/modelSyncPreviewTypes'
+import type { ModelSyncPreviewResponse } from '../types/modelSyncPreviewTypes'
+import { buildModelListSyncPreview } from '../utils/buildModelListSyncPreview'
+import { ModelSyncError } from '../utils/modelSync'
 
 const logger = loggerService.withContext('ProviderPullReconcile')
 

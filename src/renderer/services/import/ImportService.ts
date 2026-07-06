@@ -1,19 +1,23 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import type { Message } from '@renderer/types/newMessage'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 
-import { availableImporters } from './importers'
+import { ChatgptImporter } from './importers/ChatgptImporter'
 import type { ConversationImporter, ImportResponse, ImportResult } from './types'
 
 const logger = loggerService.withContext('ImportService')
 
+// Every conversation importer the service registers on construction. Add new
+// importers here as they are implemented.
+const availableImporters = [new ChatgptImporter()]
+
 /**
  * Main import service that manages all conversation importers
  */
-class ImportServiceClass {
+class ImportService {
   private importers: Map<string, ConversationImporter> = new Map()
 
   constructor() {
@@ -196,7 +200,7 @@ class ImportServiceClass {
 }
 
 // Export singleton instance
-export const ImportService = new ImportServiceClass()
+export const importService = new ImportService()
 
 // Export for backward compatibility
-export const importChatGPTConversations = (fileContent: string) => ImportService.importChatGPTConversations(fileContent)
+export const importChatGPTConversations = (fileContent: string) => importService.importChatGPTConversations(fileContent)

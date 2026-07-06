@@ -1,4 +1,4 @@
-import { defineTool, registerTool, TopicType } from '@renderer/components/composer/tools/types'
+import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
 
 import { WebSearchToolRuntime } from '../components/WebSearchButton'
 
@@ -20,7 +20,5 @@ const webSearchTool = defineTool({
     runtime: ({ context }) => <WebSearchToolRuntime assistantId={context.assistant!.id} launcher={context.launcher} />
   }
 })
-
-registerTool(webSearchTool)
 
 export default webSearchTool

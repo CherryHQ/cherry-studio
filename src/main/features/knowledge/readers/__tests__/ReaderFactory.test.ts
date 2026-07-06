@@ -1,4 +1,4 @@
-import type * as FsUtils from '@main/utils/file/fs'
+import type * as FsUtils from '@main/utils/file'
 import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -96,7 +96,7 @@ vi.mock('../files/EpubReader', () => ({
 
 // The URL reader reads its snapshot verbatim via fs, not a vectorstores reader.
 const readFileMock = vi.hoisted(() => vi.fn())
-vi.mock('@main/utils/file/fs', async (importOriginal) => ({
+vi.mock('@main/utils/file', async (importOriginal) => ({
   ...(await importOriginal<typeof FsUtils>()),
   read: readFileMock
 }))

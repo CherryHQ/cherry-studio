@@ -127,3 +127,25 @@ export type CachePaintingGenerationState = {
 
 export type CacheAgentSessionContextUsage = AgentSessionContextUsage | null
 export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
+
+/**
+ * Persisted window geometry for the WindowManager "remember bounds" capability.
+ *
+ * Stored in the main-process persist cache under `window.bounds`, keyed by
+ * WindowType. Captured from `getNormalBounds()` (the pre-maximize rect) plus the
+ * maximized flag, so a maximized window restores to maximized while un-maximizing
+ * returns to the saved normal size.
+ */
+export type WindowBoundsState = {
+  x: number
+  y: number
+  width: number
+  height: number
+  /** Whether the window was maximized at capture time. Restored by the consumer
+   *  (e.g. MainWindowService) on its own show schedule, not by WindowManager. */
+  isMaximized: boolean
+  /** Bounds of the display the window was last on — used at restore to put the
+   *  window back onto the same display (clamping into it if the saved rect no
+   *  longer fits), instead of resetting to the primary display. */
+  displayBounds: { x: number; y: number; width: number; height: number }
+}

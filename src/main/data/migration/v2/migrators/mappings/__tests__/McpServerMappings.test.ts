@@ -119,6 +119,12 @@ describe('McpServerMappings', () => {
       )
     })
 
+    it('uses the generated id as the name when the source name is whitespace-only', () => {
+      const result = transformMcpServer({ id: 'srv-whitespace-name', name: '   ', isActive: true }, 0)
+      expect(result.row.name).toBe(result.row.id)
+      expect(result.row.name).not.toBe('srv-whitespace-name')
+    })
+
     it('should preserve empty arrays', () => {
       const result = transformMcpServer(
         {

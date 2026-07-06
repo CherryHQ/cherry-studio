@@ -23,13 +23,13 @@ const mockDispatchStreamRequest = vi.fn(
   }
 )
 
-vi.mock('../context', () => ({
+vi.mock('../context/dispatch', () => ({
   dispatchStreamRequest: mockDispatchStreamRequest
 }))
 
 // Boot-sweep reconcile reads/writes through MessageService.
-const findPendingAssistantMessageIds = vi.fn<() => Promise<string[]>>(async () => [])
-const markMessagesError = vi.fn<(ids: string[]) => Promise<void>>(async () => undefined)
+const findPendingAssistantMessageIds = vi.fn<() => string[]>(() => [])
+const markMessagesError = vi.fn<(ids: string[]) => void>(() => undefined)
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
     findPendingAssistantMessageIds: () => findPendingAssistantMessageIds(),
@@ -77,7 +77,7 @@ describe('AiStreamManager.dispatch — per-topic serialization', () => {
     vi.clearAllMocks()
     dispatchEvents.length = 0
     dispatchResolvers.length = 0
-    findPendingAssistantMessageIds.mockResolvedValue([])
+    findPendingAssistantMessageIds.mockReturnValue([])
     mgr = createManager()
     // onInit resolves the reconcile gate `dispatch` awaits, so these lock tests run normally.
     await runOnInit(mgr)
@@ -141,24 +141,15 @@ describe('AiStreamManager.dispatch — boot reconcile gate', () => {
   })
 
   it('does not write a placeholder until the boot reconcile finishes, so a mid-boot open cannot race it', async () => {
-    // Hold the crash-orphan reconcile in flight.
-    let finishReconcile!: () => void
-    findPendingAssistantMessageIds.mockReturnValue(
-      new Promise<string[]>((resolve) => {
-        finishReconcile = () => resolve([])
-      })
-    )
-
-    const initPromise = runOnInit(mgr)
-    // A stream opens before reconcile resolves — dispatch must stay parked on the gate.
+    // A stream opens before onInit runs the crash-orphan reconcile — dispatch must stay parked on
+    // the gate (the synchronous sweep runs entirely inside onInit before markReconciled fires).
     const dispatchPromise = mgr.dispatch(fakeSubscriber, openReq('t'))
     await flush()
     expect(dispatchEvents).toEqual([])
     expect(mockDispatchStreamRequest).not.toHaveBeenCalled()
 
-    // Reconcile completes → the gate opens and dispatch proceeds.
-    finishReconcile()
-    await initPromise
+    // onInit runs the reconcile → the gate opens and dispatch proceeds.
+    await runOnInit(mgr)
     await flush()
     expect(dispatchEvents).toEqual(['start:t:0'])
 
@@ -167,7 +158,7 @@ describe('AiStreamManager.dispatch — boot reconcile gate', () => {
   })
 
   it('flips orphaned pending rows to error during the reconcile sweep', async () => {
-    findPendingAssistantMessageIds.mockResolvedValue(['stale-1', 'stale-2'])
+    findPendingAssistantMessageIds.mockReturnValue(['stale-1', 'stale-2'])
     await runOnInit(mgr)
     expect(markMessagesError).toHaveBeenCalledWith(['stale-1', 'stale-2'])
   })

@@ -140,7 +140,6 @@ const KnowledgeItemList = ({
           <div role="columnheader" className="font-medium text-foreground-muted text-xs">
             {t('knowledge.data_source.table.columns.updated_at')}
           </div>
-          <div role="columnheader" aria-label={t('knowledge.data_source.table.columns.actions')} />
         </div>
         <div role="presentation" className="min-h-0 flex-1">
           <DynamicVirtualList

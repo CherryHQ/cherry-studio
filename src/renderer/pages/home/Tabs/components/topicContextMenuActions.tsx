@@ -1,6 +1,6 @@
 import { createActionRegistry } from '@renderer/components/chat/actions/actionRegistry'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import { OpenInNewWindowIcon } from '@renderer/components/Icons'
+import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { Topic } from '@renderer/types/topic'
 import type { TFunction } from 'i18next'
 import {

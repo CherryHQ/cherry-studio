@@ -1,4 +1,4 @@
-import { RefreshIcon } from '@renderer/components/Icons'
+import RefreshIcon from '@renderer/components/icons/RefreshIcon'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'

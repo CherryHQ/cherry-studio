@@ -1,6 +1,6 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { TopView } from '@renderer/components/TopView'
+import { TopView } from '@renderer/components/TopView/TopView'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { ipcApi } from '@renderer/ipc'
 import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'

@@ -19,11 +19,12 @@ import { loggerService } from '@logger'
 
 const logger = loggerService.withContext('utils:prompt')
 
+export const VOLATILE_PROMPT_VARIABLES = ['{{time}}', '{{datetime}}'] as const
+
 const supportedVariables = [
   '{{username}}',
   '{{date}}',
-  '{{time}}',
-  '{{datetime}}',
+  ...VOLATILE_PROMPT_VARIABLES,
   '{{system}}',
   '{{language}}',
   '{{arch}}',

@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   loggerError: vi.fn()
 }))
 
-vi.mock('@renderer/databases', () => ({
+vi.mock('@renderer/databases/db', () => ({
   default: {
     settings: {
       add: mocks.add,

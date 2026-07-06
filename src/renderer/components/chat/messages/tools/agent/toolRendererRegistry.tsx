@@ -1,3 +1,4 @@
+import { AgentToolsType, type ToolInputMap, type ToolOutputMap, type ToolRenderersMap } from '../shared/agentToolTypes'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { AgentTool } from './AgentTool'
 import { BashOutputTool } from './BashOutputTool'
@@ -14,7 +15,6 @@ import { SkillTool } from './SkillTool'
 import { createStructuredAgentTool } from './StructuredAgentTool'
 import { TaskCreateTool, TaskGetTool, TaskListTool, TaskOutputTool, TaskStopTool, TaskUpdateTool } from './TaskTool'
 import { ToolSearchTool } from './ToolSearchTool'
-import { AgentToolsType, type ToolInputMap, type ToolOutputMap, type ToolRenderersMap } from './types'
 import { WebFetchTool } from './WebFetchTool'
 import { WebSearchTool } from './WebSearchTool'
 import { WriteTool } from './WriteTool'
@@ -57,11 +57,12 @@ export const toolRenderers: ToolRenderersMap = {
 export function renderTool<T extends AgentToolsType>(
   toolName: T,
   input?: ToolInputMap[T],
-  output?: ToolOutputMap[T]
+  output?: ToolOutputMap[T],
+  hasError?: boolean
 ): ToolDisclosureItem {
   const renderer = toolRenderers[toolName]
   if (!renderer) return { key: toolName, label: null }
-  return renderer({ input, output })
+  return renderer({ input, output, hasError })
 }
 
 export function isValidAgentToolsType(toolName: unknown): toolName is AgentToolsType {

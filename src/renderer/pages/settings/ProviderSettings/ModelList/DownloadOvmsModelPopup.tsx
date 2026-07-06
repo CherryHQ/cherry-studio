@@ -1,6 +1,6 @@
 import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { TopView } from '@renderer/components/TopView'
+import { TopView } from '@renderer/components/TopView/TopView'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Provider } from '@shared/data/types/provider'
 import { useState } from 'react'

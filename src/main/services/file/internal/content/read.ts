@@ -7,7 +7,7 @@
  * via the shared `observeExternalAccess` wrapper.
  */
 
-import { read as fsRead, stat as fsStat } from '@main/utils/file/fs'
+import { read as fsRead, stat as fsStat } from '@main/utils/file'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 import mime from 'mime'
@@ -41,7 +41,7 @@ export async function read(
   id: FileEntryId,
   options?: TextReadOptions | Base64ReadOptions | BinaryReadOptions
 ): Promise<ReadResult<string | Uint8Array>> {
-  const entry = await deps.fileEntryService.getById(id)
+  const entry = deps.fileEntryService.getById(id)
   const physicalPath = resolvePhysicalPath(entry)
   return observeExternalAccess(deps, entry, physicalPath, () => readResolved(physicalPath, options))
 }

@@ -1,4 +1,4 @@
-import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type {
   DataUIPart,
   DynamicToolUIPart,
@@ -38,11 +38,9 @@ export type MessageId = z.infer<typeof MessageIdSchema>
  *     - `promptTokens` / `completionTokens` → should be `inputTokens` / `outputTokens`
  *     - `thoughtsTokens` is Gemini-only phrasing; AI SDK uses `reasoningTokens`
  *
- *  2. Cache accounting entirely missing
- *     - AI SDK `inputTokenDetails` has `noCacheTokens` / `cacheReadTokens` / `cacheWriteTokens`
- *     - Claude prompt caching and Gemini context caching are currently folded
- *       into a single `promptTokens`, so users can't see cache hit-rate or
- *       audit premium-rate cache writes
+ *  2. Cache accounting is only minimally modelled
+ *     - Flat `noCacheTokens` / `cacheReadTokens` / `cacheWriteTokens` exist for prompt-cache visibility.
+ *     - The full redesign should move them under a provider-agnostic input breakdown.
  *
  *  3. Output breakdown missing
  *     - AI SDK `outputTokenDetails` has `textTokens` / `reasoningTokens`;
@@ -85,6 +83,9 @@ export const MessageStatsSchema = z.strictObject({
   completionTokens: z.number().optional(),
   totalTokens: z.number().optional(),
   thoughtsTokens: z.number().optional(),
+  noCacheTokens: z.number().optional(),
+  cacheReadTokens: z.number().optional(),
+  cacheWriteTokens: z.number().optional(),
 
   // Cost (calculated at message completion time)
   cost: z.number().optional(),
@@ -169,6 +170,12 @@ export interface CherryUIMessageMetadata {
    * (Gemini thoughts, Anthropic extended thinking, OpenAI o-series).
    */
   thoughtsTokens?: number
+  /** Input tokens not served from prompt cache (AI SDK `inputTokenDetails.noCacheTokens`). */
+  noCacheTokens?: number
+  /** Input tokens read from prompt cache (AI SDK `inputTokenDetails.cacheReadTokens`). */
+  cacheReadTokens?: number
+  /** Input tokens written to prompt cache (AI SDK `inputTokenDetails.cacheWriteTokens`). */
+  cacheWriteTokens?: number
   /** Full persisted stats (tokens + durations) when available. */
   stats?: MessageStats
 }

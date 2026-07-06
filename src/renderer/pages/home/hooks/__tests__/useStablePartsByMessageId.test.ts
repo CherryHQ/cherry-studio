@@ -1,4 +1,4 @@
-import type { TranslationOverlayEntry } from '@renderer/components/chat/messages/blocks'
+import type { TranslationOverlayEntry } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'

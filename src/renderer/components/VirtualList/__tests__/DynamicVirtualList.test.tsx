@@ -159,7 +159,7 @@ describe('DynamicVirtualList', () => {
   })
 
   describe('sticky feature', () => {
-    it('should apply sticky positioning to specified items', () => {
+    it('keeps sticky rows in the list stacking context', () => {
       const isSticky = vi.fn((index: number) => index === 0) // First item is sticky
 
       render(<DynamicVirtualList {...defaultProps} isSticky={isSticky} />)
@@ -170,8 +170,24 @@ describe('DynamicVirtualList', () => {
       // Sticky items within visible range should have proper z-index but may be absolute until scrolled
       const stickyItem = document.querySelector('[data-index="0"]') as HTMLElement
       expect(stickyItem).toBeInTheDocument()
-      // When sticky item is in visible range, it gets z-index but may not be sticky yet
-      expect(stickyItem).toHaveStyle('z-index: 999')
+      expect(stickyItem).toHaveStyle('z-index: 1')
+
+      const scrollContainer = document.querySelector('.dynamic-virtual-list')
+      expect(scrollContainer).toHaveClass('isolate')
+    })
+
+    it('keeps active sticky rows below shared floating layers', () => {
+      const isSticky = vi.fn((index: number) => index === 0)
+      mocks.useVirtualizer.mockImplementationOnce((options: { rangeExtractor: (range: unknown) => number[] }) => {
+        options.rangeExtractor({ startIndex: 1, endIndex: 2 })
+        return mocks.virtualizer
+      })
+
+      render(<DynamicVirtualList {...defaultProps} isSticky={isSticky} />)
+
+      const stickyItem = document.querySelector('[data-index="0"]') as HTMLElement
+      expect(stickyItem).toHaveStyle('position: sticky')
+      expect(stickyItem).toHaveStyle('z-index: 3')
     })
 
     it('should apply absolute positioning to non-sticky items', () => {

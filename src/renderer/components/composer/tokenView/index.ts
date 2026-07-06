@@ -8,4 +8,3 @@ export {
   QuoteComposerToken,
   SkillComposerToken
 } from './ComposerToken'
-export { CHAT_INPUT_TOKEN_KINDS, type ChatInputTokenKind, type ChatTokenView } from './tokenView'

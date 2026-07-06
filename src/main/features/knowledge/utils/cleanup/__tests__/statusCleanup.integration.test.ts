@@ -89,10 +89,12 @@ describe('markUnscheduledKnowledgeItemsFailed integration', () => {
 
   it('falls back to subtree status without reviving deleting descendants', async () => {
     const updateStatusSpy = vi.spyOn(knowledgeItemService, 'updateStatus')
-    updateStatusSpy.mockRejectedValueOnce(new Error('status busy'))
+    updateStatusSpy.mockImplementationOnce(() => {
+      throw new Error('status busy')
+    })
 
     try {
-      await markUnscheduledKnowledgeItemsFailed({
+      markUnscheduledKnowledgeItemsFailed({
         baseId: BASE_ID,
         items: [
           {

@@ -1,6 +1,6 @@
-import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
-import type { SubscriptionCallback, SubscriptionOptions } from '@shared/data/api/apiTypes'
-import { SubscriptionEvent } from '@shared/data/api/apiTypes'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
+import type { SubscriptionCallback, SubscriptionOptions } from '@shared/data/api/types'
+import { SubscriptionEvent } from '@shared/data/api/types'
 import { vi } from 'vitest'
 
 /**

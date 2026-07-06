@@ -15,7 +15,7 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
-import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/app/Navbar'
+import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/Navbar'
 import BaseNavbarIcon from '@renderer/components/NavbarIcon'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'

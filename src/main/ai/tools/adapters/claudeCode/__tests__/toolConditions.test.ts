@@ -38,6 +38,21 @@ describe('resolveDisallowedTools', () => {
     expect(disallowed.has('BashOutput')).toBe(true)
   })
 
+  it('disabling the "Knowledge Search" toggle also revokes kb_list and kb_read (they dependsOn kb_search)', () => {
+    // kb_read returns whole documents and kb_list browses every base — strictly more than kb_search's
+    // chunks — so the visible kb_search toggle must honestly cover them, not leave read access reachable.
+    const enabled = new Set(resolveDisallowedTools({}))
+    expect(enabled.has('mcp__cherry-tools__kb_list')).toBe(false)
+    expect(enabled.has('mcp__cherry-tools__kb_read')).toBe(false)
+
+    const disallowed = new Set(resolveDisallowedTools({ disabledTools: ['mcp__cherry-tools__kb_search'] }))
+    expect(disallowed.has('mcp__cherry-tools__kb_search')).toBe(true)
+    expect(disallowed.has('mcp__cherry-tools__kb_list')).toBe(true)
+    expect(disallowed.has('mcp__cherry-tools__kb_read')).toBe(true)
+    // kb_manage has its own toggle and is independent of the search toggle.
+    expect(disallowed.has('mcp__cherry-tools__kb_manage')).toBe(false)
+  })
+
   it('ignores a disabledTools entry for a non-user tool', () => {
     const base = new Set(resolveDisallowedTools({}))
     const withAgent = new Set(resolveDisallowedTools({ disabledTools: ['Agent'] }))

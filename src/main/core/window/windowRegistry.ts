@@ -35,10 +35,11 @@ export const DEFAULT_WINDOW_CONFIG: WindowOptions = {
  */
 export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata>> = {
   // Main application window — singleton primary surface.
-  // Managed by MainWindowService: dynamic options (window-state position/size, theme-driven
-  // backgroundColor / backgroundMaterial / frame / icon / zoomFactor) are
-  // injected via wm.open({ options }). showMode 'manual' lets MainWindowService decide first
-  // show in the ready-to-show handler (so tray-on-launch can suppress it).
+  // Managed by MainWindowService: dynamic options (theme-driven backgroundColor /
+  // backgroundMaterial / frame / icon / zoomFactor) are injected via wm.open({ options }).
+  // Window position/size/maximized are restored by WindowManager via `rememberBounds`
+  // (no longer injected by the service). showMode 'manual' lets MainWindowService decide
+  // first show in the ready-to-show handler (so tray-on-launch can suppress it).
   //
   // Intentionally NOT using `singletonConfig` here — MainWindowService's close handler
   // (see `setupWindowLifecycleEvents`) reads tray preferences at runtime, calls
@@ -52,8 +53,10 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     type: WindowType.Main,
     lifecycle: 'singleton',
     htmlPath: 'windows/main/index.html',
-    // preload omitted → defaults to 'index.js' (full API preload).
+    // preload omitted → defaults to 'preload.js' (full API preload).
     showMode: 'manual',
+    // Persist & restore position/size across launches (maximize re-applied by the service).
+    rememberBounds: true,
     windowOptions: {
       width: MIN_WINDOW_WIDTH,
       height: MIN_WINDOW_HEIGHT,
@@ -158,7 +161,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       warmup: 'eager'
     },
     htmlPath: 'windows/subWindow/index.html',
-    // preload omitted → defaults to 'index.js' (full API preload).
+    // preload omitted → defaults to 'preload.js' (full API preload).
     showMode: 'manual',
     windowOptions: {
       width: 800,
@@ -214,16 +217,19 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   },
 
   // Quick Assistant window — singleton floating panel.
-  // Managed by QuickAssistantService: stateKeeper bounds are injected via wm.create({ options }),
-  // visibility is driven by showQuickAssistant() (cursor-follow, Windows opacity dance, macOS app.hide).
+  // Managed by QuickAssistantService: visibility is driven by showQuickAssistant()
+  // (cursor-follow, Windows opacity dance, macOS app.hide). Window position/size are
+  // restored by WindowManager via `rememberBounds`.
   [WindowType.QuickAssistant]: {
     type: WindowType.QuickAssistant,
     lifecycle: 'singleton',
     htmlPath: 'windows/quickAssistant/index.html',
-    // preload omitted → defaults to 'index.js' (full API preload).
+    // preload omitted → defaults to 'preload.js' (full API preload).
     // QuickAssistantService.showQuickAssistant controls visibility; showMode: 'manual' also keeps
     // singleton reopen (wm.open) from accidentally re-showing the window before reposition runs.
     showMode: 'manual',
+    // Persist & restore position/size across launches (never maximized — maximizable:false).
+    rememberBounds: true,
     windowOptions: {
       width: 550,
       height: 400,
@@ -286,7 +292,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     type: WindowType.SelectionToolbar,
     lifecycle: 'singleton',
     htmlPath: 'windows/selection/toolbar/index.html',
-    // preload omitted → defaults to 'index.js'.
+    // preload omitted → defaults to 'preload.js'.
     // SelectionService controls visibility itself via showToolbarAtPosition/hideToolbar.
     // showMode: 'manual' also prevents wm.open() from re-showing an existing singleton unexpectedly.
     showMode: 'manual',
@@ -375,7 +381,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     type: WindowType.SelectionAction,
     lifecycle: 'pooled',
     htmlPath: 'windows/selection/action/index.html',
-    // preload omitted → defaults to 'index.js'.
+    // preload omitted → defaults to 'preload.js'.
     // SelectionService controls visibility itself via showActionWindow (computes bounds + fullscreen handling).
     showMode: 'manual',
     windowOptions: {

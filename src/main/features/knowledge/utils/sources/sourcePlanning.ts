@@ -1,4 +1,4 @@
-import { getFileExt } from '@main/utils/file'
+import { getFileExt } from '@main/utils/legacyFile'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { knowledgeFileProcessingExts } from '@shared/utils/file'

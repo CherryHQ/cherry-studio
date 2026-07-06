@@ -5,14 +5,48 @@ import { vi } from 'vitest'
  * Simulates the complete main process DbService functionality
  */
 
-// Default mock database with chainable method stubs
+/**
+ * A chainable mock drizzle query builder. Every chain method returns the same
+ * builder; the synchronous terminals mirror better-sqlite3's drizzle dialect:
+ * `.run()` → RunResult-shaped, `.all()` → `[]`, `.get()` → `undefined`. Tests that
+ * need specific results override these via `vi.spyOn`/`mockReturnValue`.
+ */
+function makeQueryBuilderMock(): Record<string, ReturnType<typeof vi.fn>> {
+  const builder: Record<string, ReturnType<typeof vi.fn>> = {}
+  const chainMethods = [
+    'from',
+    'where',
+    'set',
+    'values',
+    'limit',
+    'offset',
+    'orderBy',
+    'groupBy',
+    'having',
+    'returning',
+    'onConflictDoUpdate',
+    'onConflictDoNothing',
+    'leftJoin',
+    'innerJoin',
+    'rightJoin'
+  ]
+  for (const method of chainMethods) {
+    builder[method] = vi.fn(() => builder)
+  }
+  builder.run = vi.fn(() => ({ changes: 0, lastInsertRowid: 0 }))
+  builder.all = vi.fn(() => [])
+  builder.get = vi.fn(() => undefined)
+  return builder
+}
+
+// Default mock database with chainable, synchronous (better-sqlite3-shaped) stubs.
 const defaultMockDb = {
-  select: vi.fn(),
-  insert: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
-  run: vi.fn(),
-  transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(defaultMockDb))
+  select: vi.fn(() => makeQueryBuilderMock()),
+  insert: vi.fn(() => makeQueryBuilderMock()),
+  update: vi.fn(() => makeQueryBuilderMock()),
+  delete: vi.fn(() => makeQueryBuilderMock()),
+  run: vi.fn(() => ({ changes: 0, lastInsertRowid: 0 })),
+  transaction: vi.fn((fn: (tx: unknown) => unknown) => fn(defaultMockDb))
 }
 
 /**
@@ -35,13 +69,12 @@ export class MockMainDbService {
   public getDb = vi.fn(() => this.db)
 
   /**
-   * Serialized write transaction mock. Mirrors `DbService.withWriteTx`:
-   * passes the current db (or whatever was set via `setDb`) to `fn` so tests
-   * exercising the write path do not need to know about the production mutex
-   * + BUSY retry machinery. Tests can replace this mock with `vi.spyOn(...)`
-   * to assert call order, simulate BUSY, etc.
+   * Write transaction mock. Mirrors `DbService.withWriteTx`: synchronously passes
+   * the current db (or whatever was set via `setDb`) to the synchronous `fn` so
+   * tests exercising the write path do not need a real transaction. Tests can
+   * replace this mock with `vi.spyOn(...)` to assert call order, etc.
    */
-  public withWriteTx = vi.fn(async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn(this.db))
+  public withWriteTx = vi.fn(<T>(fn: (tx: unknown) => T): T => fn(this.db))
 
   public get isReady() {
     return this._isReady

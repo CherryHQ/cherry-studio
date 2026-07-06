@@ -1,12 +1,11 @@
 import { loggerService } from '@logger'
+import { isAbortError } from '@main/utils/error'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { Readability } from '@mozilla/readability'
 import type { WebSearchResult } from '@shared/data/types/webSearch'
 import { net } from 'electron'
 import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
-
-import { isAbortError } from './errors'
 
 const logger = loggerService.withContext('MainWebSearchContentFetcher')
 const turndownService = new TurndownService()

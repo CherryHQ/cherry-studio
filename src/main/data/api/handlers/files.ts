@@ -15,13 +15,13 @@
 
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
   type FileSchemas,
   ListFilesQuerySchema,
   RefCountsQuerySchema,
   RefsBySourceQuerySchema
 } from '@shared/data/api/schemas/files'
+import type { HandlersFor } from '@shared/data/api/types'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 
 export const fileHandlers: HandlersFor<FileSchemas> = {
@@ -46,7 +46,7 @@ export const fileHandlers: HandlersFor<FileSchemas> = {
   '/files/entries/ref-counts': {
     GET: async ({ query }) => {
       const { entryIds } = RefCountsQuerySchema.parse(query)
-      const counts = await fileRefService.countByEntryIds(entryIds)
+      const counts = fileRefService.countByEntryIds(entryIds)
       return entryIds.map((id) => ({ entryId: id, refCount: counts.get(id) ?? 0 }))
     }
   },

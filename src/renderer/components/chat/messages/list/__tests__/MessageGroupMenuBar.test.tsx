@@ -10,7 +10,11 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: ComponentPropsWithoutRef<'button'>) => <button {...props}>{children}</button>,
+  Button: ({ children, ...props }: ComponentPropsWithoutRef<'button'>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   RowFlex: ({ children, className }: ComponentPropsWithoutRef<'div'>) => <div className={className}>{children}</div>,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))

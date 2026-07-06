@@ -1,7 +1,7 @@
 import type { FileDiffOptions } from '@pierre/diffs'
 import { parseDiffFromFile } from '@pierre/diffs'
 import { FileDiff } from '@pierre/diffs/react'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import type { ReactNode } from 'react'
 import { useMemo } from 'react'
 

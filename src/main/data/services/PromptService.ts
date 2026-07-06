@@ -10,7 +10,7 @@ import { application } from '@application'
 import { promptTable } from '@data/db/schemas/prompt'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreatePromptDto, ListPromptsQuery, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
 import type { Prompt } from '@shared/data/types/prompt'
@@ -49,7 +49,7 @@ export class PromptService {
     return application.get('DbService').getDb()
   }
 
-  async list(query: ListPromptsQuery = {}): Promise<Prompt[]> {
+  list(query: ListPromptsQuery = {}): Prompt[] {
     // Canonical API order is old → new; settings UI reverses this for display.
     const conditions: SQL[] = []
     if (query.search) {
@@ -61,21 +61,21 @@ export class PromptService {
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
-    const rows = await this.db.select().from(promptTable).where(whereClause).orderBy(asc(promptTable.orderKey))
+    const rows = this.db.select().from(promptTable).where(whereClause).orderBy(asc(promptTable.orderKey)).all()
     return rows.map(rowToPrompt)
   }
 
-  async getById(id: string): Promise<Prompt> {
-    const [row] = await this.db.select().from(promptTable).where(eq(promptTable.id, id)).limit(1)
+  getById(id: string): Prompt {
+    const [row] = this.db.select().from(promptTable).where(eq(promptTable.id, id)).limit(1).all()
     if (!row) {
       throw DataApiErrorFactory.notFound('Prompt', id)
     }
     return rowToPrompt(row)
   }
 
-  async create(dto: CreatePromptDto): Promise<Prompt> {
-    return this.db.transaction(async (tx) => {
-      const inserted = await insertWithOrderKey(
+  create(dto: CreatePromptDto): Prompt {
+    return this.db.transaction((tx) => {
+      const inserted = insertWithOrderKey(
         tx,
         promptTable,
         {
@@ -91,18 +91,18 @@ export class PromptService {
     })
   }
 
-  async update(id: string, dto: UpdatePromptDto): Promise<Prompt> {
-    return this.db.transaction(async (tx) => {
+  update(id: string, dto: UpdatePromptDto): Prompt {
+    return this.db.transaction((tx) => {
       const updates: Partial<typeof promptTable.$inferInsert> = {}
       if (dto.title !== undefined) updates.title = dto.title
       if (dto.content !== undefined) updates.content = dto.content
 
-      const result = await tx.update(promptTable).set(updates).where(eq(promptTable.id, id))
-      if (result.rowsAffected === 0) {
+      const result = tx.update(promptTable).set(updates).where(eq(promptTable.id, id)).run()
+      if (result.changes === 0) {
         throw DataApiErrorFactory.notFound('Prompt', id)
       }
 
-      const [row] = await tx.select().from(promptTable).where(eq(promptTable.id, id)).limit(1)
+      const [row] = tx.select().from(promptTable).where(eq(promptTable.id, id)).limit(1).all()
       if (!row) {
         throw DataApiErrorFactory.notFound('Prompt', id)
       }
@@ -113,38 +113,39 @@ export class PromptService {
   }
 
   /** Move a single prompt relative to an anchor. */
-  async reorder(id: string, anchor: OrderRequest): Promise<void> {
-    await this.db.transaction(async (tx) => {
-      await this.assertPromptsExistTx(tx, [id, ...collectAnchorIds([anchor])])
-      await applyMoves(tx, promptTable, [{ id, anchor }], { pkColumn: promptTable.id })
+  reorder(id: string, anchor: OrderRequest): void {
+    this.db.transaction((tx) => {
+      this.assertPromptsExistTx(tx, [id, ...collectAnchorIds([anchor])])
+      applyMoves(tx, promptTable, [{ id, anchor }], { pkColumn: promptTable.id })
     })
   }
 
   /** Apply a batch of moves atomically. */
-  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+  reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
     if (moves.length === 0) return
-    await this.db.transaction(async (tx) => {
-      await this.assertPromptsExistTx(tx, [...moves.map((m) => m.id), ...collectAnchorIds(moves.map((m) => m.anchor))])
-      await applyMoves(tx, promptTable, moves, { pkColumn: promptTable.id })
+    this.db.transaction((tx) => {
+      this.assertPromptsExistTx(tx, [...moves.map((m) => m.id), ...collectAnchorIds(moves.map((m) => m.anchor))])
+      applyMoves(tx, promptTable, moves, { pkColumn: promptTable.id })
     })
   }
 
   /** Pre-check that every id in a reorder exists; convert to NOT_FOUND otherwise. */
-  private async assertPromptsExistTx(tx: Pick<DbType, 'select'>, ids: string[]): Promise<void> {
+  private assertPromptsExistTx(tx: Pick<DbType, 'select'>, ids: string[]): void {
     const uniqueIds = Array.from(new Set(ids))
-    const rows = (await tx
+    const rows = tx
       .select({ id: promptTable.id })
       .from(promptTable)
-      .where(inArray(promptTable.id, uniqueIds))) as Array<{ id: string }>
+      .where(inArray(promptTable.id, uniqueIds))
+      .all() as Array<{ id: string }>
     if (rows.length === uniqueIds.length) return
     const found = new Set(rows.map((r) => r.id))
     const missing = uniqueIds.find((id) => !found.has(id)) ?? uniqueIds[0]
     throw DataApiErrorFactory.notFound('Prompt', missing)
   }
 
-  async delete(id: string): Promise<void> {
-    const result = await this.db.delete(promptTable).where(eq(promptTable.id, id))
-    if (result.rowsAffected === 0) {
+  delete(id: string): void {
+    const result = this.db.delete(promptTable).where(eq(promptTable.id, id)).run()
+    if (result.changes === 0) {
       throw DataApiErrorFactory.notFound('Prompt', id)
     }
     logger.info('Deleted prompt', { id })

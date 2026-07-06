@@ -1,0 +1,87 @@
+{
+  "agent": {
+    "session": {
+      "workspace_status": {
+        "inaccessible": "Workspace path is not accessible: {{path}}",
+        "missing": "Workspace path does not exist: {{path}}",
+        "not_directory": "Workspace path is not a directory: {{path}}"
+      }
+    }
+  },
+  "appMenu": {
+    "about": "About",
+    "close": "Close Window",
+    "copy": "Copy",
+    "cut": "Cut",
+    "delete": "Delete",
+    "documentation": "Documentation",
+    "edit": "Edit",
+    "feedback": "Feedback",
+    "file": "File",
+    "forceReload": "Force Reload",
+    "front": "Bring All to Front",
+    "help": "Help",
+    "hide": "Hide",
+    "hideOthers": "Hide Others",
+    "minimize": "Minimize",
+    "paste": "Paste",
+    "quit": "Quit",
+    "redo": "Redo",
+    "releases": "Releases",
+    "reload": "Reload",
+    "resetZoom": "Actual Size",
+    "selectAll": "Select All",
+    "services": "Services",
+    "toggleDevTools": "Toggle Developer Tools",
+    "toggleFullscreen": "Toggle Fullscreen",
+    "undo": "Undo",
+    "unhide": "Show All",
+    "view": "View",
+    "website": "Website",
+    "window": "Window",
+    "zoom": "Zoom",
+    "zoomIn": "Zoom In",
+    "zoomOut": "Zoom Out"
+  },
+  "common": {
+    "copy": "Copy",
+    "cut": "Cut",
+    "inspect": "Inspect",
+    "paste": "Paste"
+  },
+  "dialog": {
+    "all_files": "All Files",
+    "html_files": "HTML Files",
+    "open_file": "Open File",
+    "pdf_files": "PDF Files",
+    "png_image": "PNG Image",
+    "save_as_html": "Save as HTML",
+    "save_as_pdf": "Save as PDF",
+    "save_file": "Save File",
+    "select_folder": "Select Folder",
+    "word_document": "Word Document"
+  },
+  "paintings": {
+    "generate_failed": "Failed to generate image",
+    "image_mix_failed": "Failed to mix images"
+  },
+  "selection": {
+    "name": "Selection Assistant"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "You can close this page and return to Cherry Studio",
+          "title": "Authentication Successful"
+        }
+      }
+    },
+    "title": "Settings"
+  },
+  "tray": {
+    "quit": "Quit",
+    "show_quick_assistant": "Quick Assistant",
+    "show_window": "Show Window"
+  }
+}

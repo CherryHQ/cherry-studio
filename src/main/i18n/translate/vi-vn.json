@@ -1,0 +1,87 @@
+{
+  "agent": {
+    "session": {
+      "workspace_status": {
+        "inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}",
+        "missing": "Đường dẫn không gian làm việc không tồn tại: {{path}}",
+        "not_directory": "Đường dẫn không gian làm việc không phải là thư mục: {{path}}"
+      }
+    }
+  },
+  "appMenu": {
+    "about": "Về",
+    "close": "Đóng cửa sổ",
+    "copy": "Sao chép",
+    "cut": "Cắt",
+    "delete": "Xóa",
+    "documentation": "Tài liệu",
+    "edit": "Chỉnh sửa",
+    "feedback": "Phản hồi",
+    "file": "Tập tin",
+    "forceReload": "Tải lại bắt buộc",
+    "front": "Đưa Tất cả Ra Phía Trước",
+    "help": "Giúp",
+    "hide": "Ẩn",
+    "hideOthers": "Ẩn những cái khác",
+    "minimize": "Giảm thiểu",
+    "paste": "Dán",
+    "quit": "Thôi",
+    "redo": "Làm lại",
+    "releases": "Bản phát hành",
+    "reload": "Tải lại",
+    "resetZoom": "Kích thước thực tế",
+    "selectAll": "Chọn Tất Cả",
+    "services": "Dịch vụ",
+    "toggleDevTools": "Bật Công Cụ Dành Cho Nhà Phát Triển",
+    "toggleFullscreen": "Bật toàn màn hình",
+    "undo": "Hoàn tác",
+    "unhide": "Hiển thị tất cả",
+    "view": "Xem",
+    "website": "Trang web",
+    "window": "Cửa sổ",
+    "zoom": "Zoom",
+    "zoomIn": "Thu phóng",
+    "zoomOut": "Alejarse"
+  },
+  "common": {
+    "copy": "Sao chép",
+    "cut": "Cắt",
+    "inspect": "Kiểm tra",
+    "paste": "Pasta"
+  },
+  "dialog": {
+    "all_files": "Tất cả các tệp",
+    "html_files": "Tập tin HTML",
+    "open_file": "Mở Tệp",
+    "pdf_files": "Tệp PDF",
+    "png_image": "Hình ảnh PNG",
+    "save_as_html": "Lưu dưới dạng HTML",
+    "save_as_pdf": "Lưu dưới dạng PDF",
+    "save_file": "Lưu Tệp",
+    "select_folder": "Chọn thư mục",
+    "word_document": "Tài liệu Word"
+  },
+  "paintings": {
+    "generate_failed": "Không thể tạo hình ảnh",
+    "image_mix_failed": "Không thể trộn các hình ảnh"
+  },
+  "selection": {
+    "name": "Trợ lý lựa chọn"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "Bạn có thể đóng trang này và quay lại Cherry Studio",
+          "title": "Autenticación exitosa"
+        }
+      }
+    },
+    "title": "Cài đặt"
+  },
+  "tray": {
+    "quit": "Thôi",
+    "show_quick_assistant": "Trợ lý Nhanh",
+    "show_window": "Hiển thị cửa sổ"
+  }
+}

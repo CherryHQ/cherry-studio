@@ -7,7 +7,7 @@ import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 
-import { useMessageParts } from '../blocks'
+import { useMessageParts } from '../blocks/MessagePartsContext'
 import type { MessageListItem } from '../types'
 
 interface MessageOutlineProps {

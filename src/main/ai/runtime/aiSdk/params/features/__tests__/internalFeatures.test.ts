@@ -17,7 +17,7 @@ vi.mock('@cherrystudio/ai-core/built-in/plugins', () => ({
 
 import { collectFromFeatures } from '../../collectFromFeatures'
 import type { RequestScope } from '../../scope'
-import { INTERNAL_FEATURES } from '../index'
+import { INTERNAL_FEATURES } from '../internalFeatures'
 
 function makeScope(overrides: {
   provider: Partial<Provider>
@@ -56,9 +56,9 @@ function activeNames(scope: RequestScope): string[] {
 
 describe('INTERNAL_FEATURES — decision matrix', () => {
   it('produces nothing when there is no assistant and the resolver picks an "anthropic" adapter (no inline-tag extraction)', () => {
-    expect(activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))).toEqual([
-      'pdf-compatibility'
-    ])
+    expect(activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))).toEqual(
+      []
+    )
   })
 
   it('model-params activates whenever an assistant is present', () => {
@@ -86,14 +86,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     )
   })
 
-  it('anthropic-cache activates only when endpoint is anthropic-messages AND cacheControl is enabled with a threshold', () => {
-    // Both conditions required after the endpoint-aware refactor: the
-    // request must be heading to an anthropic-messages endpoint, AND
-    // cacheControl must be opted in with a positive threshold.
+  it('anthropic-cache activates by default on anthropic-messages and respects explicit opt-out', () => {
     expect(
       activeNames(
         makeScope({
-          provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
+          provider: { id: 'anthropic', settings: {} } as never,
           model: {},
           endpointType: 'anthropic-messages',
           aiSdkProviderId: 'anthropic'
@@ -104,7 +101,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(
       activeNames(
         makeScope({
-          provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
+          provider: { id: 'anthropic', settings: {} } as never,
           model: {},
           endpointType: 'openai-chat-completions',
           aiSdkProviderId: 'openai-chat'
@@ -112,11 +109,10 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
       )
     ).not.toContain('anthropic-cache')
 
-    // Threshold of 0 still disables, regardless of endpoint.
     expect(
       activeNames(
         makeScope({
-          provider: { settings: { cacheControl: { enabled: true, tokenThreshold: 0 } } } as never,
+          provider: { settings: { cacheControl: { enabled: false, tokenThreshold: 1024 } } } as never,
           model: {},
           endpointType: 'anthropic-messages',
           aiSdkProviderId: 'anthropic'
@@ -150,7 +146,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     )
   })
 
-  it('preserves declaration order: model-params first, pdf-compatibility second', () => {
+  it('model-params is the first active feature for a plain assistant scope', () => {
     const names = activeNames(
       makeScope({
         provider: {},
@@ -159,7 +155,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
         capabilities: {}
       })
     )
-    expect(names.slice(0, 2)).toEqual(['model-params', 'pdf-compatibility'])
+    expect(names[0]).toBe('model-params')
   })
 
   // params-core-2: the documented hard invariant `reasoning-extraction` < `simulate-streaming`.
@@ -180,36 +176,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(simulate).toBeGreaterThan(reasoning)
   })
 
-  // params-features-3: the documented hard invariant `pdf-compatibility` < `anthropic-cache`
-  // (cache estimation must see the extracted PDF text). Both gate predicates hold for an
-  // anthropic-messages endpoint with cacheControl enabled.
-  it('orders pdf-compatibility before anthropic-cache (anthropic-messages, cache on)', () => {
-    const names = activeNames(
-      makeScope({
-        provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
-        model: {},
-        endpointType: 'anthropic-messages',
-        aiSdkProviderId: 'anthropic'
-      })
-    )
-    const pdf = names.indexOf('pdf-compatibility')
-    const cache = names.indexOf('anthropic-cache')
-    expect(pdf).toBeGreaterThanOrEqual(0)
-    expect(cache).toBeGreaterThan(pdf)
-  })
-
-  // params-core-2: the same hard invariants asserted as a STATIC contract over the
-  // declaration order of INTERNAL_FEATURES — by feature `name`, independent of any
-  // activation predicate. Unlike the activation-based tests above, this catches a
-  // reorder even if both members never co-activate for the chosen scope.
-  it('declares pdf-compatibility before anthropic-cache and reasoning-extraction before simulate-streaming', () => {
+  // params-core-2: the hard invariant `reasoning-extraction` < `simulate-streaming` asserted as a
+  // STATIC contract over the declaration order of INTERNAL_FEATURES — by feature `name`,
+  // independent of any activation predicate.
+  it('declares reasoning-extraction before simulate-streaming', () => {
     const indexOfName = (name: string) => INTERNAL_FEATURES.findIndex((f) => f.name === name)
-
-    const pdf = indexOfName('pdf-compatibility')
-    const cache = indexOfName('anthropic-cache')
-    expect(pdf).toBeGreaterThanOrEqual(0)
-    expect(cache).toBeGreaterThanOrEqual(0)
-    expect(pdf).toBeLessThan(cache)
 
     const reasoning = indexOfName('reasoning-extraction')
     const simulate = indexOfName('simulate-streaming')

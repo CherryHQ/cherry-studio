@@ -224,7 +224,12 @@
           "runFailed": "Falha ao executar a tarefa",
           "updateFailed": "Falha ao atualizar a tarefa"
         },
-        "intervalPlaceholder": "Intervalo em minutos",
+        "frequency": {
+          "everyPrefix": "A cada",
+          "everySuffix": "minutos",
+          "label": "Frequência de execução"
+        },
+        "intervalPlaceholder": "Pelo menos 1",
         "intervalUnit": "minutos",
         "lastRun": "Última execução",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Intervalo",
-          "label": "Tipo de agendamento",
           "once": "Uma vez"
         },
-        "scheduleValue": "Valor do agendamento",
         "status": {
           "active": "Ativo",
           "completed": "Concluído",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}m atrás"
         },
         "timeout": {
-          "label": "Tempo esgotado",
+          "label": "Tempo máximo de execução",
           "placeholder": "Sem limite"
         },
         "title": "Tarefas agendadas"
@@ -553,6 +556,7 @@
       "list": {
         "title": "Tarefas"
       },
+      "new": "Nova tarefa",
       "pin": {
         "title": "Fixar tarefa"
       },
@@ -562,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Tarefas de pesquisa"
+        "placeholder": "Tarefas de pesquisa",
+        "title": "Pesquisar tarefas"
       },
       "unpin": {
         "title": "Desafixar tarefa"
@@ -599,9 +604,7 @@
         "select_failed": "Falha ao selecionar pasta."
       },
       "workspace_status": {
-        "inaccessible": "O caminho do workspace não está acessível: {{path}}",
-        "missing": "O caminho do espaço de trabalho não existe: {{path}}",
-        "not_directory": "O caminho do workspace não é um diretório: {{path}}"
+        "inaccessible": "O caminho do workspace não está acessível: {{path}}"
       }
     },
     "settings": {
@@ -932,6 +935,10 @@
           "description": "Executa comandos shell no seu ambiente",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "Adiciona, exclui ou atualiza documentos em suas bases de conhecimento",
+          "label": "Gerenciar Conhecimento"
+        },
         "CherryKbSearch": {
           "description": "Pesquisa suas bases de conhecimento",
           "label": "Pesquisa de Conhecimento"
@@ -1074,41 +1081,6 @@
       "stopped": "Parado"
     },
     "title": "Servidor API"
-  },
-  "appMenu": {
-    "about": "Sobre",
-    "close": "Fechar Janela",
-    "copy": "Copiar",
-    "cut": "Corte",
-    "delete": "Excluir",
-    "documentation": "Documentação",
-    "edit": "Editar",
-    "feedback": "Feedback",
-    "file": "Arquivo",
-    "forceReload": "Forçar Recarregamento",
-    "front": "Trazer Tudo para a Frente",
-    "help": "Ajuda",
-    "hide": "Esconder",
-    "hideOthers": "Ocultar Outros",
-    "minimize": "Minimizar",
-    "paste": "Colar",
-    "quit": "Sair",
-    "redo": "Refazer",
-    "releases": "Lançamentos",
-    "reload": "Recarregar",
-    "resetZoom": "Tamanho Real",
-    "selectAll": "Selecionar Todos",
-    "services": "Serviços",
-    "toggleDevTools": "Alternar Ferramentas de Desenvolvedor",
-    "toggleFullscreen": "Alternar Tela Cheia",
-    "undo": "Desfazer",
-    "unhide": "Mostrar Todos",
-    "view": "Visualizar",
-    "website": "Site",
-    "window": "Janela",
-    "zoom": "Zoom",
-    "zoomIn": "Ampliar",
-    "zoomOut": "Reduzir Zoom"
   },
   "assistants": {
     "abbr": "Assistente",
@@ -1590,6 +1562,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "[to be translated]:Cache {{hit_rate}}%",
+        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "Esta mensagem está sendo editada no compositor",
       "flow": {
         "branches": "ramos",
@@ -2052,7 +2028,6 @@
     "copy_failed": "Falha ao copiar",
     "create_success": "Criado com sucesso",
     "current": "Atual",
-    "cut": "Cortar",
     "default": "Padrão",
     "delete": "Excluir",
     "delete_confirm": "Tem certeza de que deseja excluir?",
@@ -2090,7 +2065,6 @@
     "image_preview": "Pré-visualização da imagem",
     "image_url": "URL da imagem",
     "image_url_or_upload": "Insira o URL da imagem ou carregue o arquivo",
-    "inspect": "Verificar",
     "invalid_value": "Valor inválido",
     "knowledge_base": "Base de Conhecimento",
     "language": "Língua",
@@ -2111,7 +2085,6 @@
     "open_in": "Abrir em {{name}}",
     "open_in_new_tab": "Abrir em nova aba",
     "open_sidebar": "Abrir barra lateral",
-    "paste": "Colar",
     "placeholders": {
       "select": {
         "model": "Selecionar modelo"
@@ -2166,18 +2139,6 @@
     "warning": "Aviso",
     "yesterday": "Ontem",
     "you": "Você"
-  },
-  "dialog": {
-    "all_files": "Todos os Arquivos",
-    "html_files": "Arquivos HTML",
-    "open_file": "Abrir Arquivo",
-    "pdf_files": "Arquivos PDF",
-    "png_image": "Imagem PNG",
-    "save_as_html": "Salvar como HTML",
-    "save_as_pdf": "Salvar como PDF",
-    "save_file": "Salvar Arquivo",
-    "select_folder": "Selecionar Pasta",
-    "word_document": "Documento do Word"
   },
   "docs": {
     "title": "Documentação de Ajuda"
@@ -3159,12 +3120,22 @@
           "agent_title": "Novo Agente",
           "assistant_title": "Novo Assistente",
           "avatar_aria": "Escolher avatar",
+          "back": "Voltar",
+          "capability": {
+            "import": "Importar habilidade",
+            "no_skills": "Nenhuma habilidade instalada",
+            "search": "Habilidades de pesquisa"
+          },
           "description_placeholder": "Descreva para que serve...",
-          "dialog_description": "Crie um assistente ou agente leve.",
-          "model_placeholder": "Selecione um modelo",
-          "model_required": "Por favor, selecione um modelo",
+          "guided_progress": "Configuração guiada · Passo {{current}} de {{total}}",
           "name_placeholder": "Insira um nome",
-          "name_required": "Por favor, insira um nome",
+          "next": "Próximo",
+          "step": {
+            "basic": "Informações básicas",
+            "capability": "Habilidades",
+            "knowledge": "Conhecimento",
+            "persona": "Persona"
+          },
           "submit": "Criar",
           "submit_failed": "Falha na criação"
         },
@@ -3873,64 +3844,6 @@
       "partial_failure": "{{count}} resultados da pesquisa, algumas pesquisas falharam"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Adicionar ao Launchpad",
-    "add_to_sidebar": "Adicionar à Barra Lateral",
-    "popup": {
-      "close": "Fechar MinApp",
-      "devtools": "Ferramentas de Desenvolvedor",
-      "goBack": "Voltar",
-      "goForward": "Avançar",
-      "minimize": "Minimizar MinApp",
-      "openExternal": "Abrir no Navegador",
-      "open_link_external_off": "Atual: Abrir links na janela padrão",
-      "open_link_external_on": "Atual: Abrir links no navegador",
-      "refresh": "Atualizar",
-      "rightclick_copyurl": "Clique com o botão direito para copiar o URL"
-    },
-    "remove_from_launchpad": "Remover do Launchpad",
-    "remove_from_sidebar": "Remover da Barra Lateral",
-    "sidebar": {
-      "close": {
-        "title": "Fechar"
-      },
-      "closeall": {
-        "title": "Fechar Todos"
-      },
-      "hide": {
-        "title": "Ocultar"
-      },
-      "remove_custom": {
-        "title": "Excluir Aplicativo Personalizado"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Pesquisa de IA da Baidu",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Agente Minimax CN",
-    "minimax-global": "Agente Minimax",
-    "nami-ai": "Nami IA",
-    "nami-ai-search": "Nami AI Search",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "miniApp": {
     "add_to_launchpad": "Adicionar ao Painel de Inicialização",
     "add_to_sidebar": "Adicionar à Barra Lateral",
@@ -3941,15 +3854,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Falha ao fixar o miniaplicativo",
     "popup": {
-      "close": "Fechar aplicativo",
       "devtools": "Ferramentas de Desenvolvedor",
       "goBack": "Voltar",
       "goForward": "Avançar",
       "openExternal": "Abrir no navegador",
       "open_link_external_off": "Atual: Abrir links em janela padrão",
       "open_link_external_on": "Atual: Abrir links no navegador",
-      "refresh": "Atualizar",
-      "rightclick_copyurl": "Copiar URL com botão direito"
+      "refresh": "Atualizar"
     },
     "remove_from_launchpad": "Remover do Painel de Inicialização",
     "remove_from_sidebar": "Remover da Barra Lateral",
@@ -3961,17 +3872,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Fechar"
-      },
-      "closeall": {
-        "title": "Fechar Tudo"
-      },
       "hide": {
         "title": "Ocultar"
-      },
-      "remove_custom": {
-        "title": "Excluir aplicativo personalizado"
       }
     },
     "title": "Pequeno aplicativo",
@@ -3991,7 +3893,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -4777,10 +4678,10 @@
     "baichuan": "BaiChuan",
     "baidu-cloud": "Nuvem Baidu",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copiloto",
     "dashscope": "Área de Atuação AliCloud",
     "deepseek": "Busca Profunda",
@@ -4833,7 +4734,7 @@
     "tencent-cloud-ti": "Nuvem TI da Tencent",
     "tesseract": "Tesseract",
     "together": "Juntos",
-    "tokenflux": "TokenFlux",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "XiRang do Nuvem Telecom",
@@ -5325,6 +5226,7 @@
     "assistant": {
       "create_new": "Novo Assistente",
       "empty_text": "Nenhum assistente ainda",
+      "filter": "Assistentes de filtro",
       "multi_hint": "(mutualmente exclusivo com multi-modelo)",
       "multi_label": "Multi-assistente paralelo",
       "search_placeholder": "Assistentes de pesquisa…"
@@ -6349,12 +6251,6 @@
         "usage": "Uso",
         "version": "Versão"
       },
-      "oauth": {
-        "callback": {
-          "message": "Você pode fechar esta página e retornar ao Cherry Studio",
-          "title": "Autenticação Bem-Sucedida"
-        }
-      },
       "prompts": {
         "arguments": "Argumentos",
         "availablePrompts": "Dicas disponíveis",
@@ -6504,6 +6400,12 @@
         "show_estimated_tokens": "Mostrar número estimado de tokens",
         "title": "Configurações de entrada"
       },
+      "layout": {
+        "classic": "Clássico",
+        "conversation": "Vista de conversa",
+        "modern": "Moderno",
+        "work": "Vista de trabalho"
+      },
       "markdown_rendering_input_message": "Renderização de markdown na entrada de mensagens",
       "metrics": "Atraso inicial {{time_first_token_millsec}}ms | Taxa de token por segundo {{token_speed}} tokens",
       "model": {
@@ -6523,37 +6425,24 @@
     "miniApps": {
       "cache_change_notice": "As alterações entrarão em vigor após a abertura ou remoção dos mini aplicativos até atingir o número definido",
       "cache_description": "Defina o número máximo de mini aplicativos que permanecerão ativos simultaneamente",
-      "cache_settings": "Configurações de Cache",
       "cache_title": "Quantidade de Mini Aplicativos no Cache",
       "custom": {
-        "conflicting_ids": "Conflito com IDs padrão: {{ids}}",
-        "duplicate_ids": "IDs duplicadas encontradas: {{ids}}",
-        "edit_description": "Edite aqui as configurações do aplicativo personalizado. Cada aplicativo deve conter os campos id, name, url e logo.",
+        "create_title": "Criar mini app personalizada",
         "edit_title": "Editar Aplicativo Personalizado",
-        "id": "ID",
-        "id_error": "A ID é obrigatória.",
-        "id_placeholder": "Digite a ID",
-        "logo": "Logo",
         "logo_file": "Enviar Arquivo da Logo",
-        "logo_upload_button": "Enviar",
         "logo_upload_error": "Falha no envio da Logo.",
         "logo_upload_label": "Enviar Logo",
-        "logo_upload_success": "Logo enviada com sucesso.",
-        "logo_url": "URL da Logo",
-        "logo_url_label": "URL da Logo",
-        "logo_url_placeholder": "Digite a URL da Logo",
         "name": "Nome",
-        "name_error": "O nome é obrigatório.",
         "name_placeholder": "Digite o nome",
-        "placeholder": "Digite a configuração do aplicativo personalizado (formato JSON)",
+        "remove_confirm_description": "Excluir miniaplicativo personalizado \"{{name}}\"? Esta ação não pode ser desfeita.",
+        "remove_confirm_title": "Excluir miniaplicativo personalizado?",
         "remove_error": "Falha ao excluir o aplicativo personalizado.",
         "remove_success": "Aplicativo personalizado excluído com sucesso.",
-        "save": "Salvar",
         "save_error": "Falha ao salvar o aplicativo personalizado.",
         "save_success": "Aplicativo personalizado salvo com sucesso.",
         "title": "Aplicativo Personalizado",
         "url": "URL",
-        "url_error": "A URL é obrigatória.",
+        "url_invalid": "Introduza um URL http, https ou file válido.",
         "url_placeholder": "Digite a URL"
       },
       "disabled": "Mini Aplicativos Ocultos",
@@ -6575,65 +6464,8 @@
         "title": "Filtro de área do mini programa"
       },
       "reset_tooltip": "Redefinir para os valores padrão",
-      "title": "Configurações do Mini Aplicativo",
+      "title": "Configurações dos Mini Apps",
       "visible": "Mini Aplicativos Visíveis"
-    },
-    "miniapps": {
-      "cache_change_notice": "As alterações entrarão em vigor quando o número de miniaplicativos abertos atingir o valor definido.",
-      "cache_description": "Defina o número máximo de mini aplicativos ativos a manter na memória",
-      "cache_settings": "Configurações de Cache",
-      "cache_title": "Limite de Cache do Mini App",
-      "custom": {
-        "conflicting_ids": "IDs conflitantes com aplicativos padrão: {{ids}}",
-        "duplicate_ids": "IDs duplicados encontrados: {{ids}}",
-        "edit_description": "Edite a configuração do mini app personalizado aqui. Cada app deve incluir os campos id, name, url e logo.",
-        "edit_title": "Editar Mini App Personalizado",
-        "id": "ID",
-        "id_error": "ID é obrigatório.",
-        "id_placeholder": "Insira o ID",
-        "logo": "Logo",
-        "logo_file": "Carregar Arquivo de Logotipo",
-        "logo_upload_button": "Carregar",
-        "logo_upload_error": "Falha ao fazer upload do logotipo.",
-        "logo_upload_label": "Carregar Logotipo",
-        "logo_upload_success": "Logotipo carregado com sucesso.",
-        "logo_url": "URL do Logotipo",
-        "logo_url_label": "URL do logO",
-        "logo_url_placeholder": "Insira o URL do logotipo",
-        "name": "Nome",
-        "name_error": "Nome é obrigatório.",
-        "name_placeholder": "Insira o nome",
-        "placeholder": "Insira a configuração personalizada do mini app (formato JSON)",
-        "remove_error": "Falha ao remover o miniaplicativo personalizado.",
-        "remove_success": "Mini app personalizado removido com sucesso.",
-        "save": "Salvar",
-        "save_error": "Falha ao salvar o miniaplicativo personalizado.",
-        "save_success": "Mini app personalizado salvo com sucesso.",
-        "title": "Personalizado",
-        "url": "URL",
-        "url_error": "URL é obrigatória.",
-        "url_placeholder": "Insira o URL"
-      },
-      "disabled": "Mini Apps Ocultos",
-      "display_title": "Configurações de Exibição do Mini App",
-      "empty": "Clique no ícone de ocultar em um aplicativo à esquerda e ele será movido para cá.",
-      "hide_app": "Ocultar {{name}}",
-      "open_link_external": {
-        "title": "Abrir links de nova janela no navegador"
-      },
-      "region": {
-        "auto": "Detecção automática",
-        "cn": "China",
-        "description": "Filtragem de mini-programas não suportados com base na região",
-        "global": "Global",
-        "title": "Filtro de Mini Programa"
-      },
-      "reset_tooltip": "Restaurar para o padrão",
-      "show_app": "Mostrar {{name}}",
-      "sidebar_description": "Mostrar mini apps ativos na barra lateral",
-      "sidebar_title": "Exibição de Mini Apps Ativos na Barra Lateral",
-      "title": "Configurações de Mini Apps",
-      "visible": "Mini Apps Visíveis"
     },
     "model": "Modelo padrão",
     "models": {
@@ -6784,6 +6616,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Alguns modelos estão em uso como modelo padrão e não podem ser removidos.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -7105,9 +6938,19 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Domínio de aceleração",
-          "backup": "Domínio de backup",
           "international": "Domínio internacional"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7578,6 +7421,7 @@
           "exa": "API de busca neural para aplicações de IA, ajustada para recuperação semântica da web.",
           "exa_mcp": "Exponha a pesquisa Exa aos agentes por meio do Exa MCP Server.",
           "fetch": "Provedor de busca de URL integrado. Busca conteúdo de páginas web a partir de uma URL para enriquecer os resultados de pesquisa.",
+          "firecrawl": "Serviço de crawler e busca Firecrawl, otimizado para transformar websites em Markdown.",
           "jina": "APIs de pesquisa e leitura Jina Reader para recuperar conteúdo web limpo.",
           "querit": "Serviço de pesquisa para aplicativos de IA com resultados de recuperação da web.",
           "searxng": "Motor de metapesquisa de internet gratuito e auto-hospedável em várias fontes.",
@@ -7897,11 +7741,6 @@
     "tooltip": {
       "newline": "Quebra de linha"
     }
-  },
-  "tray": {
-    "quit": "Sair",
-    "show_quick_assistant": "Atalho de Assistente",
-    "show_window": "Exibir Janela"
   },
   "update": {
     "install": "Instalar",

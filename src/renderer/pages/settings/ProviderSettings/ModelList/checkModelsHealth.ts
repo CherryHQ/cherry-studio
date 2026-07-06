@@ -1,10 +1,9 @@
 import { loggerService } from '@logger'
-import { checkApi } from '@renderer/services/ApiService'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 
 import type { ApiKeyWithStatus, ModelCheckOptions, ModelWithStatus } from '../types/healthCheck'
 import { HealthStatus } from '../types/healthCheck'
-import { aggregateApiKeyResults } from '../utils/healthCheck'
+import { aggregateApiKeyResults, checkApi } from '../utils/healthCheck'
 
 const logger = loggerService.withContext('ProviderSettings:checkModelsHealth')
 

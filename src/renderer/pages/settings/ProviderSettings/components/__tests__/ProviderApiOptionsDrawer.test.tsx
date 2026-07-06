@@ -143,6 +143,18 @@ describe('ProviderApiOptionsDrawer', () => {
     })
   })
 
+  it('shows default Anthropic cache values when cacheControl is unset', () => {
+    useProviderMock.mockReturnValue({
+      provider: { ...provider, settings: { ...provider.settings, cacheControl: undefined } },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')).toHaveValue(1024)
+    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')).toHaveValue(2)
+  })
+
   it('only renders array content for non OpenAI providers without anthropic cache support', () => {
     isOpenAICompatibleProviderMock.mockReturnValue(false)
     isAnthropicSupportedProviderMock.mockReturnValue(false)

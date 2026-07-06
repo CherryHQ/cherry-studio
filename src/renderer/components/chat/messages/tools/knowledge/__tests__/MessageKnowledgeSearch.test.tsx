@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { MessageKnowledgeSearchToolTitle } from '../MessageKnowledgeSearch'
 
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: {
     t: (key: string, params?: Record<string, number>) => {
       if (key === 'message.searching') return 'Searching'

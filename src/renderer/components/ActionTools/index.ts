@@ -1,4 +1,4 @@
-export * from './constants'
-export * from './hooks/useImageTools'
-export * from './hooks/useToolManager'
-export * from './types'
+export { TOOL_SPECS } from './constants'
+export { useImageTools } from './hooks/useImageTools'
+export { useToolManager } from './hooks/useToolManager'
+export type { ActionTool, ActionToolSpec, ToolRegisterProps } from './types'

@@ -19,7 +19,7 @@ export interface PrepareKnowledgeItemOptions {
   baseId: string
   item: KnowledgeItem
   onCreatedItem: (item: KnowledgeItem) => void
-  runMutation: <T>(task: () => Promise<T>) => Promise<T>
+  runMutation: <T>(task: () => T) => Promise<T>
   signal: AbortSignal
 }
 
@@ -43,12 +43,12 @@ async function prepareDirectoryForRuntime(
   baseId: string,
   item: KnowledgeItemOf<'directory'>,
   onCreatedItem: (item: KnowledgeItem) => void,
-  runMutation: <T>(task: () => Promise<T>) => Promise<T>,
+  runMutation: <T>(task: () => T) => Promise<T>,
   signal: AbortSignal
 ): Promise<IndexableKnowledgeItem[]> {
   // Exclude this container itself: on reindex it already owns its `relativePath`
   // prefix, and counting it as reserved would self-collide it to `_1` every time.
-  const reservedTopLevelNames = await collectReservedTopLevelNames(baseId, item.id)
+  const reservedTopLevelNames = collectReservedTopLevelNames(baseId, item.id)
   const { pathPrefix, children } = await expandDirectoryOwnerToTree(item, baseId, reservedTopLevelNames, signal)
   signal.throwIfAborted()
 
@@ -76,8 +76,8 @@ async function prepareDirectoryForRuntime(
  * directory's namespace (`docs/sub/a.pdf` → `docs`). Runs inside the base mutation
  * lock, so the read-then-dedupe-then-write is free of concurrent expansions.
  */
-async function collectReservedTopLevelNames(baseId: string, excludeItemId?: string): Promise<Set<string>> {
-  const items = await knowledgeItemService.getItemsByBaseId(baseId)
+function collectReservedTopLevelNames(baseId: string, excludeItemId?: string): Set<string> {
+  const items = knowledgeItemService.getItemsByBaseId(baseId)
   const names = new Set<string>()
   for (const relativePath of collectKnowledgeReservedRelativePaths(items, { excludeItemId })) {
     const topSegment = relativePath.split('/')[0]
@@ -93,7 +93,7 @@ async function createDirectoryChildren(
   parentId: string,
   children: ExpandedDirectoryNode[],
   onCreatedItem: (item: KnowledgeItem) => void,
-  runMutation: <T>(task: () => Promise<T>) => Promise<T>,
+  runMutation: <T>(task: () => T) => Promise<T>,
   signal: AbortSignal
 ): Promise<IndexableKnowledgeItem[]> {
   const leafItems: IndexableKnowledgeItem[] = []
@@ -147,7 +147,7 @@ async function createRuntimeItem<T extends KnowledgeItemType>(
   baseId: string,
   item: Extract<CreateKnowledgeItemDto, { type: T }>,
   onCreatedItem: (item: KnowledgeItem) => void,
-  runMutation: <TResult>(task: () => Promise<TResult>) => Promise<TResult>,
+  runMutation: <TResult>(task: () => TResult) => Promise<TResult>,
   signal: AbortSignal
 ): Promise<KnowledgeItemOf<T>> {
   signal.throwIfAborted()

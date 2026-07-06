@@ -109,7 +109,7 @@ export function TreeView<T>(props: TreeViewProps<T>) {
       const item = flat[index]
       if (!item) return null
       const children = adapter.getChildren(item.node)
-      const hasChildren = !!(children && children.length > 0)
+      const hasChildren = !!(children && children.length > 0) || adapter.canHaveChildren?.(item.node) === true
       return (
         <TreeRow
           key={item.id}

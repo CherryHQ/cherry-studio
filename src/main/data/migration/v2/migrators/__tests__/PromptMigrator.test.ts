@@ -13,12 +13,12 @@ function createMockContext(
   const { tableExists = true, tableData = [], promptCount = 0 } = overrides
 
   const insertFn = vi.fn().mockImplementation(() => ({
-    values: vi.fn().mockResolvedValue(undefined)
+    values: vi.fn().mockImplementation(() => ({ run: vi.fn() }))
   }))
 
   const selectFn = vi.fn().mockImplementation(() => ({
     from: vi.fn().mockImplementation(() => ({
-      get: vi.fn().mockResolvedValue({ count: promptCount })
+      get: vi.fn().mockReturnValue({ count: promptCount })
     }))
   }))
 
@@ -33,8 +33,8 @@ function createMockContext(
   )
 
   const db = {
-    transaction: vi.fn().mockImplementation(async (fn: (tx: unknown) => Promise<void>) => {
-      await fn(txProxy)
+    transaction: vi.fn().mockImplementation((fn: (tx: unknown) => void) => {
+      fn(txProxy)
     }),
     select: selectFn
   }
@@ -201,15 +201,13 @@ describe('PromptMigrator', () => {
       const mockInsert = vi.fn().mockImplementation(() => ({
         values: vi.fn().mockImplementation((val: unknown) => {
           insertCalls.push(val)
-          return Promise.resolve()
+          return { run: vi.fn() }
         })
       }))
 
-      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation(
-        async (fn: (tx: unknown) => Promise<void>) => {
-          await fn({ insert: mockInsert })
-        }
-      )
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation((fn: (tx: unknown) => void) => {
+        fn({ insert: mockInsert })
+      })
 
       await migrator.execute(ctx)
 
@@ -231,15 +229,13 @@ describe('PromptMigrator', () => {
       const mockInsert = vi.fn().mockImplementation(() => ({
         values: vi.fn().mockImplementation((val: Record<string, unknown>) => {
           insertCalls.push(val)
-          return Promise.resolve()
+          return { run: vi.fn() }
         })
       }))
 
-      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation(
-        async (fn: (tx: unknown) => Promise<void>) => {
-          await fn({ insert: mockInsert })
-        }
-      )
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation((fn: (tx: unknown) => void) => {
+        fn({ insert: mockInsert })
+      })
 
       await migrator.execute(ctx)
 
@@ -271,7 +267,9 @@ describe('PromptMigrator', () => {
       const migrator = new PromptMigrator()
       await migrator.prepare(ctx)
 
-      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('db error'))
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new Error('db error')
+      })
 
       const result = await migrator.execute(ctx)
 
@@ -293,14 +291,16 @@ describe('PromptMigrator', () => {
       // Simulate a DB-level failure from the bulk insert path (any
       // SQLITE_CONSTRAINT, FK mismatch, etc.).
       const insertFn = vi.fn().mockImplementation(() => ({
-        values: vi.fn().mockRejectedValue(new Error('UNIQUE constraint failed: prompt.id'))
+        values: vi.fn().mockImplementation(() => ({
+          run: vi.fn().mockImplementation(() => {
+            throw new Error('UNIQUE constraint failed: prompt.id')
+          })
+        }))
       }))
 
-      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation(
-        async (fn: (tx: unknown) => Promise<void>) => {
-          await fn({ insert: insertFn })
-        }
-      )
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation((fn: (tx: unknown) => void) => {
+        fn({ insert: insertFn })
+      })
 
       const result = await migrator.execute(ctx)
 
@@ -321,14 +321,12 @@ describe('PromptMigrator', () => {
       const insertFn = vi.fn().mockImplementation(() => ({
         values: vi.fn().mockImplementation((val: Record<string, unknown>) => {
           insertCalls.push(val)
-          return Promise.resolve(undefined)
+          return { run: vi.fn() }
         })
       }))
-      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation(
-        async (fn: (tx: unknown) => Promise<void>) => {
-          await fn({ insert: insertFn })
-        }
-      )
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation((fn: (tx: unknown) => void) => {
+        fn({ insert: insertFn })
+      })
 
       await migrator.execute(ctx)
 
@@ -350,7 +348,9 @@ describe('PromptMigrator', () => {
       const migrator = new PromptMigrator()
       await migrator.prepare(ctx)
 
-      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('forced rollback'))
+      ;(ctx.db.transaction as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new Error('forced rollback')
+      })
       const executeResult = await migrator.execute(ctx)
       expect(executeResult.success).toBe(false)
       expect(executeResult.processedCount).toBe(0)

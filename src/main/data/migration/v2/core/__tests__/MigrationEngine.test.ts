@@ -193,14 +193,15 @@ describe('MigrationEngine', () => {
   })
 
   it('clears new architecture tables inside one transaction', async () => {
-    const deleteFn = vi.fn().mockResolvedValue(undefined)
-    const transactionFn = vi.fn(async (fn: (tx: unknown) => Promise<void>) => {
-      await fn({ delete: deleteFn })
+    const runFn = vi.fn()
+    const deleteFn = vi.fn(() => ({ run: runFn }))
+    const transactionFn = vi.fn((fn: (tx: unknown) => void) => {
+      fn({ delete: deleteFn })
     })
     const db = {
       select: vi.fn(() => ({
         from: vi.fn(() => ({
-          get: vi.fn().mockResolvedValue({ count: 0 })
+          get: vi.fn(() => ({ count: 0 }))
         }))
       })),
       transaction: transactionFn

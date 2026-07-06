@@ -1,6 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { isMac, platform } from '@renderer/config/constant'
 import { resolveCommandDisplayState } from '@renderer/utils/command'
+import { isMac, platform } from '@renderer/utils/platform'
 import type { ResolvedCommandState, SupportedPlatform } from '@shared/types/command'
 import { type CommandId, findCommandDefinition, findKeybindingRule } from '@shared/utils/command'
 import { useMemo } from 'react'

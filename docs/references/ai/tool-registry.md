@@ -50,7 +50,7 @@ e.g. `web_search`); they are not derived from a `__` segment convention like MCP
 - `kb_list` (`KnowledgeListTool.ts`) — enumerate available knowledge bases /
   documents.
 
-Registration happens in `builtin/index.ts` (`registerBuiltinTools`). Each
+Registration happens in `builtin/registerBuiltinTools.ts` (`registerBuiltinTools`). Each
 tool's `applies` gates on the relevant `assistant.settings.*` flag (e.g.
 `enableWebSearch`).
 

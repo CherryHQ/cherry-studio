@@ -30,12 +30,12 @@ IpcApi deliberately **narrows** what renderer→main IPC can be: only routes dec
 |---|---|---|
 | Channel source | any service hand-adds `ipcMain.handle`/`ipcOn` + hand-written preload | only what's declared in `ipcRequestSchemas` |
 | Types | loose, hand-aligned across three files | one schema drives route + input + output, end to end |
-| Enumerability | scattered across services, no single list | `handlers/index.ts` — one auditable capability list |
+| Enumerability | scattered across services, no single list | `handlers/ipcHandlers.ts` — one auditable capability list |
 
 In practice this is a net convenience, not a constraint:
 
 - **Full type-checking** — routes autocomplete; a wrong route, input, or output is a compile error; schema drift fails the build.
-- **One cheat sheet** — `IpcRoute` / `handlers/index.ts` is the discoverable list of everything the renderer can call (see [Direction Cheat Sheet](#direction-cheat-sheet)).
+- **One cheat sheet** — `IpcRoute` / `handlers/ipcHandlers.ts` is the discoverable list of everything the renderer can call (see [Direction Cheat Sheet](#direction-cheat-sheet)).
 - **Auditable** — one place to confirm the exposure surface was neither widened nor dropped (see the migration guide's exposure audit).
 
 The trade is deliberate: give up the freedom to add arbitrary channels, gain full types, single-point discoverability, and auditability. Narrowing is the norm; the rare channel that may stay out is a single-digit, controlled exception (see [escape hatch](./ipc-migration-guide.md)).
@@ -81,7 +81,7 @@ The two directions are two independent registries — look them up by direction:
 
 | Direction | Lookup | Holds |
 |---|---|---|
-| **R→M** (renderer calls main) | `IpcRoute` (`keyof IpcRequestSchemas`) + `handlers/index.ts` | every request route |
+| **R→M** (renderer calls main) | `IpcRoute` (`keyof IpcRequestSchemas`) + `handlers/ipcHandlers.ts` | every request route |
 | **M→R** (main pushes renderer) | `IpcEventName` (`keyof IpcEventSchemas`) | every event name |
 | **Outside IpcApi** | migration guide's [Not In Scope](./ipc-migration-guide.md) table + Preference / Cache / DataApi subsystems | escape-hatch carve-outs (`Tab_MoveWindow`), `Preference_Changed`, `Cache_Sync`, DataApi subscribe |
 
@@ -120,7 +120,7 @@ The router maps invalid input to `VALIDATION_FAILED` and unknown routes to `ROUT
 
 ### Error Codes — `IpcErrorCode`
 
-`IpcErrorCode` (`src/shared/ipc/errors/index.ts`) is the **single source of truth for the framework's own codes** — `ROUTE_NOT_FOUND`, `VALIDATION_FAILED`, `FORBIDDEN_SENDER`, `INTERNAL`. Throw sites reference the const (`IpcErrorCode.VALIDATION_FAILED`), never a bare string literal, so a typo is a compile error rather than a silently miscategorized code.
+`IpcErrorCode` (`src/shared/ipc/errors/IpcError.ts`) is the **single source of truth for the framework's own codes** — `ROUTE_NOT_FOUND`, `VALIDATION_FAILED`, `FORBIDDEN_SENDER`, `INTERNAL`. Throw sites reference the const (`IpcErrorCode.VALIDATION_FAILED`), never a bare string literal, so a typo is a compile error rather than a silently miscategorized code.
 
 The `IpcErrorCode` **type** is deliberately open — `(the four literals) | (string & {})`:
 
@@ -137,8 +137,8 @@ The `IpcErrorCode` **type** is deliberately open — `(the four literals) | (str
 
 **Domain codes — where they live.** A domain that throws its own codes puts them in `@shared/ipc/errors/<domain>.ts` as a `SCREAMING_SNAKE_CASE` `as const` map mirroring `IpcErrorCode`. Both the handler (throw) and the renderer (branch) import that map and reference the constant — never a bare literal — so a typo is a compile error on the side that actually branches. The codes must be stable (the renderer matches on `code` by equality). Two rules pin the placement:
 
-- **Not in `schemas/<domain>.ts`.** The map is a runtime *value* the renderer must read to branch (`e.code === fileErrorCodes.FILE_NOT_FOUND`), but the renderer may only `import type` from `@shared/ipc/schemas` (an ESLint rule keeps zod out of the renderer bundle) — a type-only import yields no runtime value to compare against. So the map lives beside the framework codes under `errors/`, which is value-importable and zod-free. This mirrors why `IpcError`/`IpcErrorCode` live in `errors/`, not `schemas/`.
-- **No barrel aggregation.** Unlike `ipcRequestSchemas` / `ipcHandlers` — which the framework consumes as a whole set and checks for exhaustiveness — *nothing* consumes "all error codes at once": `code` is the open `(string & {})`, never dispatched against. Import each domain's map directly from `@shared/ipc/errors/<domain>`; do **not** re-export domain codes through `errors/index.ts`. `errors/index.ts` holds only the framework core (`IpcError`, `IpcErrorCode`, `SerializedIpcError`, `IpcResult`); aggregating domain codes there would re-couple every domain into one shared file and tempt a closed union that fights the open-tail design.
+- **Not in `schemas/<domain>.ts`.** The map is a runtime *value* the renderer must read to branch (`e.code === fileErrorCodes.FILE_NOT_FOUND`), but the renderer may only `import type` from `@shared/ipc/schemas/*` (an ESLint rule keeps zod out of the renderer bundle) — a type-only import yields no runtime value to compare against. So the map lives beside the framework codes under `errors/`, which is value-importable and zod-free. This mirrors why `IpcError`/`IpcErrorCode` live in `errors/`, not `schemas/`.
+- **No barrel aggregation.** Unlike `ipcRequestSchemas` / `ipcHandlers` — which the framework consumes as a whole set and checks for exhaustiveness — *nothing* consumes "all error codes at once": `code` is the open `(string & {})`, never dispatched against. Import each domain's map directly from `@shared/ipc/errors/<domain>`; do **not** aggregate domain codes through an `errors/` barrel (there is none — `errors/IpcError.ts` holds only the framework core `IpcError`, `IpcErrorCode`, `SerializedIpcError`, `IpcResult`). Aggregating domain codes would re-couple every domain into one shared file and tempt a closed union that fights the open-tail design.
 
 Carry machine-readable detail in `data` (typed, structured-clone-safe), human text in `message` — never string-parse `message`. See [usage](./ipc-usage.md#4-surface-a-typed-error-optional) for a handler-throws + renderer-branches example.
 

@@ -10,7 +10,6 @@ interface NavigateToolInput {
 const ROUTE_LABELS: Record<string, { icon: string; label: string }> = {
   // Top-level pages
   '/': { icon: '🏠', label: 'Home' },
-  '/store': { icon: '🏪', label: 'Store' },
   '/paintings': { icon: '🎨', label: 'Paintings' },
   '/translate': { icon: '🌐', label: 'Translate' },
   '/files': { icon: '📁', label: 'Files' },

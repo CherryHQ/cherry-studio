@@ -240,11 +240,14 @@ React hooks for cache operations.
 | `useSharedCache` | `(key, initValue?)` | `[value, setValue]` |
 | `usePersistCache` | `(key)` | `[value, setValue]` |
 
+`setValue` accepts a concrete value or a functional updater `(prev) => next` (mirrors production). The mock resolves the updater against the latest mocked value with the same default fallback, so functional-update call sites run unchanged under the mock.
+
 ```typescript
 import { useCache } from '@data/hooks/useCache'
 
 const [value, setValue] = useCache('key', 'default')
 setValue('new value')
+setValue((prev) => prev + '!') // functional updater
 ```
 
 ---

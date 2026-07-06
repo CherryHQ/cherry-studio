@@ -20,18 +20,18 @@ Two independent main-process lifecycle services:
 Each queue has a `DispatchQueue` instance holding `{ name, concurrency, mutex }`. The dispatch loop (`JobManager.dispatch`):
 
 1. Acquire **Layer 1** per-queue mutex *first*
-2. Acquire **Layer 0** global mutex *second*
-3. Inside one DB transaction:
+2. Enter **Layer 0** — the synchronous `BEGIN IMMEDIATE` write transaction (`withWriteTx`) — *second*
+3. Inside that one DB transaction:
    - Count queue-active jobs → check `queue.concurrency`
    - Count globally-running jobs → check `globalMaxConcurrency`
    - SELECT next pending → UPDATE to running (claim)
-4. Release both mutexes (global first, then per-queue, reverse acquisition order)
+4. The Layer 0 transaction commits, then release the Layer 1 per-queue mutex
 5. Spawn `handler.execute` outside the lock
 6. Queue a microtask to dispatch the same queue again (fill next slot)
 
-Spawning happens *outside* the mutex — the handler executes for seconds/minutes while new dispatches proceed.
+Spawning happens *outside* the lock — the handler executes for seconds/minutes while new dispatches proceed.
 
-**Lock acquisition order is fixed** (per-queue then global). All call sites use this order so the two layers cannot deadlock against each other.
+**Acquisition order is fixed** (Layer 1 mutex, then the Layer 0 write transaction). Layer 0 holds no async lock — it is a synchronous transaction — so Layer 1 is the only mutex in the dispatch path and the two layers cannot deadlock against each other.
 
 ## Six-state state machine
 
@@ -88,7 +88,7 @@ We considered BullMQ / bee-queue / better-queue / agenda / graphile-worker / bre
 - Race safety needs only one mutex pair (Layer 0 + Layer 1) around `count → claim`
 - No double-source-of-truth bookkeeping (PQueue + DB) and its sync discipline
 
-Throughput: ~200 dispatch/s at single-process libsql throughput, well above Cherry Studio's largest scenario (1000+ knowledge bases, each with concurrency=5, never exceeds globalMaxConcurrency=50 simultaneous running jobs).
+Throughput: ~200 dispatch/s at single-process better-sqlite3 throughput, well above Cherry Studio's largest scenario (1000+ knowledge bases, each with concurrency=5, never exceeds globalMaxConcurrency=50 simultaneous running jobs).
 
 ## Strongly-typed JobRegistry
 
@@ -108,6 +108,19 @@ After this declaration:
 - `jobManager.enqueue('agent.task', payload)` is compile-time type-checked
 - Renaming a type surfaces every call site via the TypeScript error pipeline
 - Wrong payload shape is a compile error
+
+## Transactional enqueue (`enqueueTx`)
+
+`enqueue` persists the row on the bare connection — fine when the enqueue is the only write. When a business-state flip and the job INSERT must commit atomically (e.g. mark items `deleting` **and** enqueue the purge job), use the transactional variant inside a `DbService.withWriteTx` callback:
+
+```ts
+application.get('DbService').withWriteTx((tx) => {
+  itemService.setStatusTx(tx, ids, 'deleting') // business write
+  return jobManager.enqueueTx(tx, 'my.purge', { ids }) // job INSERT, same tx
+})
+```
+
+Post-commit side effects (state publish, dispatch / delayed arming) are deferred one microtask past the synchronous transaction. On rollback the row never existed: the returned handle's `finished` never resolves, and an idempotency-key unique-index collision aborts the whole caller transaction. See the `enqueueTx` JSDoc for the full contract.
 
 ## Renderer-side consumers
 

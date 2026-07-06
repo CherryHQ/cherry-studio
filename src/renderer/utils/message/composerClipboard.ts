@@ -2,9 +2,8 @@ import { loggerService } from '@logger'
 import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { type CherryFileMeta, type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
-import { type FileURLString } from '@shared/types/file'
-import { getFileTypeByExt } from '@shared/utils/file/fileType'
-import { fileUrlToPath } from '@shared/utils/file/urlUtil'
+import { type FileUrlString } from '@shared/types/file'
+import { fileUrlToPath, getFileTypeByExt } from '@shared/utils/file'
 
 import { type ComposerAttachment, toComposerAttachment } from './composerAttachment'
 import {
@@ -138,7 +137,7 @@ function stripFileUrl(value: string | undefined): string | undefined {
   if (!value.startsWith('file://')) return value
 
   try {
-    return fileUrlToPath(value as FileURLString)
+    return fileUrlToPath(value as FileUrlString)
   } catch {
     return value.replace(/^file:\/\//, '')
   }

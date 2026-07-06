@@ -1,4 +1,4 @@
-import BaseNavigator from '../components/navigator'
+import { BaseNavigator } from '../components/navigator'
 import { useKnowledgePage } from '../KnowledgePageProvider'
 
 const KnowledgePageNavigatorSection = () => {

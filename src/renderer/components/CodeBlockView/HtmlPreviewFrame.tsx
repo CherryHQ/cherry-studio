@@ -1,3 +1,4 @@
+/* eslint-disable @eslint-react/dom/no-unsafe-iframe-sandbox -- HTML artifact capture needs contentDocument access. */
 import { memo, type Ref } from 'react'
 
 export const HTML_PREVIEW_DEFAULT_BASE_URL = 'about:srcdoc'

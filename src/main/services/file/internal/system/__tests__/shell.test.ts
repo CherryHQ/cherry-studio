@@ -1,4 +1,3 @@
-import type { FileEntry } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import type { FilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,7 +12,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-const { assertSafeForDefaultOpen } = await import('../openGuard')
+const { assertSafePathForDefaultOpen } = await import('../openGuard')
 const { open, showInFolder } = await import('../shell')
 
 describe('internal/system/shell', () => {
@@ -36,15 +35,26 @@ describe('internal/system/shell', () => {
   it.each([
     ['trailing space', '/tmp/report.exe '],
     ['trailing dot', '/tmp/payload.exe.']
-  ])('default-open guard normalizes fallback extension with %s', (_label, physicalPath) => {
-    const entry = { ext: null } as FileEntry
-
+  ])('path default-open guard normalizes fallback extension with %s', (_label, physicalPath) => {
     try {
-      assertSafeForDefaultOpen(entry, physicalPath as FilePath)
+      assertSafePathForDefaultOpen(physicalPath as FilePath)
       throw new Error('expected unsafe default-open to be blocked')
     } catch (error) {
       expect(error).toMatchObject({ code: fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE })
     }
+  })
+
+  it('path default-open guard blocks dangerous fallback extension', () => {
+    try {
+      assertSafePathForDefaultOpen('/tmp/payload.cmd' as FilePath)
+      throw new Error('expected unsafe default-open to be blocked')
+    } catch (error) {
+      expect(error).toMatchObject({ code: fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE })
+    }
+  })
+
+  it.each(['/tmp/report.md', '/tmp/payload'])('path default-open guard allows safe path %s', (physicalPath) => {
+    expect(() => assertSafePathForDefaultOpen(physicalPath as FilePath)).not.toThrow()
   })
 
   it('showInFolder delegates to shell.showItemInFolder', async () => {

@@ -10,7 +10,7 @@ Per-module fine-grained TODOs live in their own docs and are not duplicated here
 
 | Category | Scale | Status |
 | --- | --- | --- |
-| Remove Redux | ~100 files / 28 slices | 🟡 partially migrated |
+| Remove Redux | ~100 files / 28 slices | ✅ done (`store/` deleted) |
 | Remove Dexie | ~50 files | 🟡 mostly migrated, fallback paths pending |
 | Remove ElectronStore | ~10 files | 🔲 awaiting migration-window close |
 | Remove antd | ~145 files | 🟡 settings/knowledge pages already clean |
@@ -22,22 +22,9 @@ Per-module fine-grained TODOs live in their own docs and are not duplicated here
 
 Remove all three v1 data stacks (Redux / Dexie / ElectronStore), replacing them with Cache / Preference / DataApi.
 
-### Redux (~100 files, 28 slices)
+### Redux (~100 files, 28 slices) — ✅ done
 
-- Entry points (delete last): `src/renderer/store/index.ts`, `src/renderer/store/migrate.ts`, and the Provider wrappers in each `src/renderer/windows/*/App.tsx`.
-- The main-process bridge `ReduxService` is already stubbed (`@deprecated`, every call logs `logger.error` and returns empty values); call sites in the renderer still using it must move to the new data layer.
-- Migrate by area in batches (granularity reference, not per-file):
-
-| Batch | Scope | Status | Blocker / Next direction |
-| --- | --- | --- | --- |
-| settings slice | settings-page reads/writes, ~18 files | 🟡 partial | Replace `useAppSelector(state.settings.*)` with `usePreference` |
-| chat / message UI state | ~18 files | 🟡 persistence already on DataApi | Move ephemeral UI state (selection/editing/reply) to Context or a hook |
-| llm / provider / assistant | ~14 files | 🔲 not migrated | Needs a renderer-side provider/assistant data channel (DataApi or IPC) |
-| knowledge / note | ~8 files | 🔲 not migrated | Needs knowledge DataApi endpoints |
-| mcp / integrations | ~7 files | 🔲 not migrated | Move MCP state to DataApi or IPC |
-| runtime / UI ephemera | ~14 files | 🟡 mixed | Move pure UI state to Context / local state, no persistence layer needed (lowest risk, can go first) |
-
-Representative entry slices: `src/renderer/store/{settings,llm,assistants,knowledge,mcp,runtime}.ts`.
+The Redux store has been fully removed: every slice migrated to Cache / Preference / DataApi, all `useAppSelector` / `useDispatch` call sites repointed, the `<Provider>` wrappers dropped from the window entry points, and `src/renderer/store/` plus the stubbed main-process `ReduxService` bridge deleted.
 
 ### Dexie (~50 files)
 

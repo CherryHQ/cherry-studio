@@ -8,7 +8,10 @@ import {
   MdiLightbulbOn80,
   MdiLightbulbOn90,
   MdiLightbulbQuestion
-} from '@renderer/components/Icons/SvgIcon'
+} from '@renderer/components/icons/SvgIcon'
+import { cacheService } from '@renderer/data/CacheService'
+import { useAssistant } from '@renderer/hooks/useAssistant'
+import type { ThinkingOption } from '@renderer/types/reasoning'
 import {
   getThinkModelType,
   isDoubaoThinkingAutoModel,
@@ -17,10 +20,7 @@ import {
   isOpenAIWebSearchModel,
   isReasoningModel,
   MODEL_SUPPORTED_OPTIONS
-} from '@renderer/config/models'
-import { cacheService } from '@renderer/data/CacheService'
-import { useAssistant } from '@renderer/hooks/useAssistant'
-import type { ThinkingOption } from '@renderer/types/reasoning'
+} from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import type { FC, SVGProps } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'

@@ -1,4 +1,4 @@
-import PaintingPage from '@renderer/pages/paintings'
+import PaintingPage from '@renderer/pages/paintings/PaintingPage'
 import { createFileRoute } from '@tanstack/react-router'
 
 // Catch-all splat route: any path under /app/paintings/* renders the same

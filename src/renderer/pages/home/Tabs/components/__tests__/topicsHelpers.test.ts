@@ -1,7 +1,7 @@
 import type {
   ResourceListGroupReorderPayload,
   ResourceListItemReorderPayload
-} from '@renderer/components/chat/resources'
+} from '@renderer/components/chat/resourceList/base'
 import type { Topic } from '@renderer/types/topic'
 import { describe, expect, it } from 'vitest'
 

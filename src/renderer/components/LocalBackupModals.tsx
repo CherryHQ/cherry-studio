@@ -28,7 +28,7 @@ export function LocalBackupModal({
 
   return (
     <Dialog open={isModalVisible} onOpenChange={(nextOpen) => !nextOpen && handleCancel()}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>{t('settings.data.local.backup.modal.title')}</DialogTitle>
         </DialogHeader>

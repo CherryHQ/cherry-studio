@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
-import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import { COMPOSER_FILE_KIND, type PastedTextFileMetadata } from '@renderer/types/file'
 import { getFileExtension, isSupportedFile } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
+
+import { LONG_TEXT_PASTE_THRESHOLD } from '../composerPaste'
 
 const logger = loggerService.withContext('pasteHandling')
 
@@ -154,19 +155,29 @@ export const init = () => {
  * 注册组件的粘贴处理函数
  */
 export const registerHandler = (component: ComponentType, handler: PasteHandler) => {
-  if (!component) return
+  if (!component) return () => undefined
 
   // Only log and update if the handler actually changes
   if (!handlers[component] || handlers[component] !== handler) {
     handlers[component] = handler
+  }
+
+  return () => {
+    if (handlers[component] === handler) {
+      delete handlers[component]
+    }
   }
 }
 
 /**
  * 移除组件的粘贴处理函数
  */
-export const unregisterHandler = (component: ComponentType) => {
+export const unregisterHandler = (component: ComponentType, handler?: PasteHandler) => {
   if (!component || !handlers[component]) return
+
+  if (handler && handlers[component] !== handler) {
+    return
+  }
 
   delete handlers[component]
 }

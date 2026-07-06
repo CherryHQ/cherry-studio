@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock @renderer/i18n to avoid initialization issues
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: {
     t: vi.fn((key: string) => {
       const translations: Record<string, string> = {

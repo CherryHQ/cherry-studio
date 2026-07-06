@@ -1,0 +1,87 @@
+{
+  "agent": {
+    "session": {
+      "workspace_status": {
+        "inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}",
+        "missing": "La ruta del espacio de trabajo no existe: {{path}}",
+        "not_directory": "La ruta del espacio de trabajo no es un directorio: {{path}}"
+      }
+    }
+  },
+  "appMenu": {
+    "about": "Acerca de",
+    "close": "Cerrar ventana",
+    "copy": "Copiar",
+    "cut": "Cortar",
+    "delete": "Eliminar",
+    "documentation": "Documentación",
+    "edit": "Editar",
+    "feedback": "Retroalimentación",
+    "file": "Archivo",
+    "forceReload": "Forzar recarga",
+    "front": "Traer todo al frente",
+    "help": "Ayuda",
+    "hide": "Ocultar",
+    "hideOthers": "Ocultar Otros",
+    "minimize": "Minimizar",
+    "paste": "Pegar",
+    "quit": "Abandonar",
+    "redo": "Rehacer",
+    "releases": "Lanzamientos",
+    "reload": "Recargar",
+    "resetZoom": "Tamaño Real",
+    "selectAll": "Seleccionar todo",
+    "services": "Servicios",
+    "toggleDevTools": "Alternar herramientas de desarrollo",
+    "toggleFullscreen": "Activar pantalla completa",
+    "undo": "Deshacer",
+    "unhide": "Mostrar todo",
+    "view": "Vista",
+    "website": "Sitio web",
+    "window": "Ventana",
+    "zoom": "Zoom",
+    "zoomIn": "Acercar",
+    "zoomOut": "Alejar"
+  },
+  "common": {
+    "copy": "Copiar",
+    "cut": "Cortar",
+    "inspect": "Inspeccionar",
+    "paste": "Pegar"
+  },
+  "dialog": {
+    "all_files": "Todos los archivos",
+    "html_files": "Archivos HTML",
+    "open_file": "Abrir archivo",
+    "pdf_files": "Archivos PDF",
+    "png_image": "Imagen PNG",
+    "save_as_html": "Guardar como HTML",
+    "save_as_pdf": "Guardar como PDF",
+    "save_file": "Guardar archivo",
+    "select_folder": "Seleccionar carpeta",
+    "word_document": "Documento de Word"
+  },
+  "paintings": {
+    "generate_failed": "Error al generar la imagen",
+    "image_mix_failed": "Error al mezclar imágenes"
+  },
+  "selection": {
+    "name": "Asistente de selección de palabras"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "Puede cerrar esta página y volver a Cherry Studio",
+          "title": "Autenticación Exitosa"
+        }
+      }
+    },
+    "title": "Configuración"
+  },
+  "tray": {
+    "quit": "Salir",
+    "show_quick_assistant": "Asistente rápido",
+    "show_window": "Mostrar ventana"
+  }
+}

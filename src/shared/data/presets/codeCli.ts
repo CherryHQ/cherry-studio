@@ -9,7 +9,7 @@
  */
 
 import { CODE_CLI_IDS, type CodeCliId } from '@shared/data/preference/preferenceTypes'
-import { terminalApps } from '@shared/types/codeCli'
+import { TerminalApp } from '@shared/types/codeCli'
 import * as z from 'zod'
 
 export const CodeCliIdSchema = z.enum(CODE_CLI_IDS)
@@ -45,7 +45,7 @@ const DEFAULT_CONFIG: CodeCliPresetDefaults = {
   enabled: false,
   modelId: null,
   envVars: '',
-  terminal: terminalApps.systemDefault,
+  terminal: TerminalApp.SYSTEM_DEFAULT,
   currentDirectory: '',
   directories: []
 }

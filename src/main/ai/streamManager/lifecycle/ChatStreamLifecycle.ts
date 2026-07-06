@@ -1,4 +1,4 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
 import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
 
 import type { ActiveStream } from '../types'

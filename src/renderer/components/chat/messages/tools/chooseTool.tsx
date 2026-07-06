@@ -1,9 +1,9 @@
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 
 import { AgentExecutionTimeline } from './agent'
-import { AgentToolsType, isAskUserQuestionToolName } from './agent/types'
 import { MessageKnowledgeSearchToolTitle } from './knowledge/MessageKnowledgeSearch'
 import MessageMetaTool, { isMetaToolName } from './meta/MessageMetaTool'
+import { AgentToolsType, isAskUserQuestionToolName } from './shared/agentToolTypes'
 import { MessageWebSearchToolTitle } from './webSearch/MessageWebSearch'
 
 const builtinToolsPrefix = 'builtin_'

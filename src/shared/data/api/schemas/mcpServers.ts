@@ -8,7 +8,7 @@
 import * as z from 'zod'
 
 import { type McpServer, McpServerSchema, McpServerTypeSchema } from '../../types/mcpServer'
-import type { OffsetPaginationResponse } from '../apiTypes'
+import type { OffsetPaginationResponse } from '../types'
 
 /**
  * Mutable MCP server fields — explicit whitelist of everything a client may write.

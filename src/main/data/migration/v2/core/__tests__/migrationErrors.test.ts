@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { isSchemaOutOfSyncError } from '../migrationErrors'
 
 /**
- * Build an Error carrying an optional libsql-style `code` and `.cause`,
- * mirroring how drizzle/libsql wrap the real SqliteError inside a
- * LibsqlError.
+ * Build an Error carrying an optional SQLite `code` and `.cause`, mirroring how
+ * drizzle wraps the real better-sqlite3 SqliteError inside an outer
+ * DrizzleQueryError.
  */
 function makeError(message: string, opts: { code?: string; cause?: unknown } = {}): Error {
   const error = new Error(message) as Error & { code?: string; cause?: unknown }
@@ -15,8 +15,8 @@ function makeError(message: string, opts: { code?: string; cause?: unknown } = {
 }
 
 describe('isSchemaOutOfSyncError', () => {
-  it('matches the wrapped LibsqlError → SqliteError shape from a stale DB', () => {
-    // Mirrors the real failure: outer LibsqlError wraps an inner SqliteError,
+  it('matches the wrapped DrizzleQueryError → SqliteError shape from a stale DB', () => {
+    // Mirrors the real failure: outer DrizzleQueryError wraps an inner SqliteError,
     // both tagged SQLITE_ERROR. (See the report in the issue.)
     const inner = makeError('table `agent` already exists', { code: 'SQLITE_ERROR' })
     const outer = makeError('SQLITE_ERROR: table `agent` already exists', { code: 'SQLITE_ERROR', cause: inner })

@@ -14,11 +14,11 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderApiKeys: (...a: any[]) => useProviderApiKeysMock(...a)
 }))
 
-vi.mock('../../ModelList/buildModelListSyncPreview', () => ({
+vi.mock('../../utils/buildModelListSyncPreview', () => ({
   buildModelListSyncPreview: (...a: any[]) => buildPreviewMock(...a)
 }))
 
-vi.mock('../../ModelList/modelSync', () => ({
+vi.mock('../../utils/modelSync', () => ({
   ModelSyncError: class ModelSyncError extends Error {
     code: string
     constructor(code: string) {

@@ -23,6 +23,9 @@ export type JobStatus = z.infer<typeof JobStatusAtomSchema>
 /** Terminal states: jobs in these states are finished and never resume. */
 export const TERMINAL_JOB_STATUSES = ['completed', 'failed', 'cancelled'] as const satisfies readonly JobStatus[]
 
+/** Active (non-terminal) states: jobs in these states are queued, waiting, or executing. */
+export const ACTIVE_JOB_STATUSES = ['pending', 'delayed', 'running'] as const satisfies readonly JobStatus[]
+
 export const isTerminalStatus = (status: JobStatus): boolean =>
   (TERMINAL_JOB_STATUSES as readonly JobStatus[]).includes(status)
 
@@ -245,6 +248,7 @@ export const ListJobsQuerySchema = z.strictObject({
   queue: z.string().optional(),
   type: z.string().optional(),
   scheduleId: z.string().optional(),
+  parentId: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
   offset: z.coerce.number().int().min(0).optional()
 })
@@ -253,7 +257,7 @@ export type ListJobsQueryParams = z.input<typeof ListJobsQuerySchema>
 
 export type JobSchemas = {
   '/jobs': {
-    /** List jobs, ordered by createdAt DESC. Supports status/queue/type/scheduleId filters and pagination. */
+    /** List jobs, ordered by createdAt DESC. Supports status/queue/type/scheduleId/parentId filters and pagination. */
     GET: {
       query?: ListJobsQueryParams
       response: JobSnapshot[]

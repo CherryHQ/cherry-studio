@@ -15,7 +15,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { TopView } from '../TopView'
+import { TopView } from '../TopView/TopView'
 import { useTopViewClose } from './useTopViewClose'
 
 const logger = loggerService.withContext('BackupPopup')

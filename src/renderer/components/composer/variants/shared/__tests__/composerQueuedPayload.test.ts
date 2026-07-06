@@ -39,17 +39,42 @@ describe('buildComposerQueuedPayload', () => {
     expect(result?.userMessageParts).toEqual([{ type: 'text', text: '' }])
   })
 
-  it('attaches only files still present as draft tokens', () => {
-    const kept = file('a')
-    const removed = file('b')
+  it('returns null for a file-only draft whose file token has not reached the editor draft yet', () => {
+    const result = buildComposerQueuedPayload(draft('', []), { files: [file('a')], fileTokenId })
+
+    expect(result).toBeNull()
+  })
+
+  it('returns null for a text draft whose file token has not reached the editor draft yet', () => {
+    const result = buildComposerQueuedPayload(draft('summarize this', []), { files: [file('a')], fileTokenId })
+
+    expect(result).toBeNull()
+  })
+
+  it('returns null when only some current file tokens have reached the editor draft', () => {
+    const synced = file('a')
+    const unsynced = file('b')
 
     const result = buildComposerQueuedPayload(draft('hi', ['file:a']), {
-      files: [kept, removed],
+      files: [synced, unsynced],
       fileTokenId,
       requireText: true
     })
 
-    expect(result?.attachments).toEqual([kept])
+    expect(result).toBeNull()
+  })
+
+  it('attaches files when every current file is present as a draft token', () => {
+    const first = file('a')
+    const second = file('b')
+
+    const result = buildComposerQueuedPayload(draft('hi', ['file:a', 'file:b']), {
+      files: [first, second],
+      fileTokenId,
+      requireText: true
+    })
+
+    expect(result?.attachments).toEqual([first, second])
     expect(result?.userMessageParts).toEqual([{ type: 'text', text: 'hi' }])
   })
 

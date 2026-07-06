@@ -12,21 +12,16 @@ function nextSiblingsGroupId(): number {
 }
 
 /** Resolve the Model list from an optional selector-selected list, falling back to the assistant default. */
-export async function resolveModels(
-  mentionedModelIds: UniqueModelId[] | undefined,
-  defaultModelId: UniqueModelId
-): Promise<Model[]> {
+export function resolveModels(mentionedModelIds: UniqueModelId[] | undefined, defaultModelId: UniqueModelId): Model[] {
   if (mentionedModelIds?.length) {
-    return Promise.all(
-      mentionedModelIds.map(async (uniqueModelId) => {
-        const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-        return modelService.getByKey(providerId, modelId)
-      })
-    )
+    return mentionedModelIds.map((uniqueModelId) => {
+      const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+      return modelService.getByKey(providerId, modelId)
+    })
   }
 
   const { providerId, modelId } = parseUniqueModelId(defaultModelId)
-  return [await modelService.getByKey(providerId, modelId)]
+  return [modelService.getByKey(providerId, modelId)]
 }
 
 /**
@@ -34,11 +29,12 @@ export async function resolveModels(
  * `chat.default_model_id` preference. Returned `assistantId` is
  * `undefined` (not a sentinel) for assistant-less topics.
  */
-export async function resolveAssistantModelId(
-  assistantId: string | null | undefined
-): Promise<{ assistantId: string | undefined; defaultModelId: UniqueModelId }> {
+export function resolveAssistantModelId(assistantId: string | null | undefined): {
+  assistantId: string | undefined
+  defaultModelId: UniqueModelId
+} {
   if (assistantId) {
-    const assistant = await assistantDataService.getById(assistantId)
+    const assistant = assistantDataService.getById(assistantId)
     if (!assistant.modelId) throw new Error(`Assistant ${assistantId} has no model configured`)
     return { assistantId, defaultModelId: assistant.modelId }
   }
@@ -54,15 +50,15 @@ export async function resolveAssistantModelId(
  * children happens atomically in
  * `messageService.createUserMessageWithPlaceholders`.
  */
-export async function resolvePersistentSiblingsGroupId(
+export function resolvePersistentSiblingsGroupId(
   models: Model[],
   isRegenerate: boolean,
   userMessageId: string
-): Promise<number | undefined> {
+): number | undefined {
   if (models.length > 1) return nextSiblingsGroupId()
   if (!isRegenerate) return undefined
 
-  const children = await messageService.getChildrenByParentId(userMessageId)
+  const children = messageService.getChildrenByParentId(userMessageId)
   const existingGroup = children.find((m) => m.siblingsGroupId > 0)?.siblingsGroupId
   return existingGroup ?? nextSiblingsGroupId()
 }

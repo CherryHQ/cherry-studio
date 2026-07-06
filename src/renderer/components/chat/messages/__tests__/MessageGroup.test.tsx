@@ -130,10 +130,6 @@ vi.mock('@renderer/services/EventService', () => ({
   EventEmitter: mocks.EventEmitter
 }))
 
-vi.mock('@renderer/services/MessagesService', () => ({
-  getMessageModelId: () => 'model-id'
-}))
-
 vi.mock('@renderer/services/TokenService', () => ({
   estimateMessageUsage: vi.fn().mockResolvedValue(0)
 }))

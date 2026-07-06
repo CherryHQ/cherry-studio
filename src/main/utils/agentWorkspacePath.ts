@@ -1,4 +1,4 @@
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import path from 'path'
 
 export function normalizeWorkspacePath(rawPath: string): string {

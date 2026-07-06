@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
 
 import { createPaintingGenerateError, presentPaintingGenerateError } from '../errors/paintingGenerateError'

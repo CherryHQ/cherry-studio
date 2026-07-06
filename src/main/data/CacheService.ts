@@ -17,15 +17,25 @@
  * @see {@link CacheService} For implementation details
  */
 
+import fs from 'node:fs'
+
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
-import type { InferSharedCacheValue, ProcessKey, SharedCacheKey } from '@shared/data/cache/cacheSchemas'
+import type {
+  InferSharedCacheValue,
+  MainPersistCacheKey,
+  MainPersistCacheSchema,
+  ProcessKey,
+  SharedCacheKey
+} from '@shared/data/cache/cacheSchemas'
+import { DefaultMainPersistCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow } from 'electron'
-import { isEqual } from 'lodash'
+import { isEqual } from 'es-toolkit/compat'
 
 const logger = loggerService.withContext('CacheService')
 
@@ -47,6 +57,13 @@ type CacheSubscriptionCallback = (newValue: any, oldValue: any, concreteKey: str
 class CacheNotifier {
   private subscriptions = new Map<string, Set<CacheSubscriptionCallback>>()
 
+  /**
+   * Register a callback under a subscription key (exact or `${...}` template).
+   * Backed by a Set, so registering the same callback twice collapses to one.
+   *
+   * @returns an unsubscribe function that removes the callback and drops the
+   *   key's entry once its last subscriber is gone.
+   */
   subscribe(subscriptionKey: string, callback: CacheSubscriptionCallback): () => void {
     let set = this.subscriptions.get(subscriptionKey)
     if (!set) {
@@ -65,6 +82,11 @@ class CacheNotifier {
     }
   }
 
+  /**
+   * Dispatch a change for a concrete key to every matching subscriber: the
+   * exact-key set first (O(1) lookup), then any template subscriptions whose
+   * pattern matches the concrete key.
+   */
   notify(concreteKey: string, newValue: unknown, oldValue: unknown): void {
     // Exact match path: O(1) hash lookup
     const exact = this.subscriptions.get(concreteKey)
@@ -83,10 +105,18 @@ class CacheNotifier {
     }
   }
 
+  /**
+   * Remove all subscriptions. Called on service teardown so no callback fires
+   * after the lifecycle ends.
+   */
   clear(): void {
     this.subscriptions.clear()
   }
 
+  /**
+   * Count registered callbacks — for a single subscription key when one is
+   * given, otherwise summed across all keys.
+   */
   getListenerCount(subscriptionKey?: string): number {
     if (subscriptionKey) {
       return this.subscriptions.get(subscriptionKey)?.size ?? 0
@@ -98,6 +128,11 @@ class CacheNotifier {
     return total
   }
 
+  /**
+   * Invoke every callback in a set against a snapshot copy, so a callback may
+   * (un)subscribe during dispatch without disturbing iteration. Each callback's
+   * errors are caught and logged so one failure cannot starve the others.
+   */
   private invokeAll(
     set: Set<CacheSubscriptionCallback>,
     concreteKey: string,
@@ -123,12 +158,12 @@ class CacheNotifier {
  * - Main process internal cache with TTL support
  * - IPC handlers for cross-window cache synchronization
  * - Broadcast mechanism for shared cache sync
- * - Minimal storage (persist cache interface reserved for future)
+ * - Independent JSON-backed persist cache (separate from the renderer localStorage relay)
  *
  * Responsibilities:
  * 1. Provide cache for Main process services
  * 2. Relay cache sync messages between renderer windows
- * 3. Reserve persist cache interface (not implemented yet)
+ * 3. Provide a main-authoritative, JSON-backed persist cache (independent from the renderer persist relay)
  */
 @Injectable('CacheService')
 @ServicePhase(Phase.BeforeReady)
@@ -147,27 +182,53 @@ export class CacheService extends BaseService {
   private gcInterval: Disposable | null = null
   private readonly GC_INTERVAL_MS = 10 * 60 * 1000
 
+  // Persist cache (main-authoritative, JSON-backed; independent from renderer persist)
+  private persistCache = new Map<string, unknown>()
+  private persistSaveTimer: ReturnType<typeof setTimeout> | null = null
+  private persistFilePath = ''
+  private readonly PERSIST_SAVE_DEBOUNCE_MS = 350
+  // Main-local change notifier for the persist tier (never relayed to renderers).
+  private persistNotifier = new CacheNotifier()
+
   constructor() {
     super()
   }
 
+  /**
+   * Lifecycle init: register the IPC sync handlers, start the periodic expiry
+   * sweep, and load the persist tier from disk. Resource acquisition (resolving
+   * the persist file path and reading it) happens here rather than in the
+   * constructor, per the lifecycle convention.
+   */
   protected async onInit(): Promise<void> {
     this.registerIpcHandlers()
     this.startGarbageCollection()
+    this.persistFilePath = application.getPath('app.userdata', 'cache.json')
+    this.loadPersist()
     logger.info('CacheService initialized')
   }
 
+  /**
+   * Lifecycle teardown: flush any pending persist write, release the GC timer
+   * reference, clear all in-memory caches, and tear down the subscription
+   * notifiers so nothing fires after stop.
+   */
   protected async onStop(): Promise<void> {
+    // Flush any pending debounced persist write before tearing down.
+    this.flushPersist()
+
     // GC timer is auto-disposed via registerInterval; just drop the reference.
     this.gcInterval = null
 
     // Clear caches
     this.cache.clear()
     this.sharedCache.clear()
+    this.persistCache.clear()
 
     // Clear subscription notifiers — lifecycle end, subscribers should not fire
     this.internalNotifier.clear()
     this.sharedNotifier.clear()
+    this.persistNotifier.clear()
 
     logger.debug('CacheService cleanup completed')
   }
@@ -395,7 +456,7 @@ export class CacheService extends BaseService {
    * Subscribe to internal cache changes for an exact key.
    *
    * Fire semantics:
-   * - Fires on explicit `set` (when value actually differs via lodash.isEqual)
+   * - Fires on explicit `set` (when value actually differs via isEqual)
    *   and on `delete` (when a non-expired value existed).
    * - Does NOT fire on TTL-only refresh (same value, new expireAt).
    * - Does NOT fire on lazy TTL cleanup, GC sweeps, or onStop clearing.
@@ -468,9 +529,183 @@ export class CacheService extends BaseService {
     return result
   }
 
-  // ============ Persist Cache Interface (Reserved) ============
+  // ============ Persist Cache (Main-authoritative, JSON-backed) ============
+  //
+  // Independent from the renderer persist cache: this tier is stored in a JSON
+  // file owned by the main process, never relayed to or readable by renderers.
+  // Fixed keys only, no TTL — values must tolerate a miss at any time (loseable
+  // contract; readers fall back to the schema default).
+  //
+  // Default-relative semantics. Every key ALWAYS has an effective value (stored
+  // override, else schema default), so there is no observable "absent" state
+  // through the read API. The tier therefore models presence as *deviation from
+  // the default* rather than as backing-store membership:
+  //
+  //   getPersist             → the effective value: stored override ?? default
+  //                            (never undefined).
+  //   hasPersist             → whether the effective value DIFFERS from the
+  //                            default, i.e. "has this key been overridden" —
+  //                            NOT "is the key in the Map". loadPersist seeds
+  //                            every schema key, so Map membership is always
+  //                            true and would carry no information.
+  //   setPersist             → install an override; same-value write is a no-op.
+  //   deletePersist          → drop the override == reset to the schema default.
+  //                            There is no removal-to-absent; "deleted" keys read
+  //                            back as their default and hasPersist returns false.
+  //   subscribePersistChange → main-local change notifications for OTHER main
+  //                            consumers (same model as subscribeChange; never
+  //                            crosses to renderers).
 
-  // TODO: Implement persist cache in future
+  /**
+   * Read the effective value for a persist key: the stored override if one has
+   * been set, otherwise the schema default. Never returns undefined.
+   */
+  getPersist<K extends MainPersistCacheKey>(key: K): MainPersistCacheSchema[K] {
+    if (this.persistCache.has(key)) {
+      return this.persistCache.get(key) as MainPersistCacheSchema[K]
+    }
+    return DefaultMainPersistCache[key]
+  }
+
+  /**
+   * Install an override for a persist key and schedule a debounced disk write.
+   *
+   * Same-value writes are a no-op (deep equality against the current effective
+   * value), matching the other tiers — no disk write and no subscriber fire.
+   * On an actual change, persist subscribers are notified with (newValue,
+   * oldValue) where oldValue is the previous effective value.
+   */
+  setPersist<K extends MainPersistCacheKey>(key: K, value: MainPersistCacheSchema[K]): void {
+    const oldValue = this.getPersist(key)
+    if (isEqual(oldValue, value)) {
+      return
+    }
+    this.persistCache.set(key, value)
+    this.schedulePersistSave()
+    this.persistNotifier.notify(key, value, oldValue)
+  }
+
+  /**
+   * Whether the key has been overridden — i.e. its effective value DIFFERS from
+   * the schema default. This is intentionally NOT "is the key in the backing
+   * store": loadPersist seeds every key, so store membership is always true and
+   * would be a useless signal. A key whose stored value equals the default (or
+   * was never set) reports false.
+   */
+  hasPersist<K extends MainPersistCacheKey>(key: K): boolean {
+    return !isEqual(this.getPersist(key), DefaultMainPersistCache[key])
+  }
+
+  /**
+   * Reset a persist key to its schema default ("delete" the override).
+   *
+   * This tier has no absent state — getPersist always returns the default once
+   * the override is gone — so deletion is expressed as restoring the default.
+   * Delegates to setPersist, inheriting its same-value no-op (resetting an
+   * already-default key does nothing: no write, no subscriber fire) and its
+   * change notification (subscribers see the default as the new value).
+   */
+  deletePersist<K extends MainPersistCacheKey>(key: K): void {
+    this.setPersist(key, DefaultMainPersistCache[key])
+  }
+
+  /**
+   * Subscribe to persist changes for an exact key. Main-local: fires only for
+   * main-process writes (setPersist / deletePersist), never crosses to renderers
+   * — the same model as `subscribeChange` on the internal tier.
+   *
+   * Fire semantics:
+   * - Fires on an actual value change (deep-inequality guard in setPersist) and
+   *   on deletePersist when it actually resets away from a non-default value.
+   * - Does NOT fire on same-value writes, on the initial loadPersist, or on
+   *   onStop teardown.
+   * - newValue / oldValue are always concrete schema values (never undefined) —
+   *   the tier has no absent state; a reset surfaces the schema default.
+   * - Callback errors are isolated per-subscriber (caught and logged).
+   *
+   * @returns unsubscribe function (compatible with `registerDisposable`)
+   */
+  subscribePersistChange<K extends MainPersistCacheKey>(
+    key: K,
+    callback: (newValue: MainPersistCacheSchema[K], oldValue: MainPersistCacheSchema[K]) => void
+  ): () => void {
+    return this.persistNotifier.subscribe(key, (newValue, oldValue) => {
+      callback(newValue as MainPersistCacheSchema[K], oldValue as MainPersistCacheSchema[K])
+    })
+  }
+
+  /**
+   * Load the persisted JSON into memory, layered over schema defaults.
+   * A missing or corrupt file falls back to defaults — persist data is loseable.
+   */
+  private loadPersist(): void {
+    this.persistCache.clear()
+    for (const key of Object.keys(DefaultMainPersistCache) as MainPersistCacheKey[]) {
+      this.persistCache.set(key, DefaultMainPersistCache[key])
+    }
+
+    try {
+      if (!fs.existsSync(this.persistFilePath)) return
+
+      const parsed = JSON.parse(fs.readFileSync(this.persistFilePath, 'utf-8'))
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        // Adopt known schema keys only — unknown/stale keys are pruned so the
+        // "fixed keys only" contract holds and renamed keys don't linger on disk.
+        const record = parsed as Record<string, unknown>
+        for (const key of Object.keys(DefaultMainPersistCache) as MainPersistCacheKey[]) {
+          if (key in record) {
+            this.persistCache.set(key, record[key])
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn(`Failed to load persist cache from ${this.persistFilePath}, using defaults`, error as Error)
+    }
+  }
+
+  /**
+   * Schedule a debounced write; rapid writes coalesce into a single disk flush.
+   */
+  private schedulePersistSave(): void {
+    if (this.persistSaveTimer) {
+      clearTimeout(this.persistSaveTimer)
+    }
+    this.persistSaveTimer = setTimeout(() => {
+      this.persistSaveTimer = null
+      this.savePersistSync()
+    }, this.PERSIST_SAVE_DEBOUNCE_MS)
+  }
+
+  /**
+   * Synchronously write the whole persist map (atomic temp-file + rename).
+   * Failures are logged and swallowed — persist data is non-critical.
+   */
+  private savePersistSync(): void {
+    try {
+      const snapshot: Record<string, unknown> = {}
+      for (const [key, value] of this.persistCache.entries()) {
+        snapshot[key] = value
+      }
+
+      const content = JSON.stringify(snapshot, null, 2)
+      const tempPath = `${this.persistFilePath}.tmp`
+      fs.writeFileSync(tempPath, content, 'utf-8')
+      fs.renameSync(tempPath, this.persistFilePath)
+    } catch (error) {
+      logger.error(`Failed to save persist cache to ${this.persistFilePath}`, error as Error)
+    }
+  }
+
+  /**
+   * Cancel any pending debounced write and flush immediately (used on stop).
+   */
+  private flushPersist(): void {
+    if (this.persistSaveTimer) {
+      clearTimeout(this.persistSaveTimer)
+      this.persistSaveTimer = null
+      this.savePersistSync()
+    }
+  }
 
   // ============ IPC Handlers for Cache Synchronization ============
 

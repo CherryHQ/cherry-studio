@@ -15,7 +15,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   isMac: true,
   platform: 'darwin'
 }))

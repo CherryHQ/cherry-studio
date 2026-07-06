@@ -6,7 +6,7 @@ const { mockIsGenerateImageModel } = vi.hoisted(() => ({
   mockIsGenerateImageModel: vi.fn()
 }))
 
-vi.mock('@renderer/config/models', () => ({
+vi.mock('@renderer/utils/model', () => ({
   isGenerateImageModel: (...args: unknown[]) => mockIsGenerateImageModel(...args)
 }))
 

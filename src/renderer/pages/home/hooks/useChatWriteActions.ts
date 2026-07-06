@@ -19,7 +19,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { ipcApi } from '@renderer/ipc'
 import type { Topic } from '@renderer/types/topic'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
-import { DataApiError, ErrorCode } from '@shared/data/api'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type {
   BranchMessagesResponse,
   CherryUIMessage,

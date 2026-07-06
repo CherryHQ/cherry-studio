@@ -76,7 +76,7 @@ function SettingsLayout() {
 打开新 Tab 或切换到已有 Tab，使用 `useTabs` hook：
 
 ```typescript
-import { useTabs } from '@renderer/hooks/useTabs'
+import { useTabs } from '@renderer/hooks/tab'
 
 function MyComponent() {
   const { openTab, closeTab } = useTabs()
@@ -175,8 +175,8 @@ AppShell
 src/renderer/
 ├── routes/                    # 路由页面（TanStack Router 文件路由）
 │   ├── __root.tsx            # 根路由（渲染 Outlet）
-│   ├── index.tsx             # / 首页
 │   ├── settings.tsx          # /settings
+│   ├── settings.index.tsx    # /settings/ 索引路由（平铺点记法——禁止裸 index.tsx）
 │   └── README.md             # 本文档
 ├── components/layout/
 │   ├── AppShell.tsx          # 主布局（Sidebar + TabBar + Content）

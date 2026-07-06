@@ -7,7 +7,8 @@
 | `src/main/ai/AiService.ts` | 641 | Lifecycle service; IPC handler registration; non-stream entry points |
 | `src/main/ai/types/requests.ts` | 83 | `AiBaseRequest`, `AiStreamRequest`, `AiTransportOptions`, `ListModelsRequest` |
 | `src/main/ai/types/merged.ts` | 102 | `AppProviderSettingsMap` extension type merging |
-| `src/main/ai/types/index.ts` | 45 | Re-exports + `AppProviderId` map |
+| `src/main/ai/types/providerConfig.ts` | 45 | `ProviderConfig`, `ProviderCapabilities`, `CompletionsResult` |
+| `src/main/ai/types/index.ts` | — | Re-export barrel (`providerConfig` + `merged`) |
 | Tests | `__tests__/AiService.test.ts` (114) | Lifecycle + IPC handler smoke tests |
 
 ## Intent

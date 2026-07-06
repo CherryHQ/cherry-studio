@@ -41,7 +41,7 @@ Every per-module handler record **MUST** be annotated with `HandlersFor<XxxSchem
 ```typescript
 // handlers/topics.ts
 import { topicService } from '@data/services/TopicService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/types'
 import type { TopicSchemas } from '@shared/data/api/schemas/topics'
 
 export const topicHandlers: HandlersFor<TopicSchemas> = {
@@ -74,7 +74,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 ### Register Handlers
 
 ```typescript
-// handlers/index.ts
+// handlers/apiHandlers.ts
 import { topicHandlers } from './topic'
 import { messageHandlers } from './message'
 
@@ -143,7 +143,7 @@ Contract and rationale: `src/main/data/services/dataServiceRegistry.ts`.
 import { eq, desc, sql } from 'drizzle-orm'
 import { application } from '@application'
 import { topicTable } from '@data/db/schemas/topic'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 export class TopicService {
   private get db() {
@@ -398,7 +398,7 @@ The merged result reaches the renderer exclusively through these endpoints.
 ### Using DataApiErrorFactory
 
 ```typescript
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 // Not found
 throw DataApiErrorFactory.notFound('Topic', id)
@@ -445,7 +445,7 @@ export type TopicSchemas = {
 }
 ```
 
-2. **Register schema** in `schemas/index.ts`
+2. **Register schema** in `schemas/apiSchemas.ts`
 
 ```typescript
 export type ApiSchemas = AssertValidSchemas<TopicSchemas & MessageSchemas>
@@ -455,7 +455,7 @@ export type ApiSchemas = AssertValidSchemas<TopicSchemas & MessageSchemas>
 
 4. **Implement handler** in `handlers/`
 
-5. **Register handler** in `handlers/index.ts`
+5. **Register handler** in `handlers/apiHandlers.ts`
 
 ## Best Practices
 

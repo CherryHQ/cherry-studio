@@ -70,18 +70,18 @@ describe('TemporaryChatContextProvider', () => {
     // sensible defaults
     hasTopicMock.mockReturnValue(true)
     getTopicMock.mockReturnValue({ id: '1', assistantId: 'asst_1' })
-    getAssistantByIdMock.mockResolvedValue({ id: 'asst_1', modelId: 'openai::gpt-4o' })
-    getByKeyMock.mockResolvedValue({
+    getAssistantByIdMock.mockReturnValue({ id: 'asst_1', modelId: 'openai::gpt-4o' })
+    getByKeyMock.mockReturnValue({
       id: 'openai::gpt-4o',
       providerId: 'openai',
       apiModelId: 'gpt-4o',
       name: 'GPT-4o'
     })
-    appendMessageMock.mockImplementation(async (_topicId, input) => ({
+    appendMessageMock.mockImplementation((_topicId, input) => ({
       id: 'service-generated-id',
       ...input
     }))
-    listMessagesMock.mockResolvedValue([
+    listMessagesMock.mockReturnValue([
       {
         id: 'msg-u',
         role: 'user',
@@ -142,7 +142,7 @@ describe('TemporaryChatContextProvider', () => {
   it('honours a single mentionedModelId — pins that model instead of the default preference', async () => {
     getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
     getByKeyMock.mockReset()
-    getByKeyMock.mockImplementation(async (providerId: string, modelId: string) => ({
+    getByKeyMock.mockImplementation((providerId: string, modelId: string) => ({
       id: `${providerId}::${modelId}`,
       providerId,
       apiModelId: modelId,
@@ -162,7 +162,7 @@ describe('TemporaryChatContextProvider', () => {
   it('warns and uses only the first when multiple mentionedModelIds are supplied (single-execution constraint)', async () => {
     getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
     getByKeyMock.mockReset()
-    getByKeyMock.mockImplementation(async (providerId: string, modelId: string) => ({
+    getByKeyMock.mockImplementation((providerId: string, modelId: string) => ({
       id: `${providerId}::${modelId}`,
       providerId,
       apiModelId: modelId,

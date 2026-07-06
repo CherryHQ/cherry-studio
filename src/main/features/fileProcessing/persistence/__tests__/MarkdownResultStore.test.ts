@@ -19,7 +19,7 @@ vi.mock('../resultPersistence', () => ({
   readMarkdownFromResponseZip: readMarkdownFromResponseZipMock
 }))
 
-vi.mock('@main/utils/file/fs', () => ({
+vi.mock('@main/utils/file', () => ({
   atomicWriteFile: atomicWriteFileMock
 }))
 

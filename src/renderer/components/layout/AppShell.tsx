@@ -1,10 +1,10 @@
-import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { useTabs } from '@renderer/hooks/useTabs'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
+import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import { useCallback, useEffect, useMemo } from 'react'
 
 import Sidebar from '../app/Sidebar'
@@ -18,7 +18,7 @@ export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
   const { tabs, activeTabId, setActiveTab, closeTab, updateTab, reorderTabs, pinTab, unpinTab, detachTab, openTab } =
     useTabs()
-  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
 
   const handleOpenGlobalSearch = useCallback(() => {
@@ -34,12 +34,12 @@ export const AppShell = () => {
       const entry = createRecentRouteEntryFromTab(tab, lastAccessTime)
       if (!entry) return
 
-      const nextItems = upsertGlobalSearchRecentEntry(recentItems, entry)
-      if (nextItems !== recentItems) {
-        setRecentItems(nextItems)
-      }
+      // Functional update resolves against the latest persisted value; upsert
+      // returns the same reference when nothing changes, so the CacheService
+      // isEqual short-circuit drops the no-op write.
+      setRecentItems((prev) => upsertGlobalSearchRecentEntry(prev, entry))
     },
-    [recentItems, setRecentItems]
+    [setRecentItems]
   )
 
   useEffect(() => {

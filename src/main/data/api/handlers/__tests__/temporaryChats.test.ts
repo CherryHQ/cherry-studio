@@ -78,7 +78,7 @@ describe('temporaryChatHandlers', () => {
   describe('POST /temporary/topics', () => {
     it('forwards body to createTopic and returns the Topic', async () => {
       const topic = fakeTopic({ name: 'draft' })
-      createTopicMock.mockResolvedValue(topic)
+      createTopicMock.mockReturnValue(topic)
       const result = await temporaryChatHandlers['/temporary/topics'].POST(
         reqEnvelope({ body: { name: 'draft', assistantId: 'asst_1' } })
       )
@@ -89,7 +89,7 @@ describe('temporaryChatHandlers', () => {
 
   describe('DELETE /temporary/topics/:id', () => {
     it('forwards id and returns undefined', async () => {
-      deleteTopicMock.mockResolvedValue(undefined)
+      deleteTopicMock.mockReturnValue(undefined)
       const result = await temporaryChatHandlers['/temporary/topics/:id'].DELETE(
         reqEnvelope({ params: { id: 'tid-xyz' } })
       )
@@ -98,7 +98,9 @@ describe('temporaryChatHandlers', () => {
     })
 
     it('propagates errors from the service', async () => {
-      deleteTopicMock.mockRejectedValue(new Error('not found'))
+      deleteTopicMock.mockImplementation(() => {
+        throw new Error('not found')
+      })
       await expect(
         temporaryChatHandlers['/temporary/topics/:id'].DELETE(reqEnvelope({ params: { id: 'missing' } }))
       ).rejects.toThrow(/not found/)
@@ -108,7 +110,7 @@ describe('temporaryChatHandlers', () => {
   describe('POST /temporary/topics/:topicId/messages', () => {
     it('forwards topicId + body to appendMessage', async () => {
       const msg = fakeMessage({ role: 'assistant' })
-      appendMessageMock.mockResolvedValue(msg)
+      appendMessageMock.mockReturnValue(msg)
       const body = { role: 'assistant' as const, data: mainText('yo') }
       const result = await temporaryChatHandlers['/temporary/topics/:topicId/messages'].POST(
         reqEnvelope({ params: { topicId: 'tid-123' }, body })
@@ -121,7 +123,7 @@ describe('temporaryChatHandlers', () => {
   describe('GET /temporary/topics/:topicId/messages', () => {
     it('forwards topicId and returns the message list', async () => {
       const list = [fakeMessage({ id: 'mid-1' }), fakeMessage({ id: 'mid-2', role: 'assistant' })]
-      listMessagesMock.mockResolvedValue(list)
+      listMessagesMock.mockReturnValue(list)
       const result = await temporaryChatHandlers['/temporary/topics/:topicId/messages'].GET(
         reqEnvelope({ params: { topicId: 'tid-123' } })
       )
@@ -132,7 +134,7 @@ describe('temporaryChatHandlers', () => {
 
   describe('POST /temporary/topics/:id/persist', () => {
     it('forwards id and returns PersistTemporaryChatResponse', async () => {
-      persistMock.mockResolvedValue({ topicId: 'tid-123', messageCount: 4 })
+      persistMock.mockReturnValue({ topicId: 'tid-123', messageCount: 4 })
       const result = await temporaryChatHandlers['/temporary/topics/:id/persist'].POST(
         reqEnvelope({ params: { id: 'tid-123' } })
       )
