@@ -95,6 +95,7 @@ export function AgentResourceList({
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
   const manageSkillsMenuItem = resourceMenuItems?.find((item) => item.id === 'skill-resource-view')
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
@@ -279,8 +280,8 @@ export function AgentResourceList({
       <ResourceEntityRail
         variant="agent"
         items={items}
-        selectedId={selectedId}
-        selectedClickId={activeAgentId}
+        selectedId={hasActiveResourceMenuItem ? null : selectedId}
+        selectedClickId={hasActiveResourceMenuItem ? null : activeAgentId}
         status={listStatus}
         ariaLabel={t('agent.sidebar_title')}
         defaultGroupLabel={t('agent.sidebar_title')}
@@ -301,7 +302,6 @@ export function AgentResourceList({
         }
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAgentClick?.()}
-        resourceMenuItems={resourceMenuItems}
         onReorder={handleReorder}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}

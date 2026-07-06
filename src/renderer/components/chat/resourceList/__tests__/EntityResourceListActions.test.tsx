@@ -105,12 +105,18 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
 }))
 
 vi.mock('@renderer/components/chat/resourceList/useResourceEntityRail', () => ({
-  useResourceEntityRail: ({ entities }: { entities: ResourceEntityRailItem[] }) => ({
+  useResourceEntityRail: ({
+    activeEntityId,
+    entities
+  }: {
+    activeEntityId?: string | null
+    entities: ResourceEntityRailItem[]
+  }) => ({
     handleReorder: vi.fn(),
     handleSelect: vi.fn(),
     items: entities,
     listStatus: 'idle',
-    selectedId: null
+    selectedId: activeEntityId ?? null
   })
 }))
 
@@ -122,7 +128,8 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     items,
     onContextMenuAction,
     onReorder,
-    resourceMenuItems
+    resourceMenuItems,
+    selectedId
   }: {
     getContextMenuActions?: (item: ResourceEntityRailItem) => readonly ResolvedAction[]
     groupByTag?: boolean
@@ -131,6 +138,7 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     onContextMenuAction?: (item: ResourceEntityRailItem, action: ResolvedAction) => void | Promise<void>
     onReorder?: unknown
     resourceMenuItems?: readonly { active?: boolean; id: string }[]
+    selectedId?: string | null
   }) => {
     const flattenActions = (actions: readonly ResolvedAction[]): readonly ResolvedAction[] =>
       actions.flatMap((action) => [action, ...flattenActions(action.children)])
@@ -141,7 +149,8 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
         data-testid="resource-entity-rail"
         data-active-resource-menu={String(hasActiveResourceMenuItem)}
         data-group-by-tag={String(!!groupByTag)}
-        data-reorder={onReorder ? 'enabled' : 'disabled'}>
+        data-reorder={onReorder ? 'enabled' : 'disabled'}
+        data-selected-id={selectedId ?? ''}>
         {headerActions}
         {items.map((item) => {
           const actions = getContextMenuActions?.(item) ?? []
@@ -685,7 +694,7 @@ describe('classic layout entity resource list actions', () => {
     expect(screen.getByRole('button', { name: 'agent.manage.title' })).toBeInTheDocument()
   })
 
-  it('passes the active agent resource view state into the classic agent rail', () => {
+  it('clears the active agent selection while a resource view is active', () => {
     render(
       <AgentResourceList
         activeAgentId="agent-1"
@@ -703,7 +712,7 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-active-resource-menu', 'true')
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', '')
   })
 
   it('keeps classic agent rail history in the shared display menu without section toggles', () => {

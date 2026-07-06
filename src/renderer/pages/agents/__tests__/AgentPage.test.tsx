@@ -478,6 +478,7 @@ vi.mock('../components/AgentChatNavbar', () => ({
 vi.mock('../AgentSidePanel', () => ({
   default: ({
     activeSessionId,
+    onAddAgent,
     onOpenHistoryRecords,
     onSetPanePosition,
     onStartDraftSession,
@@ -514,6 +515,9 @@ vi.mock('../AgentSidePanel', () => ({
         <button type="button" onClick={() => void onSetPanePosition?.('right')}>
           Move sessions right
         </button>
+        <button type="button" onClick={() => void onAddAgent?.()}>
+          Open agent picker
+        </button>
         <button type="button" onClick={() => onStartMissingAgentDraft?.()}>
           Start missing agent draft
         </button>
@@ -539,8 +543,7 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
     activeAgentId,
     onAddAgent,
     onActiveAgentDeleted,
-    onSelectedAgentClick,
-    resourceMenuItems
+    onSelectedAgentClick
   }: {
     activeAgentId?: string | null
     onAddAgent?: () => void | Promise<void>
@@ -558,11 +561,6 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
       <button type="button" onClick={() => void onSelectedAgentClick?.()}>
         Toggle selected agent pane
       </button>
-      {resourceMenuItems?.map((item) => (
-        <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-          {item.id === 'agent-resource-view' ? 'agent.manage.title' : item.label}
-        </button>
-      ))}
     </div>
   )
 }))
@@ -670,6 +668,19 @@ describe('AgentPage', () => {
     expect(screen.queryByTestId('agent-side-panel')).not.toBeInTheDocument()
   })
 
+  it('hides resource management entries from the left rail when sessions are on the right', () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.sessionPanePosition = 'right'
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('agent-resource-list')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.manage.title' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.resource_view.menu.skill' })).not.toBeInTheDocument()
+  })
+
   it('does not render the session resource pane when the classic session position is left', () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.sessionPanePosition = 'left'
@@ -773,6 +784,7 @@ describe('AgentPage', () => {
 
   it('keeps the agent resource view open while opening the classic-layout agent picker', () => {
     agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.sessionPanePosition = 'left'
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
     activeSessionMocks.sessionSource = 'query'
 
@@ -788,6 +800,7 @@ describe('AgentPage', () => {
 
   it('keeps the agent resource view open until the selected agent session is ready', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.sessionPanePosition = 'left'
     agentPageMocks.routeSearch = {}
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
@@ -842,6 +855,7 @@ describe('AgentPage', () => {
 
   it('prevents duplicate empty session creation from rapid classic-layout picker selection', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.sessionPanePosition = 'left'
     agentPageMocks.routeSearch = {}
     agentPageMocks.agents = [
       { id: 'agent-a', model: 'model-a', name: 'Agent A' },
