@@ -39,4 +39,15 @@ describe('chooseTool', () => {
   it('renders no card for a provider-side web_search (the provider already shows results inline)', () => {
     expect(chooseTool(resp('web_search', 'provider'))).toBeNull()
   })
+
+  it('routes cherry-runtime built-ins with non-Claude-cased names (pi lowercase) to the generic card', () => {
+    // pi built-ins stream as lowercase `read`/`bash` and resolve to `tool.type === 'builtin'`; they
+    // match no bespoke branch and must fall through to the generic execution-timeline card, not null.
+    expect(testIdOf(chooseTool(resp('read', 'builtin')))).toBe('agent-card')
+    expect(testIdOf(chooseTool(resp('bash', 'builtin')))).toBe('agent-card')
+  })
+
+  it('returns null for an unknown non-cherry tool', () => {
+    expect(chooseTool(resp('totally_unknown_tool', 'builtin'))).toBeNull()
+  })
 })

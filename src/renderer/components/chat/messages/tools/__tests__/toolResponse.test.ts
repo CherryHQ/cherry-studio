@@ -172,7 +172,11 @@ describe('toolResponse adapter', () => {
     expect(response?.tool.name).toBe('CustomTool')
   })
 
-  it('routes pi-agent transport tool calls to the generic provider card', () => {
+  it('resolves a real pi-agent tool part to a builtin tool via its cherry.tool metadata', () => {
+    // Real pi shape (from piStreamAdapter's `toolProviderMetadata`): the transport tag plus a
+    // `cherry.tool` descriptor of `{ type: 'builtin', name }`. The `cherry.tool.type` wins in
+    // resolveToolType, so pi built-ins resolve to `builtin` — not `provider` — and keep their
+    // lowercase name off the MCP path. chooseTool then routes them to the generic card.
     const part = {
       type: 'dynamic-tool',
       toolName: 'bash',
@@ -181,15 +185,14 @@ describe('toolResponse adapter', () => {
       input: { command: 'ls' },
       output: 'ok',
       callProviderMetadata: {
-        cherry: { transport: 'pi-agent' }
+        cherry: { transport: 'pi-agent', tool: { type: 'builtin', name: 'bash' } },
+        pi: { toolName: 'bash' }
       }
     } as unknown as CherryMessagePart
 
     const response = buildToolResponseFromPart(part)
     expect(response?.status).toBe('done')
-    // pi's lowercase tool names have no bespoke renderer; the transport tag keeps
-    // them off the MCP path and on the generic provider card (D8).
-    expect(response?.tool.type).toBe('provider')
+    expect(response?.tool.type).toBe('builtin')
     expect(response?.tool.name).toBe('bash')
   })
 
