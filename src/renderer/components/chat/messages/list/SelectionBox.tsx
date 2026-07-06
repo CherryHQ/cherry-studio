@@ -7,6 +7,20 @@ interface SelectionBoxProps {
   handleSelectMessage: (messageId: string, selected: boolean) => void
 }
 
+const CHECKBOX_SELECTOR = 'input[type="checkbox"], [data-slot=checkbox], [role="checkbox"]'
+
+function getMessageCheckbox(element: HTMLElement): HTMLElement | null {
+  return element.querySelector<HTMLElement>(CHECKBOX_SELECTOR)
+}
+
+function isCheckboxSelected(checkbox: HTMLElement): boolean {
+  if (checkbox instanceof HTMLInputElement) {
+    return checkbox.checked
+  }
+
+  return checkbox.getAttribute('aria-checked') === 'true' || checkbox.getAttribute('data-state') === 'checked'
+}
+
 const SelectionBox: React.FC<SelectionBoxProps> = ({
   isMultiSelectMode,
   scrollContainerRef,
@@ -39,7 +53,7 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
     }
 
     const handleMouseDown = (e: MouseEvent) => {
-      if ((e.target as HTMLElement).closest('[data-slot=checkbox]')) return
+      if ((e.target as HTMLElement).closest(CHECKBOX_SELECTOR)) return
       if ((e.target as HTMLElement).closest('.MessageFooter')) return
 
       e.preventDefault()
@@ -76,13 +90,10 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
       const top = Math.min(dragStart.y, pos.y)
       const bottom = Math.max(dragStart.y, pos.y)
 
-      // 创建新选中的消息ID集合
-      const newSelectedIds = new Set<string>()
-
       messageElements.forEach((el, id) => {
         // 检查消息是否已被选中（不管是拖动选中还是手动选中）
-        const checkbox = el.querySelector<HTMLInputElement>('input[type="checkbox"]')
-        const isAlreadySelected = checkbox?.checked || false
+        const checkbox = getMessageCheckbox(el)
+        const isAlreadySelected = checkbox ? isCheckboxSelected(checkbox) : false
 
         // 清除上下文这类消息也会被选中，所以需要跳过
         if (!checkbox) return
@@ -104,7 +115,6 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
         if (isInSelectionBox && !isAlreadySelected) {
           handleSelectMessage(id, true)
           dragSelectedIds.current.add(id)
-          newSelectedIds.add(id)
           el.classList.add('selection-highlight')
           handleMouseMoveTimer = setTimeout(() => el.classList.remove('selection-highlight'), 300)
         }
