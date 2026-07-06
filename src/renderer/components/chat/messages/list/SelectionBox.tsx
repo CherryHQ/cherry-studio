@@ -7,10 +7,11 @@ interface SelectionBoxProps {
   handleSelectMessage: (messageId: string, selected: boolean) => void
 }
 
-const CHECKBOX_SELECTOR = 'input[type="checkbox"], [data-slot=checkbox], [role="checkbox"]'
+const INTERACTIVE_CHECKBOX_SELECTOR = 'input[type="checkbox"], [data-slot=checkbox], [role="checkbox"]'
+const MESSAGE_SELECT_CHECKBOX_SELECTOR = '[data-message-select-checkbox]'
 
 function getMessageCheckbox(element: HTMLElement): HTMLElement | null {
-  return element.querySelector<HTMLElement>(CHECKBOX_SELECTOR)
+  return element.querySelector<HTMLElement>(MESSAGE_SELECT_CHECKBOX_SELECTOR)
 }
 
 function isCheckboxSelected(checkbox: HTMLElement): boolean {
@@ -53,7 +54,7 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
     }
 
     const handleMouseDown = (e: MouseEvent) => {
-      if ((e.target as HTMLElement).closest(CHECKBOX_SELECTOR)) return
+      if ((e.target as HTMLElement).closest(INTERACTIVE_CHECKBOX_SELECTOR)) return
       if ((e.target as HTMLElement).closest('.MessageFooter')) return
 
       e.preventDefault()
