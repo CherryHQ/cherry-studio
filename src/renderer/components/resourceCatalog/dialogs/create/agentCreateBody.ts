@@ -1,3 +1,4 @@
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { CreateAgentDto } from '@shared/data/api/schemas/agents'
 
 import type { ResourceCreateWizardValues } from './types'
@@ -22,18 +23,15 @@ export function buildAgentCreateBody(values: ResourceCreateWizardValues): Create
     }
   }
 
-  if (values.agentType === 'pi') {
-    return {
-      ...base,
-      configuration: { ...base.configuration, permission_mode: 'default' }
-    }
-  }
+  const caps = AGENT_RUNTIME_CAPABILITIES[values.agentType]
 
   return {
     ...base,
-    skillIds: values.skillIds,
-    planModel: values.modelId,
-    smallModel: values.modelId,
-    configuration: { ...base.configuration, permission_mode: 'bypassPermissions' }
+    ...(caps.skills ? { skillIds: values.skillIds } : {}),
+    ...(caps.modelTiers ? { planModel: values.modelId, smallModel: values.modelId } : {}),
+    configuration: {
+      ...base.configuration,
+      permission_mode: caps.createDefaults.permissionMode
+    }
   }
 }

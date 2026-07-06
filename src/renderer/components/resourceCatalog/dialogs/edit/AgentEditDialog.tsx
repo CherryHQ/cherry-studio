@@ -25,12 +25,8 @@ import {
   buildInitialAgentFormState,
   diffAgentSaveIntent
 } from '@renderer/utils/resourceCatalog'
-import {
-  CLAUDE_TOOL_CATEGORIES,
-  type ClaudeToolCategory,
-  claudeUserFacingTools
-} from '@shared/ai/claudecode/toolRegistry'
-import { PI_BUILTIN_TOOL_CATEGORIES, PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
+import { AGENT_RUNTIME_CAPABILITIES, type AgentRuntimeCapabilities } from '@shared/ai/agentRuntimeCapabilities'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
 import { Sparkles, Wrench } from 'lucide-react'
@@ -78,8 +74,7 @@ type AgentEditFormValues = {
 type ToolTab = 'tools.builtin' | 'tools.mcp' | 'tools.skills'
 
 const logger = loggerService.withContext('AgentEditDialog')
-const PERMISSION_MODES = ['default', 'plan', 'acceptEdits', 'bypassPermissions'] as const
-const PERMISSION_MODE_LABEL_KEYS: Record<(typeof PERMISSION_MODES)[number], string> = {
+const PERMISSION_MODE_LABEL_KEYS: Record<AgentPermissionMode, string> = {
   acceptEdits: 'library.config.agent.field.permission_mode.option.acceptEdits',
   bypassPermissions: 'library.config.agent.field.permission_mode.option.bypassPermissions',
   default: 'library.config.agent.field.permission_mode.option.default',
@@ -87,7 +82,9 @@ const PERMISSION_MODE_LABEL_KEYS: Record<(typeof PERMISSION_MODES)[number], stri
 }
 const DEFAULT_TOOL_TAB: ToolTab = 'tools.builtin'
 
-const CATEGORY_LABEL_KEYS: Record<ClaudeToolCategory, string> = {
+type BuiltinToolCategory = 'file' | 'shell' | 'search' | 'context' | 'orchestration' | 'media'
+
+const CATEGORY_LABEL_KEYS: Record<BuiltinToolCategory, string> = {
   file: 'library.config.agent.section.tools.category.file',
   shell: 'library.config.agent.section.tools.category.shell',
   search: 'library.config.agent.section.tools.category.search',
@@ -95,13 +92,22 @@ const CATEGORY_LABEL_KEYS: Record<ClaudeToolCategory, string> = {
   orchestration: 'library.config.agent.section.tools.category.orchestration',
   media: 'library.config.agent.section.tools.category.media'
 }
-const CATEGORY_LABEL_FALLBACKS: Record<ClaudeToolCategory, string> = {
+const CATEGORY_LABEL_FALLBACKS: Record<BuiltinToolCategory, string> = {
   file: 'File',
   shell: 'Shell',
   search: 'Search',
   context: 'Context',
   orchestration: 'Orchestration',
   media: 'Media'
+}
+const BUILTIN_TOOL_CATEGORY_ORDER = Object.keys(CATEGORY_LABEL_KEYS) as BuiltinToolCategory[]
+
+function isBuiltinToolCategory(value: string): value is BuiltinToolCategory {
+  return value in CATEGORY_LABEL_KEYS
+}
+
+function translateCatalogText(t: ReturnType<typeof useTranslation>['t'], key: string, fallback?: string) {
+  return fallback === undefined ? t(key) : t(key, fallback)
 }
 
 function isToolTab(value: string): value is ToolTab {
@@ -202,9 +208,7 @@ function AgentEditDialogContent({
   modelFilter
 }: EditDialogBaseProps<AgentDetail> & { resource: AgentDetail }) {
   const { t } = useTranslation()
-  // pi agents expose a reduced config surface (D8): no plan/small-model tiers,
-  // no soul/heartbeat, no plan permission mode, and no MCP/skills tool tabs.
-  const isPi = resource.type === 'pi'
+  const caps = AGENT_RUNTIME_CAPABILITIES[resource.type]
   const [activeTab, setActiveTab] = useState('basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
@@ -242,17 +246,17 @@ function AgentEditDialogContent({
       {
         id: 'tools',
         label: t('library.config.dialogs.edit.tools_tab'),
-        children: isPi
-          ? [{ id: DEFAULT_TOOL_TAB, label: t('library.config.agent.section.tools.tab.tools') }]
-          : [
-              { id: DEFAULT_TOOL_TAB, label: t('library.config.agent.section.tools.tab.tools') },
-              { id: 'tools.mcp', label: t('library.config.agent.section.tools.tab.mcp') },
-              { id: 'tools.skills', label: t('library.config.agent.section.tools.tab.skills') }
-            ]
+        children: [
+          { id: DEFAULT_TOOL_TAB, label: t('library.config.agent.section.tools.tab.tools') },
+          ...(caps.mcp ? [{ id: 'tools.mcp' as const, label: t('library.config.agent.section.tools.tab.mcp') }] : []),
+          ...(caps.skills
+            ? [{ id: 'tools.skills' as const, label: t('library.config.agent.section.tools.tab.skills') }]
+            : [])
+        ]
       },
       { id: 'advanced', label: t('library.config.dialogs.edit.advanced_tab') }
     ],
-    [isPi, t]
+    [caps.mcp, caps.skills, t]
   )
   const leafTabIds = useMemo(() => new Set(getLeafTabIds(tabs)), [tabs])
 
@@ -325,7 +329,7 @@ function AgentEditDialogContent({
       <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
         <AgentBasicFields
           form={form}
-          isPi={isPi}
+          caps={caps}
           modelFilter={modelFilter}
           portalContainer={dialogContentElement}
           modelLabels={modelLabels}
@@ -342,6 +346,7 @@ function AgentEditDialogContent({
         <TabsContent value={activeTab} forceMount className="m-0">
           <AgentToolsFields
             agent={resource}
+            caps={caps}
             form={form}
             activeToolTab={activeTab}
             portalContainer={dialogContentElement}
@@ -359,7 +364,7 @@ function AgentEditDialogContent({
 
 function AgentBasicFields({
   form,
-  isPi,
+  caps,
   modelFilter,
   portalContainer,
   modelLabels,
@@ -369,7 +374,7 @@ function AgentBasicFields({
   setEmojiPickerOpen
 }: {
   form: UseFormReturn<AgentEditFormValues>
-  isPi: boolean
+  caps: AgentRuntimeCapabilities
   modelFilter?: (model: Model) => boolean
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
@@ -399,7 +404,7 @@ function AgentBasicFields({
           required
         />
       </div>
-      <div className={isPi ? 'grid gap-3' : 'grid gap-3 sm:grid-cols-3'}>
+      <div className={caps.modelTiers ? 'grid gap-3 sm:grid-cols-3' : 'grid gap-3'}>
         <CompactModelField
           form={form}
           name="modelId"
@@ -410,8 +415,7 @@ function AgentBasicFields({
           setModelLabels={setModelLabels}
           onModelChange={(modelId) => patchAgentForm({ model: modelId ?? '' })}
         />
-        {/* plan/small-model tiers are Claude-only (D8) — pi uses the primary model. */}
-        {!isPi && (
+        {caps.modelTiers && (
           <CompactModelField
             form={form}
             name="planModelId"
@@ -424,7 +428,7 @@ function AgentBasicFields({
             onModelChange={(modelId) => patchAgentForm({ planModel: modelId ?? '' })}
           />
         )}
-        {!isPi && (
+        {caps.modelTiers && (
           <CompactModelField
             form={form}
             name="smallModelId"
@@ -446,11 +450,11 @@ function AgentBasicFields({
       />
       <PermissionModeField
         form={form}
-        isPi={isPi}
+        modes={caps.permissionModes}
         portalContainer={portalContainer}
         patchAgentForm={patchAgentForm}
       />
-      {!isPi && (
+      {caps.heartbeat && (
         <HeartbeatSettingsField
           form={form}
           enabled={heartbeatEnabled}
@@ -463,18 +467,16 @@ function AgentBasicFields({
 
 function PermissionModeField({
   form,
-  isPi,
+  modes,
   portalContainer,
   patchAgentForm
 }: {
   form: UseFormReturn<AgentEditFormValues>
-  isPi: boolean
+  modes: readonly AgentPermissionMode[]
   portalContainer: HTMLElement | null
   patchAgentForm: (patch: Partial<AgentFormState>) => void
 }) {
   const { t } = useTranslation()
-  // pi has no plan mode (D8).
-  const modes = isPi ? PERMISSION_MODES.filter((mode) => mode !== 'plan') : PERMISSION_MODES
 
   return (
     <FormField
@@ -605,6 +607,7 @@ function AgentPromptField({
 
 function AgentToolsFields({
   agent,
+  caps,
   form,
   activeToolTab,
   portalContainer,
@@ -612,6 +615,7 @@ function AgentToolsFields({
   skillsLoading
 }: {
   agent: AgentDetail
+  caps: AgentRuntimeCapabilities
   form: UseFormReturn<AgentEditFormValues>
   activeToolTab: ToolTab
   portalContainer: HTMLElement | null
@@ -628,33 +632,20 @@ function AgentToolsFields({
   // (empty = all enabled); approval is governed solely by the permission-mode cards.
   const disabledSet = useMemo(() => new Set(disabledTools), [disabledTools])
   const builtinSections = useMemo(() => {
-    if (agent.type === 'pi') {
-      return PI_BUILTIN_TOOL_CATEGORIES.map((category) => ({
-        category,
-        label: t(CATEGORY_LABEL_KEYS[category], CATEGORY_LABEL_FALLBACKS[category]),
-        items: PI_BUILTIN_TOOLS.filter((tool) => tool.category === category).map<CatalogItem>((tool) => ({
-          id: tool.name,
-          name: t(`agent.tools.builtin.${tool.name}.label`),
-          description: t(`agent.tools.builtin.${tool.name}.description`),
-          icon: <Wrench size={13} strokeWidth={1.5} className="text-foreground/55" />
-        }))
-      })).filter((section) => section.items.length > 0)
-    }
-
-    const tools = claudeUserFacingTools()
-    return CLAUDE_TOOL_CATEGORIES.map((category) => ({
+    const tools = caps.builtinTools().filter((tool) => isBuiltinToolCategory(tool.category))
+    return BUILTIN_TOOL_CATEGORY_ORDER.map((category) => ({
       category,
       label: t(CATEGORY_LABEL_KEYS[category], CATEGORY_LABEL_FALLBACKS[category]),
       items: tools
         .filter((tool) => tool.category === category)
         .map<CatalogItem>((tool) => ({
-          id: tool.name,
-          name: t(`agent.tools.builtin.${tool.key}.label`, tool.label),
-          description: t(`agent.tools.builtin.${tool.key}.description`, tool.description),
+          id: tool.id,
+          name: translateCatalogText(t, `${tool.i18nKeyBase}.label`, tool.labelFallback),
+          description: translateCatalogText(t, `${tool.i18nKeyBase}.description`, tool.descriptionFallback),
           icon: <Wrench size={13} strokeWidth={1.5} className="text-foreground/55" />
         }))
     })).filter((section) => section.items.length > 0)
-  }, [agent.type, t])
+  }, [caps, t])
   const enabledToolIds = useMemo<ReadonlySet<string>>(
     () => new Set(builtinSections.flatMap((s) => s.items.map((i) => i.id)).filter((id) => !disabledSet.has(id))),
     [builtinSections, disabledSet]

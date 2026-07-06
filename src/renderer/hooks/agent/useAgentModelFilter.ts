@@ -15,10 +15,11 @@
  */
 
 import { useProviders } from '@renderer/hooks/useProvider'
-import { isPiCompatibleModel } from '@shared/ai/piModelCompatibility'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
-import { isAgentRuntimeSupportedModel, isNonChatModel } from '@shared/utils/model'
+import type { Provider } from '@shared/data/types/provider'
+import { isNonChatModel } from '@shared/utils/model'
 import { useMemo } from 'react'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
@@ -44,21 +45,20 @@ export function modelFilterIncludesAgentOnlyProviders(filter?: (model: Model) =>
 export function useAgentModelFilter(agentType: AgentType | undefined): (model: Model) => boolean {
   const { providers } = useProviders()
 
-  const providersById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
+  const providerById = useMemo(() => {
+    const map = new Map<string, Provider>()
+    for (const provider of providers) map.set(provider.id, provider)
+    return map
+  }, [providers])
 
   return useMemo<AgentModelFilter>(() => {
+    const caps = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
     const predicate: AgentModelFilter = (model: Model) => {
       if (!baseAgentFilter(model)) return false
-      if (agentType === 'claude-code') {
-        return isAgentRuntimeSupportedModel(model, providersById.get(model.providerId))
-      }
-      if (agentType === 'pi') {
-        const provider = providersById.get(model.providerId)
-        return provider ? isPiCompatibleModel(provider, model) : false
-      }
-      return true
+      if (!caps?.isModelCompatible) return true
+      return caps.isModelCompatible(providerById.get(model.providerId), model)
     }
     predicate[AGENT_ONLY_FILTER] = true
     return predicate
-  }, [agentType, providersById])
+  }, [agentType, providerById])
 }

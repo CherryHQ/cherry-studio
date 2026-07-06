@@ -9,6 +9,7 @@ import {
   Scrollbar
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { Model } from '@shared/data/types/model'
 import { Check } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -158,7 +159,7 @@ export function ResourceCreateWizard({
     if (kind === 'assistant') {
       return [basic, persona, { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }]
     }
-    if (agentType === 'pi') return [basic, persona]
+    if (!AGENT_RUNTIME_CAPABILITIES[agentType].skills) return [basic, persona]
     return [basic, persona, { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }]
   }, [agentType, kind, t])
 

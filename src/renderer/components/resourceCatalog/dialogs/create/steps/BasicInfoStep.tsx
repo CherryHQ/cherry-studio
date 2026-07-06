@@ -18,6 +18,7 @@ import {
   TextInputField
 } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
 import { useState } from 'react'
@@ -28,14 +29,9 @@ import type { ResourceCreateWizardFormValues } from '../types'
 
 const EMPTY_MODEL_LABELS: ModelLabels = { modelId: null, planModelId: null, smallModelId: null }
 
-const AGENT_RUNTIME_OPTIONS: { value: AgentType; labelKey: string; labelFallback: string }[] = [
-  {
-    value: 'claude-code',
-    labelKey: 'library.config.agent.field.runtime.option.claude_code',
-    labelFallback: 'Claude Code'
-  },
-  { value: 'pi', labelKey: 'library.config.agent.field.runtime.option.pi', labelFallback: 'pi' }
-]
+const AGENT_RUNTIME_OPTIONS: { value: AgentType; labelKey: string; labelFallback: string }[] = Object.entries(
+  AGENT_RUNTIME_CAPABILITIES
+).map(([value, caps]) => ({ value: value as AgentType, labelKey: caps.labelKey, labelFallback: caps.labelFallback }))
 
 type ModelFieldProps = {
   form: UseFormReturn<ResourceCreateWizardFormValues>
@@ -63,6 +59,7 @@ function AgentRuntimeModelFields({ form, portalContainer, modelLabels, setModelL
   const { t } = useTranslation()
   const agentType = form.watch('agentType')
   const runtimeFilter = useAgentModelFilter(agentType)
+  const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
 
   const handleRuntimeChange = (next: AgentType) => {
     form.setValue('agentType', next, { shouldDirty: true })
@@ -94,9 +91,7 @@ function AgentRuntimeModelFields({ form, portalContainer, modelLabels, setModelL
                 ))}
               </SelectContent>
             </Select>
-            {agentType === 'pi' ? (
-              <FormDescription className="text-xs">{t('library.config.agent.field.runtime.pi_hint')}</FormDescription>
-            ) : null}
+            {caps.hintKey ? <FormDescription className="text-xs">{t(caps.hintKey)}</FormDescription> : null}
             <FormMessage />
           </FormItem>
         )}

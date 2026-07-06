@@ -12,10 +12,11 @@
  * - `tool_execution_end` → tool-output-available / tool-output-error
  * - `turn_end` (assistant message) → `message-metadata` usage projection
  *
- * Tool parts are stamped with `providerMetadata.cherry.transport = 'pi-agent'`
+ * Tool parts are stamped with the pi runtime transport tag
  * (D8) so the renderer routes them to the generic pi tool card.
  */
 import type { AgentSessionEvent } from '@earendil-works/pi-coding-agent'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
 
 export interface PiStreamSink {
@@ -23,7 +24,7 @@ export interface PiStreamSink {
 }
 
 /** pi transport tag consumed by the renderer's tool-part routing (D8). */
-export const PI_TRANSPORT = 'pi-agent' as const
+export const PI_TRANSPORT = AGENT_RUNTIME_CAPABILITIES.pi.transport
 
 function toolProviderMetadata(toolName: string, extra: Record<string, unknown> = {}) {
   return {

@@ -1,4 +1,5 @@
 import type { PermissionModeCard } from '@renderer/types/agent'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentConfiguration, AgentType } from '@shared/data/types/agent'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
@@ -62,12 +63,9 @@ export const permissionModeCards: PermissionModeCard[] = [
   }
 ]
 
-/**
- * Permission-mode cards offered for an agent type. `pi` has no plan mode
- * (deferred — see plan D8), so it drops the `plan` card; every other type
- * keeps the full set.
- */
+/** Permission-mode cards offered for an agent type. Unknown types keep the full set. */
 export function getPermissionModeCards(agentType: AgentType | string | undefined): PermissionModeCard[] {
-  if (agentType === 'pi') return permissionModeCards.filter((card) => card.mode !== 'plan')
-  return permissionModeCards
+  if (!agentType || !(agentType in AGENT_RUNTIME_CAPABILITIES)) return permissionModeCards
+  const modes = new Set(AGENT_RUNTIME_CAPABILITIES[agentType as AgentType].permissionModes)
+  return permissionModeCards.filter((card) => modes.has(card.mode))
 }

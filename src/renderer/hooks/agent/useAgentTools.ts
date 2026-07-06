@@ -105,6 +105,7 @@ export const useAgentTools = (source: AgentToolSource | null | undefined) => {
   }, [mcpIds, mcpServers, toolsByServer])
 
   const tools = useMemo<Tool[]>(() => {
+    // Claude registry machinery only; future runtime catalog gates live in agentRuntimeCapabilities.
     if ((source?.type ?? 'claude-code') !== 'claude-code') return []
 
     const selectedServers = new Map(mcpServers.map((server) => [server.id, server]))

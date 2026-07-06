@@ -22,10 +22,6 @@ export type { InstalledSkill } from '../api/schemas/skills'
 // Core agent types (plain aliases for non-Zod consumers)
 // ============================================================================
 
-// Adding a third runtime? The per-type capability gates are hardcoded at each call site today
-// (useAgentModelFilter, getPermissionModeCards, AgentEditDialog `isPi`, buildAgentCreateBody,
-// getBuiltinSlashCommands, renderer isAgentType guard). With three runtimes that duplication
-// tips over — introduce a shared runtime-capability descriptor ({ steering, mcp, skills,
-// planMode, soul, modelTiers, … }) and fold those call sites into it instead of adding a
-// third branch to each.
+// Adding a third runtime? Add one AGENT_RUNTIME_CAPABILITIES entry in
+// @shared/ai/agentRuntimeCapabilities (compile-enforced) plus the runtime driver package.
 export type AgentType = 'claude-code' | 'pi'
