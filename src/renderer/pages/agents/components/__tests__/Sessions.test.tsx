@@ -283,6 +283,10 @@ const agentSessionImageCaptureHostMocks = vi.hoisted(() => ({
   render: vi.fn()
 }))
 
+const imageCaptureTargetsMock = vi.hoisted(() => ({
+  targets: undefined as Array<{ requestId: number; target: AgentSessionEntity }> | undefined
+}))
+
 const createTopicStreamStatusMock = (overrides: { isFulfilled?: boolean; isPending?: boolean } = {}) => ({
   activeExecutions: [],
   isFulfilled: overrides.isFulfilled ?? false,
@@ -333,6 +337,23 @@ vi.mock('@renderer/pages/agents/messages/AgentSessionImageCaptureHost', () => {
         'data-testid': 'agent-session-image-capture-host',
         'data-session-id': props.session.id
       })
+    }
+  }
+})
+
+vi.mock('@renderer/hooks/useImageCaptureTargets', async () => {
+  const actual = await vi.importActual<typeof import('@renderer/hooks/useImageCaptureTargets')>(
+    '@renderer/hooks/useImageCaptureTargets'
+  )
+
+  return {
+    ...actual,
+    useImageCaptureTargets: (options: Parameters<typeof actual.useImageCaptureTargets>[0]) => {
+      const actualResult = actual.useImageCaptureTargets(options)
+
+      return imageCaptureTargetsMock.targets
+        ? { ...actualResult, targets: imageCaptureTargetsMock.targets as typeof actualResult.targets }
+        : actualResult
     }
   }
 })
@@ -686,6 +707,7 @@ describe('Sessions', () => {
   beforeEach(() => {
     preferenceMocks.values.clear()
     cacheMocks.values.clear()
+    imageCaptureTargetsMock.targets = undefined
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     setSessionGroupExpansionCache(createExpandedSessionGroupExpansionFixture())
     preferenceMocks.values.set('topic.tab.show', true)
@@ -1538,6 +1560,25 @@ describe('Sessions', () => {
         session: expect.objectContaining({ id: 'session-a' })
       })
     )
+  })
+
+  it('keeps separate capture hosts for repeated image requests on the same session', async () => {
+    imageCaptureTargetsMock.targets = [
+      {
+        requestId: 1,
+        target: createSession({ id: 'session-b', name: 'Beta session' })
+      },
+      {
+        requestId: 2,
+        target: createSession({ id: 'session-b', name: 'Beta session' })
+      }
+    ]
+
+    render(<SessionsForTest activeSessionId="session-a" />)
+
+    const hosts = screen.getAllByTestId('agent-session-image-capture-host')
+    expect(hosts).toHaveLength(2)
+    expect(hosts.map((host) => host.getAttribute('data-session-id'))).toEqual(['session-b', 'session-b'])
   })
 
   it('hides open-in-new-tab for the active session context menu', () => {

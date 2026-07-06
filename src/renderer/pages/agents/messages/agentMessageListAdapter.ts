@@ -140,6 +140,7 @@ export function useAgentMessageListProviderValue({
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
+  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const selectionController = useMessageSelectionController({
     topicId: topic.id,
     messages: messageItems,
@@ -216,19 +217,29 @@ export function useAgentMessageListProviderValue({
     [imageActionConsumer, sessionId, topic.id]
   )
 
-  const bindMessageRuntime = useCallback((messageId: string, runtime: MessageRuntime) => {
-    const unsubscribes = [EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, runtime.locateMessage)]
+  const bindMessageRuntime = useCallback(
+    (messageId: string, runtime: MessageRuntime) => {
+      if (!normalInteractionsEnabled) return () => {}
 
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [])
+      const unsubscribes = [EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, runtime.locateMessage)]
 
-  const bindMessageGroupRuntime = useCallback((messageIds: string[], runtime: MessageGroupRuntime) => {
-    const unsubscribes = messageIds.map((messageId) =>
-      EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, () => runtime.locateMessage(messageId))
-    )
+      return () => unsubscribes.forEach((unsub) => unsub())
+    },
+    [normalInteractionsEnabled]
+  )
 
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [])
+  const bindMessageGroupRuntime = useCallback(
+    (messageIds: string[], runtime: MessageGroupRuntime) => {
+      if (!normalInteractionsEnabled) return () => {}
+
+      const unsubscribes = messageIds.map((messageId) =>
+        EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, () => runtime.locateMessage(messageId))
+      )
+
+      return () => unsubscribes.forEach((unsub) => unsub())
+    },
+    [normalInteractionsEnabled]
+  )
 
   const locateMessage = useCallback(
     (messageId: string, highlight?: boolean) => {

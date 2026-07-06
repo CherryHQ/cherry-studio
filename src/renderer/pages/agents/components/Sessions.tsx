@@ -1699,14 +1699,6 @@ const Sessions = ({
         ? 'empty'
         : 'idle'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const imageCaptureSessions = useMemo(() => {
-    const sessionById = new Map<string, AgentSessionEntity>()
-    for (const target of imageCaptureTargets) {
-      sessionById.set(target.target.id, target.target)
-    }
-    return [...sessionById.values()]
-  }, [imageCaptureTargets])
-
   return (
     <SessionResourceList<SessionListItem>
       key={isRightPanel ? `session-resource-panel:${agentIdFilter ?? 'blank'}` : 'session-resource-sidebar'}
@@ -1817,11 +1809,11 @@ const Sessions = ({
         }}
         onSaved={refetchAgents}
       />
-      {imageCaptureSessions.map((session) => {
+      {imageCaptureTargets.map(({ requestId, target: session }) => {
         const activeAgent = session.agentId ? agentById.get(session.agentId) : undefined
         return (
           <AgentSessionImageCaptureHost
-            key={session.id}
+            key={requestId}
             activeAgent={activeAgent}
             modelFallback={getAgentModelFallbackSnapshot(activeAgent)}
             session={session}

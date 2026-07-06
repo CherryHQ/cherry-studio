@@ -23,6 +23,7 @@ const MessageImageCaptureHost = ({
       aria-hidden="true"
       className="-left-[10000px] pointer-events-none fixed top-0 h-px w-[960px] overflow-hidden bg-background text-foreground"
       data-testid={testId}
+      inert
       {...{ [captureHostAttribute]: '' }}>
       <MessageListProvider value={messageList}>
         <MessageList />

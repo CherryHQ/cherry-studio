@@ -666,13 +666,6 @@ export function Topics({
   const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const imageCaptureTopics = useMemo(() => {
-    const topicById = new Map<string, Topic>()
-    for (const target of imageCaptureTargets) {
-      topicById.set(target.target.id, target.target)
-    }
-    return [...topicById.values()]
-  }, [imageCaptureTargets])
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
   }, [])
@@ -1141,8 +1134,8 @@ export function Topics({
         }}
         onSaved={refreshAssistants}
       />
-      {imageCaptureTopics.map((topic) => (
-        <TopicImageCaptureHost key={topic.id} topic={topic} />
+      {imageCaptureTargets.map(({ requestId, target: topic }) => (
+        <TopicImageCaptureHost key={requestId} topic={topic} />
       ))}
     </>
   )

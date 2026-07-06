@@ -92,6 +92,27 @@ const notesSettingsMocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/hooks/useNotesSettings', () => notesSettingsMocks)
 
+const imageCaptureTargetsMock = vi.hoisted(() => ({
+  targets: undefined as Array<{ requestId: number; target: unknown }> | undefined
+}))
+
+vi.mock('@renderer/hooks/useImageCaptureTargets', async () => {
+  const actual = await vi.importActual<typeof import('@renderer/hooks/useImageCaptureTargets')>(
+    '@renderer/hooks/useImageCaptureTargets'
+  )
+
+  return {
+    ...actual,
+    useImageCaptureTargets: (options: Parameters<typeof actual.useImageCaptureTargets>[0]) => {
+      const actualResult = actual.useImageCaptureTargets(options)
+
+      return imageCaptureTargetsMock.targets
+        ? { ...actualResult, targets: imageCaptureTargetsMock.targets as typeof actualResult.targets }
+        : actualResult
+    }
+  }
+})
+
 const tabsContextMocks = vi.hoisted(() => ({
   openTab: vi.fn(),
   setActiveTab: vi.fn(),
@@ -541,6 +562,7 @@ describe('Topics', () => {
     vi.setSystemTime(new Date(2026, 0, 3, 12))
     MockUsePreferenceUtils.resetMocks()
     cacheHookMocks.values.clear()
+    imageCaptureTargetsMock.targets = undefined
     setTopicGroupExpansionCache(createExpandedTopicGroupExpansionFixture())
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'topic.tab.display_mode': 'assistant',
@@ -1077,6 +1099,25 @@ describe('Topics', () => {
       expect(window.toast.error).toHaveBeenCalledWith('Copy failed')
     })
     requestAnimationFrameSpy.mockRestore()
+  })
+
+  it('keeps separate capture hosts for repeated image requests on the same topic', async () => {
+    imageCaptureTargetsMock.targets = [
+      {
+        requestId: 1,
+        target: createRendererTopic({ assistantId: 'assistant-2', id: 'topic-c', name: 'Gamma topic' })
+      },
+      {
+        requestId: 2,
+        target: createRendererTopic({ assistantId: 'assistant-2', id: 'topic-c', name: 'Gamma topic' })
+      }
+    ]
+
+    renderTopicList()
+
+    const hosts = screen.getAllByTestId('topic-image-capture-host')
+    expect(hosts).toHaveLength(2)
+    expect(hosts.map((host) => host.getAttribute('data-topic-id'))).toEqual(['topic-c', 'topic-c'])
   })
 
   it('autofocuses inline rename when double-clicking a topic title', () => {
