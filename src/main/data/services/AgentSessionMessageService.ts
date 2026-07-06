@@ -248,28 +248,6 @@ export class AgentSessionMessageService {
     db.update(sessionMessagesTable).set({ status: 'error' }).where(inArray(sessionMessagesTable.id, ids)).run()
   }
 
-  markPendingAssistantPlaceholdersPaused(sessionId: string): string[] {
-    return application.get('DbService').withWriteTx((tx) => {
-      const rows = tx
-        .select({ id: sessionMessagesTable.id })
-        .from(sessionMessagesTable)
-        .where(
-          and(
-            eq(sessionMessagesTable.sessionId, sessionId),
-            eq(sessionMessagesTable.role, 'assistant'),
-            eq(sessionMessagesTable.status, 'pending'),
-            sql`json_array_length(json_extract(${sessionMessagesTable.data}, '$.parts')) = 0`
-          )
-        )
-        .all()
-      const ids = rows.map((row) => row.id)
-      if (ids.length === 0) return ids
-
-      tx.update(sessionMessagesTable).set({ status: 'paused' }).where(inArray(sessionMessagesTable.id, ids)).run()
-      return ids
-    })
-  }
-
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
     return {
       id: row.id,

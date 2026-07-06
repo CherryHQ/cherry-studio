@@ -60,7 +60,7 @@ export interface BeginAgentSessionTurnInput {
   agentId: string
   agentType: string
   modelId: UniqueModelId
-  assistantMessageId?: string
+  assistantMessageId: string
   userMessage?: AgentSessionMessageEntity
   /** Container-level OTel trace id (one trace per session); cached on the entry. */
   traceId?: string
@@ -69,6 +69,7 @@ export interface BeginAgentSessionTurnInput {
 export interface AgentSessionRuntimeHandle {
   listeners: StreamListener[]
   turnId: string
+  abortController: AbortController
 }
 
 export interface OpenAgentSessionTurnStreamInput {
@@ -90,10 +91,11 @@ export interface AgentSessionRuntimeSnapshot {
 
 type AgentSessionTurn = {
   turnId: string
-  assistantMessageId?: string
+  assistantMessageId: string
   userMessage: AgentSessionMessageEntity
   modelId: UniqueModelId
   admitted: boolean
+  abortController: AbortController
   terminalStatus?: AgentSessionRuntimeTerminalStatus
   controller?: ReadableStreamDefaultController<UIMessageChunk>
   activeToolIds: Set<string>
@@ -211,6 +213,7 @@ export class AgentSessionRuntimeService extends BaseService {
       userMessage,
       modelId: input.modelId,
       admitted: false,
+      abortController: new AbortController(),
       activeToolIds: new Set()
     }
 
@@ -231,7 +234,8 @@ export class AgentSessionRuntimeService extends BaseService {
           new AgentSessionRuntimeTerminalListener(this, input.sessionId),
           new TraceFlushListener(input.topicId)
         ],
-        turnId
+        turnId,
+        abortController: turn.abortController
       }
     }
 
@@ -256,7 +260,8 @@ export class AgentSessionRuntimeService extends BaseService {
         new AgentSessionRuntimeTerminalListener(this, input.sessionId),
         new TraceFlushListener(input.topicId)
       ],
-      turnId
+      turnId,
+      abortController: turn.abortController
     }
   }
 
@@ -570,6 +575,13 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   respondToolApproval(approvalId: string, decision: DispatchDecision): boolean {
     return toolApprovalRegistry.dispatch(approvalId, decision)
+  }
+
+  abortPendingTurn(sessionId: string, reason: string): boolean {
+    const turn = this.entries.get(sessionId)?.currentTurn
+    if (!turn || turn.terminalStatus || turn.abortController.signal.aborted) return false
+    turn.abortController.abort(reason)
+    return true
   }
 
   protected onStop(): void {
@@ -915,6 +927,7 @@ export class AgentSessionRuntimeService extends BaseService {
       userMessage: nextMessage,
       modelId: entry.modelId,
       admitted: false,
+      abortController: new AbortController(),
       activeToolIds: new Set()
     }
 
@@ -939,6 +952,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messages,
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
+      abortController: entry.currentTurn.abortController,
       listeners: [
         this.createPersistenceListener(entry, nextMessage),
         new AgentSessionRuntimeTerminalListener(this, entry.sessionId),
@@ -1005,6 +1019,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: entry.modelId,
       // Pre-admitted: the steer was already delivered via the hook, so `admitTurn` must NOT re-send it.
       admitted: true,
+      abortController: new AbortController(),
       activeToolIds: new Set()
     }
 
@@ -1029,6 +1044,7 @@ export class AgentSessionRuntimeService extends BaseService {
         messages,
         runtime: { kind: 'agent-session', sessionId: entry.sessionId, turnId }
       },
+      abortController: entry.currentTurn.abortController,
       listeners: [
         this.createPersistenceListener(entry, steerMessage),
         new AgentSessionRuntimeTerminalListener(this, entry.sessionId),
@@ -1094,9 +1110,6 @@ export class AgentSessionRuntimeService extends BaseService {
       throw new Error(`Cannot create persistence listener without an active turn: ${entry.sessionId}`)
     }
     const { assistantMessageId } = currentTurn
-    if (!assistantMessageId) {
-      throw new Error(`Cannot create persistence listener without an assistant placeholder: ${entry.sessionId}`)
-    }
     const userText = extractMessageText(userMessage)
     return new PersistenceListener({
       topicId: entry.topicId,

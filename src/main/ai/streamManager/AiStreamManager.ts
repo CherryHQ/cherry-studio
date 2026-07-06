@@ -6,7 +6,6 @@ import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { agentSessionMessageService } from '@main/data/services/AgentSessionMessageService'
 import { messageService } from '@main/data/services/MessageService'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
@@ -44,7 +43,6 @@ import type {
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
-const PENDING_ABORT_TTL_MS = 5000
 
 // Renderer→main stream requests (open/attach/detach/abort) are validated by the IpcApi
 // router against `aiRequestSchemas` (src/shared/ipc/schemas/ai.ts) before reaching the
@@ -81,6 +79,7 @@ export interface SendModelSpec {
   modelId: UniqueModelId
   request: AiStreamRequest
   rootSpan?: Span
+  abortController?: AbortController
 }
 
 export interface SendInput {
@@ -107,6 +106,7 @@ export interface StartRuntimeTurnInput {
   request: AiStreamRequest
   listeners: StreamListener[]
   rootSpan?: Span
+  abortController?: AbortController
 }
 
 // ── Inspection snapshots ────────────────────────────────────────────
@@ -200,7 +200,6 @@ export class AiStreamManager extends BaseService {
   /** Topics whose steer continuation is mid-launch — dedups `scheduleNextChatTurn`, mirroring the
    *  agent runtime's `startingNextTurn`. */
   private readonly startingNextChatTopicIds = new Set<string>()
-  private readonly pendingAborts = new Map<string, { reason: string; expiresAt: number; messageIds: Set<string> }>()
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
   readonly chatLifecycle: StreamLifecycle
 
@@ -359,11 +358,18 @@ export class AiStreamManager extends BaseService {
     const isMultiModel = input.models.length > 1
     const executions = new Map<UniqueModelId, StreamExecution>()
 
-    for (const { modelId, request, rootSpan } of input.models) {
+    for (const { modelId, request, rootSpan, abortController } of input.models) {
       if (executions.has(modelId)) {
         throw new Error(`send() got duplicate modelId ${modelId} for topic ${input.topicId}`)
       }
-      const exec = this.createAndLaunchExecution(input.topicId, modelId, request, input.siblingsGroupId, rootSpan)
+      const exec = this.createAndLaunchExecution(
+        input.topicId,
+        modelId,
+        request,
+        input.siblingsGroupId,
+        rootSpan,
+        abortController
+      )
       executions.set(modelId, exec)
     }
 
@@ -383,8 +389,9 @@ export class AiStreamManager extends BaseService {
     // Chat broadcasts to SharedCache so `useChatWithHistory.resumeActiveStream` can attach; prompt is silent.
     stream.lifecycle.onCreated(stream)
 
-    const pendingAbort = this.consumePendingAbort(input.topicId, input.models)
-    if (pendingAbort) this.abort(input.topicId, pendingAbort.reason)
+    if ([...executions.values()].every((exec) => exec.abortController.signal.aborted)) {
+      stream.status = 'aborted'
+    }
 
     return {
       mode: 'started',
@@ -443,7 +450,14 @@ export class AiStreamManager extends BaseService {
 
     return this.send({
       topicId: input.topicId,
-      models: [{ modelId: input.modelId, request: input.request, rootSpan: input.rootSpan }],
+      models: [
+        {
+          modelId: input.modelId,
+          request: input.request,
+          rootSpan: input.rootSpan,
+          abortController: input.abortController
+        }
+      ],
       listeners: [...carriedListeners, ...input.listeners]
     })
   }
@@ -549,15 +563,7 @@ export class AiStreamManager extends BaseService {
     const stream = this.activeStreams.get(topicId)
     if (!stream || !isLiveStatus(stream.status)) {
       if (isAgentSessionTopic(topicId)) {
-        const sessionId = extractAgentSessionId(topicId)
-        const pausedMessageIds = agentSessionMessageService.markPendingAssistantPlaceholdersPaused(sessionId)
-        if (pausedMessageIds.length > 0) {
-          this.pendingAborts.set(topicId, {
-            reason,
-            expiresAt: Date.now() + PENDING_ABORT_TTL_MS,
-            messageIds: new Set(pausedMessageIds)
-          })
-        }
+        application.get('AgentSessionRuntimeService').abortPendingTurn(extractAgentSessionId(topicId), reason)
       }
       return
     }
@@ -572,17 +578,6 @@ export class AiStreamManager extends BaseService {
     // only runs after the loop settles asynchronously. A steer enqueue landing in that window reads
     // this 'aborted' off the in-grace stream and drops, instead of draining after Stop.
     stream.status = 'aborted'
-  }
-
-  private consumePendingAbort(topicId: string, models: ReadonlyArray<SendModelSpec>): { reason: string } | undefined {
-    const pendingAbort = this.pendingAborts.get(topicId)
-    if (!pendingAbort) return undefined
-    this.pendingAborts.delete(topicId)
-    if (pendingAbort.expiresAt < Date.now()) return undefined
-    if (!models.some(({ request }) => request.messageId && pendingAbort.messageIds.has(request.messageId))) {
-      return undefined
-    }
-    return { reason: pendingAbort.reason }
   }
 
   // ── Execution loop callbacks ──────────────────────────────────────
@@ -991,14 +986,15 @@ export class AiStreamManager extends BaseService {
     modelId: UniqueModelId,
     request: AiStreamRequest,
     siblingsGroupId?: number,
-    rootSpan?: Span
+    rootSpan?: Span,
+    abortController?: AbortController
   ): StreamExecution {
     // `loopPromise` is overwritten right after launch; initialise to a resolved sentinel
     // so the `exec` object reference is stable inside the arrow function below.
     const exec: StreamExecution = {
       modelId,
       anchorMessageId: request.messageId,
-      abortController: new AbortController(),
+      abortController: abortController ?? new AbortController(),
       status: 'streaming',
       buffer: [],
       droppedChunks: 0,

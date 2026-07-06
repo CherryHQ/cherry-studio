@@ -58,16 +58,10 @@ class FakeListener implements StreamListener {
 
 // ── Mocks ───────────────────────────────────────────────────────────
 
-const markPendingAgentSessionPlaceholdersPausedMock = vi.fn()
+const mockAbortPendingTurn = vi.fn<(sessionId: string, reason: string) => boolean>(() => false)
 
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: { create: vi.fn().mockResolvedValue({ id: 'msg-001' }) }
-}))
-
-vi.mock('@main/data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: {
-    markPendingAssistantPlaceholdersPaused: markPendingAgentSessionPlaceholdersPausedMock
-  }
 }))
 
 // Default mock: never-closing stream so the execution loop parks in `reader.read()`
@@ -137,7 +131,7 @@ vi.mock('@application', async () => {
     AiService: { streamText: mockStreamText },
     CacheService: fakeCacheService,
     TraceStorageService: { saveSpans: mockSaveSpans },
-    AgentSessionRuntimeService: { willContinueTopic: mockWillContinueTopic }
+    AgentSessionRuntimeService: { willContinueTopic: mockWillContinueTopic, abortPendingTurn: mockAbortPendingTurn }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
@@ -183,11 +177,12 @@ function startSingle(
     request: AiStreamRequest
     listeners: StreamListener[]
     siblingsGroupId?: number
+    abortController?: AbortController
   }
 ) {
   manager.send({
     topicId: opts.topicId,
-    models: [{ modelId: opts.modelId, request: opts.request }],
+    models: [{ modelId: opts.modelId, request: opts.request, abortController: opts.abortController }],
     listeners: opts.listeners,
     siblingsGroupId: opts.siblingsGroupId
   })
@@ -210,7 +205,7 @@ describe('AiStreamManager', () => {
     )
     mockSaveSpans.mockResolvedValue(undefined)
     mockWillContinueTopic.mockReturnValue(false)
-    markPendingAgentSessionPlaceholdersPausedMock.mockReturnValue([])
+    mockAbortPendingTurn.mockReturnValue(false)
     sharedCacheStore.clear()
   })
 
@@ -267,8 +262,12 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('a')).toBeUndefined()
     })
 
-    it('pauses agent-session placeholders for a pre-stream stop request', async () => {
-      markPendingAgentSessionPlaceholdersPausedMock.mockReturnValueOnce(['assistant-paused'])
+    it('aborts the agent-session turn controller for a pre-stream stop request', async () => {
+      const turnAbortController = new AbortController()
+      mockAbortPendingTurn.mockImplementationOnce((_sessionId, reason) => {
+        turnAbortController.abort(reason)
+        return true
+      })
       const listener = new FakeListener('l:agent')
 
       mgr.abort('agent-session:session-1', 'user-requested')
@@ -276,29 +275,38 @@ describe('AiStreamManager', () => {
         topicId: 'agent-session:session-1',
         modelId: 'provider-a::model-a',
         request: { ...req('agent-session:session-1'), messageId: 'assistant-paused' },
-        listeners: [listener]
+        listeners: [listener],
+        abortController: turnAbortController
       })
 
-      expect(markPendingAgentSessionPlaceholdersPausedMock).toHaveBeenCalledWith('session-1')
+      expect(mockAbortPendingTurn).toHaveBeenCalledWith('session-1', 'user-requested')
       expect(snap.status).toBe('aborted')
 
       await vi.advanceTimersByTimeAsync(0)
       expect(listener.pausedResults).toHaveLength(1)
     })
 
-    it('does not apply a stale pre-stream stop request to a different agent-session placeholder', () => {
-      markPendingAgentSessionPlaceholdersPausedMock.mockReturnValueOnce(['assistant-paused'])
+    it('does not apply an old pre-stream stop request to a new agent-session turn controller', () => {
+      const oldTurnAbortController = new AbortController()
+      const newTurnAbortController = new AbortController()
+      mockAbortPendingTurn.mockImplementationOnce((_sessionId, reason) => {
+        oldTurnAbortController.abort(reason)
+        return true
+      })
 
       mgr.abort('agent-session:session-1', 'user-requested')
       const snap = startSingle(mgr, {
         topicId: 'agent-session:session-1',
         modelId: 'provider-a::model-a',
         request: { ...req('agent-session:session-1'), messageId: 'assistant-new' },
-        listeners: [new FakeListener('l:agent')]
+        listeners: [new FakeListener('l:agent')],
+        abortController: newTurnAbortController
       })
 
       expect(snap.status).toBe('pending')
       expect(snap.executions[0].abortSignal.aborted).toBe(false)
+      expect(oldTurnAbortController.signal.aborted).toBe(true)
+      expect(newTurnAbortController.signal.aborted).toBe(false)
     })
 
     it('evicts finished stream and creates new one', async () => {
