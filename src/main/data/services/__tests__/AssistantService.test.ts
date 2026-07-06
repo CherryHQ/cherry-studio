@@ -97,8 +97,7 @@ describe('AssistantDataService', () => {
       status: 'completed',
       error: null,
       chunkSize: 1024,
-      chunkOverlap: 200,
-      searchMode: 'hybrid'
+      chunkOverlap: 200
     })
   }
 
