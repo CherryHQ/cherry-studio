@@ -1,7 +1,7 @@
 import type { TooltipProps } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { CommandTooltip } from '@renderer/components/command'
-import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/icons'
+import { SidebarCollapseIcon, SidebarExpandIcon } from '@renderer/components/icons/SidebarToggleIcons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { t } from 'i18next'
 import type { ComponentProps } from 'react'

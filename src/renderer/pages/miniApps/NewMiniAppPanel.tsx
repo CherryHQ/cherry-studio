@@ -11,7 +11,7 @@ import {
   Input
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { LogoAvatar } from '@renderer/components/icons'
+import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { compressImage, convertToBase64 } from '@renderer/utils/image'
@@ -166,7 +166,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent aria-describedby={undefined} className="sm:max-w-md">
+      <DialogContent closeOnOverlayClick={false} aria-describedby={undefined} className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
             {t(isEditing ? 'settings.miniApps.custom.edit_title' : 'settings.miniApps.custom.create_title')}

@@ -15,7 +15,7 @@ import {
   getMessageEnterMotionVariant,
   useMessageEnterMotionActive
 } from '../../motion/messageEnterMotion'
-import { useMessageParts } from '../blocks'
+import { useMessageParts } from '../blocks/MessagePartsContext'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
   useMessageListActions,

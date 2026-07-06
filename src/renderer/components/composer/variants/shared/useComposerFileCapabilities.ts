@@ -1,6 +1,6 @@
 import { isAudioModel, isAudioModels, isVideoModel, isVideoModels } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
-import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file/fileExtensions'
+import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 import { useMemo } from 'react'
 
 export interface ComposerFileCapabilities {

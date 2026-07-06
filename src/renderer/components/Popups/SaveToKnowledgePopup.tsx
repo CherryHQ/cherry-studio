@@ -13,7 +13,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/tags/CustomTag'
-import { TopView } from '@renderer/components/TopView'
+import { TopView } from '@renderer/components/TopView/TopView'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { analyzeTopicContent, processTopicContent } from '@renderer/services/knowledgeContent'
@@ -506,7 +506,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
             {title ||

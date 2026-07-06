@@ -1,0 +1,125 @@
+/**
+ * Renderer helpers that call the AI (`ai.generate_text`) to produce short text:
+ * generic text generation plus topic/note auto-naming. Stateless request/response.
+ */
+import { preferenceService } from '@data/PreferenceService'
+import { loggerService } from '@logger'
+import i18n from '@renderer/i18n'
+import { ipcApi } from '@renderer/ipc'
+import type { Assistant } from '@renderer/types/assistant'
+import type { ExportableMessage } from '@renderer/types/messageExport'
+import { getErrorMessage } from '@renderer/utils/error'
+import { purifyMarkdownImages } from '@renderer/utils/markdown'
+import { getNamingTextContent } from '@renderer/utils/message/find'
+import { readDefaultModel, readQuickModel } from '@renderer/utils/model'
+import { removeSpecialCharactersForTopicName } from '@renderer/utils/naming'
+import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
+import type { Model } from '@shared/data/types/model'
+import { isFileUIPart } from 'ai'
+import { takeRight } from 'es-toolkit/compat'
+
+const logger = loggerService.withContext('aiGeneration')
+
+export async function fetchMessagesSummary({
+  messages
+}: {
+  messages: ExportableMessage[]
+}): Promise<{ text: string | null; error?: string }> {
+  let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
+  const model = await readQuickModel()
+  if (!model) {
+    return { text: null, error: i18n.t('error.model.not_exists') }
+  }
+
+  if (prompt && containsSupportedVariables(prompt)) {
+    prompt = await replacePromptVariables(prompt, model.name)
+  }
+
+  // 取最后5条消息，结构化为 JSON
+  const contextMessages = takeRight(messages, 5)
+  const structuredMessages = contextMessages.map((message) => {
+    const fileList = (message.parts ?? [])
+      .filter(isFileUIPart)
+      .filter((p) => !p.mediaType?.startsWith('image/'))
+      .map((p) => p.filename)
+      .filter((name): name is string => Boolean(name))
+    return {
+      role: message.role,
+      mainText: purifyMarkdownImages(getNamingTextContent(message)),
+      files: fileList.length > 0 ? fileList : undefined
+    }
+  })
+  const conversation = JSON.stringify(structuredMessages)
+
+  try {
+    const { text } = await ipcApi.request('ai.generate_text', {
+      uniqueModelId: model.id,
+      system: prompt,
+      prompt: conversation
+    })
+
+    const result = removeSpecialCharactersForTopicName(text)
+    return result ? { text: result } : { text: null, error: i18n.t('error.no_response') }
+  } catch (error: unknown) {
+    return { text: null, error: getErrorMessage(error) }
+  }
+}
+
+export async function fetchNoteSummary({ content }: { content: string; assistant?: Assistant }) {
+  let prompt = (await preferenceService.get('topic.naming_prompt')) || i18n.t('prompts.title')
+  // Note summarisation always uses the quick-assistant model. The optional
+  // assistant parameter was a v1 escape hatch (read assistant.model); in v2 the
+  // assistant has no embedded model, so we go straight to the user's quick
+  // model preference.
+  const model = (await readQuickModel()) ?? (await readDefaultModel())
+  if (!model) return null
+
+  if (prompt && containsSupportedVariables(prompt)) {
+    prompt = await replacePromptVariables(prompt, model.name)
+  }
+
+  // only 2000 chars, no images
+  const purifiedContent = purifyMarkdownImages(content.substring(0, 2000))
+
+  try {
+    const { text } = await ipcApi.request('ai.generate_text', {
+      uniqueModelId: model.id,
+      system: prompt,
+      prompt: purifiedContent
+    })
+    return removeSpecialCharactersForTopicName(text) || null
+  } catch (error: any) {
+    return null
+  }
+}
+
+export async function fetchGenerate({
+  prompt,
+  content,
+  model,
+  throwOnError = false
+}: {
+  prompt: string
+  content: string
+  model?: Model
+  throwOnError?: boolean
+}): Promise<string> {
+  try {
+    const resolvedModel = model ?? (await readDefaultModel())
+    if (!resolvedModel) {
+      logger.error('fetchGenerate: no model available')
+      if (throwOnError) throw new Error(i18n.t('error.model.not_exists'))
+      return ''
+    }
+    const { text } = await ipcApi.request('ai.generate_text', {
+      uniqueModelId: resolvedModel.id,
+      system: prompt,
+      prompt: content
+    })
+    return text || ''
+  } catch (error: any) {
+    logger.error('fetchGenerate failed', error)
+    if (throwOnError) throw error
+    return ''
+  }
+}

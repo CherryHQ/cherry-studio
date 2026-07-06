@@ -32,8 +32,8 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
-  ConversationShell: (props: any) => {
+vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
+  default: (props: any) => {
     conversationShellProps.current = props
     return (
       <div data-testid="conversation-shell">
@@ -44,8 +44,7 @@ vi.mock('@renderer/components/chat', () => ({
         {props.rightPane}
       </div>
     )
-  },
-  OverlayHost: ({ children }: { children: ReactNode }) => <>{children}</>
+  }
 }))
 
 vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({

@@ -204,7 +204,7 @@ describe('internal/content/write', () => {
       await utimes(physical, 1700000000, 1700000000)
       // Caller pre-computed the hash from a prior read; supplies it to opt
       // into the hash fallback on this ambiguous-mtime filesystem.
-      const { hash } = await import('@main/utils/file/fs')
+      const { hash } = await import('@main/utils/file')
       const actualHash = await hash(physical)
       const expected: FileVersion = { mtime: 1700000000_000, size: 4 }
       const next = await writeIfUnchanged(deps, e.id, new Uint8Array([9, 8, 7, 6]), expected, actualHash)
@@ -304,7 +304,7 @@ describe('internal/content/write', () => {
       // Sentry can group these — a downgrade to .message string would slip
       // through CI without this assertion.
       const { createWriteStream } = await import('../write')
-      const fsModule = await import('@main/utils/file/fs')
+      const fsModule = await import('@main/utils/file')
       const e = await createInternal(deps, {
         source: 'bytes',
         data: new Uint8Array([0x01]),
