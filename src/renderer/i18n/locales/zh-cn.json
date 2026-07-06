@@ -8,7 +8,7 @@
       },
       "model": {
         "supported_providers": "支持的服务商",
-        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于智能体功能。",
+        "tooltip": "目前大多数聊天模型可用于智能体，暂不支持 Gemini 服务商。",
         "view_providers": "查看支持的服务商"
       },
       "title": "添加智能体",
@@ -1460,6 +1460,7 @@
       "pause": "暂停",
       "placeholder": "输入消息，按 {{key}} 发送，输入 / 选择工具或操作",
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
+      "resize_height": "调整输入框高度",
       "resource_panel": {
         "categories": {
           "agents": "Agents",
@@ -1478,6 +1479,7 @@
         },
         "title": "资源"
       },
+      "restore": "还原",
       "send": "发送",
       "send_failed": "消息发送失败",
       "settings": "设置",
@@ -4434,7 +4436,7 @@
     },
     "generate_failed": "生成图像失败",
     "generated_image": "生成图片",
-    "generating": "生成中...",
+    "generating": "绘图进行中，请不要离开页面",
     "go_to_settings": "去设置",
     "guidance_scale": "引导比例",
     "guidance_scale_tip": "无分类器指导 ({{min}}-{{max}})。控制模型在寻找相关图像时对提示词的遵循程度",
