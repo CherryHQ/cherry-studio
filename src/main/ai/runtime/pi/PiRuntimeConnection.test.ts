@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   reload: vi.fn(),
   createAgentSession: vi.fn(),
   prompt: vi.fn(),
+  compact: vi.fn(),
   steer: vi.fn(),
   abort: vi.fn(),
   dispose: vi.fn(),
@@ -64,6 +65,7 @@ const fakeSession = {
     return mocks.steeringMode
   },
   prompt: mocks.prompt,
+  compact: mocks.compact,
   steer: mocks.steer,
   abort: mocks.abort,
   dispose: mocks.dispose,
@@ -119,6 +121,14 @@ async function collectUntilTerminal(events: AsyncIterable<AgentRuntimeEvent>): P
   return out
 }
 
+async function nextEventWithin(events: AsyncIterable<AgentRuntimeEvent>): Promise<AgentRuntimeEvent | undefined> {
+  const iter = events[Symbol.asyncIterator]()
+  return Promise.race([
+    iter.next().then(({ value, done }) => (done ? undefined : value)),
+    new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 20))
+  ])
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   toolApprovalRegistry.clear('test-reset')
@@ -146,6 +156,7 @@ beforeEach(() => {
   mocks.sessionCreate.mockReturnValue({})
   mocks.sessionOpen.mockReturnValue({})
   mocks.prompt.mockResolvedValue(undefined)
+  mocks.compact.mockResolvedValue({})
   mocks.steer.mockResolvedValue(undefined)
   mocks.abort.mockResolvedValue(undefined)
   mocks.getContextUsage.mockReturnValue(undefined)
@@ -214,6 +225,86 @@ describe('PiRuntimeConnection', () => {
     expect(terminal).toHaveLength(1)
     expect(events.at(-1)?.type).toBe('turn-complete')
     expect(events.some((e) => e.type === 'resume-token' && e.token === SESSION_FILE)).toBe(true)
+  })
+
+  it('send routes normal messages to prompt', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('hello'))
+    await Promise.resolve()
+
+    expect(mocks.prompt).toHaveBeenCalledWith('hello', undefined)
+    expect(mocks.compact).not.toHaveBeenCalled()
+  })
+
+  it('send routes /compact to compact without prompting', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('/compact'))
+    await Promise.resolve()
+
+    expect(mocks.compact).toHaveBeenCalledWith(undefined)
+    expect(mocks.prompt).not.toHaveBeenCalled()
+  })
+
+  it('send passes /compact instructions to compact', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('/compact focus on the API changes'))
+    await Promise.resolve()
+
+    expect(mocks.compact).toHaveBeenCalledWith('focus on the API changes')
+    expect(mocks.prompt).not.toHaveBeenCalled()
+  })
+
+  it('completes the host turn after a manual compact succeeds', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('/compact'))
+    mocks.subscribeCb!({ type: 'compaction_start', reason: 'manual' } as unknown as AgentSessionEvent)
+    mocks.subscribeCb!({
+      type: 'compaction_end',
+      reason: 'manual',
+      result: { summary: 's', firstKeptEntryId: 'e' },
+      aborted: false,
+      willRetry: false
+    } as unknown as AgentSessionEvent)
+
+    const events = await collectUntilTerminal(conn.events)
+    const completeIndex = events.findIndex((e) => e.type === 'compaction-complete')
+    const turnIndex = events.findIndex((e) => e.type === 'turn-complete')
+    expect(completeIndex).toBeGreaterThanOrEqual(0)
+    expect(turnIndex).toBe(completeIndex + 1)
+  })
+
+  it('does not complete the host turn after an auto compaction ends', async () => {
+    const conn = await new PiRuntimeConnection(input).start()
+    mocks.subscribeCb!({
+      type: 'compaction_end',
+      reason: 'threshold',
+      result: { summary: 's', firstKeptEntryId: 'e' },
+      aborted: false,
+      willRetry: false
+    } as unknown as AgentSessionEvent)
+
+    expect(await nextEventWithin(conn.events)).toMatchObject({ type: 'resume-token' })
+    expect(await nextEventWithin(conn.events)).toMatchObject({ type: 'compaction-complete' })
+    expect(await nextEventWithin(conn.events)).toBeUndefined()
+  })
+
+  it('surfaces compact rejection as an error and clears the manual turn flag', async () => {
+    mocks.compact.mockRejectedValueOnce(new Error('compact rejected'))
+    const conn = await new PiRuntimeConnection(input).start()
+    conn.send(userInput('/compact'))
+
+    const events = await collectUntilTerminal(conn.events)
+    expect(events.find((e) => e.type === 'error')).toMatchObject({ error: new Error('compact rejected') })
+
+    mocks.subscribeCb!({
+      type: 'compaction_end',
+      reason: 'manual',
+      result: { summary: 's', firstKeptEntryId: 'e' },
+      aborted: false,
+      willRetry: false
+    } as unknown as AgentSessionEvent)
+    expect(await nextEventWithin(conn.events)).toMatchObject({ type: 'compaction-complete' })
+    expect(await nextEventWithin(conn.events)).toBeUndefined()
   })
 
   it('redirect returns false when no live turn', async () => {

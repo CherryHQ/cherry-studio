@@ -17,7 +17,12 @@ const CLAUDE_CODE_BUILTIN_COMMANDS: SlashCommand[] = [
   { command: '/usage', description: 'Show session cost, plan usage limits, and activity stats' }
 ]
 
+const PI_BUILTIN_COMMANDS: SlashCommand[] = [
+  { command: '/compact', description: 'Compact conversation with optional focus instructions' }
+]
+
 export function getBuiltinSlashCommands(agentType: AgentType | string | undefined): SlashCommand[] {
   if (agentType === 'claude-code') return CLAUDE_CODE_BUILTIN_COMMANDS
+  if (agentType === 'pi') return PI_BUILTIN_COMMANDS
   return []
 }

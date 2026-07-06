@@ -84,6 +84,9 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   /** Live tool policy read by the approval extension at fire-time (plan D4). */
   private permissionMode: AgentPermissionMode = 'default'
   private disabledTools = new Set<string>()
+  /** Manual compact is a Cherry user turn, but pi only emits compaction events for `compact()` —
+   *  no `agent_end`. This flag lets that path close exactly one host turn without making auto-compacts terminal. */
+  private manualCompactInFlight = false
   /** Steers accepted by pi but not yet observed as delivered. pi emits the delivery boundary as a
    *  user `message_start`; default steering mode is one-at-a-time, so the delivery drain is mode-aware. */
   private readonly pendingSteers: PendingSteer[] = []
@@ -203,7 +206,25 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       this.eventQueue.push({ type: 'error', error: new Error('pi session is not started') })
       return
     }
-    // Native steer lives in redirect() (plan D6); send() starts normal turns.
+    const manualCompact = parseManualCompactCommand(content)
+    if (manualCompact) {
+      this.manualCompactInFlight = true
+      void session.compact(manualCompact.instructions || undefined).then(
+        // compaction_end normally settles the turn first (events fire before resolve); this
+        // settles the no-op case where pi resolves without emitting any compaction event.
+        () => this.maybeCompleteManualCompactTurn(),
+        (error) => {
+          this.manualCompactInFlight = false
+          if (this.closed) return
+          logger.error('pi compact failed', error as Error)
+          this.eventQueue.push({ type: 'error', error })
+        }
+      )
+      return
+    }
+
+    // Native steer lives in redirect() (plan D6); send() starts normal turns. pi only exposes
+    // `/compact` as an SDK method; other Claude CLI commands stay Claude-only slash text.
     // `followUp` is a defensive guard in case a message arrives while a turn is still winding down.
     const options = session.isStreaming ? ({ streamingBehavior: 'followUp' } as const) : undefined
     void session.prompt(content, options).catch((error) => {
@@ -334,9 +355,17 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     if (event.willRetry) return
     if (event.errorMessage || event.aborted) {
       this.eventQueue.push({ type: 'compaction-error', error: event.errorMessage ?? 'pi compaction aborted' })
+      this.maybeCompleteManualCompactTurn()
       return
     }
     this.eventQueue.push({ type: 'compaction-complete', anchor: buildCompactionAnchor(event.reason, event.result) })
+    this.maybeCompleteManualCompactTurn()
+  }
+
+  private maybeCompleteManualCompactTurn(): void {
+    if (!this.manualCompactInFlight) return
+    this.manualCompactInFlight = false
+    this.eventQueue.push({ type: 'turn-complete' })
   }
 
   private takeDeliveredSteers(): AgentRuntimeUserInput[] {
@@ -400,6 +429,12 @@ function assertResumeTokenInSessionDir(resumeToken: string, sessionDir: string):
  *  anchor only distinguishes user-initiated from auto. */
 function mapCompactionTrigger(reason: 'manual' | 'threshold' | 'overflow'): AgentSessionCompactionTrigger {
   return reason === 'manual' ? 'manual' : 'auto'
+}
+
+function parseManualCompactCommand(content: string): { instructions: string } | undefined {
+  const trimmed = content.trim()
+  if (!/^\/compact(?:\s|$)/.test(trimmed)) return undefined
+  return { instructions: trimmed.slice('/compact'.length).trim() }
 }
 
 function buildCompactionAnchor(
