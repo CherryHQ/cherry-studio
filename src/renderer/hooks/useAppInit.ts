@@ -1,6 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
-import db from '@renderer/databases'
+import db from '@renderer/databases/db'
 import { useAppUpdateHandler } from '@renderer/hooks/useAppUpdate'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import i18n, { setDayjsLocale } from '@renderer/i18n/resolver'

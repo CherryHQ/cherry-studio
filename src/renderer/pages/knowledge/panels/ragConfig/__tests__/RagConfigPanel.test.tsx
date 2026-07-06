@@ -158,8 +158,11 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('../../../hooks', () => ({
-  useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base),
+vi.mock('../../../hooks/useKnowledgeRagConfig', () => ({
+  useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base)
+}))
+
+vi.mock('../../../hooks/useEmbeddingDimensions', () => ({
   useEmbeddingDimensions: () => ({
     fetchDimensions: async (uniqueModelId: string) => {
       const { embeddings } = await mockEmbedMany({
