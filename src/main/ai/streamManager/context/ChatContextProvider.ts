@@ -9,7 +9,7 @@ import type { Span } from '@opentelemetry/api'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
-import type { AiStreamRequest } from '../../types/requests'
+import type { AiStreamRequest } from '../../types'
 import type { StreamLifecycle } from '../lifecycle/StreamLifecycle'
 import type { StreamListener } from '../types'
 import type { MainDispatchRequest } from './dispatch'

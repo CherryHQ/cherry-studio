@@ -16,11 +16,9 @@ import { useTranslation } from 'react-i18next'
 import { KnowledgeDialogFooter } from '../../components/KnowledgeDialogLayout'
 import KnowledgePanelShell from '../../components/KnowledgePanelShell'
 import { useEmbeddingDimensions, useKnowledgeRagConfig } from '../../hooks'
-import {
-  buildKnowledgeSearchModeOptions,
-  getKnowledgeBaseFailureReason,
-  getKnowledgeRagConfigFormState
-} from '../../utils'
+import { getKnowledgeBaseFailureReason } from '../../utils/error'
+import { buildKnowledgeSearchModeOptions } from '../../utils/rag'
+import { getKnowledgeRagConfigFormState } from '../../utils/validate'
 import ChunkingSection from './ChunkingSection'
 import EmbeddingSection from './EmbeddingSection'
 import FileProcessingSection from './FileProcessingSection'

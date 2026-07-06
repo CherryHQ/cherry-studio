@@ -53,9 +53,8 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
-  OverlayHost: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  ConversationShell: ({
+vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
+  default: ({
     topBar,
     topRightTool,
     sidePanel,

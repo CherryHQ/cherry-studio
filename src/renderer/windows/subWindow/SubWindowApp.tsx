@@ -3,7 +3,7 @@ import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
-import TopViewContainer from '@renderer/components/TopView'
+import TopViewContainer from '@renderer/components/TopView/TopView'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
 
 void preferenceService.preloadAll()

@@ -156,7 +156,17 @@ After promotion: the app layer (`windows`/`routes`/`pages`) imports `@renderer/f
 
 ## 5. Public API & Boundary Enforcement
 
-- **Single entry.** Each feature exposes exactly one curated `index.ts` (explicit named exports, **no `export *`**). External consumers import the barrel; reaching into a feature's internal files is forbidden. (VS Code applies the same rule: one contribution may import only another's single public `common/` API, never its internals.)
+- **Single entry.** Each feature exposes exactly one curated `index.ts` (explicit named exports, **no `export *`**). External consumers import the barrel; reaching into a feature's internal files is forbidden. Barrel rules — including *no nesting* and *enforced-entry-or-no-barrel* — are the cross-process set in [Naming §6.4](./naming-conventions.md); this is its feature-tier application. (VS Code applies the same rule: one contribution may import only another's single public `common/` API, never its internals.)
+- **Lazy loading goes through the same door.** Dynamic `import()` obeys [Naming §6.4](./naming-conventions.md) rule 2 like any import: `React.lazy(() => import('@renderer/features/chat').then(m => ({ default: m.ChatPage })))` — map the named export at the call site rather than deep-importing an internal file for its default export. Only a feature's own code may lazy-load its internals.
+- **Component directories.** A single-file component stays flat (`components/Foo.tsx`, no directory). Promote to a directory only when it owns private satellites (sub-components, hooks, helpers, styles); the main implementation is then a **named** file, and the directory exposes a barrel that closes the satellites off. The barrel is `index.ts` — **never `index.tsx`**: a re-export has no JSX, so a component's `Foo/index.tsx` is the classic double mistake here (implementation *and* wrong extension). The `index` name is reserved for the barrel ([Naming §6.4](./naming-conventions.md)):
+
+  ```
+  components/Foo.tsx          # single-file → flat, no directory
+  components/Bar/             # multi-file → named impl + barrel door
+    Bar.tsx                   #   main implementation (never index.tsx)
+    components/BarRow.tsx     #   private satellite, closed off by the barrel
+    index.ts                  #   .ts, not .tsx (re-export has no JSX): export { Bar } from './Bar'
+  ```
 - **Shared buckets carry no root barrel.** `types/`, `utils/`, and `services/` are *categories*, not modules: each has **no root `index.ts`** — consumers import the specific file or topic (`@renderer/types/<topic>`, `@renderer/utils/<topic>`, `@renderer/services/<topic>`), never the bucket root. A multi-file topic *subdirectory* exposes exactly one curated `index.ts` (named exports, **no `export *`**) and keeps its other files private; a single-file topic stays a flat `<topic>.ts` and is promoted to a subdirectory only when it actually owns multiple files. This mirrors [Shared Layer Architecture §3.1](./shared-layer-architecture.md) one-for-one — same rule, the bucket merely lives under `@renderer/*` instead of `@shared/*`.
 - **Mechanical enforcement.** Boundaries are enforced by lint, not by convention alone. The `import/no-restricted-paths` zones are configured: `components`/`hooks`/`utils`/`services` may not import `features`/`pages`; `pages` may not import another `pages`; `packages/ui` may not import `@renderer/*`. The shared-layer edges are enforced at `error`; the sibling-page (`pages → pages`) edges remain at `warn` pending features-ization.
 

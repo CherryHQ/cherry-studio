@@ -1,5 +1,4 @@
 import { noteService } from '@data/services/NoteService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
   DeleteNoteQuerySchema,
   ListNoteQuerySchema,
@@ -7,6 +6,7 @@ import {
   RewriteNotePathSchema,
   UpsertNoteSchema
 } from '@shared/data/api/schemas/notes'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const noteHandlers: HandlersFor<NoteSchemas> = {
   '/notes': {

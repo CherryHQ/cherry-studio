@@ -64,6 +64,8 @@ Routing between the two follows the [Naming Conventions §5.2](./naming-conventi
 
 ### 3.1 File vs subdirectory, and barrels
 
+Barrels obey [Naming §6.4](./naming-conventions.md) (the cross-process authority); this section covers only the `@shared` specifics.
+
 - **A single `.ts` file is the default.** Most topics are one file — `types/<topic>.ts`, `utils/<topic>.ts`, imported directly. Promote to a subdirectory only when the topic actually owns multiple files ([Naming Conventions §4.4](./naming-conventions.md)); never pre-create one.
 - **A topic subdirectory has exactly one `index.ts`** as its public API — `types/<topic>/index.ts`, `utils/<topic>/index.ts`, explicit named exports, no `export *`. The import surface is then identical whether the topic is a file or a subdir (`@shared/utils/<topic>` either way), and the subdir's other files stay private behind it.
 - **The bucket roots `types/` and `utils/` have no `index.ts`.** A bucket is a category, not a module — a root barrel re-exporting every file buys no aggregate API and only adds churn and import-cycle risk on every addition. Import the specific file or topic, never the bucket.

@@ -1,5 +1,5 @@
-import type { FileEntryId } from '@shared/data/types/file'
-import type { FileEntryHandle, FileHandle, FilePath, FilePathHandle } from '@shared/types/file'
+import type { FileEntryHandle, FileEntryId, FileHandle, FilePathHandle } from '@shared/data/types/file'
+import type { FilePath } from '@shared/types/file'
 
 /**
  * Wrap a FileEntry ID as a `FileEntryHandle`.
