@@ -1,6 +1,5 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
-import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -151,16 +150,7 @@ export class AgentService {
     const row = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
-          if (skillIds.length > 0) {
-            const rows = tx
-              .select({ id: agentGlobalSkillTable.id })
-              .from(agentGlobalSkillTable)
-              .where(inArray(agentGlobalSkillTable.id, skillIds))
-              .all()
-            if (rows.length !== skillIds.length) {
-              throw DataApiErrorFactory.invalidOperation('create agent', 'a selected skill no longer exists')
-            }
-          }
+          getDataService('AgentGlobalSkillService').assertSkillsExistTx(tx, skillIds, 'create agent')
           const result = this.createAgentTx(tx, id, insertData)
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
@@ -350,6 +340,11 @@ export class AgentService {
     const newMcps = updates.mcps
     const newSkillIds = updates.skillIds
 
+    // Same two-step validation as createAgent: pre-check each id outside the write
+    // tx so a missing skill surfaces as `Skill` not-found (not the Agent FK
+    // fallback). The in-tx recheck that closes the delete-after-prevalidation race
+    // lives inside AgentGlobalSkillService.replaceJoinByAgentTx. Resolved via the
+    // registry to keep the service↔service edge out of the static import graph.
     if (newSkillIds !== undefined) {
       for (const skillId of newSkillIds) {
         if (!getDataService('AgentGlobalSkillService').getById(skillId)) {

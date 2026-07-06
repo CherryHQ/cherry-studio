@@ -154,19 +154,31 @@ export class AgentGlobalSkillService {
       .run()
   }
 
+  /**
+   * Assert every id in `skillIds` still exists in `agent_global_skill` within the
+   * caller's write tx. Callers pre-validate the same ids outside the tx to surface
+   * a precise `Skill` not-found error; this in-tx recheck closes the
+   * delete-after-prevalidation race. `operation` labels the resulting error (e.g.
+   * 'create agent', 'update agent'). Dedupes internally so the count comparison
+   * holds even if the caller passes duplicates.
+   */
+  assertSkillsExistTx(tx: DbOrTx, skillIds: readonly string[], operation: string): void {
+    const uniqueSkillIds = Array.from(new Set(skillIds))
+    if (uniqueSkillIds.length === 0) return
+
+    const rows = tx
+      .select({ id: agentGlobalSkillTable.id })
+      .from(agentGlobalSkillTable)
+      .where(inArray(agentGlobalSkillTable.id, uniqueSkillIds))
+      .all()
+    if (rows.length !== uniqueSkillIds.length) {
+      throw DataApiErrorFactory.invalidOperation(operation, 'a selected skill no longer exists')
+    }
+  }
+
   replaceJoinByAgentTx(tx: DbOrTx, agentId: string, skillIds: readonly string[]): void {
     const uniqueSkillIds = Array.from(new Set(skillIds))
-
-    if (uniqueSkillIds.length > 0) {
-      const rows = tx
-        .select({ id: agentGlobalSkillTable.id })
-        .from(agentGlobalSkillTable)
-        .where(inArray(agentGlobalSkillTable.id, uniqueSkillIds))
-        .all()
-      if (rows.length !== uniqueSkillIds.length) {
-        throw DataApiErrorFactory.invalidOperation('update agent', 'a selected skill no longer exists')
-      }
-    }
+    this.assertSkillsExistTx(tx, uniqueSkillIds, 'update agent')
 
     tx.delete(agentSkillTable).where(eq(agentSkillTable.agentId, agentId)).run()
 
