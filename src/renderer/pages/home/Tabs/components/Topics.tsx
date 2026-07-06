@@ -16,15 +16,18 @@ import {
   type ResourceListRevealRequest,
   type ResourceListSection,
   TopicListOptionsMenu,
-  TopicResourceList,
   useResourceListActions,
   useResourceListPinnedState,
   useResourceListRowState
-} from '@renderer/components/chat/resources'
-import { renderAssistantEntityIcon } from '@renderer/components/chat/resources/resourceEntityIcon'
+} from '@renderer/components/chat/resourceList/base'
+import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base/resourceEntityIcon'
+import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
+import {
+  ResourceEditDialogHost,
+  type ResourceEditDialogTarget
+} from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
@@ -39,9 +42,9 @@ import {
   useTopicMutations
 } from '@renderer/hooks/useTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
+import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'

@@ -15,12 +15,11 @@ import {
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { AgentSelector, WorkspaceSelector } from '@renderer/components/resource'
-import type { ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
-import { ModelSelector } from '@renderer/components/Selector'
+import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { isSoulModeEnabled } from '@renderer/hooks/agent/agentConfiguration'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
@@ -36,6 +35,7 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
+import { isSoulModeEnabled } from '@renderer/utils/agent/agentConfiguration'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -86,7 +86,7 @@ import { useComposerFileCapabilities } from './shared/useComposerFileCapabilitie
 
 const logger = loggerService.withContext('AgentComposer')
 const ResourceEditDialogHost = React.lazy(() =>
-  import('@renderer/components/resource/dialogs/edit/ResourceEditDialogHost').then((module) => ({
+  import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
     default: module.ResourceEditDialogHost
   }))
 )

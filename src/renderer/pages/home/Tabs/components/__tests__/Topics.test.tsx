@@ -106,7 +106,7 @@ vi.mock('@renderer/hooks/tab', () => ({
   })
 }))
 
-vi.mock('@renderer/components/resource/dialogs', () => ({
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
   ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } | null }) =>
     target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
 }))
@@ -185,7 +185,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
   }
 }))
 
-vi.mock('@renderer/services/ApiService', () => ({
+vi.mock('@renderer/utils/aiGeneration', () => ({
   fetchMessagesSummary: vi.fn().mockResolvedValue({ text: 'Auto title' })
 }))
 
@@ -222,7 +222,7 @@ vi.mock('@renderer/services/ExportService', () => ({
   topicToMarkdown: vi.fn().mockResolvedValue('# topic')
 }))
 
-vi.mock('@renderer/services/CopyService', () => ({
+vi.mock('@renderer/services/copy', () => ({
   copyTopicAsMarkdown: vi.fn(),
   copyTopicAsPlainText: vi.fn()
 }))
@@ -326,7 +326,7 @@ vi.mock('react-i18next', () => ({
 
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import type * as TopicDataApiModule from '@renderer/hooks/useTopic'
 import type { Topic } from '@renderer/types/topic'
 import type { Pin } from '@shared/data/types/pin'

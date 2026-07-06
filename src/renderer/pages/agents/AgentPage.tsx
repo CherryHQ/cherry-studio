@@ -1,13 +1,11 @@
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ConversationPageShell } from '@renderer/components/chat'
 import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
-import { AgentResourceList } from '@renderer/components/chat/resources/variants/AgentResourceList'
+import { AgentResourceList } from '@renderer/components/chat/resourceList/AgentResourceList'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import ConversationPageShell from '@renderer/components/chat/shell/ConversationPageShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
-import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import {
   createRecentSessionEntryFromSession,
   upsertGlobalSearchRecentEntry
@@ -16,7 +14,7 @@ import {
   ConversationResourceView,
   type ConversationResourceViewDefinition,
   useConversationResourceView
-} from '@renderer/components/resource/conversation'
+} from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgent, useAgents } from '@renderer/hooks/agent/useAgent'
@@ -26,7 +24,9 @@ import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { findLatestUpdated, isUntouchedSinceCreation } from '@renderer/utils/resourceEntity'

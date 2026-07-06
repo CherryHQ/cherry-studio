@@ -42,7 +42,7 @@ vi.mock('../hooks', () => ({
   useDeleteKnowledgeGroup: () => mockUseDeleteKnowledgeGroup()
 }))
 
-vi.mock('@renderer/components/app/Navbar', () => ({
+vi.mock('@renderer/components/Navbar', () => ({
   Navbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   NavbarCenter: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
@@ -112,7 +112,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('../components/navigator', () => ({
-  default: ({
+  BaseNavigator: ({
     bases,
     groups,
     width,

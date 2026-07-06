@@ -1,0 +1,68 @@
+import { Tooltip } from '@cherrystudio/ui'
+import type { ActionTool } from '@renderer/components/ActionTools'
+import { EllipsisVertical } from 'lucide-react'
+import { memo, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import CodeToolButton from './CodeToolButton'
+import { ToolWrapper } from './styles'
+
+const CodeToolbar = ({ tools }: { tools: ActionTool[] }) => {
+  const [showQuickTools, setShowQuickTools] = useState(false)
+  const { t } = useTranslation()
+
+  // 根据条件显示工具
+  const visibleTools = tools.filter((tool) => !tool.visible || tool.visible())
+
+  // 按类型分组
+  const coreTools = visibleTools.filter((tool) => tool.type === 'core')
+  const quickTools = visibleTools.filter((tool) => tool.type === 'quick')
+
+  // 点击了 more 按钮或者只有一个快捷工具时
+  const quickToolButtons = useMemo(() => {
+    if (quickTools.length === 1 || (quickTools.length > 1 && showQuickTools)) {
+      return quickTools.map((tool) => <CodeToolButton key={tool.id} tool={tool} />)
+    }
+
+    return null
+  }, [quickTools, showQuickTools])
+
+  if (visibleTools.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="pointer-events-none absolute top-1 right-2 z-10 h-6">
+      <div className="code-toolbar pointer-events-auto flex h-6 items-center gap-1">
+        {/* 有多个快捷工具时通过 more 按钮展示 */}
+        {quickToolButtons}
+        {quickTools.length > 1 && (
+          <Tooltip content={t('code_block.more')} delay={500}>
+            <ToolWrapper
+              onClick={() => setShowQuickTools(!showQuickTools)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setShowQuickTools(!showQuickTools)
+                }
+              }}
+              className={showQuickTools ? 'active' : ''}
+              role="button"
+              aria-label={t('code_block.more')}
+              aria-expanded={showQuickTools}
+              tabIndex={0}>
+              <EllipsisVertical className="tool-icon" />
+            </ToolWrapper>
+          </Tooltip>
+        )}
+
+        {/* 始终显示核心工具 */}
+        {coreTools.map((tool) => (
+          <CodeToolButton key={tool.id} tool={tool} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default memo(CodeToolbar)

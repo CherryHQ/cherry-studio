@@ -12,21 +12,16 @@ import {
   Label
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import CustomTag from '@renderer/components/Tags/CustomTag'
-import { TopView } from '@renderer/components/TopView'
+import CustomTag from '@renderer/components/tags/CustomTag'
+import { TopView } from '@renderer/components/TopView/TopView'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import { analyzeTopicContent, processTopicContent } from '@renderer/services/knowledgeContent'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { NotesTreeNode } from '@renderer/types/note'
 import type { Topic } from '@renderer/types/topic'
 import type { ContentType, MessageContentStats, TopicContentStats } from '@renderer/utils/knowledge'
-import {
-  analyzeMessageContent,
-  analyzeTopicContent,
-  CONTENT_TYPES,
-  processMessageContent,
-  processTopicContent
-} from '@renderer/utils/knowledge'
+import { analyzeMessageContent, CONTENT_TYPES, processMessageContent } from '@renderer/utils/knowledge'
 import { resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeAddItemInput } from '@shared/data/types/knowledge'
 import { Check } from 'lucide-react'
@@ -511,7 +506,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
             {title ||

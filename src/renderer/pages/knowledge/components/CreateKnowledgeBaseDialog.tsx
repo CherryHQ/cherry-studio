@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
-import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils'
+import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Group } from '@shared/data/types/group'
 import type { CreateKnowledgeBaseDto, KnowledgeBase } from '@shared/data/types/knowledge'
@@ -158,7 +158,7 @@ const CreateKnowledgeBaseDialogRoot = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="sm">
+      <DialogContent closeOnOverlayClick={false} size="sm">
         <CreateKnowledgeBaseDialog.Header title={t('knowledge.add.title')} />
 
         <CreateKnowledgeBaseDialog.Form onSubmit={handleSubmit}>

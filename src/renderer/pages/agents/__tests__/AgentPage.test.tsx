@@ -258,8 +258,8 @@ vi.mock('@renderer/hooks/useConversationNavigation', () => ({
   })
 }))
 
-vi.mock('@renderer/components/chat', () => ({
-  ConversationPageShell: ({
+vi.mock('@renderer/components/chat/shell/ConversationPageShell', () => ({
+  default: ({
     center,
     pane,
     paneOpen,
@@ -276,8 +276,11 @@ vi.mock('@renderer/components/chat', () => ({
       {pane}
       {center?.content}
     </section>
-  ),
-  ConversationShell: ({ center, pane }: { center?: ReactNode; pane?: ReactNode }) => (
+  )
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
+  default: ({ center, pane }: { center?: ReactNode; pane?: ReactNode }) => (
     <section data-testid="agent-conversation-shell">
       {pane}
       {center}
@@ -285,7 +288,7 @@ vi.mock('@renderer/components/chat', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resource/catalog', () => ({
+vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
   ResourceCatalogView: ({ resourceType, toolbarLeading }: { resourceType: string; toolbarLeading?: ReactNode }) => (
     <div data-testid={`resource-catalog-${resourceType}`}>
       {toolbarLeading && <div data-testid="resource-toolbar-leading">{toolbarLeading}</div>}
@@ -461,7 +464,7 @@ vi.mock('../AgentChat', () => ({
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
-  default: ({ onSidebarToggle }: { onSidebarToggle?: () => void }) => (
+  AgentChatNavbar: ({ onSidebarToggle }: { onSidebarToggle?: () => void }) => (
     <div data-testid="agent-chat-navbar">
       {onSidebarToggle && (
         <button type="button" onClick={onSidebarToggle}>
@@ -531,7 +534,7 @@ vi.mock('../AgentSidePanel', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat/resources/variants/AgentResourceList', () => ({
+vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
   AgentResourceList: ({
     activeAgentId,
     onAddAgent,

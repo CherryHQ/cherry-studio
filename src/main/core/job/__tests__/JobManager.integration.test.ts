@@ -27,7 +27,7 @@ import { jobTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
 import { jobService } from '@data/services/JobService'
 import { JobManager } from '@main/core/job/JobManager'
-import type { JobHandler } from '@main/core/job/types'
+import type { JobHandle, JobHandler, JobSettledEvent } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -693,6 +693,202 @@ describe('JobManager integration', () => {
       process.off('unhandledRejection', listener)
       retrySpy.mockRestore()
       terminalSpy.mockRestore()
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
+  describe('settled event payload', () => {
+    it('delivers input / parentId / final metadata to onSettled and exposes ctx.parentId', async () => {
+      const settledEvents: JobSettledEvent<{ label: string }>[] = []
+      const ctxParentIds: Array<string | null> = []
+      const handler: JobHandler<{ label: string }> = {
+        recovery: 'abandon',
+        async execute(ctx) {
+          ctxParentIds.push(ctx.parentId)
+          // Patch metadata mid-execution: the settled event must carry the
+          // FINAL merged value, not the enqueue-time one.
+          await ctx.patchMetadata({ phase: 'done' })
+          return { ok: true }
+        },
+        onSettled(event) {
+          settledEvents.push(event)
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['settled.payload', handler as JobHandler]]
+      })
+
+      // parentId has a self-referencing FK — the parent must be a real row.
+      const parent = jobManager.enqueue('settled.payload' as never, { label: 'parent' } as never)
+      await parent.finished
+
+      const child = jobManager.enqueue(
+        'settled.payload' as never,
+        { label: 'child' } as never,
+        {
+          parentId: parent.id,
+          metadata: { origin: 'test' }
+        } as never
+      )
+      const snapshot = await child.finished
+      expect(snapshot.status).toBe('completed')
+
+      expect(ctxParentIds).toEqual([null, parent.id])
+      expect(settledEvents).toHaveLength(2)
+      const childEvent = settledEvents[1]
+      expect(childEvent.input).toEqual({ label: 'child' })
+      expect(childEvent.parentId).toBe(parent.id)
+      expect(childEvent.metadata).toEqual({ origin: 'test', phase: 'done' })
+      expect(settledEvents[0].parentId).toBeNull()
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
+  describe('enqueueTx (transactional enqueue)', () => {
+    // These cases MUST run inside a REAL drizzle transaction from the
+    // setupTestDatabase handle: the mock DbService.withWriteTx has no
+    // transaction (it passes the bare db, auto-committing per statement),
+    // so the rollback case would falsely fail through it.
+
+    it('commits the job with the caller transaction and dispatches after commit', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['tx.task', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const db = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      let handle!: JobHandle
+      db.transaction(
+        (tx) => {
+          // Companion "business write" in the same tx — a terminal dummy row.
+          tx.insert(jobTable)
+            .values({
+              type: 'tx.task',
+              status: 'completed',
+              queue: 'biz',
+              scheduledAt: Date.now(),
+              input: {},
+              maxAttempts: 1
+            })
+            .run()
+          handle = jobManager.enqueueTx(tx, 'tx.task' as never, { message: 'atomic' } as never)
+        },
+        { behavior: 'immediate' }
+      )
+
+      const settled = await Promise.race([
+        handle.finished,
+        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 2000))
+      ])
+      expect(settled).not.toBe('timeout')
+      expect((settled as { status: string }).status).toBe('completed')
+      // Both writes of the tx are visible.
+      expect(jobService.count({ queue: 'biz' })).toBe(1)
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('rolls back the job row with the caller transaction — no dispatch, no resolver leak', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['tx.rollback', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const db = MockMainDbServiceExport.dbService.getDb() as DbType
+      const resolvers = (jobManager as unknown as { finishedResolvers: Map<string, unknown> }).finishedResolvers
+
+      let jobId = ''
+      expect(() =>
+        db.transaction(
+          (tx) => {
+            const handle = jobManager.enqueueTx(tx, 'tx.rollback' as never, { message: 'doomed' } as never)
+            jobId = handle.id
+            expect(resolvers.has(jobId)).toBe(true) // registered inside the tx
+            throw new Error('business-write-failed')
+          },
+          { behavior: 'immediate' }
+        )
+      ).toThrow('business-write-failed')
+
+      // Let the deferred post-commit microtask observe the rollback and clean up.
+      await new Promise((r) => setTimeout(r, 0))
+
+      expect(jobService.getById(jobId)).toBeNull()
+      expect(resolvers.has(jobId)).toBe(false)
+      expect(jobService.count({ type: 'tx.rollback' })).toBe(0)
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('returns the existing handle on an idempotency hit inside the tx — no new row', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['tx.idem', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const db = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      const first = jobManager.enqueue(
+        'tx.idem' as never,
+        { message: 'one', sleepMs: 300 } as never,
+        {
+          idempotencyKey: 'tx-idem-key'
+        } as never
+      )
+
+      let second!: JobHandle
+      db.transaction(
+        (tx) => {
+          second = jobManager.enqueueTx(
+            tx,
+            'tx.idem' as never,
+            { message: 'two' } as never,
+            {
+              idempotencyKey: 'tx-idem-key'
+            } as never
+          )
+        },
+        { behavior: 'immediate' }
+      )
+
+      expect(second.id).toBe(first.id)
+      expect(jobService.count({ type: 'tx.idem' })).toBe(1)
+
+      await first.finished
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('arms a delayed job after commit and promotes it at scheduledAt', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['tx.delayed', makeSlowHandler('abandon') as JobHandler]]
+      })
+      const db = MockMainDbServiceExport.dbService.getDb() as DbType
+
+      let handle!: JobHandle
+      db.transaction(
+        (tx) => {
+          handle = jobManager.enqueueTx(
+            tx,
+            'tx.delayed' as never,
+            { message: 'later', sleepMs: 5 } as never,
+            {
+              scheduledAt: Date.now() + 150
+            } as never
+          )
+        },
+        { behavior: 'immediate' }
+      )
+
+      expect(handle.snapshot.status).toBe('delayed')
+
+      const settled = await Promise.race([
+        handle.finished,
+        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 3000))
+      ])
+      expect(settled).not.toBe('timeout')
+      expect((settled as { status: string }).status).toBe('completed')
+
+      await drainAllQueues(jobManager)
       await teardownManager(scheduler, jobManager)
     })
   })

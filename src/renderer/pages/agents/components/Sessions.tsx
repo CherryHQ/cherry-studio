@@ -12,13 +12,16 @@ import {
   type ResourceListRevealRequest,
   type ResourceListSection,
   SESSION_DISPLAY_LABEL_KEYS,
-  SessionListOptionsMenu,
-  SessionResourceList
-} from '@renderer/components/chat/resources'
-import { renderAgentEntityIcon } from '@renderer/components/chat/resources/resourceEntityIcon'
+  SessionListOptionsMenu
+} from '@renderer/components/chat/resourceList/base'
+import { renderAgentEntityIcon } from '@renderer/components/chat/resourceList/base/resourceEntityIcon'
+import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
+import {
+  ResourceEditDialogHost,
+  type ResourceEditDialogTarget
+} from '@renderer/components/resourceCatalog/dialogs/edit'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'

@@ -1,3 +1,4 @@
+import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
@@ -5,8 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListProviderValue } from '../../types'
-import { setInlineFilePathHomePath } from '../../utils/filePath'
-import { ClickableFilePath } from '../agent/ClickableFilePath'
+import { ClickableFilePath } from '../shared/ClickableFilePath'
 
 const mockOpenArtifactFile = vi.fn().mockResolvedValue(undefined)
 const mockOpenPath = vi.fn().mockResolvedValue(undefined)
@@ -47,7 +47,7 @@ vi.mock('@renderer/utils/platform', () => ({
   isWin: false
 }))
 
-vi.mock('@renderer/utils/editorUtils', () => ({
+vi.mock('@renderer/components/icons/EditorIcon', () => ({
   getEditorIcon: ({ id }: { id: string }) => <span data-testid={`${id}-icon`} />
 }))
 

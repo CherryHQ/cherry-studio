@@ -13,7 +13,7 @@ import {
   type ResourceListItemReorderPayload,
   type ResourceListTimeBucket,
   withResourceListGroupIdPrefix
-} from '@renderer/components/chat/resources'
+} from '@renderer/components/chat/resourceList/base'
 import type { Topic } from '@renderer/types/topic'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { TopicDisplayMode as PreferenceTopicDisplayMode } from '@shared/data/preference/preferenceTypes'

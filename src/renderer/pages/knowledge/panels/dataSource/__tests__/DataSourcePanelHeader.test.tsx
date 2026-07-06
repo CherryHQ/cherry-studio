@@ -12,9 +12,15 @@ vi.mock('@renderer/utils/time', () => ({
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-    <button {...props}>{children}</button>
+    <button type="button" {...props}>
+      {children}
+    </button>
   ),
-  MenuItem: ({ label, ...props }: { label: string; [key: string]: unknown }) => <button {...props}>{label}</button>,
+  MenuItem: ({ label, ...props }: { label: string; [key: string]: unknown }) => (
+    <button type="button" {...props}>
+      {label}
+    </button>
+  ),
   MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,

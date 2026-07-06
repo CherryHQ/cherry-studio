@@ -65,7 +65,7 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('@renderer/components/app/Navbar', () => ({
+vi.mock('@renderer/components/Navbar', () => ({
   Navbar: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   NavbarCenter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
 }))
@@ -74,7 +74,7 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   default: () => null
 }))
 
-vi.mock('@renderer/components/Selector/model', async () => {
+vi.mock('@renderer/components/ModelSelector', async () => {
   const React = await import('react')
 
   return {

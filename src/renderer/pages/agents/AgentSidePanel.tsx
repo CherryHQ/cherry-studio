@@ -1,4 +1,7 @@
-import type { ConversationResourceMenuItem, ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import type {
+  ConversationResourceMenuItem,
+  ResourceListRevealRequest
+} from '@renderer/components/chat/resourceList/base'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 

@@ -1,6 +1,6 @@
-import { IpcError } from '@shared/ipc/errors'
+import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
-import type { FileHandle } from '@shared/types/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({

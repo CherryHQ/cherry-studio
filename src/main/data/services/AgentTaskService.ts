@@ -11,8 +11,7 @@ import { agentChannelService } from '@data/services/AgentChannelService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
-import type { ListOptions } from '@shared/data/api/apiTypes'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   CreateTaskDto,
   ScheduledTaskEntity,
@@ -24,6 +23,7 @@ import {
   AgentSessionWorkspaceSourceSchema
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { JobScheduleSnapshot, JobSnapshot, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
+import type { ListOptions } from '@shared/data/api/types'
 import { eq } from 'drizzle-orm'
 
 const logger = loggerService.withContext('AgentTaskService')

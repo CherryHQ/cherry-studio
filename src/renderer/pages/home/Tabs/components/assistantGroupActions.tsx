@@ -3,11 +3,11 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import {
   buildResourceEntityIconTypeActionDescriptor,
   buildResourceEntityMenuActionDescriptor
-} from '@renderer/components/chat/resources/resourceEntityActions'
+} from '@renderer/components/chat/resourceList/base/resourceEntityActions'
 import {
   buildIconTypeActionDescriptors,
   RESOURCE_ICON_TYPE_OPTIONS
-} from '@renderer/components/chat/resources/resourceEntityIcon'
+} from '@renderer/components/chat/resourceList/base/resourceEntityIcon'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
 import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Smile, Tags, Trash2 } from 'lucide-react'

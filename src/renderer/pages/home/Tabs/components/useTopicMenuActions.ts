@@ -2,7 +2,7 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
-import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/CopyService'
+import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/copy'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import {
   exportMarkdownToJoplin,

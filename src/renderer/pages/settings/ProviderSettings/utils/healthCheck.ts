@@ -1,6 +1,7 @@
 import i18n from '@renderer/i18n'
+import { ipcApi } from '@renderer/ipc'
 import type { SerializedError } from '@renderer/types/error'
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import {
   isGenerateAudioModel,
   isGenerateImageModel,
@@ -133,5 +134,21 @@ export function summarizeHealthResults(results: ModelWithStatus[], providerName?
   return t('settings.models.check.model_status_summary', {
     provider: providerName ?? t('common.unknown'),
     summary
+  })
+}
+
+/**
+ * Validates that a provider/model pair is working by sending a minimal probe.
+ * The renderer only forwards the request; probe dispatch, timeout handling, and
+ * latency measurement all happen in Main.
+ */
+export async function checkApi(
+  uniqueModelId: UniqueModelId,
+  options?: { timeout?: number; signal?: AbortSignal }
+): Promise<{ latency: number }> {
+  options?.signal?.throwIfAborted()
+  return await ipcApi.request('ai.check_model', {
+    uniqueModelId,
+    timeout: options?.timeout ?? 15000
   })
 }

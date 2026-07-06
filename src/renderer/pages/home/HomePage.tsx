@@ -1,25 +1,20 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
-  ChatAppShell,
-  type ChatPanePosition,
-  ConversationPageShell,
-  ConversationShell,
-  ConversationStageCenter,
-  EmptyState,
-  LoadingState
-} from '@renderer/components/chat'
-import {
   type ResourcePaneConfig,
   ResourcePaneCountButton,
   type ResourcePaneCountButtonProps,
   useResourcePane
 } from '@renderer/components/chat/panes/Shell'
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
-import { AssistantResourceList } from '@renderer/components/chat/resources/variants/AssistantResourceList'
+import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
+import { AssistantResourceList } from '@renderer/components/chat/resourceList/AssistantResourceList'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import { ChatAppShell } from '@renderer/components/chat/shell/ChatAppShell'
+import ConversationPageShell from '@renderer/components/chat/shell/ConversationPageShell'
+import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
-import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
+import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import { ChatHomePlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
 import {
   createRecentTopicEntryFromTopic,
@@ -29,7 +24,7 @@ import {
   ConversationResourceView,
   type ConversationResourceViewDefinition,
   useConversationResourceView
-} from '@renderer/components/resource/conversation'
+} from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
@@ -39,8 +34,10 @@ import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssist
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -66,9 +63,9 @@ import {
 import ChatNavbar from './components/ChatNavbar'
 import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
-import HomeTabs from './Tabs'
 import { Topics } from './Tabs/components/Topics'
 import { getTopicAssistantDisplayGroupId } from './Tabs/components/topicsHelpers'
+import HomeTabs from './Tabs/HomeTabs'
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')

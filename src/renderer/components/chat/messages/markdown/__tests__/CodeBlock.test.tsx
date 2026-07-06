@@ -60,13 +60,8 @@ vi.mock('@renderer/components/CodeBlockView', () => ({
   HtmlArtifactsCard: mocks.HtmlArtifactsCard
 }))
 
-// Mock message parts context — returns null by default
-vi.mock('@renderer/components/chat/messages/blocks', () => ({
-  useResolveBlock: vi.fn(() => null)
-}))
-
 // Mock ClickableFilePath
-vi.mock('@renderer/components/chat/messages/tools/agent/ClickableFilePath', () => ({
+vi.mock('@renderer/components/chat/messages/tools/shared/ClickableFilePath', () => ({
   ClickableFilePath: ({ path }: { path: string }) => <span data-testid="clickable-file-path">{path}</span>
 }))
 
