@@ -803,7 +803,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                     <CustomSizeContainer>
                       <CustomSizeRow>
                         <InputNumber
-                          placeholder="W"
+                          placeholder={t('paintings.generate.width')}
                           value={painting.customWidth}
                           controls={false}
                           min={16}
@@ -814,7 +814,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                         />
                         <CustomSizeSeparator>x</CustomSizeSeparator>
                         <InputNumber
-                          placeholder="H"
+                          placeholder={t('paintings.generate.height')}
                           value={painting.customHeight}
                           controls={false}
                           min={16}
