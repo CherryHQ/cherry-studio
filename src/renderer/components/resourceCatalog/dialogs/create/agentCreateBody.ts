@@ -7,7 +7,8 @@ import type { ResourceCreateWizardValues } from './types'
  * defaults. Claude agents ship plan/small-model tiers and run full-auto by
  * default; pi agents have none of those (D8) and start in the
  * gated `default` permission mode since pi tool calls run at host privilege
- * with no sandbox.
+ * with no sandbox. Pi runtime loads no skills (`noSkills: true`), so do not
+ * persist skill IDs that would be ignored and hidden.
  */
 export function buildAgentCreateBody(values: ResourceCreateWizardValues): CreateAgentDto {
   const base: CreateAgentDto = {
@@ -16,7 +17,6 @@ export function buildAgentCreateBody(values: ResourceCreateWizardValues): Create
     model: values.modelId,
     description: values.description,
     instructions: values.prompt,
-    skillIds: values.skillIds,
     configuration: {
       avatar: values.avatar
     }
@@ -31,6 +31,7 @@ export function buildAgentCreateBody(values: ResourceCreateWizardValues): Create
 
   return {
     ...base,
+    skillIds: values.skillIds,
     planModel: values.modelId,
     smallModel: values.modelId,
     configuration: { ...base.configuration, permission_mode: 'bypassPermissions' }

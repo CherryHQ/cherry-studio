@@ -151,15 +151,20 @@ export function ResourceCreateWizard({
   const { isSubmitting: isFormSubmitting } = useFormState({ control: form.control })
   const submitting = isSubmitting || isFormSubmitting
 
+  const agentType = form.watch('agentType')
   const steps = useMemo<{ id: StepId; label: string }[]>(() => {
     const basic = { id: 'basic' as const, label: t('library.config.dialogs.create.step.basic') }
     const persona = { id: 'persona' as const, label: t('library.config.dialogs.create.step.persona') }
-    const last =
-      kind === 'assistant'
-        ? { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }
-        : { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }
-    return [basic, persona, last]
-  }, [kind, t])
+    if (kind === 'assistant') {
+      return [basic, persona, { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }]
+    }
+    if (agentType === 'pi') return [basic, persona]
+    return [basic, persona, { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }]
+  }, [agentType, kind, t])
+
+  useEffect(() => {
+    setStepIndex((index) => Math.min(index, steps.length - 1))
+  }, [steps.length])
 
   useEffect(() => {
     if (!open) return

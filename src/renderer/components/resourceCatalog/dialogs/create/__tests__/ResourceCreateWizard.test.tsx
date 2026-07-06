@@ -11,14 +11,25 @@ vi.mock('react-i18next', () => ({
 // the Next button; PersonaStep fills the prompt.
 vi.mock('../steps/BasicInfoStep', () => ({
   BasicInfoStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (
-    <button
-      type="button"
-      onClick={() => {
-        form.setValue('name', 'My Resource')
-        form.setValue('modelId', 'provider::model')
-      }}>
-      fill basic
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          form.setValue('name', 'My Resource')
+          form.setValue('modelId', 'provider::model')
+        }}>
+        fill basic
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          form.setValue('agentType', 'pi')
+          form.setValue('name', 'My Resource')
+          form.setValue('modelId', 'provider::model')
+        }}>
+        fill pi basic
+      </button>
+    </>
   )
 }))
 vi.mock('../steps/PersonaStep', () => ({
@@ -106,5 +117,17 @@ describe('ResourceCreateWizard', () => {
 
     expect(screen.getByTestId('capability-step')).toBeInTheDocument()
     expect(screen.queryByTestId('knowledge-step')).not.toBeInTheDocument()
+  })
+
+  it('skips the capability step for pi agents', async () => {
+    const user = userEvent.setup()
+    render(<ResourceCreateWizard kind="agent" open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'fill pi basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+
+    expect(screen.queryByTestId('capability-step')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('knowledge-step')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: CREATE })).toBeInTheDocument()
   })
 })
