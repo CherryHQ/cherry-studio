@@ -581,10 +581,19 @@ export function ArtifactPaneView({
     if (treeOpen) {
       reloadExpandedDirectories()
     }
-    if (workspacePath && selectedFile && (isText === 'text' || isOfficeDocumentSelection)) {
+    if (workspacePath && selectedFile && (isText === 'text' || isOfficeDocumentSelection || isImageSelection)) {
       setContentRefreshToken((v) => v + 1)
     }
-  }, [refresh, reloadExpandedDirectories, selectedFile, treeOpen, workspacePath, isText, isOfficeDocumentSelection])
+  }, [
+    refresh,
+    reloadExpandedDirectories,
+    selectedFile,
+    treeOpen,
+    workspacePath,
+    isText,
+    isOfficeDocumentSelection,
+    isImageSelection
+  ])
 
   const isSelectedHtmlPreview = selectedFile ? isHtmlFile(selectedFile) : false
   const isSelectedPdfPreview = isPdfSelection

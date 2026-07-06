@@ -1551,6 +1551,33 @@ describe('ArtifactPane', () => {
     expect(mocks.isTextFile).not.toHaveBeenCalled()
   })
 
+  it('remounts the selected image preview when refresh is clicked after a load error', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['photo.png'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    await waitFor(() => expect(screen.getByTestId('tree-node-photo.png')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-photo.png'))
+
+    await waitFor(() => expect(screen.getByTestId('image-preview')).toBeInTheDocument())
+    const failedImage = screen.getByTestId('image-preview')
+    fireEvent.error(failedImage)
+
+    await waitFor(() => expect(screen.getByText('agent.preview_pane.unavailable.title')).toBeInTheDocument())
+    expect(screen.queryByTestId('image-preview')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('image-preview')).toHaveAttribute('data-src', 'file:///tmp/workspace/photo.png')
+    )
+    expect(screen.getByTestId('image-preview')).not.toBe(failedImage)
+    expect(mocks.fsReadText).not.toHaveBeenCalled()
+    expect(mocks.isTextFile).not.toHaveBeenCalled()
+  })
+
   it('renders SVG files as an image preview', async () => {
     mockWorkspaceTree('/tmp/workspace', ['icon.svg'])
 
