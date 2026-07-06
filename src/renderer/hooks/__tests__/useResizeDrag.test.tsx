@@ -80,6 +80,20 @@ describe('useResizeDrag', () => {
     expect(onMove).not.toHaveBeenCalled()
   })
 
+  it('uses a custom cursor while resizing', () => {
+    const onMove = vi.fn()
+    const { result } = renderHook(() => useResizeDrag({ onMove, cursor: 'row-resize' }))
+
+    startDrag(result.current.startResizing)
+    expect(document.body.style.cursor).toBe('row-resize')
+
+    act(() => {
+      document.dispatchEvent(new MouseEvent('mouseup'))
+    })
+
+    expect(document.body.style.cursor).toBe('')
+  })
+
   it('cleans up when the document becomes hidden', () => {
     const onMove = vi.fn()
     const { result } = renderHook(() => useResizeDrag({ onMove }))
