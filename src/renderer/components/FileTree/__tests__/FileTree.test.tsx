@@ -167,7 +167,7 @@ describe('FileTree - editable form (all callbacks)', () => {
     expect(screen.getByText('Menu for Root')).toBeInTheDocument()
   })
 
-  it('allows row context-menu events to reach the menu wrapper', () => {
+  it('stops row context-menu events after opening the row menu', () => {
     const onWrapperContextMenu = vi.fn()
 
     render(
@@ -184,7 +184,8 @@ describe('FileTree - editable form (all callbacks)', () => {
     const rootRow = screen.getByText('Root').closest('[data-node-id="root"]')!
     fireEvent.contextMenu(rootRow)
 
-    expect(onWrapperContextMenu).toHaveBeenCalledOnce()
+    expect(screen.getByText('Menu for Root')).toBeInTheDocument()
+    expect(onWrapperContextMenu).not.toHaveBeenCalled()
   })
 })
 

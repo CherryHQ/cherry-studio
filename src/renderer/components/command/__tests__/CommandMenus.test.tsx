@@ -378,6 +378,37 @@ describe('CommandContextMenu', () => {
     await waitFor(() => expect(onSelect).toHaveBeenCalledOnce())
   })
 
+  it('stops cherry context-menu events after an inner menu handles them', () => {
+    const outerOpenChange = vi.fn()
+    const innerOpenChange = vi.fn()
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+
+    render(
+      <CommandContextKeyProvider>
+        <CommandProvider>
+          <CommandContextMenu
+            location="webcontents.context"
+            onOpenChange={outerOpenChange}
+            extraItems={[{ type: 'item', id: 'outer:action', label: 'Outer Action', onSelect: vi.fn() }]}>
+            <div>
+              <CommandContextMenu
+                location="webcontents.context"
+                onOpenChange={innerOpenChange}
+                extraItems={[{ type: 'item', id: 'inner:action', label: 'Inner Action', onSelect: vi.fn() }]}>
+                <button type="button">inner trigger</button>
+              </CommandContextMenu>
+            </div>
+          </CommandContextMenu>
+        </CommandProvider>
+      </CommandContextKeyProvider>
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'inner trigger' }))
+
+    expect(innerOpenChange).toHaveBeenCalledWith(true)
+    expect(outerOpenChange).not.toHaveBeenCalled()
+  })
+
   it('stops pointer and mouse down events from bubbling out of cherry context menu content', () => {
     const onPointerDown = vi.fn()
     const onMouseDown = vi.fn()
