@@ -1,4 +1,4 @@
-import { SettingsContentColumn } from '@renderer/pages/settings'
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import McpMarketList from '@renderer/pages/settings/McpSettings/McpMarketList'
 import { createFileRoute } from '@tanstack/react-router'
 

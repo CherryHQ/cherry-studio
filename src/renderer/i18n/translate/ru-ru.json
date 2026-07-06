@@ -604,9 +604,7 @@
         "select_failed": "Не удалось выбрать папку."
       },
       "workspace_status": {
-        "inaccessible": "Путь к рабочей области недоступен: {{path}}",
-        "missing": "Путь к рабочей области не существует: {{path}}",
-        "not_directory": "Путь к рабочей области не является каталогом: {{path}}"
+        "inaccessible": "Путь к рабочей области недоступен: {{path}}"
       }
     },
     "settings": {
@@ -1084,41 +1082,6 @@
     },
     "title": "API Сервер"
   },
-  "appMenu": {
-    "about": "О",
-    "close": "Закрыть окно",
-    "copy": "Копировать",
-    "cut": "Резать",
-    "delete": "Удалить",
-    "documentation": "Документация",
-    "edit": "Редактировать",
-    "feedback": "Обратная связь",
-    "file": "Файл",
-    "forceReload": "Принудительная перезагрузка",
-    "front": "Показать все поверх других",
-    "help": "Помощь",
-    "hide": "Скрыть",
-    "hideOthers": "Скрыть остальные",
-    "minimize": "Минимизировать",
-    "paste": "Вставить",
-    "quit": "Выйти",
-    "redo": "Переделать",
-    "releases": "Релизы",
-    "reload": "Перезагрузка",
-    "resetZoom": "Настоящий размер",
-    "selectAll": "Выбрать все",
-    "services": "Услуги",
-    "toggleDevTools": "Переключить инструменты разработчика",
-    "toggleFullscreen": "Переключить полноэкранный режим",
-    "undo": "Отменить",
-    "unhide": "Показать все",
-    "view": "Вид",
-    "website": "Веб-сайт",
-    "window": "Окно",
-    "zoom": "Zoom",
-    "zoomIn": "Увеличить",
-    "zoomOut": "Отдалить"
-  },
   "assistants": {
     "abbr": "Ассистент",
     "clear": {
@@ -1594,6 +1557,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "[to be translated]:Cache {{hit_rate}}%",
+        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "Это сообщение редактируется в композере",
       "flow": {
         "branches": "ветви",
@@ -2056,7 +2023,6 @@
     "copy_failed": "Не удалось скопировать",
     "create_success": "Успешно создано",
     "current": "Текущий",
-    "cut": "Вырезать",
     "default": "По умолчанию",
     "delete": "Удалить",
     "delete_confirm": "Вы уверены, что хотите удалить?",
@@ -2094,7 +2060,6 @@
     "image_preview": "Предпросмотр изображения",
     "image_url": "URL изображения",
     "image_url_or_upload": "Введите URL изображения или загрузите файл",
-    "inspect": "Осмотреть",
     "invalid_value": "недопустимое значение",
     "knowledge_base": "База знаний",
     "language": "Язык",
@@ -2115,7 +2080,6 @@
     "open_in": "Открыть в {{name}}",
     "open_in_new_tab": "Открыть в новой вкладке",
     "open_sidebar": "Открыть боковую панель",
-    "paste": "Вставить",
     "placeholders": {
       "select": {
         "model": "Выбор модели"
@@ -2170,18 +2134,6 @@
     "warning": "Предупреждение",
     "yesterday": "Вчера",
     "you": "Вы"
-  },
-  "dialog": {
-    "all_files": "Все файлы",
-    "html_files": "Файлы HTML",
-    "open_file": "Открыть файл",
-    "pdf_files": "Файлы PDF",
-    "png_image": "PNG-изображение",
-    "save_as_html": "Сохранить как HTML",
-    "save_as_pdf": "Сохранить как PDF",
-    "save_file": "Сохранить файл",
-    "select_folder": "Выбрать папку",
-    "word_document": "Документ Word"
   },
   "docs": {
     "title": "Документация"
@@ -4724,6 +4676,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -4776,6 +4729,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Тессеракт",
     "together": "Together",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",
@@ -6292,12 +6246,6 @@
         "usage": "Использование",
         "version": "Версия"
       },
-      "oauth": {
-        "callback": {
-          "message": "Вы можете закрыть эту страницу и вернуться в Cherry Studio",
-          "title": "Аутентификация Успешна"
-        }
-      },
       "prompts": {
         "arguments": "Аргументы",
         "availablePrompts": "Доступные подсказки",
@@ -6987,6 +6935,17 @@
           "acceleration": "Домен ускорения",
           "international": "Международный домен"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7777,11 +7736,6 @@
     "tooltip": {
       "newline": "Перевести"
     }
-  },
-  "tray": {
-    "quit": "Выйти",
-    "show_quick_assistant": "Быстрый помощник",
-    "show_window": "Показать окно"
   },
   "update": {
     "install": "Установить",

@@ -18,8 +18,7 @@ import type { Provider } from '@shared/data/types/provider'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import type { ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import type { ToolApplyScope } from '../../../tools/adapters/aiSdk/types'
-import type { AppProviderId, AppProviderSettingsMap } from '../../../types'
-import type { AiBaseRequest } from '../../../types/requests'
+import type { AiBaseRequest, AppProviderId, AppProviderSettingsMap } from '../../../types'
 import type { ResolvedCapabilities } from './capabilities'
 
 export type { ToolApplyScope }

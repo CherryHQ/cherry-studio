@@ -34,15 +34,16 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // GPT image
   [/gpt-image-1\.5/i, 'gpt-image-1-5'],
   [/gpt-image/i, 'gpt-image-1'],
-  // Sora
-  [/(sora-|sora_)/i, 'sora'],
+  // Sora (bare `sora`, `sora-2`, `sora_x`, `sora2` — but not e.g. `pandora`)
+  [/(?:^|[-_/])sora(?:[-_\d]|$)/i, 'sora'],
   // Claude / Anthropic models
   [/(claude|anthropic-)/i, 'claude'],
   // Google models (nano-banana = Gemini 2.5 Flash Image)
   [/gemini|veo|imagen|nano-banana/i, 'gemini'],
   [/gemma/i, 'gemma'],
   // Chinese models
-  [/(qwen|qwq|qvq|wan|z-image)/i, 'qwen'],
+  // `wan` is delimiter-bounded so `taiwan-llm` doesn't misfire to the Qwen icon
+  [/qwen|qwq|qvq|(?:^|[-_/])wan(?:[-_\d]|$)|z-image/i, 'qwen'],
   [/glm/i, 'glm'],
   [/doubao|seedream|seedance|seed-oss|ep-202/i, 'doubao'],
   [/hunyuan/i, 'hunyuan'],
@@ -56,9 +57,11 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   [/ibm/i, 'ibm'],
   [/aya/i, 'aya'],
   [/trinity/i, 'trinity'],
+  // sensenova before nova: `sensenova-*` must not be preempted by the broader `nova`
+  [/sensenova/i, 'sensenova'],
   [/nova/i, 'nova'],
-  [/ling|ring/i, 'ling'],
-  [/sensenova/i, 'sensenova']
+  // delimiter-bounded so `spring-1t`, `ringo-v1`, `*-multilingual-*` don't misfire to the Ling icon
+  [/(?:^|[-_/])(?:ling|ring)(?:[-_]|$)/i, 'ling']
 ]
 
 /**
@@ -81,7 +84,7 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // Mistral (incl. voxtral, devstral, mixtral, magistral)
   [/mistral|pixtral|codestral|ministral|voxtral|devstral|mixtral|magistral/i, 'mistral'],
   // Cohere (incl. embed-*, rerank-*)
-  [/command-r|command-a|c4ai-|cohere|embed-|rerank-/i, 'cohere'],
+  [/command-r|command-a|c4ai-|cohere|embed-|rerank-|north-/i, 'cohere'],
   // Nvidia
   [/nemotron|nvidia/i, 'nvidia'],
   // Microsoft / Phi
@@ -184,9 +187,14 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
  * Provider ID aliases for IDs that don't directly match catalog keys.
  */
 const PROVIDER_ID_ALIASES: Record<string, string> = {
+  // Codex is an OpenAI product; reuse the OpenAI mark until a dedicated glyph exists.
+  'openai-codex': 'openai',
+  // Grok CLI is an xAI product; reuse the Grok mark.
+  'grok-cli': 'grok',
   'azure-openai': 'azureai',
   'new-api': 'newapi',
   'tencent-cloud-ti': 'tencent-cloud-ti',
+  tokenhub: 'tencent-cloud-ti',
   'baidu-cloud': 'baidu-cloud',
   'aws-bedrock': 'aws-bedrock',
   'gitee-ai': 'gitee-ai',

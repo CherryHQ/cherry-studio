@@ -141,4 +141,38 @@ describe('attachUsageObserver', () => {
     // contextTokens resets: should be 9, not 28 + 9
     expect(meta?.contextTokens).toBe(9)
   })
+
+  it('emits accumulated cache token details in message metadata', () => {
+    const { agent, written } = makeFakeAgent()
+
+    attachUsageObserver(agent as any)
+
+    agent.fire('onStart')
+    agent.fire(
+      'onStepFinish',
+      makeStep({
+        inputTokens: 10,
+        outputTokens: 4,
+        totalTokens: 14,
+        inputTokenDetails: { noCacheTokens: 3, cacheReadTokens: 5, cacheWriteTokens: 2 },
+        outputTokenDetails: { textTokens: undefined, reasoningTokens: 1 }
+      } as LanguageModelUsage)
+    )
+
+    expect(written).toHaveLength(1)
+    const meta = (written[0] as Extract<CherryUIMessageChunk, { type: 'message-metadata' }>).messageMetadata
+
+    // inputTokens is present → contextTokens anchors on the last-step totalTokens (14);
+    // cache-token details accumulate alongside the base counters.
+    expect(meta).toEqual({
+      totalTokens: 14,
+      promptTokens: 10,
+      completionTokens: 4,
+      thoughtsTokens: 1,
+      contextTokens: 14,
+      noCacheTokens: 3,
+      cacheReadTokens: 5,
+      cacheWriteTokens: 2
+    })
+  })
 })

@@ -1,3 +1,4 @@
+import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { COMPOSER_FILE_KIND } from '@renderer/types/file'
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
@@ -11,18 +12,23 @@ import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurface'
+import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
 const mocks = vi.hoisted(() => ({
   editorOptions: undefined as any,
+  editorInstance: undefined as any,
+  stabilizeEditor: false,
   actions: undefined as ComposerSurfaceActions | undefined,
   editorViewComposing: false,
   insertContent: vi.fn(),
   insertComposerToken: vi.fn(),
   deleteRange: vi.fn(),
   deleteSelection: vi.fn(),
+  setMeta: vi.fn(),
   setContent: vi.fn(),
   setNodeSelection: vi.fn(),
   chainRun: vi.fn(),
+  docContentSize: 0,
   docDescendants: vi.fn(),
   docTextBetween: vi.fn(),
   focus: vi.fn(),
@@ -38,9 +44,12 @@ const mocks = vi.hoisted(() => ({
   editorPresetOptions: undefined as any,
   quickPanelClose: vi.fn(),
   quickPanelDispatchKeyDown: vi.fn(),
+  quickPanelGeneration: 0,
   quickPanelIsVisible: false,
   quickPanelOpen: vi.fn(),
+  quickPanelQueryAnchor: undefined as number | undefined,
   quickPanelSymbol: '',
+  quickPanelTriggerInfo: undefined as any,
   quickPanelUpdateList: vi.fn(),
   selection: { from: 1 } as any,
   transaction: undefined as any
@@ -109,9 +118,12 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   useQuickPanel: () => ({
     close: mocks.quickPanelClose,
     dispatchKeyDown: mocks.quickPanelDispatchKeyDown,
+    getPanelGeneration: () => mocks.quickPanelGeneration,
     isVisible: mocks.quickPanelIsVisible,
     open: mocks.quickPanelOpen,
+    queryAnchor: mocks.quickPanelQueryAnchor,
     symbol: mocks.quickPanelSymbol,
+    triggerInfo: mocks.quickPanelTriggerInfo,
     updateList: mocks.quickPanelUpdateList
   })
 }))
@@ -119,7 +131,7 @@ vi.mock('@renderer/components/QuickPanel', () => ({
 vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
   useRichTextEditorKernel: (options: any) => {
     mocks.editorOptions = options
-    return {
+    const editor = {
       isDestroyed: false,
       isEditable: true,
       getJSON: mocks.getJSON,
@@ -147,6 +159,16 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
           deleteSelection: () => {
             mocks.deleteSelection()
             return { run: mocks.chainRun }
+          },
+          setMeta: (...args: unknown[]) => {
+            mocks.setMeta(...args)
+            return {
+              insertContent: (...contentArgs: unknown[]) => {
+                mocks.insertContent(...contentArgs)
+                return { run: mocks.chainRun }
+              },
+              run: mocks.chainRun
+            }
           },
           insertContent: (...args: unknown[]) => {
             mocks.insertContent(...args)
@@ -178,11 +200,23 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
           return mocks.transaction
         },
         doc: {
+          content: {
+            get size() {
+              return mocks.docContentSize
+            }
+          },
           descendants: mocks.docDescendants,
           textBetween: mocks.docTextBetween
         }
       }
     }
+
+    if (!mocks.stabilizeEditor) return editor
+    if (!mocks.editorInstance) {
+      mocks.editorInstance = editor
+    }
+
+    return mocks.editorInstance
   }
 }))
 
@@ -346,15 +380,19 @@ describe('ComposerSurface', () => {
   beforeEach(() => {
     clearMockTimers()
     mocks.editorOptions = undefined
+    mocks.editorInstance = undefined
+    mocks.stabilizeEditor = false
     mocks.actions = undefined
     mocks.editorViewComposing = false
     mocks.insertContent.mockReset()
     mocks.insertComposerToken.mockReset()
     mocks.deleteRange.mockReset()
     mocks.deleteSelection.mockReset()
+    mocks.setMeta.mockReset()
     mocks.setContent.mockReset()
     mocks.setNodeSelection.mockReset()
     mocks.chainRun.mockReset()
+    mocks.docContentSize = 0
     mocks.docDescendants.mockReset()
     mocks.docTextBetween.mockReset()
     mocks.docTextBetween.mockReturnValue('')
@@ -378,9 +416,12 @@ describe('ComposerSurface', () => {
     mocks.editorPresetOptions = undefined
     mocks.quickPanelClose.mockReset()
     mocks.quickPanelDispatchKeyDown.mockReset()
+    mocks.quickPanelGeneration = 0
     mocks.quickPanelIsVisible = false
     mocks.quickPanelOpen.mockReset()
+    mocks.quickPanelQueryAnchor = undefined
     mocks.quickPanelSymbol = ''
+    mocks.quickPanelTriggerInfo = undefined
     mocks.quickPanelUpdateList.mockReset()
     mocks.selection = { from: 1, to: 1, $to: {} }
     mocks.transaction = {
@@ -889,29 +930,407 @@ describe('ComposerSurface', () => {
       items: []
     })
 
-    expect(mocks.quickPanelOpen).toHaveBeenCalledWith({
-      title: 'settings.quickPanel.title',
-      list: [
-        expect.objectContaining({
-          label: 'Generate image',
-          description: 'The model does not support generating images.',
-          disabled: true,
-          filterText: expect.stringContaining('The model does not support generating images.')
-        })
-      ],
-      symbol: '/',
-      queryAnchor: 0,
-      triggerInfo: {
-        type: 'input',
-        position: 0,
-        originalText: '/image'
-      },
-      trackInputQuery: true
-    })
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'settings.quickPanel.title',
+        list: [
+          expect.objectContaining({
+            label: 'Generate image',
+            description: 'The model does not support generating images.',
+            disabled: true,
+            filterText: expect.stringContaining('The model does not support generating images.')
+          })
+        ],
+        symbol: '/',
+        queryAnchor: 0,
+        triggerInfo: {
+          type: 'input',
+          position: 0,
+          originalText: '/image'
+        },
+        trackInputQuery: true,
+        sortFn: expect.any(Function)
+      })
+    )
 
     const event = new KeyboardEvent('keydown', { key: 'Enter' })
     expect(rootSource.onKeyDown({ event })).toBe(false)
     expect(mocks.quickPanelDispatchKeyDown).toHaveBeenCalledWith(event)
+  })
+
+  it('opens the unified QuickPanel from the plus control without inserting trigger text', async () => {
+    const onTextChange = vi.fn()
+    render(
+      <ComposerSurface
+        {...baseProps}
+        text="hello"
+        onTextChange={onTextChange}
+        quickPanelEnabled
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          },
+          {
+            id: 'slash-command',
+            kind: 'command',
+            label: 'Slash command',
+            icon: 'slash',
+            sources: ['root-panel']
+          },
+          {
+            id: 'both',
+            kind: 'command',
+            label: 'Both',
+            icon: 'both',
+            sources: ['popover', 'root-panel']
+          }
+        ]}
+        renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
+          <button type="button" aria-label="open plus panel" onClick={() => unifiedPanelControl?.open()}>
+            plus
+          </button>
+        )}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    fireEvent.click(screen.getByRole('button', { name: 'open plus panel' }))
+
+    expect(onTextChange).not.toHaveBeenCalled()
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'settings.quickPanel.title',
+        symbol: '/',
+        queryAnchor: 0,
+        triggerInfo: {
+          type: 'button',
+          position: 0
+        },
+        trackInputQuery: true,
+        list: [
+          expect.objectContaining({ label: 'Attachment' }),
+          expect.objectContaining({ label: 'Both' }),
+          expect.objectContaining({ label: 'Slash command' })
+        ]
+      })
+    )
+  })
+
+  it('marks the unified panel unavailable when the root list would be empty', async () => {
+    const renderLeftControls = (_inputAdapter: unknown, unifiedPanelControl?: { available: boolean }) =>
+      unifiedPanelControl?.available ? <button type="button">available</button> : <span>unavailable</span>
+
+    const { rerender } = render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={() => []}
+        renderLeftControls={renderLeftControls}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+    expect(screen.getByText('unavailable')).toBeInTheDocument()
+
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={() => []}
+        rootPanelLeadingItems={[{ id: 'new-topic', label: 'New topic', icon: 'plus' }]}
+        renderLeftControls={renderLeftControls}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'available' })).toBeInTheDocument()
+  })
+
+  it('hides resource items for empty unified panel searches and appends them after commands for non-empty searches', async () => {
+    const resourceProvider = vi.fn(async () => [
+      {
+        id: 'file:notes',
+        label: 'notes.md',
+        description: '/workspace/notes.md',
+        icon: 'file'
+      }
+    ])
+
+    const { rerender } = render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={resourceProvider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          },
+          {
+            id: 'slash-command',
+            kind: 'command',
+            label: 'Slash command',
+            icon: 'slash',
+            sources: ['root-panel']
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    const rootSource = mocks.editorPresetOptions.suggestionSources[0]
+    const editor = {
+      state: {
+        doc: {
+          textBetween: vi.fn(() => '')
+        }
+      }
+    }
+
+    rootSource.onActiveChange({ editor, range: { from: 1, to: 2 }, query: '', text: '/', items: [] })
+
+    expect(resourceProvider).not.toHaveBeenCalled()
+    expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        list: [expect.objectContaining({ label: 'Attachment' }), expect.objectContaining({ label: 'Slash command' })]
+      })
+    )
+
+    rootSource.onActiveChange({ editor, range: { from: 1, to: 7 }, query: 'notes', text: '/notes', items: [] })
+
+    mocks.docContentSize = 6
+    mocks.docTextBetween.mockReturnValue('/notes')
+    mocks.selection = { from: 6, to: 6, $to: {} }
+    mocks.quickPanelGeneration = 1
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.quickPanelQueryAnchor = 0
+    mocks.quickPanelTriggerInfo = {
+      type: 'input',
+      position: 0,
+      originalText: '/notes'
+    }
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={resourceProvider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          },
+          {
+            id: 'slash-command',
+            kind: 'command',
+            label: 'Slash command',
+            icon: 'slash',
+            sources: ['root-panel']
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(resourceProvider).toHaveBeenCalledTimes(1))
+    expect(resourceProvider).toHaveBeenCalledWith('notes', expect.any(Object))
+    expect(mocks.quickPanelUpdateList).toHaveBeenLastCalledWith([
+      expect.objectContaining({ label: 'Attachment' }),
+      expect.objectContaining({ label: 'Slash command' }),
+      expect.objectContaining({ id: 'file:notes', label: 'notes.md' })
+    ])
+  })
+
+  it('ignores resource search results after the root panel generation changes', async () => {
+    let resolveResourceItems: (items: QuickPanelListItem[]) => void = () => undefined
+    const resourceProvider = vi.fn(
+      () =>
+        new Promise<QuickPanelListItem[]>((resolve) => {
+          resolveResourceItems = resolve
+        })
+    )
+
+    const { rerender } = render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={resourceProvider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    mocks.docContentSize = 6
+    mocks.docTextBetween.mockReturnValue('/notes')
+    mocks.selection = { from: 6, to: 6, $to: {} }
+    mocks.quickPanelGeneration = 1
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.quickPanelQueryAnchor = 0
+    mocks.quickPanelTriggerInfo = {
+      type: 'input',
+      position: 0,
+      originalText: '/notes'
+    }
+
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={resourceProvider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(resourceProvider).toHaveBeenCalledTimes(1))
+    mocks.quickPanelUpdateList.mockClear()
+
+    mocks.quickPanelGeneration = 2
+    await act(async () => {
+      resolveResourceItems([{ id: 'file:notes', label: 'notes.md', icon: 'file' }])
+      await Promise.resolve()
+    })
+
+    expect(mocks.quickPanelUpdateList).not.toHaveBeenCalled()
+  })
+
+  it('clears unified panel resources when the resource provider rejects', async () => {
+    let rejectResourceItems: (error: Error) => void = () => undefined
+    const resourceProvider = vi.fn(
+      () =>
+        new Promise<QuickPanelListItem[]>((_resolve, reject) => {
+          rejectResourceItems = reject
+        })
+    )
+    const renderSurface = () => (
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={resourceProvider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          }
+        ]}
+      />
+    )
+    const { rerender } = render(renderSurface())
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    mocks.docContentSize = 6
+    mocks.docTextBetween.mockReturnValue('/notes')
+    mocks.selection = { from: 6, to: 6, $to: {} }
+    mocks.quickPanelGeneration = 1
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.quickPanelQueryAnchor = 0
+    mocks.quickPanelTriggerInfo = {
+      type: 'input',
+      position: 0,
+      originalText: '/notes'
+    }
+    rerender(renderSurface())
+
+    await waitFor(() => expect(resourceProvider).toHaveBeenCalledTimes(1))
+    mocks.quickPanelUpdateList.mockClear()
+    await act(async () => {
+      rejectResourceItems(new Error('search failed'))
+      await Promise.resolve()
+    })
+
+    await waitFor(() =>
+      expect(mocks.quickPanelUpdateList).toHaveBeenLastCalledWith([expect.objectContaining({ label: 'Attachment' })])
+    )
+  })
+
+  it('ignores pending unified resource results after the resource provider becomes unavailable', async () => {
+    let resolveResourceItems: (items: QuickPanelListItem[]) => void = () => undefined
+    const resourceProvider = vi.fn(
+      () =>
+        new Promise<QuickPanelListItem[]>((resolve) => {
+          resolveResourceItems = resolve
+        })
+    )
+    const renderSurface = (provider?: ComposerSurfaceProps['resourceProvider']) => (
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        resourceProvider={provider}
+        getToolLaunchers={() => [
+          {
+            id: 'attachment',
+            kind: 'command',
+            label: 'Attachment',
+            icon: 'paperclip',
+            sources: ['popover']
+          }
+        ]}
+      />
+    )
+    const { rerender } = render(renderSurface(resourceProvider))
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    mocks.docContentSize = 6
+    mocks.docTextBetween.mockReturnValue('/notes')
+    mocks.selection = { from: 6, to: 6, $to: {} }
+    mocks.quickPanelGeneration = 1
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.quickPanelQueryAnchor = 0
+    mocks.quickPanelTriggerInfo = {
+      type: 'input',
+      position: 0,
+      originalText: '/notes'
+    }
+    rerender(renderSurface(resourceProvider))
+
+    await waitFor(() => expect(resourceProvider).toHaveBeenCalledTimes(1))
+
+    rerender(renderSurface(undefined))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    mocks.quickPanelUpdateList.mockClear()
+
+    await act(async () => {
+      resolveResourceItems([{ id: 'file:notes', label: 'notes.md', icon: 'file' }])
+      await Promise.resolve()
+    })
+
+    expect(mocks.quickPanelUpdateList).not.toHaveBeenCalled()
   })
 
   it('opens the QuickPanel root from the ideographic comma suggestion bridge', async () => {
@@ -953,18 +1372,20 @@ describe('ComposerSurface', () => {
       items: []
     })
 
-    expect(mocks.quickPanelOpen).toHaveBeenCalledWith({
-      title: 'settings.quickPanel.title',
-      list: [expect.objectContaining({ label: 'Generate image', description: 'Generate an image' })],
-      symbol: '/',
-      queryAnchor: 0,
-      triggerInfo: {
-        type: 'input',
-        position: 0,
-        originalText: '、image'
-      },
-      trackInputQuery: true
-    })
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'settings.quickPanel.title',
+        list: [expect.objectContaining({ label: 'Generate image', description: 'Generate an image' })],
+        symbol: '/',
+        queryAnchor: 0,
+        triggerInfo: {
+          type: 'input',
+          position: 0,
+          originalText: '、image'
+        },
+        trackInputQuery: true
+      })
+    )
   })
 
   it('bridges external suggestion sources into QuickPanel items', async () => {
@@ -1063,7 +1484,7 @@ describe('ComposerSurface', () => {
     expect(sourceOnKeyDown).not.toHaveBeenCalled()
   })
 
-  it('appends additional items at the end of the QuickPanel root list', async () => {
+  it('places leading items before tool launchers and keeps additional items at the end of the QuickPanel root list', async () => {
     const onRootPanelOpen = vi.fn()
     render(
       <ComposerSurface
@@ -1077,6 +1498,13 @@ describe('ComposerSurface', () => {
             label: 'Generate image',
             description: 'Generate an image',
             icon: 'image'
+          }
+        ]}
+        rootPanelLeadingItems={[
+          {
+            id: 'new-topic',
+            label: 'New conversation',
+            icon: 'message-square-plus'
           }
         ]}
         rootPanelAdditionalItems={[
@@ -1113,6 +1541,7 @@ describe('ComposerSurface', () => {
     expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         list: [
+          expect.objectContaining({ id: 'new-topic', label: 'New conversation' }),
           expect.objectContaining({ label: 'Generate image' }),
           expect.objectContaining({ id: 'skill:pdf', label: 'pdf', description: 'Read PDFs' })
         ]
@@ -1162,6 +1591,7 @@ describe('ComposerSurface', () => {
   it('updates the open QuickPanel root list when additional items change', async () => {
     mocks.quickPanelIsVisible = true
     mocks.quickPanelSymbol = '/'
+    mocks.stabilizeEditor = true
 
     const getToolLaunchers = () => [
       {
@@ -1173,19 +1603,22 @@ describe('ComposerSurface', () => {
       }
     ]
 
+    // Stable (memoized) reference: passing the same array back must not trigger a redundant refresh.
+    const pdfItems = [
+      {
+        id: 'skill:pdf',
+        label: 'pdf',
+        description: 'Read PDFs',
+        icon: 'sparkles'
+      }
+    ]
+
     const { rerender } = render(
       <ComposerSurface
         {...baseProps}
         quickPanelEnabled
         getToolLaunchers={getToolLaunchers}
-        rootPanelAdditionalItems={[
-          {
-            id: 'skill:pdf',
-            label: 'pdf',
-            description: 'Read PDFs',
-            icon: 'sparkles'
-          }
-        ]}
+        rootPanelAdditionalItems={pdfItems}
       />
     )
 
@@ -1197,6 +1630,21 @@ describe('ComposerSurface', () => {
     })
 
     mocks.quickPanelUpdateList.mockClear()
+
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={getToolLaunchers}
+        rootPanelAdditionalItems={pdfItems}
+      />
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(mocks.quickPanelUpdateList).not.toHaveBeenCalled()
 
     rerender(
       <ComposerSurface
@@ -1218,6 +1666,138 @@ describe('ComposerSurface', () => {
       expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([
         expect.objectContaining({ label: 'Generate image' }),
         expect.objectContaining({ id: 'skill:docx', label: 'docx', description: 'Read DOCX files' })
+      ])
+    })
+  })
+
+  it('updates the open QuickPanel root list when launcher state changes', async () => {
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.stabilizeEditor = true
+    let attachmentActive = false
+    let attachmentDisabled = false
+    const getToolLaunchers = () => [
+      {
+        id: 'attachment',
+        kind: 'command' as const,
+        label: 'Attachment',
+        description: 'Attach files',
+        icon: 'paperclip',
+        sources: ['popover'] as const,
+        active: attachmentActive,
+        disabled: attachmentDisabled
+      }
+    ]
+
+    const { rerender } = render(
+      <ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={getToolLaunchers} toolLaunchersVersion={1} />
+    )
+
+    await waitFor(() => {
+      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([
+        expect.objectContaining({ label: 'Attachment', isSelected: false, disabled: false })
+      ])
+    })
+
+    mocks.quickPanelUpdateList.mockClear()
+    attachmentActive = true
+    attachmentDisabled = true
+
+    rerender(
+      <ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={getToolLaunchers} toolLaunchersVersion={2} />
+    )
+
+    await waitFor(() => {
+      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([
+        expect.objectContaining({ label: 'Attachment', isSelected: true, disabled: true })
+      ])
+    })
+  })
+
+  it('refreshes the open root panel on launcher version bump even when the display signature is unchanged', async () => {
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.stabilizeEditor = true
+    // Display fields stay identical across renders: the launcher re-registers with a new action payload
+    // (e.g. the MCP status launcher after a status/scope change), which only bumps toolLaunchersVersion.
+    // The open panel must still refresh so it does not keep the stale action closure.
+    const getToolLaunchers = () => [
+      {
+        id: 'mcp',
+        kind: 'panel' as const,
+        label: 'MCP',
+        description: 'MCP servers',
+        icon: 'server',
+        sources: ['popover'] as const
+      }
+    ]
+
+    const { rerender } = render(
+      <ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={getToolLaunchers} toolLaunchersVersion={1} />
+    )
+
+    await waitFor(() => {
+      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([expect.objectContaining({ label: 'MCP' })])
+    })
+
+    mocks.quickPanelUpdateList.mockClear()
+
+    rerender(
+      <ComposerSurface {...baseProps} quickPanelEnabled getToolLaunchers={getToolLaunchers} toolLaunchersVersion={2} />
+    )
+
+    await waitFor(() => {
+      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([expect.objectContaining({ label: 'MCP' })])
+    })
+  })
+
+  it('refreshes the open root panel when a static root item is rebuilt with a new action closure but unchanged display', async () => {
+    mocks.quickPanelIsVisible = true
+    mocks.quickPanelSymbol = '/'
+    mocks.stabilizeEditor = true
+
+    // A static root item (agent skill row) rebuilt with an identical display but a fresh action closure
+    // (e.g. capturing updated selectedSkills). The launcher version is unchanged, so only the array identity
+    // signals the change; the open panel must still refresh instead of keeping the stale closure.
+    const makeSkillItem = () => [
+      {
+        id: 'skill:pdf',
+        label: 'pdf',
+        description: 'Read PDFs',
+        icon: 'sparkles',
+        action: vi.fn()
+      }
+    ]
+
+    const { rerender } = render(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        toolLaunchersVersion={1}
+        rootPanelAdditionalItems={makeSkillItem()}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([
+        expect.objectContaining({ id: 'skill:pdf', label: 'pdf', description: 'Read PDFs' })
+      ])
+    })
+
+    mocks.quickPanelUpdateList.mockClear()
+
+    rerender(
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        toolLaunchersVersion={1}
+        rootPanelAdditionalItems={makeSkillItem()}
+      />
+    )
+
+    await waitFor(() => {
+      expect(mocks.quickPanelUpdateList).toHaveBeenCalledWith([
+        expect.objectContaining({ id: 'skill:pdf', label: 'pdf', description: 'Read PDFs' })
       ])
     })
   })
@@ -1274,13 +1854,13 @@ describe('ComposerSurface', () => {
       </>
     )
 
-    expect(screen.getByRole('button', { name: 'appMenu.delete' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'appMenu.delete' })).toHaveClass('size-6', 'rounded-md')
-    expect(screen.getByRole('button', { name: 'appMenu.delete' })).not.toHaveClass('size-7')
-    expect(screen.getByRole('button', { name: 'appMenu.delete' })).not.toHaveClass('rounded-full')
+    expect(screen.getByRole('button', { name: 'common.delete' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.delete' })).toHaveClass('size-6', 'rounded-md')
+    expect(screen.getByRole('button', { name: 'common.delete' })).not.toHaveClass('size-7')
+    expect(screen.getByRole('button', { name: 'common.delete' })).not.toHaveClass('rounded-full')
     expect(screen.queryByRole('button', { name: 'chat.input.paste_text_file' })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'appMenu.delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
 
     expect(mocks.transaction.delete).toHaveBeenCalledWith(3, 4)
     expect(mocks.dispatch).toHaveBeenCalledWith(mocks.transaction)
@@ -1323,7 +1903,7 @@ describe('ComposerSurface', () => {
     const showInInputButton = screen.getByRole('button', { name: 'chat.input.paste_text_file' })
     expect(showInInputButton).toHaveClass('h-auto', 'min-h-0', 'w-fit', 'p-0', 'text-primary')
     expect(showInInputButton).not.toHaveClass('h-7', 'rounded-full', 'px-2.5')
-    const deleteButton = screen.getByRole('button', { name: 'appMenu.delete' })
+    const deleteButton = screen.getByRole('button', { name: 'common.delete' })
     expect(deleteButton).toBeInTheDocument()
     const actionContainer = document.querySelector('[data-file-token-actions]')!
     expect(actionContainer).toHaveClass('grid', 'grid-cols-[minmax(0,1fr)_auto]', 'gap-y-1')
@@ -1983,7 +2563,7 @@ describe('ComposerSurface', () => {
         },
         fallbackText: '/pdf/'
       },
-      { type: 'text', text: ' private' }
+      { type: 'text', text: ' private @scope/package' }
     ])
     const event = {
       preventDefault,
@@ -2010,8 +2590,9 @@ describe('ComposerSurface', () => {
           promptText: 'Use the PDF skill.'
         }
       },
-      { type: 'text', text: ' private' }
+      { type: 'text', text: ' private @scope/package' }
     ])
+    expect(mocks.setMeta).toHaveBeenCalledWith(COMPOSER_SUPPRESS_SUGGESTION_META, true)
     expect(resolveSkillMarker).toHaveBeenCalledWith('pdf')
   })
 
@@ -2146,6 +2727,27 @@ describe('ComposerSurface', () => {
     expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: 'plain paste' }])
     expect(mocks.insertContent).toHaveBeenCalledTimes(1)
     expect(read).not.toHaveBeenCalled()
+  })
+
+  it('suppresses composer suggestions when pasting scoped shell command text', async () => {
+    const pastedText = "-lc 'exec npx -y @agentclientprotocol/claude-agent-acp'"
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? pastedText : ''))
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(mocks.setMeta).toHaveBeenCalledWith(COMPOSER_SUPPRESS_SUGGESTION_META, true)
+    expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: pastedText }])
+    expect(mocks.chainRun).toHaveBeenCalled()
   })
 
   it('prefers paste event private fragments over the session cache', async () => {
@@ -2431,6 +3033,27 @@ describe('ComposerSurface', () => {
       preventDefault: vi.fn(),
       clipboardData: {
         getData: vi.fn((type: string) => (type === 'text/plain' ? 'a'.repeat(2001) : ''))
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
+  })
+
+  it('intercepts file-only clipboard paste synchronously', async () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn(() => ''),
+        files: [{ name: 'test.png', type: 'image/png' }],
+        items: [{ kind: 'file', type: 'image/png' }]
       }
     }
 

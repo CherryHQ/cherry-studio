@@ -4,9 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getQuickPanelHeights, QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE, QUICK_PANEL_SAFE_MARGIN } from '../heights'
 import { useQuickPanel } from '../hook'
-import { QuickPanelProvider } from '../provider'
-import type { QuickPanelContextType, QuickPanelInputAdapter, QuickPanelListItem, QuickPanelTriggerInfo } from '../types'
-import { QuickPanelView } from '../view'
+import { QuickPanelProvider } from '../QuickPanelProvider'
+import { QuickPanelView } from '../QuickPanelView'
+import type {
+  QuickPanelContextType,
+  QuickPanelInputAdapter,
+  QuickPanelListItem,
+  QuickPanelOpenOptions,
+  QuickPanelTriggerInfo
+} from '../types'
 
 const virtualListMocks = vi.hoisted(() => ({
   scrollToIndex: vi.fn(),
@@ -82,7 +88,10 @@ function PanelHarness({
   readOnly,
   symbol = '/',
   title = 'Actions',
+  triggerInfo,
   trackInputQuery,
+  queryAnchor,
+  onClose,
   fill = false
 }: {
   captureDispatch: (dispatch: QuickPanelContextType['dispatchKeyDown']) => void
@@ -92,7 +101,10 @@ function PanelHarness({
   readOnly?: boolean
   symbol?: string
   title?: string
+  triggerInfo?: QuickPanelTriggerInfo
   trackInputQuery?: boolean
+  queryAnchor?: number
+  onClose?: QuickPanelOpenOptions['onClose']
   /** Drives the ambient fill flag the composer would push for home placement. */
   fill?: boolean
 }) {
@@ -113,13 +125,29 @@ function PanelHarness({
       readOnly,
       symbol,
       title,
-      triggerInfo: inputAdapter
-        ? ({ type: 'input', position: 0, originalText: inputAdapter.getText() } satisfies QuickPanelTriggerInfo)
-        : { type: 'button' },
+      triggerInfo:
+        triggerInfo ??
+        (inputAdapter
+          ? ({ type: 'input', position: 0, originalText: inputAdapter.getText() } satisfies QuickPanelTriggerInfo)
+          : { type: 'button' }),
+      queryAnchor,
       manageListExternally,
-      trackInputQuery: trackInputQuery ?? Boolean(inputAdapter)
+      trackInputQuery: trackInputQuery ?? Boolean(inputAdapter),
+      onClose
     })
-  }, [inputAdapter, items, manageListExternally, open, readOnly, symbol, title, trackInputQuery])
+  }, [
+    inputAdapter,
+    items,
+    manageListExternally,
+    onClose,
+    open,
+    queryAnchor,
+    readOnly,
+    symbol,
+    title,
+    trackInputQuery,
+    triggerInfo
+  ])
 
   return <QuickPanelView inputAdapter={inputAdapter} />
 }
@@ -253,6 +281,154 @@ describe('QuickPanelView', () => {
     expect(virtualListMocks.scrollToOffset).toHaveBeenCalledWith(0, { align: 'start' })
   })
 
+  it('keeps a button-triggered tracked panel open when the cursor is inside a word', async () => {
+    const captureDispatch = vi.fn()
+    const onClose = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => 'hello world',
+      getCursorOffset: () => 3,
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'action', label: 'Action', icon: 'a' }]}
+          queryAnchor={3}
+          triggerInfo={{ type: 'button', position: 3 }}
+          trackInputQuery
+          onClose={onClose}
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Action')
+
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('keeps a button-triggered tracked panel open when the query contains whitespace', async () => {
+    const captureDispatch = vi.fn()
+    const onClose = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => 'new chat',
+      getCursorOffset: () => 8,
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'new-chat', label: 'New chat', icon: 'message' }]}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          onClose={onClose}
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('New chat')
+
+    expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('does not delete existing composer text after a button-triggered cursor move', async () => {
+    const captureDispatch = vi.fn()
+    const action = vi.fn()
+    const deleteTriggerRange = vi.fn()
+    let cursorOffset = 5
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => 'keep existing text',
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'action', label: 'Action', icon: 'a', action }]}
+          queryAnchor={5}
+          triggerInfo={{ type: 'button', position: 5 }}
+          trackInputQuery
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Action')
+
+    cursorOffset = 14
+    fireEvent.click(screen.getByText('Action'))
+
+    expect(action).toHaveBeenCalledTimes(1)
+    expect(deleteTriggerRange).not.toHaveBeenCalled()
+  })
+
+  it('clears a button-triggered search before opening a child menu panel', async () => {
+    const captureDispatch = vi.fn()
+    const childAction = vi.fn()
+    const insertText = vi.fn()
+    let text = 'knowledge'
+    let cursorOffset = text.length
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = text.slice(0, from) + text.slice(to)
+      cursorOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText,
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+    const menuAction: QuickPanelListItem['action'] = ({ context, parentPanel, queryAnchor }) => {
+      context.open({
+        list: [{ id: 'knowledge-file', label: 'Knowledge file', icon: 'file', action: childAction }],
+        symbol: 'knowledge-base',
+        parentPanel,
+        queryAnchor,
+        triggerInfo: context.triggerInfo
+      })
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'knowledge-base', label: 'Knowledge Base', icon: 'kb', isMenu: true, action: menuAction }]}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+        />
+      </QuickPanelProvider>
+    )
+
+    fireEvent.click(await screen.findByText('Knowledge Base'))
+
+    expect(deleteTriggerRange).toHaveBeenCalledOnce()
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 'knowledge'.length })
+    expect(text).toBe('')
+
+    fireEvent.click(await screen.findByText('Knowledge file'))
+
+    expect(childAction).toHaveBeenCalledTimes(1)
+    expect(deleteTriggerRange).toHaveBeenCalledOnce()
+  })
+
   // 集成测试验证 context 的 fill 标志 + DOM 几何测量把高度喂给了 getQuickPanelHeights；
   // 具体数值由 heights.test.ts 的纯单测覆盖，这里不写死像素。
   const measuredItems: QuickPanelListItem[] = Array.from({ length: 10 }, (_, index) => ({
@@ -261,10 +437,6 @@ describe('QuickPanelView', () => {
     icon: `${index}`,
     action: vi.fn()
   }))
-  const visibleShadowClass = 'shadow-[0_18px_44px_rgba(15,23,42,0.16),0_4px_12px_rgba(15,23,42,0.10)]'
-  const darkVisibleShadowClass = 'dark:shadow-[0_22px_48px_rgba(0,0,0,0.46),0_8px_18px_rgba(0,0,0,0.35)]'
-  const homeVisibleShadowClass = 'shadow-[0_12px_30px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.05)]'
-  const darkHomeVisibleShadowClass = 'dark:shadow-[0_14px_34px_rgba(0,0,0,0.26),0_4px_12px_rgba(0,0,0,0.18)]'
   const compactItems = measuredItems.slice(0, 2)
 
   it('keeps the fixed height in a docked composer (no placement, no fill)', async () => {
@@ -303,9 +475,7 @@ describe('QuickPanelView', () => {
       // docked 不撑高 body。
       const body = screen.getByTestId('quick-panel-body')
       expect(body).not.toHaveStyle({ height: `${expected.panelMaxHeight}px` })
-      expect(body).toHaveClass(visibleShadowClass)
-      expect(body).toHaveClass(darkVisibleShadowClass)
-      expect(body).not.toHaveClass('shadow-none')
+      expect(body).toHaveClass('shadow-none')
     } finally {
       getRectSpy.mockRestore()
     }
@@ -351,11 +521,7 @@ describe('QuickPanelView', () => {
       expect(body).not.toHaveStyle({ height: `${expected.panelMaxHeight}px` })
       expect(body).not.toHaveStyle({ height: `${panelBottom - dockTop - QUICK_PANEL_SAFE_MARGIN}px` })
       expect(body).not.toHaveClass('justify-end')
-      expect(body).toHaveClass(homeVisibleShadowClass)
-      expect(body).toHaveClass(darkHomeVisibleShadowClass)
-      expect(body).not.toHaveClass('shadow-none')
-      expect(body).not.toHaveClass(visibleShadowClass)
-      expect(body).not.toHaveClass(darkVisibleShadowClass)
+      expect(body).toHaveClass('shadow-none')
     } finally {
       getRectSpy.mockRestore()
     }
@@ -472,7 +638,7 @@ describe('QuickPanelView', () => {
         expect(panel).toHaveStyle({ maxHeight: `${homeExpected.panelMaxHeight}px` })
       })
       expect(screen.getByTestId('quick-panel-body')).toHaveStyle({ height: `${homeExpected.panelMaxHeight}px` })
-      expect(screen.getByTestId('quick-panel-body')).toHaveClass(homeVisibleShadowClass)
+      expect(screen.getByTestId('quick-panel-body')).toHaveClass('shadow-none')
 
       rerender(renderPanel(false))
 
@@ -481,10 +647,7 @@ describe('QuickPanelView', () => {
       })
       const body = screen.getByTestId('quick-panel-body')
       expect(body).not.toHaveStyle({ height: `${homeExpected.panelMaxHeight}px` })
-      expect(body).toHaveClass(visibleShadowClass)
-      expect(body).toHaveClass(darkVisibleShadowClass)
-      expect(body).not.toHaveClass(homeVisibleShadowClass)
-      expect(body).not.toHaveClass(darkHomeVisibleShadowClass)
+      expect(body).toHaveClass('shadow-none')
     } finally {
       getRectSpy.mockRestore()
       clientHeightSpy.mockRestore()
@@ -527,10 +690,7 @@ describe('QuickPanelView', () => {
       expect(screen.getByTestId('quick-panel-virtual-list')).toHaveAttribute('data-size', String(expected.listHeight))
       const body = screen.getByTestId('quick-panel-body')
       expect(body).not.toHaveStyle({ height: `${expected.panelMaxHeight}px` })
-      expect(body).toHaveClass(visibleShadowClass)
-      expect(body).toHaveClass(darkVisibleShadowClass)
-      expect(body).not.toHaveClass(homeVisibleShadowClass)
-      expect(body).not.toHaveClass(darkHomeVisibleShadowClass)
+      expect(body).toHaveClass('shadow-none')
     } finally {
       getRectSpy.mockRestore()
     }

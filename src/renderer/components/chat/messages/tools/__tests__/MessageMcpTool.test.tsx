@@ -26,8 +26,8 @@ vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ highlightCode: vi.fn(async () => '') })
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
-  CopyIcon: () => <span data-testid="copy-icon" />
+vi.mock('@renderer/components/icons/CopyIcon', () => ({
+  default: () => <span data-testid="copy-icon" />
 }))
 
 vi.mock('react-i18next', () => ({

@@ -1,4 +1,4 @@
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
+import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import {
   RESOURCE_PANE_TAB,
   type ResourcePaneConfig,
@@ -10,11 +10,11 @@ import {
   useResourcePane,
   useShellState
 } from '@renderer/components/chat/panes/Shell'
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useIsActiveTab } from '@renderer/hooks/tab'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { Activity, GitBranch } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
 import { createContext, use, useCallback, useRef, useSyncExternalStore } from 'react'

@@ -9,7 +9,6 @@
  */
 
 import { mcpServerService } from '@data/services/McpServerService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { McpServerSchemas } from '@shared/data/api/schemas/mcpServers'
 import {
   CreateMcpServerSchema,
@@ -17,6 +16,7 @@ import {
   ReorderMcpServersSchema,
   UpdateMcpServerSchema
 } from '@shared/data/api/schemas/mcpServers'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const mcpServerHandlers: HandlersFor<McpServerSchemas> = {
   '/mcp-servers': {

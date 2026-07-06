@@ -1,6 +1,6 @@
 import { normalizeQuoteTokenPromptText } from '@renderer/components/composer/quoteToken'
 
-import { CHAT_INPUT_TOKEN_KINDS, type ChatInputTokenKind } from './tokenView'
+import { CHAT_INPUT_TOKEN_KINDS, type ChatInputTokenKind } from './chatTokenView'
 
 export const COMPOSER_DRAFT_TOKEN_KINDS = [
   'skill',

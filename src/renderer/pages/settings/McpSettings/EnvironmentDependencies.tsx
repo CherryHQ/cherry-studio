@@ -13,8 +13,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
-import { useIpcOn } from '@renderer/ipc/useIpcOn'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
@@ -572,7 +571,7 @@ function AddToolDialog({
         if (!v) reset()
         onOpenChange(v)
       }}>
-      <DialogContent>
+      <DialogContent closeOnOverlayClick={false}>
         <DialogHeader>
           <DialogTitle>{t('settings.plugins.addTool')}</DialogTitle>
           <DialogDescription>{t('settings.plugins.addToolDescription')}</DialogDescription>

@@ -5,12 +5,12 @@
  * per-execution `PersistenceListener`s.
  */
 
+import { application } from '@application'
 import { summarizeModelMessages } from '@context-chef/ai-sdk-middleware'
 import { Prompts } from '@context-chef/core'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { CONTEXT_COMPACT_KEEP_BUDGET_RATIO, CONTEXT_COMPACT_TRIGGER_RATIO } from '@main/ai/constants'
-import { application } from '@main/core/application'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
@@ -24,7 +24,7 @@ import { resolveRequestContextSettings } from '../../contextBuild/resolveRequest
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
-import type { AiStreamRequest } from '../../types/requests'
+import type { AiStreamRequest } from '../../types'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'

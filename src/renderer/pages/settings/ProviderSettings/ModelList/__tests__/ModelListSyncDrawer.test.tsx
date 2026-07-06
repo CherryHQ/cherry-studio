@@ -2,8 +2,8 @@ import type * as ModelModule from '@renderer/utils/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ModelSyncPreviewResponse } from '../../types/modelSyncPreviewTypes'
 import ModelListSyncDrawer from '../ModelListSyncDrawer'
-import type { ModelSyncPreviewResponse } from '../modelSyncPreviewTypes'
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()

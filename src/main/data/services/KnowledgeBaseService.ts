@@ -7,14 +7,14 @@
 import { application } from '@application'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
-import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   KnowledgeBaseListItem,
   ListKnowledgeBasesQuery,
   UpdateKnowledgeBaseDto
 } from '@shared/data/api/schemas/knowledges'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
+import type { OffsetPaginationResponse } from '@shared/data/api/types'
 import {
   type CreateKnowledgeBaseDto,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
@@ -263,6 +263,30 @@ export class KnowledgeBaseService {
   update(id: string, dto: UpdateKnowledgeBaseDto): KnowledgeBase {
     const existing = this.getById(id)
 
+    const nextEmbeddingModelId =
+      dto.embeddingModelId !== undefined ? dto.embeddingModelId?.trim() || null : existing.embeddingModelId
+    const nextDimensions = dto.dimensions !== undefined ? dto.dimensions : existing.dimensions
+    const embeddingModelChanged = nextEmbeddingModelId !== existing.embeddingModelId
+    const dimensionsChanged = nextDimensions !== existing.dimensions
+
+    // Changing the embedding model or its vector width invalidates any vectors
+    // already written for this base's items, so it is only allowed while the base
+    // is still empty — a base with items must go through restore-into-a-new-base
+    // instead (see the mutable fields comment in UpdateKnowledgeBaseSchema).
+    if (embeddingModelChanged || dimensionsChanged) {
+      const [{ count: itemCount }] = this.db
+        .select({ count: sqlCount(knowledgeItemTable.id) })
+        .from(knowledgeItemTable)
+        .where(and(eq(knowledgeItemTable.baseId, id), ne(knowledgeItemTable.status, 'deleting')))
+        .all()
+
+      if (itemCount > 0) {
+        throw DataApiErrorFactory.validation({
+          embeddingModelId: ['Cannot change the embedding model of a knowledge base that already has items']
+        })
+      }
+    }
+
     const nextConfig: {
       chunkSize: number
       chunkOverlap: number
@@ -289,8 +313,9 @@ export class KnowledgeBaseService {
     // and metadata-only updates (rename, move group) must not be blocked by it.
     const updateFieldErrors = {
       ...validateKnowledgeBaseConfig(nextConfig),
+      ...validateDimensionsForEmbeddingModel(nextEmbeddingModelId, nextDimensions),
       ...(existing.status === 'completed'
-        ? validateSearchModeNeedsEmbedding(existing.embeddingModelId, nextConfig.searchMode)
+        ? validateSearchModeNeedsEmbedding(nextEmbeddingModelId, nextConfig.searchMode)
         : {})
     }
     if (Object.keys(updateFieldErrors).length > 0) {
@@ -304,6 +329,12 @@ export class KnowledgeBaseService {
     }
     if (dto.groupId !== undefined && dto.groupId !== existing.groupId) {
       updates.groupId = dto.groupId
+    }
+    if (embeddingModelChanged) {
+      updates.embeddingModelId = nextEmbeddingModelId
+    }
+    if (dimensionsChanged) {
+      updates.dimensions = nextDimensions
     }
     if (dto.rerankModelId !== undefined && dto.rerankModelId !== existing.rerankModelId) {
       updates.rerankModelId = dto.rerankModelId

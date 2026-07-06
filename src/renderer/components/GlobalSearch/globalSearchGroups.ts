@@ -98,6 +98,7 @@ const FILTER_TYPES: Record<GlobalSearchFilter, EntitySearchType[]> = {
 
 const INTERNAL_ROUTE_PREFIXES = ['/app/', '/settings']
 const COARSE_ENTITY_ROUTE_PATHS = new Set(['/app/chat', '/app/agents'])
+const LEGACY_ROUTE_PATHS = new Set(['/app/library'])
 
 export function getGlobalSearchTypes(filter: GlobalSearchFilter): EntitySearchType[] {
   return FILTER_TYPES[filter]
@@ -138,24 +139,42 @@ export function areGlobalSearchRecentEntriesEqual(a: GlobalSearchRecentEntry, b:
   }
 }
 
+function getRoutePathname(url: string) {
+  return new URL(url, 'https://www.cherry-ai.com').pathname
+}
+
+function isLegacyRouteRecentEntry(entry: GlobalSearchRecentEntry) {
+  return entry.kind === 'route' && LEGACY_ROUTE_PATHS.has(getRoutePathname(entry.url))
+}
+
+export function sanitizeGlobalSearchRecentEntries(
+  entries: readonly GlobalSearchRecentEntry[]
+): GlobalSearchRecentEntry[] {
+  const next = entries.filter((entry) => !isLegacyRouteRecentEntry(entry))
+  return next.length === entries.length ? (entries as GlobalSearchRecentEntry[]) : next
+}
+
 export function upsertGlobalSearchRecentEntry(
   entries: readonly GlobalSearchRecentEntry[],
   entry: GlobalSearchRecentEntry
 ): GlobalSearchRecentEntry[] {
+  const current = sanitizeGlobalSearchRecentEntries(entries)
+  if (isLegacyRouteRecentEntry(entry)) return current
+
   const entryId = getGlobalSearchRecentEntryId(entry)
-  const rest = entries.filter((candidate) => getGlobalSearchRecentEntryId(candidate) !== entryId)
+  const rest = current.filter((candidate) => getGlobalSearchRecentEntryId(candidate) !== entryId)
   const next = [entry, ...rest]
     .sort((a, b) => b.lastAccessTime - a.lastAccessTime)
     .slice(0, GLOBAL_SEARCH_RECENT_ITEM_LIMIT)
 
   if (
-    next.length === entries.length &&
+    next.length === current.length &&
     next.every((candidate, index) => {
-      const previous = entries[index]
+      const previous = current[index]
       return previous && areGlobalSearchRecentEntriesEqual(previous, candidate)
     })
   ) {
-    return entries as GlobalSearchRecentEntry[]
+    return current
   }
 
   return next
@@ -164,7 +183,9 @@ export function upsertGlobalSearchRecentEntry(
 export function getDisplayGlobalSearchRecentEntries(
   entries: readonly GlobalSearchRecentEntry[]
 ): GlobalSearchRecentEntry[] {
-  return [...entries].sort((a, b) => b.lastAccessTime - a.lastAccessTime).slice(0, GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT)
+  return [...sanitizeGlobalSearchRecentEntries(entries)]
+    .sort((a, b) => b.lastAccessTime - a.lastAccessTime)
+    .slice(0, GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT)
 }
 
 export function createRecentRouteEntryFromTab(
@@ -175,6 +196,7 @@ export function createRecentRouteEntryFromTab(
   if (!lastAccessTime) return null
 
   const pathname = new URL(tab.url, 'https://www.cherry-ai.com').pathname
+  if (LEGACY_ROUTE_PATHS.has(pathname)) return null
   if (COARSE_ENTITY_ROUTE_PATHS.has(pathname)) return null
 
   if (!INTERNAL_ROUTE_PREFIXES.some((prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix))) {

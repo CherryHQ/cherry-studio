@@ -12,9 +12,12 @@ vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: any) => <>{children}</>
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
-  CopyIcon: () => <span data-testid="copy-icon" />,
-  DeleteIcon: () => <span data-testid="delete-icon" />
+vi.mock('@renderer/components/icons/CopyIcon', () => ({
+  default: () => <span data-testid="copy-icon" />
+}))
+
+vi.mock('@renderer/components/icons/DeleteIcon', () => ({
+  default: () => <span data-testid="delete-icon" />
 }))
 
 vi.mock('lucide-react', () => ({

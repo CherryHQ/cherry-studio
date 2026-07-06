@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import type { Options as ImageCompressionOptions } from 'browser-image-compression'
 import type * as HtmlToImage from 'html-to-image'
 
@@ -181,7 +181,7 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
  * @param elRef 可滚动元素的引用
  * @returns Promise<string | undefined> 图像数据 URL，如果失败则返回 undefined
  */
-export const captureScrollableAsDataURL = async (elRef: React.RefObject<HTMLElement | null>) => {
+export const captureScrollableAsDataUrl = async (elRef: React.RefObject<HTMLElement | null>) => {
   return captureScrollable(elRef).then((canvas) => {
     if (canvas) {
       return canvas.toDataURL('image/png')
@@ -402,7 +402,7 @@ export async function captureScrollableIframe(
   }
 }
 
-export const captureScrollableIframeAsDataURL = async (iframeRef: React.RefObject<HTMLIFrameElement | null>) => {
+export const captureScrollableIframeAsDataUrl = async (iframeRef: React.RefObject<HTMLIFrameElement | null>) => {
   return captureScrollableIframe(iframeRef).then((canvas) => {
     if (canvas) {
       return canvas.toDataURL('image/png')

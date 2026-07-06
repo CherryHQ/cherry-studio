@@ -8,6 +8,9 @@
  *   inputTokens                         → promptTokens
  *   outputTokens                        → completionTokens
  *   outputTokenDetails.reasoningTokens  → thoughtsTokens
+ *   inputTokenDetails.noCacheTokens      → noCacheTokens
+ *   inputTokenDetails.cacheReadTokens    → cacheReadTokens
+ *   inputTokenDetails.cacheWriteTokens   → cacheWriteTokens
  */
 
 import type { LanguageModelUsage } from 'ai'
@@ -75,7 +78,10 @@ export function attachUsageObserver(agent: Agent): void {
         promptTokens: total.inputTokens,
         completionTokens: total.outputTokens,
         thoughtsTokens: total.outputTokenDetails?.reasoningTokens,
-        contextTokens: lastStepTotalTokens
+        contextTokens: lastStepTotalTokens,
+        noCacheTokens: total.inputTokenDetails?.noCacheTokens,
+        cacheReadTokens: total.inputTokenDetails?.cacheReadTokens,
+        cacheWriteTokens: total.inputTokenDetails?.cacheWriteTokens
       }
     })
   })
