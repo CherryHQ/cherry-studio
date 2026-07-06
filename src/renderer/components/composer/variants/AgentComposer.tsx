@@ -24,6 +24,7 @@ import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
 import { useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
@@ -188,6 +189,7 @@ const AgentComposerRoot = ({
     enabled: isActiveTab && Boolean(session && agent && hasNewSessionShortcutAction)
   })
 
+  const sessionSlashCommands = useAgentSessionSlashCommands(sessionId)
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
     const accessiblePaths = session.workspace?.type === 'user' && session.workspace.path ? [session.workspace.path] : []
@@ -195,9 +197,10 @@ const AgentComposerRoot = ({
       agentId,
       sessionId,
       agentType: agent.type,
-      accessiblePaths
+      accessiblePaths,
+      slashCommands: sessionSlashCommands
     }
-  }, [session, agent, agentId, sessionId])
+  }, [session, agent, agentId, sessionId, sessionSlashCommands])
 
   const initialState = useMemo(
     () => ({

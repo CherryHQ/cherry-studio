@@ -1296,12 +1296,14 @@
       "add": "Ajouter un tag",
       "delete": "Supprimer le tag",
       "deleteConfirm": "Voulez-vous vraiment supprimer ce tag ?",
+      "group_by": "[to be translated]:Group by tag",
       "manage": "Gestion des tags",
       "modify": "Modifier le tag",
       "none": "Aucun tag pour le moment",
       "settings": {
         "title": "Paramètres des balises"
       },
+      "ungroup": "[to be translated]:Turn off tag grouping",
       "untagged": "Non groupé"
     },
     "title": "Agent",
@@ -4717,6 +4719,7 @@
     "ollama": "Ollama",
     "open-mineru": "Ouvrir MinerU",
     "openai": "OpenAI",
+    "opencode": "[to be translated]:OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV (NPU) OCR",
@@ -6197,6 +6200,9 @@
         "button": "Récupérer les serveurs",
         "success": "Serveurs MCP récupérés avec succès"
       },
+      "filter": {
+        "label": "[to be translated]:Filter"
+      },
       "findMore": "Plus de serveurs MCP",
       "headers": "Заголовки запроса",
       "headersTooltip": "Пользовательские заголовки HTTP-запроса",
@@ -6237,6 +6243,7 @@
       "noDescriptionAvailable": "Aucune description disponible pour le moment",
       "noLogs": "Aucun journal pour le moment",
       "noServers": "Aucun serveur configuré",
+      "notInstalled": "[to be translated]:Not installed",
       "not_support": "Модель не поддерживается",
       "npx_list": {
         "actions": "Actions",
@@ -6266,6 +6273,7 @@
         "title": "Exécuter un MCP externe ?"
       },
       "provider": "Поставщик",
+      "providerNotFound": "[to be translated]:MCP provider not found",
       "providerPlaceholder": "Название поставщика",
       "providerUrl": "Адрес поставщика",
       "providers": "Fournisseurs",
@@ -6312,13 +6320,6 @@
         "getToken": "Получить API-токен",
         "getTokenDescription": "Получите персональный API-токен из вашей учетной записи",
         "noServersAvailable": "Нет доступных MCP-серверов",
-        "providerDescriptions": {
-          "302ai": "302.Service MCP de la Plateforme AI",
-          "bailian": "Service MCP de la plateforme Bailian d'Alibaba Cloud",
-          "lanyun": "Plateforme Cloud Lanyun Technology Service MCP",
-          "mcprouter": "Plateforme de routeur MCP Service MCP",
-          "modelscope": "Service MCP de la plateforme ModelScope"
-        },
         "selectProvider": "Выберите провайдера:",
         "setToken": "Введите ваш токен",
         "success": "MCP-сервер успешно синхронизирован",

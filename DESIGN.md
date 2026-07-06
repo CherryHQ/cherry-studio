@@ -604,15 +604,14 @@ Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/s
 - **Top chrome height**: `var(--app-top-chrome-height)` = 44px. Use this for the main window tab bar and any standalone macOS window top drag area that should visually align with the main app chrome.
 - **Navbar content height**: `var(--navbar-height)` defaults to `var(--app-top-chrome-height)` for the fixed top-menu layout. Only override it for inner content calculations that intentionally do not include a top navbar.
 - Settings-style floating windows with a transparent macOS shell must keep the outer top inset tied to `var(--app-top-chrome-height)` instead of hard-coded pixel classes such as `h-11` or `h-[50px]`.
-- **Settings window sizing** (standalone settings window only): sized to 80% of the main window with a hard floor of 760×560 and a 1280px max width, centered on the main window. The 760×560 floor keeps the ~200px sidebar plus the detail column usable when the user shrinks the main window; the 1280px ceiling prevents 2K/4K displays from stretching settings into empty space. Canonical implementation: `SettingsWindowService` in `src/main/services/SettingsWindowService.ts`.
 
 ### Settings Panel Layout
 
-Settings pages (both the in-app `/settings` route and the standalone settings window) share the same two-column shape:
+Settings pages use the same two-column shape:
 
 | Column | Width | Composition |
 |---|---|---|
-| Left submenu | `var(--settings-width)` (200px in the standalone window, 250px default in `responsive.css`) | `PageHeader` (title) → `Scrollbar` → `MenuList` of grouped `MenuItem` rows |
+| Left submenu | `var(--settings-width)` (250px default in `responsive.css`) | `PageHeader` (title) → `Scrollbar` → `MenuList` of grouped `MenuItem` rows |
 | Right detail | `flex-1` | Page-owned content |
 
 Submenu composition rules:
