@@ -1,3 +1,4 @@
+import { application } from '@application'
 import {
   embedMany as aiCoreEmbedMany,
   generateImage as aiCoreGenerateImage,
@@ -6,7 +7,6 @@ import {
 import { assistantDataService } from '@data/services/AssistantService'
 import type { PersonGeneration } from '@google/genai'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'

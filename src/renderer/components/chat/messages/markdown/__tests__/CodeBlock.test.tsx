@@ -55,9 +55,12 @@ vi.mock('streamdown', () => ({
   useIsCodeFenceIncomplete: () => mocks.isCodeFenceIncomplete
 }))
 
-vi.mock('@renderer/components/CodeBlockView', () => ({
-  CodeBlockView: mocks.CodeBlockView,
-  HtmlArtifactsCard: mocks.HtmlArtifactsCard
+vi.mock('@renderer/components/CodeBlockView/CodeBlockView', () => ({
+  CodeBlockView: mocks.CodeBlockView
+}))
+
+vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsCard', () => ({
+  default: mocks.HtmlArtifactsCard
 }))
 
 // Mock ClickableFilePath

@@ -3,9 +3,9 @@
  * doesn't carry explicit `mcpToolIds`.
  */
 
+import { application } from '@application'
 import { assistantDataService } from '@data/services/AssistantService'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { Assistant, McpMode } from '@shared/data/types/assistant'

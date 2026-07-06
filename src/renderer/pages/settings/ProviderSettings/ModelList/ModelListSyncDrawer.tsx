@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
+import type { ModelSyncPreviewResponse } from '../types/modelSyncPreviewTypes'
 import ModelSyncPreviewPanel, { ModelSyncPreviewFooter } from './ModelSyncPreviewPanel'
-import type { ModelSyncPreviewResponse } from './modelSyncPreviewTypes'
 import { type ModelPullApplyPayload, useModelListSyncSelections } from './useModelListSyncSelections'
 import { filterProviderSettingModelsByKeywords } from './utils'
 

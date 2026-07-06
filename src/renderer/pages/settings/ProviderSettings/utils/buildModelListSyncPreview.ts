@@ -1,8 +1,8 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 
+import type { ModelSyncPreviewMissingItem, ModelSyncPreviewResponse } from '../types/modelSyncPreviewTypes'
 import { fetchResolvedProviderModels } from './modelSync'
-import type { ModelSyncPreviewMissingItem, ModelSyncPreviewResponse } from './modelSyncPreviewTypes'
 
 const logger = loggerService.withContext('ModelListSyncPreview')
 
