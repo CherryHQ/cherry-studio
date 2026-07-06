@@ -126,6 +126,13 @@
       "when": 1782817365873,
       "tag": "0017_minor_echo",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1783248309483,
+      "tag": "0018_aberrant_shinobi_shaw",
+      "breakpoints": true
     }
   ],
   "version": "7"
