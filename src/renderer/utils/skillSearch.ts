@@ -133,35 +133,35 @@ async function searchClawhub(query: string): Promise<SkillSearchResult[]> {
 // ===========================================================================
 
 /**
- * Search all 3 skill registries with race semantics.
- * Returns results from whichever source responds first,
- * then merges remaining sources as they complete.
+ * Search all 3 skill registries.
+ * Preserves partial success, but rejects when every source fails.
  */
 export async function searchSkills(query: string): Promise<SkillSearchResult[]> {
   if (!query.trim()) return []
 
   const sources = [
-    searchSkillsSh(query).catch((err) => {
-      logger.warn('skills.sh search failed', { error: err instanceof Error ? err.message : String(err) })
-      return [] as SkillSearchResult[]
-    }),
-    searchClaudePlugins(query).catch((err) => {
-      logger.warn('claude-plugins search failed', { error: err instanceof Error ? err.message : String(err) })
-      return [] as SkillSearchResult[]
-    }),
-    searchClawhub(query).catch((err) => {
-      logger.warn('clawhub search failed', { error: err instanceof Error ? err.message : String(err) })
-      return [] as SkillSearchResult[]
-    })
+    { name: 'skills.sh', search: () => searchSkillsSh(query) },
+    { name: 'claude-plugins', search: () => searchClaudePlugins(query) },
+    { name: 'clawhub', search: () => searchClawhub(query) }
   ]
 
-  const results = await Promise.allSettled(sources)
+  const results = await Promise.allSettled(sources.map((source) => source.search()))
   const allResults: SkillSearchResult[] = []
+  let failedSourceCount = 0
 
-  for (const result of results) {
+  for (const [index, result] of results.entries()) {
     if (result.status === 'fulfilled') {
       allResults.push(...result.value)
+    } else {
+      failedSourceCount++
+      logger.warn(`${sources[index].name} search failed`, {
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason)
+      })
     }
+  }
+
+  if (failedSourceCount === sources.length) {
+    throw new Error('Search failed')
   }
 
   // Deduplicate by name (keep first occurrence = fastest source)

@@ -4,9 +4,9 @@ import {
   ClawhubSkillDetailSchema,
   SkillsShSearchResponseSchema
 } from '@shared/types/skill'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { normalizeClaudePlugins } from '../skillSearch'
+import { normalizeClaudePlugins, searchSkills } from '../skillSearch'
 import claudePluginsFixture from './fixtures/claude-plugins-search.json'
 import clawhubDetailFixture from './fixtures/clawhub-detail.json'
 import clawhubSearchFixture from './fixtures/clawhub-search.json'
@@ -256,6 +256,44 @@ describe('Skill search normalizers', () => {
       expect(results[0].author).toBe('devmaster')
       expect(results[0].sourceUrl).toBe('https://clawhub.ai/devmaster/skills/code-reviewer-pro')
     })
+  })
+})
+
+// =============================================================================
+// Search aggregation
+// =============================================================================
+
+describe('searchSkills', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('should return partial results when some registries fail', async () => {
+    const fetchMock = vi.fn(async (url: string | URL) => {
+      if (url.toString().startsWith('https://skills.sh/')) {
+        return {
+          ok: true,
+          json: async () => skillsShFixture
+        } as Response
+      }
+
+      throw new Error('network down')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const results = await searchSkills('vercel')
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(results).toHaveLength(3)
+    expect(results.every((result) => result.sourceRegistry === 'skills.sh')).toBe(true)
+  })
+
+  it('should reject when all registries fail', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('network down'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(searchSkills('vercel')).rejects.toThrow('Search failed')
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })
 

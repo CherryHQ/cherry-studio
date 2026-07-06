@@ -117,7 +117,7 @@ vi.mock('@cherrystudio/ui', () => ({
     value,
     onValueChange
   }: {
-    options: { value: string; label: ReactNode }[]
+    options: { value: string; label: ReactNode; disabled?: boolean }[]
     value?: string
     onValueChange?: (value: string) => void
   }) => (
@@ -128,6 +128,7 @@ vi.mock('@cherrystudio/ui', () => ({
           type="button"
           role="radio"
           aria-checked={option.value === value}
+          disabled={option.disabled}
           onClick={() => onValueChange?.(option.value)}>
           {option.label}
         </button>
@@ -217,6 +218,21 @@ describe('SkillMarketplaceDialog', () => {
     expect(screen.getByText('12')).toBeInTheDocument()
     expect(screen.queryByText('Code Review')).not.toBeInTheDocument()
     expect(within(screen.getByRole('listitem')).queryByText('skills.sh')).not.toBeInTheDocument()
+  })
+
+  it('selects a source with results when the default source has no matches', async () => {
+    const user = userEvent.setup()
+    skillSearchState.results = [resultsFixture[1]]
+    renderDialog()
+
+    await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'react')
+
+    await waitFor(() => {
+      expect(screen.getByRole('radio', { name: /skills.sh/ })).toHaveAttribute('aria-checked', 'true')
+    })
+    expect(screen.getByText('React Skill')).toBeInTheDocument()
+    expect(screen.queryByText('library.skill_marketplace.no_results_title')).not.toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /claude-plugins.dev/ })).toBeDisabled()
   })
 
   it('installs a marketplace skill, keeps the dialog open, and notifies the parent', async () => {

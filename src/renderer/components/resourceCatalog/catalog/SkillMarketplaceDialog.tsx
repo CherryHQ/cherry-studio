@@ -36,6 +36,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
   const [activeSource, setActiveSource] = useState<SkillSearchSource>('claude-plugins.dev')
   const [installedSources, setInstalledSources] = useState<Set<string>>(() => new Set())
   const pendingInstallSourcesRef = useRef<Set<string>>(new Set())
+  const hasQuery = query.trim() !== ''
 
   useEffect(() => {
     if (open) return
@@ -54,10 +55,26 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
     return counts
   }, [results])
 
-  const visibleResults = useMemo(
-    () => results.filter((result) => result.sourceRegistry === activeSource),
-    [activeSource, results]
+  const firstSourceWithResults = useMemo(
+    () => SEARCH_SOURCES.find((source) => (tabCounts.get(source) ?? 0) > 0) ?? null,
+    [tabCounts]
   )
+
+  const selectedSource =
+    hasQuery && results.length > 0 && (tabCounts.get(activeSource) ?? 0) === 0 && firstSourceWithResults
+      ? firstSourceWithResults
+      : activeSource
+
+  const visibleResults = useMemo(
+    () => results.filter((result) => result.sourceRegistry === selectedSource),
+    [selectedSource, results]
+  )
+
+  useEffect(() => {
+    if (activeSource !== selectedSource) {
+      setActiveSource(selectedSource)
+    }
+  }, [activeSource, selectedSource])
 
   const handleSearchChange = useCallback(
     (value: string) => {
@@ -123,13 +140,14 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
           <div className="mt-3 flex items-center gap-3">
             <SegmentedControl<SkillSearchSource>
               size="sm"
-              value={activeSource}
+              value={selectedSource}
               onValueChange={setActiveSource}
               className="shrink-0"
               options={SEARCH_SOURCES.map((source) => {
                 const count = tabCounts.get(source) ?? 0
                 return {
                   value: source,
+                  disabled: hasQuery && results.length > 0 && count === 0,
                   label: (
                     <>
                       {source}

@@ -18,7 +18,7 @@ vi.mock('@data/hooks/useDataApi', () => ({
 
 import type { InstalledSkill } from '@shared/types/skill'
 
-import { useAvailableSkills, useInstalledSkills, useSkillInstall } from '../useSkills'
+import { useAvailableSkills, useInstalledSkills, useSkillInstall, useSkillSearch } from '../useSkills'
 
 function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
   return {
@@ -340,5 +340,27 @@ describe('useSkillInstall', () => {
       await expect(result.current.installFromDirectory('/tmp/bad-dir')).rejects.toThrow('directory failed')
     })
     expect(toastErrorMock).toHaveBeenCalledWith('directory failed')
+  })
+})
+
+describe('useSkillSearch', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('surfaces an error when every marketplace registry fails', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('network down'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { result } = renderHook(() => useSkillSearch())
+
+    await act(async () => {
+      await result.current.search('react')
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(result.current.results).toEqual([])
+    expect(result.current.searching).toBe(false)
+    expect(result.current.error).toBe('Search failed')
   })
 })
