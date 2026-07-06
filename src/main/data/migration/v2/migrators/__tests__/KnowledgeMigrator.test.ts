@@ -751,7 +751,6 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.preparedBases).toHaveLength(1)
     expect(migrator.preparedBases[0].embeddingModelId).toBe('silicon::BAAI/bge-m3')
     expect(migrator.preparedBases[0].rerankModelId).toBe('silicon::Qwen/Qwen3-Reranker-8B')
-    expect(migrator.preparedBases[0].searchMode).toBe('hybrid')
     expect(migrator.skippedCount).toBe(0)
   })
 
@@ -2126,10 +2125,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         fileProcessorId: null,
         chunkSize: 1024,
         chunkOverlap: 200,
-        threshold: null,
         documentCount: null,
-        searchMode: 'hybrid',
-        hybridAlpha: null,
         createdAt: 1775114958369,
         updatedAt: 1775114958369
       }

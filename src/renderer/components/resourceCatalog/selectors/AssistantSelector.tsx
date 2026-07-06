@@ -36,6 +36,7 @@ type SharedProps = {
   trigger: ReactElement
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  onDialogCloseAutoFocus?: () => void
   autoSelectOnCreate?: boolean
   side?: SelectorShellProps['side']
   align?: SelectorShellProps['align']
@@ -78,7 +79,17 @@ export type AssistantSelectorProps =
   | AssistantSelectorMultiItemProps
 
 export function AssistantSelector(props: AssistantSelectorProps) {
-  const { trigger, open, onOpenChange, autoSelectOnCreate, side, align, sideOffset, mountStrategy } = props
+  const {
+    trigger,
+    open,
+    onOpenChange,
+    onDialogCloseAutoFocus,
+    autoSelectOnCreate,
+    side,
+    align,
+    sideOffset,
+    mountStrategy
+  } = props
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -161,12 +172,26 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     [data?.items]
   )
 
-  const handleEditDialogOpenChange = useCallback((nextOpen: boolean) => {
-    setEditDialogOpen(nextOpen)
-    if (!nextOpen) {
-      setEditingAssistant(null)
-    }
-  }, [])
+  const handleEditDialogOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setEditDialogOpen(nextOpen)
+      if (!nextOpen) {
+        setEditingAssistant(null)
+        onDialogCloseAutoFocus?.()
+      }
+    },
+    [onDialogCloseAutoFocus]
+  )
+
+  const handleCreateDialogOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setCreateDialogOpen(nextOpen)
+      if (!nextOpen) {
+        onDialogCloseAutoFocus?.()
+      }
+    },
+    [onDialogCloseAutoFocus]
+  )
 
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateWizardValues) => {
@@ -188,6 +213,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       }
 
       setCreateDialogOpen(false)
+      onDialogCloseAutoFocus?.()
       try {
         await refetch()
       } catch (error) {
@@ -211,7 +237,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       }
       handleSelectorOpenChange(true)
     },
-    [autoSelectOnCreate, createAssistant, handleSelectorOpenChange, props, refetch, t]
+    [autoSelectOnCreate, createAssistant, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
   )
 
   const handleEditSaved = useCallback(async () => {
@@ -230,7 +256,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       kind="assistant"
       open={createDialogOpen}
       isSubmitting={isCreatingAssistant}
-      onOpenChange={setCreateDialogOpen}
+      onOpenChange={handleCreateDialogOpenChange}
       onSubmit={handleSubmitCreate}
       modelFilter={isSelectableAssistantModel}
     />

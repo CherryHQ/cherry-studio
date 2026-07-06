@@ -78,7 +78,7 @@ describe('classifyError', () => {
   it('classifies econnrefused as network', () => {
     const result = classifyError(makeError({ message: 'connect ECONNREFUSED 127.0.0.1:443' }))
     expect(result.category).toBe('network')
-    expect(result.navTarget).toBe('/settings/general')
+    expect(result.navTarget).toBe('/settings/system')
   })
 
   it('classifies timeout as network', () => {

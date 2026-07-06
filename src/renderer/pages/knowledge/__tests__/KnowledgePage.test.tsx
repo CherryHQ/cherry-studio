@@ -35,7 +35,7 @@ vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useReindexKnowledgeItem: (baseId: string) => mockUseReindexKnowledgeItem(baseId)
 }))
 
-vi.mock('../hooks', () => ({
+vi.mock('../hooks/useKnowledgeGroups', () => ({
   useKnowledgeGroups: () => mockUseKnowledgeGroups(),
   useCreateKnowledgeGroup: () => mockUseCreateKnowledgeGroup(),
   useUpdateKnowledgeGroup: () => mockUseUpdateKnowledgeGroup(),
@@ -478,11 +478,9 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): Kn
   chunkOverlap: 200,
   chunkStrategy: 'structured',
   chunkSeparator: '\\n\\n',
-  threshold: undefined,
   documentCount: undefined,
   status: 'completed',
   error: null,
-  searchMode: 'hybrid',
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
