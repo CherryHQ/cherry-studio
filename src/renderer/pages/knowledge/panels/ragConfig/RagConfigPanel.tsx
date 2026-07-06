@@ -94,22 +94,25 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
   // the same chunk validation as a plain save.
   const canSubmit = canSave || requiresRestore
 
-  const handleSave = async () => {
-    if (!canSubmit) {
+  // Shared submit executor, parameterized by the draft to persist so the download
+  // auto-save can pass its freshly-selected values without waiting for a setValues
+  // re-render. The restore-vs-save routing is derived from `submitValues`, mirroring
+  // the render-level computations that gate the Save button.
+  const persist = async (submitValues: typeof values) => {
+    const modelChanged = submitValues.embeddingModelId !== initialValues.embeddingModelId
+    const saveEmbeddingModelDirectly = modelChanged && itemCount === 0
+
+    if (modelChanged && !saveEmbeddingModelDirectly) {
+      onRestoreBase(base, { embeddingModelId: submitValues.embeddingModelId })
       return
     }
 
-    if (requiresRestore) {
-      onRestoreBase(base, { embeddingModelId: values.embeddingModelId })
-      return
-    }
-
-    if (canSaveEmbeddingModelDirectly) {
+    if (saveEmbeddingModelDirectly) {
       let dimensions: number | null = null
 
-      if (values.embeddingModelId) {
+      if (submitValues.embeddingModelId) {
         try {
-          dimensions = await fetchDimensions(values.embeddingModelId)
+          dimensions = await fetchDimensions(submitValues.embeddingModelId)
         } catch (error) {
           window.toast.error(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
           return
@@ -119,12 +122,12 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
       try {
         const saveValues =
           initialValues.embeddingModelId === null &&
-          values.embeddingModelId !== null &&
-          values.searchMode === initialValues.searchMode
-            ? { ...values, searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE, hybridAlpha: null }
-            : values
+          submitValues.embeddingModelId !== null &&
+          submitValues.searchMode === initialValues.searchMode
+            ? { ...submitValues, searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE, hybridAlpha: null }
+            : submitValues
 
-        await save(saveValues, { embeddingModelId: values.embeddingModelId, dimensions })
+        await save(saveValues, { embeddingModelId: submitValues.embeddingModelId, dimensions })
         window.toast.success(t('knowledge.rag.saved'))
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
@@ -133,15 +136,38 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
     }
 
     try {
-      await save(values)
+      await save(submitValues)
       window.toast.success(t('knowledge.rag.saved'))
     } catch (error) {
       window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
     }
   }
 
+  const handleSave = () => {
+    if (!canSubmit) {
+      return
+    }
+    return persist(values)
+  }
+
   const handleEmbeddingModelChange = (embeddingModelId: string | null) => {
     setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
+  }
+
+  // A finished local-model download selects the model in the draft AND persists it
+  // straight away, so the user doesn't have to click Save. Persist the freshly
+  // selected values directly (setValues is async) and mirror the Save button's gate:
+  // an empty base saves in place, a non-empty base routes to the restore/re-embed flow.
+  const handleLocalEmbeddingDownloaded = (embeddingModelId: string) => {
+    const nextValues = { ...values, embeddingModelId }
+    setValues(nextValues)
+
+    const modelChanged = embeddingModelId !== initialValues.embeddingModelId
+    const nextRequiresRestore = modelChanged && itemCount !== 0
+    const { canSave: nextCanSave } = getKnowledgeRagConfigFormState(initialValues, nextValues)
+    if (nextCanSave || nextRequiresRestore) {
+      void persist(nextValues)
+    }
   }
 
   return (
@@ -159,6 +185,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
           <EmbeddingSection
             embeddingModelId={values.embeddingModelId}
             onEmbeddingModelChange={handleEmbeddingModelChange}
+            onLocalEmbeddingDownloaded={handleLocalEmbeddingDownloaded}
           />
 
           <RerankSection

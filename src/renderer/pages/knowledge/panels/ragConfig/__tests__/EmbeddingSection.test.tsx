@@ -28,19 +28,35 @@ vi.mock('../LocalEmbeddingDownloadButton', () => ({
 
 describe('EmbeddingSection', () => {
   it('shows the local download entry only when no embedding model is set', () => {
-    const { rerender } = render(<EmbeddingSection embeddingModelId={null} onEmbeddingModelChange={vi.fn()} />)
+    const { rerender } = render(
+      <EmbeddingSection embeddingModelId={null} onEmbeddingModelChange={vi.fn()} onLocalEmbeddingDownloaded={vi.fn()} />
+    )
     expect(screen.getByText('local-download')).toBeInTheDocument()
 
-    rerender(<EmbeddingSection embeddingModelId="openai::text-embedding-3-small" onEmbeddingModelChange={vi.fn()} />)
+    rerender(
+      <EmbeddingSection
+        embeddingModelId="openai::text-embedding-3-small"
+        onEmbeddingModelChange={vi.fn()}
+        onLocalEmbeddingDownloaded={vi.fn()}
+      />
+    )
     expect(screen.queryByText('local-download')).not.toBeInTheDocument()
   })
 
-  it('selects the downloaded local model in the parent form', () => {
+  it('routes a finished download to the auto-save callback, not the plain model change', () => {
     const onEmbeddingModelChange = vi.fn()
-    render(<EmbeddingSection embeddingModelId={null} onEmbeddingModelChange={onEmbeddingModelChange} />)
+    const onLocalEmbeddingDownloaded = vi.fn()
+    render(
+      <EmbeddingSection
+        embeddingModelId={null}
+        onEmbeddingModelChange={onEmbeddingModelChange}
+        onLocalEmbeddingDownloaded={onLocalEmbeddingDownloaded}
+      />
+    )
 
     fireEvent.click(screen.getByText('local-download'))
 
-    expect(onEmbeddingModelChange).toHaveBeenCalledWith('local-embedding::qwen3-embedding-0.6b')
+    expect(onLocalEmbeddingDownloaded).toHaveBeenCalledWith('local-embedding::qwen3-embedding-0.6b')
+    expect(onEmbeddingModelChange).not.toHaveBeenCalled()
   })
 })

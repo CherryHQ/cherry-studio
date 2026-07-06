@@ -7,9 +7,16 @@ import { RagFieldLabel } from './panelPrimitives'
 interface EmbeddingSectionProps {
   embeddingModelId: string | null
   onEmbeddingModelChange: (embeddingModelId: string | null) => void
+  // Distinct from onEmbeddingModelChange: a finished download both selects the
+  // model AND persists it, so the user doesn't have to click Save afterwards.
+  onLocalEmbeddingDownloaded: (embeddingModelId: string) => void
 }
 
-const EmbeddingSection = ({ embeddingModelId, onEmbeddingModelChange }: EmbeddingSectionProps) => {
+const EmbeddingSection = ({
+  embeddingModelId,
+  onEmbeddingModelChange,
+  onLocalEmbeddingDownloaded
+}: EmbeddingSectionProps) => {
   const { t } = useTranslation()
 
   return (
@@ -26,7 +33,7 @@ const EmbeddingSection = ({ embeddingModelId, onEmbeddingModelChange }: Embeddin
               onChange={onEmbeddingModelChange}
             />
           </div>
-          {embeddingModelId === null ? <LocalEmbeddingDownloadButton onSelected={onEmbeddingModelChange} /> : null}
+          {embeddingModelId === null ? <LocalEmbeddingDownloadButton onSelected={onLocalEmbeddingDownloaded} /> : null}
         </div>
       </div>
     </div>

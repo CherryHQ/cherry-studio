@@ -1,3 +1,4 @@
+import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -200,9 +201,19 @@ vi.mock('../../../components/KnowledgeModelSelect', () => ({
   )
 }))
 
-vi.mock('../LocalEmbeddingDownloadButton', () => ({
-  default: () => null
-}))
+// Stub the download button as a plain button that fires onSelected with the local
+// model id, so tests can drive the "download finished → auto-select + save" path.
+// Async factory + dynamic import keeps the id out of the hoisted-factory scope rules.
+vi.mock('../LocalEmbeddingDownloadButton', async () => {
+  const { LOCAL_EMBEDDING_UNIQUE_MODEL_ID: localModelId } = await import('@shared/data/presets/localEmbedding')
+  return {
+    default: ({ onSelected }: { onSelected: (modelId: string) => void }) => (
+      <button type="button" onClick={() => onSelected(localModelId)}>
+        download-local-embedding
+      </button>
+    )
+  }
+})
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -728,6 +739,74 @@ describe('RagConfigPanel', () => {
           threshold: 0.7
         })
       )
+    })
+  })
+
+  it('auto-saves the downloaded local embedding model directly on an empty base', async () => {
+    const onRestoreBase = vi.fn()
+    mockUseKnowledgeRagConfig.mockReturnValue({
+      initialValues: {
+        fileProcessorId: null,
+        chunkSize: '512',
+        chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
+        embeddingModelId: null,
+        rerankModelId: null,
+        documentCount: 6,
+        threshold: 0.1,
+        searchMode: 'bm25',
+        hybridAlpha: null
+      },
+      fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
+      save: mockSave,
+      isLoading: false,
+      error: undefined
+    })
+
+    renderRagConfigPanel(onRestoreBase, { embeddingModelId: null, dimensions: null, searchMode: 'bm25' }, 0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'download-local-embedding' }))
+
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalledWith(
+        expect.objectContaining({ embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID }),
+        { embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID, dimensions: 2048 }
+      )
+    })
+    expect(onRestoreBase).not.toHaveBeenCalled()
+    expect(window.toast.success).toHaveBeenCalledWith('已保存')
+  })
+
+  it('routes the downloaded local embedding model through rebuild when the base has items', () => {
+    const onRestoreBase = vi.fn()
+    mockUseKnowledgeRagConfig.mockReturnValue({
+      initialValues: {
+        fileProcessorId: null,
+        chunkSize: '512',
+        chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
+        embeddingModelId: null,
+        rerankModelId: null,
+        documentCount: 6,
+        threshold: 0.1,
+        searchMode: 'bm25',
+        hybridAlpha: null
+      },
+      fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
+      save: mockSave,
+      isLoading: false,
+      error: undefined
+    })
+
+    renderRagConfigPanel(onRestoreBase, { embeddingModelId: null, dimensions: null, searchMode: 'bm25' }, 5)
+
+    fireEvent.click(screen.getByRole('button', { name: 'download-local-embedding' }))
+
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
+      embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID
     })
   })
 })
