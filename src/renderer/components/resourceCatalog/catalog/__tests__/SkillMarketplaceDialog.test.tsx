@@ -195,29 +195,32 @@ describe('SkillMarketplaceDialog', () => {
     await user.type(screen.getByPlaceholderText('library.skill_marketplace.search_placeholder'), 'react')
 
     expect(searchMock).toHaveBeenLastCalledWith('react')
-    expect(screen.getByRole('radio', { name: /claude-plugins.dev/ })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /skills.sh/ })).toBeInTheDocument()
+    const sourceTabs = screen.getAllByRole('radio')
+    expect(sourceTabs.map((tab) => tab.textContent)).toEqual(['skills.sh1', 'claude-plugins.dev2', 'clawhub.ai'])
+    expect(sourceTabs[0]).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByTestId('skill-results-virtual-list')).toHaveClass('px-6', 'pt-1', 'pb-1')
     expect(screen.getByTestId('skill-results-virtual-list')).toHaveClass('[&::-webkit-scrollbar]:!w-0.75')
-    expect(screen.getAllByRole('listitem')[0]).toHaveClass('min-h-[56px]', 'border-b')
+    expect(screen.getAllByRole('listitem')[0]).toHaveClass('min-h-[56px]')
     expect(screen.getAllByRole('listitem')[0].className).not.toContain('hover:bg-accent')
-    expect(screen.getByText('Code Review')).toBeInTheDocument()
-    const firstResult = screen.getAllByRole('listitem')[0]
-    expect(within(firstResult).queryByText('Review code changes')).not.toBeInTheDocument()
-    expect(within(firstResult).queryByText('anthropic')).not.toBeInTheDocument()
-    expect(within(firstResult).getByText('42')).toBeInTheDocument()
-    await user.click(within(firstResult).getByLabelText('settings.skills.viewSource'))
-    expect(window.open).toHaveBeenCalledWith('https://github.com/anthropic/skills/tree/main/code-review')
-    expect(screen.queryByText('React Skill')).not.toBeInTheDocument()
-    expect(within(firstResult).queryByText('claude-plugins.dev')).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('radio', { name: /skills.sh/ }))
-
     expect(screen.getByText('React Skill')).toBeInTheDocument()
-    expect(screen.queryByText('vercel')).not.toBeInTheDocument()
-    expect(screen.getByText('12')).toBeInTheDocument()
+    const firstResult = screen.getAllByRole('listitem')[0]
+    expect(within(firstResult).queryByText('vercel')).not.toBeInTheDocument()
+    expect(within(firstResult).getByText('12')).toBeInTheDocument()
+    await user.click(within(firstResult).getByLabelText('settings.skills.viewSource'))
+    expect(window.open).toHaveBeenCalledWith('https://github.com/vercel/skills')
     expect(screen.queryByText('Code Review')).not.toBeInTheDocument()
-    expect(within(screen.getByRole('listitem')).queryByText('skills.sh')).not.toBeInTheDocument()
+    expect(within(firstResult).queryByText('skills.sh')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: /claude-plugins.dev/ }))
+
+    expect(screen.getByText('Code Review')).toBeInTheDocument()
+    const claudeResult = screen.getAllByRole('listitem')[0]
+    expect(claudeResult).toHaveClass('min-h-[56px]', 'border-b')
+    expect(within(claudeResult).queryByText('Review code changes')).not.toBeInTheDocument()
+    expect(within(claudeResult).queryByText('anthropic')).not.toBeInTheDocument()
+    expect(within(claudeResult).getByText('42')).toBeInTheDocument()
+    expect(screen.queryByText('React Skill')).not.toBeInTheDocument()
+    expect(within(claudeResult).queryByText('claude-plugins.dev')).not.toBeInTheDocument()
   })
 
   it('selects a source with results when the default source has no matches', async () => {
@@ -245,7 +248,7 @@ describe('SkillMarketplaceDialog', () => {
     await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
 
     await waitFor(() => {
-      expect(installMock).toHaveBeenCalledWith('claude-plugins:anthropic/skills/code-review')
+      expect(installMock).toHaveBeenCalledWith('skills.sh:vercel/skills/react-skill')
     })
     expect(onInstalled).toHaveBeenCalledTimes(1)
     expect(onOpenChange).not.toHaveBeenCalled()
@@ -336,7 +339,7 @@ describe('SkillMarketplaceDialog', () => {
     await user.click(screen.getByRole('button', { name: /settings.skills.install/ }))
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith('settings.skills.installFailed:Code Review: clone failed')
+      expect(toastError).toHaveBeenCalledWith('settings.skills.installFailed:React Skill: clone failed')
     })
     expect(onOpenChange).not.toHaveBeenCalled()
   })

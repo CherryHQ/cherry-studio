@@ -25,7 +25,8 @@ type Props = {
   onInstalled?: () => void
 }
 
-const SEARCH_SOURCES: SkillSearchSource[] = ['claude-plugins.dev', 'skills.sh', 'clawhub.ai']
+const SEARCH_SOURCES: SkillSearchSource[] = ['skills.sh', 'claude-plugins.dev', 'clawhub.ai']
+const DEFAULT_SEARCH_SOURCE: SkillSearchSource = 'skills.sh'
 const SKILL_SEARCH_RESULT_ROW_ESTIMATE_PX = 64
 
 export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Props) {
@@ -33,7 +34,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
   const { results, searching, error, search, clear } = useSkillSearch()
   const { install, isInstalling } = useSkillInstall()
   const [query, setQuery] = useState('')
-  const [activeSource, setActiveSource] = useState<SkillSearchSource>('claude-plugins.dev')
+  const [activeSource, setActiveSource] = useState<SkillSearchSource>(DEFAULT_SEARCH_SOURCE)
   const [installedSources, setInstalledSources] = useState<Set<string>>(() => new Set())
   const pendingInstallSourcesRef = useRef<Set<string>>(new Set())
   const hasQuery = query.trim() !== ''
@@ -41,7 +42,7 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
   useEffect(() => {
     if (open) return
     setQuery('')
-    setActiveSource('claude-plugins.dev')
+    setActiveSource(DEFAULT_SEARCH_SOURCE)
     setInstalledSources(new Set())
     pendingInstallSourcesRef.current.clear()
     clear()
