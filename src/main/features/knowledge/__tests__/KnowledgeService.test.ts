@@ -209,9 +209,7 @@ function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
     chunkOverlap: 200,
     chunkStrategy: 'structured',
     chunkSeparator: '\\n\\n',
-    threshold: undefined,
     documentCount: 10,
-    searchMode: 'vector',
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z',
     ...overrides
@@ -661,6 +659,30 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it('carries the source base rerank threshold into the restored base', async () => {
+    // Restore must not silently reset the configured rerank threshold: `KnowledgeBaseService.create`
+    // persists `threshold ?? null`, so omitting it from the create DTO would relax post-rerank
+    // relevance filtering after a rebuild even though the migration and RAG config preserve it.
+    const service = new KnowledgeService()
+    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::new', dimensions: 6 })
+    knowledgeBaseGetByIdMock
+      .mockReturnValueOnce(
+        createBase({ id: 'source-kb', status: 'failed', rerankModelId: 'provider::rerank', threshold: 0.42 })
+      )
+      .mockReturnValue(restoredBase)
+    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
+    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([createNoteItem('source-note', 'source-kb')])
+
+    await service.restoreBase({
+      sourceBaseId: 'source-kb',
+      name: 'Restored KB',
+      embeddingModelId: 'provider::new',
+      dimensions: 6
+    })
+
+    expect(knowledgeBaseCreateMock).toHaveBeenCalledWith(expect.objectContaining({ threshold: 0.42 }))
+  })
+
   it('skips a root item whose source is gone and restores the rest (partial restore)', async () => {
     // M4: a failed base often holds an item whose source no longer exists — a v1-migrated directory
     // child has a virtual path with no raw/ file, and a deleted file has no material to copy. Because
@@ -777,70 +799,6 @@ describe('KnowledgeService', () => {
         name: 'Restored KB',
         embeddingModelId: 'provider::embed',
         dimensions: 3
-      })
-    )
-  })
-
-  it("drops a BM25-only source base's pinned searchMode when restore adds an embedding model", async () => {
-    // A BM25-only source's searchMode is pinned to 'bm25' by the no-model invariant.
-    // Carrying it over into a base that now has an embedding model would leave
-    // semantic search silently disabled despite paying for the full embedding
-    // backfill; create() must see undefined here so it applies its own default.
-    const service = new KnowledgeService()
-    const sourceBase = createBase({ id: 'source-kb', embeddingModelId: null, dimensions: null, searchMode: 'bm25' })
-    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::new', dimensions: 6 })
-    knowledgeBaseGetByIdMock.mockReturnValueOnce(sourceBase)
-    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
-    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([])
-
-    await expect(
-      service.restoreBase({
-        sourceBaseId: 'source-kb',
-        name: 'Restored KB',
-        embeddingModelId: 'provider::new',
-        dimensions: 6
-      })
-    ).resolves.toEqual({ base: restoredBase, skippedMissingSourceCount: 0 })
-
-    expect(knowledgeBaseCreateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        embeddingModelId: 'provider::new',
-        dimensions: 6,
-        searchMode: undefined,
-        hybridAlpha: undefined
-      })
-    )
-  })
-
-  it("carries over a source base's searchMode and hybridAlpha when it already had an embedding model", async () => {
-    const service = new KnowledgeService()
-    const sourceBase = createBase({
-      id: 'source-kb',
-      embeddingModelId: 'provider::embed',
-      dimensions: 3,
-      searchMode: 'hybrid',
-      hybridAlpha: 0.6
-    })
-    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::embed', dimensions: 3 })
-    knowledgeBaseGetByIdMock.mockReturnValueOnce(sourceBase)
-    knowledgeBaseCreateMock.mockReturnValueOnce(restoredBase)
-    knowledgeItemGetRootItemsByBaseIdMock.mockReturnValueOnce([])
-
-    await expect(
-      service.restoreBase({
-        sourceBaseId: 'source-kb',
-        name: 'Restored KB',
-        embeddingModelId: 'provider::embed',
-        dimensions: 3
-      })
-    ).resolves.toEqual({ base: restoredBase, skippedMissingSourceCount: 0 })
-
-    expect(knowledgeBaseCreateMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        embeddingModelId: 'provider::embed',
-        dimensions: 3,
-        searchMode: 'hybrid',
-        hybridAlpha: 0.6
       })
     )
   })
@@ -1726,9 +1684,9 @@ describe('KnowledgeService', () => {
     expect(enqueueMock).not.toHaveBeenCalled()
   })
 
-  it('searches vector store results and applies relevance threshold', async () => {
+  it('searches embedding-backed bases with hybrid retrieval and keeps ranking scores', async () => {
     const service = new KnowledgeService()
-    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ threshold: 0.5 }))
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase())
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
     storeSearchMock.mockResolvedValueOnce([
       { unitId: 'chunk-1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'hello world', score: 0.8 },
@@ -1736,19 +1694,23 @@ describe('KnowledgeService', () => {
     ])
 
     await expect(service.search('kb-1', 'hello')).resolves.toEqual([
-      expect.objectContaining({ chunkId: 'chunk-1', itemId: NOTE_ITEM_ID, rank: 1, score: 0.8 })
+      expect.objectContaining({ chunkId: 'chunk-1', itemId: NOTE_ITEM_ID, rank: 1, score: 0.8 }),
+      expect.objectContaining({ chunkId: 'chunk-2', itemId: NOTE_ITEM_ID, rank: 2, score: 0.2 })
     ])
     expect(aiEmbedManyMock).toHaveBeenCalledWith({
       uniqueModelId: 'provider::embed',
       values: ['hello'],
       requestOptions: undefined
     })
+    expect(storeSearchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'hybrid', queryEmbedding: [0.1, 0.2, 0.3] })
+    )
   })
 
   it('enriches each hit with its Concept ID (relative path) and display title for deep-read follow-up', async () => {
     const service = new KnowledgeService()
     const FILE_ITEM_ID = 'file-item-1'
-    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ threshold: 0.5 }))
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase())
     knowledgeItemGetByIdMock.mockReturnValue(createFileItem(FILE_ITEM_ID, 'kb-1', '/docs/report.pdf', 'completed'))
     storeSearchMock.mockResolvedValueOnce([
       { unitId: 'chunk-1', materialId: FILE_ITEM_ID, unitIndex: 0, text: 'body', score: 0.9 }
@@ -1761,7 +1723,8 @@ describe('KnowledgeService', () => {
 
   it('bm25 mode skips the embedding round-trip and dispatches a lexical-only store search', async () => {
     const service = new KnowledgeService()
-    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ searchMode: 'bm25', threshold: 0.5 }))
+    // A base without an embedding model always searches in bm25 mode.
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ embeddingModelId: null, dimensions: null }))
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
     storeSearchMock.mockResolvedValueOnce([
       { unitId: 'c1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'hit', score: 3.2 },
@@ -1773,31 +1736,12 @@ describe('KnowledgeService', () => {
     // No paid embedding call, and the store is told not to expect a query vector.
     expect(aiEmbedManyMock).not.toHaveBeenCalled()
     expect(storeSearchMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'bm25', queryEmbedding: undefined }))
-    // BM25 'ranking' scores aren't relevance-comparable, so the 0.5 threshold can't gate them.
     expect(results.map((result) => result.chunkId)).toEqual(['c1', 'c2'])
   })
 
-  it('forces BM25 for a base without an embedding model even if its stored mode is not bm25', async () => {
+  it('hybrid mode embeds the query and forwards it to the store', async () => {
     const service = new KnowledgeService()
-    // A BM25-only base has no embedding model/dimensions; a lingering non-bm25 mode
-    // must not trigger an embedding round-trip the base can't satisfy.
-    knowledgeBaseGetByIdMock.mockReturnValue(
-      createBase({ embeddingModelId: null, dimensions: null, searchMode: 'hybrid' })
-    )
-    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
-    storeSearchMock.mockResolvedValueOnce([
-      { unitId: 'c1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'hit', score: 3.2 }
-    ])
-
-    await service.search('kb-1', 'hello')
-
-    expect(aiEmbedManyMock).not.toHaveBeenCalled()
-    expect(storeSearchMock).toHaveBeenCalledWith(expect.objectContaining({ mode: 'bm25', queryEmbedding: undefined }))
-  })
-
-  it('hybrid mode embeds the query and passes the per-base hybridAlpha through to the store', async () => {
-    const service = new KnowledgeService()
-    knowledgeBaseGetByIdMock.mockReturnValue(createBase({ searchMode: 'hybrid', hybridAlpha: 0.7, threshold: 0.5 }))
+    knowledgeBaseGetByIdMock.mockReturnValue(createBase())
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
     storeSearchMock.mockResolvedValueOnce([
       { unitId: 'c1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'fused hit', score: 0.02 }
@@ -1805,18 +1749,16 @@ describe('KnowledgeService', () => {
 
     const results = await service.search('kb-1', 'hello')
 
-    // The query embedding is computed and forwarded, and the base's alpha is passed
-    // verbatim (a lost alpha would silently fall back to 0.5; a reversed bm25/non-bm25
-    // branch would forward an undefined embedding and the store would reject hybrid).
+    // The query embedding is computed and forwarded (a reversed bm25/non-bm25 branch
+    // would forward an undefined embedding and the store would reject hybrid).
     expect(aiEmbedManyMock).toHaveBeenCalledWith({
       uniqueModelId: 'provider::embed',
       values: ['hello'],
       requestOptions: undefined
     })
     expect(storeSearchMock).toHaveBeenCalledWith(
-      expect.objectContaining({ mode: 'hybrid', alpha: 0.7, queryEmbedding: [0.1, 0.2, 0.3] })
+      expect.objectContaining({ mode: 'hybrid', queryEmbedding: [0.1, 0.2, 0.3] })
     )
-    // RRF 'ranking' scores bypass the relevance threshold too (0.02 < 0.5, still kept).
     expect(results.map((result) => result.chunkId)).toEqual(['c1'])
   })
 
@@ -2270,9 +2212,9 @@ describe('KnowledgeService', () => {
     })
   })
 
-  it('applies rerank results before applying relevance threshold', async () => {
+  it('applies rerank results before assigning ranks', async () => {
     const service = new KnowledgeService()
-    const base = createBase({ threshold: 0.5, rerankModelId: 'jina::jina-reranker-v2-base-multilingual' })
+    const base = createBase({ rerankModelId: 'jina::jina-reranker-v2-base-multilingual' })
     knowledgeBaseGetByIdMock.mockReturnValue(base)
     knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
     storeSearchMock.mockResolvedValueOnce([
@@ -2285,7 +2227,8 @@ describe('KnowledgeService', () => {
     ])
 
     await expect(service.search('kb-1', 'hello')).resolves.toEqual([
-      expect.objectContaining({ chunkId: 'chunk-2', rank: 1, score: 0.9 })
+      expect.objectContaining({ chunkId: 'chunk-2', rank: 1, score: 0.9 }),
+      expect.objectContaining({ chunkId: 'chunk-1', rank: 2, score: 0.2 })
     ])
     expect(rerankKnowledgeSearchResultsMock).toHaveBeenCalledWith(
       base,
