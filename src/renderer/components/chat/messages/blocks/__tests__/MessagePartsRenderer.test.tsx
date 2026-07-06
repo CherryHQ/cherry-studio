@@ -367,6 +367,30 @@ describe('MessagePartsRenderer', () => {
     expect(within(screen.getByTestId('tool-history-preview')).getByTestId('mock-message-tools')).toBeInTheDocument()
   })
 
+  it('keeps the collapsed preview render subtree inert while leaving the dismiss button usable', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts(
+      [
+        {
+          type: 'dynamic-tool',
+          toolCallId: 'a',
+          toolName: 'Read',
+          state: 'input-available',
+          input: { path: 'package.json' },
+          output: { metadata: { serverName: 'S', serverId: 's1', type: 'mcp' } }
+        }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    const preview = screen.getByTestId('tool-history-preview')
+    const previewBody = preview.querySelector('[aria-hidden="true"][inert]')
+
+    expect(previewBody).toContainElement(within(preview).getByTestId('mock-message-tools'))
+    expect(previewBody).not.toContainElement(screen.getByRole('button', { name: 'Close' }))
+  })
+
   it('does not show a generating placeholder once answer text exists while streaming', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 

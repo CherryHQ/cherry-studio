@@ -934,6 +934,7 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
             <div
               ref={previewRef}
               aria-hidden="true"
+              inert
               className="pointer-events-none flex h-full w-full flex-col gap-0 overflow-y-auto px-2.5 py-1.5 pr-7 [scrollbar-width:thin] [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0! [&_.message-thought-container]:leading-5! [&_.tool-block-group-content]:gap-0! [&_[role='button']]:min-h-6! [&_[role='button']]:py-0! [&_button]:min-h-6! [&_button]:py-0!">
               {previewEntries.map((entry) => renderGroupedEntry(entry, message, false, false))}
             </div>
