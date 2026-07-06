@@ -9,7 +9,6 @@ const {
   createAgentMock,
   refetchAgentsMock,
   refetchPinsMock,
-  toggleSkillMock,
   togglePinMock,
   updateAgentMock,
   useMutationMock,
@@ -20,7 +19,6 @@ const {
   createAgentMock: vi.fn(),
   refetchAgentsMock: vi.fn(),
   refetchPinsMock: vi.fn(),
-  toggleSkillMock: vi.fn(),
   togglePinMock: vi.fn(),
   updateAgentMock: vi.fn(),
   useMutationMock: vi.fn(),
@@ -97,8 +95,7 @@ vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
 vi.mock('@renderer/hooks/useSkills', () => ({
   useInstalledSkills: () => ({
     skills: [],
-    loading: false,
-    toggle: toggleSkillMock
+    loading: false
   })
 }))
 
