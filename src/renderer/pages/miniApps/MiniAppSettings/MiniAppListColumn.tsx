@@ -1,6 +1,6 @@
 import { Scrollbar, Sortable, Tooltip } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
-import { LogoAvatar } from '@renderer/components/icons'
+import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
 import { resolveStoredImageSrc } from '@renderer/utils/storedImage'
 import type { MiniApp } from '@shared/data/types/miniApp'

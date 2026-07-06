@@ -12,7 +12,7 @@ import {
 } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
-import { LogoAvatar } from '@renderer/components/icons'
+import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi } from '@renderer/ipc'

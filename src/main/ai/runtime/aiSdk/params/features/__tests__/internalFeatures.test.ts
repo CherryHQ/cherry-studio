@@ -17,7 +17,7 @@ vi.mock('@cherrystudio/ai-core/built-in/plugins', () => ({
 
 import { collectFromFeatures } from '../../collectFromFeatures'
 import type { RequestScope } from '../../scope'
-import { INTERNAL_FEATURES } from '../index'
+import { INTERNAL_FEATURES } from '../internalFeatures'
 
 function makeScope(overrides: {
   provider: Partial<Provider>

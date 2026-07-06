@@ -2,11 +2,7 @@ import { CommandContextMenu } from '@renderer/components/command'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 
-import {
-  type ResourceListItemBase,
-  useResourceListActions,
-  useResourceListItemAccessors
-} from '../resources/ResourceListContext'
+import { type ResourceListItemBase, useResourceListActions, useResourceListItemAccessors } from '../resourceList/base'
 import { actionsToCommandMenuExtraItems } from './actionMenuItems'
 import type { ResolvedAction } from './actionTypes'
 

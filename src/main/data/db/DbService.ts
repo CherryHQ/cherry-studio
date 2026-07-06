@@ -11,7 +11,7 @@ import fs from 'fs'
 import path from 'path'
 
 import { CUSTOM_SQL_STATEMENTS } from './customSqls'
-import { seeders } from './seeding'
+import { seeders } from './seeding/seederRegistry'
 import { SeedRunner } from './seeding/SeedRunner'
 import type { DbOrTx, DbType } from './types'
 
@@ -74,7 +74,7 @@ export class DbService extends BaseService {
     const frames = (stack: string | undefined): string =>
       (stack ?? '')
         .split('\n')
-        .filter((l) => l.includes('index.js'))
+        .filter((l) => l.includes('main.js'))
         .slice(0, 8)
         .map((l) => l.trim())
         .join(' <- ')

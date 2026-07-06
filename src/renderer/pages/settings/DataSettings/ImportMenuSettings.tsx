@@ -1,10 +1,15 @@
 import { Button, RowFlex } from '@cherrystudio/ui'
 import ImportPopup from '@renderer/components/Popups/ImportPopup'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const ImportMenuOptions: FC = () => {
   const { t } = useTranslation()

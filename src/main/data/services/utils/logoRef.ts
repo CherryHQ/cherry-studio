@@ -17,7 +17,7 @@ import { miniAppLogoFileRefTable, providerLogoFileRefTable } from '@data/db/sche
 import type { DbOrTx, DbType } from '@data/db/types'
 import type { LogoBindInput } from '@shared/data/api/schemas/logo'
 import type { FileEntryId } from '@shared/data/types/file'
-import { miniAppLogoRef, providerLogoRef } from '@shared/data/types/file/ref'
+import { miniAppLogoRef, providerLogoRef } from '@shared/data/types/file'
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 

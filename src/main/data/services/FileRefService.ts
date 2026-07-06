@@ -23,16 +23,15 @@ import {
   type ProviderLogoFileRefRow,
   providerLogoFileRefTable
 } from '@data/db/schemas/fileRelations'
-import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
-import { FileRefSchema } from '@shared/data/types/file'
-import type { tempSessionRoles } from '@shared/data/types/file/ref'
+import type { FileEntryId, FileRef, FileRefSourceType, tempSessionRoles } from '@shared/data/types/file'
 import {
   chatMessageSourceType,
+  FileRefSchema,
   miniAppLogoRef,
   paintingSourceType,
   providerLogoRef,
   tempSessionSourceType
-} from '@shared/data/types/file/ref'
+} from '@shared/data/types/file'
 import { asc, count, eq, inArray } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 

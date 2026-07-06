@@ -36,8 +36,8 @@ vi.mock('@data/hooks/useCache', () => ({
   useCache: () => ['/files', vi.fn()]
 }))
 
-vi.mock('@renderer/components/icons', () => ({
-  LogoAvatar: ({ logo }: { logo: unknown }) => <img alt="miniapp-logo-preview" data-logo={String(logo)} />
+vi.mock('@renderer/components/icons/LogoAvatar', () => ({
+  default: ({ logo }: { logo: unknown }) => <img alt="miniapp-logo-preview" data-logo={String(logo)} />
 }))
 
 vi.mock('@renderer/components/icons/miniAppsLogo', () => ({

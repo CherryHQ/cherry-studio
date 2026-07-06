@@ -1,5 +1,4 @@
-import './claudeCode/register'
-
+export { registerRuntimeDrivers } from './registerDrivers'
 export { runtimeDriverRegistry } from './registry'
 export type {
   AgentRuntimeConnectInput,
