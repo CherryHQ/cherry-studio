@@ -8,7 +8,7 @@
       },
       "model": {
         "supported_providers": "Supported Providers",
-        "tooltip": "Currently, only models that support Anthropic endpoints are available for the Agent feature.",
+        "tooltip": "Most chat models are available for Agents. Gemini providers are not supported yet.",
         "view_providers": "View supported providers"
       },
       "title": "Add Agent",
@@ -1460,6 +1460,7 @@
       "pause": "Pause",
       "placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions.",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
+      "resize_height": "Resize input height",
       "resource_panel": {
         "categories": {
           "agents": "Agents",
@@ -1478,6 +1479,7 @@
         },
         "title": "Resources"
       },
+      "restore": "Restore",
       "send": "Send",
       "send_failed": "Failed to send message",
       "settings": "Settings",
@@ -4439,7 +4441,7 @@
     },
     "generate_failed": "Failed to generate image",
     "generated_image": "Generated Image",
-    "generating": "Generating...",
+    "generating": "Drawing in progress. Please do not leave this page.",
     "go_to_settings": "Go to Settings",
     "guidance_scale": "Guidance Scale",
     "guidance_scale_tip": "Classifier Free Guidance ({{min}}-{{max}}). How close you want the model to stick to your prompt when looking for a related image to show you",
