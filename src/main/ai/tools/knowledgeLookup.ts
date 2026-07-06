@@ -3,10 +3,12 @@
  *
  * Single source of truth shared by the AI-SDK builtin tools (`kb_search` /
  * `kb_list`) and the Claude Code in-process MCP bridge. `allowedIds` scopes
- * which bases are reachable: in the AI-SDK path it is the assistant's
- * `knowledgeBaseIds`; an empty array means "no scope" (all user bases),
- * which is what the Claude Code agent path passes since agents have no
- * per-assistant knowledge scope.
+ * which bases are reachable: in the AI-SDK path it is the scope resolved by
+ * `resolveKnowledgeBaseIds` (the assistant's own bound bases take precedence
+ * when non-empty; only when the assistant has none does the composer's
+ * per-turn selection define the scope); an empty array means "no scope"
+ * (all user bases), which is what the Claude Code agent path passes since
+ * agents have no per-assistant knowledge scope.
  *
  * `searchKnowledge` never throws: an infrastructure failure (every targeted
  * base errored) returns `{ error }` so it is distinguishable from "ran fine,
@@ -143,7 +145,7 @@ function isConceptLookupError(output: object): output is KnowledgeLookupError {
 export async function searchKnowledge(
   query: string,
   baseIds: string[],
-  allowedIds: string[]
+  allowedIds: readonly string[]
 ): Promise<KnowledgeSearchResultOrError> {
   const targetIds = allowedIds.length > 0 ? baseIds.filter((id) => allowedIds.includes(id)) : baseIds
 
@@ -228,7 +230,7 @@ async function readConcept(
   baseId: string,
   conceptId: string,
   range: { charStart?: number; charEnd?: number },
-  allowedIds: string[]
+  allowedIds: readonly string[]
 ): Promise<KnowledgeReadResultOrError> {
   if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
     logger.warn('kb_read targeted a base outside the assistant scope', { baseId, allowedIds })
@@ -279,7 +281,7 @@ async function grepConcept(
   baseId: string,
   conceptId: string,
   options: { pattern: string; ignoreCase?: boolean; maxMatches?: number },
-  allowedIds: string[]
+  allowedIds: readonly string[]
 ): Promise<KnowledgeGrepResultOrError> {
   if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
     logger.warn('kb_read (grep mode) targeted a base outside the assistant scope', { baseId, allowedIds })
@@ -304,7 +306,10 @@ async function grepConcept(
  * One tool with two modes (see KNOWLEDGE_READ_DESCRIPTION); both cores above share the `{ error }`
  * contract, so this only routes by the presence of `pattern`. (`!= null` also covers undefined.)
  */
-export async function readOrGrepConcept(input: KbReadInput, allowedIds: string[]): Promise<KnowledgeReadResultOrError> {
+export async function readOrGrepConcept(
+  input: KbReadInput,
+  allowedIds: readonly string[]
+): Promise<KnowledgeReadResultOrError> {
   if (input.pattern != null) {
     return grepConcept(
       input.baseId,
@@ -366,7 +371,11 @@ function conceptLookupError(
  * throws: an out-of-scope base or a service error returns `{ error }`; a missing
  * base maps to a clear "not found" message. `allowedIds` scopes reachable bases.
  */
-function readTree(baseId: string, options: { maxDepth?: number }, allowedIds: string[]): KnowledgeTreeResultOrError {
+function readTree(
+  baseId: string,
+  options: { maxDepth?: number },
+  allowedIds: readonly string[]
+): KnowledgeTreeResultOrError {
   if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
     logger.warn('kb_list (outline mode) targeted a base outside the assistant scope', { baseId, allowedIds })
     return { error: `Knowledge base "${baseId}" is not available to this assistant.` }
@@ -403,7 +412,7 @@ function readTree(baseId: string, options: { maxDepth?: number }, allowedIds: st
  */
 export async function listOrOutlineKnowledge(
   input: { query?: string | null; groupId?: string | null; baseId?: string | null; maxDepth?: number | null },
-  allowedIds: string[]
+  allowedIds: readonly string[]
 ): Promise<KnowledgeListResultOrError> {
   if (input.baseId != null) {
     return readTree(input.baseId, { maxDepth: input.maxDepth ?? undefined }, allowedIds)
@@ -437,7 +446,7 @@ type ManageKnowledgeInput = {
  */
 export async function manageKnowledge(
   input: ManageKnowledgeInput,
-  allowedIds: string[]
+  allowedIds: readonly string[]
 ): Promise<KnowledgeManageResultOrError> {
   if (allowedIds.length > 0 && !allowedIds.includes(input.baseId)) {
     logger.warn('kb_manage targeted a base outside the assistant scope', { baseId: input.baseId, allowedIds })
@@ -564,7 +573,7 @@ function deriveNoteSource(content: string, title?: string | null): string {
 async function listKnowledgeBases(
   query: string | null | undefined,
   groupId: string | null | undefined,
-  allowedIds: string[]
+  allowedIds: readonly string[]
 ): Promise<KnowledgeListResultOrError> {
   try {
     const knowledgeService = application.get('KnowledgeService')

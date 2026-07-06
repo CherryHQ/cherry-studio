@@ -1296,12 +1296,14 @@
       "add": "Thêm thẻ",
       "delete": "Xóa thẻ",
       "deleteConfirm": "Bạn có chắc chắn muốn xóa thẻ này không?",
+      "group_by": "[to be translated]:Group by tag",
       "manage": "Quản lý thẻ",
       "modify": "Sửa Thẻ",
       "none": "Không có thẻ",
       "settings": {
         "title": "Cài đặt thẻ"
       },
+      "ungroup": "[to be translated]:Turn off tag grouping",
       "untagged": "Không được gắn thẻ"
     },
     "title": "Trợ lý",
@@ -4717,6 +4719,7 @@
     "ollama": "Ollama",
     "open-mineru": "Mở MinerU",
     "openai": "OpenAI",
+    "opencode": "[to be translated]:OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -6197,6 +6200,9 @@
         "button": "Lấy Máy chủ",
         "success": "Đã lấy thành công các máy chủ MCP"
       },
+      "filter": {
+        "label": "[to be translated]:Filter"
+      },
       "findMore": "Tìm thêm MCP",
       "headers": "Tiêu đề",
       "headersTooltip": "Tiêu đề tùy chỉnh cho yêu cầu HTTP",
@@ -6237,6 +6243,7 @@
       "noDescriptionAvailable": "Không có mô tả nào",
       "noLogs": "Chưa có nhật ký nào",
       "noServers": "Không có máy chủ nào được cấu hình",
+      "notInstalled": "[to be translated]:Not installed",
       "not_support": "Mô hình không được hỗ trợ",
       "npx_list": {
         "actions": "Hành động",
@@ -6266,6 +6273,7 @@
         "title": "Chạy MCP bên ngoài?"
       },
       "provider": "Nhà cung cấp",
+      "providerNotFound": "[to be translated]:MCP provider not found",
       "providerPlaceholder": "Tên nhà cung cấp",
       "providerUrl": "URL của nhà cung cấp",
       "providers": "Nhà cung cấp",
@@ -6312,13 +6320,6 @@
         "getToken": "Lấy Mã Thông Báo API",
         "getTokenDescription": "Lấy mã thông báo API cá nhân của bạn từ tài khoản",
         "noServersAvailable": "Không có máy chủ MCP nào khả dụng",
-        "providerDescriptions": {
-          "302ai": "Dịch vụ MCP Nền tảng 302.AI",
-          "bailian": "Dịch vụ MCP Nền tảng Bailian của Alibaba Cloud",
-          "lanyun": "Nền tảng Công nghệ Đám mây Lanyun Dịch vụ MCP",
-          "mcprouter": "Nền tảng Định tuyến MCP Dịch vụ MCP",
-          "modelscope": "Dịch vụ MCP nền tảng ModelScope"
-        },
         "selectProvider": "Chọn Nhà cung cấp:",
         "setToken": "Nhập mã thông báo của bạn",
         "success": "Đồng bộ máy chủ MCP thành công",
