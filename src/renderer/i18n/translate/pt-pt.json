@@ -1296,12 +1296,14 @@
       "add": "Adicionar etiqueta",
       "delete": "Excluir etiqueta",
       "deleteConfirm": "Tem certeza de que deseja excluir esta etiqueta?",
+      "group_by": "Agrupar por etiqueta",
       "manage": "Gerenciar etiquetas",
       "modify": "Modificar etiqueta",
       "none": "Nenhuma etiqueta no momento",
       "settings": {
         "title": "Configuração de Etiquetas"
       },
+      "ungroup": "Desativar agrupamento de tags",
       "untagged": "Não agrupado"
     },
     "title": "Assistente",
@@ -1563,8 +1565,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Cache {{hit_rate}}%",
+        "tooltip": "Leitura de cache {{cache_read}} / escrita {{cache_write}} / sem cache {{no_cache}} · {{saved}} tokens de entrada economizados"
       },
       "editing_current": "Esta mensagem está sendo editada no compositor",
       "flow": {
@@ -1613,6 +1615,13 @@
       "top": "Voltar ao topo"
     },
     "resend": "Reenviar",
+    "resource_view": {
+      "menu": {
+        "agent": "Agentes",
+        "assistant": "Assistentes",
+        "skill": "Habilidades"
+      }
+    },
     "save": {
       "file": {
         "title": "Salvar em Arquivo Local"
@@ -2059,6 +2068,7 @@
     "generate_random_seed": "Gerar semente aleatória",
     "get_embedding_dimension": "Obter dimensão de incorporação",
     "go_to_settings": "Ir para configurações",
+    "help": "Ajuda",
     "html_preview": "Pré-visualização em HTML",
     "i_know": "Entendi",
     "ignore": "Pular",
@@ -2328,6 +2338,7 @@
       "no_match_description": "Nenhum arquivo corresponde aos filtros atuais",
       "no_match_title": "Nenhum arquivo correspondente encontrado"
     },
+    "empty_trash": "Esvaziar lixeira",
     "error": {
       "delete_failed": "Falha ao excluir arquivos",
       "delete_partial_failed": "Alguns arquivos não puderam ser excluídos",
@@ -2345,6 +2356,7 @@
     "missing": "Ausente",
     "modified_at": "Modificado em",
     "name": "Nome do Arquivo",
+    "no_actions": "Nenhuma ação disponível",
     "open": "Abrir",
     "other": "Outro",
     "permanent_delete": "Excluir permanentemente",
@@ -2358,13 +2370,18 @@
     "remove_from_library": "Remover da biblioteca",
     "rename": "Renomear",
     "restore": "Restaurar",
+    "select_all": "Selecionar arquivos visíveis",
+    "select_all_short": "Selecionar Tudo",
+    "select_file": "Selecionar {{name}}",
     "selected_count": "{{count}} ficheiros selecionados",
+    "selected_missing_hint": "Alguns arquivos selecionados estão ausentes. Localize-os ou remova seus registros.",
     "show_in_folder": "Mostrar na pasta",
     "size": "Tamanho",
     "text": "Texto",
     "title": "Arquivo",
     "trash": "Lixo",
     "type": "Tipo",
+    "upload": "Carregar arquivos",
     "video": "Vídeo"
   },
   "globalSearch": {
@@ -2748,7 +2765,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} fontes",
-      "documents_count": "{{count}} documentos",
       "updated_at": "Atualizado {{time}}"
     },
     "name_required": "Nome da base de conhecimento é obrigatório",
@@ -2908,7 +2924,8 @@
       "preview_description": "Visão geral",
       "preview_prompt": "Prompt",
       "scroll_left": "Rolar categorias para a esquerda",
-      "scroll_right": "Deslize as categorias para a direita"
+      "scroll_right": "Deslize as categorias para a direita",
+      "title": "Biblioteca do Assistente"
     },
     "badge": {
       "update": "Atualizar"
@@ -4681,7 +4698,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copiloto",
     "dashscope": "Área de Atuação AliCloud",
     "deepseek": "Busca Profunda",
@@ -4694,6 +4711,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Compreender",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hún Yuán",
@@ -4717,6 +4735,8 @@
     "ollama": "Ollama",
     "open-mineru": "MinerU Aberto",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV (NPU) OCR",
@@ -6794,6 +6814,7 @@
         "reorderFailed": "Falha ao reordenar prompts",
         "updateFailed": "Falha ao atualizar o prompt"
       },
+      "manage": "Gerenciar Prompts",
       "title": "Gestão de Prompts",
       "titleLabel": "Título",
       "titlePlaceholder": "Introduza o título do prompt",
@@ -6942,15 +6963,25 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "O provedor Claude Code está disponível apenas para Agentes — não pode ser usado em chat ou assistentes.",
+        "description": "Entre com sua assinatura do Claude",
+        "description_detail": "Este provedor reutiliza o login do Claude Code CLI (Claude Pro/Max) e está disponível apenas para Agentes. Abra um terminal e execute `claude /login` para fazer login.",
+        "launch_failed": "Falha ao abrir o terminal. Execute `claude /login` manualmente para fazer login.",
+        "legal_link": "Jurídico & Conformidade",
+        "logged_in": "Conectado ao Claude Code",
+        "logged_in_detail": "Os agentes usarão as credenciais de assinatura da sua CLI do Claude Code.",
+        "open_terminal": "Abrir terminal para iniciar sessão",
+        "recheck": "Verificar novamente"
+      },
+      "codex": {
+        "account": "Conta: {{accountId}}",
+        "description": "Faça login com sua assinatura do ChatGPT",
+        "description_detail": "Este provedor usa seu login do ChatGPT Plus/Pro (OAuth) para acessar os modelos OpenAI Codex. Seu navegador será aberto para completar o login.",
+        "logged_in": "Conectado ao OpenAI Codex",
+        "sign_in_button": "Entrar com ChatGPT",
+        "sign_in_failed": "Falha no login. Por favor, tente novamente.",
+        "sign_in_success": "Conectado ao OpenAI Codex",
+        "signing_in": "Aguardando o navegador…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7026,6 +7057,15 @@
       },
       "filter_agent": "Agente de Filtro - Provedores Suportados",
       "get_api_key": "Clique aqui para obter a chave",
+      "grok_cli": {
+        "description": "Entre com sua assinatura SuperGrok",
+        "description_detail": "Este provedor usa o seu login xAI SuperGrok (OAuth) para acessar os modelos Grok CLI (Grok Build, Composer). O seu navegador será aberto para completar o início de sessão.",
+        "logged_in": "Assinado no Grok CLI",
+        "sign_in_button": "Entrar com xAI",
+        "sign_in_failed": "Falha no login. Por favor, tente novamente.",
+        "sign_in_success": "Conectado ao Grok CLI",
+        "signing_in": "Aguardando pelo navegador…"
+      },
       "logo_upload_failed": "Falha ao processar a imagem selecionada",
       "misc": "outro",
       "more_endpoints": {
@@ -7546,7 +7586,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Pinturas",
     "settings": "Configurações",
-    "store": "Biblioteca de assistentes",
     "translate": "Traduzir",
     "work": "Trabalho"
   },

@@ -1296,12 +1296,14 @@
       "add": "Добавить тег",
       "delete": "Удалить тег",
       "deleteConfirm": "Вы уверены, что хотите удалить этот тег?",
+      "group_by": "Сгруппировать по тегу",
       "manage": "Управление тегами",
       "modify": "Изменить тег",
       "none": "Нет тегов",
       "settings": {
         "title": "Настройки тегов"
       },
+      "ungroup": "Отключить группировку тегов",
       "untagged": "Несгруппированные метки"
     },
     "title": "Ассистенты",
@@ -1563,8 +1565,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Кэш {{hit_rate}}%",
+        "tooltip": "Чтение кэша {{cache_read}} / запись кэша {{cache_write}} / без кэша {{no_cache}} · сохранено {{saved}} входных токенов"
       },
       "editing_current": "Это сообщение редактируется в композере",
       "flow": {
@@ -1613,6 +1615,13 @@
       "top": "Вернуться наверх"
     },
     "resend": "Переотправить",
+    "resource_view": {
+      "menu": {
+        "agent": "Агенты",
+        "assistant": "Ассистенты",
+        "skill": "Навыки"
+      }
+    },
     "save": {
       "file": {
         "title": "Сохранить в локальный файл"
@@ -2059,6 +2068,7 @@
     "generate_random_seed": "Сгенерировать случайное зерно",
     "get_embedding_dimension": "Получить размерность вложения",
     "go_to_settings": "Перейти в настройки",
+    "help": "Помощь",
     "html_preview": "Предпросмотр HTML",
     "i_know": "Я понял",
     "ignore": "Игнорировать",
@@ -2328,6 +2338,7 @@
       "no_match_description": "Ни один файл не соответствует текущим фильтрам",
       "no_match_title": "Совпадающие файлы не найдены"
     },
+    "empty_trash": "Очистить корзину",
     "error": {
       "delete_failed": "Не удалось удалить файлы",
       "delete_partial_failed": "Некоторые файлы не удалось удалить",
@@ -2345,6 +2356,7 @@
     "missing": "Отсутствует",
     "modified_at": "Изменено",
     "name": "Имя",
+    "no_actions": "Нет доступных действий",
     "open": "Открыть",
     "other": "Другое",
     "permanent_delete": "Удалить навсегда",
@@ -2358,13 +2370,18 @@
     "remove_from_library": "Удалить из библиотеки",
     "rename": "Переименовать",
     "restore": "Восстановить",
+    "select_all": "Выбрать видимые файлы",
+    "select_all_short": "Выбрать все",
+    "select_file": "Выбрать {{name}}",
     "selected_count": "{{count}} файлов выбрано",
+    "selected_missing_hint": "Некоторые выбранные файлы отсутствуют. Найдите их или удалите их записи.",
     "show_in_folder": "Показать в папке",
     "size": "Размер",
     "text": "Текст",
     "title": "Файлы",
     "trash": "Мусор",
     "type": "Тип",
+    "upload": "Загрузить файлы",
     "video": "Видео"
   },
   "globalSearch": {
@@ -2748,7 +2765,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} источников",
-      "documents_count": "{{count}} документов",
       "updated_at": "Обновлено {{time}}"
     },
     "name_required": "Требуется название базы знаний",
@@ -2908,7 +2924,8 @@
       "preview_description": "Обзор",
       "preview_prompt": "Промпт",
       "scroll_left": "Прокрутить категории влево",
-      "scroll_right": "Прокрутите категории вправо"
+      "scroll_right": "Прокрутите категории вправо",
+      "title": "Библиотека ассистентов"
     },
     "badge": {
       "update": "Обновить"
@@ -4681,7 +4698,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Код Клод",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -4694,6 +4711,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
@@ -4717,6 +4735,8 @@
     "ollama": "Ollama",
     "open-mineru": "Открыть MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -6794,6 +6814,7 @@
         "reorderFailed": "Не удалось изменить порядок подсказок",
         "updateFailed": "Не удалось обновить подсказку"
       },
+      "manage": "Управление подсказками",
       "title": "Управление промптами",
       "titleLabel": "Заголовок",
       "titlePlaceholder": "Введите заголовок промпта",
@@ -6942,15 +6963,25 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "Провайдер Claude Code доступен только для Агентов — его нельзя использовать в чате или помощниках.",
+        "description": "Войдите с помощью вашей подписки Claude",
+        "description_detail": "Этот провайдер использует вход в Claude Code CLI (Claude Pro/Max) и доступен только для Агентов. Откройте терминал и выполните `claude /login` для входа.",
+        "launch_failed": "Не удалось открыть терминал. Выполните `claude /login` вручную для входа в систему.",
+        "legal_link": "Юридический отдел и комплаенс",
+        "logged_in": "Вошли в Claude Code",
+        "logged_in_detail": "Агенты будут использовать ваши учетные данные подписки Claude Code CLI.",
+        "open_terminal": "Откройте терминал для входа в систему",
+        "recheck": "Перепроверить"
+      },
+      "codex": {
+        "account": "Аккаунт: {{accountId}}",
+        "description": "Войдите с помощью вашей подписки ChatGPT",
+        "description_detail": "Этот провайдер использует ваш вход в ChatGPT Plus/Pro (OAuth) для доступа к моделям OpenAI Codex. Ваш браузер откроется для завершения входа.",
+        "logged_in": "Вход выполнен в OpenAI Codex",
+        "sign_in_button": "Войти с помощью ChatGPT",
+        "sign_in_failed": "Не удалось выполнить вход. Попробуйте ещё раз.",
+        "sign_in_success": "Выполнен вход в OpenAI Codex",
+        "signing_in": "Ожидание браузера…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7026,6 +7057,15 @@
       },
       "filter_agent": "Поддерживаемые поставщики агента фильтрации",
       "get_api_key": "Получить ключ API",
+      "grok_cli": {
+        "description": "Войдите с помощью подписки SuperGrok",
+        "description_detail": "Этот провайдер использует вашу учетную запись xAI SuperGrok (OAuth) для доступа к моделям Grok CLI (Grok Build, Composer). Ваш браузер откроется для завершения входа.",
+        "logged_in": "Вход выполнен в Grok CLI",
+        "sign_in_button": "Войти с помощью xAI",
+        "sign_in_failed": "Ошибка входа. Пожалуйста, попробуйте снова.",
+        "sign_in_success": "Выполнен вход в Grok CLI",
+        "signing_in": "Ожидание браузера…"
+      },
       "logo_upload_failed": "Не удалось обработать выбранное изображение",
       "misc": "другие",
       "more_endpoints": {
@@ -7546,7 +7586,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Рисунки",
     "settings": "Настройки",
-    "store": "Библиотека помощников",
     "translate": "Перевод",
     "work": "Работа"
   },

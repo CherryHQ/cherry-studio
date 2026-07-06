@@ -1296,12 +1296,14 @@
       "add": "Tag hinzufügen",
       "delete": "Tag löschen",
       "deleteConfirm": "Möchten Sie diesen Tag wirklich löschen?",
+      "group_by": "Nach Tag gruppieren",
       "manage": "Tags verwalten",
       "modify": "Tag ändern",
       "none": "Keine Tags vorhanden",
       "settings": {
         "title": "Tag-Einstellungen"
       },
+      "ungroup": "Tag-Gruppierung ausschalten",
       "untagged": "Nicht gruppiert"
     },
     "title": "Assistent",
@@ -1563,8 +1565,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Cache {{hit_rate}}%",
+        "tooltip": "Cache-Lesen {{cache_read}} / Schreiben {{cache_write}} / kein Cache {{no_cache}} · {{saved}} Eingabe-Token gespart"
       },
       "editing_current": "Diese Nachricht wird im Composer bearbeitet",
       "flow": {
@@ -1613,6 +1615,13 @@
       "top": "Nach oben scrollen"
     },
     "resend": "Erneut senden",
+    "resource_view": {
+      "menu": {
+        "agent": "Agenten",
+        "assistant": "Assistenten",
+        "skill": "Fähigkeiten"
+      }
+    },
     "save": {
       "file": {
         "title": "In lokale Datei speichern"
@@ -2059,6 +2068,7 @@
     "generate_random_seed": "Zufälligen Seed generieren",
     "get_embedding_dimension": "Abruf der Einbettungsdimension",
     "go_to_settings": "Zu Einstellungen",
+    "help": "Hilfe",
     "html_preview": "HTML-Vorschau",
     "i_know": "Verstanden",
     "ignore": "Ignorieren",
@@ -2328,6 +2338,7 @@
       "no_match_description": "Keine Dateien entsprechen den aktuellen Filtern",
       "no_match_title": "Keine passenden Dateien gefunden"
     },
+    "empty_trash": "Papierkorb leeren",
     "error": {
       "delete_failed": "Fehler beim Löschen der Dateien",
       "delete_partial_failed": "Einige Dateien konnten nicht gelöscht werden",
@@ -2345,6 +2356,7 @@
     "missing": "Fehlt",
     "modified_at": "Geändert am",
     "name": "Dateiname",
+    "no_actions": "Keine Aktionen verfügbar",
     "open": "Öffnen",
     "other": "Andere",
     "permanent_delete": "Dauerhaft löschen",
@@ -2358,13 +2370,18 @@
     "remove_from_library": "Aus der Bibliothek entfernen",
     "rename": "Umbenennen",
     "restore": "Wiederherstellen",
+    "select_all": "Sichtbare Dateien auswählen",
+    "select_all_short": "Alle auswählen",
+    "select_file": "{{name}} auswählen",
     "selected_count": "{{count}} Dateien ausgewählt",
+    "selected_missing_hint": "Einige ausgewählte Dateien fehlen. Suchen Sie sie oder entfernen Sie ihre Einträge.",
     "show_in_folder": "Im Ordner anzeigen",
     "size": "Größe",
     "text": "Text",
     "title": "Dateien",
     "trash": "Müll",
     "type": "Typ",
+    "upload": "Dateien hochladen",
     "video": "Video"
   },
   "globalSearch": {
@@ -2748,7 +2765,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} Quellen",
-      "documents_count": "{{count}} Dokumente",
       "updated_at": "Aktualisiert {{time}}"
     },
     "name_required": "Wissensbasis-Name ist erforderlich",
@@ -2908,7 +2924,8 @@
       "preview_description": "Übersicht",
       "preview_prompt": "Aufforderung",
       "scroll_left": "Kategorien nach links scrollen",
-      "scroll_right": "Kategorien nach rechts scrollen"
+      "scroll_right": "Kategorien nach rechts scrollen",
+      "title": "Assistentenbibliothek"
     },
     "badge": {
       "update": "Aktualisierung"
@@ -4681,7 +4698,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud Bailian",
     "deepseek": "DeepSeek",
@@ -4694,6 +4711,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
@@ -4717,6 +4735,8 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -6794,6 +6814,7 @@
         "reorderFailed": "Fehler beim Neuanordnen der Eingabeaufforderungen",
         "updateFailed": "Fehler beim Aktualisieren der Eingabeaufforderung"
       },
+      "manage": "Prompts verwalten",
       "title": "Prompt-Verwaltung",
       "titleLabel": "Titel",
       "titlePlaceholder": "Geben Sie einen Titel für den Prompt ein",
@@ -6942,15 +6963,25 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "Der Claude Code-Provider ist nur für Agents verfügbar – er kann nicht in Chats oder Assistenten verwendet werden.",
+        "description": "Melden Sie sich mit Ihrem Claude-Abonnement an",
+        "description_detail": "Dieser Anbieter verwendet die Claude Code CLI-Anmeldung (Claude Pro/Max) und ist nur für Agents verfügbar. Öffnen Sie ein Terminal und führen Sie `claude /login` aus, um sich anzumelden.",
+        "launch_failed": "Fehler beim Öffnen des Terminals. Führen Sie `claude /login` manuell aus, um sich anzumelden.",
+        "legal_link": "Recht & Compliance",
+        "logged_in": "Bei Claude Code angemeldet",
+        "logged_in_detail": "Agents werden Ihre Claude Code CLI-Abonnement-Anmeldedaten verwenden.",
+        "open_terminal": "Terminal öffnen, um sich anzumelden",
+        "recheck": "Nachprüfung"
+      },
+      "codex": {
+        "account": "Konto: {{accountId}}",
+        "description": "Melden Sie sich mit Ihrem ChatGPT-Abonnement an",
+        "description_detail": "Dieser Anbieter verwendet Ihre ChatGPT Plus/Pro-Anmeldung (OAuth), um auf OpenAI Codex-Modelle zuzugreifen. Ihr Browser wird geöffnet, um die Anmeldung abzuschließen.",
+        "logged_in": "Angemeldet bei OpenAI Codex",
+        "sign_in_button": "Mit ChatGPT anmelden",
+        "sign_in_failed": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+        "sign_in_success": "Bei OpenAI Codex angemeldet",
+        "signing_in": "Warte auf Browser…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7026,6 +7057,15 @@
       },
       "filter_agent": "Von Filter-Agent unterstützte Anbieter",
       "get_api_key": "Hier klicken um Schlüssel zu erhalten",
+      "grok_cli": {
+        "description": "Melde dich mit deinem SuperGrok-Abonnement an",
+        "description_detail": "Dieser Anbieter verwendet Ihre xAI SuperGrok-Anmeldung (OAuth), um auf Grok CLI-Modelle (Grok Build, Composer) zuzugreifen. Ihr Browser wird geöffnet, um die Anmeldung abzuschließen.",
+        "logged_in": "In Grok CLI angemeldet",
+        "sign_in_button": "Mit xAI anmelden",
+        "sign_in_failed": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+        "sign_in_success": "Angemeldet bei Grok CLI",
+        "signing_in": "Warten auf Browser…"
+      },
       "logo_upload_failed": "Verarbeitung des ausgewählten Bildes fehlgeschlagen",
       "misc": "Sonstige",
       "more_endpoints": {
@@ -7546,7 +7586,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Zeichnen",
     "settings": "Einstellungen",
-    "store": "Assistenten-Bibliothek",
     "translate": "Übersetzen",
     "work": "Arbeit"
   },

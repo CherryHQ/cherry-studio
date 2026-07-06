@@ -1296,12 +1296,14 @@
       "add": "Agregar etiqueta",
       "delete": "Eliminar etiqueta",
       "deleteConfirm": "¿Está seguro de que desea eliminar esta etiqueta?",
+      "group_by": "Agrupar por etiqueta",
       "manage": "Gestión de etiquetas",
       "modify": "Modificar etiqueta",
       "none": "Aún no hay etiquetas",
       "settings": {
         "title": "Configuración de etiquetas"
       },
+      "ungroup": "Desactivar agrupación de etiquetas",
       "untagged": "Sin agrupar"
     },
     "title": "Asistente",
@@ -1563,8 +1565,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Caché {{hit_rate}}%",
+        "tooltip": "Lectura de caché {{cache_read}} / escritura de caché {{cache_write}} / sin caché {{no_cache}} · tokens de entrada ahorrados {{saved}}"
       },
       "editing_current": "Este mensaje está siendo editado en el compositor",
       "flow": {
@@ -1613,6 +1615,13 @@
       "top": "Volver arriba"
     },
     "resend": "Reenviar",
+    "resource_view": {
+      "menu": {
+        "agent": "Agentes",
+        "assistant": "Asistentes",
+        "skill": "Habilidades"
+      }
+    },
     "save": {
       "file": {
         "title": "Guardar en archivo local"
@@ -2059,6 +2068,7 @@
     "generate_random_seed": "Generar semilla aleatoria",
     "get_embedding_dimension": "Obtener dimensión de incrustación",
     "go_to_settings": "Ir a la configuración",
+    "help": "Ayuda",
     "html_preview": "Vista previa de HTML",
     "i_know": "Entendido",
     "ignore": "Ignorar",
@@ -2328,6 +2338,7 @@
       "no_match_description": "No hay archivos que coincidan con los filtros actuales",
       "no_match_title": "No se encontraron archivos coincidentes"
     },
+    "empty_trash": "Vaciar papelera",
     "error": {
       "delete_failed": "Error al eliminar archivos",
       "delete_partial_failed": "Algunos archivos no pudieron ser eliminados",
@@ -2345,6 +2356,7 @@
     "missing": "Faltante",
     "modified_at": "Modificado en",
     "name": "Nombre del archivo",
+    "no_actions": "No hay acciones disponibles",
     "open": "Abrir",
     "other": "Otro",
     "permanent_delete": "Eliminar permanentemente",
@@ -2358,13 +2370,18 @@
     "remove_from_library": "Eliminar de la biblioteca",
     "rename": "Renombrar",
     "restore": "Restaurar",
+    "select_all": "Seleccionar archivos visibles",
+    "select_all_short": "Seleccionar todo",
+    "select_file": "Seleccionar {{name}}",
     "selected_count": "{{count}} archivos seleccionados",
+    "selected_missing_hint": "Algunos archivos seleccionados no se encuentran. Localícelos o elimine sus registros.",
     "show_in_folder": "Mostrar en carpeta",
     "size": "Tamaño",
     "text": "Texto",
     "title": "Archivo",
     "trash": "Basura",
     "type": "Tipo",
+    "upload": "Subir archivos",
     "video": "Video"
   },
   "globalSearch": {
@@ -2748,7 +2765,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} fuentes",
-      "documents_count": "{{count}} documentos",
       "updated_at": "Actualizado {{time}}"
     },
     "name_required": "Se requiere el nombre de la base de conocimientos",
@@ -2908,7 +2924,8 @@
       "preview_description": "Descripción general",
       "preview_prompt": "Indicación",
       "scroll_left": "Desplazar categorías a la izquierda",
-      "scroll_right": "Desplazar las categorías hacia la derecha"
+      "scroll_right": "Desplazar las categorías hacia la derecha",
+      "title": "Biblioteca de Asistentes"
     },
     "badge": {
       "update": "Actualizar"
@@ -4681,7 +4698,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copiloto",
     "dashscope": "Álibaba Nube BaiLiàn",
     "deepseek": "Profundo Buscar",
@@ -4694,6 +4711,7 @@
     "github": "GitHub Modelos",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "CLI de Grok",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hùnyuán",
@@ -4717,6 +4735,8 @@
     "ollama": "Ollama",
     "open-mineru": "Abrir MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV (NPU) OCR",
@@ -6794,6 +6814,7 @@
         "reorderFailed": "Error al reordenar los prompts",
         "updateFailed": "Error al actualizar el aviso"
       },
+      "manage": "Gestionar indicaciones",
       "title": "Gestión de Prompts",
       "titleLabel": "Título",
       "titlePlaceholder": "Introduce el título del prompt",
@@ -6942,15 +6963,25 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "El proveedor de Claude Code está disponible solo para Agentes; no se puede usar en chat o asistentes.",
+        "description": "Inicia sesión con tu suscripción de Claude",
+        "description_detail": "Este proveedor reutiliza el inicio de sesión de la CLI de Claude Code (Claude Pro/Max) y solo está disponible para Agentes. Abre una terminal y ejecuta `claude /login` para iniciar sesión.",
+        "launch_failed": "Error al abrir la terminal. Ejecuta `claude /login` manualmente para iniciar sesión.",
+        "legal_link": "Legal & Compliance",
+        "logged_in": "Sesión iniciada en Claude Code",
+        "logged_in_detail": "Los agentes utilizarán las credenciales de tu suscripción a Claude Code CLI.",
+        "open_terminal": "Abrir terminal para iniciar sesión",
+        "recheck": "Revisar"
+      },
+      "codex": {
+        "account": "Cuenta: {{accountId}}",
+        "description": "Inicia sesión con tu suscripción de ChatGPT",
+        "description_detail": "Este proveedor utiliza tu inicio de sesión de ChatGPT Plus/Pro (OAuth) para acceder a los modelos OpenAI Codex. Tu navegador se abrirá para completar el inicio de sesión.",
+        "logged_in": "Sesión iniciada en OpenAI Codex",
+        "sign_in_button": "Iniciar sesión con ChatGPT",
+        "sign_in_failed": "Error de inicio de sesión. Por favor, inténtelo de nuevo.",
+        "sign_in_success": "Sesión iniciada en OpenAI Codex",
+        "signing_in": "Esperando al navegador…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7026,6 +7057,15 @@
       },
       "filter_agent": "Proveedores compatibles con el agente de filtrado",
       "get_api_key": "Haga clic aquí para obtener la clave",
+      "grok_cli": {
+        "description": "Inicia sesión con tu suscripción a SuperGrok",
+        "description_detail": "Este proveedor utiliza tu inicio de sesión de xAI SuperGrok (OAuth) para acceder a los modelos de Grok CLI (Grok Build, Composer). Tu navegador se abrirá para completar el inicio de sesión.",
+        "logged_in": "Iniciado sesión en Grok CLI",
+        "sign_in_button": "Iniciar sesión con xAI",
+        "sign_in_failed": "Error al iniciar sesión. Inténtalo de nuevo.",
+        "sign_in_success": "Iniciado sesión en Grok CLI",
+        "signing_in": "Esperando al navegador…"
+      },
       "logo_upload_failed": "Error al procesar la imagen seleccionada",
       "misc": "otro",
       "more_endpoints": {
@@ -7546,7 +7586,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Pinturas",
     "settings": "Configuración",
-    "store": "Biblioteca de asistentes",
     "translate": "Traducir",
     "work": "Trabajo"
   },

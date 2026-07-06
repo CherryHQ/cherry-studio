@@ -1296,12 +1296,14 @@
       "add": "タグ追加",
       "delete": "タグ削除",
       "deleteConfirm": "このタグを削除してもよろしいですか？",
+      "group_by": "タグでグループ化",
       "manage": "タグ管理",
       "modify": "タグ修正",
       "none": "タグなし",
       "settings": {
         "title": "タグ設定"
       },
+      "ungroup": "タグのグループ化をオフにする",
       "untagged": "未分類"
     },
     "title": "アシスタント",
@@ -1563,8 +1565,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "キャッシュ {{hit_rate}}%",
+        "tooltip": "キャッシュ読み取り {{cache_read}} / 書き込み {{cache_write}} / キャッシュなし {{no_cache}} · {{saved}} 入力トークンを節約"
       },
       "editing_current": "このメッセージはコンポーザーで編集中です",
       "flow": {
@@ -1613,6 +1615,13 @@
       "top": "トップに戻る"
     },
     "resend": "再送信",
+    "resource_view": {
+      "menu": {
+        "agent": "エージェント",
+        "assistant": "アシスタント",
+        "skill": "スキル"
+      }
+    },
     "save": {
       "file": {
         "title": "ローカルファイルに保存"
@@ -2059,6 +2068,7 @@
     "generate_random_seed": "ランダムシードを生成",
     "get_embedding_dimension": "埋め込み次元を取得",
     "go_to_settings": "設定に移動",
+    "help": "ヘルプ",
     "html_preview": "HTMLプレビュー",
     "i_know": "わかりました",
     "ignore": "無視",
@@ -2328,6 +2338,7 @@
       "no_match_description": "現在のフィルターに一致するファイルはありません",
       "no_match_title": "一致するファイルが見つかりません"
     },
+    "empty_trash": "ごみ箱を空にする",
     "error": {
       "delete_failed": "ファイルの削除に失敗しました",
       "delete_partial_failed": "一部のファイルを削除できませんでした",
@@ -2345,6 +2356,7 @@
     "missing": "欠落",
     "modified_at": "更新日時",
     "name": "名前",
+    "no_actions": "利用可能なアクションはありません",
     "open": "開く",
     "other": "その他",
     "permanent_delete": "完全に削除",
@@ -2358,13 +2370,18 @@
     "remove_from_library": "ライブラリから削除",
     "rename": "名前を変更",
     "restore": "復元",
+    "select_all": "表示されているファイルを選択",
+    "select_all_short": "すべて選択",
+    "select_file": "{{name}}を選択",
     "selected_count": "{{count}}個のファイルが選択されています",
+    "selected_missing_hint": "選択されたファイルの一部が見つかりません。ファイルを探すか、レコードを削除してください。",
     "show_in_folder": "フォルダーに表示",
     "size": "サイズ",
     "text": "テキスト",
     "title": "ファイル",
     "trash": "ゴミ",
     "type": "タイプ",
+    "upload": "ファイルをアップロード",
     "video": "ビデオ"
   },
   "globalSearch": {
@@ -2748,7 +2765,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}}件の情報源",
-      "documents_count": "{{count}} 件の文書",
       "updated_at": "更新日時 {{time}}"
     },
     "name_required": "ナレッジベース名は必須です",
@@ -2908,7 +2924,8 @@
       "preview_description": "概要",
       "preview_prompt": "プロンプト",
       "scroll_left": "カテゴリーを左にスクロール",
-      "scroll_right": "カテゴリを右にスクロール"
+      "scroll_right": "カテゴリを右にスクロール",
+      "title": "アシスタントライブラリ"
     },
     "badge": {
       "update": "更新"
@@ -4681,7 +4698,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -4694,6 +4711,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "ハギングフェイス",
     "hunyuan": "腾讯混元",
@@ -4717,6 +4735,8 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -6794,6 +6814,7 @@
         "reorderFailed": "プロンプトの並び替えに失敗しました",
         "updateFailed": "プロンプトの更新に失敗しました"
       },
+      "manage": "プロンプトを管理",
       "title": "プロンプト管理",
       "titleLabel": "タイトル",
       "titlePlaceholder": "プロンプトのタイトルを入力してください",
@@ -6942,15 +6963,25 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "Claude Codeプロバイダーはエージェント専用であり、チャットやアシスタントでは使用できません。",
+        "description": "Claudeのサブスクリプションでサインイン",
+        "description_detail": "このプロバイダーはClaude Code CLIのログイン（Claude Pro/Max）を再利用し、Agentsのみが利用できます。ターミナルを開き、`claude /login`を実行してサインインしてください。",
+        "launch_failed": "ターミナルを開けませんでした。`claude /login` を手動で実行してサインインしてください。",
+        "legal_link": "法的・コンプライアンス",
+        "logged_in": "Claude Codeにサインインしました",
+        "logged_in_detail": "エージェントは、Claude Code CLIのサブスクリプション認証情報を使用します。",
+        "open_terminal": "ターミナルを開いてサインインしてください",
+        "recheck": "再確認"
+      },
+      "codex": {
+        "account": "アカウント: {{accountId}}",
+        "description": "ChatGPTのサブスクリプションでサインイン",
+        "description_detail": "このプロバイダーは、OpenAI Codexモデルにアクセスするために、お客様のChatGPT Plus/Proログイン（OAuth）を使用します。サインインを完了するために、ブラウザが開きます。",
+        "logged_in": "OpenAI Codexにサインインしました",
+        "sign_in_button": "ChatGPTでサインイン",
+        "sign_in_failed": "サインインに失敗しました。もう一度お試しください。",
+        "sign_in_success": "OpenAI Codexにサインインしました",
+        "signing_in": "ブラウザを待っています…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7026,6 +7057,15 @@
       },
       "filter_agent": "フィルターエージェント対応プロバイダー",
       "get_api_key": "APIキーを取得",
+      "grok_cli": {
+        "description": "SuperGrokサブスクリプションでサインイン",
+        "description_detail": "このプロバイダーは、xAI SuperGrokログイン（OAuth）を使用してGrok CLIモデル（Grok Build、Composer）にアクセスします。サインインを完了するためにブラウザが開きます。",
+        "logged_in": "Grok CLIにサインインしました",
+        "sign_in_button": "xAIでサインイン",
+        "sign_in_failed": "サインインに失敗しました。もう一度お試しください。",
+        "sign_in_success": "Grok CLIにサインインしました",
+        "signing_in": "ブラウザを待っています…"
+      },
       "logo_upload_failed": "選択した画像を処理できませんでした",
       "misc": "その他",
       "more_endpoints": {
@@ -7546,7 +7586,6 @@
     "openclaw": "オープンクロー",
     "paintings": "ペインティング",
     "settings": "設定",
-    "store": "アシスタントライブラリ",
     "translate": "翻訳",
     "work": "仕事"
   },
