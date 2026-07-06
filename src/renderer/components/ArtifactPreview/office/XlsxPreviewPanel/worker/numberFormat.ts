@@ -17,7 +17,7 @@ import * as numfmt from 'numfmt'
  */
 
 /** JS Date read from UTC components, matching ExcelJS Date semantics, -> 1900-system Excel serial. */
-function dateToExcelSerial(date: Date): number {
+export function dateToExcelSerial(date: Date): number {
   return (
     numfmt.dateToSerial([
       date.getUTCFullYear(),

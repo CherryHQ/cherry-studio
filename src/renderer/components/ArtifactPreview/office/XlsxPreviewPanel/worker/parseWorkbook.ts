@@ -15,7 +15,7 @@ import type {
 } from '../renderModel'
 import { parseCharts, type SheetDataAccessor, type SheetLayoutAccessor } from './chartXmlParser'
 import { createFormulaEvaluator, type EvalContext, type FormulaCellRef } from './formulaEvaluator'
-import { formatCellValue } from './numberFormat'
+import { dateToExcelSerial, formatCellValue } from './numberFormat'
 import { type ExcelColorRef, parseTheme, resolveColor, type ResolvedTheme } from './themeResolver'
 
 const FORMULA_BUDGET_MS = 5000
@@ -526,21 +526,22 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           const formulaText = cell.formula || value.formula
 
           if (hasResult) {
+            const dateResult = value.result instanceof Date ? value.result : null
             const rawResult: string | number | boolean | null =
               errorStr !== undefined
                 ? errorStr
-                : value.result instanceof Date
-                  ? value.result.toISOString()
+                : dateResult
+                  ? dateResult.toISOString()
                   : (value.result as string | number | boolean)
             cellModel.raw = rawResult
             cellModel.formula = formulaText || undefined
             cellModel.formulaState = 'cached' as FormulaState
-            cellModel.text = formatCellValue(
-              value.result instanceof Date ? value.result : rawResult,
-              cell.numFmt,
-              date1904
+            cellModel.text = formatCellValue(dateResult ?? rawResult, cell.numFmt, date1904)
+            // Store a numeric serial (not the ISO raw) so downstream formulas referencing this cell keep date math.
+            rawValueTable.set(
+              `${worksheet.name}!${rowNumber}:${colNumber}`,
+              dateResult ? dateToExcelSerial(dateResult) : rawResult
             )
-            rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, rawResult)
           } else if (formulaText) {
             // Formula text without a cached value enters the second-pass evaluator.
             cellModel.formula = formulaText
@@ -597,8 +598,9 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           cellModel.raw = value.toISOString()
           cellModel.text = formatCellValue(value, cell.numFmt, date1904)
           cells[key] = cellModel
-          // For formula refs, approximating with a serial is not viable without date1904 context; fall back to ISO.
-          rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, value.toISOString())
+          // The render model keeps the ISO raw, but formulas need a numeric serial so date arithmetic (e.g. =A1+1)
+          // works. numfmt renders in the 1900 system, so the 1900-system serial is stored regardless of date1904.
+          rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, dateToExcelSerial(value))
           return
         }
 
