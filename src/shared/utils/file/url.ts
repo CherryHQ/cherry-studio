@@ -141,7 +141,7 @@ export function isDangerExt(ext: string | null | undefined): boolean {
 // ─── Path formatting ───
 
 /**
- * Cross-platform dirname on a plain string — no `node:path` dependency, so it
+ * Cross-platform dirname on a `FilePath` — no `node:path` dependency, so it
  * works in renderer bundles. Treats both `/` and `\` as separators.
  *
  * `sepIdx === 0` is the POSIX-root case (`/payload.exe`): degrade to `'/'` so
@@ -154,13 +154,13 @@ export function isDangerExt(ext: string | null | undefined): boolean {
  * separator to recognize a drive letter as a root). Keep the separator so
  * the result stays a valid, canonical drive root (`C:\`).
  */
-function dirnameSimple(absolutePath: string): string {
+function dirnameSimple(absolutePath: FilePath): FilePath {
   const sepIdx = Math.max(absolutePath.lastIndexOf('/'), absolutePath.lastIndexOf('\\'))
   if (sepIdx > 0) {
     const dir = absolutePath.slice(0, sepIdx)
-    return /^[A-Za-z]:$/.test(dir) ? absolutePath.slice(0, sepIdx + 1) : dir
+    return FilePathSchema.parse(/^[A-Za-z]:$/.test(dir) ? absolutePath.slice(0, sepIdx + 1) : dir)
   }
-  if (sepIdx === 0) return '/'
+  if (sepIdx === 0) return FilePathSchema.parse('/')
   return absolutePath
 }
 
@@ -233,5 +233,5 @@ export function fileUrlToPath(fileUrl: FileUrlString | URL): string {
  */
 export function toSafeFileUrl(absolutePath: FilePath, ext: string | null): FileUrlString {
   const effectivePath = isDangerExt(ext) ? dirnameSimple(absolutePath) : absolutePath
-  return toFileUrl(FilePathSchema.parse(effectivePath))
+  return toFileUrl(effectivePath)
 }
