@@ -349,6 +349,27 @@ describe('useMiniApps', () => {
       expect(mockTabs.closeTab).toHaveBeenCalledWith('tab-1')
       expect(mockTabs.closeTab).not.toHaveBeenCalledWith('tab-2')
     })
+
+    it('should remove deleted custom miniapps from sidebar favorites', async () => {
+      const trigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
+      MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [
+        { type: 'app', id: 'assistants' },
+        { type: 'mini_app', id: 'custom-app' },
+        { type: 'mini_app', id: 'other-app' }
+      ])
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.removeCustomMiniApp('custom-app')
+      })
+
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites')).toEqual([
+        { type: 'app', id: 'assistants' },
+        { type: 'mini_app', id: 'other-app' }
+      ])
+    })
   })
 
   // === setAppStatusBulk ===

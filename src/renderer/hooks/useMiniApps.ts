@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { computeMinimalMoves } from '@renderer/data/utils/reorder'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import i18n from '@renderer/i18n/resolver'
+import { removeSidebarMiniApp } from '@renderer/utils/sidebar'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
@@ -218,6 +219,7 @@ export const useMiniApps = () => {
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
   const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
+  const [sidebarFavorites, setSidebarFavorites] = usePreference('ui.sidebar.favorites')
   const tabsContext = useOptionalTabsContext()
 
   // === Mutations (DataApi) ===
@@ -349,7 +351,7 @@ export const useMiniApps = () => {
   )
 
   const cleanupOpenedCustomMiniApp = useCallback(
-    (appId: string) => {
+    async (appId: string) => {
       // Functional update resolves against the latest list, so the prior
       // `.some(...)` presence guard is redundant: filtering an absent id is a
       // no-op the cache short-circuits via isEqual.
@@ -371,14 +373,18 @@ export const useMiniApps = () => {
           tabsContext?.closeTab(tab.id)
         }
       }
+
+      await setSidebarFavorites(removeSidebarMiniApp(sidebarFavorites, appId))
     },
     [
       currentMiniAppId,
       openedOneOffMiniApp,
+      setSidebarFavorites,
       setCurrentMiniAppId,
       setMiniAppShow,
       setOpenedKeepAliveMiniApps,
       setOpenedOneOffMiniApp,
+      sidebarFavorites,
       tabsContext
     ]
   )
@@ -406,7 +412,7 @@ export const useMiniApps = () => {
       try {
         const result = await deleteAppTrigger({ params: { appId } })
         try {
-          cleanupOpenedCustomMiniApp(appId)
+          await cleanupOpenedCustomMiniApp(appId)
         } catch (syncError) {
           logger.error('Failed to cleanup opened custom mini app after delete', { appId, error: syncError })
         }
