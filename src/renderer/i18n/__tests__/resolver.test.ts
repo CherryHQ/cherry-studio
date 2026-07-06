@@ -1,4 +1,4 @@
-import i18n, { initI18n } from '@renderer/i18n'
+import i18n, { initI18n } from '@renderer/i18n/resolver'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 // The global renderer setup already calls initI18n(); these tests assert the

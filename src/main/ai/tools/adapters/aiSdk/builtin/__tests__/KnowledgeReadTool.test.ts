@@ -8,7 +8,7 @@ const readConcept = vi.fn()
 const grepConcept = vi.fn()
 const loggerWarn = vi.hoisted(() => vi.fn())
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'KnowledgeService') return { readConcept, grepConcept }

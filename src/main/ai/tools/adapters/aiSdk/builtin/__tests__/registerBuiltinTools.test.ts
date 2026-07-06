@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: { get: () => ({ search: () => [] }) }
 }))
 

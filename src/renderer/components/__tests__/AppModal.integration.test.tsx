@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import { PageSidePanel } from '@cherrystudio/ui'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'

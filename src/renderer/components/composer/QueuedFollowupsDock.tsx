@@ -1,10 +1,10 @@
 import { Button, ReorderableList, Tooltip } from '@cherrystudio/ui'
-import { ComposerToken } from '@renderer/components/composer/tokenView/ComposerToken'
 import {
   CHAT_INPUT_TOKEN_KINDS,
   type ChatInputTokenKind,
   type ChatTokenView
-} from '@renderer/components/composer/tokenView/tokenView'
+} from '@renderer/components/composer/chatTokenView'
+import { ComposerToken } from '@renderer/components/composer/tokenView'
 import { GripVertical, Pause, Pencil, Play, X, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 

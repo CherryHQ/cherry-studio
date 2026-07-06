@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // i18n is only used for display strings (assistant name, error text); return
 // the defaultValue so assertions stay independent of the translation catalog.
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: {
     t: vi.fn((_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key)
   }

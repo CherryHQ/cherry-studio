@@ -16,6 +16,7 @@ export {
   type ComposerSuggestionSource,
   createComposerSuggestionExtension
 } from './suggestionExtension'
+export { ComposerPanelSymbol } from './symbols'
 export {
   type ComposerUnifiedPanelControl,
   type ComposerUnifiedPanelResourceContext,

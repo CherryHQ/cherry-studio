@@ -44,7 +44,7 @@ vi.mock('@renderer/i18n/label', () => ({
   getSidebarIconLabelKey: (key: string) => key
 }))
 
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: {
     t: (key: string) => key
   }
