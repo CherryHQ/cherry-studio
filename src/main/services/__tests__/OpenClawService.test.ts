@@ -345,6 +345,46 @@ describe('OpenClawService gateway status state machine', () => {
   // ─── syncConfig ─────────────────────────────────────────────
 
   describe('syncConfig', () => {
+    // Regression: syncProviderConfig writes config.gateway.port from this.gatewayPort, but sync
+    // runs before startGateway(port) updates it. A caller-supplied port must be applied first, or
+    // a custom port is written as the stale default (18790) and the gateway binds the wrong port.
+    it('applies the caller port before syncProviderConfig writes the config', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(createProvider())
+      const model = createModel()
+      vi.mocked(modelService.getByKey).mockResolvedValue(model)
+      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+
+      let portAtWrite: number | undefined
+      vi.spyOn(service, 'syncProviderConfig').mockImplementation(async () => {
+        portAtWrite = (service as any).gatewayPort
+        return { success: true }
+      })
+
+      await service.syncConfig('openai::gpt-4o', 20000)
+
+      expect(portAtWrite).toBe(20000)
+      expect((service as any).gatewayPort).toBe(20000)
+    })
+
+    it('leaves the current gateway port unchanged when no port is supplied', async () => {
+      ;(service as any).gatewayPort = 12345
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(createProvider())
+      const model = createModel()
+      vi.mocked(modelService.getByKey).mockResolvedValue(model)
+      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      await service.syncConfig('openai::gpt-4o')
+
+      expect((service as any).gatewayPort).toBe(12345)
+    })
+
     it('resolves a unique model id before syncing OpenClaw config', async () => {
       const { modelService } = await import('@data/services/ModelService')
       const { providerService } = await import('@data/services/ProviderService')

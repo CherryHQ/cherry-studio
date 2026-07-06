@@ -502,8 +502,15 @@ export class OpenClawService extends BaseService {
   /**
    * Sync Cherry Studio Provider configuration to OpenClaw
    */
-  public async syncConfig(uniqueModelId: unknown): Promise<OperationResult> {
+  public async syncConfig(uniqueModelId: unknown, port?: number): Promise<OperationResult> {
     try {
+      // Apply the caller's gateway port before writing openclaw.json so the config's
+      // gateway.port matches the port startGateway() will bind and health-check. Without
+      // this, a custom port is written as the stale in-memory port (default 18790) because
+      // sync runs before startGateway(port), so the gateway binds the wrong port on launch.
+      if (port !== undefined) {
+        this.gatewayPort = port
+      }
       const { provider, primaryModel } = await this.resolveSyncConfig(uniqueModelId)
       return await this.syncProviderConfig(provider, primaryModel)
     } catch (error) {

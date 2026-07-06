@@ -71,6 +71,33 @@ describe('useOpenClawGatewayController', () => {
     expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.start_gateway', 18888)
   })
 
+  // Regression: sync_config writes openclaw.json's gateway.port from the service's in-memory
+  // port, which is still the stale default until start_gateway runs afterwards. The port must
+  // be forwarded to sync_config too, otherwise a custom port is written wrong and the gateway
+  // binds the default while the app polls/opens the custom port.
+  it('forwards the configured gateway port to openclaw.sync_config so the config is written with the right port', async () => {
+    mocks.gatewayPort = 18888
+
+    const { result } = renderHook(() =>
+      useOpenClawGatewayController({
+        selectedCliTool: CodeCli.OPENCLAW,
+        enabledProvider,
+        currentProviderConfig: { modelId: 'anthropic::claude-sonnet-4-5' },
+        upsertProviderConfig: vi.fn(),
+        setCurrentProvider: vi.fn()
+      })
+    )
+
+    await act(async () => {
+      await result.current.onLaunch()
+    })
+
+    expect(mocks.requestMock).toHaveBeenCalledWith('openclaw.sync_config', {
+      uniqueModelId: 'anthropic::claude-sonnet-4-5',
+      port: 18888
+    })
+  })
+
   it('passes undefined when no custom gateway port preference is set', async () => {
     const { result } = renderHook(() =>
       useOpenClawGatewayController({

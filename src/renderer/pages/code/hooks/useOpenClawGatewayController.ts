@@ -83,7 +83,10 @@ export function useOpenClawGatewayController({
     try {
       setLaunching(true)
       setStatus('starting')
-      const syncResult = await ipcApi.request('openclaw.sync_config', `${providerId}::${rawModelId}`)
+      const syncResult = await ipcApi.request('openclaw.sync_config', {
+        uniqueModelId: `${providerId}::${rawModelId}`,
+        port: gatewayPort
+      })
       if (!syncResult.success) {
         setStatus('error')
         window.toast.error(syncResult.message || t('code.launch.error'))
