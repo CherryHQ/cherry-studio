@@ -1,5 +1,6 @@
 import {
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -93,6 +94,9 @@ function AgentRuntimeModelFields({ form, portalContainer, modelLabels, setModelL
                 ))}
               </SelectContent>
             </Select>
+            {agentType === 'pi' ? (
+              <FormDescription className="text-xs">{t('library.config.agent.field.runtime.pi_hint')}</FormDescription>
+            ) : null}
             <FormMessage />
           </FormItem>
         )}
