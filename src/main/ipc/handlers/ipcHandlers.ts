@@ -9,6 +9,7 @@ import { fileHandlers } from './file'
 import { fileProcessingHandlers } from './fileProcessing'
 import { knowledgeHandlers } from './knowledge'
 import { miniAppHandlers } from './miniApp'
+import { navigationHandlers } from './navigation'
 import { oauthHandlers } from './oauth'
 import { profileHandlers } from './profile'
 import { providerHandlers } from './provider'
@@ -34,6 +35,7 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...fileProcessingHandlers,
   ...knowledgeHandlers,
   ...miniAppHandlers,
+  ...navigationHandlers,
   ...oauthHandlers,
   ...profileHandlers,
   ...providerHandlers,

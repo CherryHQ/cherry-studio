@@ -7,6 +7,7 @@ import { fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
 import { miniAppRequestSchemas } from './miniApp'
+import { navigationRequestSchemas } from './navigation'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
 import { profileRequestSchemas } from './profile'
 import { providerRequestSchemas } from './provider'
@@ -30,6 +31,7 @@ export const ipcRequestSchemas = {
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,
   ...miniAppRequestSchemas,
+  ...navigationRequestSchemas,
   ...oauthRequestSchemas,
   ...profileRequestSchemas,
   ...providerRequestSchemas,

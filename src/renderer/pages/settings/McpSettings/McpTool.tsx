@@ -185,8 +185,10 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
               <InfoTooltip content={`ID: ${tool.id}`} />
             </Flex>
             {tool.description && (
-              <Tooltip content={tool.description}>
-                <p className="m-0 line-clamp-1 text-[13px] text-foreground-secondary leading-5">{tool.description}</p>
+              <Tooltip content={tool.description} fullWidthTrigger>
+                <p className="m-0 line-clamp-1 block w-full min-w-0 text-[13px] text-foreground-secondary leading-5">
+                  {tool.description}
+                </p>
               </Tooltip>
             )}
           </ColFlex>

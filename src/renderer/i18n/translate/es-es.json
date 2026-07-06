@@ -1296,12 +1296,14 @@
       "add": "Agregar etiqueta",
       "delete": "Eliminar etiqueta",
       "deleteConfirm": "¿Está seguro de que desea eliminar esta etiqueta?",
+      "group_by": "Agrupar por etiqueta",
       "manage": "Gestión de etiquetas",
       "modify": "Modificar etiqueta",
       "none": "Aún no hay etiquetas",
       "settings": {
         "title": "Configuración de etiquetas"
       },
+      "ungroup": "Desactivar la agrupación de etiquetas",
       "untagged": "Sin agrupar"
     },
     "title": "Asistente",
@@ -1563,8 +1565,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Caché {{hit_rate}}%",
+        "tooltip": "Lectura de caché {{cache_read}} / escritura de caché {{cache_write}} / sin caché {{no_cache}} · {{saved}} tokens de entrada guardados"
       },
       "editing_current": "Este mensaje está siendo editado en el compositor",
       "flow": {
@@ -2328,6 +2330,7 @@
       "no_match_description": "No hay archivos que coincidan con los filtros actuales",
       "no_match_title": "No se encontraron archivos coincidentes"
     },
+    "empty_trash": "Vaciar papelera",
     "error": {
       "delete_failed": "Error al eliminar archivos",
       "delete_partial_failed": "Algunos archivos no pudieron ser eliminados",
@@ -2345,6 +2348,7 @@
     "missing": "Faltante",
     "modified_at": "Modificado en",
     "name": "Nombre del archivo",
+    "no_actions": "No hay acciones disponibles",
     "open": "Abrir",
     "other": "Otro",
     "permanent_delete": "Eliminar permanentemente",
@@ -2358,13 +2362,18 @@
     "remove_from_library": "Eliminar de la biblioteca",
     "rename": "Renombrar",
     "restore": "Restaurar",
+    "select_all": "Seleccionar archivos visibles",
+    "select_all_short": "Seleccionar todo",
+    "select_file": "Seleccionar {{name}}",
     "selected_count": "{{count}} archivos seleccionados",
+    "selected_missing_hint": "Algunos archivos seleccionados no se encuentran. Localícelos o elimine sus registros.",
     "show_in_folder": "Mostrar en carpeta",
     "size": "Tamaño",
     "text": "Texto",
     "title": "Archivo",
     "trash": "Basura",
     "type": "Tipo",
+    "upload": "Subir archivos",
     "video": "Video"
   },
   "globalSearch": {
@@ -2748,7 +2757,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} fuentes",
-      "documents_count": "{{count}} documentos",
       "updated_at": "Actualizado {{time}}"
     },
     "name_required": "Se requiere el nombre de la base de conocimientos",
@@ -4717,6 +4725,7 @@
     "ollama": "Ollama",
     "open-mineru": "Abrir MinerU",
     "openai": "OpenAI",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV (NPU) OCR",
@@ -5302,6 +5311,9 @@
       "auto_switch_to_topics": "Cambiar automáticamente a temas",
       "title": "Configuración avanzada"
     },
+    "appearance": {
+      "title": "Apariencia"
+    },
     "assistant": {
       "icon": {
         "type": {
@@ -5370,6 +5382,7 @@
         "cloud_storage": "Configuración de almacenamiento en la nube",
         "export_settings": "Configuración de exportación",
         "import_settings": "Importar configuración",
+        "note_export": "Exportación de notas",
         "third_party": "Conexiones de terceros"
       },
       "export_menu": {
@@ -5931,6 +5944,48 @@
         "token_placeholder": "Ingrese el Token de Yuque"
       }
     },
+    "dependencies": {
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Aún no hay herramientas personalizadas. Agrega una para comenzar.",
+      "description": "Administrar herramientas binarias y dependencias de tiempo de ejecución requeridas por la aplicación.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Instalar",
+      "installError": "Failed to install tool",
+      "installing": "Instalando...",
+      "invalidTool": "Nombre de herramienta o clave inválida",
+      "notInstalled": "No instalado",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
+      "title": "Dependencias del entorno",
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
+    },
     "developer": {
       "enable_developer_mode": "Habilitar modo de desarrollador",
       "help": "Una vez habilitado el modo de desarrollador, se podrá utilizar la función de cadena de llamadas para ver el flujo de datos del proceso de invocación del modelo.",
@@ -5991,7 +6046,7 @@
       },
       "title": "Configuración de visualización",
       "topic": {
-        "title": "Configuración de tema"
+        "title": "Configuración de vista de conversación"
       },
       "zoom": {
         "title": "Configuración de zoom"
@@ -6197,6 +6252,9 @@
         "button": "Obtener Servidores",
         "success": "Servidores MCP obtenidos con éxito"
       },
+      "filter": {
+        "label": "[to be translated]:Filter"
+      },
       "findMore": "Más servidores MCP",
       "headers": "Encabezados",
       "headersTooltip": "Encabezados personalizados para solicitudes HTTP",
@@ -6237,6 +6295,7 @@
       "noDescriptionAvailable": "Sin descripción disponible por ahora",
       "noLogs": "Aún no hay registros",
       "noServers": "No se han configurado servidores",
+      "notInstalled": "[to be translated]:Not installed",
       "not_support": "El modelo no es compatible",
       "npx_list": {
         "actions": "Acciones",
@@ -6266,6 +6325,7 @@
         "title": "¿Ejecutar MCP externo?"
       },
       "provider": "Proveedor",
+      "providerNotFound": "[to be translated]:MCP provider not found",
       "providerPlaceholder": "Nombre del proveedor",
       "providerUrl": "URL del proveedor",
       "providers": "Proveedores",
@@ -6312,13 +6372,6 @@
         "getToken": "Obtener token de API",
         "getTokenDescription": "Obtener un token de API personal desde su cuenta",
         "noServersAvailable": "No hay servidores MCP disponibles",
-        "providerDescriptions": {
-          "302ai": "302.Servicio MCP de la Plataforma AI",
-          "bailian": "Servicio MCP de la Plataforma Bailian de Alibaba Cloud",
-          "lanyun": "Plataforma en la nube de tecnología Lanyun Servicio MCP",
-          "mcprouter": "Plataforma de Enrutamiento MCP Servicio MCP",
-          "modelscope": "Servicio MCP de la Plataforma ModelScope"
-        },
         "selectProvider": "Seleccionar proveedor:",
         "setToken": "Ingrese su token",
         "success": "Servidor MCP sincronizado correctamente",
@@ -6375,10 +6428,11 @@
       "user": "Usuario"
     },
     "menuGroups": {
-      "appSettings": "Configuración de la aplicación",
-      "integrations": "Modelos",
-      "productivity": "Productividad",
-      "services": "Complementos",
+      "automation": "Automatización",
+      "capabilities": "Capacidades y Herramientas",
+      "models": "Modelos",
+      "personal": "Personal",
+      "quickAccess": "Acceso rápido",
       "system": "Sistema"
     },
     "messages": {
@@ -6695,7 +6749,7 @@
       "assistant": "Mensaje del asistente",
       "backup": "Copia de seguridad",
       "knowledge_embed": "Base de conocimiento",
-      "title": "Configuración de notificaciones"
+      "title": "Notificaciones"
     },
     "openai": {
       "service_tier": {
@@ -6731,48 +6785,6 @@
       }
     },
     "parameter_settings": "Configuración de Parámetros",
-    "plugins": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Aún no hay herramientas personalizadas. Agrega una para comenzar.",
-      "description": "Administrar herramientas binarias y dependencias de tiempo de ejecución requeridas por la aplicación.",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Instalar",
-      "installError": "Failed to install tool",
-      "installing": "Instalando...",
-      "invalidTool": "Nombre de herramienta o clave inválida",
-      "notInstalled": "No instalado",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
-      "source": {
-        "bundled": "bundled"
-      },
-      "title": "Dependencias del entorno",
-      "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
-      },
-      "update": "Update to latest version"
-    },
     "power": {
       "prevent_sleep_when_busy": "Mantén el sistema activo mientras se ejecutan las tareas"
     },
@@ -7190,6 +7202,7 @@
       "all_enable": "Habilitar todo",
       "bind_first_to_enable": "Primero vincula un atajo para cambiar su estado de activación",
       "categories": {
+        "all": "Todos",
         "assistant": "Herramientas de asistente de IA",
         "chat": "Interacción de mensajes",
         "general": "Global y Ventana",
@@ -7205,6 +7218,7 @@
       "empty": "No hay accesos directos disponibles en este grupo",
       "enabled": "habilitar",
       "exit_fullscreen": "Salir de pantalla completa",
+      "filter": "Filtro",
       "label": "Tecla",
       "move_tab_to_first": "Mover pestaña al principio",
       "new_topic": "Nuevo tema",
@@ -7273,6 +7287,9 @@
       "uninstallSuccess": "Habilidad desinstalada: {{name}}",
       "viewSource": "Ver fuente",
       "zip": "CÓDIGO POSTAL"
+    },
+    "system": {
+      "title": "Sistema"
     },
     "theme": {
       "color_primary": "Color del tema",

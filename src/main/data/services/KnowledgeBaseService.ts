@@ -22,7 +22,6 @@ import {
   DEFAULT_KNOWLEDGE_BASE_STATUS,
   DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR,
   DEFAULT_KNOWLEDGE_CHUNK_STRATEGY,
-  DEFAULT_KNOWLEDGE_SEARCH_MODE,
   type KnowledgeBase,
   KnowledgeBaseSchema
 } from '@shared/data/types/knowledge'
@@ -40,8 +39,6 @@ function validateKnowledgeBaseConfig(config: {
   chunkOverlap: number
   chunkStrategy?: string | null
   chunkSeparator?: string | null
-  searchMode?: string | null
-  hybridAlpha?: number | null
 }): Record<string, string[]> {
   const fieldErrors: Record<string, string[]> = {}
 
@@ -53,28 +50,7 @@ function validateKnowledgeBaseConfig(config: {
     fieldErrors.chunkSeparator = ['Separator is required when chunk strategy is delimiter']
   }
 
-  if (config.hybridAlpha != null && config.searchMode !== 'hybrid') {
-    fieldErrors.hybridAlpha = ['Hybrid alpha requires hybrid search mode']
-  }
-
   return fieldErrors
-}
-
-// Vector and hybrid retrieval need an embedding model; without one a base is
-// BM25-only and cannot run a non-bm25 search mode. Mirrors the `completed`-only
-// gate in `KnowledgeBaseSchema.superRefine`: a failed base's leftover searchMode
-// isn't governed by this invariant until it goes through restore, so callers
-// must only apply it to a base that is (or will become) completed. Only
-// update() calls this: create() always coerces searchMode to 'bm25' up front
-// when there is no model, so the invariant already holds by construction there.
-function validateSearchModeNeedsEmbedding(
-  embeddingModelId: string | null,
-  searchMode: string | null | undefined
-): Record<string, string[]> {
-  if (embeddingModelId == null && searchMode != null && searchMode !== 'bm25') {
-    return { searchMode: ['A knowledge base without an embedding model can only use bm25 search'] }
-  }
-  return {}
 }
 
 // The vector arm of the DB CHECK requires a positive dimensions alongside the model;
@@ -219,15 +195,10 @@ export class KnowledgeBaseService {
       chunkSize: dto.chunkSize ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
       chunkOverlap: dto.chunkOverlap ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
       chunkStrategy: dto.chunkStrategy ?? DEFAULT_KNOWLEDGE_CHUNK_STRATEGY,
-      chunkSeparator: dto.chunkSeparator ?? DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR,
-      searchMode: usesEmbeddings ? (dto.searchMode ?? DEFAULT_KNOWLEDGE_SEARCH_MODE) : 'bm25',
-      hybridAlpha: usesEmbeddings ? dto.hybridAlpha : undefined
+      chunkSeparator: dto.chunkSeparator ?? DEFAULT_KNOWLEDGE_CHUNK_SEPARATOR
     }
     const createFieldErrors = {
-      // Validated against the raw dto.hybridAlpha, not the coerced createConfig value
-      // below, so an explicit hybridAlpha on a no-model base is rejected instead of
-      // silently discarded — create() and update() reject the same input shape.
-      ...validateKnowledgeBaseConfig({ ...createConfig, hybridAlpha: dto.hybridAlpha }),
+      ...validateKnowledgeBaseConfig(createConfig),
       ...validateDimensionsForEmbeddingModel(embeddingModelId, dto.dimensions)
     }
     if (Object.keys(createFieldErrors).length > 0) {
@@ -248,9 +219,7 @@ export class KnowledgeBaseService {
       chunkStrategy: createConfig.chunkStrategy,
       chunkSeparator: createConfig.chunkSeparator,
       threshold: dto.threshold ?? null,
-      documentCount: dto.documentCount ?? null,
-      searchMode: createConfig.searchMode,
-      hybridAlpha: createConfig.hybridAlpha ?? null
+      documentCount: dto.documentCount ?? null
     }
 
     const db = application.get('DbService').getDb()
@@ -292,31 +261,16 @@ export class KnowledgeBaseService {
       chunkOverlap: number
       chunkStrategy: KnowledgeBase['chunkStrategy']
       chunkSeparator: KnowledgeBase['chunkSeparator']
-      searchMode: KnowledgeBase['searchMode']
-      hybridAlpha: number | null | undefined
     } = {
       chunkSize: dto.chunkSize !== undefined ? dto.chunkSize : existing.chunkSize,
       chunkOverlap: dto.chunkOverlap !== undefined ? dto.chunkOverlap : existing.chunkOverlap,
       chunkStrategy: dto.chunkStrategy !== undefined ? dto.chunkStrategy : existing.chunkStrategy,
-      chunkSeparator: dto.chunkSeparator !== undefined ? dto.chunkSeparator : existing.chunkSeparator,
-      searchMode: dto.searchMode !== undefined ? dto.searchMode : existing.searchMode,
-      hybridAlpha: dto.hybridAlpha !== undefined ? dto.hybridAlpha : existing.hybridAlpha
+      chunkSeparator: dto.chunkSeparator !== undefined ? dto.chunkSeparator : existing.chunkSeparator
     }
 
-    if (dto.searchMode !== undefined && dto.searchMode !== 'hybrid' && dto.hybridAlpha === undefined) {
-      nextConfig.hybridAlpha = null
-    }
-
-    // Only a completed base is governed by the no-model=>bm25 invariant (mirrors
-    // KnowledgeBaseSchema.superRefine's own completed-only gate): a failed base
-    // may carry a leftover incompatible searchMode from before it failed/migrated,
-    // and metadata-only updates (rename, move group) must not be blocked by it.
     const updateFieldErrors = {
       ...validateKnowledgeBaseConfig(nextConfig),
-      ...validateDimensionsForEmbeddingModel(nextEmbeddingModelId, nextDimensions),
-      ...(existing.status === 'completed'
-        ? validateSearchModeNeedsEmbedding(nextEmbeddingModelId, nextConfig.searchMode)
-        : {})
+      ...validateDimensionsForEmbeddingModel(nextEmbeddingModelId, nextDimensions)
     }
     if (Object.keys(updateFieldErrors).length > 0) {
       throw DataApiErrorFactory.validation(updateFieldErrors)
@@ -359,12 +313,6 @@ export class KnowledgeBaseService {
     }
     if (dto.documentCount !== undefined && dto.documentCount !== existing.documentCount) {
       updates.documentCount = dto.documentCount
-    }
-    if (nextConfig.searchMode !== existing.searchMode) {
-      updates.searchMode = nextConfig.searchMode
-    }
-    if ((nextConfig.hybridAlpha ?? undefined) !== existing.hybridAlpha) {
-      updates.hybridAlpha = nextConfig.hybridAlpha
     }
 
     if (Object.keys(updates).length === 0) {
