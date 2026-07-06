@@ -32,7 +32,9 @@ const toArrayBuffer = (data: unknown): ArrayBuffer => {
 
 /**
  * Reads file bytes with window.api.fs.read, parses them in a Worker, and exposes a state machine.
- * Handles size limits, lazy Worker creation, request ids for stale-response discards, and refreshKey reparsing.
+ * Handles size limits, request ids for stale-response discards, and refreshKey reparsing. Each request owns a
+ * dedicated worker that is terminated when the request is superseded or the component unmounts, so a slow parse
+ * can't pin a shared worker (queuing the next file behind it) or leak its crash onto the next request.
  */
 export function useXlsxWorkbook(filePath: string, refreshKey: number, sourceSize?: number): XlsxWorkbookState {
   const [state, setState] = useState<XlsxWorkbookState>({ status: 'idle' })
@@ -73,8 +75,9 @@ export function useXlsxWorkbook(filePath: string, refreshKey: number, sourceSize
         return
       }
 
+      let worker: XlsxWorker
       try {
-        workerRef.current ??= (await createXlsxWorker()) as unknown as XlsxWorker
+        worker = (await createXlsxWorker()) as unknown as XlsxWorker
       } catch (error) {
         if (cancelled || requestId !== requestIdRef.current) return
         const normalized = error instanceof Error ? error : new Error(String(error))
@@ -82,8 +85,13 @@ export function useXlsxWorkbook(filePath: string, refreshKey: number, sourceSize
         setState({ status: 'error', message: normalized.message })
         return
       }
+      // A newer request superseded this one while the worker was spawning; terminate the orphan instead of leaking it.
+      if (cancelled || requestId !== requestIdRef.current) {
+        worker.terminate()
+        return
+      }
+      workerRef.current = worker
 
-      const worker = workerRef.current
       worker.onmessage = (event: MessageEvent<XlsxParseResponse>) => {
         if (cancelled || event.data.id !== requestIdRef.current) return
         if (event.data.ok) {
@@ -111,18 +119,14 @@ export function useXlsxWorkbook(filePath: string, refreshKey: number, sourceSize
       worker.postMessage(request, [bytes])
     })()
 
+    // Terminating here (not just on unmount) frees the CPU held by a slow in-flight parse the moment the user
+    // switches files, and detaches the old worker's id-less onerror so its crash can't flip the new request to error.
     return () => {
       cancelled = true
-    }
-  }, [filePath, refreshKey, sourceSize])
-
-  useEffect(
-    () => () => {
       workerRef.current?.terminate()
       workerRef.current = null
-    },
-    []
-  )
+    }
+  }, [filePath, refreshKey, sourceSize])
 
   return state
 }

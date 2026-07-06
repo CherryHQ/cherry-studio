@@ -112,14 +112,15 @@ describe('useXlsxWorkbook', () => {
     await waitFor(() => expect(result.current.status).toBe('ready'))
   })
 
-  it('re-reads and re-parses when refreshKey changes, reusing the lazily created worker', async () => {
+  it('spawns a fresh worker per reparse and terminates the superseded one', async () => {
     const model = createMockWorkbookModel()
     const { result, rerender } = renderHook(({ refreshKey }) => useXlsxWorkbook('/tmp/book.xlsx', refreshKey), {
       initialProps: { refreshKey: 0 }
     })
 
     await waitFor(() => expect(mocks.requests).toHaveLength(1))
-    act(() => lastWorker().respond({ id: mocks.requests[0].id, ok: true, model }))
+    const firstWorker = lastWorker()
+    act(() => firstWorker.respond({ id: mocks.requests[0].id, ok: true, model }))
     await waitFor(() => expect(result.current.status).toBe('ready'))
 
     rerender({ refreshKey: 1 })
@@ -128,10 +129,34 @@ describe('useXlsxWorkbook', () => {
     await waitFor(() => expect(mocks.requests).toHaveLength(2))
     expect(mocks.fsRead).toHaveBeenCalledTimes(2)
     expect(mocks.requests[1].id).toBeGreaterThan(mocks.requests[0].id)
-    expect(mocks.workers).toHaveLength(1)
+    // A slow parse must not pin a shared worker: the reparse gets its own worker and the old one is terminated.
+    expect(mocks.workers).toHaveLength(2)
+    expect(firstWorker.terminate).toHaveBeenCalledTimes(1)
 
     // The pre-refresh response id is now stale — it must not flip the state.
     act(() => lastWorker().respond({ id: mocks.requests[0].id, ok: true, model }))
+    expect(result.current.status).toBe('loading')
+
+    act(() => lastWorker().respond({ id: mocks.requests[1].id, ok: true, model }))
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+  })
+
+  it('does not let a superseded worker crash flip the new request to error', async () => {
+    const model = createMockWorkbookModel()
+    const { result, rerender } = renderHook(({ refreshKey }) => useXlsxWorkbook('/tmp/book.xlsx', refreshKey), {
+      initialProps: { refreshKey: 0 }
+    })
+
+    // Switch files before the first (slow) parse responds.
+    await waitFor(() => expect(mocks.requests).toHaveLength(1))
+    const oldWorker = lastWorker()
+
+    rerender({ refreshKey: 1 })
+    await waitFor(() => expect(mocks.requests).toHaveLength(2))
+    expect(oldWorker.terminate).toHaveBeenCalledTimes(1)
+
+    // A worker ErrorEvent carries no request id; the old worker crashing must not touch the new request.
+    act(() => oldWorker.onerror?.({ message: 'old parse crashed' }))
     expect(result.current.status).toBe('loading')
 
     act(() => lastWorker().respond({ id: mocks.requests[1].id, ok: true, model }))
