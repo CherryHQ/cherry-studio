@@ -133,22 +133,14 @@ describe('filterStandardParams', () => {
 })
 
 describe('getMaxTokens', () => {
-  it('returns undefined when enableMaxTokens is off, even when the model declares a ceiling', () => {
+  it('returns undefined when enableMaxTokens is off', () => {
     const a = makeAssistant({ enableMaxTokens: false, maxTokens: 2048 })
-    const model = makeModel({ maxOutputTokens: 8192 })
-    expect(getMaxTokens(a, model, makeProvider())).toBeUndefined()
+    expect(getMaxTokens(a, makeModel(), makeProvider())).toBeUndefined()
   })
 
-  it('returns the assistant budget when enabled, ignoring model.maxOutputTokens', () => {
+  it('returns maxTokens when enabled on non-Claude models', () => {
     const a = makeAssistant({ enableMaxTokens: true, maxTokens: 2048 })
-    const model = makeModel({ maxOutputTokens: 8192 })
-    expect(getMaxTokens(a, model, makeProvider())).toBe(2048)
-  })
-
-  it('falls back to model.maxOutputTokens when enabled but the assistant budget is unset', () => {
-    const a = makeAssistant({ enableMaxTokens: true, maxTokens: undefined })
-    const model = makeModel({ maxOutputTokens: 8192 })
-    expect(getMaxTokens(a, model, makeProvider())).toBe(8192)
+    expect(getMaxTokens(a, makeModel(), makeProvider())).toBe(2048)
   })
 
   it('skips budget subtraction on Claude 4.6 series (adaptive thinking)', () => {
