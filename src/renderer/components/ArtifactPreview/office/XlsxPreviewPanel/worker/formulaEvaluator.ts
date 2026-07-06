@@ -17,6 +17,8 @@
 import type { ParserCellRef, ParserRangeRef } from 'fast-formula-parser'
 import FormulaParser from 'fast-formula-parser'
 
+import { CUSTOM_FORMULA_FUNCTIONS } from './formulaFunctions'
+
 export interface FormulaCellRef {
   sheet: string
   row: number
@@ -118,6 +120,8 @@ export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): Form
     let outcome: EvalOutcome
     try {
       const parser = new FormulaParser({
+        // 补齐库内被注册成空壳的高频聚合函数(MAX/MIN/MEDIAN/... 见 formulaFunctions.ts)
+        functions: CUSTOM_FORMULA_FUNCTIONS,
         onCell: (ref: ParserCellRef) => {
           return ctx.getCellValue({ sheet: ref.sheet, row: ref.row, col: ref.col })
         },

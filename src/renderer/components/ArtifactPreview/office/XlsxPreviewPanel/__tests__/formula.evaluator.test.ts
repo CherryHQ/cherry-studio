@@ -156,6 +156,80 @@ describe('createFormulaEvaluator — basic operators and functions', () => {
   })
 })
 
+describe('createFormulaEvaluator — custom aggregate functions (library stubs)', () => {
+  // 库内 MAX/MIN/MEDIAN/... 被注册成空壳,由 formulaFunctions.ts 补齐。
+  // 数据布局对齐截图:C 列(col 3)行2 为表头文本,行3-8 为数值。
+  const statSheet = {
+    Sheet1: {
+      '2:3': { value: '上海最高温度(℃)' },
+      '3:3': { value: 33 },
+      '4:3': { value: 35 },
+      '5:3': { value: 37 },
+      '6:3': { value: 34 },
+      '7:3': { value: 36 },
+      '8:3': { value: 38 }
+    }
+  }
+  const at = (row: number) => ({ sheet: 'Sheet1', row, col: 6 })
+
+  it('MAX/MIN ignore the leading text cell and return the numeric extremum', () => {
+    const { evaluator } = setup(statSheet)
+    // 这正是截图里 D14=MAX(C2:C8) 之前"公式无法求值"的用例
+    expect(evaluator.evaluate('MAX(C2:C8)', at(14))).toEqual({ state: 'evaluated', value: 38 })
+    expect(evaluator.evaluate('MIN(C2:C8)', at(15))).toEqual({ state: 'evaluated', value: 33 })
+  })
+
+  it('evaluates MAX-minus-MIN composite formula', () => {
+    const { evaluator } = setup(statSheet)
+    expect(evaluator.evaluate('MAX(C2:C8)-MIN(C2:C8)', at(16))).toEqual({ state: 'evaluated', value: 5 })
+  })
+
+  it('MEDIAN averages the two middle values for an even count', () => {
+    const { evaluator } = setup(statSheet)
+    // 33,34,35,36,37,38 -> (35+36)/2
+    expect(evaluator.evaluate('MEDIAN(C3:C8)', at(17))).toEqual({ state: 'evaluated', value: 35.5 })
+  })
+
+  it('COUNTA counts non-empty cells (including the text header) while COUNT skips it', () => {
+    const { evaluator } = setup(statSheet)
+    expect(evaluator.evaluate('COUNTA(C2:C8)', at(18))).toEqual({ state: 'evaluated', value: 7 })
+    expect(evaluator.evaluate('COUNT(C2:C8)', at(19))).toEqual({ state: 'evaluated', value: 6 })
+  })
+
+  it('LARGE/SMALL return the kth ordered numeric value', () => {
+    const { evaluator } = setup(statSheet)
+    expect(evaluator.evaluate('LARGE(C2:C8,2)', at(20))).toEqual({ state: 'evaluated', value: 37 })
+    expect(evaluator.evaluate('SMALL(C2:C8,2)', at(21))).toEqual({ state: 'evaluated', value: 34 })
+  })
+
+  it('LARGE with out-of-range k returns #NUM! as an evaluated error', () => {
+    const { evaluator } = setup(statSheet)
+    expect(evaluator.evaluate('LARGE(C3:C8,99)', at(22))).toEqual({ state: 'evaluated', value: '#NUM!' })
+  })
+
+  it('MAX over an all-empty range returns 0', () => {
+    const { evaluator } = setup(statSheet)
+    expect(evaluator.evaluate('MAX(Z1:Z5)', at(23))).toEqual({ state: 'evaluated', value: 0 })
+  })
+
+  it('evaluates population variance and standard deviation', () => {
+    const { evaluator } = setup(statSheet)
+    // 33,35,37,34,36,38 mean=35.5, Σ(x-mean)²=17.5, VAR.P=17.5/6
+    const varP = evaluator.evaluate('VAR.P(C3:C8)', at(24))
+    expect(varP.state).toBe('evaluated')
+    expect(varP.value).toBeCloseTo(17.5 / 6, 10)
+    const stdevP = evaluator.evaluate('STDEV.P(C3:C8)', at(25))
+    expect(stdevP.state).toBe('evaluated')
+    expect(stdevP.value).toBeCloseTo(Math.sqrt(17.5 / 6), 10)
+  })
+
+  it('MODE.SNGL returns #N/A when every value is unique', () => {
+    const { evaluator } = setup(statSheet)
+    // C3:C8 全不重复
+    expect(evaluator.evaluate('MODE.SNGL(C3:C8)', at(26))).toEqual({ state: 'evaluated', value: '#N/A' })
+  })
+})
+
 describe('createFormulaEvaluator — range aggregation with holes', () => {
   it('treats empty cells within a range as 0 for SUM', () => {
     const sheets = {

@@ -44,14 +44,60 @@ declare module 'fast-formula-parser' {
     readonly error: string
   }
 
+  /**
+   * 自定义函数收到的单个实参形状(库内部包装,见 grammar/hooks.js `_callFunction`)。
+   * 用 FormulaHelpers 消费,不要直接读 `.value`。`omitted` 标记省略参数(如 `SUM(1,,3)`)。
+   */
+  export interface FunctionArg {
+    value: unknown
+    isArray?: boolean
+    isRangeRef?: boolean
+    isCellRef?: boolean
+    omitted?: boolean
+  }
+
+  /** Types 枚举,取值见 formulas/helpers.js;这里只声明自定义函数会用到的成员 */
+  export interface FormulaTypes {
+    NUMBER: number
+  }
+
+  /** FormulaHelpers(H)的最小声明面,按自定义函数实际使用收紧 */
+  export interface FormulaHelpersShape {
+    /** 展平所有实参(区间/数组/联合递归展开),对每个标量调用 hook */
+    flattenParams(
+      params: FunctionArg[],
+      valueType: number | null,
+      allowUnion: boolean,
+      hook: (item: unknown, info: unknown) => void,
+      defValue?: unknown,
+      minSize?: number
+    ): void
+    /** 将单个实参归一为标量值(按 valueType 解析字面量) */
+    accept(param: FunctionArg, type?: number | null, defValue?: unknown): unknown
+  }
+
+  /** 自定义函数签名:接收若干 FunctionArg,返回标量;抛 FormulaError 表达 Excel 错误结果 */
+  export type ParserFunction = (...args: FunctionArg[]) => unknown
+
   export interface FormulaParserConfig {
     onCell?: (ref: ParserCellRef) => unknown
     onRange?: (ref: ParserRangeRef) => unknown[][]
+    /** 追加/覆盖内置函数(合并顺序在内置之后,可覆盖库内空壳函数) */
+    functions?: Record<string, ParserFunction>
   }
 
   export default class FormulaParser {
     /** 静态属性,见文件头注释——不要用具名 import 取 FormulaError */
-    static FormulaError: typeof FormulaErrorClass
+    static FormulaError: typeof FormulaErrorClass & {
+      /** 预建的 Excel 错误实例,自定义函数抛出以表达对应错误结果 */
+      DIV0: FormulaErrorClass
+      NA: FormulaErrorClass
+      NUM: FormulaErrorClass
+      VALUE: FormulaErrorClass
+    }
+    /** 参数处理辅助集(挂在 class 上,见 index.js 的 `...require('./formulas/helpers')`) */
+    static FormulaHelpers: FormulaHelpersShape
+    static Types: FormulaTypes
     constructor(config?: FormulaParserConfig)
     /** allowReturnArray=false(默认)时,多格区间/联合引用结果一律归一为 #VALUE! */
     parse(formula: string, position: ParserPosition, allowReturnArray?: boolean): unknown
