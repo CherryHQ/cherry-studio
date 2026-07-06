@@ -24,7 +24,7 @@ import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/prov
 import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE, REASONING_EFFORT } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
-import { ErrorCode, isDataApiError } from '@shared/data/api/apiErrors'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { EndpointConfig, ProviderWebsites, ReasoningFormatType } from '@shared/data/types/provider'

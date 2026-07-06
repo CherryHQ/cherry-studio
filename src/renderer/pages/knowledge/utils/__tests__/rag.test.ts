@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildKnowledgeSearchModeOptions } from '..'
+import { buildKnowledgeSearchModeOptions } from '../rag'
 
 const t = (key: string) =>
   (

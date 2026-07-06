@@ -3,13 +3,13 @@ import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { isSystemProviderId } from '@renderer/types/provider'
-import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type {
   CreateProviderDto,
   ListProvidersQuery,
   UpdateApiKeyDto,
   UpdateProviderDto
 } from '@shared/data/api/schemas/providers'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { ApiKeyEntry, AuthConfig, Provider } from '@shared/data/types/provider'
 import { isUndefined, omitBy } from 'es-toolkit/compat'
 import { useCallback } from 'react'

@@ -15,15 +15,18 @@ import {
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
-  TopicResourceList,
   useResourceListActions,
   useResourceListPinnedState,
   useResourceListRowState
-} from '@renderer/components/chat/resources'
+} from '@renderer/components/chat/resourceList/base'
+import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
+import {
+  ResourceEditDialogHost,
+  type ResourceEditDialogTarget
+} from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'

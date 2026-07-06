@@ -4,7 +4,10 @@ import {
   type MessageMenuBarButtonId,
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
-import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/icons'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
+import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import EditIcon from '@renderer/components/icons/EditIcon'
+import RefreshIcon from '@renderer/components/icons/RefreshIcon'
 import { getMessageTitle, messageToMarkdown } from '@renderer/services/ExportService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'

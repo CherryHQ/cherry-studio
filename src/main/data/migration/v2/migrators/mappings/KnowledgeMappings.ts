@@ -1,6 +1,5 @@
 import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
-import { sanitizeFilename } from '@main/utils/file'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import { sanitizeFilename } from '@main/utils/legacyFile'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
@@ -12,6 +11,7 @@ import {
   type KnowledgeItemData,
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'

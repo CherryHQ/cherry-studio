@@ -27,8 +27,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
 
-import { ApiServer, IpcAdapter } from './api'
-import { apiHandlers } from './api/handlers'
+import { apiHandlers, ApiServer, IpcAdapter } from './api'
 
 const logger = loggerService.withContext('DataApiService')
 

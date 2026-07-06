@@ -1,4 +1,4 @@
-import { SuccessStatus } from '@shared/data/api/apiTypes'
+import { SuccessStatus } from '@shared/data/api/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {

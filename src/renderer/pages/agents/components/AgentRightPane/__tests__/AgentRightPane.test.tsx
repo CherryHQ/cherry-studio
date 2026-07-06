@@ -1,3 +1,4 @@
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ButtonHTMLAttributes, CSSProperties, PropsWithChildren, ReactElement, ReactNode } from 'react'
 import { cloneElement, isValidElement, useEffect } from 'react'
@@ -63,7 +64,8 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
+vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
+  ...(await importActual<typeof ChatPrimitives>()),
   EmptyState: () => <div data-testid="empty-state" />
 }))
 

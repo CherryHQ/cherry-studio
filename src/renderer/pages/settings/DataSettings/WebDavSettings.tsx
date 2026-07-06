@@ -1,6 +1,14 @@
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -10,8 +18,6 @@ import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const WebDavSettings: FC = () => {
   const [, setWebdavAutoSync] = usePreference('data.backup.webdav.auto_sync')

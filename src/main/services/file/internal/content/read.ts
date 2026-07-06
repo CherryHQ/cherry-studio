@@ -7,7 +7,7 @@
  * via the shared `observeExternalAccess` wrapper.
  */
 
-import { read as fsRead, stat as fsStat } from '@main/utils/file/fs'
+import { read as fsRead, stat as fsStat } from '@main/utils/file'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 import mime from 'mime'

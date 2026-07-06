@@ -25,7 +25,7 @@ WINDOW_TYPE_REGISTRY[WindowType.Settings] = {
   type: WindowType.Settings,
   lifecycle: 'singleton',
   htmlPath: 'settings.html',
-  // preload omitted → defaults to 'index.js'
+  // preload omitted → defaults to 'preload.js'
   // showMode omitted → defaults to 'auto'
   windowOptions: {
     ...DEFAULT_WINDOW_CONFIG,

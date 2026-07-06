@@ -1,3 +1,4 @@
+import { FILE_TYPE, FileTypeSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import {
@@ -13,7 +14,6 @@ import {
   type FileProcessorOverrides,
   type FileProcessorType
 } from '../preference/preferenceTypes'
-import { FILE_TYPE, FileTypeSchema } from '../types/file'
 
 export const FileProcessorTypeSchema = z.enum(FILE_PROCESSOR_TYPES)
 

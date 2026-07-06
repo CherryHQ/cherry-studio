@@ -2,7 +2,7 @@ import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import { describe, expect, it } from 'vitest'
 
-import { buildKnowledgeBaseGroupSections } from '..'
+import { buildKnowledgeBaseGroupSections } from '../group'
 
 const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): KnowledgeBaseListItem => ({
   id: '',

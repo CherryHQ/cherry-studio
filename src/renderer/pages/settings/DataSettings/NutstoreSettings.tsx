@@ -2,6 +2,14 @@ import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import NutstorePathPopup from '@renderer/components/Popups/NutsorePathPopup'
 import Selector from '@renderer/components/Selector'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
@@ -23,8 +31,6 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type FileStat } from 'webdav'
-
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()

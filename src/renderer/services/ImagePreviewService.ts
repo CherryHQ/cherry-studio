@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { TopView } from '@renderer/components/TopView'
+import { TopView } from '@renderer/components/TopView/TopView'
 import { svgToPngBlob, svgToSvgBlob } from '@renderer/utils/image'
 import React from 'react'
 

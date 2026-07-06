@@ -112,7 +112,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('../components/navigator', () => ({
-  default: ({
+  BaseNavigator: ({
     bases,
     groups,
     width,
