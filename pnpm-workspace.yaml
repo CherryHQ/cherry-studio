@@ -76,6 +76,7 @@ allowBuilds:
   selection-hook: true
   sharp: true
   tesseract.js: true
+  unrs-resolver: true
   zipfile: true
 
 supportedArchitectures:

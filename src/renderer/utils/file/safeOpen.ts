@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { IpcError } from '@shared/ipc/errors'
+import type { FileHandle } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
-import type { FileHandle } from '@shared/types/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 const logger = loggerService.withContext('safeOpen')
 

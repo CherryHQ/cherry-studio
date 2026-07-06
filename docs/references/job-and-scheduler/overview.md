@@ -109,6 +109,19 @@ After this declaration:
 - Renaming a type surfaces every call site via the TypeScript error pipeline
 - Wrong payload shape is a compile error
 
+## Transactional enqueue (`enqueueTx`)
+
+`enqueue` persists the row on the bare connection — fine when the enqueue is the only write. When a business-state flip and the job INSERT must commit atomically (e.g. mark items `deleting` **and** enqueue the purge job), use the transactional variant inside a `DbService.withWriteTx` callback:
+
+```ts
+application.get('DbService').withWriteTx((tx) => {
+  itemService.setStatusTx(tx, ids, 'deleting') // business write
+  return jobManager.enqueueTx(tx, 'my.purge', { ids }) // job INSERT, same tx
+})
+```
+
+Post-commit side effects (state publish, dispatch / delayed arming) are deferred one microtask past the synchronous transaction. On rollback the row never existed: the returned handle's `finished` never resolves, and an idempotency-key unique-index collision aborts the whole caller transaction. See the `enqueueTx` JSDoc for the full contract.
+
 ## Renderer-side consumers
 
 The renderer never enqueues, cancels, or otherwise mutates jobs through the DataApi. It only observes job state read-only:

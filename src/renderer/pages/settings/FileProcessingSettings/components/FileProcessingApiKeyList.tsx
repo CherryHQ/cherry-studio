@@ -1,8 +1,8 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { EditIcon } from '@renderer/components/Icons'
+import EditIcon from '@renderer/components/icons/EditIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { TopView } from '@renderer/components/TopView'
+import { TopView } from '@renderer/components/TopView/TopView'
 import { cn } from '@renderer/utils/style'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { Check, Copy, Minus, Plus, X } from 'lucide-react'
@@ -269,7 +269,7 @@ const PopupContainer: FC<PopupProps> = ({ processorId, apiKeys, onSetApiKeys, ti
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? setOpen(true) : closePopup())}>
-      <DialogContent className="sm:max-w-150">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-150">
         <DialogHeader>
           <DialogTitle className="text-sm">{title || t('settings.provider.api.key.list.title')}</DialogTitle>
         </DialogHeader>

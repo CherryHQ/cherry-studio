@@ -1,5 +1,6 @@
-import { ClickableFilePath } from '@renderer/components/chat/messages/tools/agent/ClickableFilePath'
+import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
 import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
+import { isInlineFilePath, normalizeInlineFilePath } from '@renderer/utils/filePath'
 import { getCodeBlockId } from '@renderer/utils/markdown'
 import { isWin } from '@renderer/utils/platform'
 import type { Node } from 'mdast'
@@ -7,7 +8,6 @@ import React, { memo, useCallback, useMemo } from 'react'
 import { useIsCodeFenceIncomplete } from 'streamdown'
 
 import { useMessageRenderConfig, useOptionalMessageListActions, useOptionalMessageListUi } from '../MessageListProvider'
-import { isInlineFilePath, normalizeInlineFilePath } from '../utils/filePath'
 
 interface Props {
   children: string

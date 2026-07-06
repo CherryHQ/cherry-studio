@@ -125,7 +125,7 @@ export class Application {
    * that places the built registry into the Application instance.
    *
    * Single-call enforced — repeated invocation throws to surface misuse
-   * (e.g. accidentally calling it from both main/index.ts and a test).
+   * (e.g. accidentally calling it from both main/main.ts and a test).
    * Tests that need a fresh registry should use `__setPathMapForTesting()`
    * instead, which bypasses this guard for test isolation.
    *

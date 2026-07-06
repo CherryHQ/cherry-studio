@@ -8,7 +8,13 @@ import {
 // Re-export the presentation-free core (codes, class, create/normalize) so
 // paintings renderer code has a single import for painting errors. The
 // renderer layer adds the i18n translation + toast/modal presentation.
-export * from '@shared/ai/paintingGenerateError'
+export {
+  createPaintingGenerateError,
+  normalizePaintingGenerateError,
+  PaintingGenerateError,
+  type PaintingGenerateErrorCode,
+  type PaintingGenerateErrorOptions
+} from '@shared/ai/paintingGenerateError'
 
 export function translatePaintingGenerateError(error: Error): string {
   if (!(error instanceof PaintingGenerateError)) {

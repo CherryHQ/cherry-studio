@@ -13,14 +13,14 @@
  */
 
 import { loggerService } from '@logger'
-import type { AtomicWriteStream } from '@main/utils/file/fs'
+import type { AtomicWriteStream } from '@main/utils/file'
 import {
   atomicWriteFile,
   atomicWriteIfUnchanged,
   createAtomicWriteStream,
   PathStaleVersionError,
   stat as fsStat
-} from '@main/utils/file/fs'
+} from '@main/utils/file'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 

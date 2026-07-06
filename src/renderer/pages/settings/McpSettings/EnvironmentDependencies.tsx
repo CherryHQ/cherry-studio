@@ -576,7 +576,7 @@ function AddToolDialog({
         if (!v) reset()
         onOpenChange(v)
       }}>
-      <DialogContent>
+      <DialogContent closeOnOverlayClick={false}>
         <DialogHeader>
           <DialogTitle>{t('settings.plugins.addTool')}</DialogTitle>
           <DialogDescription>{t('settings.plugins.addToolDescription')}</DialogDescription>

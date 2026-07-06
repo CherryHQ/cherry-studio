@@ -1,4 +1,4 @@
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import {
   CONTENT_SEARCH_DEFAULT_LIMIT_PER_SOURCE,
   CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE,

@@ -70,12 +70,12 @@ vi.mock('@cherrystudio/ui/icons', () => ({
   resolveIcon: () => undefined
 }))
 
-vi.mock('@renderer/components/app/Navbar', () => ({
+vi.mock('@renderer/components/Navbar', () => ({
   Navbar: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   NavbarCenter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
 }))
 
-vi.mock('@renderer/components/Selector/model', () => ({
+vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: (props: { trigger: React.ReactNode }) => {
     modelSelectorMock(props)
     return <>{props.trigger}</>

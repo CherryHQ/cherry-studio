@@ -129,11 +129,11 @@ vi.mock('@main/utils/asar', () => ({
   toAsarUnpackedPath: (input: string) => input
 }))
 
-vi.mock('@main/utils/file/pathStatus', () => ({
+vi.mock('@main/utils/file', () => ({
   getPathStatus: mocks.getPathStatus
 }))
 
-vi.mock('@main/utils/language', () => ({
+vi.mock('@main/i18n', () => ({
   getAppLanguage: mocks.getAppLanguage,
   t: (key: string, params?: Record<string, unknown>) => {
     if (params?.path) return `${key}:${params.path}`

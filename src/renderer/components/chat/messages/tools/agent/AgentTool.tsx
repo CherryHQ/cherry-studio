@@ -1,6 +1,6 @@
+import { AgentToolsType, type ToolRendererProps } from '../shared/agentToolTypes'
+import { SkeletonValue, ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
-import { SkeletonValue, ToolHeader } from './GenericTools'
-import { AgentToolsType, type ToolRendererProps } from './types'
 
 export function AgentTool({ input }: ToolRendererProps<typeof AgentToolsType.Agent>): ToolDisclosureItem {
   return {

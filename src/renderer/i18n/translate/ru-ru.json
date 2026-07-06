@@ -604,9 +604,7 @@
         "select_failed": "Не удалось выбрать папку."
       },
       "workspace_status": {
-        "inaccessible": "Путь к рабочей области недоступен: {{path}}",
-        "missing": "Путь к рабочей области не существует: {{path}}",
-        "not_directory": "Путь к рабочей области не является каталогом: {{path}}"
+        "inaccessible": "Путь к рабочей области недоступен: {{path}}"
       }
     },
     "settings": {
@@ -1083,41 +1081,6 @@
       "stopped": "Остановлен"
     },
     "title": "API Сервер"
-  },
-  "appMenu": {
-    "about": "О",
-    "close": "Закрыть окно",
-    "copy": "Копировать",
-    "cut": "Резать",
-    "delete": "Удалить",
-    "documentation": "Документация",
-    "edit": "Редактировать",
-    "feedback": "Обратная связь",
-    "file": "Файл",
-    "forceReload": "Принудительная перезагрузка",
-    "front": "Показать все поверх других",
-    "help": "Помощь",
-    "hide": "Скрыть",
-    "hideOthers": "Скрыть остальные",
-    "minimize": "Минимизировать",
-    "paste": "Вставить",
-    "quit": "Выйти",
-    "redo": "Переделать",
-    "releases": "Релизы",
-    "reload": "Перезагрузка",
-    "resetZoom": "Настоящий размер",
-    "selectAll": "Выбрать все",
-    "services": "Услуги",
-    "toggleDevTools": "Переключить инструменты разработчика",
-    "toggleFullscreen": "Переключить полноэкранный режим",
-    "undo": "Отменить",
-    "unhide": "Показать все",
-    "view": "Вид",
-    "website": "Веб-сайт",
-    "window": "Окно",
-    "zoom": "Zoom",
-    "zoomIn": "Увеличить",
-    "zoomOut": "Отдалить"
   },
   "assistants": {
     "abbr": "Ассистент",
@@ -2065,7 +2028,6 @@
     "copy_failed": "Не удалось скопировать",
     "create_success": "Успешно создано",
     "current": "Текущий",
-    "cut": "Вырезать",
     "default": "По умолчанию",
     "delete": "Удалить",
     "delete_confirm": "Вы уверены, что хотите удалить?",
@@ -2103,7 +2065,6 @@
     "image_preview": "Предпросмотр изображения",
     "image_url": "URL изображения",
     "image_url_or_upload": "Введите URL изображения или загрузите файл",
-    "inspect": "Осмотреть",
     "invalid_value": "недопустимое значение",
     "knowledge_base": "База знаний",
     "language": "Язык",
@@ -2124,7 +2085,6 @@
     "open_in": "Открыть в {{name}}",
     "open_in_new_tab": "Открыть в новой вкладке",
     "open_sidebar": "Открыть боковую панель",
-    "paste": "Вставить",
     "placeholders": {
       "select": {
         "model": "Выбор модели"
@@ -2179,18 +2139,6 @@
     "warning": "Предупреждение",
     "yesterday": "Вчера",
     "you": "Вы"
-  },
-  "dialog": {
-    "all_files": "Все файлы",
-    "html_files": "Файлы HTML",
-    "open_file": "Открыть файл",
-    "pdf_files": "Файлы PDF",
-    "png_image": "PNG-изображение",
-    "save_as_html": "Сохранить как HTML",
-    "save_as_pdf": "Сохранить как PDF",
-    "save_file": "Сохранить файл",
-    "select_folder": "Выбрать папку",
-    "word_document": "Документ Word"
   },
   "docs": {
     "title": "Документация"
@@ -6303,12 +6251,6 @@
         "usage": "Использование",
         "version": "Версия"
       },
-      "oauth": {
-        "callback": {
-          "message": "Вы можете закрыть эту страницу и вернуться в Cherry Studio",
-          "title": "Аутентификация Успешна"
-        }
-      },
       "prompts": {
         "arguments": "Аргументы",
         "availablePrompts": "Доступные подсказки",
@@ -7799,11 +7741,6 @@
     "tooltip": {
       "newline": "Перевести"
     }
-  },
-  "tray": {
-    "quit": "Выйти",
-    "show_quick_assistant": "Быстрый помощник",
-    "show_window": "Показать окно"
   },
   "update": {
     "install": "Установить",

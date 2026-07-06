@@ -412,9 +412,12 @@ describe('index-documents job handler', () => {
       jobId: 'index-job',
       type: 'knowledge.index-documents',
       scheduleId: null,
+      parentId: null,
       status: 'failed',
+      input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null },
       error: { code: 'FAILED', message: 'cancelled', retryable: false },
-      attempt: 1
+      attempt: 1,
+      metadata: {}
     })
 
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('note-1', 'failed', expect.anything())

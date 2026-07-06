@@ -4,7 +4,7 @@ import { LOCAL_EMBEDDING_DIMENSIONS, LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@sh
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { useCallback, useState } from 'react'
 
-import { normalizeKnowledgeError } from '../utils'
+import { normalizeKnowledgeError } from '../utils/error'
 
 const logger = loggerService.withContext('useEmbeddingDimensions')
 

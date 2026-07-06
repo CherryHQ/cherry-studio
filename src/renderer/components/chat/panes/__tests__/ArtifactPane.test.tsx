@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
-import type { SerializedTreeNode } from '@shared/utils/file/tree'
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import type { SerializedTreeNode } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { type PropsWithChildren, useState } from 'react'
@@ -262,7 +263,8 @@ vi.mock('motion/react', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
+vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
+  ...(await importActual<typeof ChatPrimitives>()),
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
     <div data-testid="empty-state">
       <span>{title}</span>
@@ -385,7 +387,7 @@ vi.mock('@data/hooks/useCache', () => ({
       : [null, vi.fn()]
 }))
 
-vi.mock('@renderer/components/Icons/SvgIcon', () => ({
+vi.mock('@renderer/components/icons/SvgIcon', () => ({
   FinderIcon: (props: React.SVGProps<SVGSVGElement>) => <svg aria-hidden="true" {...props} />
 }))
 

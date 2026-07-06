@@ -1,13 +1,13 @@
 import { useTranslation } from 'react-i18next'
 
-import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
-import { countLines, truncateOutput } from '../shared/truncateOutput'
-import { StringInputTool, StringOutputTool, ToolHeader, TruncatedIndicator } from './GenericTools'
 import {
   AgentToolsType,
   type SearchToolInput as SearchToolInputType,
   type SearchToolOutput as SearchToolOutputType
-} from './types'
+} from '../shared/agentToolTypes'
+import { StringInputTool, StringOutputTool, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import { countLines, truncateOutput } from '../shared/truncateOutput'
 
 export function SearchTool({
   input,
