@@ -298,6 +298,7 @@ export function AgentResourceList({
         }
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAgentClick?.()}
+        resourceMenuItems={resourceMenuItems}
         onReorder={handleReorder}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}

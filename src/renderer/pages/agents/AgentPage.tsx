@@ -120,19 +120,7 @@ const AgentPage = () => {
   // survives AgentChat draft→persistent remounts (each branch mounts its own Shell) and app/page
   // re-entry, without bleeding into the assistant surface.
   const [sessionPaneOpen, setSessionPaneOpen] = useClassicLayoutRightPaneOpen('agent', isClassicSessionLayout)
-  const hasAutoOpenedClassicSessionPaneRef = useRef(false)
   const isCreatingClassicEmptySessionRef = useRef(false)
-
-  useEffect(() => {
-    if (!isClassicSessionLayout || panePosition !== 'right') {
-      hasAutoOpenedClassicSessionPaneRef.current = false
-      return
-    }
-
-    if (hasAutoOpenedClassicSessionPaneRef.current) return
-    hasAutoOpenedClassicSessionPaneRef.current = true
-    setSessionPaneOpen(true)
-  }, [isClassicSessionLayout, panePosition, setSessionPaneOpen])
 
   useEffect(() => {
     pendingSelectedSessionRef.current = null
@@ -979,7 +967,7 @@ const AgentPage = () => {
         setSessionExpansionAgent(collapsedAgentGroupIds)
       }
       await setPanePosition(position)
-      setSessionPaneOpen(position === 'right')
+      setSessionPaneOpen(position === 'right', { force: true })
       setResourceListOpen(true)
     },
     [

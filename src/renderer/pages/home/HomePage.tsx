@@ -81,6 +81,9 @@ type DraftAssistantStartState = {
 type DraftAssistantSelection = {
   assistantId?: string
 }
+type DraftAssistantTargetOptions = {
+  excludedAssistantIds?: readonly string[]
+}
 
 // Reuse the assistant's latest *empty* placeholder topic instead of stacking a new one. The empty
 // topic only exists to surface the assistant in the classic-layout rail, so on repeated adds we reopen the
@@ -190,25 +193,32 @@ const HomePage: FC = () => {
   const assistantIdSet = useMemo(() => new Set(assistants.map((assistant) => assistant.id)), [assistants])
   const validLastUsedAssistantId =
     lastUsedAssistantId && assistantIdSet.has(lastUsedAssistantId) ? lastUsedAssistantId : undefined
-  const fallbackAssistantId = assistants[0]?.id
   const isAssistantListResolved = hasAssistantsLoaded && !isAssistantsLoading && !isAssistantsRefreshing
   const resolveDraftAssistantTarget = useCallback(
-    (explicitAssistantId?: string | null): ResolvedDraftAssistantSelection => {
+    (
+      explicitAssistantId?: string | null,
+      options: DraftAssistantTargetOptions = {}
+    ): ResolvedDraftAssistantSelection => {
+      const excludedAssistantIds = new Set(options.excludedAssistantIds ?? [])
+      const isAvailableAssistantId = (assistantId: string | null | undefined): assistantId is string =>
+        !!assistantId && assistantIdSet.has(assistantId) && !excludedAssistantIds.has(assistantId)
+
       if (explicitAssistantId === null) {
         return { source: 'explicit' }
       }
-      if (explicitAssistantId && assistantIdSet.has(explicitAssistantId)) {
+      if (isAvailableAssistantId(explicitAssistantId)) {
         return { assistantId: explicitAssistantId, source: 'explicit' }
       }
-      if (validLastUsedAssistantId) {
+      if (isAvailableAssistantId(validLastUsedAssistantId)) {
         return { assistantId: validLastUsedAssistantId, source: 'last-used' }
       }
+      const fallbackAssistantId = assistants.find((assistant) => !excludedAssistantIds.has(assistant.id))?.id
       if (fallbackAssistantId) {
         return { assistantId: fallbackAssistantId, source: 'first-assistant' }
       }
       return { source: 'runtime-fallback' }
     },
-    [assistantIdSet, fallbackAssistantId, validLastUsedAssistantId]
+    [assistantIdSet, assistants, validLastUsedAssistantId]
   )
 
   const initialTopic = useMemo<Topic | undefined>(() => {
@@ -434,10 +444,10 @@ const HomePage: FC = () => {
   }, [isMessageOnlyView, setActiveTopic, setDraftAssistantSelectionState, state?.topic])
 
   const startDraftAssistantSelection = useCallback(
-    (payload?: AddNewTopicPayload) => {
+    (payload?: AddNewTopicPayload, options?: DraftAssistantTargetOptions) => {
       try {
         closeResourceView()
-        const selection = resolveDraftAssistantTarget(payload?.assistantId)
+        const selection = resolveDraftAssistantTarget(payload?.assistantId, options)
         const targetAssistantId = selection.assistantId
         const current = draftAssistantSelectionRef.current
 
@@ -525,15 +535,24 @@ const HomePage: FC = () => {
       const nextTopic = findLatestUpdated(
         classicLayoutTopics.filter((topic) => topic.assistantId !== deletedAssistantId)
       )
+      if (lastUsedAssistantId === deletedAssistantId) {
+        setLastUsedAssistantId(null)
+      }
       // setActiveTopicAndDiscardDraft returns false when the next topic is already open in another
       // tab (it focuses that tab). In that case the current tab would otherwise keep pointing at the
       // just-deleted topic, so fall through to a draft instead of leaving a ghost.
       if (nextTopic && setActiveTopicAndDiscardDraft(mapApiTopicToRendererTopic(nextTopic))) {
         return
       }
-      startDraftAssistantSelection()
+      startDraftAssistantSelection(undefined, { excludedAssistantIds: [deletedAssistantId] })
     },
-    [classicLayoutTopics, setActiveTopicAndDiscardDraft, startDraftAssistantSelection]
+    [
+      classicLayoutTopics,
+      lastUsedAssistantId,
+      setActiveTopicAndDiscardDraft,
+      setLastUsedAssistantId,
+      startDraftAssistantSelection
+    ]
   )
 
   const resolveAssistantIdForSelection = useCallback(

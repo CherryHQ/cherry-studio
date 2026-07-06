@@ -121,7 +121,8 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     headerActions,
     items,
     onContextMenuAction,
-    onReorder
+    onReorder,
+    resourceMenuItems
   }: {
     getContextMenuActions?: (item: ResourceEntityRailItem) => readonly ResolvedAction[]
     groupByTag?: boolean
@@ -129,13 +130,16 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     items: readonly ResourceEntityRailItem[]
     onContextMenuAction?: (item: ResourceEntityRailItem, action: ResolvedAction) => void | Promise<void>
     onReorder?: unknown
+    resourceMenuItems?: readonly { active?: boolean; id: string }[]
   }) => {
     const flattenActions = (actions: readonly ResolvedAction[]): readonly ResolvedAction[] =>
       actions.flatMap((action) => [action, ...flattenActions(action.children)])
+    const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
 
     return (
       <div
         data-testid="resource-entity-rail"
+        data-active-resource-menu={String(hasActiveResourceMenuItem)}
         data-group-by-tag={String(!!groupByTag)}
         data-reorder={onReorder ? 'enabled' : 'disabled'}>
         {headerActions}
@@ -562,6 +566,26 @@ describe('classic layout entity resource list actions', () => {
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
   })
 
+  it('passes the active assistant resource view state into the classic assistant rail', () => {
+    render(
+      <AssistantResourceList
+        activeAssistantId="assistant-1"
+        resourceMenuItems={[
+          {
+            active: true,
+            id: 'assistant-resource-view',
+            label: 'Manage assistants',
+            onSelect: vi.fn()
+          }
+        ]}
+        onSelectTopic={vi.fn()}
+        onStartDraftAssistant={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-active-resource-menu', 'true')
+  })
+
   it('uses delete-agent actions for the classic layout agent context and more menus', async () => {
     const onStartMissingAgentDraft = vi.fn()
     const onActiveAgentDeleted = vi.fn()
@@ -659,6 +683,27 @@ describe('classic layout entity resource list actions', () => {
 
     expect(onManageSkills).toHaveBeenCalledTimes(1)
     expect(screen.getByRole('button', { name: 'agent.manage.title' })).toBeInTheDocument()
+  })
+
+  it('passes the active agent resource view state into the classic agent rail', () => {
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        resourceMenuItems={[
+          {
+            active: true,
+            id: 'agent-resource-view',
+            label: 'Manage agents',
+            onSelect: vi.fn()
+          }
+        ]}
+        onSelectSession={vi.fn()}
+        onStartDraftAgent={vi.fn()}
+        onStartMissingAgentDraft={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-active-resource-menu', 'true')
   })
 
   it('keeps classic agent rail history in the shared display menu without section toggles', () => {

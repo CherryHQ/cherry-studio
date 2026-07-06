@@ -737,6 +737,7 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.sessionDisplayMode).toBe('agent'))
     expect(agentPageMocks.sessionPanePosition).toBe('right')
+    expect(agentPageMocks.setClassicLayoutRightPaneOpen).toHaveBeenCalledWith(true)
   })
 
   it('expands only the active session agent when changing session position to the left sidebar', async () => {
@@ -902,7 +903,7 @@ describe('AgentPage', () => {
     await waitFor(() => expect(within(shell).getByTestId('resource-pane-open')).toHaveTextContent('true'))
   })
 
-  it('opens the classic-layout agent right pane by default and records manual closes', async () => {
+  it('preserves a manually closed classic-layout agent right pane across remounts', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.classicLayoutRightPaneOpen = false
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
@@ -910,8 +911,8 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
-    await waitFor(() => expect(screen.getByTestId('session-pane-open')).toHaveTextContent('true'))
-    expect(agentPageMocks.setClassicLayoutRightPaneOpen).toHaveBeenCalledWith(true)
+    expect(screen.getByTestId('session-pane-open')).toHaveTextContent('false')
+    expect(agentPageMocks.setClassicLayoutRightPaneOpen).not.toHaveBeenCalledWith(true)
 
     fireEvent.click(screen.getByRole('button', { name: 'Close session pane' }))
 
@@ -1494,10 +1495,8 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
-    await waitFor(() => expect(screen.getByTestId('session-pane-open')).toHaveTextContent('true'))
-
-    fireEvent.click(screen.getByRole('button', { name: 'Close session pane' }))
-    await waitFor(() => expect(screen.getByTestId('session-pane-open')).toHaveTextContent('false'))
+    expect(screen.getByTestId('session-pane-open')).toHaveTextContent('false')
+    expect(agentPageMocks.setClassicLayoutRightPaneOpen).not.toHaveBeenCalledWith(true)
 
     const sessionMessageHandler = vi
       .mocked(EventEmitter.on)
