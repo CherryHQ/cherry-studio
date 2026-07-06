@@ -125,4 +125,18 @@ describe('CodeViewer', () => {
 
     expect(mocks.resetHighlight).toHaveBeenCalled()
   })
+
+  it('renders code at full opacity while highlighting is disabled, not dimmed', () => {
+    const { container } = render(
+      <CodeViewer value="const a = 1" language="typescript" options={{ highlight: false }} />
+    )
+
+    const tokenSpans = container.querySelectorAll('.line-content > span')
+    expect(tokenSpans.length).toBeGreaterThan(0)
+    tokenSpans.forEach((span) => {
+      expect((span as HTMLElement).style.opacity).not.toBe('0.35')
+    })
+    // The un-highlighted fallback renders the raw text at full opacity
+    expect(Array.from(tokenSpans).some((span) => (span as HTMLElement).style.opacity === '1')).toBe(true)
+  })
 })

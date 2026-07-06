@@ -524,6 +524,7 @@ const CodeViewer = ({
                 <VirtualizedRow
                   rawLine={rawLines[virtualItem.index]}
                   tokenLine={highlight ? tokenLines[virtualItem.index] : undefined}
+                  highlightEnabled={highlight}
                   showLineNumbers={lineNumbers}
                   expanded={expanded}
                   wrapped={wrapped}
@@ -541,7 +542,8 @@ const CodeViewer = ({
 
 CodeViewer.displayName = 'CodeViewer'
 
-const plainTokenStyle = {
+// 渐进式高亮时，尚未被 shiki 覆盖到的内容用淡化样式提示“高亮即将到来”
+const dimmedTokenStyle = {
   color: 'inherit',
   bgColor: 'inherit',
   htmlStyle: {
@@ -549,9 +551,19 @@ const plainTokenStyle = {
   }
 }
 
+// 关闭高亮（streaming）时，直接以正常不透明度渲染原始文本
+const plainTokenStyle = {
+  color: 'inherit',
+  bgColor: 'inherit',
+  htmlStyle: {
+    opacity: '1'
+  }
+}
+
 interface VirtualizedRowData {
   rawLine: string
   tokenLine?: ThemedToken[]
+  highlightEnabled: boolean
   showLineNumbers: boolean
   expanded: boolean
   wrapped: boolean
@@ -565,6 +577,7 @@ const VirtualizedRow = memo(
   ({
     rawLine,
     tokenLine,
+    highlightEnabled,
     showLineNumbers,
     expanded,
     wrapped,
@@ -573,13 +586,16 @@ const VirtualizedRow = memo(
   }: VirtualizedRowData & { index: number }) => {
     // 补全代码行 tokens，把原始内容拼接到高亮内容之后，确保渲染出整行来。
     const completeTokenLine = useMemo(() => {
+      // 关闭高亮时按原始文本渲染，不淡化；开启高亮时用淡化样式提示尚未覆盖到的内容
+      const fallbackTokenStyle = highlightEnabled ? dimmedTokenStyle : plainTokenStyle
+
       // 如果出现空行，补一个空元素保证行高
       if (rawLine.length === 0) {
         return [
           {
             content: '',
             offset: 0,
-            ...plainTokenStyle
+            ...fallbackTokenStyle
           }
         ]
       }
@@ -598,10 +614,10 @@ const VirtualizedRow = memo(
         {
           content: rawLine.slice(themedContentLength),
           offset: themedContentLength,
-          ...plainTokenStyle
+          ...fallbackTokenStyle
         }
       ]
-    }, [rawLine, tokenLine])
+    }, [rawLine, tokenLine, highlightEnabled])
 
     return (
       <div
