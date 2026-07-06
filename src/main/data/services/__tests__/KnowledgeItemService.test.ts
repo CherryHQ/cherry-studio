@@ -68,8 +68,7 @@ describe('KnowledgeItemService', () => {
       status: 'completed',
       error: null,
       chunkSize: 1024,
-      chunkOverlap: 200,
-      searchMode: 'hybrid'
+      chunkOverlap: 200
     })
   })
 
@@ -353,8 +352,7 @@ describe('KnowledgeItemService', () => {
         status: 'completed',
         error: null,
         chunkSize: 1024,
-        chunkOverlap: 200,
-        searchMode: 'hybrid'
+        chunkOverlap: 200
       })
       await seedItem({
         id: 'kb-2-deleting-root',

@@ -229,7 +229,8 @@ export function useChatRuntimeState({
       topicId: conversation.topicId,
       parentAnchorId: conversation.parentAnchorId ?? undefined,
       userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
-      mentionedModelIds: options?.mentionedModels
+      mentionedModelIds: options?.mentionedModels,
+      knowledgeBaseIds: options?.knowledgeBaseIds
     }),
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
   })
