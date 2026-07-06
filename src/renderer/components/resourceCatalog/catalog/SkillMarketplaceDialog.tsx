@@ -6,7 +6,6 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
-  SearchInput,
   SegmentedControl,
   Spinner,
   Tooltip
@@ -14,9 +13,11 @@ import {
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
 import type { SkillSearchResult, SkillSearchSource } from '@shared/types/skill'
-import { Check, Code2, Download, Loader2, Star } from 'lucide-react'
+import { Check, Download, ExternalLink, Loader2, Star } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { ResourceCatalogSearchInput } from './ResourceCatalogSearchInput'
 
 type Props = {
   open: boolean
@@ -107,8 +108,6 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
     [isInstalling, onOpenChange]
   )
 
-  const clearQuery = useCallback(() => handleSearchChange(''), [handleSearchChange])
-
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent
@@ -140,15 +139,12 @@ export function SkillMarketplaceDialog({ open, onOpenChange, onInstalled }: Prop
                 }
               })}
             />
-            <div className="ml-auto min-w-0 max-w-[560px] flex-1">
-              <SearchInput
-                value={query}
-                onChange={(event) => handleSearchChange(event.target.value)}
-                placeholder={t('library.skill_marketplace.search_placeholder')}
-                onClear={clearQuery}
-                clearLabel={t('common.clear')}
-              />
-            </div>
+            <ResourceCatalogSearchInput
+              value={query}
+              onValueChange={handleSearchChange}
+              placeholder={t('library.skill_marketplace.search_placeholder')}
+              className="ml-auto min-w-0 max-w-[560px] flex-1"
+            />
           </div>
         </div>
 
@@ -264,7 +260,7 @@ function SkillSearchResultRow({
   onInstall: () => void
 }) {
   const { t } = useTranslation()
-  const hasMeta = Boolean(result.author || result.stars > 0 || result.downloads > 0)
+  const hasMeta = result.stars > 0 || result.downloads > 0
 
   return (
     <div
@@ -281,19 +277,13 @@ function SkillSearchResultRow({
                 aria-label={t('settings.skills.viewSource')}
                 onClick={() => window.open(result.sourceUrl!)}
                 className="inline-flex size-4 shrink-0 items-center justify-center rounded-sm p-0 text-foreground-muted shadow-none hover:bg-accent hover:text-foreground">
-                <Code2 className="size-3 translate-y-px" />
+                <ExternalLink className="size-3" />
               </Button>
             </Tooltip>
           ) : null}
         </div>
-        {result.description ? (
-          <div className="mt-0.5 w-full truncate text-[12px] text-foreground-secondary leading-4">
-            {result.description}
-          </div>
-        ) : null}
         {hasMeta ? (
           <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-foreground-muted leading-[14px]">
-            {result.author ? <span className="truncate">{result.author}</span> : null}
             {result.stars > 0 ? (
               <span className="flex shrink-0 items-center gap-0.5">
                 <Star className="size-3" />

@@ -21,12 +21,13 @@ import type { ResourceItem, ResourceType, TagItem } from '@renderer/types/resour
 import { DEFAULT_TAG_COLOR, RESOURCE_TYPE_META } from '@renderer/utils/resourceCatalog'
 import type { Tag as BackendTag } from '@shared/data/types/tag'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronLeft, ChevronRight, Library, Pencil, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Library, Pencil, Plus, Search, Tag, Trash2, Upload } from 'lucide-react'
 import type { FC, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ResourceCard } from './ResourceCards'
+import { ResourceCatalogSearchInput } from './ResourceCatalogSearchInput'
 
 const logger = loggerService.withContext('ResourceGrid')
 
@@ -281,25 +282,12 @@ export const ResourceGrid: FC<Props> = ({
       <div className="flex shrink-0 flex-col border-border-muted border-b">
         <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 px-2">
           {toolbarLeading && <div className="flex shrink-0 items-center">{toolbarLeading}</div>}
-          <div className="relative max-w-64 flex-1">
-            <Search size={14} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-foreground-muted" />
-            <Input
-              value={search}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder={t('library.toolbar.search_placeholder')}
-              className="h-8 rounded-md border-input bg-background pr-8 pl-8 text-sm placeholder:text-foreground-muted"
-            />
-            {search && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t('common.clear')}
-                onClick={() => onSearchChange('')}
-                className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-foreground-muted hover:text-foreground">
-                <X size={12} />
-              </Button>
-            )}
-          </div>
+          <ResourceCatalogSearchInput
+            value={search}
+            onValueChange={onSearchChange}
+            placeholder={t('library.toolbar.search_placeholder')}
+            className="max-w-64 flex-1"
+          />
 
           <div className="flex-1" />
 

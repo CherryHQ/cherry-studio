@@ -111,15 +111,7 @@ vi.mock('@cherrystudio/ui', () => ({
       {description ? <div>{description}</div> : null}
     </div>
   ),
-  SearchInput: ({
-    onClear,
-    clearLabel,
-    ...props
-  }: ComponentProps<'input'> & { onClear?: () => void; clearLabel?: string }) => {
-    void onClear
-    void clearLabel
-    return <input {...props} />
-  },
+  Input: (props: ComponentProps<'input'>) => <input {...props} />,
   SegmentedControl: ({
     options,
     value,
@@ -209,19 +201,20 @@ describe('SkillMarketplaceDialog', () => {
     expect(screen.getAllByRole('listitem')[0]).toHaveClass('min-h-[56px]', 'border-b')
     expect(screen.getAllByRole('listitem')[0].className).not.toContain('hover:bg-accent')
     expect(screen.getByText('Code Review')).toBeInTheDocument()
-    expect(within(screen.getAllByRole('listitem')[0]).getByText('Review code changes')).toHaveClass(
-      'w-full',
-      'truncate'
-    )
-    const titleRow = screen.getByText('Code Review').parentElement
-    expect(titleRow).not.toBeNull()
-    expect(within(titleRow!).getByLabelText('settings.skills.viewSource')).toHaveClass('size-4')
+    const firstResult = screen.getAllByRole('listitem')[0]
+    expect(within(firstResult).queryByText('Review code changes')).not.toBeInTheDocument()
+    expect(within(firstResult).queryByText('anthropic')).not.toBeInTheDocument()
+    expect(within(firstResult).getByText('42')).toBeInTheDocument()
+    await user.click(within(firstResult).getByLabelText('settings.skills.viewSource'))
+    expect(window.open).toHaveBeenCalledWith('https://github.com/anthropic/skills/tree/main/code-review')
     expect(screen.queryByText('React Skill')).not.toBeInTheDocument()
-    expect(within(screen.getAllByRole('listitem')[0]).queryByText('claude-plugins.dev')).not.toBeInTheDocument()
+    expect(within(firstResult).queryByText('claude-plugins.dev')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('radio', { name: /skills.sh/ }))
 
     expect(screen.getByText('React Skill')).toBeInTheDocument()
+    expect(screen.queryByText('vercel')).not.toBeInTheDocument()
+    expect(screen.getByText('12')).toBeInTheDocument()
     expect(screen.queryByText('Code Review')).not.toBeInTheDocument()
     expect(within(screen.getByRole('listitem')).queryByText('skills.sh')).not.toBeInTheDocument()
   })
