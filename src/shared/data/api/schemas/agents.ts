@@ -176,18 +176,20 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 
 export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_MUTABLE_FIELDS }).extend({
   /**
-   * Create-only: ids of pre-existing global skills to enable for the new agent.
-   * Writes `agent_skill` join rows in the same create transaction. Editing an
-   * existing agent's skills goes through the skill toggle IPC (which also manages
-   * workspace symlinks), NOT PATCH /agents — so this is intentionally absent from
-   * AGENT_MUTABLE_FIELDS / UpdateAgentSchema to avoid a dual-write path.
+   * IDs of pre-existing global skills to enable for the new agent. Writes
+   * `agent_skill` join rows in the same create transaction.
    */
   skillIds: AgentSkillIdSetSchema.optional()
 })
 export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 
-// Update picks directly from the entity (not from Create) so create-only fields never bleed into partial updates.
-export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial()
+export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
+  /**
+   * Full replacement set of enabled global skills for this agent. Omitted means
+   * "leave skills unchanged"; an empty array disables all skills for the agent.
+   */
+  skillIds: AgentSkillIdSetSchema.optional()
+})
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
 // ============================================================================

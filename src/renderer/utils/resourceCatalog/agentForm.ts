@@ -29,6 +29,7 @@ export interface AgentFormState {
   smallModel: UniqueModelId | ''
   instructions: string
   mcps: string[]
+  skillIds: string[]
   /** Opt-out list of disabled tool names (empty = all enabled). */
   disabledTools: string[]
 
@@ -94,7 +95,7 @@ function envVarsFromText(text: string): Record<string, string> {
   return Object.fromEntries(entries)
 }
 
-export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFormState {
+export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds: string[] = []): AgentFormState {
   const cfg: AgentConfiguration = agent?.configuration ?? {}
   return {
     name: agent?.name ?? '',
@@ -104,6 +105,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFor
     smallModel: agent?.smallModel ?? '',
     instructions: agent?.instructions ?? '',
     mcps: [...(agent?.mcps ?? [])],
+    skillIds: [...skillIds],
     disabledTools: [...(agent?.disabledTools ?? [])],
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
@@ -184,6 +186,10 @@ export function diffAgentUpdate(
   }
   if (!arraysEqual(baseline.mcps, next.mcps)) {
     dto.mcps = next.mcps
+    dirty = true
+  }
+  if (!arraysEqual(baseline.skillIds, next.skillIds)) {
+    dto.skillIds = next.skillIds
     dirty = true
   }
   if (!arraysEqual(baseline.disabledTools, next.disabledTools)) {

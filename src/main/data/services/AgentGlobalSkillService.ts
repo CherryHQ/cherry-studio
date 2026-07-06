@@ -14,7 +14,7 @@ import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
-import { and, asc, eq, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
 
 /**
  * DataApi service for the `agent_global_skill` and `agent_skill` join tables.
@@ -152,6 +152,29 @@ export class AgentGlobalSkillService {
         set: { isEnabled }
       })
       .run()
+  }
+
+  replaceJoinByAgentTx(tx: DbOrTx, agentId: string, skillIds: readonly string[]): void {
+    const uniqueSkillIds = Array.from(new Set(skillIds))
+
+    if (uniqueSkillIds.length > 0) {
+      const rows = tx
+        .select({ id: agentGlobalSkillTable.id })
+        .from(agentGlobalSkillTable)
+        .where(inArray(agentGlobalSkillTable.id, uniqueSkillIds))
+        .all()
+      if (rows.length !== uniqueSkillIds.length) {
+        throw DataApiErrorFactory.invalidOperation('update agent', 'a selected skill no longer exists')
+      }
+    }
+
+    tx.delete(agentSkillTable).where(eq(agentSkillTable.agentId, agentId)).run()
+
+    if (uniqueSkillIds.length > 0) {
+      tx.insert(agentSkillTable)
+        .values(uniqueSkillIds.map((skillId) => ({ agentId, skillId, isEnabled: true })))
+        .run()
+    }
   }
 
   /** Upsert the join row for every agent in `agent`. Returns the affected agent ids. */

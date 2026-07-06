@@ -15,7 +15,6 @@ const {
   mcpStatusState,
   openSettingsTabMock,
   toastErrorMock,
-  toggleSkillMock,
   updateAgentMock,
   updateAssistantMock,
   useMutationMock,
@@ -53,7 +52,6 @@ const {
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
   toastErrorMock: vi.fn(),
-  toggleSkillMock: vi.fn(),
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
   useMutationMock: vi.fn(),
@@ -184,7 +182,7 @@ vi.mock('@renderer/hooks/useSkills', () => ({
       }
     ],
     loading: false,
-    toggle: toggleSkillMock
+    refresh: vi.fn()
   })
 }))
 
@@ -515,7 +513,6 @@ beforeEach(() => {
   updateAgentMock.mockResolvedValue({ ...AGENT, instructions: 'Updated instructions' })
   ensureTagsMock.mockResolvedValue([{ id: 'tag-work', name: 'work', color: '#8b5cf6' }])
   fetchGenerateMock.mockResolvedValue('Generated prompt')
-  toggleSkillMock.mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -915,6 +912,26 @@ describe('edit dialogs', () => {
 
     selectTab('Skills')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('queues agent skill toggles until the edit dialog is saved', async () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    expandToolsMenu()
+    selectTab('Skills')
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
+    expect(updateAgentMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          skillIds: ['skill-1']
+        })
+      })
+    )
   })
 
   it('uses the same MCP server list presentation in assistant and agent editing', async () => {

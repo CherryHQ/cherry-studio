@@ -348,6 +348,15 @@ export class AgentService {
 
     // Handle mcps separately — it lives in the junction table, not the agent row.
     const newMcps = updates.mcps
+    const newSkillIds = updates.skillIds
+
+    if (newSkillIds !== undefined) {
+      for (const skillId of newSkillIds) {
+        if (!getDataService('AgentGlobalSkillService').getById(skillId)) {
+          throw DataApiErrorFactory.notFound('Skill', skillId)
+        }
+      }
+    }
 
     // Several mutable fields map to NOT NULL columns with DB defaults
     // (description, instructions, disabledTools, configuration). Writing
@@ -373,6 +382,9 @@ export class AgentService {
                 .values(newMcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
                 .run()
             }
+          }
+          if (newSkillIds !== undefined) {
+            getDataService('AgentGlobalSkillService').replaceJoinByAgentTx(tx, id, newSkillIds)
           }
         }),
       defaultHandlersFor('Agent', id)

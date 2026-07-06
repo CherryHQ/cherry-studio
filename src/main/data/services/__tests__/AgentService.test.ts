@@ -376,6 +376,61 @@ describe('AgentService', () => {
       const agents = await dbh.db.select().from(agentTable).where(eq(agentTable.name, 'Raced Skill'))
       expect(agents).toHaveLength(0)
     })
+
+    it('leaves skill rows unchanged when update omits skillIds', async () => {
+      await insertGlobalSkill('skill_a')
+      const created = agentService.createAgent({
+        type: 'claude-code',
+        name: 'Skill Preserve',
+        model: TEST_MODEL_ID,
+        skillIds: ['skill_a']
+      })
+
+      agentService.updateAgent(created.id, { name: 'Renamed Skill Preserve' })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows.map((r) => r.skillId)).toEqual(['skill_a'])
+      expect(rows.every((r) => r.isEnabled)).toBe(true)
+    })
+
+    it('replaces enabled skill rows when update provides skillIds', async () => {
+      await insertGlobalSkill('skill_a')
+      await insertGlobalSkill('skill_b')
+      await insertGlobalSkill('skill_c')
+      const created = agentService.createAgent({
+        type: 'claude-code',
+        name: 'Skill Replace',
+        model: TEST_MODEL_ID,
+        skillIds: ['skill_a', 'skill_b']
+      })
+
+      agentService.updateAgent(created.id, { skillIds: ['skill_b', 'skill_c', 'skill_b'] })
+
+      let rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows.map((r) => r.skillId).sort()).toEqual(['skill_b', 'skill_c'])
+      expect(rows.every((r) => r.isEnabled)).toBe(true)
+
+      agentService.updateAgent(created.id, { skillIds: [] })
+
+      rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows).toHaveLength(0)
+    })
+
+    it('rejects update skillIds when a selected skill does not exist', async () => {
+      await insertGlobalSkill('skill_a')
+      const created = agentService.createAgent({
+        type: 'claude-code',
+        name: 'Skill Bad Update',
+        model: TEST_MODEL_ID,
+        skillIds: ['skill_a']
+      })
+
+      const error = captureError(() => agentService.updateAgent(created.id, { skillIds: ['missing_skill'] }))
+      expect(error).toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows.map((r) => r.skillId)).toEqual(['skill_a'])
+    })
   })
 
   describe('deleteAgent', () => {
