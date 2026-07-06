@@ -1,3 +1,4 @@
+import { application } from '@application'
 import {
   embedMany as aiCoreEmbedMany,
   generateImage as aiCoreGenerateImage,
@@ -6,7 +7,6 @@ import {
 import { assistantDataService } from '@data/services/AssistantService'
 import type { PersonGeneration } from '@google/genai'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
@@ -38,16 +38,18 @@ import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
 import { listModels as listModelsFromProvider } from './provider/listModels'
-import { Agent } from './runtime/aiSdk/Agent'
-import type { AgentLoopHooks } from './runtime/aiSdk/loop/types'
-import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
-import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
-import type { RequestFeature } from './runtime/aiSdk/params/feature'
+import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
+import { Agent, buildAgentParams, mergeUsage, ZERO_USAGE } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { WebContentsListener } from './streamManager'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
-import type { AppProviderSettingsMap } from './types'
-import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
+import type {
+  AiBaseRequest,
+  AiStreamRequest,
+  AiTransportOptions,
+  AppProviderSettingsMap,
+  ListModelsRequest
+} from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { buildImageProviderOptions, normalizeAspectRatio } from './utils/imageOptions'
 

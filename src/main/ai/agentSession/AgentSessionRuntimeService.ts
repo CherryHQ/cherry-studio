@@ -1,8 +1,8 @@
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
-import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
@@ -23,16 +23,16 @@ import type { UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../observability'
-import {
-  type AgentRuntimeConnection,
-  type AgentRuntimeEvent,
-  type AgentRuntimePolicyUpdate,
-  type AgentRuntimeTraceContext,
-  type AgentRuntimeUserInput,
-  registerRuntimeDrivers,
-  runtimeDriverRegistry
-} from '../runtime'
-import { type DispatchDecision, toolApprovalRegistry } from '../runtime/claudeCode/ToolApprovalRegistry'
+import { type DispatchDecision, toolApprovalRegistry } from '../runtime/claudeCode'
+import { registerRuntimeDrivers } from '../runtime/registerDrivers'
+import { runtimeDriverRegistry } from '../runtime/registry'
+import type {
+  AgentRuntimeConnection,
+  AgentRuntimeEvent,
+  AgentRuntimePolicyUpdate,
+  AgentRuntimeTraceContext,
+  AgentRuntimeUserInput
+} from '../runtime/types'
 import {
   PersistenceListener,
   type StreamErrorResult,

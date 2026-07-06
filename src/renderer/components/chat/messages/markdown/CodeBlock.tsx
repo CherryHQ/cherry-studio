@@ -1,5 +1,6 @@
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
-import { CodeBlockView, HtmlArtifactsCard } from '@renderer/components/CodeBlockView'
+import { CodeBlockView } from '@renderer/components/CodeBlockView/CodeBlockView'
+import HtmlArtifactsCard from '@renderer/components/CodeBlockView/HtmlArtifactsCard'
 import { isInlineFilePath, normalizeInlineFilePath } from '@renderer/utils/filePath'
 import { getCodeBlockId } from '@renderer/utils/markdown'
 import { isWin } from '@renderer/utils/platform'
