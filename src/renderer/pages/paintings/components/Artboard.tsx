@@ -48,7 +48,7 @@ const InlineLoadingState: FC<{ text: ReactNode; onCancel: () => void; cancelLabe
 
   return (
     <div
-      className="flex w-full max-w-[360px] flex-col items-center gap-3 rounded-md bg-card px-5 py-4 text-card-foreground"
+      className="flex w-full max-w-90 flex-col items-center gap-3 rounded-md bg-card px-5 py-4 text-card-foreground"
       role="status"
       aria-live="polite">
       <div className="text-center font-medium text-[13px] text-foreground leading-5">{text}</div>
