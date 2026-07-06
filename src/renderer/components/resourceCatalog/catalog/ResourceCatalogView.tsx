@@ -32,8 +32,12 @@ export function ResourceCatalogView({
   toolbarLeading
 }: ResourceCatalogViewProps) {
   const { t } = useTranslation()
-  const agentModelFilter = useAgentModelFilter('claude-code')
   const { resourceError, refetch, gridProps, dialogs } = useResourceCatalogController(resourceType)
+  // Edit-dialog model picker follows the edited agent's own runtime so a pi agent is not
+  // offered incompatible models (D2). Create uses the wizard's built-in runtime selector,
+  // which re-filters internally, so no filter prop is passed for the agent kind.
+  const editAgentType = dialogs.editDialog?.kind === 'agent' ? dialogs.editDialog.resource.type : undefined
+  const agentEditModelFilter = useAgentModelFilter(editAgentType)
 
   return (
     <div className={cn('flex min-h-0 flex-1 bg-background', className)}>
@@ -100,7 +104,7 @@ export function ResourceCatalogView({
         kind={dialogs.createDialogKind ?? 'assistant'}
         open={dialogs.createDialogOpen}
         isSubmitting={dialogs.creatingResource}
-        modelFilter={dialogs.createDialogKind === 'agent' ? agentModelFilter : isSelectableAssistantModel}
+        modelFilter={dialogs.createDialogKind === 'agent' ? undefined : isSelectableAssistantModel}
         onOpenChange={dialogs.handleCreateDialogOpenChange}
         onSubmit={dialogs.handleSubmitCreateResource}
       />
@@ -117,7 +121,7 @@ export function ResourceCatalogView({
         <AgentEditDialog
           open={dialogs.editDialogOpen}
           resource={dialogs.editDialog.resource}
-          modelFilter={agentModelFilter}
+          modelFilter={agentEditModelFilter}
           onOpenChange={dialogs.handleEditDialogOpenChange}
           onSaved={dialogs.handleEditSaved}
         />

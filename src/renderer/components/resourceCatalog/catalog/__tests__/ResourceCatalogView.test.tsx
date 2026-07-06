@@ -4,11 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResourceCatalogView } from '../ResourceCatalogView'
 
-const { refetchMock, resourceCatalogControllerMock, resourceGridMock } = vi.hoisted(() => ({
-  refetchMock: vi.fn(),
-  resourceCatalogControllerMock: vi.fn(),
-  resourceGridMock: vi.fn()
-}))
+const { agentEditDialogMock, refetchMock, resourceCatalogControllerMock, resourceGridMock, useAgentModelFilterMock } =
+  vi.hoisted(() => ({
+    agentEditDialogMock: vi.fn(),
+    refetchMock: vi.fn(),
+    resourceCatalogControllerMock: vi.fn(),
+    resourceGridMock: vi.fn(),
+    useAgentModelFilterMock: vi.fn()
+  }))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -47,7 +50,10 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/detail', () => ({
   SkillDetailDialog: () => null
 }))
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
-  AgentEditDialog: () => null,
+  AgentEditDialog: (props: unknown) => {
+    agentEditDialogMock(props)
+    return null
+  },
   AssistantEditDialog: () => null
 }))
 vi.mock('@renderer/components/resourceCatalog/dialogs/import', () => ({
@@ -60,7 +66,10 @@ vi.mock('@renderer/utils/resourceCatalog/assistantModelFilter', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
-  useAgentModelFilter: () => () => true
+  useAgentModelFilter: (agentType: unknown) => {
+    useAgentModelFilterMock(agentType)
+    return () => true
+  }
 }))
 
 vi.mock('@renderer/hooks/resourceCatalog/useResourceCatalogController', () => ({
@@ -136,6 +145,8 @@ describe('ResourceCatalogView', () => {
     refetchMock.mockClear()
     resourceCatalogControllerMock.mockReset()
     resourceGridMock.mockClear()
+    agentEditDialogMock.mockClear()
+    useAgentModelFilterMock.mockClear()
     resourceCatalogControllerMock.mockReturnValue(createController())
   })
 
@@ -163,5 +174,22 @@ describe('ResourceCatalogView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
 
     expect(refetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('derives the agent edit model filter from the edited agent runtime, not claude-code', () => {
+    const controller = createController()
+    controller.dialogs.editDialog = {
+      kind: 'agent',
+      resource: { id: 'agent-1', type: 'pi' }
+    } as never
+    controller.dialogs.editDialogOpen = true
+    resourceCatalogControllerMock.mockReturnValue(controller)
+
+    render(<ResourceCatalogView resourceType="agent" />)
+
+    // Filter must track the edited agent's own runtime (D2) — never hardcode 'claude-code'.
+    expect(useAgentModelFilterMock).toHaveBeenCalledWith('pi')
+    expect(useAgentModelFilterMock).not.toHaveBeenCalledWith('claude-code')
+    expect(agentEditDialogMock).toHaveBeenCalledWith(expect.objectContaining({ modelFilter: expect.any(Function) }))
   })
 })

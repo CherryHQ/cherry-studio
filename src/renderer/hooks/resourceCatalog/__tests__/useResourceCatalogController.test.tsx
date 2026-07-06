@@ -9,6 +9,7 @@ import { useResourceCatalogController } from '../useResourceCatalogController'
 type ControllerResourceType = Parameters<typeof useResourceCatalogController>[0]
 
 const controllerMocks = vi.hoisted(() => ({
+  buildAgentCreateBody: vi.fn(),
   createAgent: vi.fn(),
   createAssistant: vi.fn(),
   duplicateAssistant: vi.fn(),
@@ -26,6 +27,13 @@ const controllerMocks = vi.hoisted(() => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
+}))
+
+// The controller lazily imports the create barrel only for `buildAgentCreateBody`; mock it so the
+// wizard's heavy UI graph never loads into this hook test's worker. The real per-runtime body shape
+// is covered by agentCreateBody.test.ts — here we only assert the controller delegates to it.
+vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
+  buildAgentCreateBody: controllerMocks.buildAgentCreateBody
 }))
 
 vi.mock('../useResourceLibrary', () => ({
@@ -61,6 +69,7 @@ vi.mock('@renderer/hooks/useTags', () => ({
 }))
 
 const createValues = {
+  agentType: 'claude-code' as const,
   avatar: 'A',
   description: 'A focused helper',
   knowledgeBaseIds: ['kb-1'],
@@ -84,6 +93,7 @@ const assistantResource = {
 describe('useResourceCatalogController', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    controllerMocks.buildAgentCreateBody.mockImplementation((values) => ({ builtFrom: values }))
     controllerMocks.createAssistant.mockResolvedValue({ id: 'assistant-created' })
     controllerMocks.createAgent.mockResolvedValue({ id: 'agent-created' })
     controllerMocks.refetch.mockResolvedValue(undefined)
@@ -127,7 +137,7 @@ describe('useResourceCatalogController', () => {
     expect(result.current.dialogs.createDialogOpen).toBe(false)
   })
 
-  it('creates an agent and refetches the resource list', async () => {
+  it('creates an agent by delegating the body to buildAgentCreateBody', async () => {
     const { result } = renderHook(() => useResourceCatalogController('agent'))
 
     act(() => {
@@ -138,22 +148,30 @@ describe('useResourceCatalogController', () => {
       await result.current.dialogs.handleSubmitCreateResource(createValues)
     })
 
-    expect(controllerMocks.createAgent).toHaveBeenCalledWith({
-      configuration: {
-        avatar: createValues.avatar,
-        permission_mode: 'bypassPermissions'
-      },
-      description: createValues.description,
-      instructions: createValues.prompt,
-      model: createValues.modelId,
-      name: createValues.name,
-      planModel: createValues.modelId,
-      skillIds: createValues.skillIds,
-      smallModel: createValues.modelId,
-      type: 'claude-code'
-    })
+    // The controller must derive the create body from the wizard values (runtime-aware) rather
+    // than hardcode a claude-code DTO — buildAgentCreateBody owns the per-runtime shape.
+    expect(controllerMocks.buildAgentCreateBody).toHaveBeenCalledWith(createValues)
+    expect(controllerMocks.createAgent).toHaveBeenCalledWith({ builtFrom: createValues })
     expect(controllerMocks.refetch).toHaveBeenCalledOnce()
     expect(result.current.dialogs.createDialogOpen).toBe(false)
+  })
+
+  it('honors the selected pi runtime instead of hardcoding claude-code', async () => {
+    const { result } = renderHook(() => useResourceCatalogController('agent'))
+    const piValues = { ...createValues, agentType: 'pi' as const }
+
+    act(() => {
+      result.current.gridProps.onCreate('agent')
+    })
+
+    await act(async () => {
+      await result.current.dialogs.handleSubmitCreateResource(piValues)
+    })
+
+    // The runtime the user picked (pi) must reach buildAgentCreateBody, which produces the pi-specific
+    // body (no soul/skills/model tiers, gated permission mode — verified in agentCreateBody.test).
+    expect(controllerMocks.buildAgentCreateBody).toHaveBeenCalledWith(piValues)
+    expect(controllerMocks.createAgent).toHaveBeenCalledWith({ builtFrom: piValues })
   })
 
   it('reports assistant duplicate failures without refetching', async () => {
