@@ -71,8 +71,14 @@ describe('parseDotenv', () => {
     expect(parseDotenv("KEY='value'\n")).toEqual(new Map([['KEY', 'value']]))
   })
 
-  it('unescapes a double-quoted value containing an escaped quote', () => {
-    expect(parseDotenv('KEY="say \\"hi\\""\n')).toEqual(new Map([['KEY', 'say "hi"']]))
+  it('keeps `\\"` and `\\\\` escapes literal inside double quotes, matching the real dotenv package', () => {
+    // Real dotenv only re-expands `\n`/`\r` in double-quoted values; it never unescapes `\"` or `\\`.
+    // parseDotenv must match, or rewriting a hand-written `KEY="C:\\path"` would silently drop a backslash.
+    const escapedQuote = 'KEY="say \\"hi\\""\n'
+    expect(parseDotenv(escapedQuote).get('KEY')).toBe(parseWithRealDotenv(escapedQuote).KEY)
+    const backslashPath = 'KEY="C:\\\\path"\n' // on disk: KEY="C:\\path"
+    expect(parseDotenv(backslashPath).get('KEY')).toBe(parseWithRealDotenv(backslashPath).KEY)
+    expect(parseDotenv(backslashPath).get('KEY')).toBe('C:\\\\path')
   })
 
   it('skips comment lines and blank lines', () => {
@@ -86,5 +92,14 @@ describe('round-trip', () => {
   it.each(cases)('renders and re-parses %j unchanged', (value) => {
     const rendered = renderDotenvFile(new Map([['KEY', value]]))
     expect(parseDotenv(rendered).get('KEY')).toBe(value)
+  })
+
+  it('preserves a hand-written double-quoted backslash path across a parse→render rewrite', () => {
+    // Reviewer scenario: a user hand-writes KEY="C:\\path"; Cherry parses the file then rewrites it.
+    // The value the CLI tool (real dotenv) reads back must be identical before and after the rewrite.
+    const handWritten = 'KEY="C:\\\\path"\n' // on disk: KEY="C:\\path"
+    const original = parseWithRealDotenv(handWritten).KEY
+    const rewritten = renderDotenvFile(parseDotenv(handWritten))
+    expect(parseWithRealDotenv(rewritten).KEY).toBe(original)
   })
 })

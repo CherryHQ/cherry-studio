@@ -48,6 +48,10 @@ export function useConfigPanelController({
   const { t } = useTranslation()
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const pendingEnableProviderIdRef = useRef<string | null>(null)
+  // Tracks tools with an in-flight enable/disable. writeCliConfigDraft / clearCliConfig write multiple
+  // files sequentially with snapshot rollback and no cross-file lock, so a rapid second toggle for the
+  // same tool could interleave the two operations' reads/writes and leave its config files inconsistent.
+  const inFlightToolsRef = useRef<Set<CodeCli>>(new Set())
 
   const openConfigurePanel = useCallback((provider: Provider) => {
     pendingEnableProviderIdRef.current = null
@@ -139,6 +143,9 @@ export function useConfigPanelController({
 
   const handleToggleCurrent = useCallback(
     (provider: Provider) => {
+      // Ignore a re-entrant toggle for the same tool while its config write/clear is still running.
+      if (inFlightToolsRef.current.has(selectedCliTool)) return
+      inFlightToolsRef.current.add(selectedCliTool)
       const isEnabling = currentProviderId !== provider.id
       void (async () => {
         if (!isEnabling) {
@@ -185,7 +192,9 @@ export function useConfigPanelController({
           logger.error('Failed to inject CLI config on enable:', err as Error)
           window.toast.error(t('code.apply_failed'))
         }
-      })()
+      })().finally(() => {
+        inFlightToolsRef.current.delete(selectedCliTool)
+      })
     },
     [
       currentProviderId,

@@ -239,4 +239,48 @@ describe('CodeCliService', () => {
       })
     })
   })
+
+  describe('run (provider/model validation is owned solely by the service)', () => {
+    beforeEach(async () => {
+      // Keep the directory guard failing so a launch that passes validation returns immediately
+      // (asserting the exemption) instead of proceeding into the slow spawn path.
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.existsSync).mockReturnValue(false)
+    })
+
+    it('rejects a normal CLI launch when the provider id is empty', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run(CodeCli.CLAUDE_CODE, 'gpt-4', '', '/tmp/project')
+
+      expect(result).toEqual({ success: false, message: 'Provider ID is required for claude-code', command: '' })
+    })
+
+    it('rejects a normal CLI launch when the model is empty', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run(CodeCli.CLAUDE_CODE, '', 'openai', '/tmp/project')
+
+      expect(result).toEqual({ success: false, message: 'Model is required for claude-code', command: '' })
+    })
+
+    it('exempts the Claude login flow from the provider/model requirement', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run(CodeCli.CLAUDE_CODE, '', '', '/tmp/project', { loginFlow: true })
+
+      // Validation is skipped for the login flow, so control flows past the provider/model guards to
+      // the next check (the directory guard, forced to fail here) — not rejected on provider/model.
+      expect(result.message).toContain('Directory does not exist')
+    })
+
+    it('exempts providerless CLIs (Qoder) from the provider/model requirement', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run(CodeCli.QODER_CLI, '', '', '/tmp/project')
+
+      // Providerless CLIs skip the provider/model guards, so control reaches the directory guard.
+      expect(result.message).toContain('Directory does not exist')
+    })
+  })
 })

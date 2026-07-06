@@ -12,7 +12,6 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { isWin } from '@main/core/platform'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/v2/legacyTypes'
 import { getBinaryPath } from '@main/utils/binaryResolver'
-import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { refreshShellEnv } from '@main/utils/shellEnv'
 import type { EndpointType, Model as DataModel } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
@@ -130,7 +129,6 @@ export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
-  private installPromise: Promise<OperationResult> | null = null
 
   public get gatewayUrl(): string {
     return `ws://127.0.0.1:${this.gatewayPort}/ws`
@@ -145,25 +143,6 @@ export class OpenClawService extends BaseService {
   }
 
   /**
-   * Check if OpenClaw is installed.
-   * Only recognizes the local binary (~/.cherrystudio/bin/). If openclaw is found
-   * in PATH but not locally, it's likely an old npm-installed version (possibly a
-   * third-party fork with ads) and needs migration.
-   */
-  public async checkInstalled(): Promise<{ installed: boolean; path: string | null; needsMigration: boolean }> {
-    const localPath = await getBinaryPath('openclaw')
-    if (fs.existsSync(localPath)) {
-      return { installed: true, path: localPath, needsMigration: false }
-    }
-    // Check if an old version exists in PATH (e.g. from npm install -g)
-    const envPath = await findExecutableInEnv('openclaw')
-    if (envPath) {
-      return { installed: false, path: null, needsMigration: true }
-    }
-    return { installed: false, path: null, needsMigration: false }
-  }
-
-  /**
    * Find the openclaw executable. Only uses the local binary (~/.cherrystudio/bin/).
    * Never falls back to PATH to avoid running old npm-installed versions.
    */
@@ -171,54 +150,6 @@ export class OpenClawService extends BaseService {
     const localPath = await getBinaryPath('openclaw')
     if (fs.existsSync(localPath)) return localPath
     return null
-  }
-
-  /**
-   * Install OpenClaw via BinaryManager (mise npm:openclaw backend).
-   */
-  public async install(): Promise<OperationResult> {
-    if (this.installPromise) {
-      return this.installPromise
-    }
-
-    this.installPromise = this.installInternal()
-    try {
-      return await this.installPromise
-    } finally {
-      this.installPromise = null
-    }
-  }
-
-  private async installInternal(): Promise<OperationResult> {
-    try {
-      await application.get('BinaryManager').installTool({ name: 'openclaw', tool: 'npm:openclaw' })
-      logger.info('OpenClaw installed via BinaryManager')
-      return { success: true }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to install OpenClaw:', error as Error)
-      return { success: false, message: errorMessage }
-    }
-  }
-
-  /**
-   * Uninstall OpenClaw via BinaryManager.
-   */
-  public async uninstall(): Promise<OperationResult> {
-    // Stop the gateway before removing binary
-    if (this.gatewayStatus === 'running') {
-      await this.stopGateway()
-    }
-
-    try {
-      await application.get('BinaryManager').removeTool('openclaw')
-      logger.info('OpenClaw uninstalled via BinaryManager')
-      return { success: true }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      logger.error('Failed to uninstall OpenClaw:', error as Error)
-      return { success: false, message: errorMessage }
-    }
   }
 
   /**

@@ -9,7 +9,11 @@ export function parseDotenv(content: string): Map<string, string> {
     const key = line.slice(0, eq).trim()
     let value = line.slice(eq + 1).trim()
     if (value.startsWith('"') && value.endsWith('"')) {
-      value = value.slice(1, -1).replace(/\\(["\\])/g, '$1')
+      // Match the real `dotenv` package (which the CLI tools use to read these files back): inside a
+      // double-quoted value it only re-expands `\n`/`\r`, and keeps `\\`/`\"` literal. Unescaping those
+      // here would diverge from the write side (see `quoteDotenvValue` below) and silently drop a
+      // backslash from a hand-written value like KEY="C:\\path" when the file is rewritten.
+      value = value.slice(1, -1).replace(/\\n/g, '\n').replace(/\\r/g, '\r')
     } else if (value.startsWith("'") && value.endsWith("'")) {
       value = value.slice(1, -1)
     }

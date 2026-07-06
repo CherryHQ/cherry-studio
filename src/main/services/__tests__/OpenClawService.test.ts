@@ -1,6 +1,5 @@
 import { ENDPOINT_TYPE, type Model as DataModel, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider as DataProvider } from '@shared/data/types/provider'
-import type { OperationResult } from '@shared/types/codeTools'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Mocks for OpenClawService dependencies ---
@@ -29,12 +28,6 @@ vi.mock('@application', () => ({
       if (name === 'WindowManager') {
         return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) }
       }
-      if (name === 'BinaryManager') {
-        return {
-          installTool: vi.fn(() => Promise.resolve({ version: 'latest' })),
-          removeTool: vi.fn(() => Promise.resolve())
-        }
-      }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     })
   }
@@ -42,10 +35,6 @@ vi.mock('@application', () => ({
 
 vi.mock('@main/utils/binaryResolver', () => ({
   getBinaryPath: vi.fn(() => Promise.resolve('/mock/bin/openclaw'))
-}))
-
-vi.mock('@main/utils/commandResolver', () => ({
-  findExecutableInEnv: vi.fn()
 }))
 
 vi.mock('@data/services/ModelService', () => ({
@@ -72,10 +61,6 @@ vi.mock('@main/services/RegionService', () => ({
 
 vi.mock('@main/core/platform', () => ({
   isWin: false
-}))
-
-vi.mock('@shared/IpcChannel', () => ({
-  IpcChannel: { OpenClaw_InstallProgress: 'openclaw:install-progress' }
 }))
 
 vi.mock('@shared/utils', () => ({
@@ -354,49 +339,6 @@ describe('OpenClawService gateway status state machine', () => {
 
       expect(result.success).toBe(false)
       expect((service as any).gatewayStatus).toBe('error')
-    })
-  })
-
-  // ─── install ────────────────────────────────────────────────
-
-  describe('install', () => {
-    it('reuses the pending install operation for concurrent calls', async () => {
-      let finishInstall: (() => void) | undefined
-      const installInternalSpy = vi.spyOn(service as any, 'installInternal').mockImplementation(
-        () =>
-          new Promise<OperationResult>((resolve) => {
-            finishInstall = () => resolve({ success: true })
-          })
-      )
-
-      const firstInstall = service.install()
-      const secondInstall = service.install()
-      await Promise.resolve()
-
-      expect(installInternalSpy).toHaveBeenCalledTimes(1)
-      finishInstall?.()
-
-      await expect(Promise.all([firstInstall, secondInstall])).resolves.toEqual([{ success: true }, { success: true }])
-      expect((service as any).installPromise).toBeNull()
-
-      const thirdInstall = service.install()
-      await Promise.resolve()
-      expect(installInternalSpy).toHaveBeenCalledTimes(2)
-      finishInstall?.()
-      await expect(thirdInstall).resolves.toEqual({ success: true })
-    })
-
-    it('resets the pending install operation after failure', async () => {
-      const installInternalSpy = vi
-        .spyOn(service as any, 'installInternal')
-        .mockRejectedValueOnce(new Error('install failed'))
-        .mockResolvedValueOnce({ success: true })
-
-      await expect(service.install()).rejects.toThrow('install failed')
-      expect((service as any).installPromise).toBeNull()
-
-      await expect(service.install()).resolves.toEqual({ success: true })
-      expect(installInternalSpy).toHaveBeenCalledTimes(2)
     })
   })
 

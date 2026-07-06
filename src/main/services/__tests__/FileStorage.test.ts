@@ -73,6 +73,37 @@ describe('FileStorage', () => {
       await fileStorage.writeFile(event, tmpFile, 'content')
       expect(fs.readFileSync(tmpFile, 'utf-8')).toBe('content')
     })
+
+    // An existing file must be tightened to the requested mode BEFORE the (secret) content is written,
+    // so the content never lands under the old, possibly world-readable, permissions.
+    it('chmods an existing file before writing its content', async () => {
+      fs.writeFileSync(tmpFile, 'old content', { mode: 0o644 })
+      const order: string[] = []
+      const chmodSpy = vi.spyOn(fs.promises, 'chmod').mockImplementation(async () => {
+        order.push('chmod')
+      })
+      const writeSpy = vi.spyOn(fs.promises, 'writeFile').mockImplementation(async () => {
+        order.push('write')
+      })
+
+      await fileStorage.writeFile(event, tmpFile, 'new secret', 0o600)
+
+      expect(order).toEqual(['chmod', 'write'])
+      chmodSpy.mockRestore()
+      writeSpy.mockRestore()
+    })
+
+    // A brand-new file has no loose-permission window (writeFile applies the mode on creation), so we
+    // must not pre-chmod a path that does not exist yet.
+    it('does not pre-chmod when the target file does not exist', async () => {
+      const chmodSpy = vi.spyOn(fs.promises, 'chmod')
+
+      await fileStorage.writeFile(event, tmpFile, 'new secret', 0o600)
+
+      expect(chmodSpy).not.toHaveBeenCalled()
+      expect(fs.statSync(tmpFile).mode & 0o777).toBe(0o600)
+      chmodSpy.mockRestore()
+    })
   })
 })
 
