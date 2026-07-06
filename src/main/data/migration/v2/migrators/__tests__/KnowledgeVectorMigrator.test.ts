@@ -44,7 +44,7 @@ vi.mock('node:os', async (importOriginal) => {
   return (await importOriginal()) as any
 })
 
-vi.mock('@main/utils/file', () => ({
+vi.mock('@main/utils/legacyFile', () => ({
   sanitizeFilename: (value: string) => value,
   getFileExt: (filePath: string) => {
     const index = filePath.lastIndexOf('.')

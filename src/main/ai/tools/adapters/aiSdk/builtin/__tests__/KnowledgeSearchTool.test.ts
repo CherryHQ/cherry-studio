@@ -7,7 +7,7 @@ const knowledgeServiceSearch = vi.fn()
 // so the mock below must reference an already-initialized fn.
 const loggerWarn = vi.hoisted(() => vi.fn())
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'KnowledgeService') return { search: knowledgeServiceSearch }

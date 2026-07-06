@@ -1,7 +1,7 @@
 import type {
   ResourceListGroupReorderPayload,
   ResourceListItemReorderPayload
-} from '@renderer/components/chat/resources'
+} from '@renderer/components/chat/resourceList/base'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { describe, expect, it } from 'vitest'

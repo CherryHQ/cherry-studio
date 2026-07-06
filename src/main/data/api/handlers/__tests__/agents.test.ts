@@ -1,4 +1,4 @@
-import { ErrorCode } from '@shared/data/api'
+import { ErrorCode } from '@shared/data/api/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {

@@ -1,5 +1,5 @@
 import { useCopyTool } from '@renderer/components/CodeToolbar/hooks/useCopyTool'
-import type { BasicPreviewHandles } from '@renderer/components/Preview'
+import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,8 +35,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/components/icons', () => ({
-  CopyIcon: () => <div data-testid="copy-icon" />
+vi.mock('@renderer/components/icons/CopyIcon', () => ({
+  default: () => <div data-testid="copy-icon" />
 }))
 
 vi.mock('@renderer/components/ActionTools', () => ({

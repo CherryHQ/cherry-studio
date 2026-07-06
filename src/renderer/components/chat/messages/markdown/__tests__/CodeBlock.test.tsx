@@ -55,18 +55,16 @@ vi.mock('streamdown', () => ({
   useIsCodeFenceIncomplete: () => mocks.isCodeFenceIncomplete
 }))
 
-vi.mock('@renderer/components/CodeBlockView', () => ({
-  CodeBlockView: mocks.CodeBlockView,
-  HtmlArtifactsCard: mocks.HtmlArtifactsCard
+vi.mock('@renderer/components/CodeBlockView/CodeBlockView', () => ({
+  CodeBlockView: mocks.CodeBlockView
 }))
 
-// Mock message parts context — returns null by default
-vi.mock('@renderer/components/chat/messages/blocks', () => ({
-  useResolveBlock: vi.fn(() => null)
+vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsCard', () => ({
+  default: mocks.HtmlArtifactsCard
 }))
 
 // Mock ClickableFilePath
-vi.mock('@renderer/components/chat/messages/tools/agent/ClickableFilePath', () => ({
+vi.mock('@renderer/components/chat/messages/tools/shared/ClickableFilePath', () => ({
   ClickableFilePath: ({ path }: { path: string }) => <span data-testid="clickable-file-path">{path}</span>
 }))
 

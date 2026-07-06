@@ -13,7 +13,7 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { TopView } from '@renderer/components/TopView'
+import { TopView } from '@renderer/components/TopView/TopView'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
@@ -23,7 +23,7 @@ import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
-import { MODEL_ENDPOINT_OPTIONS } from './ModelDrawer/helpers'
+import { MODEL_ENDPOINT_OPTIONS } from './ModelDrawer'
 
 const logger = loggerService.withContext('ProviderSettings:NewApiBatchAddModelPopup')
 

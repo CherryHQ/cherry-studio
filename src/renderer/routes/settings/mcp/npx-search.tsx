@@ -1,5 +1,5 @@
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { SettingsContentColumn } from '@renderer/pages/settings'
 import NpxSearch from '@renderer/pages/settings/McpSettings/NpxSearch'
 import { createFileRoute } from '@tanstack/react-router'
 

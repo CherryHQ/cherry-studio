@@ -11,7 +11,6 @@
  */
 
 import { groupService } from '@data/services/GroupService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { GroupSchemas } from '@shared/data/api/schemas/groups'
 import {
@@ -20,6 +19,7 @@ import {
   ListGroupsQuerySchema,
   UpdateGroupSchema
 } from '@shared/data/api/schemas/groups'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const groupHandlers: HandlersFor<GroupSchemas> = {
   '/groups': {
