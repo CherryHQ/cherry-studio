@@ -53,7 +53,7 @@ function loadPptxPreviewPanel() {
 
 function loadXlsxPreviewPanel() {
   xlsxPreviewPanelPromise ??= import('./XlsxPreviewPanel')
-    .then((module) => module.default)
+    .then((module) => module.XlsxPreviewPanel)
     .catch((err: unknown) => {
       xlsxPreviewPanelPromise = null
       throw err

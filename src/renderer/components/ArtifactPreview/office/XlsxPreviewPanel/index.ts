@@ -1,1 +1,1 @@
-export { default } from './XlsxPreviewPanel'
+export { default as XlsxPreviewPanel } from './XlsxPreviewPanel'

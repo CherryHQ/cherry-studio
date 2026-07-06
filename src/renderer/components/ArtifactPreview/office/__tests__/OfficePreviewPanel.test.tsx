@@ -69,7 +69,7 @@ vi.mock('../PptxPreviewPanel', () => {
 vi.mock('../XlsxPreviewPanel', () => {
   mocks.xlsxPreviewPanelModuleLoadCount += 1
   return {
-    default: (props: {
+    XlsxPreviewPanel: (props: {
       fileName: string
       filePath: string
       refreshKey: number
