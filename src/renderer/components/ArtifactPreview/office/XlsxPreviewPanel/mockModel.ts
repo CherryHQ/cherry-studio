@@ -113,8 +113,7 @@ export const createMockWorkbookModel = (): WorkbookRenderModel => ({
         '3:2': { text: 'TRUE', raw: true }
       },
       floatingImages: [],
-      charts: [],
-      frozen: { xSplit: 0, ySplit: 1 }
+      charts: []
     },
     {
       name: 'HiddenSheet',

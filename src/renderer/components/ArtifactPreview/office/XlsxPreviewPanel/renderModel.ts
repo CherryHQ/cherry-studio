@@ -32,8 +32,6 @@ export interface SheetRenderModel {
   merges: MergeRange[]
   floatingImages: FloatingObjectModel[]
   charts: ChartModel[]
-  /** 冻结窗格信息:v1 UI 不用,解析保留作扩展位 */
-  frozen?: { xSplit: number; ySplit: number }
 }
 
 /** 1-based,闭区间 */

@@ -659,10 +659,6 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       if (usedRange.truncated) warnings.add('sheet-truncated')
     }
 
-    // frozen panes
-    const view = worksheet.views?.[0]
-    const frozen = view && view.state === 'frozen' ? { xSplit: view.xSplit ?? 0, ySplit: view.ySplit ?? 0 } : undefined
-
     const rowCount = Math.min(Math.max(maxRow, 1), MAX_ROWS)
     const colCount = Math.min(Math.max(maxCol, 1), MAX_COLS)
     if (maxRow > MAX_ROWS || maxCol > MAX_COLS) {
@@ -681,8 +677,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       cells,
       merges,
       floatingImages,
-      charts: [],
-      ...(frozen ? { frozen } : {})
+      charts: []
     })
   }
 
