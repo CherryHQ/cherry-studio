@@ -13,7 +13,7 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
-import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel/searchAliases'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import { ModelSelector } from '@renderer/components/ModelSelector'

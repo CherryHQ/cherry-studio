@@ -1,4 +1,4 @@
-import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel/searchAliases'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
 import { isGenerateImageModel } from '@renderer/utils/model'
 import { Image } from 'lucide-react'

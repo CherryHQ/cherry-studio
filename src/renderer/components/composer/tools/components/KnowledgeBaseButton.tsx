@@ -1,5 +1,5 @@
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
-import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel/searchAliases'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
   type QuickPanelCallBackOptions,

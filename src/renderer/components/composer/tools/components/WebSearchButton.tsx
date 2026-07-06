@@ -1,6 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import ActionIconButton from '@renderer/components/ActionIconButton'
-import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel/searchAliases'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
