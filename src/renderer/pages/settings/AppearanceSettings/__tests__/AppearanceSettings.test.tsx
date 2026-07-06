@@ -3,7 +3,7 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import AppearanceSettings, { confirmMenuPresentationModeChange } from '../index'
+import AppearanceSettings, { confirmMenuPresentationModeChange } from '../AppearanceSettings'
 
 const i18nMock = vi.hoisted(() => ({
   language: 'zh-CN',
