@@ -15,14 +15,14 @@ import { ImageBytesSchema } from './entityImage'
  *
  * - `{ kind: 'image', data }` — raw upload bytes; main creates + binds the file.
  * - `{ kind: 'emoji', emoji }` — an emoji glyph, stored verbatim; slot cleared.
- * - `{ kind: 'clear' }` — reset to the bundled default (`''`); slot cleared.
+ * - `{ kind: 'default' }` — reset to the bundled default (`''`); slot cleared.
  */
 export const profileRequestSchemas = {
   'profile.set_avatar': defineRoute({
     input: z.discriminatedUnion('kind', [
       z.strictObject({ kind: z.literal('image'), data: ImageBytesSchema }),
       z.strictObject({ kind: z.literal('emoji'), emoji: z.string().min(1) }),
-      z.strictObject({ kind: z.literal('clear') })
+      z.strictObject({ kind: z.literal('default') })
     ]),
     output: z.void()
   })

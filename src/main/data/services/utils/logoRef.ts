@@ -84,7 +84,7 @@ export function setSingleFileRefTx(tx: DbOrTx, slot: SingleFileRefSlot, fileId: 
  *   `logoFileId = fileId`, `logoKey = null`.
  * - `{ kind: 'key', key }` → preset/url ref: drop the slot's ref,
  *   `logoKey = key`, `logoFileId = null`.
- * - `{ kind: 'clear' }` → drop the slot's ref, both columns null.
+ * - `{ kind: 'default' }` → drop the slot's ref, both columns null.
  */
 export function reconcileLogoSlotTx(
   tx: DbOrTx,

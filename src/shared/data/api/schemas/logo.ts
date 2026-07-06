@@ -38,7 +38,7 @@ export const LogoKeySchema = z
 
 const LogoKeyVariant = z.strictObject({ kind: z.literal('key'), key: LogoKeySchema })
 const LogoFileVariant = z.strictObject({ kind: z.literal('file'), fileId: FileEntryIdSchema })
-const LogoClearVariant = z.strictObject({ kind: z.literal('clear') })
+const LogoDefaultVariant = z.strictObject({ kind: z.literal('default') })
 
 /** Renderer-facing create logo — a preset key only (uploads use the set-logo command). */
 export const CreateLogoSchema = LogoKeyVariant
@@ -48,5 +48,5 @@ export type CreateLogoInput = z.infer<typeof CreateLogoSchema>
  * Service-internal bind input consumed by `reconcileLogoSlotTx`. `file` is
  * supplied only by the main-side command orchestrator (never the renderer).
  */
-export const LogoBindInputSchema = z.discriminatedUnion('kind', [LogoKeyVariant, LogoFileVariant, LogoClearVariant])
+export const LogoBindInputSchema = z.discriminatedUnion('kind', [LogoKeyVariant, LogoFileVariant, LogoDefaultVariant])
 export type LogoBindInput = z.infer<typeof LogoBindInputSchema>

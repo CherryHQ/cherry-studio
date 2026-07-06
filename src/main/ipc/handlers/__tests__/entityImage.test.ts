@@ -63,11 +63,11 @@ describe('provider.set_logo', () => {
     expect(providerUpdateMock).toHaveBeenCalledWith('p1', { logo: { kind: 'key', key: 'icon:openai' } })
   })
 
-  it('binds a clear without creating a file', async () => {
-    await entityImageHandlers['provider.set_logo']({ providerId: 'p1', image: { kind: 'clear' } }, ctx)
+  it('binds a default without creating a file', async () => {
+    await entityImageHandlers['provider.set_logo']({ providerId: 'p1', image: { kind: 'default' } }, ctx)
 
     expect(createInternalEntryMock).not.toHaveBeenCalled()
-    expect(providerUpdateMock).toHaveBeenCalledWith('p1', { logo: { kind: 'clear' } })
+    expect(providerUpdateMock).toHaveBeenCalledWith('p1', { logo: { kind: 'default' } })
   })
 
   it('compensates (permanentDelete) when the bind fails', async () => {

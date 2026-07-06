@@ -71,8 +71,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const handleReset = async () => {
     try {
-      // Clear falls back to the bundled default avatar (see useAvatar).
-      await ipcApi.request('profile.set_avatar', { kind: 'clear' })
+      // Reset falls back to the bundled default avatar (see useAvatar).
+      await ipcApi.request('profile.set_avatar', { kind: 'default' })
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {

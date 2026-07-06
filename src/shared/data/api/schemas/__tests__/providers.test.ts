@@ -50,12 +50,12 @@ describe('Provider DTO logo validation', () => {
     }
   })
 
-  it('rejects a clear intent on create (no such variant)', () => {
-    expect(CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: { kind: 'clear' } }).success).toBe(false)
+  it('rejects a default intent on create (no such variant)', () => {
+    expect(CreateProviderSchema.safeParse({ providerId: 'p', name: 'n', logo: { kind: 'default' } }).success).toBe(false)
   })
 
   it('rejects a logo field on update — logo edits go through provider.set_logo', () => {
-    expect(UpdateProviderSchema.safeParse({ logo: { kind: 'clear' } }).success).toBe(false)
+    expect(UpdateProviderSchema.safeParse({ logo: { kind: 'default' } }).success).toBe(false)
     expect(UpdateProviderSchema.safeParse({ logo: { kind: 'key', key: 'icon:openai' } }).success).toBe(false)
   })
 

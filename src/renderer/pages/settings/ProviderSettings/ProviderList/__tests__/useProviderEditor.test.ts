@@ -308,7 +308,7 @@ describe('useProviderEditor', () => {
       expect(invalidateMock).toHaveBeenCalledWith(['/providers', '/providers/openai', '/providers/openai/*'])
     })
 
-    it('clears the logo via provider.set_logo on update', async () => {
+    it('resets the logo to default via provider.set_logo on update', async () => {
       const { result } = renderHook(() => useProviderEditor(makeParams()))
 
       act(() => result.current.startEdit(provider))
@@ -317,14 +317,14 @@ describe('useProviderEditor', () => {
           mode: 'edit',
           name: 'Renamed',
           defaultChatEndpoint: endpoint,
-          logo: { kind: 'clear' }
+          logo: { kind: 'default' }
         })
       })
 
       expect(updateProviderByIdMock.mock.calls[0][1]).not.toHaveProperty('logo')
       expect(ipcRequestMock).toHaveBeenCalledWith('provider.set_logo', {
         providerId: 'openai',
-        image: { kind: 'clear' }
+        image: { kind: 'default' }
       })
     })
 

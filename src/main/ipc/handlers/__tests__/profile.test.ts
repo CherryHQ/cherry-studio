@@ -60,8 +60,8 @@ describe('profileHandlers.set_avatar', () => {
     expect(preferences.set).toHaveBeenCalledWith('app.user.avatar', '😀')
   })
 
-  it('resets to empty on clear (no file created)', async () => {
-    await profileHandlers['profile.set_avatar']({ kind: 'clear' }, ctx)
+  it('resets to empty on default (no file created)', async () => {
+    await profileHandlers['profile.set_avatar']({ kind: 'default' }, ctx)
 
     expect(createInternalEntryMock).not.toHaveBeenCalled()
     expect(preferences.set).toHaveBeenCalledWith('app.user.avatar', '')

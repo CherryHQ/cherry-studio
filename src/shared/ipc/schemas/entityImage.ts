@@ -33,12 +33,12 @@ export const ImageBytesSchema = z
 
 /**
  * Logo intent for a set-logo command: raw image bytes (main creates the file),
- * a preset key (stored on `logoKey`), or clear (reset to the bundled icon).
+ * a preset key (stored on `logoKey`), or default (reset to the bundled icon).
  */
 export const LogoImageIntentSchema = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('image'), data: ImageBytesSchema }),
   z.strictObject({ kind: z.literal('key'), key: LogoKeySchema }),
-  z.strictObject({ kind: z.literal('clear') })
+  z.strictObject({ kind: z.literal('default') })
 ])
 export type LogoImageIntent = z.infer<typeof LogoImageIntentSchema>
 

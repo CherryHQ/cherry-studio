@@ -200,13 +200,13 @@ export default function ProviderEditorDrawer({
     if (!trimmedName || !mode) return null
 
     // A staged upload sends its bytes via `provider.set_logo`; a picked icon is a
-    // preset key; a reset clears. Not dirty → unchanged (the field is omitted).
+    // preset key; a reset restores the default. Not dirty → unchanged (the field is omitted).
     const logoEdit: SubmitProviderEditorParams['logo'] = stagedFile
       ? { kind: 'image', file: stagedFile }
       : logoDirty
         ? logo
           ? { kind: 'key', key: logo }
-          : { kind: 'clear' }
+          : { kind: 'default' }
         : undefined
     const logoField = logoEdit ? { logo: logoEdit } : {}
 

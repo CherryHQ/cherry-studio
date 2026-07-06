@@ -31,7 +31,7 @@ export async function withCreatedImageEntry<T>(
 
 /**
  * Apply a provider / mini-app logo intent: image bytes → create the file then
- * bind it as `{ kind: 'file' }`; preset key / clear → bind directly (no file).
+ * bind it as `{ kind: 'file' }`; preset key / default → bind directly (no file).
  * `bind` is the owner's pure-DB slot reconcile (`reconcileLogoSlotTx`, reached
  * via the DataApi service) — the only `fileId` it ever sees is one just minted.
  */
@@ -40,6 +40,6 @@ export async function bindLogoImage(
   bind: (input: LogoBindInput) => MaybePromise<void>
 ): Promise<void> {
   if (image.kind === 'key') return bind({ kind: 'key', key: image.key })
-  if (image.kind === 'clear') return bind({ kind: 'clear' })
+  if (image.kind === 'default') return bind({ kind: 'default' })
   await withCreatedImageEntry(image.data, (fileId) => bind({ kind: 'file', fileId }))
 }

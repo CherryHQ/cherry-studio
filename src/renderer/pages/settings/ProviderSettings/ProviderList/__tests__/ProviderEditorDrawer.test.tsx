@@ -167,7 +167,7 @@ describe('ProviderEditorDrawer', () => {
     })
   })
 
-  it('submits a clear logo edit when reset before saving', async () => {
+  it('submits a default logo edit when reset before saving', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     const file = new File(['png'], 'avatar.png', { type: 'image/png' })
 
@@ -201,7 +201,7 @@ describe('ProviderEditorDrawer', () => {
         expect.objectContaining({
           mode: 'edit',
           name: 'Custom Provider',
-          logo: { kind: 'clear' }
+          logo: { kind: 'default' }
         })
       )
     })

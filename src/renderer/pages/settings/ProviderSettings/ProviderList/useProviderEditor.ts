@@ -12,9 +12,9 @@ const logger = loggerService.withContext('useProviderEditor')
 
 /**
  * A provider logo edit: upload bytes (sent raw to `provider.set_logo`), a preset
- * key, or clear. `undefined` means "leave unchanged".
+ * key, or reset to default. `undefined` means "leave unchanged".
  */
-export type ProviderLogoEdit = { kind: 'image'; file: File } | { kind: 'key'; key: string } | { kind: 'clear' }
+export type ProviderLogoEdit = { kind: 'image'; file: File } | { kind: 'key'; key: string } | { kind: 'default' }
 
 export type ProviderEditorMode =
   | { kind: 'create-custom' }
@@ -84,7 +84,7 @@ export function useProviderEditor({ onProviderCreated }: UseProviderEditorParams
           ? ({ kind: 'image', data: new Uint8Array(await edit.file.arrayBuffer()) } as const)
           : edit.kind === 'key'
             ? ({ kind: 'key', key: edit.key } as const)
-            : ({ kind: 'clear' } as const)
+            : ({ kind: 'default' } as const)
       try {
         await ipcApi.request('provider.set_logo', { providerId, image })
       } catch (error) {
