@@ -4,10 +4,10 @@
  * only (no selector fan-out), passes `userMessage` for the inject path.
  */
 
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { application } from '@main/core/application'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage } from '@shared/data/types/message'

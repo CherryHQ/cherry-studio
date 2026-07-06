@@ -3,9 +3,15 @@
  * CHECK constraints in schema.ts (§4) and shape the store's write contract.
  */
 
-import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
-
 export type SearchUnitType = 'chunk'
+
+/**
+ * Retrieval mode for the index store's `search()` primitive. Independent of the
+ * product-level KnowledgeBase policy (KnowledgeService.search() only ever passes
+ * 'bm25' | 'hybrid' — see isCompletedVectorKnowledgeBase); 'vector' remains a
+ * supported engine capability with its own test coverage.
+ */
+export type KnowledgeIndexSearchMode = 'vector' | 'bm25' | 'hybrid'
 
 /** One retrieval unit (chunk/section) with its offsets into the material's content. */
 export interface RebuildMaterialUnitInput {
@@ -73,7 +79,7 @@ export interface KnowledgeIndexSearchInput {
   queryText: string
   /** Pre-computed query embedding. Required for 'hybrid'/'vector'; ignored for 'bm25'. */
   queryEmbedding?: number[]
-  mode: KnowledgeSearchMode
+  mode: KnowledgeIndexSearchMode
   topK: number
   /** RRF weight for the vector list in 'hybrid' (0 = pure BM25, 1 = pure vector). Default 0.5. */
   alpha?: number

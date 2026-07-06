@@ -25,7 +25,12 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useCreateKnowledgeGroup, useDeleteKnowledgeGroup, useKnowledgeGroups, useUpdateKnowledgeGroup } from './hooks'
+import {
+  useCreateKnowledgeGroup,
+  useDeleteKnowledgeGroup,
+  useKnowledgeGroups,
+  useUpdateKnowledgeGroup
+} from './hooks/useKnowledgeGroups'
 import type { KnowledgeRestoreBaseInitialValues } from './panels/ragConfig/RagConfigPanel'
 import type { KnowledgeTabKey } from './types'
 

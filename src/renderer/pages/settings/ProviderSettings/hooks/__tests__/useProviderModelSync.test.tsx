@@ -23,7 +23,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
   })
 }))
 
-vi.mock('../../ModelList/modelSync', () => ({
+vi.mock('../../utils/modelSync', () => ({
   fetchResolvedProviderModels: (...args: any[]) => fetchResolvedProviderModelsMock(...args),
   toCreateModelDto: (_providerId: string, model: any) => ({
     providerId: model.providerId,

@@ -4,8 +4,7 @@ import { getSidebarFavoriteKey, getSidebarMenuPath } from '@renderer/utils/sideb
 import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
 import type { MiniApp } from '@shared/data/types/miniApp'
 
-import { MiniAppIcon } from '../Sidebar/primitives'
-import type { ResolvedSidebarEntry } from '../Sidebar/types'
+import { MiniAppIcon, type ResolvedSidebarEntry } from '../Sidebar'
 import { SIDEBAR_ICON_COMPONENTS } from './sidebarIcons'
 
 /** Exhaustiveness guard: a new `SidebarFavoriteItem` type must add a `case` below. */
