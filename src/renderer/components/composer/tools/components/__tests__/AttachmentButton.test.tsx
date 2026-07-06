@@ -2,7 +2,7 @@ import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { act, render, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AttachmentToolRuntime } from '../AttachmentButton'
 
@@ -32,7 +32,8 @@ vi.mock('react-i18next', () => ({
 const createLauncherApi = (): ToolLauncherApi => ({
   registerLaunchers: vi.fn(() => vi.fn())
 })
-
+import { installSyncRafMock } from '../../../../../../../tests/__mocks__/requestAnimationFrame'
+let restoreRequestAnimationFrame: (() => void) | undefined
 const selectedFile: FileMetadata = {
   id: 'selected',
   path: '/tmp/report.txt',
@@ -55,6 +56,12 @@ describe('AttachmentToolRuntime', () => {
         select: vi.fn(async () => [selectedFile])
       }
     } as typeof window.api
+    restoreRequestAnimationFrame = installSyncRafMock()
+  })
+
+  afterEach(() => {
+    restoreRequestAnimationFrame?.()
+    restoreRequestAnimationFrame = undefined
   })
 
   it('keeps document-only support as a suffix and tooltip instead of a long label', async () => {
@@ -165,5 +172,34 @@ describe('AttachmentToolRuntime', () => {
       expect.objectContaining({ fileTokenSourceId: 'existing', path: '/tmp/existing.txt' }),
       expect.objectContaining({ path: selectedFile.path, name: selectedFile.name })
     ])
+  })
+
+  it('restores composer focus after the file picker closes', async () => {
+    const launcher = createLauncherApi()
+    const inputAdapter = {
+      getText: vi.fn(() => ''),
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(
+      <AttachmentToolRuntime
+        launcher={launcher}
+        couldAddImageFile
+        extensions={['.txt']}
+        files={[]}
+        setFiles={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+
+    const [attachmentLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
+    await act(async () => {
+      attachmentLauncher.action?.({ inputAdapter, source: 'popover', quickPanel: {} as never })
+    })
+
+    expect(inputAdapter.focus).toHaveBeenCalledTimes(1)
   })
 })
