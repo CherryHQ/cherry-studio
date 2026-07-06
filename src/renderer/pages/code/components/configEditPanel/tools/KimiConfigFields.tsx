@@ -1,4 +1,4 @@
-import { KIMI_PERMISSION_MODES } from '@renderer/pages/code/cliConfig/permissionModes'
+import { KIMI_PERMISSION_MODES } from '@renderer/pages/code/cliConfig'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'

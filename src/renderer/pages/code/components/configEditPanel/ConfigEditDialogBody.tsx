@@ -9,7 +9,7 @@ import {
 } from '@cherrystudio/ui'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { SettingContainer, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
-import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
+import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
 import type { Provider } from '@shared/data/types/provider'
 import type { ComponentProps, FC, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'

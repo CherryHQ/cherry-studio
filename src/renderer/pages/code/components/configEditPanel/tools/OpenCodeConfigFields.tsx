@@ -1,4 +1,4 @@
-import { OPEN_CODE_PERMISSION_MODES } from '@renderer/pages/code/cliConfig/permissionModes'
+import { OPEN_CODE_PERMISSION_MODES } from '@renderer/pages/code/cliConfig'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'

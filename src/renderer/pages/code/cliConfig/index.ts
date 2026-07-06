@@ -17,6 +17,16 @@ export {
 export { validateCliConfigDraftForWrite } from './draftFiles'
 export { formatCliConfigDraftFile, updateCliConfigDraftConfig } from './draftUpdater'
 export { extractConfigFromCliConfigDraft, extractConnectionFromCliConfigDraft } from './parser'
+export {
+  CLAUDE_PERMISSION_MODES,
+  CLAUDE_REASONING_EFFORTS,
+  CODEX_PERMISSION_MODES,
+  CODEX_REASONING_EFFORTS,
+  GEMINI_APPROVAL_MODES,
+  KIMI_PERMISSION_MODES,
+  OPEN_CODE_PERMISSION_MODES,
+  QWEN_APPROVAL_MODES
+} from './permissionModes'
 export { cliConfigConnectionMatchesProvider } from './providerMatching'
 export { sanitizeCliConfigBlob } from './sanitize'
 export type { CliConfigConnection, CliConfigFileDraft, CliConfigLanguage, CliConfigTarget } from './types'
