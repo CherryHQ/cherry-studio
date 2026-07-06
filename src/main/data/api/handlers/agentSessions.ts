@@ -9,8 +9,7 @@
 
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { toDataApiError } from '@shared/data/api'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
+import { toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AgentSessionMessagesListQuerySchema,
@@ -21,6 +20,7 @@ import {
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
+import type { HandlersFor } from '@shared/data/api/types'
 import * as z from 'zod'
 
 const AgentSessionsParamsSchema = z.strictObject({

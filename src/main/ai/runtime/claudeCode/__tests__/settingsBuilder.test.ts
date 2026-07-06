@@ -104,7 +104,7 @@ vi.mock('@main/ai/tools/adapters/claudeCode/agentTools', () => ({
   createClaudeAgentToolPolicySnapshot: mocks.createToolPolicySnapshot
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: mocks.applicationGet,
     getPath: mocks.applicationGetPath
@@ -129,7 +129,7 @@ vi.mock('@main/utils/asar', () => ({
   toAsarUnpackedPath: (input: string) => input
 }))
 
-vi.mock('@main/utils/file/pathStatus', () => ({
+vi.mock('@main/utils/file', () => ({
   getPathStatus: mocks.getPathStatus
 }))
 

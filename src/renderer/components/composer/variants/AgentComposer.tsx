@@ -15,10 +15,10 @@ import {
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { AgentSelector, WorkspaceSelector } from '@renderer/components/resource'
-import type { ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
-import { ModelSelector } from '@renderer/components/Selector'
+import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
@@ -86,7 +86,7 @@ import { useComposerFileCapabilities } from './shared/useComposerFileCapabilitie
 
 const logger = loggerService.withContext('AgentComposer')
 const ResourceEditDialogHost = React.lazy(() =>
-  import('@renderer/components/resource/dialogs/edit/ResourceEditDialogHost').then((module) => ({
+  import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
     default: module.ResourceEditDialogHost
   }))
 )

@@ -181,8 +181,7 @@ src/main/ai/streamManager/
 ├── lifecycle/                         strategy: chat vs ad-hoc prompt
 │   ├── StreamLifecycle.ts             interface
 │   ├── ChatStreamLifecycle.ts         cross-window broadcast + 30 s grace period + attach
-│   ├── PromptStreamLifecycle.ts       silent, no attach, immediate eviction
-│   └── index.ts                       barrel
+│   └── PromptStreamLifecycle.ts       silent, no attach, immediate eviction
 │
 ├── listeners/
 │   ├── WebContentsListener.ts         chunks → renderer windows

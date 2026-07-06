@@ -12,8 +12,8 @@
  */
 
 import { temporaryChatService } from '@data/services/TemporaryChatService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import type { TemporaryChatSchemas } from '@shared/data/api/schemas/temporaryChats'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const temporaryChatHandlers: HandlersFor<TemporaryChatSchemas> = {
   '/temporary/topics': {

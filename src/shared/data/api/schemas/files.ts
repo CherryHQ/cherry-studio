@@ -49,7 +49,7 @@
  * call File IPC `getMetadata(id)` which performs a single `fs.stat`.
  */
 
-import type { CursorPaginationParams, CursorPaginationResponse } from '@shared/data/api/apiTypes'
+import type { CursorPaginationParams, CursorPaginationResponse } from '@shared/data/api/types'
 import type { FileEntry, FileEntryId, FileRef } from '@shared/data/types/file'
 import { FileEntryIdSchema, FileEntryOriginSchema, FileRefSourceTypeSchema } from '@shared/data/types/file'
 import * as z from 'zod'

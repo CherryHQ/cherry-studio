@@ -1,8 +1,5 @@
 import { cacheService } from '@data/CacheService'
-import {
-  MessageEditingProvider,
-  useMessageEditing
-} from '@renderer/components/chat/messages/editing/MessageEditingContext'
+import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -260,7 +257,7 @@ vi.mock('@renderer/components/EmojiIcon', () => ({
   default: ({ emoji }: { emoji: string }) => <span>{emoji}</span>
 }))
 
-vi.mock('@renderer/components/Selector', () => ({
+vi.mock('@renderer/components/ModelSelector', () => ({
   ModelSelector: ({
     onSelect,
     trigger,
@@ -315,7 +312,7 @@ vi.mock('@renderer/components/Selector', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resource', () => ({
+vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   AssistantSelector: ({ autoSelectOnCreate, onChange, trigger, value }: any) => (
     <div
       data-testid="assistant-selector"
@@ -329,7 +326,7 @@ vi.mock('@renderer/components/resource', () => ({
   )
 }))
 
-vi.mock('@renderer/components/resource/dialogs/edit/ResourceEditDialogHost', () => ({
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit/ResourceEditDialogHost', () => ({
   ResourceEditDialogHost: ({ target, onOpenChange }: any) => (
     <div data-testid="resource-edit-dialog-host" data-kind={target?.kind ?? ''} data-id={target?.id ?? ''}>
       <button type="button" onClick={() => onOpenChange(false)}>

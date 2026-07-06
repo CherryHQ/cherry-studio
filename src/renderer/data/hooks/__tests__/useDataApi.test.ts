@@ -1,6 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import type * as RendererConstantModule from '@renderer/utils/platform'
-import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import React from 'react'

@@ -10,6 +10,7 @@
  * (`heartbeat.md`, agent memory) instead of session history.
  */
 
+import { application } from '@application'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -19,11 +20,9 @@ import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
-import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
-import { application } from '@main/core/application'
+import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
-import { ErrorCode, isDataApiError } from '@shared/data/api'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')

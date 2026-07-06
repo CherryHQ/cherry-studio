@@ -3,7 +3,8 @@ import { usePreference } from '@data/hooks/usePreference'
 import db from '@renderer/databases'
 import { useAppUpdateHandler } from '@renderer/hooks/useAppUpdate'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
-import i18n, { setDayjsLocale } from '@renderer/i18n'
+import i18n, { setDayjsLocale } from '@renderer/i18n/resolver'
+import { navigationService } from '@renderer/services/NavigationService'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
 import { defaultLanguage } from '@shared/utils/languages'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -33,7 +34,7 @@ export function useAppInit() {
   useEffect(() => {
     void window.api.getDataPathFromArgs().then((dataPath) => {
       if (dataPath) {
-        void window.navigate({ to: '/settings/data', replace: true })
+        void navigationService.navigate?.({ to: '/settings/data', replace: true })
       }
     })
   }, [])

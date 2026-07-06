@@ -107,6 +107,8 @@ A `*Utils` suffix is used only when the file lives outside any `utils/` director
 
 **Renderer wrappers around `window.api.*`** — the renderer does not use `*Api`, `*Client`, or any other IPC-wrapper suffix. Categorize wrappers by module shape per §5.2.
 
+**Leading-underscore files (`_xxx.ts`)** — inside a resource-file directory (one file per resource/domain, e.g. `db/schemas/`, `api/schemas/`), a `_`-prefixed file is a **cross-resource shared construct, not a private file**. It holds helpers reused across sibling resource files and is deliberately deep-imported by both siblings and external consumers. Examples: `db/schemas/_columnHelpers.ts`, `api/schemas/_endpointHelpers.ts`. The `_` marks "not itself a resource," never "internal — do not import."
+
 ### 3.3 Test Files
 
 - **Suffix**: `*.test.ts` or `*.test.tsx`. Do **not** use `.spec.*`.
@@ -156,7 +158,7 @@ packages/SomePkg/              ❌ (PascalCase not allowed)
 
 ### 4.2 Business React Component Directories — `PascalCase`
 
-When a directory **is** a component (i.e. contains `index.tsx` exporting the component, or groups files under one component name), use `PascalCase`.
+When a directory **is** a component (i.e. contains the component's named file such as `Sidebar.tsx`, or groups files under one component name), use `PascalCase`.
 
 ```
 src/renderer/components/Sidebar/         ✅
@@ -402,9 +404,22 @@ Forbidden. `Button.tsx` and `button.tsx` in the same directory will break on cas
 
 ### 6.4 Barrel / Index Files
 
-- Use `index.ts` or `index.tsx` (always lowercase).
-- A barrel must re-export only — no business logic.
-- Prefer **named exports** in barrels; avoid `export default` re-export chains.
+A **barrel** is an `index.ts` (always lowercase) whose sole job is to re-export a directory's public surface. It is not a convenience: it **declares an encapsulation boundary** — the directory's other files are private, and every outside importer goes through the barrel. This section is the single authority for barrels across all four processes; the per-process docs ([Shared §3.1](./shared-layer-architecture.md), [Main §2.1](./main-process-architecture.md), [Renderer §3.1/§5](./renderer-architecture.md)) *apply* it, they do not restate it.
+
+**The `index` filename is reserved for barrels, and a barrel is always `index.ts`.** A directory's own implementation — including its main component — lives in a named file (`RichEditor.tsx`, never `RichEditor/index.tsx`); a pure re-export has no JSX, so a barrel is never `.tsx`. An `index.tsx` is therefore always a violation, with no exceptions: a barrel that should be `.ts`, an implementation that should be a named file, or a TanStack index route that should use the flat dot form (`<segment>.index.tsx`, §6.6) — there the `index` token is a path segment, never the filename.
+
+Rules 1–3 are lint-enforced; rule 4 is a review judgment.
+
+1. **Re-export only** — explicit named re-exports, nothing else: no `export *`, no `export default` implementation, no local declarations, no logic. (`export *` destroys the curated surface and tree-shaking; a barrel carrying logic is a module wearing a door's name.)
+2. **Enforced sole entry, or no barrel** — a barrel is real only if lint forbids outside code from deep-importing the directory's internals. **A directory whose internals cannot be closed off should not have a barrel**: an unenforced door is worse than none — two entry surfaces to maintain, and the leak returns.
+3. **No nesting** — a barrel must not re-export another barrel. A parent directory that merely aggregates independent sub-modules gets no barrel; each cohesive sub-unit owns its own. (Hence the bucket roots `types/`, `utils/`, `services/` have no root `index.ts` — §4.8.)
+4. **One cohesive unit, not an aggregator** — a barrel's exports are a connected API consumers take as a set. A directory holding several independently-consumed concerns should be split into separate boundaries or demoted to a no-barrel container. Not lint-checkable — a design call.
+
+> **Orthogonal to tree-shaking.** Barrel hygiene bounds leakage but does not replace root `sideEffects`: a rule-clean barrel that exports both a light and a heavy symbol still drags the heavy subgraph into a light consumer unless the bundler can prove side-effect freedom. The two are separate layers; both are needed.
+
+> **Dev builds don't tree-shake.** In dev, importing one symbol loads every module the barrel reaches, rule-clean or not. Rule 4 is what bounds this cost — a cohesive API is consumed as a set anyway; when one heavy member hurts a light consumer, split the boundary or code-split at the call site — never deep-import past the door.
+
+> **Dynamic `import()` is an import.** Rule 2 applies unchanged: cross-boundary lazy loading enters through the barrel, never through an internal file; only code inside the boundary may lazy-load its own internals. (Renderer §5 shows the `React.lazy` form.)
 
 ### 6.5 Directory Name vs Package Name
 
@@ -419,7 +434,7 @@ Reserved tokens (TanStack-defined):
 | Token | Meaning |
 |---|---|
 | `__root.tsx` | Root layout |
-| `index.tsx` | Index route |
+| `<segment>.index.tsx` | Index route — always the flat dot form (`settings.index.tsx`); a bare `index.tsx` is banned even here (§6.4) |
 | `$<param>.tsx` | Dynamic segment (e.g. `$appId.tsx`) |
 | `$.tsx` | Catch-all |
 

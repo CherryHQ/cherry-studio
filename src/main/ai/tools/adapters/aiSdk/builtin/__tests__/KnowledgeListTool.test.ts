@@ -1,5 +1,5 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,7 +9,7 @@ const knowledgeServiceListRootItems = vi.fn<(baseId: string) => KnowledgeItem[]>
 // Outline mode (kb_list with a baseId) routes to getOrganizationTree.
 const knowledgeServiceGetOrganizationTree = vi.fn()
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'KnowledgeService') {

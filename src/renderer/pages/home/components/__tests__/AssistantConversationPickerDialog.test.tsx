@@ -21,7 +21,7 @@ vi.mock('@logger', () => ({
 
 vi.mock('@renderer/components/EmojiIcon', () => ({ default: () => null }))
 
-vi.mock('@renderer/components/resource', () => ({
+vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   ConversationPickerDialog: (props: any) => {
     mocks.pickerProps = props
     return (
@@ -36,7 +36,7 @@ vi.mock('@renderer/components/resource', () => ({
   }
 }))
 
-vi.mock('@renderer/components/resource/dialogs', () => ({
+vi.mock('@renderer/components/resourceCatalog/dialogs/create', () => ({
   ResourceCreateWizard: (props: any) => {
     mocks.createDialogProps = props
     return (
@@ -51,7 +51,7 @@ vi.mock('@renderer/components/resource/dialogs', () => ({
   }
 }))
 
-vi.mock('@renderer/components/resource/dialogs/form/assistantModelFilter', () => ({
+vi.mock('@renderer/utils/resourceCatalog/assistantModelFilter', () => ({
   isSelectableAssistantModel: () => true
 }))
 

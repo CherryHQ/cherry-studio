@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
-import { fetchNoteSummary } from '@renderer/services/ApiService'
 import type { NotesTreeNode } from '@renderer/types/note'
+import { fetchNoteSummary } from '@renderer/utils/aiGeneration'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

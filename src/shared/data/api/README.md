@@ -12,12 +12,11 @@ This directory contains type definitions for the DataApi system.
 
 ```
 src/shared/data/api/
-├── index.ts           # Barrel exports
-├── apiTypes.ts        # Core request/response types
-├── apiPaths.ts        # Path template utilities
-├── apiErrors.ts       # Error handling
+├── types.ts           # Core request/response types
+├── paths.ts           # Path template utilities
+├── errors.ts          # Error handling
 └── schemas/
-    ├── index.ts       # Schema composition
+    ├── apiSchemas.ts  # Schema composition
     └── *.ts           # Domain-specific schemas
 ```
 
@@ -25,18 +24,20 @@ src/shared/data/api/
 
 ### Import Conventions
 
+Every module is imported directly — there is no barrel. Infrastructure types come from `types` / `paths` / `errors`; domain DTOs come from their schema files.
+
 ```typescript
-// Infrastructure types (via barrel)
-import type { DataRequest, DataResponse, ApiClient } from '@shared/data/api'
-import { ErrorCode, DataApiError, DataApiErrorFactory } from '@shared/data/api'
+// Infrastructure types (direct module imports)
+import type { DataRequest, DataResponse, ApiClient } from '@shared/data/api/types'
+import { ErrorCode, DataApiError, DataApiErrorFactory } from '@shared/data/api/errors'
 
 // Domain DTOs (directly from schema files)
-import type { Topic, CreateTopicDto } from '@shared/data/api/schemas/topic'
-import type { Message, CreateMessageDto } from '@shared/data/api/schemas/message'
+import type { Topic, CreateTopicDto } from '@shared/data/api/schemas/topics'
+import type { Message, CreateMessageDto } from '@shared/data/api/schemas/messages'
 ```
 
 ### Adding New Schemas
 
-1. Create schema file in `schemas/` (e.g., `topic.ts`)
-2. Register in `schemas/index.ts` using intersection type
+1. Create schema file in `schemas/` (e.g., `topics.ts`)
+2. Register in `schemas/apiSchemas.ts` using intersection type
 3. Implement handlers in `src/main/data/api/handlers/`

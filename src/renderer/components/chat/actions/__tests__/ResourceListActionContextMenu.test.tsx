@@ -15,7 +15,7 @@ vi.mock('@renderer/components/command', () => ({
   )
 }))
 
-vi.mock('../../resources/ResourceListContext', () => ({
+vi.mock('../../resourceList/base', () => ({
   useResourceListActions: () => ({ openContextMenu }),
   useResourceListItemAccessors: () => ({ getItemId: (item: { id: string }) => item.id })
 }))

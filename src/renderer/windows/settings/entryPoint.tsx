@@ -3,7 +3,7 @@ import '@renderer/assets/styles/tailwind.css'
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { initI18n } from '@renderer/i18n'
+import { initI18n } from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_SETTINGS_PATH, normalizeSettingsPath } from '@shared/data/types/settingsPath'

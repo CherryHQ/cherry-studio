@@ -22,6 +22,7 @@ import type {
   PermissionResult,
   SdkPluginConfig
 } from '@anthropic-ai/claude-agent-sdk'
+import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
@@ -44,14 +45,13 @@ import {
   toCherryBuiltinRuntimeName
 } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
-import { application } from '@main/core/application'
 import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getAppLanguage, t } from '@main/i18n'
 import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
-import { getPathStatus, type PathStatus } from '@main/utils/file/pathStatus'
+import { getPathStatus, type PathStatus } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv } from '@main/utils/shellEnv'
 import {

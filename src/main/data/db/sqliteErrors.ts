@@ -34,8 +34,8 @@
  */
 
 import { loggerService } from '@logger'
-import type { DataApiError } from '@shared/data/api'
-import { DataApiErrorFactory } from '@shared/data/api'
+import type { DataApiError } from '@shared/data/api/errors'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 const logger = loggerService.withContext('sqliteErrors')
 

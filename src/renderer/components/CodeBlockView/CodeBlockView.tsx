@@ -16,7 +16,7 @@ import {
 } from '@renderer/components/CodeToolbar'
 import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
-import type { BasicPreviewHandles } from '@renderer/components/Preview'
+import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { getExtensionByLanguage } from '@renderer/utils/codeLanguage'

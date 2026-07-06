@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   updateSession: vi.fn()
 }))
 
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     AiService: { generateText: mocks.generateText },
