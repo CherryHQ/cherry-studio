@@ -268,7 +268,7 @@ describe('XlsxGrid — merged cells', () => {
     expect(masterCells).toHaveLength(1)
     expect(masterCells[0]).toBe(screen.getByTestId('xlsx-grid-merge-cell'))
 
-    // 基础层被覆盖的 4 个占位格:无 gridcell 角色、aria-hidden
+    // The 4 covered base-layer placeholders have no gridcell role and are aria-hidden.
     const baseRow = container.querySelectorAll('[role="row"][aria-rowindex="1"]')[0]
     expect(baseRow.querySelectorAll('[role="gridcell"]')).toHaveLength(0)
     expect(baseRow.querySelectorAll('[aria-hidden="true"]')).toHaveLength(4)

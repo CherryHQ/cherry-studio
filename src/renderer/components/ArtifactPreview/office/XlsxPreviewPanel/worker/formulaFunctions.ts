@@ -1,14 +1,15 @@
 /**
- * fast-formula-parser@1.0.19 的自定义函数补丁。
+ * Custom function patch for fast-formula-parser@1.0.19.
  *
- * 该版本把一批**很常用**的统计聚合函数注册成空壳(`() => {}`,返回 undefined),
- * 库据此抛出 `#NAME?`「... is not implemented」——在预览里表现为"公式无法求值"。
- * 这里补齐这批函数,通过 FormulaParser 构造函数的 `functions` 选项注入;合并顺序
- * 在内置函数之后,因此会**覆盖**库内同名空壳(见 grammar/hooks.js 的 functions 合并)。
+ * This version registers several very common statistical aggregate functions as empty stubs (`() => {}` returning
+ * undefined). The library then throws `#NAME? "... is not implemented"`, which appears as "formula not evaluated" in
+ * preview. This fills those functions through the FormulaParser constructor's `functions` option. The merge order is
+ * after built-ins, so these implementations override the library's same-name stubs; see grammar/hooks.js.
  *
- * 只补 `flattenParams` 就能正确实现的数值聚合类(库内空壳且高频):
- * MAX MIN MEDIAN COUNTA LARGE SMALL MODE.SNGL STDEV.S STDEV.P VAR.S VAR.P。
- * 依赖区间检索/条件解析的复杂函数(SUMIFS/COUNTIFS/MATCH/SUBTOTAL 等)不在本次范围内。
+ * Only numeric aggregates that can be implemented correctly with `flattenParams` are patched here:
+ * MAX MIN MEDIAN COUNTA LARGE SMALL MODE.SNGL STDEV.S STDEV.P VAR.S VAR.P.
+ * More complex functions that depend on range lookup or condition parsing, such as SUMIFS/COUNTIFS/MATCH/SUBTOTAL,
+ * are out of scope for this change.
  */
 import type { FunctionArg, ParserFunction } from 'fast-formula-parser'
 import FormulaParser from 'fast-formula-parser'
@@ -17,7 +18,7 @@ const H = FormulaParser.FormulaHelpers
 const { NUMBER } = FormulaParser.Types
 const FormulaError = FormulaParser.FormulaError
 
-/** 展平所有实参,只收集数值标量(文本/空单元格/布尔按 Excel 聚合语义忽略) */
+/** Flatten all arguments and collect numeric scalars only. Text, empty cells, and booleans follow Excel aggregate semantics. */
 function collectNumbers(params: FunctionArg[]): number[] {
   const nums: number[] = []
   H.flattenParams(params, NUMBER, true, (item) => {
@@ -26,13 +27,13 @@ function collectNumbers(params: FunctionArg[]): number[] {
   return nums
 }
 
-/** 偏差平方和 Σ(x-mean)²,供方差/标准差复用 */
+/** Sum of squared deviations, reused by variance and standard deviation. */
 function sumOfSquares(nums: number[]): number {
   const mean = nums.reduce((sum, x) => sum + x, 0) / nums.length
   return nums.reduce((sum, x) => sum + (x - mean) * (x - mean), 0)
 }
 
-/** LARGE/SMALL:排序后取第 k 个;k 越界或无数值抛 #NUM! */
+/** LARGE/SMALL: sort and return the kth value. Out-of-range k or no numeric values throws #NUM!. */
 function nthOrdered(params: FunctionArg[], k: FunctionArg, compare: (a: number, b: number) => number): number {
   const nums = collectNumbers([params[0]]).sort(compare)
   const index = Math.trunc(H.accept(k, NUMBER) as number)

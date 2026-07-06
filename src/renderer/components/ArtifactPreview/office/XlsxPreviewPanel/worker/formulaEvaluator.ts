@@ -1,18 +1,17 @@
 /**
- * 公式 best-effort 求值(三级策略的第 2/3 级;调用方已确认无缓存值才会调 evaluate)。
- * 覆盖错误分类、环检测、memo 和预算控制。
+ * Best-effort formula evaluation, levels 2/3 in the fallback strategy. Callers invoke evaluate only after no cached
+ * value is available. Covers error classification, cycle detection, memoization, and budget control.
  *
- * fast-formula-parser 实际行为(与该文档描述有出入之处,已用 node 直接探测确认,
- * 详见完成报告):
- * - `parser.parse()` 对"合法 Excel 错误结果"——#DIV/0! #VALUE! #N/A #NUM! #NULL! #REF!,
- *   以及作为裸标识符出现的未知具名区域(#NAME?)——是**返回**一个 FormulaError 实例,不抛出。
- * - 未知函数调用(如 `FOOBAR(1)`)、语法/词法错误、以及 onCell/onRange 回调内部抛出的
- *   任何异常,都会被包装成 FormulaError('#ERROR!', ...) 并**抛出**,而不是返回 #NAME?。
- *   因此"未知函数 → unevaluated"在本实现中是通过"任何 parse() 抛出 → unevaluated"的
- *   兜底规则覆盖的,并不依赖抛出对象的错误码。
- * - 是否抛出与"合法错误码"这两类之间的边界,和 03 文档 §2 表格描述的语义一致
- *   (只是"#NAME?"在库里可能来自返回值也可能来自被包装的抛出,两种情况本实现都归为
- *   unevaluated,与文档结果相符)。
+ * Observed fast-formula-parser behavior, confirmed directly with Node where it differs from its docs:
+ * - `parser.parse()` returns a FormulaError instance, rather than throwing, for legitimate Excel error results:
+ *   #DIV/0!, #VALUE!, #N/A, #NUM!, #NULL!, #REF!, and unknown named ranges used as bare identifiers (#NAME?).
+ * - Unknown function calls such as `FOOBAR(1)`, syntax/lexical errors, and any exception thrown by onCell/onRange
+ *   callbacks are wrapped as FormulaError('#ERROR!', ...) and thrown instead of returning #NAME?.
+ *   Therefore unknown function -> unevaluated is covered by the fallback rule that any parse() throw is unevaluated;
+ *   it does not depend on the thrown object's error code.
+ * - The boundary between throwing and legitimate returned error codes matches the semantics in doc 03 section 2.
+ *   #NAME? may come from either a returned value or a wrapped throw in the library; both are classified as
+ *   unevaluated here, matching the documented result.
  */
 import type { ParserCellRef, ParserRangeRef } from 'fast-formula-parser'
 import FormulaParser from 'fast-formula-parser'
@@ -26,13 +25,13 @@ export interface FormulaCellRef {
 }
 
 export interface EvalContext {
-  /** 返回单元格原始值(公式单元格返回其求值结果;触发递归求值) */
+  /** Returns the raw cell value. Formula cells return their evaluated result and trigger recursive evaluation. */
   getCellValue(ref: FormulaCellRef): string | number | boolean | null
 }
 
 export interface EvalOutcome {
   state: 'evaluated' | 'unevaluated'
-  /** evaluated 时必有(#DIV/0! 等合法错误结果以 string 表达) */
+  /** Present when evaluated. Legal error results such as #DIV/0! are represented as strings. */
   value?: string | number | boolean | null
 }
 
@@ -40,16 +39,16 @@ export interface FormulaEvaluator {
   evaluate(formula: string, pos: FormulaCellRef): EvalOutcome
 }
 
-/** 递归深度上限:防深链公式爆栈 */
+/** Recursion depth limit to prevent deep formula chains from overflowing the stack. */
 const MAX_DEPTH = 64
 
-/** onRange 物化上限(格数):超过即放弃求值,防 SUM(A1:XFD1048576) 之类的区间把 worker 撑爆 */
+/** onRange materialization limit in cells. Ranges above this are abandoned to protect the worker. */
 const MAX_RANGE_CELLS = 100_000
 
-/** onRange 循环内 deadline 检查步长(格数) */
+/** In-loop deadline check interval for onRange, in cells. */
 const RANGE_DEADLINE_CHECK_INTERVAL = 1024
 
-/** parse() 返回的合法 Excel 错误码中,视为"求值器不支持/无法解析"而非合法结果的一类 */
+/** Legitimate Excel error codes returned by parse() that mean unsupported/unresolvable, not a valid result. */
 const UNEVALUATED_ERROR_CODES = new Set(['#NAME?'])
 
 const UNEVALUATED_OUTCOME: EvalOutcome = { state: 'unevaluated' }
@@ -58,25 +57,25 @@ function makeKey(ref: FormulaCellRef): string {
   return `${ref.sheet}!${ref.row}:${ref.col}`
 }
 
-/** parse() 的原始返回值 → 单元格标量值(EvalOutcome.value 的取值范围) */
+/** Raw parse() result -> cell scalar value in EvalOutcome.value's range. */
 function normalizeValue(result: unknown): string | number | boolean | null {
   if (result === null || result === undefined) return null
   if (typeof result === 'number' || typeof result === 'string' || typeof result === 'boolean') {
     return result
   }
-  // 理论上 parser 已经把 array/range/union 等归一为标量或 FormulaError,
-  // 走到这里说明遇到了未预期的返回形态,保守按无法求值处理(调用方兜底判断)。
+  // The parser should already normalize arrays/ranges/unions into scalars or FormulaError.
+  // Reaching this branch means an unexpected shape; conservatively treat it as unevaluable through caller fallback.
   return null
 }
 
 export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): FormulaEvaluator {
   const deadline = Date.now() + budgetMs
 
-  /** 已完成求值的单元格结果缓存,key = "sheet!row:col" */
+  /** Completed cell evaluation cache, keyed as "sheet!row:col". */
   const memo = new Map<string, EvalOutcome>()
-  /** 当前调用栈上正在求值的单元格(环检测) */
+  /** Cells currently being evaluated on the call stack, used for cycle detection. */
   const visiting = new Set<string>()
-  /** 本轮检测到属于某个环的 key,待其所在帧结束时强制改判为 unevaluated */
+  /** Keys detected as part of a cycle in this round. Forced to unevaluated when their owning frame exits. */
   const cyclicKeys = new Set<string>()
 
   function markCycle(key: string): void {
@@ -105,13 +104,13 @@ export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): Form
     if (memoized) return memoized
 
     if (Date.now() >= deadline) {
-      // 预算耗尽:后续所有未求值单元格一律快速失败,memo 保证 O(1)
+      // Budget exhausted: all later unevaluated cells fail fast, with memoization keeping it O(1).
       memo.set(key, UNEVALUATED_OUTCOME)
       return UNEVALUATED_OUTCOME
     }
 
     if (visiting.has(key)) {
-      // 重入 = 环:标记当前活跃调用栈中构成环的所有帧,自身不 memo(由拥有该帧的调用方收尾)
+      // Re-entry means a cycle. Mark active stack frames in the cycle; the owning callers finalize memo entries.
       markCycle(key)
       return UNEVALUATED_OUTCOME
     }
@@ -126,13 +125,13 @@ export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): Form
     let outcome: EvalOutcome
     try {
       const parser = new FormulaParser({
-        // 补齐库内被注册成空壳的高频聚合函数(MAX/MIN/MEDIAN/... 见 formulaFunctions.ts)
+        // Fill high-frequency aggregate functions that the library registers as empty stubs; see formulaFunctions.ts.
         functions: CUSTOM_FORMULA_FUNCTIONS,
         onCell: (ref: ParserCellRef) => {
           return ctx.getCellValue({ sheet: ref.sheet, row: ref.row, col: ref.col })
         },
         onRange: (ref: ParserRangeRef) => {
-          // 面积超限/超时直接抛出:外层 catch 统一转 unevaluated,绝不物化巨型区间
+          // Throw on area limit or timeout. The outer catch converts to unevaluated and never materializes huge ranges.
           const rangeRows = ref.to.row - ref.from.row + 1
           const rangeCols = ref.to.col - ref.from.col + 1
           if (rangeRows * rangeCols > MAX_RANGE_CELLS) {
@@ -156,8 +155,8 @@ export function createFormulaEvaluator(ctx: EvalContext, budgetMs: number): Form
       const result = parser.parse(formula, { sheet: pos.sheet, row: pos.row, col: pos.col })
       outcome = classifyParseResult(result)
     } catch {
-      // 解析异常、未知函数(库内部包装为 #ERROR! 抛出)、回调抛出的任何异常:一律 unevaluated,
-      // 绝不让一个怪公式的异常逃逸出本模块。
+      // Parse errors, unknown functions wrapped as thrown #ERROR!, and callback exceptions all become unevaluated.
+      // A strange formula must never let an exception escape this module.
       outcome = UNEVALUATED_OUTCOME
     } finally {
       visiting.delete(key)

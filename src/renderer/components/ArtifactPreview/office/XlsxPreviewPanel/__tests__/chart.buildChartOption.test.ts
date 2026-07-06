@@ -4,8 +4,8 @@ import { buildChartOption } from '../charts/buildChartOption'
 import type { ChartModel } from '../renderModel'
 
 /**
- * ChartModel → echarts option 纯函数映射测试。见 04-wp-charts.md Part 2 映射规则。
- * 不依赖 DOM/echarts 实例,可在任意环境下运行(jsdom 缺 canvas 时这是验证映射逻辑的主路径)。
+ * Tests the pure ChartModel -> echarts option mapping. See 04-wp-charts.md Part 2 for the mapping rules.
+ * It does not depend on DOM or echarts instances, so it is the main mapping test path when jsdom lacks canvas.
  */
 
 const baseRect = { x: 0, y: 0, width: 100, height: 100 }
@@ -58,7 +58,7 @@ describe('buildChartOption — bar/line/area (category axis)', () => {
     const stackedOption = buildChartOption(stacked) as any
     expect(stackedOption.series[0].stack).toBe('total')
     expect(stackedOption.series[1].stack).toBe('total')
-    // 普通堆叠不做归一化,保留原始值
+    // Regular stacking keeps raw values without normalization.
     expect(stackedOption.series[0].data).toEqual([1])
     expect(stackedOption.yAxis.max).toBeUndefined()
 
@@ -98,7 +98,7 @@ describe('buildChartOption — bar/line/area (category axis)', () => {
     }
     const option = buildChartOption(chart) as any
 
-    // x:A 缺失 → '-';y 类目合计 0 → 无法归一化 → '-';z 正常归一化
+    // x:A is missing -> '-'; y total is 0 -> cannot normalize -> '-'; z normalizes normally.
     expect(option.series[0].data).toEqual(['-', '-', 25])
     expect(option.series[1].data).toEqual([100, '-', 75])
   })

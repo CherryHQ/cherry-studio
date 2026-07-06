@@ -20,7 +20,7 @@ import { type ExcelColorRef, parseTheme, resolveColor, type ResolvedTheme } from
 
 const FORMULA_BUDGET_MS = 5000
 
-/** 内部:公式流水线第一遍收集到的待求值单元格 */
+/** Internal formula cell collected during the first parsing pass for later evaluation. */
 interface PendingFormulaCell {
   sheetName: string
   row: number
@@ -29,7 +29,7 @@ interface PendingFormulaCell {
   numFmt: string | undefined
 }
 
-/** ExcelJS 富文本单元格值 */
+/** ExcelJS rich-text cell value. */
 interface RichTextCellValue {
   richText: { text: string }[]
 }
@@ -66,9 +66,9 @@ function isErrorValue(value: unknown): value is ErrorCellValue {
 }
 
 /**
- * ExcelJS 的 `WorksheetModel` 类型声明未包含 `cols`(见 index.d.ts),但运行时
- * `worksheet.model.cols` 确有输出(稀疏,仅含非默认列定义)。这里补充本地类型
- * 覆盖实际使用面,避免用 `any`。
+ * ExcelJS `WorksheetModel` declarations omit `cols` (see index.d.ts), but `worksheet.model.cols` exists at runtime
+ * as a sparse list containing only non-default column definitions. Add a local type covering the actual usage here
+ * to avoid `any`.
  */
 interface WorksheetModelCol {
   min?: number
@@ -81,18 +81,19 @@ interface WorksheetModelWithLayout {
 }
 
 /**
- * 行定义必须直接读 Worksheet 私有 `_rows` 上的 Row 对象:公开的 `worksheet.model.rows`
- * 走 Row.model getter 重新序列化,对「无单元格且无高度」的行(如 `<row r="7" hidden="1"/>`
- * 空隐藏行)返回 null 整行丢弃,导致隐藏行按默认行高显示出来。load 路径在 Row 对象上保留了
- * 完整行属性(仅 `ht="0"` 因 falsy 判断不可恢复;Excel 对隐藏行总会写 hidden 标记,可忽略)。
+ * Row definitions must be read directly from private Worksheet `_rows` Row objects. The public
+ * `worksheet.model.rows` path reserializes through Row.model, which returns null for rows with no cells and no height,
+ * such as `<row r="7" hidden="1"/>`, dropping the entire row. That makes hidden rows display at default height.
+ * The load path keeps complete row properties on Row objects. Only `ht="0"` is unrecoverable because of a falsy check;
+ * Excel writes the hidden marker for hidden rows, so that case can be ignored.
  */
 interface WorksheetWithInternalRows {
   _rows?: ({ number: number; height?: number; hidden?: boolean } | null | undefined)[]
 }
 
 /**
- * ExcelJS `ImageRange` 类型声明遗漏了 oneCellAnchor 场景下的 `ext`,运行时确有输出。
- * 注意单位是 **px**:ExcelJS 的 ExtXform.parseOpen 读取时已做 EMU/9525 换算,勿再除。
+ * ExcelJS `ImageRange` declarations omit `ext` for oneCellAnchor, but runtime output includes it.
+ * Units are px: ExcelJS ExtXform.parseOpen already converted EMU/9525 on read, so do not divide again.
  */
 interface ImageRangeWithExt {
   ext?: { width: number; height: number }
@@ -109,7 +110,7 @@ interface RectUsedRange {
   truncated: boolean
 }
 
-/** 'A1:D1' → MergeRange(1-based,闭区间) */
+/** 'A1:D1' -> MergeRange with a 1-based inclusive range. */
 function parseMergeRef(ref: string): MergeRange | null {
   const match = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(ref)
   if (!match) return null
@@ -120,7 +121,7 @@ function parseMergeRef(ref: string): MergeRange | null {
   return { top, left, bottom, right }
 }
 
-/** 提取错误结果字符串形态(formula.result 可能是 CellErrorValue 对象) */
+/** Extract an error result string; formula.result may be a CellErrorValue object. */
 function errorResultToString(result: unknown): string | undefined {
   if (typeof result === 'object' && result !== null && 'error' in result) {
     return (result as { error: string }).error
@@ -171,7 +172,7 @@ function usedRangeForPxRect(
   }
 }
 
-/** A1 风格区间引用(可含 sheet 名,如 `Sheet1!$A$1:$B$3` 或 `A1`)解析结果 */
+/** Parsed A1-style range reference, optionally with a sheet name, such as `Sheet1!$A$1:$B$3` or `A1`. */
 interface ParsedA1Range {
   sheet?: string
   top: number
@@ -180,7 +181,7 @@ interface ParsedA1Range {
   right: number
 }
 
-/** 解析 chartXmlParser 需要的 A1 区间引用;不合法返回 null */
+/** Parse an A1 range reference needed by chartXmlParser. Invalid refs return null. */
 function parseA1Range(ref: string): ParsedA1Range | null {
   let sheet: string | undefined
   let rest = ref
@@ -207,7 +208,7 @@ function parseA1Range(ref: string): ParsedA1Range | null {
   }
 }
 
-/** 将 ExcelJS Style.font/fill/border/alignment 映射为 CellStyle,颜色经 theme 解析 */
+/** Map ExcelJS style font/fill/border/alignment to CellStyle, resolving colors through the theme. */
 function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<string>): CellStyle | undefined {
   const style: CellStyle = {}
   let hasAny = false
@@ -256,7 +257,7 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
         hasAny = true
       }
     } else if (fill.pattern !== 'none' && fill.fgColor) {
-      // 非 solid pattern:近似取 fgColor 为纯色
+      // Non-solid pattern: approximate fgColor as a solid fill.
       const resolved = resolveColor(fill.fgColor as ExcelColorRef, theme)
       if (resolved) {
         style.bg = resolved
@@ -337,7 +338,7 @@ function buildCellStyle(cell: ExcelJS.Cell, theme: ResolvedTheme, warnings: Set<
   return hasAny ? style : undefined
 }
 
-/** 工作簿级样式去重表 */
+/** Workbook-level style interning table. */
 class StyleTable {
   private map = new Map<string, number>()
   private list: CellStyle[] = []
@@ -361,12 +362,12 @@ class StyleTable {
 const XDR_NS = 'http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing'
 
 /**
- * openpyxl 等生成器把 drawing XML 写成默认命名空间(<wsDr xmlns=...>,元素无 xdr: 前缀)。
- * ExcelJS 的 DrawingXform 按字面量 'xdr:wsDr' 匹配,解析结果为 undefined,并在 reconcile
- * 阶段以 "Cannot read properties of undefined (reading 'anchors')" 崩溃——任何含图表的
- * openpyxl 文件都无法打开。喂给 ExcelJS 前把无前缀 drawing 部件重写为 xdr: 前缀
- * (drawing 的默认命名空间即 spreadsheetDrawing,前缀化语义不变;a:/c:/r: 等已带前缀的
- * 元素不受影响)。图表/主题走我们自己的命名空间无关解析器,不依赖此转换。
+ * Generators such as openpyxl can write drawing XML with a default namespace, e.g. `<wsDr xmlns=...>`, and no xdr:
+ * element prefix. ExcelJS DrawingXform matches the literal name 'xdr:wsDr', so parsing returns undefined and reconcile
+ * crashes with "Cannot read properties of undefined (reading 'anchors')". Any openpyxl file containing charts can fail.
+ * Before passing bytes to ExcelJS, rewrite unprefixed drawing parts with the xdr: prefix. The drawing default namespace
+ * is spreadsheetDrawing, so prefixing preserves semantics; already-prefixed a:/c:/r: elements are unaffected.
+ * Charts and themes use our namespace-agnostic parsers and do not depend on this conversion.
  */
 async function normalizeDrawingsForExcelJs(zip: JSZip, original: ArrayBuffer): Promise<ArrayBuffer> {
   const drawingFiles = zip.file(/^xl\/drawings\/[a-zA-Z0-9]+\.xml$/)
@@ -385,11 +386,12 @@ async function normalizeDrawingsForExcelJs(zip: JSZip, original: ArrayBuffer): P
 }
 
 /**
- * 解析总入口:纯函数,Node 下可直接由 Vitest 测试(不经 Worker)。
- * 流水线顺序(固定):unzip → ExcelJS 单元格/样式 → 公式求值 → 图表 → 图片 → 组装。
+ * Main parse entry point. This pure function can be tested directly by Vitest in Node without going through the Worker.
+ * Fixed pipeline order: unzip -> ExcelJS cells/styles -> formula evaluation -> charts -> images -> assembly.
  */
 export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promise<WorkbookRenderModel> {
-  // 解压库拿到字节之前先做中央目录预检:压缩后 20MB 上限挡不住 zip bomb(解压后可膨胀数 GB)
+  // Preflight the central directory before the unzip library sees the bytes. A 20 MB compressed limit does not stop
+  // zip bombs that inflate to several GB.
   assertZipLimits(new Uint8Array(data), 'XLSX')
 
   let zip: JSZip
@@ -419,10 +421,10 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
   let nextImageId = 0
 
   const sheets: SheetRenderModel[] = []
-  // 跨 sheet 单元格原始值查表,供公式求值使用
+  // Cross-sheet raw cell value table used by formula evaluation.
   const rawValueTable = new Map<string, string | number | boolean | null>()
   const pendingFormulas: PendingFormulaCell[] = []
-  // sheet 名 -> 待填充的 cells 表(公式求值结果二次回填要用)
+  // sheet name -> cells table to fill during formula result backfill.
   const sheetCellsByName = new Map<string, Record<string, CellRenderModel>>()
 
   for (const worksheet of workbook.worksheets) {
@@ -463,8 +465,9 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         if (isFormulaValue(value)) {
           const errorStr = errorResultToString(value.result)
           const hasResult = value.result !== undefined
-          // ExcelJS 的 value.formula 只存在于普通公式/共享公式 master 上;共享公式从属单元格
-          // 只有 sharedFormula(master 地址)。cell.formula getter 会返回按当前位置平移后的公式原文。
+          // ExcelJS value.formula exists only on regular formulas and shared-formula masters. Shared-formula
+          // dependents only have sharedFormula (the master address). cell.formula returns the formula shifted to
+          // the current position.
           const formulaText = cell.formula || value.formula
 
           if (hasResult) {
@@ -484,7 +487,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
             )
             rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, rawResult)
           } else if (formulaText) {
-            // 有公式原文但无缓存值:进入第二遍求值
+            // Formula text without a cached value enters the second-pass evaluator.
             cellModel.formula = formulaText
             cellModel.text = `=${formulaText}`
             cellModel.formulaState = 'unevaluated' as FormulaState
@@ -497,7 +500,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
             })
             rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, null)
           } else {
-            // shared-formula 从属单元格且无缓存值:v1 不做引用平移,标 unevaluated
+            // Shared-formula dependent without a cached value. v1 does not translate refs, so mark unevaluated.
             cellModel.formulaState = 'unevaluated' as FormulaState
             cellModel.text = ''
             warnings.add('shared-formula-without-cache-unevaluated')
@@ -539,7 +542,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
           cellModel.raw = value.toISOString()
           cellModel.text = formatCellValue(value, cell.numFmt, date1904)
           cells[key] = cellModel
-          // 供公式引用:用 serial 数值近似不可行(需 date1904 上下文),此处退化为 ISO 字符串
+          // For formula refs, approximating with a serial is not viable without date1904 context; fall back to ISO.
           rawValueTable.set(`${worksheet.name}!${rowNumber}:${colNumber}`, value.toISOString())
           return
         }
@@ -552,7 +555,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       })
     })
 
-    // 合并区
+    // Merged ranges.
     const merges: MergeRange[] = []
     for (const ref of worksheet.model.merges ?? []) {
       const range = parseMergeRef(ref)
@@ -563,7 +566,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       }
     }
 
-    // 每 sheet 自定义默认行高/列宽(sheetFormatPr);属性缺失时 ExcelJS 可能给 0,回退全局默认
+    // Per-sheet custom default row height/column width from sheetFormatPr. Fall back when ExcelJS gives 0/missing.
     const sheetProps = worksheet.properties
     const defaultRowHeightPx = sheetProps?.defaultRowHeight
       ? ptToPx(sheetProps.defaultRowHeight)
@@ -572,7 +575,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       ? charWidthToPx(sheetProps.defaultColWidth)
       : DEFAULT_COL_WIDTH_PX
 
-    // 行高列宽(稀疏)
+    // Sparse row heights and column widths.
     const rowHeightsPx: Record<number, number> = {}
     const colWidthsPx: Record<number, number> = {}
     const worksheetModel = worksheet.model as ExcelJS.WorksheetModel & WorksheetModelWithLayout
@@ -588,7 +591,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
 
     for (const colModel of worksheetModel.cols ?? []) {
       const min = colModel.min ?? 0
-      // 整表列定义(Excel 对整列套格式时常写 max=16384)只展开到渲染上限,避免生成上万个无用键并随 postMessage 克隆
+      // Whole-column definitions often have max=16384. Expand only to the render limit to avoid cloning huge maps.
       const max = Math.min(colModel.max ?? min, MAX_COLS)
       for (let c = min; c <= max; c++) {
         if (colModel.hidden) {
@@ -599,7 +602,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
       }
     }
 
-    // 浮动图片
+    // Floating images.
     const floatingImages: FloatingObjectModel[] = []
     const colX = (col: number): number => {
       let x = 0
@@ -646,7 +649,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         width = brX - x
         height = brY - y
       } else if (ext) {
-        // ExcelJS 已把 ext 的 EMU 换算成 px(ExtXform.parseOpen),直接使用
+        // ExcelJS already converted ext from EMU to px in ExtXform.parseOpen.
         width = ext.width
         height = ext.height
       } else {
@@ -685,23 +688,24 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     })
   }
 
-  // 公式求值第二遍
+  // Formula evaluation second pass.
   if (pendingFormulas.length > 0) {
-    // 前向引用(公式引用文件顺序靠后的公式单元格)必须递归求值,而不是读第一遍
-    // 留在 rawValueTable 里的 null 占位——求值器自带 memo 与环检测,可安全重入。
+    // Forward refs to formula cells later in file order must evaluate recursively instead of reading the null
+    // placeholders left in rawValueTable from the first pass. The evaluator has memoization and cycle detection,
+    // so re-entry is safe.
     const pendingByKey = new Map<string, PendingFormulaCell>()
     for (const pending of pendingFormulas) {
       pendingByKey.set(`${pending.sheetName}!${pending.row}:${pending.col}`, pending)
     }
 
-    // eslint-disable-next-line prefer-const -- 与 evalContext 闭包互相引用,先声明后赋值
+    // eslint-disable-next-line prefer-const -- evalContext and evaluator reference each other, so declare before assign.
     let evaluator: ReturnType<typeof createFormulaEvaluator>
     const evalContext: EvalContext = {
       getCellValue(ref: FormulaCellRef) {
         const refKey = `${ref.sheet}!${ref.row}:${ref.col}`
         const pending = pendingByKey.get(refKey)
         if (pending) {
-          // memo 保证已算过的 O(1) 返回;环/失败由求值器判定为 unevaluated → null
+          // Memoization makes completed cells O(1). Cycles/failures are classified by the evaluator as unevaluated -> null.
           const outcome = evaluator.evaluate(pending.formula, { sheet: ref.sheet, row: ref.row, col: ref.col })
           if (outcome.state === 'evaluated') {
             const value = outcome.value ?? null
@@ -739,7 +743,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     }
   }
 
-  // 图表(需要在公式求值之后,以便引用回填用求值后的单元格值)
+  // Charts must parse after formula evaluation so reference backfill can use evaluated cell values.
   for (const worksheet of workbook.worksheets) {
     const sheetModel = sheets.find((s) => s.name === worksheet.name)
     if (!sheetModel) continue

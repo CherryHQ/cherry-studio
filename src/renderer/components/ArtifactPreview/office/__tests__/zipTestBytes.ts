@@ -1,4 +1,4 @@
-/** 手工构造 ZIP 字节的测试工具:可伪造中央目录里的 uncompressedSize 等字段,用于预检超限用例 */
+/** Test helper for handcrafted ZIP bytes. It can fake central-directory fields such as uncompressedSize for preflight limits. */
 
 export interface TestZipEntry {
   name: string

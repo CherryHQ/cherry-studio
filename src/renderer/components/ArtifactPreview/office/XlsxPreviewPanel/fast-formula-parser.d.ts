@@ -1,20 +1,20 @@
 /**
- * fast-formula-parser 未随包提供类型声明的最小 shim,按公式求值器实际使用面收紧。
+ * Minimal fast-formula-parser shim. The package does not ship declarations, so keep this to evaluator usage only.
  *
- * 与包的真实运行时形状对齐(源码读自 node_modules/fast-formula-parser@1.0.19):
- * - `index.js` 是 `module.exports = FormulaParser`(class 本身作为默认导出),
- *   `FormulaError`/`MAX_ROW`/`MAX_COLUMN` 等是挂在该 class 上的静态属性
- *   (`Object.assign(FormulaParser, { FormulaError, ... })`),而不是独立的具名导出。
- *   因此本 shim 把 `FormulaError` 声明为 `FormulaParser` 的 static 字段,
- *   使用方应写 `FormulaParser.FormulaError`,而不是
- *   `import { FormulaError } from 'fast-formula-parser'`(该具名导入在纯 CJS 互操作下不可靠)。
- * - `onCell` 回调收到的 ref 形状是 `{ address, sheet, row, col }`(1-based row/col,
- *   sheet 已由库内部默认填充,不会是 null/undefined)。
- * - `onRange` 回调收到的 ref 形状是 `{ sheet, from: {row,col}, to: {row,col} }`,
- *   期望返回值是行主序矩阵:`result[row-from.row][col-from.col]`。
- * - `parse()` 对"合法 Excel 错误结果"(#DIV/0! 等)是**返回**一个 FormulaError 实例
- *   (不抛出);对未知函数名、语法错误、以及 onCell/onRange 回调内部抛出的异常,
- *   则包装为 FormulaError('#ERROR!', ...) 并**抛出**。详见 formulaEvaluator.ts 头部注释。
+ * Align this with the actual runtime shape read from node_modules/fast-formula-parser@1.0.19:
+ * - `index.js` is `module.exports = FormulaParser`, so the class itself is the default export.
+ *   `FormulaError`/`MAX_ROW`/`MAX_COLUMN` are static properties on that class
+ *   (`Object.assign(FormulaParser, { FormulaError, ... })`), not independent named exports.
+ *   Therefore this shim declares `FormulaError` as a static field on `FormulaParser`. Consumers should write
+ *   `FormulaParser.FormulaError`, not `import { FormulaError } from 'fast-formula-parser'`, because that named
+ *   import is unreliable under plain CJS interop.
+ * - The `onCell` callback receives refs shaped as `{ address, sheet, row, col }` with 1-based row/col.
+ *   The library fills sheet internally, so it is never null/undefined.
+ * - The `onRange` callback receives refs shaped as `{ sheet, from: {row,col}, to: {row,col} }`, and expects a
+ *   row-major matrix: `result[row-from.row][col-from.col]`.
+ * - For legitimate Excel error results (#DIV/0!, etc.), `parse()` returns a FormulaError instance instead of
+ *   throwing. For unknown function names, syntax errors, or exceptions from onCell/onRange callbacks, it wraps the
+ *   failure as FormulaError('#ERROR!', ...) and throws. See the header comment in formulaEvaluator.ts.
  */
 declare module 'fast-formula-parser' {
   export interface ParserPosition {
@@ -40,13 +40,14 @@ declare module 'fast-formula-parser' {
 
   export class FormulaErrorClass extends Error {
     constructor(error: string, message?: string, details?: unknown)
-    /** 错误码,如 '#DIV/0!' '#NAME?' */
+    /** Error code, such as '#DIV/0!' or '#NAME?'. */
     readonly error: string
   }
 
   /**
-   * 自定义函数收到的单个实参形状(库内部包装,见 grammar/hooks.js `_callFunction`)。
-   * 用 FormulaHelpers 消费,不要直接读 `.value`。`omitted` 标记省略参数(如 `SUM(1,,3)`)。
+   * Single argument shape received by custom functions, wrapped internally by the library.
+   * Consume it through FormulaHelpers instead of reading `.value` directly. `omitted` marks omitted args like
+   * `SUM(1,,3)`.
    */
   export interface FunctionArg {
     value: unknown
@@ -56,14 +57,14 @@ declare module 'fast-formula-parser' {
     omitted?: boolean
   }
 
-  /** Types 枚举,取值见 formulas/helpers.js;这里只声明自定义函数会用到的成员 */
+  /** Types enum values from formulas/helpers.js. Only members used by custom functions are declared here. */
   export interface FormulaTypes {
     NUMBER: number
   }
 
-  /** FormulaHelpers(H)的最小声明面,按自定义函数实际使用收紧 */
+  /** Minimal FormulaHelpers (H) declaration narrowed to actual custom-function usage. */
   export interface FormulaHelpersShape {
-    /** 展平所有实参(区间/数组/联合递归展开),对每个标量调用 hook */
+    /** Flatten all params, recursively expanding ranges/arrays/unions, and call hook for each scalar. */
     flattenParams(
       params: FunctionArg[],
       valueType: number | null,
@@ -72,34 +73,34 @@ declare module 'fast-formula-parser' {
       defValue?: unknown,
       minSize?: number
     ): void
-    /** 将单个实参归一为标量值(按 valueType 解析字面量) */
+    /** Normalize one argument to a scalar value, parsing literals according to valueType. */
     accept(param: FunctionArg, type?: number | null, defValue?: unknown): unknown
   }
 
-  /** 自定义函数签名:接收若干 FunctionArg,返回标量;抛 FormulaError 表达 Excel 错误结果 */
+  /** Custom function signature: receives FunctionArgs, returns a scalar, and throws FormulaError for Excel errors. */
   export type ParserFunction = (...args: FunctionArg[]) => unknown
 
   export interface FormulaParserConfig {
     onCell?: (ref: ParserCellRef) => unknown
     onRange?: (ref: ParserRangeRef) => unknown[][]
-    /** 追加/覆盖内置函数(合并顺序在内置之后,可覆盖库内空壳函数) */
+    /** Append/override built-in functions. Merge order is after built-ins, so library stubs can be replaced. */
     functions?: Record<string, ParserFunction>
   }
 
   export default class FormulaParser {
-    /** 静态属性,见文件头注释——不要用具名 import 取 FormulaError */
+    /** Static property; see file header. Do not use a named import for FormulaError. */
     static FormulaError: typeof FormulaErrorClass & {
-      /** 预建的 Excel 错误实例,自定义函数抛出以表达对应错误结果 */
+      /** Prebuilt Excel error instances for custom functions to throw as corresponding error results. */
       DIV0: FormulaErrorClass
       NA: FormulaErrorClass
       NUM: FormulaErrorClass
       VALUE: FormulaErrorClass
     }
-    /** 参数处理辅助集(挂在 class 上,见 index.js 的 `...require('./formulas/helpers')`) */
+    /** Parameter helper set attached to the class; see index.js `...require('./formulas/helpers')`. */
     static FormulaHelpers: FormulaHelpersShape
     static Types: FormulaTypes
     constructor(config?: FormulaParserConfig)
-    /** allowReturnArray=false(默认)时,多格区间/联合引用结果一律归一为 #VALUE! */
+    /** With allowReturnArray=false (default), multi-cell range/union results normalize to #VALUE!. */
     parse(formula: string, position: ParserPosition, allowReturnArray?: boolean): unknown
   }
 }

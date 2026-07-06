@@ -21,16 +21,16 @@ interface XlsxPreviewPanelProps {
   actions?: ReactNode
 }
 
-/** 缩放档位,默认下标 2(=1) */
+/** Zoom levels. The default index is 2 (=1). */
 const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 const DEFAULT_ZOOM = 1
 
-/** 与 ArtifactPane 的 2MB 文本预览上限文案保持同样"静态标签"风格,而非动态格式化 */
+/** Keep the same static-label style as ArtifactPane's 2 MB text preview limit instead of formatting dynamically. */
 const XLSX_PREVIEW_MAX_SIZE_LABEL = '20 MB'
 
 const formatZoomLabel = (zoom: number) => `${Math.round(zoom * 100)}%`
 
-/** model.sheets 中可见的 sheet;全部 hidden 时退化显示第一个,保证至少有一个 tab 可选 */
+/** Visible sheets from model.sheets. If all are hidden, fall back to the first sheet so one tab remains selectable. */
 const visibleSheets = (model: WorkbookRenderModel): SheetRenderModel[] => {
   const visible = model.sheets.filter((sheet) => !sheet.hidden)
   if (visible.length > 0) return visible
@@ -52,8 +52,8 @@ const loadChartRenderer = () => {
 const sheetHasChart = (sheet: SheetRenderModel | undefined): boolean => Boolean(sheet && sheet.charts.length > 0)
 
 /**
- * xlsx 只读预览面板:XlsxGrid + 底部栏(sheet 标签 + 选中格公式 + 缩放,对齐 Excel 布局)。
- * 状态机/主题背景/懒加载接线对齐 PdfPreviewPanel。
+ * Read-only xlsx preview panel: XlsxGrid plus a bottom bar for sheet tabs, selected-cell formula, and zoom.
+ * State handling, themed background, and lazy loading follow PdfPreviewPanel.
  */
 const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions }: XlsxPreviewPanelProps) => {
   const { t } = useTranslation()
@@ -68,7 +68,7 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
   const sheets = useMemo(() => (model ? visibleSheets(model) : []), [model])
   const activeSheet = sheets.find((sheet) => sheet.name === activeSheetName) ?? sheets[0] ?? null
 
-  // sheet 切换/模型替换时重置选中单元格,并把当前 sheet 落到有效值上
+  // Reset the selected cell when switching sheets or replacing the model, and clamp the active sheet to a valid value.
   useEffect(() => {
     setSelectedCell(null)
     if (sheets.length === 0) {
@@ -80,7 +80,7 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
     }
   }, [sheets, activeSheetName])
 
-  // 图片 object URL:ready 时按 model.images 建表,model 替换/卸载时 revoke 旧表
+  // Build image object URLs from model.images when ready, then revoke the previous table on replacement/unmount.
   useEffect(() => {
     if (!model) return
 
@@ -97,7 +97,7 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
     }
   }, [model])
 
-  // 图表懒加载:首个含图表的 model 出现才触发
+  // Lazy-load chart rendering only after the first model containing charts appears.
   useEffect(() => {
     if (chartRenderer || !sheets.some((sheet) => sheetHasChart(sheet))) return
     let cancelled = false
@@ -159,7 +159,7 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
 
   if (!model || !activeSheet) return null
 
-  // 选中格:地址 + 内容(公式格显示 `= 公式原文`,值在网格内);无选中不显示
+  // Selected cell status: address plus content. Formula cells show the raw formula; values stay in the grid.
   const selectedCellContent = selectedCell?.cell?.formula ? `= ${selectedCell.cell.formula}` : selectedCell?.cell?.text
   const statusBarText = selectedCell
     ? selectedCellContent
@@ -174,7 +174,7 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
       className="relative flex h-full w-full flex-col overflow-hidden bg-background">
       <div className="min-h-0 flex-1">
         <XlsxGrid
-          // 切换 sheet 时以 name 为 key 重挂网格,重置其内部选中态(避免旧行列位置残留选中浮层)
+          // Remount the grid on sheet changes to reset its internal selection state.
           key={activeSheet.name}
           sheet={activeSheet}
           styles={model.styles}
@@ -185,7 +185,7 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
         />
       </div>
 
-      {/* 底部栏(对齐 Excel):sheet 标签在左,选中格信息居右,缩放控件在最右 */}
+      {/* Bottom bar: sheet tabs on the left, selected-cell info on the right, and zoom controls at the far right. */}
       <div className="flex shrink-0 items-center gap-2 border-border-subtle border-t bg-background px-2 py-1">
         <Tabs value={activeSheet.name} onValueChange={setActiveSheetName} variant="line" className="min-w-0 shrink">
           <TabsList aria-label={t('xlsx_preview.sheet_tabs_label')} className="min-w-0 gap-1 overflow-x-auto">

@@ -25,7 +25,7 @@ const SAMPLE_THEME_XML = `<?xml version="1.0"?>
 describe('parseTheme', () => {
   it('null input falls back to Office default theme colors', () => {
     const theme = parseTheme(null)
-    // 主题索引顺序:[lt1, dk1, lt2, dk2, accent1..6, hlink, folHlink]
+    // Theme index order: [lt1, dk1, lt2, dk2, accent1..6, hlink, folHlink].
     expect(theme.colors[0]).toBe('#ffffff') // lt1
     expect(theme.colors[1]).toBe('#000000') // dk1
     expect(theme.colors).toHaveLength(12)
@@ -52,7 +52,7 @@ describe('resolveColor', () => {
   })
 
   it('argb alpha byte is ignored (Excel cell formats have no transparency)', () => {
-    // openpyxl 把 6 位色值规范化成 '00RRGGBB',按字面渲染会得到全透明文字
+    // openpyxl normalizes 6-digit colors to '00RRGGBB', which would render as fully transparent if taken literally.
     expect(resolveColor({ argb: '00FFFFFF' }, theme)).toBe('#ffffff')
     expect(resolveColor({ argb: '80FF0000' }, theme)).toBe('#ff0000')
   })

@@ -65,16 +65,16 @@ describe('formatCellValue', () => {
   })
 
   it('strict toISOString-shaped string with a date format renders as a date', () => {
-    // parseWorkbook 对 Date 存 toISOString() 形态;公式结果回填走此路径
+    // parseWorkbook stores Date values in toISOString() form; formula result backfill uses the same path.
     expect(formatCellValue('2026-01-15T00:00:00.000Z', 'yyyy-mm-dd', false)).toBe('2026-01-15')
   })
 
   it.each([
-    ['1'], // new Date("1") 在 V8 下是合法日期(2001-01-01),严格 ISO 守门必须拦下
+    ['1'], // new Date("1") is valid in V8 (2001-01-01), so the strict ISO gate must reject it.
     ['2026'],
     ['Jan 15 2026'],
-    ['2026-01-15'], // 仅日期无时间部分,不是 toISOString 产物
-    ['2026-01-15T00:00:00Z'] // 缺毫秒,不是 toISOString 产物
+    ['2026-01-15'], // Date-only value without a time part, not a toISOString() product.
+    ['2026-01-15T00:00:00Z'] // Missing milliseconds, not a toISOString() product.
   ])('literal text %s with a date-like numFmt stays text', (raw) => {
     expect(formatCellValue(raw, 'yyyy-mm-dd', false)).toBe(raw)
   })

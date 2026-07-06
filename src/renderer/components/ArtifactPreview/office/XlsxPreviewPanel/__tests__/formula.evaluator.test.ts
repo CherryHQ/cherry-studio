@@ -9,16 +9,16 @@ import {
 
 type StubCellValue = string | number | boolean | null
 interface StubCell {
-  /** 公式原文,不含前导 '='。设置了 formula 的单元格会递归调用 evaluator.evaluate */
+  /** Raw formula without the leading '='. Cells with formula recursively call evaluator.evaluate. */
   formula?: string
-  /** 非公式单元格的原始值 */
+  /** Raw value for non-formula cells. */
   value?: StubCellValue
 }
 type StubSheet = Record<string, StubCell>
 
 /**
- * 手写 EvalContext stub:模拟解析流水线的行为——公式单元格的 getCellValue
- * 递归调用同一个 evaluator 的 evaluate(),从而天然形成链式/环形递归。
+ * Handwritten EvalContext stub that mirrors the parsing pipeline: getCellValue for formula cells
+ * recursively calls evaluate() on the same evaluator, naturally creating chained or cyclic recursion.
  */
 function makeStubContext(sheets: Record<string, StubSheet>): {
   ctx: EvalContext
@@ -52,7 +52,7 @@ function makeStubContext(sheets: Record<string, StubSheet>): {
   }
 }
 
-/** 便捷构造:创建 evaluator 并完成 stub 的循环绑定 */
+/** Convenience setup that creates an evaluator and completes the stub's circular binding. */
 function setup(sheets: Record<string, StubSheet>, budgetMs = 5000) {
   const { ctx, bind, callCount } = makeStubContext(sheets)
   const evaluator = createFormulaEvaluator(ctx, budgetMs)
@@ -157,8 +157,8 @@ describe('createFormulaEvaluator — basic operators and functions', () => {
 })
 
 describe('createFormulaEvaluator — custom aggregate functions (library stubs)', () => {
-  // 库内 MAX/MIN/MEDIAN/... 被注册成空壳,由 formulaFunctions.ts 补齐。
-  // 数据布局对齐截图:C 列(col 3)行2 为表头文本,行3-8 为数值。
+  // MAX/MIN/MEDIAN/... are registered as empty stubs in the library and are filled by formulaFunctions.ts.
+  // The data layout matches the screenshot: column C (col 3), row 2 is a text header, rows 3-8 are numbers.
   const statSheet = {
     Sheet1: {
       '2:3': { value: '上海最高温度(℃)' },
@@ -174,7 +174,7 @@ describe('createFormulaEvaluator — custom aggregate functions (library stubs)'
 
   it('MAX/MIN ignore the leading text cell and return the numeric extremum', () => {
     const { evaluator } = setup(statSheet)
-    // 这正是截图里 D14=MAX(C2:C8) 之前"公式无法求值"的用例
+    // This is the exact case that used to show "formula not evaluated" for D14=MAX(C2:C8) in the screenshot.
     expect(evaluator.evaluate('MAX(C2:C8)', at(14))).toEqual({ state: 'evaluated', value: 38 })
     expect(evaluator.evaluate('MIN(C2:C8)', at(15))).toEqual({ state: 'evaluated', value: 33 })
   })
@@ -214,7 +214,7 @@ describe('createFormulaEvaluator — custom aggregate functions (library stubs)'
 
   it('evaluates population variance and standard deviation', () => {
     const { evaluator } = setup(statSheet)
-    // 33,35,37,34,36,38 mean=35.5, Σ(x-mean)²=17.5, VAR.P=17.5/6
+    // 33,35,37,34,36,38 mean=35.5, sum((x - mean)^2)=17.5, VAR.P=17.5/6.
     const varP = evaluator.evaluate('VAR.P(C3:C8)', at(24))
     expect(varP.state).toBe('evaluated')
     expect(varP.value).toBeCloseTo(17.5 / 6, 10)
@@ -225,7 +225,7 @@ describe('createFormulaEvaluator — custom aggregate functions (library stubs)'
 
   it('MODE.SNGL returns #N/A when every value is unique', () => {
     const { evaluator } = setup(statSheet)
-    // C3:C8 全不重复
+    // C3:C8 has no repeated values.
     expect(evaluator.evaluate('MODE.SNGL(C3:C8)', at(26))).toEqual({ state: 'evaluated', value: '#N/A' })
   })
 })
@@ -236,7 +236,7 @@ describe('createFormulaEvaluator — range aggregation with holes', () => {
       Sheet1: {
         '1:1': { value: 1 },
         '2:1': { value: 2 },
-        // 3:1 空
+        // 3:1 is empty.
         '4:1': { value: 4 },
         '5:1': { value: 5 }
       }
@@ -263,10 +263,10 @@ describe('createFormulaEvaluator — chained dependency and memoization', () => 
     const outcome = evaluator.evaluate('B1*2', { sheet: 'Sheet1', row: 1, col: 3 })
     expect(outcome).toEqual({ state: 'evaluated', value: 4 })
 
-    // B1 的公式应当只被真正求值一次(memo 命中),对应 A1 只被读取一次
+    // B1 should be evaluated only once because memoization hits, so A1 is read only once.
     expect(callCount({ sheet: 'Sheet1', row: 1, col: 1 })).toBe(1)
 
-    // 再次直接对 B1 求值应命中 memo,不再重新读取 A1
+    // Evaluating B1 directly again should hit the memo and avoid rereading A1.
     const b1Outcome = evaluator.evaluate('A1+1', { sheet: 'Sheet1', row: 1, col: 2 })
     expect(b1Outcome).toEqual({ state: 'evaluated', value: 2 })
     expect(callCount({ sheet: 'Sheet1', row: 1, col: 1 })).toBe(1)
@@ -291,7 +291,7 @@ describe('createFormulaEvaluator — circular references', () => {
   })
 
   it('does not poison an unrelated ancestor that merely reads a cyclic cell', () => {
-    // D1 = A1 + E1, A1 = B1, B1 = A1 (A1/B1 互为环), E1 = 5 常量
+    // D1 = A1 + E1, A1 = B1, B1 = A1 (A1/B1 form a cycle), E1 = constant 5.
     const sheets = {
       Sheet1: {
         '1:1': { formula: 'B1' }, // A1
@@ -303,7 +303,7 @@ describe('createFormulaEvaluator — circular references', () => {
     const { evaluator } = setup(sheets)
 
     const d1 = evaluator.evaluate('A1+E1', { sheet: 'Sheet1', row: 1, col: 4 })
-    // A1 参与环 → 对 D1 而言取到 null(按 0 参与运算),D1 本身不在环上,应正常给出数值结果
+    // A1 is cyclic, so D1 reads it as null (0 in arithmetic). D1 itself is not cyclic and should evaluate.
     expect(d1).toEqual({ state: 'evaluated', value: 5 })
   })
 })
@@ -410,7 +410,7 @@ describe('createFormulaEvaluator — oversized range guard', () => {
   it('returns unevaluated for a whole-sheet range without materializing any cell', () => {
     const { evaluator, callCount } = setup({})
     const start = Date.now()
-    // A1:XFD1048576 ≈ 172 亿格:面积检查必须在读第一个格子之前拒绝
+    // A1:XFD1048576 is about 17.2 billion cells; the area guard must reject it before reading any cell.
     expect(evaluator.evaluate('SUM(A1:XFD1048576)', { sheet: 'Sheet1', row: 1, col: 20000 })).toEqual({
       state: 'unevaluated'
     })
@@ -433,12 +433,12 @@ describe('createFormulaEvaluator — oversized range guard', () => {
   })
 
   it('aborts range materialization when the deadline expires mid-loop', () => {
-    // Date.now 调用序:createFormulaEvaluator 取 deadline → evaluate 入口检查 → onRange 循环内检查。
-    // 前两次返回 0(deadline=1000,入口放行),之后返回 5000 → 循环内命中超时。
+    // Date.now call order: createFormulaEvaluator sets the deadline, evaluate checks entry, then onRange checks in-loop.
+    // The first two calls return 0 (deadline=1000, entry allowed); later calls return 5000 and hit the timeout in-loop.
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(5000)
     try {
       const { evaluator, callCount } = setup({}, 1000)
-      // 2000 格 > 检查步长 1024,保证循环内至少检查一次
+      // 2000 cells is above the 1024 check stride, so the loop performs at least one in-loop check.
       expect(evaluator.evaluate('SUM(A1:B1000)', { sheet: 'Sheet1', row: 1, col: 4 })).toEqual({
         state: 'unevaluated'
       })
@@ -451,9 +451,9 @@ describe('createFormulaEvaluator — oversized range guard', () => {
 
 describe('createFormulaEvaluator — recursion depth guard', () => {
   it('does not stack-overflow or hang on an extremely deep non-cyclic reference chain', () => {
-    // 深度 200 远超建议上限 64:验证深度守卫生效,整体求值在有限时间内正常返回
-    // (不断言链顶端的具体数值——深链中段一旦触发深度上限被判 unevaluated 并按 0 参与运算,
-    // 链顶端会据此算出一个"降级但良定义"的数字,这是预期的优雅降级而非 bug)。
+    // Depth 200 is far above the suggested limit of 64. Verify the depth guard keeps evaluation bounded.
+    // Do not assert the chain head's exact value: once a middle link hits the limit, it becomes unevaluated and
+    // contributes 0 to arithmetic, producing a degraded but well-defined value at the top.
     const DEPTH = 200
     const sheets: Record<string, StubSheet> = { Sheet1: { '1:1': { value: 0 } } }
     for (let row = 2; row <= DEPTH; row++) {

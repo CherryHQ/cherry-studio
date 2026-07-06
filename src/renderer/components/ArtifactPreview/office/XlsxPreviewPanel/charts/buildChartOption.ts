@@ -3,15 +3,15 @@ import type { EChartsCoreOption } from 'echarts/core'
 import type { ChartModel, ChartSeries } from '../renderModel'
 
 /**
- * ChartModel → echarts option 的纯映射函数(可测,不依赖 DOM/echarts 实例)。
+ * Pure ChartModel -> echarts option mapping. Testable without DOM or echarts instances.
  */
 
-/** echarts 用 '-' 表示空值 */
+/** echarts uses '-' for empty values. */
 const toEchartsValue = (value: number | null): number | '-' => (value === null ? '-' : value)
 
 const buildCategoryAxisData = (series: ChartSeries[]): (string | number)[] => series[0]?.categories ?? []
 
-/** Excel 100% 堆叠(percentStacked):每个类目按系列合计归一化为百分比;合计为 0 或值缺失 → null */
+/** Excel 100% stacking (percentStacked): normalize each category by series total; zero total or missing value -> null. */
 const normalizePercentStacked = (series: ChartSeries[]): (number | null)[][] => {
   const categoryCount = series.reduce((max, s) => Math.max(max, s.values.length), 0)
   const totals = Array.from({ length: categoryCount }, (_, i) => series.reduce((sum, s) => sum + (s.values[i] ?? 0), 0))

@@ -153,7 +153,7 @@ const lastGridProps = () => {
   return props as XlsxGridProps
 }
 
-/** mock 模型去掉 charts,避免与图表懒加载无关的用例触发 act 警告 */
+/** Remove charts from the mock model so tests unrelated to chart lazy loading do not trigger act warnings. */
 const modelWithoutCharts = () => {
   const model = createMockWorkbookModel()
   for (const sheet of model.sheets) sheet.charts = []

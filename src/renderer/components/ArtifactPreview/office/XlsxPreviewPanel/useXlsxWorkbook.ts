@@ -5,7 +5,7 @@ import type { WorkbookRenderModel, XlsxParseRequest, XlsxParseResponse } from '.
 
 const logger = loggerService.withContext('XlsxPreviewPanel')
 
-/** 超过此体积不解析,降级为外部应用打开 */
+/** Files above this size are not parsed and fall back to opening in an external app. */
 export const XLSX_PREVIEW_MAX_SIZE_BYTES = 20 * 1024 * 1024
 
 export type XlsxWorkbookState =
@@ -20,7 +20,7 @@ type XlsxWorker = Pick<Worker, 'postMessage' | 'terminate'> & {
   onerror: ((event: ErrorEvent) => void) | null
 }
 
-/** window.api.fs.read 经 IPC 结构化克隆后落地为 Uint8Array-like 对象;归一化为真正的 ArrayBuffer(postMessage transfer 需要)。 */
+/** Normalize window.api.fs.read output to a real ArrayBuffer after IPC structured cloning. Needed for postMessage transfer. */
 const toArrayBuffer = (data: unknown): ArrayBuffer => {
   if (data instanceof ArrayBuffer) return data
   if (ArrayBuffer.isView(data)) {
@@ -31,8 +31,8 @@ const toArrayBuffer = (data: unknown): ArrayBuffer => {
 }
 
 /**
- * 读文件字节(window.api.fs.read)→ Worker 解析 → 状态机。
- * 体积上限、Worker 惰性创建、请求 id 递增丢弃过期响应、refreshKey 重解析均在此实现。
+ * Reads file bytes with window.api.fs.read, parses them in a Worker, and exposes a state machine.
+ * Handles size limits, lazy Worker creation, request ids for stale-response discards, and refreshKey reparsing.
  */
 export function useXlsxWorkbook(filePath: string, refreshKey: number, sourceSize?: number): XlsxWorkbookState {
   const [state, setState] = useState<XlsxWorkbookState>({ status: 'idle' })

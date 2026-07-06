@@ -1,16 +1,16 @@
 import { XMLParser } from 'fast-xml-parser'
 
 /**
- * theme1.xml 主题色解析 + tint/indexed 颜色求解。
- * 注意 Excel 主题索引中的 dk1/lt1 顺序与 XML 内 clrScheme 顺序不同。
+ * theme1.xml theme color parsing plus tint/indexed color resolution.
+ * Note that Excel theme index order swaps dk1/lt1 compared with XML clrScheme order.
  */
 
 export interface ResolvedTheme {
-  /** 映射后的索引顺序:[lt1, dk1, lt2, dk2, accent1..6, hlink, folHlink] */
+  /** Mapped index order: [lt1, dk1, lt2, dk2, accent1..6, hlink, folHlink]. */
   colors: string[]
 }
 
-/** ExcelJS 颜色引用形态(argb / theme+tint / indexed) */
+/** ExcelJS color reference shape: argb, theme+tint, or indexed. */
 export interface ExcelColorRef {
   argb?: string
   theme?: number
@@ -18,7 +18,7 @@ export interface ExcelColorRef {
   indexed?: number
 }
 
-/** Office 默认主题色表(clrScheme 顺序:dk1, lt1, dk2, lt2, accent1..6, hlink, folHlink) */
+/** Office default theme color table in clrScheme order: dk1, lt1, dk2, lt2, accent1..6, hlink, folHlink. */
 const DEFAULT_OFFICE_THEME_CLR_SCHEME = {
   dk1: '000000',
   lt1: 'FFFFFF',
@@ -34,7 +34,7 @@ const DEFAULT_OFFICE_THEME_CLR_SCHEME = {
   folHlink: '954F72'
 }
 
-/** ECMA-376 §18.8.27 内置 64 色板(indexed color),0-based 下标 = indexed 值 */
+/** Built-in 64-color palette from ECMA-376 section 18.8.27. 0-based index = indexed color value. */
 const INDEXED_PALETTE: string[] = [
   '000000',
   'FFFFFF',
@@ -102,7 +102,7 @@ const INDEXED_PALETTE: string[] = [
   '333333'
 ]
 
-/** RGB (0-255) → HSL (h: 0-360, s/l: 0-1) */
+/** RGB (0-255) -> HSL (h: 0-360, s/l: 0-1). */
 function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   const rn = r / 255
   const gn = g / 255
@@ -130,7 +130,7 @@ function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
   return [h, s, l]
 }
 
-/** HSL → RGB (0-255) */
+/** HSL -> RGB (0-255). */
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   if (s === 0) {
     const v = Math.round(l * 255)
@@ -156,7 +156,7 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
 
 const clampByte = (n: number): number => Math.min(255, Math.max(0, n))
 
-/** 对 6 位 RGB hex(无 alpha)应用 tint */
+/** Apply tint to 6-digit RGB hex with no alpha. */
 function applyTint(rgbHex: string, tint: number): string {
   const r = parseInt(rgbHex.slice(0, 2), 16)
   const g = parseInt(rgbHex.slice(2, 4), 16)
@@ -167,7 +167,7 @@ function applyTint(rgbHex: string, tint: number): string {
   return [nr, ng, nb].map((v) => clampByte(v).toString(16).padStart(2, '0')).join('')
 }
 
-/** 6 位 RGB hex → CSS 颜色 */
+/** 6-digit RGB hex -> CSS color. */
 const rgbHexToCss = (rgbHex: string): string => `#${rgbHex.toLowerCase()}`
 
 const xmlParser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_' })
@@ -184,7 +184,7 @@ function readClr(node: ClrNode | undefined): string | undefined {
   return undefined
 }
 
-/** themeXml 为 null → 返回内置 Office 默认主题色表 */
+/** themeXml null -> built-in Office default theme color table. */
 export function parseTheme(themeXml: string | null): ResolvedTheme {
   let scheme = DEFAULT_OFFICE_THEME_CLR_SCHEME
   if (themeXml) {
@@ -212,7 +212,7 @@ export function parseTheme(themeXml: string | null): ResolvedTheme {
     }
   }
 
-  // 主题索引顺序:[lt1, dk1, lt2, dk2, accent1..6, hlink, folHlink](与 XML 内 dk1/lt1 顺序互换)
+  // Theme index order: [lt1, dk1, lt2, dk2, accent1..6, hlink, folHlink], swapping dk1/lt1 from XML order.
   const colors = [
     scheme.lt1,
     scheme.dk1,
@@ -232,15 +232,15 @@ export function parseTheme(themeXml: string | null): ResolvedTheme {
 }
 
 /**
- * ARGB → CSS 颜色。alpha 字节**必须忽略**:Excel 的单元格格式不支持透明度,
- * 该字节只是历史填充位——openpyxl 等生成器把 6 位色值规范化成 '00RRGGBB'(alpha=00),
- * 若按字面渲染会得到全透明的文字/填充。
+ * ARGB -> CSS color. The alpha byte must be ignored: Excel cell formats do not support transparency.
+ * That byte is only historical padding. Generators such as openpyxl normalize 6-digit colors to '00RRGGBB' (alpha=00),
+ * which would render text/fill as fully transparent if interpreted literally.
  */
 function argbToCss(argb: string): string {
   return rgbHexToCss(argb.length === 8 ? argb.slice(2) : argb)
 }
 
-/** 优先级:argb > theme+tint > indexed > undefined */
+/** Priority: argb > theme+tint > indexed > undefined. */
 export function resolveColor(color: ExcelColorRef | undefined, theme: ResolvedTheme): string | undefined {
   if (!color) return undefined
   if (color.argb) {

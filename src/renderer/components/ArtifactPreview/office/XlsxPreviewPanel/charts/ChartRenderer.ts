@@ -1,10 +1,10 @@
 import type { ChartModel } from '../renderModel'
 
 /**
- * 图表渲染适配器。
- * 可替换性边界:具体图表库(echarts)的任何类型/概念不得泄漏出实现文件。
+ * Chart rendering adapter.
+ * Swappability boundary: no types or concepts from a concrete chart library may leak out of implementation files.
  */
 export interface ChartRenderer {
-  /** 挂载并渲染;返回 dispose。实现内部自行处理容器尺寸变化 */
+  /** Mounts and renders, returning a disposer. Implementations handle container size changes internally. */
   render(chart: ChartModel, container: HTMLElement): () => void
 }

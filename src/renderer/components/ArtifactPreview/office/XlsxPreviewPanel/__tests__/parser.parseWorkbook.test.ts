@@ -10,7 +10,7 @@ import { buildChartWorkbookArrayBuffer } from './xlsxTestPackages'
 
 async function toArrayBuffer(workbook: ExcelJS.Workbook): Promise<ArrayBuffer> {
   const buf = await workbook.xlsx.writeBuffer()
-  // writeBuffer() 在 Node 下返回 Buffer(Uint8Array 子类);拷贝为独立 ArrayBuffer
+  // writeBuffer() returns Buffer (a Uint8Array subclass) in Node; copy it into an independent ArrayBuffer.
   const view = buf as unknown as Uint8Array
   const arrayBuffer = new ArrayBuffer(view.byteLength)
   new Uint8Array(arrayBuffer).set(view)
@@ -221,8 +221,8 @@ describe('parseWorkbook — per-sheet defaults + cell-less row definitions', () 
     ws.getCell('A1').value = 'x'
     const buffer = await toArrayBuffer(wb)
 
-    // ExcelJS 写文件时丢弃「无单元格且无高度」的行定义(Row.model 返回 null),这类行
-    // 只会出自其他生成器——用 JSZip 注入原始 XML 还原真实场景。
+    // ExcelJS drops row definitions with no cells and no height when writing, because Row.model returns null.
+    // Such rows only come from other generators, so inject raw XML with JSZip to recreate the real-world case.
     const zip = await JSZip.loadAsync(buffer)
     const sheetPath = 'xl/worksheets/sheet1.xml'
     const sheetXml = await zip.file(sheetPath)!.async('string')
@@ -304,13 +304,13 @@ describe('parseWorkbook — formulas: forward references evaluate recursively', 
     const ws1 = wb.addWorksheet('S1')
     const ws2 = wb.addWorksheet('S2')
 
-    // A1 引用文件顺序靠后的 B2(同 sheet 前向引用)
+    // A1 references B2, which appears later in file order on the same sheet.
     ws1.getCell('A1').value = { formula: 'B2*2' }
     ws1.getCell('B2').value = { formula: 'SUM(3,4)' }
-    // A2 引用靠后 sheet 的公式单元格(跨 sheet 前向引用)
+    // A2 references a formula cell on a later sheet.
     ws1.getCell('A2').value = { formula: 'S2!A1+1' }
     ws2.getCell('A1').value = { formula: '5*2' }
-    // 互相引用的环:不得挂死,双双 unevaluated
+    // Mutual reference cycle: must not hang, and both cells should remain unevaluated.
     ws1.getCell('A5').value = { formula: 'A6' }
     ws1.getCell('A6').value = { formula: 'A5' }
 
@@ -527,9 +527,9 @@ describe('parseWorkbook — floating images', () => {
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet('S1')
     const imgId = wb.addImage({ base64: PNG_BASE64, extension: 'png' })
-    // oneCellAnchor: tl + ext(px——ExcelJS 写入时乘 9525 转 EMU,读取时再除回来)。
-    // addImage 类型声明要求 tl/br 为 Anchor 实例,但运行时接受纯 { col, row } 字面量
-    // (见 lib/doc/image.js set model);测试内按运行时行为传入。
+    // oneCellAnchor: tl + ext in px. ExcelJS multiplies by 9525 when writing EMUs and divides back when reading.
+    // addImage types require tl/br to be Anchor instances, but runtime accepts plain { col, row } objects.
+    // See lib/doc/image.js set model; the test follows runtime behavior.
     ws.addImage(imgId, {
       tl: { col: 1, row: 1 },
       ext: { width: 20, height: 10 }

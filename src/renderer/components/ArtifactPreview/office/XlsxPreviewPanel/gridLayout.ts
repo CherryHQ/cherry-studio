@@ -1,26 +1,26 @@
 /**
- * 布局常量与换算纯函数。
- * 包含前缀和、可视区合并计算等 grid 布局工具。
+ * Layout constants and pure conversion functions.
+ * Includes prefix sums, viewport merge calculations, and other grid layout helpers.
  */
 
-/** Excel 默认列宽 8.43 字符(Calibri 11,MDW=7)≈ 64px */
+/** Excel default column width: 8.43 chars (Calibri 11, MDW=7), about 64px. */
 export const DEFAULT_COL_WIDTH_PX = 64
-/** Excel 默认行高 15pt = 20px */
+/** Excel default row height: 15pt = 20px. */
 export const DEFAULT_ROW_HEIGHT_PX = 20
-/** 解析行/列硬上限,超出截断并记 warning */
+/** Hard row/column parse limits. Excess rows/columns are truncated and recorded as warnings. */
 export const MAX_ROWS = 200_000
 export const MAX_COLS = 500
 
-/** Excel 字符宽 → px(Calibri 11,MDW=7) */
+/** Excel character width -> px (Calibri 11, MDW=7). */
 export const charWidthToPx = (width: number): number => Math.round(width * 7) + 5
 
-/** pt → px */
+/** pt -> px. */
 export const ptToPx = (pt: number): number => (pt * 96) / 72
 
-/** EMU → px(914400 EMU/inch ÷ 96 dpi) */
+/** EMU -> px (914400 EMU/inch / 96 dpi). */
 export const emuToPx = (emu: number): number => emu / 9525
 
-/** 列号(1-based)→ 'A' / 'Z' / 'AA' */
+/** 1-based column number -> 'A' / 'Z' / 'AA'. */
 export const colName = (col: number): string => {
   let name = ''
   let n = col
@@ -32,29 +32,29 @@ export const colName = (col: number): string => {
   return name
 }
 
-/** (row, col) 1-based → 'B4' 风格地址 */
+/** 1-based (row, col) -> 'B4' style address. */
 export const cellAddress = (row: number, col: number): string => `${colName(col)}${row}`
 
 // ---------------------------------------------------------------------------
-// 布局纯函数:前缀和、可视区合并计算。
+// Pure layout functions: prefix sums and viewport merge calculations.
 // ---------------------------------------------------------------------------
 
-/** 一个轴(行或列)的布局:每项 zoom 后尺寸(px)+ 起始偏移(px)的前缀和表 */
+/** Axis layout for rows or columns: zoomed sizes plus start offsets in px. */
 export interface AxisLayout {
-  /** sizes[i] = 第 i 项(0-based index,对应 1-based 序号 i+1)zoom 后尺寸,px */
+  /** sizes[i] = zoomed size in px for item i (0-based index, 1-based item number i+1). */
   sizes: number[]
-  /** offsets[i] = 第 i 项的起始偏移(px);offsets.length === sizes.length */
+  /** offsets[i] = start offset in px for item i. offsets.length === sizes.length. */
   offsets: number[]
-  /** 总尺寸,px */
+  /** Total size in px. */
   totalSize: number
 }
 
 /**
- * 构建一个轴的布局(行高或列宽),已按 zoom 缩放。
- * @param count 项数(rowCount / colCount)
- * @param defaultSizePx 默认尺寸(zoom=1)
- * @param overrides 稀疏覆盖表,1-based key(隐藏 → 0)
- * @param zoom 缩放系数
+ * Builds one axis layout for row heights or column widths, scaled by zoom.
+ * @param count Item count (rowCount / colCount).
+ * @param defaultSizePx Default size at zoom=1.
+ * @param overrides Sparse override table with 1-based keys. Hidden rows/columns map to 0.
+ * @param zoom Scale factor.
  */
 export const buildAxisLayout = (
   count: number,
@@ -76,7 +76,7 @@ export const buildAxisLayout = (
   return { sizes, offsets, totalSize: offset }
 }
 
-/** 查表:第 i 项(0-based)的起始偏移,px(越界返回 totalSize) */
+/** Lookup the start offset in px for item i (0-based). Out-of-range indexes return totalSize. */
 export const axisOffset = (layout: AxisLayout, index: number): number => {
   if (index < 0) return 0
   if (index >= layout.offsets.length) return layout.totalSize
@@ -99,10 +99,10 @@ export interface MergeRangeLike {
 
 export interface MergeInView<M extends MergeRangeLike = MergeRangeLike> {
   merge: M
-  /** master 单元格地址(合并区左上角) */
+  /** Master cell address, the top-left corner of the merged range. */
   masterRow: number
   masterCol: number
-  /** 像素矩形(相对网格原点,已含 zoom) */
+  /** Pixel rect relative to the grid origin, with zoom already applied. */
   rect: PxRectLike
 }
 
@@ -113,7 +113,7 @@ export interface PxRectLike {
   height: number
 }
 
-/** 合并区(1-based 闭区间)→ 像素矩形,基于行/列 AxisLayout */
+/** Merged range (1-based inclusive) -> pixel rect, based on row/column AxisLayout. */
 export const mergeRectPx = (merge: MergeRangeLike, rowLayout: AxisLayout, colLayout: AxisLayout): PxRectLike => {
   const x = axisOffset(colLayout, merge.left - 1)
   const y = axisOffset(rowLayout, merge.top - 1)
@@ -123,9 +123,9 @@ export const mergeRectPx = (merge: MergeRangeLike, rowLayout: AxisLayout, colLay
 }
 
 /**
- * 与可视矩形相交的合并区(含 master 坐标与像素矩形)。
- * 即使 master 单元格本身滚出视口,只要合并区与视口相交仍会返回——
- * 这是合并层必须独立渲染而非依赖单元格虚拟化的原因。
+ * Merged ranges intersecting the viewport, including master coordinates and pixel rects.
+ * A range is returned even when its master cell has scrolled out, as long as the merged rect intersects the viewport.
+ * This is why the merge layer must render independently instead of relying on cell virtualization.
  */
 export const mergesInView = <M extends MergeRangeLike>(
   merges: M[],
@@ -147,20 +147,19 @@ export const mergesInView = <M extends MergeRangeLike>(
   return result
 }
 
-/** 单元格是否被某个合并区覆盖但不是 master(用于普通单元格层置空内容) */
+/** Whether a cell is covered by a merged range but is not the master. Used to empty the regular cell layer. */
 export const findCoveringMerge = <M extends MergeRangeLike>(merges: M[], row: number, col: number): M | undefined =>
   merges.find((m) => row >= m.top && row <= m.bottom && col >= m.left && col <= m.right)
 
-/** Excel 默认字号 11pt → px(zoom=1),与 CellStyle.fontSizePx 未设置时的默认一致 */
+/** Excel default font size 11pt -> px at zoom=1. Matches the CellStyle.fontSizePx default. */
 export const DEFAULT_FONT_SIZE_PX = ptToPx(11)
 
-/** wrap 单元格文本的行高系数(无量纲,乘字号) */
+/** Line-height multiplier for wrapped cell text. */
 export const WRAP_LINE_HEIGHT = 1.3
 
 /**
- * wrap 单元格在给定格高内能完整容纳的文本行数(至少 1)。
- * 用于按整行裁剪(-webkit-line-clamp):行高不足以放下全部换行内容时,
- * 只显示放得下的整行,避免最后一行被水平切成上下两半的乱码观感。
+ * Number of full text lines a wrapped cell can fit in the given cell height, minimum 1.
+ * Used with -webkit-line-clamp so a short row shows only complete lines instead of slicing the last line in half.
  */
 export const wrapClampLines = (cellHeightPx: number, fontSizePx: number): number =>
   Math.max(1, Math.floor(cellHeightPx / (fontSizePx * WRAP_LINE_HEIGHT)))

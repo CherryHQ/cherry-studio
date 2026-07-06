@@ -1,7 +1,7 @@
 import type { XlsxParseRequest, XlsxParseResponse } from '../renderModel'
 import { parseWorkbook } from './parseWorkbook'
 
-/** 薄胶水:逻辑全在 parseWorkbook(可测纯函数),此文件不写业务逻辑。 */
+/** Thin glue only. All logic lives in parseWorkbook, a testable pure function; keep business logic out of this file. */
 const scope = self as unknown as {
   onmessage: ((event: MessageEvent<XlsxParseRequest>) => void) | null
   postMessage(message: XlsxParseResponse, transfer?: Transferable[]): void

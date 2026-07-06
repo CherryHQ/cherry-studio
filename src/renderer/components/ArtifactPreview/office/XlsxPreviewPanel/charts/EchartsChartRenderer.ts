@@ -19,8 +19,8 @@ echarts.use([
 ])
 
 /**
- * echarts 实现(按需引入 echarts/core + 单图表模块,禁止全量 import)。
- * 本文件由面板懒加载(import()),不得被静态引用进主 bundle。
+ * echarts implementation. Import echarts/core plus per-chart modules on demand; do not use a full import.
+ * This file is lazy-loaded by the panel and must not be statically referenced by the main bundle.
  */
 export const echartsChartRenderer: ChartRenderer = {
   render(chart: ChartModel, container: HTMLElement): () => void {

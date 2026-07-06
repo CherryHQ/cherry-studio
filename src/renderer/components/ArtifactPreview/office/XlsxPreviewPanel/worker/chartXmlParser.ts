@@ -5,18 +5,18 @@ import { emuToPx } from '../gridLayout'
 import type { ChartModel, ChartSeries, ChartType, PxRect } from '../renderModel'
 
 /**
- * drawing + chart XML → ChartModel[]:OPC 部件链、cache 优先/引用回填、锚点换算
+ * drawing + chart XML -> ChartModel[]: OPC part chain, cache-first/reference-backfill data, and anchor conversion.
  */
 
 export interface SheetDataAccessor {
-  /** A1 风格区间引用(可含 sheet 名)→ 原始值二维数组;引用无效返回 null */
+  /** A1-style range reference, optionally with a sheet name, -> raw value matrix. Invalid refs return null. */
   readRange(ref: string): (string | number | null)[][] | null
 }
 
 export interface SheetLayoutAccessor {
-  /** 列左边缘累计偏移(px, zoom=1),col 为 1-based */
+  /** Accumulated left-edge column offset in px at zoom=1. col is 1-based. */
   colX(col: number): number
-  /** 行上边缘累计偏移(px, zoom=1),row 为 1-based */
+  /** Accumulated top-edge row offset in px at zoom=1. row is 1-based. */
   rowY(row: number): number
 }
 
@@ -26,7 +26,7 @@ export interface ParsedCharts {
 }
 
 // ---------------------------------------------------------------------------
-// XML 解析工具
+// XML parsing helpers
 // ---------------------------------------------------------------------------
 
 const xmlParser = new XMLParser({
@@ -34,20 +34,20 @@ const xmlParser = new XMLParser({
   attributeNamePrefix: '@_',
   parseAttributeValue: false,
   removeNSPrefix: false,
-  // 富文本(标题)运行片段之间的空格有意义(如 'Sales ' + '2026'),不能被裁剪
+  // Spaces between rich-text title runs matter, such as 'Sales ' + '2026', and must not be trimmed.
   trimValues: false
 })
 
-/** 任意 fast-xml-parser 产出的节点值:元素(对象/数组)或原始值 */
+/** Any node value produced by fast-xml-parser: element object/array or primitive value. */
 type XmlNode = Record<string, unknown>
 
-/** 去掉命名空间前缀,如 'c:chart' → 'chart'、'a:t' → 't' */
+/** Strip namespace prefixes, for example 'c:chart' -> 'chart' and 'a:t' -> 't'. */
 const localName = (tag: string): string => {
   const idx = tag.indexOf(':')
   return idx === -1 ? tag : tag.slice(idx + 1)
 }
 
-/** 在对象节点上按 local name 查找子节点(兼容 'c:xxx' 与 'xxx' 两种命名空间前缀写法) */
+/** Find a child node by local name, accepting both 'c:xxx' and 'xxx' namespace styles. */
 const findChild = (node: unknown, name: string): unknown => {
   if (!node || typeof node !== 'object') return undefined
   const obj = node as XmlNode
@@ -58,14 +58,14 @@ const findChild = (node: unknown, name: string): unknown => {
   return undefined
 }
 
-/** 按 local name 查找全部匹配子节点,统一归一化为数组(fast-xml-parser 单个子节点不产出数组) */
+/** Find all matching child nodes by local name and normalize single-child parser output to an array. */
 const findChildren = (node: unknown, name: string): unknown[] => {
   const found = findChild(node, name)
   if (found === undefined) return []
   return Array.isArray(found) ? found : [found]
 }
 
-/** 遍历对象节点的全部直接子节点,返回 [localName, value][],跳过属性 */
+/** Return all direct child entries as [localName, value][], skipping attributes. */
 const entries = (node: unknown): [string, unknown][] => {
   if (!node || typeof node !== 'object') return []
   const obj = node as XmlNode
@@ -74,7 +74,7 @@ const entries = (node: unknown): [string, unknown][] => {
     .map((key) => [localName(key), obj[key]])
 }
 
-/** 按 local name 查找属性(兼容 'r:id' 与 'id' 两种命名空间前缀写法) */
+/** Find an attribute by local name, accepting both 'r:id' and 'id' namespace styles. */
 const getAttr = (node: unknown, attr: string): string | undefined => {
   if (!node || typeof node !== 'object') return undefined
   const obj = node as XmlNode
@@ -88,7 +88,7 @@ const getAttr = (node: unknown, attr: string): string | undefined => {
   return undefined
 }
 
-/** `<tag val="x"/>` 形式节点取 val 属性 */
+/** Read the val attribute from nodes shaped like `<tag val="x"/>`. */
 const valAttr = (node: unknown): string | undefined => getAttr(node, 'val')
 
 const toNumber = (value: unknown): number | undefined => {
@@ -98,7 +98,7 @@ const toNumber = (value: unknown): number | undefined => {
 }
 
 // ---------------------------------------------------------------------------
-// OPC 部件解析:relationships
+// OPC part parsing: relationships
 // ---------------------------------------------------------------------------
 
 interface Relationship {
@@ -117,7 +117,7 @@ const parseRelationships = (xml: string): Relationship[] => {
   }))
 }
 
-/** 解析 rels target 相对路径(相对于 baseDir)或绝对路径(以 '/' 开头,相对包根) */
+/** Resolve a rels target as either relative to baseDir or absolute from package root when it starts with '/'. */
 const resolveTarget = (baseDir: string, target: string): string => {
   if (target.startsWith('/')) return target.slice(1)
   const baseParts = baseDir.split('/').filter(Boolean)
@@ -136,7 +136,7 @@ const readZipText = async (zip: JSZip, path: string): Promise<string | null> => 
   return file.async('string')
 }
 
-/** sheet 名 → worksheet 部件路径,经 workbook.xml + workbook.xml.rels 解出 */
+/** Resolve sheet name -> worksheet part path through workbook.xml and workbook.xml.rels. */
 const resolveSheetPartPath = async (zip: JSZip, sheetName: string): Promise<string | null> => {
   const workbookXml = await readZipText(zip, 'xl/workbook.xml')
   if (!workbookXml) return null
@@ -156,7 +156,7 @@ const resolveSheetPartPath = async (zip: JSZip, sheetName: string): Promise<stri
   return resolveTarget('xl', rel.target)
 }
 
-/** worksheet 部件路径 → drawing 部件路径,经 sheetN.xml.rels 解出 */
+/** Resolve worksheet part path -> drawing part path through sheetN.xml.rels. */
 const resolveDrawingPartPath = async (zip: JSZip, sheetPartPath: string): Promise<string | null> => {
   const dir = sheetPartPath.split('/').slice(0, -1).join('/')
   const fileName = sheetPartPath.split('/').pop() ?? ''
@@ -170,7 +170,7 @@ const resolveDrawingPartPath = async (zip: JSZip, sheetPartPath: string): Promis
 }
 
 // ---------------------------------------------------------------------------
-// drawing XML → 锚点 + chart part 引用
+// drawing XML -> anchors and chart part references
 // ---------------------------------------------------------------------------
 
 interface AnchoredChartRef {
@@ -189,19 +189,19 @@ const anchorPointToPx = (
   point: { col: number; colOff: number; row: number; rowOff: number },
   layout: SheetLayoutAccessor
 ): { x: number; y: number } => ({
-  // col/row 属性是 0-based;layout.colX/rowY 接口是 1-based 累计偏移
+  // col/row attributes are 0-based; layout.colX/rowY expect 1-based cumulative offsets.
   x: layout.colX(point.col + 1) + emuToPx(point.colOff),
   y: layout.rowY(point.row + 1) + emuToPx(point.rowOff)
 })
 
-/** 从单个锚点节点(twoCellAnchor/oneCellAnchor/absoluteAnchor)中取出 graphicFrame → chart 的 rId,并算出 PxRect */
+/** Extract graphicFrame -> chart rId from one anchor node and calculate its PxRect. */
 const extractAnchoredChart = (
   anchorNode: unknown,
   kind: 'twoCellAnchor' | 'oneCellAnchor' | 'absoluteAnchor',
   layout: SheetLayoutAccessor
 ): AnchoredChartRef | null => {
   const graphicFrame = findChild(anchorNode, 'graphicFrame')
-  if (!graphicFrame) return null // pic(图片)或其他,忽略
+  if (!graphicFrame) return null // Ignore pictures or other non-chart anchors.
 
   const graphic = findChild(graphicFrame, 'graphic')
   const graphicData = findChild(graphic, 'graphicData')
@@ -255,7 +255,7 @@ const extractAnchoredCharts = (drawingXml: string, layout: SheetLayoutAccessor):
 }
 
 // ---------------------------------------------------------------------------
-// chart XML → ChartModel
+// chart XML -> ChartModel
 // ---------------------------------------------------------------------------
 
 const PLOT_AREA_TYPE_MAP: Record<string, ChartType> = {
@@ -267,7 +267,7 @@ const PLOT_AREA_TYPE_MAP: Record<string, ChartType> = {
   areaChart: 'area'
 }
 
-/** 富文本节点(title 的 tx/rich,或 strRef 缺失时的字面量)拼接纯文本,取全部 a:t */
+/** Concatenate plain text from rich-text nodes, taking all a:t values from title tx/rich or literals without strRef. */
 const collectText = (node: unknown, acc: string[] = []): string[] => {
   if (Array.isArray(node)) {
     for (const item of node) collectText(item, acc)
@@ -291,10 +291,10 @@ const parseTitle = (chartNode: unknown): string | undefined => {
   return text.length > 0 ? text : undefined
 }
 
-/** 图表缓存数据点数上限:ptCount/pt idx 来自不受信 XML,越界即弃用缓存回退单元格引用 */
+/** Chart cache point limit. ptCount/pt idx come from untrusted XML; out-of-range values discard cache and fall back. */
 const MAX_CHART_CACHE_POINTS = 10_000
 
-/** numCache/strCache → 按 idx 补齐到 ptCount 长度的数组(缺失 idx → null);声明越界时返回 null 走引用回退 */
+/** numCache/strCache -> array filled by idx to ptCount length. Missing idx -> null; invalid declarations return null. */
 const readCache = (refNode: unknown, cacheTag: string, warnings: string[]): (string | number | null)[] | null => {
   const cache = findChild(refNode, cacheTag)
   if (!cache) return null
@@ -321,7 +321,7 @@ const readCache = (refNode: unknown, cacheTag: string, warnings: string[]): (str
     if (idx < result.length) {
       result[idx] = value
     } else {
-      // ptCount 与实际 idx 不一致时兜底扩展(上界已由 MAX_CHART_CACHE_POINTS 约束)
+      // Fallback extension when ptCount disagrees with actual idx. The upper bound is already enforced above.
       while (result.length <= idx) result.push(null)
       result[idx] = value
     }
@@ -329,13 +329,13 @@ const readCache = (refNode: unknown, cacheTag: string, warnings: string[]): (str
   return result
 }
 
-/** 取 numRef/strRef 的 f(引用公式串),不含 sheet 前缀处理(交给 SheetDataAccessor) */
+/** Read the f reference formula from numRef/strRef. Sheet prefix handling is delegated to SheetDataAccessor. */
 const readRefFormula = (refNode: unknown): string | undefined => {
   const f = findChild(refNode, 'f')
   return typeof f === 'string' || typeof f === 'number' ? String(f) : undefined
 }
 
-/** c:cat 或 c:val 节点(内部是 numRef 或 strRef)→ 数据数组 + 引用串 */
+/** c:cat or c:val node, containing numRef or strRef, -> data array plus reference string. */
 const readDataSource = (
   sourceNode: unknown,
   warnings: string[]
@@ -350,7 +350,7 @@ const readDataSource = (
   return { cache, ref }
 }
 
-/** name 来源:c:tx → strRef(优先 cache,其次引用回填)或字面 c:v */
+/** Series name source: c:tx -> strRef, preferring cache then reference backfill, or literal c:v. */
 const readSeriesName = (txNode: unknown, data: SheetDataAccessor, warnings: string[]): string | undefined => {
   if (!txNode) return undefined
   const strRef = findChild(txNode, 'strRef')
@@ -382,7 +382,7 @@ const safeReadRange = (
   }
 }
 
-/** 二维区域读取结果展平为一维(区间通常是单行或单列) */
+/** Flatten a 2D range read result to 1D. Ranges are usually a single row or column. */
 const flattenRange = (rows: (string | number | null)[][]): (string | number | null)[] => {
   if (rows.length === 1) return rows[0]
   return rows.map((row) => row[0])
@@ -422,7 +422,7 @@ const parseSeries = (serNode: unknown, data: SheetDataAccessor, warnings: string
   return { name, categories, values: normalizedValues }
 }
 
-/** plotArea 下第一个受支持的图表类型节点;记录组合图降级 warning */
+/** First supported chart-type node under plotArea. Records downgrade warnings for combo charts. */
 const pickChartTypeNode = (plotArea: unknown, warnings: string[]): { tag: string; node: unknown } | null => {
   const candidates = entries(plotArea).filter(([name]) => name.endsWith('Chart'))
   if (candidates.length === 0) return null
@@ -450,8 +450,8 @@ const parseChartXml = (chartXml: string, data: SheetDataAccessor, warnings: stri
   const title = parseTitle(chartNode)
 
   if (!picked) {
-    // 找不到任何 c:xxxChart 子节点(如整份 chart XML 损坏/结构不符预期):
-    // 视为该图表解析失败,交给调用方 catch 丢弃 + 记录 warning,而不是伪造一个占位图表。
+    // If no c:xxxChart child exists, the chart XML is malformed or unexpected.
+    // Treat this as a parse failure so the caller can catch, drop it, and record a warning instead of fabricating a placeholder.
     throw new Error('no chart type node found under plotArea')
   }
 
@@ -486,7 +486,7 @@ const parseChartXml = (chartXml: string, data: SheetDataAccessor, warnings: stri
 }
 
 // ---------------------------------------------------------------------------
-// 入口
+// Entry point
 // ---------------------------------------------------------------------------
 
 export async function parseCharts(

@@ -2,15 +2,15 @@ import { DEFAULT_COL_WIDTH_PX, DEFAULT_ROW_HEIGHT_PX } from './gridLayout'
 import type { WorkbookRenderModel } from './renderModel'
 
 /**
- * 供开发/测试用的手写样例模型。
- * 覆盖:多 sheet(含 hidden)、样式、合并区、隐藏行列、非默认尺寸、
- * 三种公式态、超链接、浮动图片、bar 图表、unsupported 图表占位。
- * 测试可在此基础上浅拷贝改造,不要直接改本文件。
+ * Handwritten sample model for development and tests.
+ * Covers multiple sheets (including hidden), styles, merged ranges, hidden rows/columns, non-default sizes,
+ * the three formula states, hyperlinks, floating images, bar charts, and unsupported chart placeholders.
+ * Tests may shallow-copy and adjust this model, but should not mutate this file directly.
  */
 export const createMockWorkbookModel = (): WorkbookRenderModel => ({
   fileName: 'mock-sales.xlsx',
   styles: [
-    // 0: 标题(合并区 master)
+    // 0: title (merged-range master)
     {
       bold: true,
       fontSizePx: 21,
@@ -19,18 +19,18 @@ export const createMockWorkbookModel = (): WorkbookRenderModel => ({
       hAlign: 'center',
       vAlign: 'middle'
     },
-    // 1: 表头
+    // 1: header
     {
       bold: true,
       bg: '#d9e1f2',
       hAlign: 'center',
       borderBottom: { style: 'thin', color: '#8ea9db' }
     },
-    // 2: 数字列(右对齐 + 货币格式)
+    // 2: numeric column (right aligned + currency format)
     { hAlign: 'right', numFmt: '#,##0.00' },
-    // 3: 换行长文本
+    // 3: wrapped long text
     { wrap: true, vAlign: 'top' },
-    // 4: 日期
+    // 4: date
     { hAlign: 'center', numFmt: 'yyyy-mm-dd' }
   ],
   images: {
@@ -45,8 +45,8 @@ export const createMockWorkbookModel = (): WorkbookRenderModel => ({
       colCount: 10,
       defaultRowHeightPx: DEFAULT_ROW_HEIGHT_PX,
       defaultColWidthPx: DEFAULT_COL_WIDTH_PX,
-      rowHeightsPx: { 1: 36, 7: 0 }, // 行 7 隐藏
-      colWidthsPx: { 1: 110, 5: 0 }, // 列 E 隐藏
+      rowHeightsPx: { 1: 36, 7: 0 }, // row 7 hidden
+      colWidthsPx: { 1: 110, 5: 0 }, // column E hidden
       merges: [{ top: 1, left: 1, bottom: 1, right: 4 }],
       cells: {
         '1:1': { text: '2026 Sales Summary', raw: '2026 Sales Summary', styleId: 0 },
@@ -67,7 +67,7 @@ export const createMockWorkbookModel = (): WorkbookRenderModel => ({
         '5:1': { text: 'Q3', raw: 'Q3' },
         '5:2': { text: '1,530.25', raw: 1530.25, styleId: 2 },
         '6:1': { text: 'Total', raw: 'Total', styleId: 1 },
-        // 三种公式态
+        // Three formula states.
         '6:2': { text: '3,760.75', raw: 3760.75, formula: 'SUM(B3:B5)', formulaState: 'cached', styleId: 2 },
         '8:1': { text: 'Average', raw: 'Average' },
         '8:2': { text: '1,253.58', raw: 1253.583, formula: 'AVERAGE(B3:B5)', formulaState: 'evaluated', styleId: 2 },
@@ -78,7 +78,7 @@ export const createMockWorkbookModel = (): WorkbookRenderModel => ({
           raw: 'Cherry Studio',
           hyperlink: 'https://github.com/CherryHQ/cherry-studio'
         },
-        // 远端单元格:验证虚拟滚动
+        // Far cell used to verify virtual scrolling.
         '60:10': { text: 'Scroll to me', raw: 'Scroll to me' }
       },
       floatingImages: [{ rect: { x: 340, y: 44, width: 160, height: 90 }, imageId: 1 }],

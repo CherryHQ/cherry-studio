@@ -48,8 +48,9 @@ function assertNoZip64Uint32Marker(value: number, label: string): void {
 }
 
 /**
- * OOXML(docx/xlsx/pptx)ZIP 中央目录预检:在把字节交给解压库之前,依据中央目录声明的
- * 条目数与解压后体积拒绝 zip bomb。`label` 为面向用户错误信息里的格式名(如 'DOCX' / 'XLSX')。
+ * OOXML (docx/xlsx/pptx) ZIP central-directory preflight. Before handing bytes to an unzip library, reject zip bombs
+ * based on the central directory's declared entry count and uncompressed size. `label` is the user-facing format name,
+ * such as 'DOCX' or 'XLSX'.
  */
 function assertZipLimits(bytes: Uint8Array, label: string, limits: OfficeZipLimits = OFFICE_ZIP_LIMITS): void {
   if (bytes.byteLength < ZIP_EOCD_MIN_BYTES) {

@@ -3,13 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChartModel } from '../renderModel'
 
 /**
- * EchartsChartRenderer 生命周期测试。
+ * EchartsChartRenderer lifecycle tests.
  *
- * jsdom 下没有 `canvas` npm 包时,echarts 的 CanvasRenderer 无法真正创建 2D 上下文
- * (HTMLCanvasElement.getContext('2d') 在 jsdom 里抛 "Not implemented"),这是环境限制,
- * 不是本包的 bug。按 04-wp-charts.md 的预案,这里用 vi.mock 替身验证渲染适配器自身的接线逻辑
- * (init/setOption 调用、ResizeObserver 首次有尺寸时的处理、dispose 清理),
- * ChartModel → option 的实际映射由 chart.buildChartOption.test.ts 覆盖。
+ * When jsdom does not have the `canvas` npm package, echarts CanvasRenderer cannot create a real 2D context.
+ * HTMLCanvasElement.getContext('2d') throws "Not implemented" in jsdom. That is an environment limit, not a bug here.
+ * Per 04-wp-charts.md, this uses vi.mock replacements to verify the renderer wiring itself: init/setOption calls,
+ * ResizeObserver handling when the first non-zero size appears, and dispose cleanup.
+ * The actual ChartModel -> option mapping is covered by chart.buildChartOption.test.ts.
  */
 
 const setOption = vi.fn()

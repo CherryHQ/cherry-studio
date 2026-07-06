@@ -20,7 +20,7 @@ import {
 import type { BorderEdge, CellRenderModel, CellStyle, ChartModel, SheetRenderModel } from './renderModel'
 
 export interface SelectedCellInfo {
-  /** 'B4' 风格地址 */
+  /** Address in 'B4' format. */
   address: string
   cell: CellRenderModel | null
 }
@@ -28,29 +28,29 @@ export interface SelectedCellInfo {
 export interface XlsxGridProps {
   sheet: SheetRenderModel
   styles: CellStyle[]
-  /** imageId → object URL;生命周期由面板管理(创建/revoke) */
+  /** imageId -> object URL. The panel owns creation and revocation. */
   imageUrls: Record<number, string>
-  /** 1 = 100%。缩放实现:布局/字号恒为 zoom=1,内容整体 CSS transform scale(照片式放大,元素不重排) */
+  /** 1 = 100%. Layout and font sizes stay at zoom=1; the content layer is scaled with CSS transform. */
   zoom: number
   onSelectCell?: (info: SelectedCellInfo | null) => void
-  /** 图表渲染注入点;返回清理函数。面板传入 ChartRenderer 实现 */
+  /** Chart rendering hook. Returns a cleanup function; the panel passes in a ChartRenderer implementation. */
   renderChart?: (chart: ChartModel, container: HTMLElement) => () => void
 }
 
-/** 行/列表头基准尺寸(px,zoom=1) */
+/** Baseline row/column header sizes in px at zoom=1. */
 const ROW_HEADER_WIDTH_PX = 44
 const COL_HEADER_HEIGHT_PX = 22
-/** 虚拟滚动的可视区外预渲染项数 */
+/** Extra items rendered outside the virtualized viewport. */
 const OVERSCAN = 6
-/** 使用范围之外额外渲染的空白行/列:网格先铺满视口,再留一段可滚动的空白区(对齐 Excel) */
+/** Blank rows/columns beyond the used range. Fill the viewport first, then leave a small scrollable blank area. */
 const EXTRA_ROWS = 20
 const EXTRA_COLS = 5
-/** 默认(未设置边框时)网格线,跟随 DESIGN.md 的边框语义 token */
+/** Default grid line when no cell border is set. Follows the DESIGN.md border token. */
 const DEFAULT_GRID_LINE = '0.5px solid var(--color-border)'
-/** 选中格弹层的内容最大宽度(px,zoom=1),超出按此宽度换行 */
+/** Maximum selected-cell overlay content width in px at zoom=1. Wider content wraps at this width. */
 const SELECTED_OVERLAY_MAX_WIDTH_PX = 480
 
-/** 单元格内容默认对齐:数字右对齐,布尔/错误居中,其余左对齐(CellStyle.hAlign 未设置时的规则) */
+/** Default cell alignment when CellStyle.hAlign is unset: numbers right, booleans/errors center, others left. */
 const defaultHAlign = (cell: CellRenderModel): 'left' | 'center' | 'right' => {
   if (typeof cell.raw === 'number') return 'right'
   if (typeof cell.raw === 'boolean') return 'center'
@@ -91,7 +91,7 @@ const V_ALIGN_TO_ITEMS: Record<NonNullable<CellStyle['vAlign']>, React.CSSProper
   bottom: 'flex-end'
 }
 
-/** CellStyle → inline style(zoom=1 坐标系,不含定位/尺寸,由调用方叠加)。v1 简化:文本溢出一律 overflow hidden(wrap 除外),不做 Excel 的相邻空单元格溢出流。 */
+/** CellStyle -> inline style in the zoom=1 coordinate space. Positioning and sizing are added by callers. */
 const cellStyleToCss = (style: CellStyle | undefined): React.CSSProperties => {
   const css: React.CSSProperties = { fontSize: style?.fontSizePx ?? DEFAULT_FONT_SIZE_PX }
   if (!style) return css
@@ -124,17 +124,17 @@ const cellStyleToCss = (style: CellStyle | undefined): React.CSSProperties => {
 interface CellViewProps {
   cell: CellRenderModel | undefined
   style: CellStyle | undefined
-  /** 首行/首列补画 top/left 网格线,避免相邻格重叠加粗(见 05 文档) */
+  /** Draw top/left grid lines for the first row/column to avoid doubled borders between adjacent cells. */
   isFirstRow: boolean
   isFirstCol: boolean
-  /** 定位/尺寸(zoom=1 px);拆成基本类型传入,使 memo 浅比较在位置不变时能跳过重渲染 */
+  /** Position and size in zoom=1 px. Primitive props let memo skip rerenders when the box is unchanged. */
   top: number
   left: number
   width: number
   height: number
 }
 
-/** 单元格文本 span 的 inline style:超链接着色 + wrap 格按整行裁剪(避免半行乱码) */
+/** Inline style for the cell text span: hyperlink coloring and whole-line clipping for wrapped cells. */
 const cellTextStyle = (cell: CellRenderModel, clampLines: number | undefined): React.CSSProperties | undefined => {
   if (!cell.hyperlink && !clampLines) return undefined
   return {
@@ -151,7 +151,7 @@ const cellTextStyle = (cell: CellRenderModel, clampLines: number | undefined): R
   }
 }
 
-/** 普通/合并单元格共用的渲染体。合并覆盖但非 master 的单元格由调用方传入 cell=undefined 只保留背景。 */
+/** Shared renderer for regular and merged cells. Covered non-master cells pass cell=undefined and keep only background. */
 const CellView = memo(function CellView({
   cell,
   style,
@@ -164,7 +164,7 @@ const CellView = memo(function CellView({
 }: CellViewProps) {
   const css = cellStyleToCss(style)
   const hAlign = style?.hAlign ?? (cell ? defaultHAlign(cell) : 'left')
-  // wrap 格:格高放不下全部换行内容时只显示放得下的整行(默认行高即一行),完整内容由选中弹层展示
+  // Wrapped cells show only complete lines that fit in the row height. The overlay shows the full content when selected.
   const clampLines = style?.wrap ? wrapClampLines(height, css.fontSize as number) : undefined
 
   const finalCss: React.CSSProperties = {
@@ -201,13 +201,12 @@ const CellView = memo(function CellView({
 interface SelectedCellOverlayProps {
   cell: CellRenderModel | undefined
   style: CellStyle | undefined
-  /** 被选中单元格(或其合并区)的像素矩形,zoom=1 坐标,相对网格原点 */
+  /** Pixel rect for the selected cell or merged range in zoom=1 coordinates, relative to the grid origin. */
   rect: PxRectLike
 }
 
 /**
- * 选中格弹层:在原格位置覆盖展示完整内容(被格高/格宽裁剪的文本全部可见),
- * 绝对定位浮于网格之上,只遮挡不挤压——网格布局不因选中而变化。
+ * Selected-cell overlay. It renders full clipped content over the original cell without changing grid layout.
  */
 const SelectedCellOverlay = ({ cell, style, rect }: SelectedCellOverlayProps) => {
   const css = cellStyleToCss(style)
@@ -251,7 +250,7 @@ interface UnsupportedChartPlaceholderProps {
   chart: ChartModel
 }
 
-/** unsupported 图表占位框:虚线边框 + 居中文案 + 原始类型名 */
+/** Placeholder for unsupported charts: dashed border, centered label, and raw type name. */
 const UnsupportedChartPlaceholder = ({ chart }: UnsupportedChartPlaceholderProps) => {
   const { t } = useTranslation()
   return (
@@ -267,7 +266,7 @@ interface ChartHostProps {
   renderChart: (chart: ChartModel, container: HTMLElement) => () => void
 }
 
-/** 图表挂载宿主:ref 回调管理 renderChart 返回的 dispose,节点卸载/替换时调用。 */
+/** Chart mount host. The ref callback owns the disposer returned by renderChart and calls it on unmount/replacement. */
 const ChartHost = ({ chart, renderChart }: ChartHostProps) => {
   const disposeRef = useRef<(() => void) | null>(null)
   const setRef = useCallback(
@@ -286,13 +285,13 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
   const [selected, setSelected] = useState<{ row: number; col: number } | null>(null)
   const [viewport, setViewport] = useState<ViewportRect>({ top: 0, left: 0, bottom: 0, right: 0 })
 
-  // 展示行/列数:使用范围与"铺满视口所需的默认尺寸格数"取大,再加一段空白缓冲
+  // Displayed rows/columns are the larger of the used range and the default-sized cells needed to fill the viewport.
   const viewportHeight = viewport.bottom - viewport.top
   const viewportWidth = viewport.right - viewport.left
   const rowCount = Math.max(sheet.rowCount, Math.ceil(viewportHeight / (sheet.defaultRowHeightPx * zoom))) + EXTRA_ROWS
   const colCount = Math.max(sheet.colCount, Math.ceil(viewportWidth / (sheet.defaultColWidthPx * zoom))) + EXTRA_COLS
 
-  // 布局恒为 zoom=1;缩放由内容层整体 transform scale 完成(照片式放大,元素不重排)
+  // Layout always uses zoom=1; scaling is applied to the whole content layer so elements do not reflow.
   const rowLayout: AxisLayout = useMemo(
     () => buildAxisLayout(rowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx, 1),
     [rowCount, sheet.defaultRowHeightPx, sheet.rowHeightsPx]
@@ -302,7 +301,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     [colCount, sheet.defaultColWidthPx, sheet.colWidthsPx]
   )
 
-  // 滚动坐标系(× zoom)中的表头尺寸;transform 层内部一律用 zoom=1 坐标
+  // Header sizes in the scroll coordinate space. Everything inside the transformed layer uses zoom=1 coordinates.
   const scaledHeaderWidth = ROW_HEADER_WIDTH_PX * zoom
   const scaledHeaderHeight = COL_HEADER_HEIGHT_PX * zoom
   const zoomTransform: React.CSSProperties = { transform: `scale(${zoom})`, transformOrigin: 'top left' }
@@ -310,7 +309,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => scrollElRef.current,
-    // 虚拟化在滚动坐标系工作,尺寸 × zoom;渲染坐标由 rowLayout/colLayout(zoom=1)提供
+    // Virtualization works in scroll coordinates, with sizes multiplied by zoom. Render coordinates come from layouts.
     estimateSize: (index) => rowLayout.sizes[index] * zoom,
     overscan: OVERSCAN
   })
@@ -345,7 +344,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     [readViewport]
   )
 
-  // 面板尺寸变化不触发 scroll 事件,需 ResizeObserver 重新量测视口(空白区铺满 + 合并层可视计算都依赖它)
+  // Panel resizes do not emit scroll events, so ResizeObserver remeasures the viewport.
   useEffect(() => {
     const el = scrollElRef.current
     if (!el) return
@@ -354,7 +353,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     return () => observer.disconnect()
   }, [readViewport])
 
-  // 合并层可视计算在 zoom=1 坐标系进行:滚动视口先除以 zoom 折算回内容坐标
+  // Merge visibility is computed at zoom=1 by converting the scroll viewport back to content coordinates.
   const contentViewport = useMemo<ViewportRect>(
     () => ({
       top: viewport.top / zoom,
@@ -375,7 +374,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     [styles]
   )
 
-  /** 命中(row,col)所在的合并区,若有 */
+  /** Returns the merged range containing (row, col), if any. */
   const findMerge = useCallback(
     (row: number, col: number) =>
       sheet.merges.find((m) => row >= m.top && row <= m.bottom && col >= m.left && col <= m.right),
@@ -398,17 +397,17 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     onSelectCell?.(null)
   }, [onSelectCell])
 
-  // 键盘移动选中格:虚拟化下目标格可能未挂载,移动后须 scrollToIndex 保证可见
+  // Keyboard navigation may target an unmounted virtualized cell, so scroll to it after moving.
   const moveSelection = useCallback(
     (dRow: number, dCol: number) => {
-      // 未选中时首次方向键落到 A1,而非从 A1 再前进一格
+      // With no current selection, the first arrow key lands on A1 instead of advancing from A1.
       if (!selected) {
         selectCell(1, 1)
         rowVirtualizer.scrollToIndex(0)
         colVirtualizer.scrollToIndex(0)
         return
       }
-      // 从合并区出发时,前进方向要越过整个合并区,避免落回同一 master 卡住
+      // When starting from a merged range, jump past the whole range in the travel direction to avoid looping on master.
       const merge = findMerge(selected.row, selected.col)
       let nextRow = selected.row
       let nextCol = selected.col
@@ -461,7 +460,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
     [clearSelection, moveSelection, selected, selectCell, rowVirtualizer, colVirtualizer]
   )
 
-  // 选中格(或其合并区)的像素矩形,供弹层定位;selected 恒为 master(见 selectCell)
+  // Pixel rect for the selected cell or merged range. selected always points to the master cell; see selectCell.
   const selectedRect = useMemo(() => {
     if (!selected) return null
     const merge = findMerge(selected.row, selected.col)
@@ -494,7 +493,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
       aria-colcount={colCount}
       tabIndex={0}>
       <div className="relative" style={{ width: totalWidth, height: totalHeight }}>
-        {/* 列表头(sticky top):A B C…。盒子在滚动坐标系定位,内容整体缩放 */}
+        {/* Column header (sticky top): A, B, C... The box is positioned in scroll coordinates; content is scaled. */}
         <div
           className="sticky top-0 z-20 border-border border-b bg-muted"
           style={{ height: scaledHeaderHeight, marginLeft: scaledHeaderWidth, width: colLayout.totalSize * zoom }}>
@@ -514,7 +513,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
           </div>
         </div>
 
-        {/* 行表头(sticky left):1 2 3… */}
+        {/* Row header (sticky left): 1, 2, 3... */}
         <div
           className="sticky left-0 z-20 border-border border-r bg-muted"
           style={{ width: scaledHeaderWidth, height: rowLayout.totalSize * zoom, top: scaledHeaderHeight }}>
@@ -534,14 +533,13 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
           </div>
         </div>
 
-        {/* 内容缩放层:单元格/合并/浮动/选中弹层全部以 zoom=1 坐标渲染,整体 transform 放大 */}
+        {/* Content scale layer: cells, merges, floating objects, and the selection overlay all render at zoom=1. */}
         <div
           className="absolute"
           data-testid="xlsx-grid-zoom-layer"
           style={{ top: scaledHeaderHeight, left: scaledHeaderWidth, ...zoomTransform }}>
-          {/* 单元格层:双向虚拟滚动。任何被合并覆盖的单元格(含 master)在此层置空内容——
-              master 的内容+样式由下方独立的合并层渲染,避免重复;这里只保留背景占位,
-              并对辅助技术隐藏(合并层的 master 是该坐标唯一的语义 gridcell)。 */}
+          {/* Cell layer with two-axis virtualization. Merged-covered cells are emptied here; the merge layer below owns
+              the master cell content/style and is the only semantic gridcell for that coordinate. */}
           <div className="absolute">
             {virtualRows.map((vr) => {
               const row = vr.index + 1
@@ -579,7 +577,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
             })}
           </div>
 
-          {/* 合并层:独立于单元格虚拟化,master 滚出视口但合并区与视口相交时依然渲染;命中测试优先于单元格层(DOM 顺序在后) */}
+          {/* Merge layer independent of cell virtualization. Merges render while their rect intersects the viewport. */}
           <div className="absolute">
             {mergesVisible.map(({ merge, masterRow, masterCol, rect }) => {
               const cell = getCell(masterRow, masterCol)
@@ -612,8 +610,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
             })}
           </div>
 
-          {/* 浮动层:图片 + 图表,按 PxRect(zoom=1)绝对定位;视觉缩放由外层 transform 完成,
-              图表容器 layout 尺寸不随 zoom 变化,ECharts 不会因缩放而重排 */}
+          {/* Floating layer: images and charts are absolutely positioned in zoom=1 PxRect coordinates. */}
           <div className="pointer-events-none absolute">
             {sheet.floatingImages.map((img) => {
               const src = imageUrls[img.imageId]
@@ -657,7 +654,7 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
             })}
           </div>
 
-          {/* 选中格弹层:覆盖展示完整内容,DOM 序在最后、z-10 低于 sticky 表头(z-20) */}
+          {/* Selected-cell overlay. It is last in DOM order and stays below the sticky headers. */}
           {selected && selectedRect && (
             <SelectedCellOverlay
               cell={getCell(selected.row, selected.col)}
