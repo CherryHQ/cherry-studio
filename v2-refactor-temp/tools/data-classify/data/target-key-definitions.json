@@ -257,6 +257,19 @@
       "description": "Command shortcut: app.fullscreen.exit (unified command system)"
     },
     {
+      "targetKey": "shortcut.app.print",
+      "type": "PreferenceTypes.PreferenceShortcutType",
+      "defaultValue": {
+        "binding": [
+          "CommandOrControl",
+          "P"
+        ],
+        "enabled": true
+      },
+      "status": "classified",
+      "description": "Command shortcut: app.print (unified command system)"
+    },
+    {
       "targetKey": "shortcut.app.search",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {
