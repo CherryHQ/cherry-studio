@@ -18,7 +18,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'WebSearchService') return { searchKeywords, fetchUrls }

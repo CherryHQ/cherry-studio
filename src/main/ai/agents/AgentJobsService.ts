@@ -1,4 +1,4 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
 import { agentTaskJobHandler } from './agentTaskJobHandler'

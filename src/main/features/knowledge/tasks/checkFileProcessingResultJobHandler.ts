@@ -5,13 +5,13 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
-import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/jobs'
-
 import {
+  type FileProcessingJobPayload,
   getFileProcessingFailureMessage,
   getFileProcessingMarkdownArtifactPath
-} from '../../fileProcessing/persistence/artifacts'
-import type { FileProcessingJobPayload } from '../../fileProcessing/tasks/shared'
+} from '@main/features/fileProcessing'
+import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/jobs'
+
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import type { KnowledgeWorkflowService } from '../KnowledgeWorkflowService'
 import { knowledgeQueueName, toKnowledgeBaseId, toKnowledgeItemId } from '../types'

@@ -22,8 +22,8 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { ChatInputTokenKind, ChatTokenView } from '../chatTokenView'
 import { type FileTokenPresentation, getFileTokenPresentation } from './fileTokenPresentation'
-import type { ChatInputTokenKind, ChatTokenView } from './tokenView'
 
 const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
 const TOKEN_POPOVER_OPEN_DELAY_MS = 120

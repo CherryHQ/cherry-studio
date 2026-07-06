@@ -21,7 +21,7 @@ import { resolveAssistantMcpToolIds } from '../../../tools/adapters/aiSdk/mcp/re
 import { registry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
-import type { AiBaseRequest, CallOverrides } from '../../../types/requests'
+import type { AiBaseRequest, CallOverrides } from '../../../types'
 import { filterStandardParams } from '../../../utils/modelParameters'
 import {
   buildCapabilityProviderOptions,

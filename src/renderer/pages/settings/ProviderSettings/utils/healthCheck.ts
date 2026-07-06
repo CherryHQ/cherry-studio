@@ -1,4 +1,4 @@
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import type { SerializedError } from '@renderer/types/error'
 import type { Model, UniqueModelId } from '@shared/data/types/model'

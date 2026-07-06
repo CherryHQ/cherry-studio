@@ -30,7 +30,7 @@ vi.mock('@logger', () => ({
 
 vi.mock('@data/services/McpServerService', () => ({ mcpServerService: { getById: mocks.getMcpServerById } }))
 
-vi.mock('@main/core/application', () => ({ application: { get: mocks.applicationGet } }))
+vi.mock('@application', () => ({ application: { get: mocks.applicationGet } }))
 
 const { createClaudeAgentToolPolicySnapshot } = await import('../agentTools')
 
