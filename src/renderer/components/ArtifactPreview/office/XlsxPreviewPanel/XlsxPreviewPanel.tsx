@@ -212,7 +212,7 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
 
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2 text-foreground-muted text-xs">
           {statusBarText && (
-            <span className="truncate" data-testid="xlsx-preview-status-bar">
+            <span className="selectable cursor-text select-text truncate" data-testid="xlsx-preview-status-bar">
               {statusBarText}
             </span>
           )}

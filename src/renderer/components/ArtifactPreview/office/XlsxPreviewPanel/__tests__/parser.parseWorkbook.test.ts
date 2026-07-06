@@ -335,6 +335,65 @@ describe('parseWorkbook — formulas: forward references evaluate recursively', 
   })
 })
 
+describe('parseWorkbook — formulas: shared formula text is translated per cell', () => {
+  let model: WorkbookRenderModel
+
+  beforeAll(async () => {
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('S1')
+
+    ws.getCell('N4').value = 0
+    ws.getCell('N5').value = 2
+    ws.getCell('N6').value = 10
+    ws.getCell('N7').value = 10
+
+    type SharedFormulaMaster = ExcelJS.CellFormulaValue & { ref: string; shareType: 'shared' }
+    const cachedSharedFormulaMaster: SharedFormulaMaster = {
+      formula: 'IF(N4=0,"-",N6/N4)',
+      result: '-',
+      ref: 'O6:O7',
+      shareType: 'shared'
+    }
+    ws.getCell('O6').value = cachedSharedFormulaMaster as ExcelJS.CellValue
+    ws.getCell('O7').value = { sharedFormula: 'O6', result: 5 } satisfies ExcelJS.CellSharedFormulaValue
+
+    const uncachedSharedFormulaMaster: SharedFormulaMaster = {
+      formula: 'IF(N4=0,"-",N6/N4)',
+      ref: 'P6:P7',
+      shareType: 'shared'
+    }
+    ws.getCell('P6').value = uncachedSharedFormulaMaster as ExcelJS.CellValue
+    ws.getCell('P7').value = { sharedFormula: 'P6' } satisfies ExcelJS.CellSharedFormulaValue
+
+    const buffer = await toArrayBuffer(wb)
+    model = await parseWorkbook(buffer, 'shared-formulas.xlsx')
+  })
+
+  it('preserves translated formula text for cached shared-formula dependents', () => {
+    const sheet = model.sheets[0]
+
+    expect(sheet.cells['6:15'].formula).toBe('IF(N4=0,"-",N6/N4)')
+    expect(sheet.cells['6:15'].formulaState).toBe('cached')
+    expect(sheet.cells['6:15'].text).toBe('-')
+
+    expect(sheet.cells['7:15'].formula).toBe('IF(N5=0,"-",N7/N5)')
+    expect(sheet.cells['7:15'].formulaState).toBe('cached')
+    expect(sheet.cells['7:15'].text).toBe('5')
+  })
+
+  it('evaluates uncached shared-formula dependents using their translated formula text', () => {
+    const sheet = model.sheets[0]
+
+    expect(sheet.cells['6:16'].formula).toBe('IF(N4=0,"-",N6/N4)')
+    expect(sheet.cells['6:16'].formulaState).toBe('evaluated')
+    expect(sheet.cells['6:16'].text).toBe('-')
+
+    expect(sheet.cells['7:16'].formula).toBe('IF(N5=0,"-",N7/N5)')
+    expect(sheet.cells['7:16'].formulaState).toBe('evaluated')
+    expect(sheet.cells['7:16'].text).toBe('5')
+  })
+})
+
 describe('parseWorkbook — number formats', () => {
   let model: WorkbookRenderModel
 

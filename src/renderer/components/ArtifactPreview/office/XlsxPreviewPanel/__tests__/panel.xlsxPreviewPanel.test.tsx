@@ -251,7 +251,9 @@ describe('XlsxPreviewPanel', () => {
 
     fireEvent.click(screen.getByTestId('grid-select-b6'))
 
-    expect(screen.getByTestId('xlsx-preview-status-bar')).toHaveTextContent('B6 = SUM(B3:B5)')
+    const statusBar = screen.getByTestId('xlsx-preview-status-bar')
+    expect(statusBar).toHaveTextContent('B6 = SUM(B3:B5)')
+    expect(statusBar).toHaveClass('selectable', 'select-text', 'cursor-text')
     expect(screen.queryByText('xlsx_preview.formula_not_evaluated')).not.toBeInTheDocument()
   })
 

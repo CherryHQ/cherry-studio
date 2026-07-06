@@ -106,6 +106,27 @@ describe('createFormulaEvaluator — basic operators and functions', () => {
     })
   })
 
+  it('evaluates IF with equality comparisons and arithmetic branches', () => {
+    const sheets = {
+      Sheet1: {
+        '4:14': { value: 0 },
+        '5:14': { value: 2 },
+        '6:14': { value: 10 },
+        '7:14': { value: 10 }
+      }
+    }
+    const { evaluator } = setup(sheets)
+
+    expect(evaluator.evaluate('IF(N4=0,"-",N6/N4)', { sheet: 'Sheet1', row: 6, col: 15 })).toEqual({
+      state: 'evaluated',
+      value: '-'
+    })
+    expect(evaluator.evaluate('IF(N5=0,"-",N7/N5)', { sheet: 'Sheet1', row: 7, col: 15 })).toEqual({
+      state: 'evaluated',
+      value: 5
+    })
+  })
+
   it('evaluates VLOOKUP against a stub table', () => {
     const sheets = {
       Sheet1: {

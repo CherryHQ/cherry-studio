@@ -459,8 +459,9 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
         if (isFormulaValue(value)) {
           const errorStr = errorResultToString(value.result)
           const hasResult = value.result !== undefined
-          // sharedFormula 从属单元格只有 result/sharedFormula(master 地址),没有 formula 原文
-          const formulaText = value.formula
+          // ExcelJS 的 value.formula 只存在于普通公式/共享公式 master 上;共享公式从属单元格
+          // 只有 sharedFormula(master 地址)。cell.formula getter 会返回按当前位置平移后的公式原文。
+          const formulaText = cell.formula || value.formula
 
           if (hasResult) {
             const rawResult: string | number | boolean | null =
@@ -470,7 +471,7 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
                   ? value.result.toISOString()
                   : (value.result as string | number | boolean)
             cellModel.raw = rawResult
-            cellModel.formula = value.formula ?? undefined
+            cellModel.formula = formulaText || undefined
             cellModel.formulaState = 'cached' as FormulaState
             cellModel.text = formatCellValue(
               value.result instanceof Date ? value.result : rawResult,
