@@ -12,6 +12,9 @@
 // CONTRIBUTORS lives in its own module so ContributorManager can import it
 // directly without a circular dependency back through this barrel.
 
+export type { ContributorFinalizePayload } from './ContributorFinalizeError'
+export { ContributorFinalizeError } from './ContributorFinalizeError'
+export { ContributorManager, contributorManager } from './ContributorManager'
 export {
   AGENTS_CONTRIBUTOR,
   ASSISTANTS_CONTRIBUTOR,
@@ -29,10 +32,6 @@ export {
   TOPICS_CONTRIBUTOR,
   TRANSLATE_HISTORY_CONTRIBUTOR
 } from './CONTRIBUTORS'
-
-export type { ContributorFinalizePayload } from './ContributorFinalizeError'
-export { ContributorFinalizeError } from './ContributorFinalizeError'
-export { ContributorManager, contributorManager } from './ContributorManager'
 export { finalize } from './finalize'
 export type { FinalizedRegistryData } from './ReadonlyBackupRegistryImpl'
 export { CircularReferenceError, READONLY_REGISTRY, ReadonlyBackupRegistryImpl } from './ReadonlyBackupRegistryImpl'
