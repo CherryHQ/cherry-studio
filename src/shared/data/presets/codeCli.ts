@@ -31,4 +31,4 @@ export const CodeCliToolStateSchema = z.object({
 })
 
 /** Full preference value. */
-export const CodeCliConfigsSchema = z.record(CodeCliIdSchema, CodeCliToolStateSchema)
+export const CodeCliConfigsSchema = z.partialRecord(CodeCliIdSchema, CodeCliToolStateSchema)

@@ -305,8 +305,7 @@ export async function writeCliConfigDraft(args: {
   writePrimaryModel?: boolean
 }): Promise<unknown> {
   let files = args.files
-  if (!files?.length) {
-    if (!args.modelId) throw new Error('Cannot write CLI config without a model id')
+  if (args.modelId) {
     const writeArgs = {
       cliTool: args.cliTool,
       modelId: args.modelId,
@@ -316,7 +315,11 @@ export async function writeCliConfigDraft(args: {
     const context = await resolveContext(writeArgs)
     if (!context) return
     assertCliConfigCredentials(args.cliTool, context)
-    files = await buildCliConfigDraftFiles(writeArgs, context)
+    if (!files?.length) {
+      files = await buildCliConfigDraftFiles(writeArgs, context)
+    }
+  } else if (!files?.length) {
+    throw new Error('Cannot write CLI config without a model id')
   }
   validateCliConfigDraftForWrite(files)
 

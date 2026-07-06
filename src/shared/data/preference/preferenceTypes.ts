@@ -302,7 +302,7 @@ export interface CodeCliToolState {
 }
 
 /** Preference value for `feature.code_cli.configs`. */
-export type CodeCliConfigs = Record<CodeCliId, CodeCliToolState>
+export type CodeCliConfigs = Partial<Record<CodeCliId, CodeCliToolState>>
 
 // ============================================================================
 // WebSearch Compression Types (v2 - Flattened)

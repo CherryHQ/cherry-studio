@@ -979,6 +979,31 @@ describe('writeCliConfigDraft', () => {
       expect(writes).toEqual([])
     })
 
+    it('rejects explicit managed files with no API key and writes nothing', async () => {
+      mockGet({
+        '/providers/anthropic': () => anthropicProvider,
+        '/providers/anthropic/api-keys': () => ({ keys: [] }),
+        '/models/': () => null
+      })
+
+      await expect(
+        writeCliConfigDraft({
+          cliTool: CodeCli.CLAUDE_CODE,
+          modelId: 'anthropic::claude-sonnet-4-5',
+          files: [
+            {
+              target: 'claude-settings',
+              label: 'Claude settings',
+              path: '/resolved~/.claude/settings.json',
+              language: 'json',
+              content: '{}'
+            }
+          ]
+        })
+      ).rejects.toThrow(/missing the API key/)
+      expect(writes).toEqual([])
+    })
+
     it('rejects codex with no API key and writes nothing', async () => {
       mockGet({
         '/providers/deepseek': () => codexProvider,

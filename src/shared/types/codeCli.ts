@@ -34,33 +34,3 @@ export interface TerminalConfig {
 export interface TerminalConfigWithCommand extends TerminalConfig {
   command: (directory: string, fullCommand: string) => { command: string; args: string[] }
 }
-
-// Git Bash path configuration types
-export type GitBashPathSource = 'manual' | 'auto'
-
-export interface GitBashPathInfo {
-  path: string | null
-  source: GitBashPathSource | null
-}
-
-export type CodexChatThinkingParam = 'none' | 'thinking' | 'enable_thinking' | 'reasoning_split'
-
-export type CodexChatEffortParam = 'none' | 'reasoning_effort' | 'reasoning.effort'
-
-export type CodexChatEffortValueMode = 'passthrough' | 'low_high' | 'deepseek' | 'openrouter'
-
-export type CodexChatReasoningOutputFormat =
-  | 'auto'
-  | 'reasoning_content'
-  | 'reasoning'
-  | 'reasoning_details'
-  | 'think_tags'
-
-export interface CodexChatReasoning {
-  supportsThinking?: boolean
-  supportsEffort?: boolean
-  thinkingParam?: CodexChatThinkingParam
-  effortParam?: CodexChatEffortParam
-  effortValueMode?: CodexChatEffortValueMode
-  outputFormat?: CodexChatReasoningOutputFormat
-}

@@ -106,9 +106,6 @@ importers:
       jsdom:
         specifier: 26.1.0
         version: 26.1.0
-      json5:
-        specifier: ^2.2.3
-        version: 2.2.3
       node-stream-zip:
         specifier: 1.15.0
         version: 1.15.0
