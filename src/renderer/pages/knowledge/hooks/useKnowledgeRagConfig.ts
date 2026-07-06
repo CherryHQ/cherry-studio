@@ -8,7 +8,8 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { KnowledgeRagConfigFormValues } from '../types'
-import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues, normalizeKnowledgeError } from '../utils'
+import { normalizeKnowledgeError } from '../utils/error'
+import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues } from '../utils/rag'
 
 const logger = loggerService.withContext('useKnowledgeRagConfig')
 

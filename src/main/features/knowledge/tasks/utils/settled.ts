@@ -2,7 +2,7 @@ import { application } from '@application'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import type { JobSettledEvent } from '@main/core/job/types'
 import type { LoggerService } from '@main/core/logger/LoggerService'
-import { ErrorCode, isDataApiError } from '@shared/data/api'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED } from '@shared/data/types/knowledge'
 
 import { narrowKnowledgeJobInput } from './jobInput'

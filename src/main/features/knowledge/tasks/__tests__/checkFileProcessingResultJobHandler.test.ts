@@ -1,5 +1,5 @@
 import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED } from '@shared/data/types/knowledge'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
@@ -373,9 +373,12 @@ describe('check-file-processing-result job handler', () => {
       jobId: 'job-1',
       type: 'knowledge.check-file-processing-result',
       scheduleId: null,
+      parentId: null,
       status: 'failed',
+      input: createCheckPayload(),
       error: { code: 'FAILED', message: 'check failed', retryable: false },
-      attempt: 3
+      attempt: 3,
+      metadata: {}
     })
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', { error: 'check failed' })
@@ -412,9 +415,12 @@ describe('check-file-processing-result job handler', () => {
       jobId: 'job-1',
       type: 'knowledge.check-file-processing-result',
       scheduleId: null,
+      parentId: null,
       status: 'failed',
+      input: createCheckPayload(),
       error: null,
-      attempt: 1
+      attempt: 1,
+      metadata: {}
     })
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', { error: 'Job failed' })
@@ -451,9 +457,12 @@ describe('check-file-processing-result job handler', () => {
       jobId: 'job-1',
       type: 'knowledge.check-file-processing-result',
       scheduleId: null,
+      parentId: null,
       status: 'cancelled',
+      input: createCheckPayload(),
       error: { code: 'CANCELLED', message: 'JobManager shutdown', retryable: false },
-      attempt: 1
+      attempt: 1,
+      metadata: {}
     })
 
     // The raw 'JobManager shutdown' abort message is replaced with the localized error code.

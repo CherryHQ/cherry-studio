@@ -11,7 +11,7 @@ vi.mock('@renderer/utils/fetch', () => ({
   xOembedKey: (url: string) => `xOembed/${url}`
 }))
 
-vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
+vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
   __esModule: true,
   default: (props: any) => <div data-testid="mock-favicon" {...props} />
 }))

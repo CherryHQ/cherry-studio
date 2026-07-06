@@ -20,12 +20,13 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
-import { WorkspaceSelector } from '@renderer/components/resource'
+import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { SettingDivider, SettingsContentBody, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
-import { isSoulModeEnabled } from '@renderer/hooks/agent/agentConfiguration'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
+import { isSoulModeEnabled } from '@renderer/utils/agent/agentConfiguration'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentConfiguration } from '@shared/data/types/agent'
@@ -34,7 +35,6 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingsContentBody, SettingTitle } from '..'
 import { getFormForType } from './ChannelForms'
 import type { AvailableChannel, ChannelData } from './channelTypes'
 
@@ -259,7 +259,7 @@ const ChannelEditModal: FC<
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="max-w-125">
+      <DialogContent closeOnOverlayClick={false} className="max-w-125">
         {channel && (
           <>
             <DialogHeader>

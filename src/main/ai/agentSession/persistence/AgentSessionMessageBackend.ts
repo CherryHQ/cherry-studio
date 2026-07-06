@@ -12,11 +12,7 @@ import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/mess
 import type { UniqueModelId } from '@shared/data/types/model'
 import { v7 as uuidv7 } from 'uuid'
 
-import {
-  finalizeInterruptedParts,
-  type PersistAssistantInput,
-  type PersistenceBackend
-} from '../../streamManager/persistence/PersistenceBackend'
+import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceBackend } from '../../streamManager'
 
 export interface AgentSessionMessageBackendOptions {
   /** Cherry Studio agent-session id. */

@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { type FileTreeNode } from '@renderer/components/FileTree'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { joinPath } from '@renderer/utils/path'
-import type { FilePath } from '@shared/types/file/common'
+import type { FilePath } from '@shared/types/file'
 import type {
   CreateTreeIpcResult,
   DirectoryTreeOptions,
@@ -10,7 +10,7 @@ import type {
   TreeDirRoot,
   TreeMutationPushPayload,
   TreeNode
-} from '@shared/utils/file/tree'
+} from '@shared/utils/file'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { getPathBasename, normalizeArtifactPaneFilePath, WORKSPACE_ROOT_ID } from './artifactPanePath'

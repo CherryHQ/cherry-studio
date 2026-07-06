@@ -11,9 +11,9 @@
  */
 
 import { pinService } from '@data/services/PinService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import { CreatePinSchema, ListPinsQuerySchema, PinIdSchema, type PinSchemas } from '@shared/data/api/schemas/pins'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const pinHandlers: HandlersFor<PinSchemas> = {
   '/pins': {

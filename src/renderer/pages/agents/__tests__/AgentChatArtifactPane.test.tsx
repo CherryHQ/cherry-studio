@@ -1,3 +1,4 @@
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type * as MotionReact from 'motion/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
@@ -29,15 +30,12 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
   Tooltip: ({ children }: PropsWithChildren) => children
 }))
 
-vi.mock('@renderer/components/chat', () => ({
-  ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
-  ConversationCenterState: ({ state }: { state: string }) => (
-    <div data-testid="conversation-center-state" data-state={state} />
-  ),
-  ConversationShell: ({
+vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
+  default: ({ state }: { state: string }) => <div data-testid="conversation-center-state" data-state={state} />
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
+  default: ({
     pane,
     paneOpen,
     panePosition,
@@ -74,47 +72,18 @@ vi.mock('@renderer/components/chat', () => ({
       <div>{overlay}</div>
       {rightPane}
     </div>
-  ),
+  )
+}))
+
+vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
+  ...(await importActual<typeof ChatPrimitives>()),
   EmptyState: ({ title, description }: { title?: string; description?: string }) => (
     <div data-testid="empty-state">
       {title}
       {description}
     </div>
   ),
-  LoadingState: () => <div data-testid="loading-state" />,
-  RightPaneHost: ({
-    children,
-    open,
-    width,
-    resizable,
-    minWidth,
-    defaultWidth,
-    maxWidth,
-    cacheKey,
-    className
-  }: PropsWithChildren<{
-    open?: boolean
-    width?: string | number
-    resizable?: boolean
-    minWidth?: number
-    defaultWidth?: number
-    maxWidth?: number
-    cacheKey?: string
-    className?: string
-  }>) => (
-    <section
-      data-testid="artifact-right-pane"
-      data-open={String(Boolean(open))}
-      data-width={String(width)}
-      data-resizable={String(Boolean(resizable))}
-      data-min-width={String(minWidth)}
-      data-default-width={String(defaultWidth)}
-      data-max-width={String(maxWidth)}
-      data-cache-key={cacheKey}
-      data-class-name={className ?? ''}>
-      {open ? children : null}
-    </section>
-  )
+  LoadingState: () => <div data-testid="loading-state" />
 }))
 
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
@@ -522,7 +491,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
-  default: ({ tools }: { tools?: ReactNode }) => <div>{tools}</div>
+  AgentChatNavbar: ({ tools }: { tools?: ReactNode }) => <div>{tools}</div>
 }))
 
 vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({

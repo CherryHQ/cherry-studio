@@ -3,6 +3,16 @@
 General concurrency primitives for the main process. **Event-source-agnostic** — nothing here knows
 about Preference, lifecycle, IPC, or any specific trigger.
 
+## `KeyedMutex`
+
+Per-key serialisation of independent items: one lazily-created mutex per key, dropped when idle.
+Tasks sharing a key run one at a time (FIFO); different keys run concurrently. `runExclusive(key, task)`
+accepts sync or async tasks and returns the task's result.
+
+Division of labour with the reconciler below: `KeyedMutex` is a FIFO queue — **every** task runs, in
+order, per key (command / delta semantics). The reconciler coalesces — intermediate requests are
+dropped and only the latest intent converges. Pick by whether skipped work is a bug or a feature.
+
 ## `createLatestReconciler`
 
 A **latest-wins async side-effect reconciler**: when an async side effect can be triggered many times
@@ -32,7 +42,7 @@ Do **not** use it for:
 |---|---|---|
 | Synchronous side effect | Runs to completion; nothing can interleave, nothing to coalesce. | Just call it. |
 | Command / delta semantics (every event must run, in order) | Coalescing would drop work. | A FIFO queue (e.g. `p-queue`, `async-mutex`). |
-| Per-key serialisation of independent items | Reconciler is single-stream. | `KeyedMutex` (`src/main/ai/streamManager/KeyedMutex.ts`). |
+| Per-key serialisation of independent items | Reconciler is single-stream. | `KeyedMutex` (`src/main/core/concurrency/KeyedMutex.ts`). |
 
 > Precondition: a **successful** `apply` must make progress toward `isSettled` (be convergent /
 > idempotent). If `apply` can succeed without converging, the loop spins — that is a consumer bug,

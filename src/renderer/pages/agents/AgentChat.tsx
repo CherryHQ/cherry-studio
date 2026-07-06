@@ -1,18 +1,16 @@
 import { usePreference } from '@data/hooks/usePreference'
-import {
-  type ChatPanePosition,
-  ConversationCenterState,
-  ConversationShell,
-  EmptyState
-} from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import {
   type ResourcePaneConfig,
   ResourcePaneCountButton,
   type ResourcePaneCountButtonProps
 } from '@renderer/components/chat/panes/Shell'
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import { EmptyState } from '@renderer/components/chat/primitives'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
+import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
@@ -34,7 +32,7 @@ import { useTranslation } from 'react-i18next'
 
 import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
-import AgentChatNavbar from './components/AgentChatNavbar'
+import { AgentChatNavbar } from './components/AgentChatNavbar'
 import { AgentRightPane } from './components/AgentRightPane'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { DraftAgentSession, DraftAgentSessionDefaults, EnsurePersistentSession } from './types'

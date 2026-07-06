@@ -1,12 +1,12 @@
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import { useImmersiveNavbar, useReportImmersiveNarrow } from '@renderer/components/chat/layout/ImmersiveNavbarContext'
-import { LoadingIcon } from '@renderer/components/Icons'
+import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { captureScrollable, captureScrollableAsDataURL } from '@renderer/utils/image'
+import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { classNames } from '@renderer/utils/style'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -296,7 +296,7 @@ const MessageList = () => {
         throw new Error('Topic image export is unavailable')
       }
 
-      const imageData = await captureScrollableAsDataURL(captureRef)
+      const imageData = await captureScrollableAsDataUrl(captureRef)
       if (!imageData) {
         throw new Error('Failed to capture topic image')
       }

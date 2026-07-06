@@ -26,11 +26,11 @@ vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: React.PropsWithChildren<{ content: React.ReactNode }>) => <>{children}</>
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
-  LogoAvatar: ({ logo }: { logo: string }) => <span data-testid={`logo-${logo}`} />
+vi.mock('@renderer/components/icons/LogoAvatar', () => ({
+  default: ({ logo }: { logo: string }) => <span data-testid={`logo-${logo}`} />
 }))
 
-vi.mock('@renderer/components/Icons/miniAppsLogo', () => ({
+vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
   getMiniAppsLogo: () => undefined
 }))
 

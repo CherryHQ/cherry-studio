@@ -1,6 +1,6 @@
 import { InfoTooltip, Input } from '@cherrystudio/ui'
+import { SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
-import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { useWebSearchPersist } from '@renderer/pages/settings/WebSearchSettings/hooks/useWebSearchPersist'
 import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } from '@shared/data/types/webSearch'
 import { useTranslation } from 'react-i18next'

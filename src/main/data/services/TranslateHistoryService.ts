@@ -5,7 +5,7 @@
 import { application } from '@application'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
   CreateTranslateHistoryDto,
   TranslateHistoryListResponse,

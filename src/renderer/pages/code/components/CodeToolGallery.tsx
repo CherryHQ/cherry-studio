@@ -1,7 +1,7 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
-import type { CLI_TOOLS } from '..'
+import type { CLI_TOOLS } from '../cliTools'
 import { CodeHeroIllustrationIcon } from './CodeHeroIllustrationIcon'
 import { CodeToolCard } from './CodeToolCard'
 import type { CodeToolMeta } from './types'

@@ -3,11 +3,20 @@ import * as path from 'path'
 
 import { sortedObjectByKeys } from './sort'
 
-const localesDir = path.join(__dirname, '../src/renderer/i18n/locales')
-const translateDir = path.join(__dirname, '../src/renderer/i18n/translate')
 const baseLocale = process.env.TRANSLATION_BASE_LOCALE ?? 'en-us'
 const baseFileName = `${baseLocale}.json`
-const baseFilePath = path.join(localesDir, baseFileName)
+
+// Renderer and main each own an independent catalog (locales/ + translate/); sync both.
+const catalogs = [
+  {
+    localesDir: path.join(__dirname, '../src/renderer/i18n/locales'),
+    translateDir: path.join(__dirname, '../src/renderer/i18n/translate')
+  },
+  {
+    localesDir: path.join(__dirname, '../src/main/i18n/locales'),
+    translateDir: path.join(__dirname, '../src/main/i18n/translate')
+  }
+]
 
 type I18NValue = string | { [key: string]: I18NValue }
 type I18N = { [key: string]: I18NValue }
@@ -81,7 +90,8 @@ function checkDuplicateKeys(obj: I18N): string[] {
   return duplicateKeys
 }
 
-function syncTranslations() {
+function syncCatalog(localesDir: string, translateDir: string) {
+  const baseFilePath = path.join(localesDir, baseFileName)
   if (!fs.existsSync(baseFilePath)) {
     console.error(`Base locale file ${baseFileName} does not exist, please check path or filename`)
     return
@@ -149,4 +159,6 @@ function syncTranslations() {
   }
 }
 
-syncTranslations()
+for (const { localesDir, translateDir } of catalogs) {
+  syncCatalog(localesDir, translateDir)
+}

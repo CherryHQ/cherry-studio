@@ -223,14 +223,14 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
         token={token as ActiveComposerInputToken}
         selected={props.selected}
         onRemove={removeCurrentToken}
-        removeLabel={t('appMenu.delete')}
+        removeLabel={t('common.delete')}
       />
     ) : (
       <ComposerToken
         token={token as ActiveComposerInputToken}
         selected={props.selected}
         onRemove={removeCurrentToken}
-        removeLabel={t('appMenu.delete')}
+        removeLabel={t('common.delete')}
       />
     ))
 

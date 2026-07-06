@@ -250,7 +250,7 @@ Use standard HTTP status codes consistently:
 Use the `SuccessStatus` constants to avoid magic numbers:
 
 ```typescript
-import { SuccessStatus } from '@shared/data/api/apiTypes'
+import { SuccessStatus } from '@shared/data/api/types'
 
 SuccessStatus.OK          // 200 - Request succeeded
 SuccessStatus.CREATED     // 201 - Resource created
@@ -296,7 +296,7 @@ The API server automatically infers status codes based on HTTP method:
 Override the default by returning `{ data, status }`:
 
 ```typescript
-import { SuccessStatus } from '@shared/data/api/apiTypes'
+import { SuccessStatus } from '@shared/data/api/types'
 
 '/async-tasks': {
   POST: async ({ body }) => {
@@ -391,7 +391,7 @@ interface SerializedDataApiError {
 Use `DataApiErrorFactory` utilities to create consistent errors:
 
 ```typescript
-import { DataApiErrorFactory, DataApiError } from '@shared/data/api'
+import { DataApiErrorFactory, DataApiError } from '@shared/data/api/errors'
 
 // Using factory methods (recommended)
 throw DataApiErrorFactory.notFound('Topic', id)

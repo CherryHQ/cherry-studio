@@ -14,7 +14,7 @@ import { realpath } from 'node:fs/promises'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
+import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file'
 import type { FileEntry } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 import mime from 'mime'
