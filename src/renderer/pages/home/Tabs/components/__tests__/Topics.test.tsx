@@ -272,6 +272,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'chat.add.assistant.title') return 'Add Assistant'
       if (key === 'assistants.tags.group_by') return 'Group by tag'
       if (key === 'assistants.tags.ungroup') return 'Ungroup tags'
+      if (key === 'assistants.tags.untagged') return 'Untagged'
       if (key === 'settings.assistant.icon.type.emoji') return 'Emoji'
       if (key === 'settings.assistant.icon.type.model') return 'Model'
       if (key === 'settings.assistant.icon.type.none') return 'None'
@@ -445,6 +446,7 @@ function createAssistant(overrides: Record<string, unknown> = {}) {
     name: 'Alpha Assistant',
     emoji: '🧪',
     orderKey: 'a',
+    tags: [{ id: 'tag-work', name: 'Work' }],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides
@@ -631,7 +633,8 @@ describe('Topics', () => {
                 id: 'assistant-2',
                 name: 'Beta Assistant',
                 emoji: '✍️',
-                orderKey: 'b'
+                orderKey: 'b',
+                tags: [{ id: 'tag-home', name: 'Home' }]
               })
             ],
             total: 2
@@ -2132,6 +2135,28 @@ describe('Topics', () => {
         within(header as HTMLElement).queryByRole('button', { name: 'chat.conversation.new' })
       ).not.toBeInTheDocument()
     }
+  })
+
+  it('keeps assistant tag sections when assistant topics move back to the left panel', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'assistant.tab.sort_type': 'tags',
+      'topic.tab.display_mode': 'assistant',
+      'topic.tab.position': 'left'
+    })
+
+    renderTopicList()
+
+    const workSection = screen.getByRole('button', { name: 'Work' }).closest('div')
+    const homeSection = screen.getByRole('button', { name: 'Home' }).closest('div')
+    const alphaAssistant = screen.getByRole('button', { name: 'Alpha Assistant' })
+    const betaAssistant = screen.getByRole('button', { name: 'Beta Assistant' })
+
+    expect(workSection).toBeInTheDocument()
+    expect(homeSection).toBeInTheDocument()
+    expect(alphaAssistant).toBeInTheDocument()
+    expect(betaAssistant).toBeInTheDocument()
+    expect(workSection!.compareDocumentPosition(alphaAssistant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(homeSection!.compareDocumentPosition(betaAssistant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('uses the configured model icon for assistant topic groups', () => {

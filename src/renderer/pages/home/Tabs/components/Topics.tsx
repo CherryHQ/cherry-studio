@@ -92,6 +92,8 @@ const logger = loggerService.withContext('Topics')
 const EMPTY_COLLAPSED_TOPIC_STATE: readonly string[] = []
 const DEFAULT_TOPIC_GROUP_VISIBLE_COUNT = 5
 const LEFT_PANEL_TIME_TOPIC_GROUP_VISIBLE_COUNT = 50
+const TOPIC_ASSISTANT_TAG_SECTION_PREFIX = 'topic:section:assistant-tag:'
+const TOPIC_ASSISTANT_UNTAGGED_SECTION_ID = `${TOPIC_ASSISTANT_TAG_SECTION_PREFIX}untagged`
 
 interface Props {
   activeTopic?: Topic
@@ -622,9 +624,18 @@ export function Topics({
         return { id: TOPIC_PINNED_SECTION_ID, label: t('selector.common.pinned_title') }
       }
 
+      if (isTagGrouping) {
+        const assistant = topic.assistantId ? assistantById.get(topic.assistantId) : undefined
+        const tag = assistant?.tags?.[0]?.name?.trim()
+
+        return tag
+          ? { id: `${TOPIC_ASSISTANT_TAG_SECTION_PREFIX}${encodeURIComponent(tag)}`, label: tag }
+          : { id: TOPIC_ASSISTANT_UNTAGGED_SECTION_ID, label: t('assistants.tags.untagged') }
+      }
+
       return { id: TOPIC_ASSISTANT_SECTION_ID, label: t('chat.topics.display.assistant') }
     }
-  }, [isAssistantDisplayMode, t])
+  }, [assistantById, isAssistantDisplayMode, isTagGrouping, t])
 
   const baseGroupedTopics = useMemo(
     () =>
