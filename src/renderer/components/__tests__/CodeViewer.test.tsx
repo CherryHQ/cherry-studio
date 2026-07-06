@@ -8,6 +8,7 @@ import CodeViewer from '../CodeViewer'
 
 const mocks = vi.hoisted(() => ({
   highlightLines: vi.fn(),
+  resetHighlight: vi.fn(),
   measureElement: vi.fn(),
   useVirtualizer: vi.fn((options: { count: number }) => ({
     getTotalSize: () => options.count * 20,
@@ -32,7 +33,8 @@ vi.mock('@renderer/hooks/useCodeHighlight', () => ({
         htmlStyle: {}
       }
     ]),
-    highlightLines: mocks.highlightLines
+    highlightLines: mocks.highlightLines,
+    resetHighlight: mocks.resetHighlight
   })
 }))
 
@@ -107,5 +109,20 @@ describe('CodeViewer', () => {
     )
 
     expect(scroller.scrollTop).toBe(100)
+  })
+
+  it('does not request syntax highlighting when highlighting is disabled', () => {
+    render(<CodeViewer value="line 1\nline 2" language="typescript" options={{ highlight: false }} />)
+
+    expect(mocks.highlightLines).not.toHaveBeenCalled()
+    expect(mocks.resetHighlight).not.toHaveBeenCalled()
+  })
+
+  it('clears highlighting resources when highlighting is disabled after being enabled', () => {
+    const { rerender } = render(<CodeViewer value="line 1" language="typescript" options={{ highlight: true }} />)
+
+    rerender(<CodeViewer value="line 1\nline 2" language="typescript" options={{ highlight: false }} />)
+
+    expect(mocks.resetHighlight).toHaveBeenCalled()
   })
 })

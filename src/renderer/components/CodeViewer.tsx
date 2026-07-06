@@ -46,6 +46,10 @@ interface CodeViewerProps {
      * Whether to show line numbers.
      */
     lineNumbers?: boolean
+    /**
+     * Whether to syntax highlight visible code.
+     */
+    highlight?: boolean
   }
   /** Font size that overrides the app setting. */
   fontSize?: number
@@ -100,6 +104,7 @@ const CodeViewer = ({
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
   const savedSelectionRef = useRef<SavedSelection | null>(null)
   const shouldStickToBottomRef = useRef(true)
+  const wasHighlightEnabledRef = useRef(options?.highlight ?? true)
   // Ensure the active selection actually belongs to this CodeViewer instance
   const selectionBelongsToViewer = useCallback((sel: Selection | null) => {
     const scroller = scrollerRef.current
@@ -112,6 +117,7 @@ const CodeViewer = ({
 
   const fontSize = useMemo(() => customFontSize ?? _fontSize - 1, [customFontSize, _fontSize])
   const lineNumbers = useMemo(() => options?.lineNumbers ?? _lineNumbers, [options?.lineNumbers, _lineNumbers])
+  const highlight = options?.highlight ?? true
 
   const rawLines = useMemo(() => (typeof value === 'string' ? value.trimEnd().split('\n') : []), [value])
 
@@ -130,6 +136,14 @@ const CodeViewer = ({
   // 设置 pre 标签属性
   useLayoutEffect(() => {
     let mounted = true
+    const shikiTheme = shikiThemeRef.current
+    if (shikiTheme) {
+      shikiTheme.className = `code-viewer ${className ?? ''}`
+      shikiTheme.classList.add(isShikiThemeDark ? 'shiki-dark' : 'shiki-light')
+    }
+
+    if (!highlight) return
+
     void getShikiPreProperties(language).then((properties) => {
       if (!mounted) return
       const shikiTheme = shikiThemeRef.current
@@ -148,7 +162,7 @@ const CodeViewer = ({
     return () => {
       mounted = false
     }
-  }, [language, getShikiPreProperties, isShikiThemeDark, className])
+  }, [language, getShikiPreProperties, isShikiThemeDark, className, highlight])
 
   // 保存当前选区的逻辑位置
   const saveSelection = useCallback((): SavedSelection | null => {
@@ -373,7 +387,7 @@ const CodeViewer = ({
   const totalSize = virtualizer.getTotalSize()
 
   // 使用代码高亮 Hook
-  const { tokenLines, highlightLines } = useCodeHighlight({
+  const { tokenLines, highlightLines, resetHighlight } = useCodeHighlight({
     rawLines,
     language,
     callerId
@@ -382,13 +396,33 @@ const CodeViewer = ({
   // 防抖高亮提高流式响应的性能，数字大一点也不会影响用户体验
   const debouncedHighlightLines = useMemo(() => debounce(highlightLines, 300), [highlightLines])
 
+  useEffect(() => {
+    if (highlight) {
+      wasHighlightEnabledRef.current = true
+      return
+    }
+
+    debouncedHighlightLines.cancel()
+    if (wasHighlightEnabledRef.current) {
+      resetHighlight()
+      wasHighlightEnabledRef.current = false
+    }
+  }, [debouncedHighlightLines, highlight, resetHighlight])
+
+  useEffect(() => {
+    return () => {
+      debouncedHighlightLines.cancel()
+    }
+  }, [debouncedHighlightLines])
+
   // 渐进式高亮
   useEffect(() => {
+    if (!highlight) return
     if (virtualItems.length > 0 && shikiThemeRef.current) {
       const lastIndex = virtualItems[virtualItems.length - 1].index
       void debouncedHighlightLines(lastIndex + 1)
     }
-  }, [virtualItems, debouncedHighlightLines])
+  }, [virtualItems, debouncedHighlightLines, highlight])
 
   // Monitor selection changes, clear stale selection state, and auto-expand in collapsed state
   const handleSelectionChange = useMemo(
@@ -489,7 +523,7 @@ const CodeViewer = ({
               <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement}>
                 <VirtualizedRow
                   rawLine={rawLines[virtualItem.index]}
-                  tokenLine={tokenLines[virtualItem.index]}
+                  tokenLine={highlight ? tokenLines[virtualItem.index] : undefined}
                   showLineNumbers={lineNumbers}
                   expanded={expanded}
                   wrapped={wrapped}
