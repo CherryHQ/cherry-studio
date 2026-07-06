@@ -172,17 +172,6 @@ exports[`Skill search normalizers > normalizeClaudePlugins > should normalize fi
     "stars": 42,
   },
   {
-    "author": "devtools-org",
-    "description": "Generate technical documentation",
-    "downloads": 0,
-    "installSource": "claude-plugins:devtools-org/claude-skills/",
-    "name": "docs-writer",
-    "slug": "cp-003",
-    "sourceRegistry": "claude-plugins.dev",
-    "sourceUrl": "https://github.com/devtools-org/claude-skills",
-    "stars": 0,
-  },
-  {
     "author": "vercel-labs",
     "description": "React and Next.js performance optimization guidelines",
     "downloads": 8500,

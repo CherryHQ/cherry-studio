@@ -148,8 +148,9 @@ describe('Skill search normalizers', () => {
     it('should normalize fixture to unified results', () => {
       const results = normalizeClaudePlugins(claudePluginsFixture)
 
-      // cp-002 (null metadata → unresolvable install source) is filtered out
-      expect(results).toHaveLength(3)
+      // cp-002 (null metadata) and cp-003 (no directoryPath/sourceUrl path)
+      // are filtered out because their install source is ambiguous.
+      expect(results).toHaveLength(2)
       expect(results).toMatchSnapshot()
 
       // Verify specific normalization rules
@@ -158,11 +159,6 @@ describe('Skill search normalizers', () => {
       expect(codeReview.stars).toBe(42)
       expect(codeReview.installSource).toBe('claude-plugins:anthropic/skills/code-review')
       expect(codeReview.sourceUrl).toBe('https://github.com/anthropic/skills/tree/main/code-review')
-
-      // Missing directoryPath produces a trailing empty segment but stays installable
-      const docsWriter = results.find((r) => r.name === 'docs-writer')!
-      expect(docsWriter.author).toBe('devtools-org')
-      expect(docsWriter.installSource).toBe('claude-plugins:devtools-org/claude-skills/')
     })
 
     it('should use directoryPath (not name) for installSource to handle name mismatches', () => {
@@ -184,14 +180,38 @@ describe('Skill search normalizers', () => {
       )
     })
 
-    it('should drop entries without a resolvable install source', () => {
+    it('should drop entries without a resolvable directory path', () => {
       // cp-002 has null metadata, so repoOwner/repoName are empty and the repo
       // cannot be cloned — surfacing it would show a non-installable result whose
       // install click always fails. It must be filtered out at the normalize stage.
+      // cp-003 has repoOwner/repoName but lacks directoryPath/sourceUrl path, so
+      // installing it would scan the whole repo and could install a different skill.
       const results = normalizeClaudePlugins(claudePluginsFixture)
 
       expect(results.find((r) => r.name === 'test-generator')).toBeUndefined()
+      expect(results.find((r) => r.name === 'docs-writer')).toBeUndefined()
       expect(results.every((r) => r.installSource !== 'claude-plugins://')).toBe(true)
+      expect(results.every((r) => !r.installSource.endsWith('/'))).toBe(true)
+    })
+
+    it('should parse directoryPath from matching GitHub tree sourceUrl', () => {
+      const results = normalizeClaudePlugins({
+        skills: [
+          {
+            id: 'cp-url',
+            name: 'docs-writer',
+            namespace: 'devtools',
+            sourceUrl: 'https://github.com/devtools-org/claude-skills/tree/main/skills/docs-writer',
+            metadata: {
+              repoOwner: 'devtools-org',
+              repoName: 'claude-skills'
+            }
+          }
+        ]
+      })
+
+      expect(results).toHaveLength(1)
+      expect(results[0].installSource).toBe('claude-plugins:devtools-org/claude-skills/skills/docs-writer')
     })
 
     it('should prefer API sourceUrl over reconstructed URL', () => {
@@ -201,9 +221,21 @@ describe('Skill search normalizers', () => {
       const codeReview = results.find((r) => r.name === 'code-review')!
       expect(codeReview.sourceUrl).toBe('https://github.com/anthropic/skills/tree/main/code-review')
 
-      // cp-003 has no sourceUrl but has metadata — should reconstruct
-      const docsWriter = results.find((r) => r.name === 'docs-writer')!
-      expect(docsWriter.sourceUrl).toBe('https://github.com/devtools-org/claude-skills')
+      const reconstructed = normalizeClaudePlugins({
+        skills: [
+          {
+            id: 'cp-reconstructed',
+            name: 'docs-writer',
+            namespace: 'devtools',
+            metadata: {
+              repoOwner: 'devtools-org',
+              repoName: 'claude-skills',
+              directoryPath: 'docs-writer'
+            }
+          }
+        ]
+      })
+      expect(reconstructed[0].sourceUrl).toBe('https://github.com/devtools-org/claude-skills/tree/main/docs-writer')
     })
   })
 

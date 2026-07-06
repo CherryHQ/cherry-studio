@@ -284,19 +284,20 @@ export class SkillService {
 
   private async installFromClaudePlugins(identifier: string): Promise<InstalledSkill> {
     const parts = identifier.split('/')
-    if (parts.length < 3) {
+    const [owner, repo, ...directoryParts] = parts
+    const directoryPath = directoryParts.join('/')
+    const skillName = directoryParts[directoryParts.length - 1] ?? ''
+
+    if (!owner || !repo || !directoryPath || !skillName || directoryParts.some((part) => !part.trim())) {
       throw new Error(`Invalid claude-plugins identifier: ${identifier}`)
     }
 
-    const [owner, repo, ...rest] = parts
-    const directoryPath = rest.join('/')
     const repoUrl = `https://github.com/${owner}/${repo}`
     const sourceUrl = `${repoUrl}/tree/main/${directoryPath}`
     const tempDir = await this.createTempDir('claude-plugins')
 
     try {
       await this.cloneRepository(repoUrl, tempDir)
-      const skillName = parts[parts.length - 1]
       const skillDir = await this.resolveSkillDirectory(tempDir, skillName, directoryPath)
       const installed = await this.installSkillDir(skillDir, 'marketplace', sourceUrl)
 

@@ -343,6 +343,16 @@ describe('SkillService', () => {
       expect(spy).toHaveBeenCalledWith('owner/repo/skill')
     })
 
+    it('rejects ambiguous claude-plugins identifiers without a directory path', async () => {
+      const skillService = new SkillService()
+      const createTempDirSpy = vi.spyOn(skillService as never, 'createTempDir')
+
+      await expect(skillService.install({ installSource: 'claude-plugins:owner/repo/' })).rejects.toThrow(
+        'Invalid claude-plugins identifier: owner/repo/'
+      )
+      expect(createTempDirSpy).not.toHaveBeenCalled()
+    })
+
     it('delegates to installFromSkillsSh for skills.sh source', async () => {
       const skillService = new SkillService()
       const spy = vi.spyOn(skillService as never, 'installFromSkillsSh').mockResolvedValue({} as never)

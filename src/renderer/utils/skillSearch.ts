@@ -16,6 +16,47 @@ const CLAWHUB_API = 'https://clawhub.ai/api/v1/search'
 const REQUEST_TIMEOUT_MS = 15_000
 export const SKILL_SEARCH_FAILED_ERROR = 'skill_search_failed'
 
+function normalizeDirectoryPath(directoryPath: string | null | undefined): string | null {
+  const normalized = directoryPath
+    ?.split('/')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join('/')
+
+  return normalized || null
+}
+
+function getDirectoryPathFromGithubTreeUrl(
+  sourceUrl: string | null | undefined,
+  repoOwner: string,
+  repoName: string
+): string | null {
+  if (!sourceUrl) return null
+
+  try {
+    const url = new URL(sourceUrl)
+    const [owner, repo, type, branch, ...pathParts] = url.pathname
+      .split('/')
+      .filter(Boolean)
+      .map((part) => decodeURIComponent(part))
+
+    if (
+      url.hostname !== 'github.com' ||
+      owner?.toLowerCase() !== repoOwner.toLowerCase() ||
+      repo?.toLowerCase() !== repoName.toLowerCase() ||
+      type !== 'tree' ||
+      !branch ||
+      !['main', 'master'].includes(branch)
+    ) {
+      return null
+    }
+
+    return normalizeDirectoryPath(pathParts.join('/'))
+  } catch {
+    return null
+  }
+}
+
 // ===========================================================================
 // Normalizers: source-specific response → unified SkillSearchResult[]
 // ===========================================================================
@@ -27,11 +68,13 @@ export function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
   return parsed.data.skills.flatMap((s) => {
     const repoOwner = s.metadata?.repoOwner ?? ''
     const repoName = s.metadata?.repoName ?? ''
-    const directoryPath = s.metadata?.directoryPath ?? ''
+    const directoryPath =
+      normalizeDirectoryPath(s.metadata?.directoryPath) ??
+      getDirectoryPathFromGithubTreeUrl(s.sourceUrl, repoOwner, repoName)
     // Skip entries without a resolvable install source (repo owner/name are
-    // required to clone) — otherwise the marketplace shows non-installable
-    // results whose install click always fails.
-    if (!repoOwner || !repoName) return []
+    // required to clone, directoryPath is required to avoid ambiguous repo
+    // scans that may install a different skill).
+    if (!repoOwner || !repoName || !directoryPath) return []
     return {
       slug: s.id,
       name: s.name,
@@ -40,7 +83,7 @@ export function normalizeClaudePlugins(raw: unknown): SkillSearchResult[] {
       stars: s.stars ?? 0,
       downloads: s.installs ?? 0,
       sourceRegistry: 'claude-plugins.dev' as SkillSearchSource,
-      sourceUrl: s.sourceUrl ?? `https://github.com/${repoOwner}/${repoName}`,
+      sourceUrl: s.sourceUrl ?? `https://github.com/${repoOwner}/${repoName}/tree/main/${directoryPath}`,
       // Encode sourceUrl directly so install can clone + resolve without the resolve API
       installSource: `claude-plugins:${repoOwner}/${repoName}/${directoryPath}`
     }
