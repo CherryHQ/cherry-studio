@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { usePartsMap } from '@renderer/components/chat/messages/blocks'
+import { usePartsMap } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import { useMcpServerMutations, useMcpServers } from '@renderer/hooks/useMcpServer'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { McpTool } from '@renderer/types/tool'

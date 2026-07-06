@@ -4,7 +4,7 @@
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
-  "main": "./out/main/index.js",
+  "main": "./out/main/main.js",
   "author": "support@cherry-ai.com",
   "homepage": "https://github.com/CherryHQ/cherry-studio",
   "engines": {
@@ -325,6 +325,8 @@
     "epub": "2.1.1",
     "es-toolkit": "^1.49.0",
     "eslint": "^9.22.0",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-import-x": "^4.17.1",
     "eslint-plugin-import-zod": "^1.2.0",
     "eslint-plugin-oxlint": "^1.15.0",
     "eslint-plugin-react-hooks": "^5.2.0",

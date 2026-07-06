@@ -8,7 +8,7 @@
 import * as z from 'zod'
 
 import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
-import type { CursorPaginationResponse } from '../apiTypes'
+import type { CursorPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 
 // ============================================================================

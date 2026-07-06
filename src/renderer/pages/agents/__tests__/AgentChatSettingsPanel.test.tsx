@@ -1,3 +1,4 @@
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -36,15 +37,12 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
-  ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
-  ARTIFACT_RIGHT_PANE_MAX_WIDTH: 540,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
-  ConversationCenterState: ({ state }: { state: string }) => (
-    <div data-testid="conversation-center-state" data-state={state} />
-  ),
-  ConversationShell: ({
+vi.mock('@renderer/components/chat/shell/ConversationCenterState', () => ({
+  default: ({ state }: { state: string }) => <div data-testid="conversation-center-state" data-state={state} />
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
+  default: ({
     topBar,
     topRightTool,
     sidePanel,
@@ -67,13 +65,12 @@ vi.mock('@renderer/components/chat', () => ({
       <div>{overlay}</div>
       {rightPane}
     </div>
-  ),
-  LoadingState: () => <div data-testid="loading-state" />,
-  RightPaneHost: ({ children, open }: PropsWithChildren<{ open?: boolean }>) => (
-    <div data-testid="right-pane-host" data-open={String(Boolean(open))}>
-      {open ? children : null}
-    </div>
   )
+}))
+
+vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
+  ...(await importActual<typeof ChatPrimitives>()),
+  LoadingState: () => <div data-testid="loading-state" />
 }))
 
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
@@ -213,7 +210,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
 }))
 
 vi.mock('../components/AgentChatNavbar', () => ({
-  default: () => <div data-testid="agent-navbar" />
+  AgentChatNavbar: () => <div data-testid="agent-navbar" />
 }))
 
 vi.mock('../components/AgentRightPane', () => {

@@ -4,7 +4,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import type { CanonicalExternalPath } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
-import { canonicalizeAbsolutePath } from '@shared/utils/file/canonicalize'
+import { canonicalizeAbsolutePath } from '@shared/utils/file'
 
 const logger = loggerService.withContext('pathResolver')
 

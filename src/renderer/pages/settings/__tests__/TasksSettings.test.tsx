@@ -75,7 +75,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: () => ({ data: [] })
 }))
 
-vi.mock('@renderer/components/resource', () => ({
+vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   WorkspaceSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
 }))
 
@@ -139,8 +139,10 @@ vi.mock('@cherrystudio/ui', () => {
 
   const passthrough =
     (tag: keyof React.JSX.IntrinsicElements) =>
-    ({ children, ...props }: { children?: React.ReactNode }) =>
-      React.createElement(tag, props, children)
+    ({ children, closeOnOverlayClick, ...props }: { children?: React.ReactNode; closeOnOverlayClick?: boolean }) => {
+      void closeOnOverlayClick
+      return React.createElement(tag, props, children)
+    }
 
   return {
     Badge: passthrough('span'),
@@ -278,6 +280,7 @@ vi.mock('@cherrystudio/ui', () => {
       const context = React.use(PopoverContext)
 
       if (React.isValidElement<{ onClick?: React.MouseEventHandler }>(children)) {
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, {
           onClick: (event: React.MouseEvent) => {
             children.props.onClick?.(event)

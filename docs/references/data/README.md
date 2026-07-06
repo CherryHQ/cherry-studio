@@ -92,7 +92,7 @@ Use BootConfigService when:
 - Accessed through PreferenceService (`BootConfig.*` prefix) after lifecycle starts
 
 ```typescript
-// Early boot (src/main/index.ts) — direct access, only option at this stage
+// Early boot (src/main/main.ts) — direct access, only option at this stage
 import { bootConfigService } from '@main/data/bootConfig'
 if (bootConfigService.get('app.disable_hardware_acceleration')) {
   app.disableHardwareAcceleration()

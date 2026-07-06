@@ -37,11 +37,11 @@ const mocks = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
-  LogoAvatar: () => <div data-testid="logo-avatar" />
+vi.mock('@renderer/components/icons/LogoAvatar', () => ({
+  default: () => <div data-testid="logo-avatar" />
 }))
 
-vi.mock('@renderer/components/Icons/SvgIcon', () => ({
+vi.mock('@renderer/components/icons/SvgIcon', () => ({
   OpenClawSidebarIcon: (props: React.ComponentProps<'svg'>) => <svg aria-hidden="true" {...props} />
 }))
 

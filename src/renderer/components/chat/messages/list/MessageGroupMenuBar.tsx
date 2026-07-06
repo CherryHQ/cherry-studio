@@ -8,7 +8,7 @@ import type { FC } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { usePartsMap } from '../blocks'
+import { usePartsMap } from '../blocks/MessagePartsContext'
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
 import MessageGroupModelList from './MessageGroupModelList'

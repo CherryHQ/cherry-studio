@@ -30,10 +30,10 @@
  */
 
 import { loggerService } from '@logger'
-import type { RequestContext } from '@shared/data/api/apiErrors'
-import { DataApiError, DataApiErrorFactory, ErrorCode, toDataApiError } from '@shared/data/api/apiErrors'
-import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/data/api/apiPaths'
-import type { ApiClient, ConcreteApiPaths } from '@shared/data/api/apiTypes'
+import type { RequestContext } from '@shared/data/api/errors'
+import { DataApiError, DataApiErrorFactory, ErrorCode, toDataApiError } from '@shared/data/api/errors'
+import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/data/api/paths'
+import type { ApiClient, ConcreteApiPaths } from '@shared/data/api/types'
 import type {
   DataRequest,
   DataResponse,
@@ -41,7 +41,7 @@ import type {
   SubscriptionCallback,
   SubscriptionEvent,
   SubscriptionOptions
-} from '@shared/data/api/apiTypes'
+} from '@shared/data/api/types'
 
 import { DataApiDevtools } from './utils/dataApiDevtools'
 

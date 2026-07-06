@@ -35,8 +35,8 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mocks.navigate
 }))
 
-vi.mock('@renderer/components/Buttons', () => ({
-  ActionIconButton: ({
+vi.mock('@renderer/components/ActionIconButton', () => ({
+  default: ({
     icon,
     ...props
   }: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean; icon: React.ReactNode }) => {
