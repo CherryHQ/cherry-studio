@@ -1903,16 +1903,11 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   longcat: [
     {
-      id: 'LongCat-Flash-Chat',
-      name: 'LongCat Flash Chat',
+      id: 'LongCat-2.0',
+      name: 'LongCat 2.0',
       provider: 'longcat',
-      group: 'LongCat'
-    },
-    {
-      id: 'LongCat-Flash-Thinking',
-      name: 'LongCat Flash Thinking',
-      provider: 'longcat',
-      group: 'LongCat'
+      group: 'LongCat',
+      capabilities: [{ type: 'text' }, { type: 'reasoning' }, { type: 'function_calling' }]
     }
   ],
   huggingface: [],

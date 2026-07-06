@@ -17,6 +17,8 @@ describe('Unified Provider Types', () => {
       expectTypeOf(appProviderIds.vertexai).toEqualTypeOf<'google-vertex'>()
       // 变体 → 自身（自反映射）
       expectTypeOf(appProviderIds['openai-chat']).toEqualTypeOf<'openai-chat'>()
+      // 应用层系统 provider → 自身；SDK config 层再回落到 openai-compatible
+      expectTypeOf(appProviderIds.longcat).toEqualTypeOf<'longcat'>()
     })
   })
 
