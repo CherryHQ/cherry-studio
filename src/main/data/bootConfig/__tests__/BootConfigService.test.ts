@@ -107,8 +107,8 @@ describe('BootConfigService', () => {
       // Save should not happen immediately
       expect(mockFs.writeFileSync).not.toHaveBeenCalled()
 
-      // Advance past debounce (500 ms)
-      vi.advanceTimersByTime(500)
+      // Advance past debounce (350 ms)
+      vi.advanceTimersByTime(350)
 
       expect(mockFs.writeFileSync).toHaveBeenCalledWith(TEMP_PATH, expect.any(String), 'utf-8')
       expect(mockRenameSync).toHaveBeenCalledWith(TEMP_PATH, CONFIG_PATH)
@@ -404,7 +404,7 @@ describe('BootConfigService', () => {
       service.set('app.disable_hardware_acceleration', false)
       service.set('app.disable_hardware_acceleration', true)
 
-      vi.advanceTimersByTime(500)
+      vi.advanceTimersByTime(350)
 
       expect(mockFs.writeFileSync).toHaveBeenCalledTimes(1)
 

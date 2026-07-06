@@ -556,6 +556,7 @@
       "list": {
         "title": "Nhiệm vụ"
       },
+      "new": "Nhiệm vụ mới",
       "pin": {
         "title": "Ghim nhiệm vụ"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Tìm kiếm nhiệm vụ"
+        "placeholder": "Tìm kiếm nhiệm vụ",
+        "title": "Tìm kiếm tác vụ"
       },
       "unpin": {
         "title": "Bỏ ghim nhiệm vụ"
@@ -602,9 +604,7 @@
         "select_failed": "Không thể chọn thư mục."
       },
       "workspace_status": {
-        "inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}",
-        "missing": "Đường dẫn không gian làm việc không tồn tại: {{path}}",
-        "not_directory": "Đường dẫn không gian làm việc không phải là thư mục: {{path}}"
+        "inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}"
       }
     },
     "settings": {
@@ -935,6 +935,10 @@
           "description": "Thực thi các lệnh shell trong môi trường của bạn",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "Thêm, xóa hoặc làm mới tài liệu trong cơ sở kiến thức của bạn",
+          "label": "Quản lý kiến thức"
+        },
         "CherryKbSearch": {
           "description": "Tìm kiếm trong cơ sở kiến thức của bạn",
           "label": "Tìm kiếm kiến thức"
@@ -1077,41 +1081,6 @@
       "stopped": "Đã dừng"
     },
     "title": "Máy chủ API"
-  },
-  "appMenu": {
-    "about": "Về",
-    "close": "Đóng cửa sổ",
-    "copy": "Sao chép",
-    "cut": "Cắt",
-    "delete": "Xóa",
-    "documentation": "Tài liệu",
-    "edit": "Chỉnh sửa",
-    "feedback": "Phản hồi",
-    "file": "Tập tin",
-    "forceReload": "Tải lại bắt buộc",
-    "front": "Đưa Tất cả Ra Phía Trước",
-    "help": "Giúp",
-    "hide": "Ẩn",
-    "hideOthers": "Ẩn những cái khác",
-    "minimize": "Giảm thiểu",
-    "paste": "Dán",
-    "quit": "Thôi",
-    "redo": "Làm lại",
-    "releases": "Bản phát hành",
-    "reload": "Tải lại",
-    "resetZoom": "Kích thước thực tế",
-    "selectAll": "Chọn Tất Cả",
-    "services": "Dịch vụ",
-    "toggleDevTools": "Bật Công Cụ Dành Cho Nhà Phát Triển",
-    "toggleFullscreen": "Bật toàn màn hình",
-    "undo": "Hoàn tác",
-    "unhide": "Hiển thị tất cả",
-    "view": "Xem",
-    "website": "Trang web",
-    "window": "Cửa sổ",
-    "zoom": "Zoom",
-    "zoomIn": "Thu phóng",
-    "zoomOut": "Alejarse"
   },
   "assistants": {
     "abbr": "Trợ lý",
@@ -1593,6 +1562,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "[to be translated]:Cache {{hit_rate}}%",
+        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "Thông báo này đang được chỉnh sửa trong trình soạn thảo",
       "flow": {
         "branches": "chi nhánh",
@@ -1757,16 +1730,10 @@
         "label": "Bật công cụ xem trước",
         "tip": "Bật công cụ xem trước cho hình ảnh được kết xuất từ các khối mã như mermaid"
       },
-      "code_tools": {
-        "title": "[to be translated]:Code Tools"
-      },
       "code_wrappable": "Khối mã có thể ngắt dòng",
       "context_count": {
         "label": "Ngữ cảnh",
         "tip": "Số lượng tin nhắn trước đó cần giữ trong ngữ cảnh."
-      },
-      "input_editor": {
-        "title": "[to be translated]:Input & Editor"
       },
       "max": "Không giới hạn",
       "max_tokens": {
@@ -2061,7 +2028,6 @@
     "copy_failed": "Sao chép thất bại",
     "create_success": "Đã tạo thành công",
     "current": "Hiện tại",
-    "cut": "Cắt",
     "default": "Mặc định",
     "delete": "Xóa",
     "delete_confirm": "Bạn có chắc chắn muốn xóa không?",
@@ -2099,7 +2065,6 @@
     "image_preview": "Xem trước hình ảnh",
     "image_url": "URL hình ảnh",
     "image_url_or_upload": "Nhập URL hình ảnh hoặc tải tệp lên",
-    "inspect": "Kiểm tra",
     "invalid_value": "Giá trị không hợp lệ",
     "knowledge_base": "Cơ sở tri thức",
     "language": "Ngôn ngữ",
@@ -2120,7 +2085,6 @@
     "open_in": "Mở trong {{name}}",
     "open_in_new_tab": "Mở trong tab mới",
     "open_sidebar": "Mở thanh bên",
-    "paste": "Pasta",
     "placeholders": {
       "select": {
         "model": "Chọn một mô hình"
@@ -2175,18 +2139,6 @@
     "warning": "Cảnh báo",
     "yesterday": "Hôm qua",
     "you": "Bạn"
-  },
-  "dialog": {
-    "all_files": "Tất cả các tệp",
-    "html_files": "Tập tin HTML",
-    "open_file": "Mở Tệp",
-    "pdf_files": "Tệp PDF",
-    "png_image": "Hình ảnh PNG",
-    "save_as_html": "Lưu dưới dạng HTML",
-    "save_as_pdf": "Lưu dưới dạng PDF",
-    "save_file": "Lưu Tệp",
-    "select_folder": "Chọn thư mục",
-    "word_document": "Tài liệu Word"
   },
   "docs": {
     "title": "Tài liệu"
@@ -3168,12 +3120,22 @@
           "agent_title": "Đại lý mới",
           "assistant_title": "Trợ lý mới",
           "avatar_aria": "Chọn hình đại diện",
+          "back": "Quay lại",
+          "capability": {
+            "import": "Nhập kỹ năng",
+            "no_skills": "Chưa cài đặt kỹ năng nào",
+            "search": "Kỹ năng tìm kiếm"
+          },
           "description_placeholder": "Mô tả mục đích của nó...",
-          "dialog_description": "Tạo một trợ lý hoặc tác nhân nhẹ.",
-          "model_placeholder": "Chọn một mô hình",
-          "model_required": "Vui lòng chọn một mô hình",
+          "guided_progress": "Thiết lập hướng dẫn · Bước {{current}} trên {{total}}",
           "name_placeholder": "Nhập tên",
-          "name_required": "Vui lòng nhập tên",
+          "next": "Tiếp theo",
+          "step": {
+            "basic": "Thông tin cơ bản",
+            "capability": "Kỹ năng",
+            "knowledge": "Kiến thức",
+            "persona": "Nhân cách"
+          },
           "submit": "Tạo",
           "submit_failed": "Tạo thất bại"
         },
@@ -4716,10 +4678,10 @@
     "baichuan": "Baichuan",
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
-    "cephalon": "cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -4772,7 +4734,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Tesseract",
     "together": "Cùng nhau",
-    "tokenflux": "TokenFlux",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Hành trình AI",
     "xirang": "Bang Cloud Xirang",
@@ -5264,6 +5226,7 @@
     "assistant": {
       "create_new": "Trợ lý mới",
       "empty_text": "Chưa có trợ lý nào",
+      "filter": "Lọc trợ lý",
       "multi_hint": "(loại trừ lẫn nhau với đa mô hình)",
       "multi_label": "Trợ lý song song đa nhiệm",
       "search_placeholder": "Trợ lý tìm kiếm…"
@@ -5339,9 +5302,6 @@
       "auto_switch_to_topics": "Tự động chuyển sang chủ đề",
       "title": "Cài đặt nâng cao"
     },
-    "appearance": {
-      "title": "[to be translated]:Appearance"
-    },
     "assistant": {
       "icon": {
         "type": {
@@ -5410,7 +5370,6 @@
         "cloud_storage": "Cài đặt Sao lưu Đám mây",
         "export_settings": "Xuất Cài đặt",
         "import_settings": "Nhập Cài đặt",
-        "note_export": "[to be translated]:Note Export",
         "third_party": "Kết nối của bên thứ ba"
       },
       "export_menu": {
@@ -5972,48 +5931,6 @@
         "token_placeholder": "Vui lòng nhập Token Yuque"
       }
     },
-    "dependencies": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Chưa có công cụ tùy chỉnh nào. Thêm một công cụ để bắt đầu.",
-      "description": "Quản lý các công cụ nhị phân và phụ thuộc runtime cần thiết cho ứng dụng.",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Cài đặt",
-      "installError": "Failed to install tool",
-      "installing": "Đang cài đặt...",
-      "invalidTool": "Tên công cụ hoặc khóa không hợp lệ",
-      "notInstalled": "Chưa cài đặt",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
-      "source": {
-        "bundled": "bundled"
-      },
-      "title": "Phần bổ trợ",
-      "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
-      },
-      "update": "Update to latest version"
-    },
     "developer": {
       "enable_developer_mode": "Kích hoạt Chế độ Nhà phát triển",
       "help": "Sau khi bật chế độ nhà phát triển, bạn có thể sử dụng tính năng dò dữ liệu để xem luồng dữ liệu trong quá trình gọi mô hình.",
@@ -6334,12 +6251,6 @@
         "usage": "Cách sử dụng",
         "version": "Phiên bản"
       },
-      "oauth": {
-        "callback": {
-          "message": "Bạn có thể đóng trang này và quay lại Cherry Studio",
-          "title": "Autenticación exitosa"
-        }
-      },
       "prompts": {
         "arguments": "Lập luận",
         "availablePrompts": "Prompts Disponibles",
@@ -6464,11 +6375,10 @@
       "user": "Người dùng"
     },
     "menuGroups": {
-      "automation": "[to be translated]:Automation",
-      "capabilities": "[to be translated]:Capabilities & Tools",
-      "models": "[to be translated]:Models",
-      "personal": "[to be translated]:Personal",
-      "quickAccess": "[to be translated]:Quick Access",
+      "appSettings": "Cài đặt ứng dụng",
+      "integrations": "Tích hợp",
+      "productivity": "Năng suất",
+      "services": "Dịch vụ",
       "system": "Hệ thống"
     },
     "messages": {
@@ -6489,6 +6399,12 @@
         "send_shortcuts": "Gửi phím tắt",
         "show_estimated_tokens": "Hiển thị số token ước tính",
         "title": "Cài đặt đầu vào"
+      },
+      "layout": {
+        "classic": "Cổ điển",
+        "conversation": "Chế độ xem cuộc trò chuyện",
+        "modern": "Hiện đại",
+        "work": "Chế độ xem công việc"
       },
       "markdown_rendering_input_message": "Tin nhắn nhập Markdown kết xuất",
       "metrics": "{{time_first_token_millsec}}ms até o primeiro token | {{token_speed}} tok/seg",
@@ -6518,8 +6434,8 @@
         "logo_upload_label": "Tải lên Logo",
         "name": "Tên",
         "name_placeholder": "Nhập tên",
-        "remove_confirm_description": "[to be translated]:Delete custom mini app \"{{name}}\"? This action cannot be undone.",
-        "remove_confirm_title": "[to be translated]:Delete custom mini app?",
+        "remove_confirm_description": "Xóa ứng dụng nhỏ tùy chỉnh \"{{name}}\"? Hành động này không thể hoàn tác.",
+        "remove_confirm_title": "Xóa ứng dụng mini tùy chỉnh?",
         "remove_error": "Không thể xóa ứng dụng nhỏ tùy chỉnh.",
         "remove_success": "Ứng dụng mini tùy chỉnh đã được gỡ bỏ thành công.",
         "save_error": "Không lưu được ứng dụng nhỏ tùy chỉnh.",
@@ -6548,7 +6464,7 @@
         "title": "Bộ lọc Mini Program"
       },
       "reset_tooltip": "Redefinir para o padrão",
-      "title": "[to be translated]:Mini Apps Settings",
+      "title": "Cài đặt Ứng dụng Mini",
       "visible": "Mini aplicaciones visibles"
     },
     "model": "Mô hình Mặc định",
@@ -6700,7 +6616,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
-        "sync_apply_default_in_use": "[to be translated]:Some models are in use as the default model and cannot be removed.",
+        "sync_apply_default_in_use": "Một số mô hình đang được sử dụng làm mô hình mặc định và không thể bị xóa.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6815,6 +6731,48 @@
       }
     },
     "parameter_settings": "Cài đặt tham số",
+    "plugins": {
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Chưa có công cụ tùy chỉnh nào. Thêm một công cụ để bắt đầu.",
+      "description": "Quản lý các công cụ nhị phân và phụ thuộc runtime cần thiết cho ứng dụng.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Cài đặt",
+      "installError": "Failed to install tool",
+      "installing": "Đang cài đặt...",
+      "invalidTool": "Tên công cụ hoặc khóa không hợp lệ",
+      "notInstalled": "Chưa cài đặt",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
+      "title": "Phần bổ trợ",
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
+    },
     "power": {
       "prevent_sleep_when_busy": "Giữ hệ thống luôn hoạt động trong khi các tác vụ đang chạy"
     },
@@ -6980,9 +6938,19 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Miền gia tốc",
-          "backup": "Miền dự phòng",
           "international": "Tên miền quốc tế"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7165,8 +7133,7 @@
         "system": "Proxy Hệ Thống",
         "title": "Chế độ Proxy"
       },
-      "tip": "Hỗ trợ khớp ký tự đại diện (*.test.com, 192.168.0.0/16)",
-      "title": "[to be translated]:Network Proxy"
+      "tip": "Hỗ trợ khớp ký tự đại diện (*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "Nhấp vào biểu tượng khay để bắt đầu",
@@ -7222,6 +7189,13 @@
       "all_disable": "Tắt Tất Cả",
       "all_enable": "Kích hoạt Tất cả",
       "bind_first_to_enable": "Trước tiên hãy gán một phím tắt để thay đổi trạng thái kích hoạt của nó",
+      "categories": {
+        "assistant": "Công cụ Trợ lý AI",
+        "chat": "Tương tác tin nhắn",
+        "general": "Toàn cầu và Cửa sổ",
+        "title": "Nhóm Phím Tắt",
+        "topic": "Cuộc trò chuyện và Chủ đề"
+      },
       "clear_shortcut": "Phím tắt rõ ràng",
       "clear_topic": "Tin nhắn rõ ràng",
       "close_tab": "Đóng Tab",
@@ -7299,9 +7273,6 @@
       "uninstallSuccess": "Kỹ năng đã gỡ cài đặt: {{name}}",
       "viewSource": "Ver código fuente",
       "zip": "ZIP"
-    },
-    "system": {
-      "title": "[to be translated]:System"
     },
     "theme": {
       "color_primary": "Warna Primer",
@@ -7450,6 +7421,7 @@
           "exa": "API tìm kiếm thần kinh cho ứng dụng AI, được tối ưu hóa cho việc truy xuất web ngữ nghĩa.",
           "exa_mcp": "Hiển thị tìm kiếm Exa cho các tác nhân thông qua Máy chủ MCP Exa.",
           "fetch": "Nhà cung cấp tìm nạp URL tích hợp. Tìm nạp nội dung trang web từ một URL để làm phong phú kết quả tìm kiếm.",
+          "firecrawl": "Dịch vụ crawler và tìm kiếm Firecrawl, được tối ưu hóa để chuyển đổi các trang web thành Markdown.",
           "jina": "API tìm kiếm và đọc Jina Reader để truy xuất nội dung web sạch.",
           "querit": "Dịch vụ tìm kiếm cho ứng dụng AI với kết quả truy xuất web.",
           "searxng": "Công cụ tìm kiếm meta internet miễn phí có thể tự lưu trữ trên nhiều nguồn khác nhau.",
@@ -7769,11 +7741,6 @@
     "tooltip": {
       "newline": "Dòng mới"
     }
-  },
-  "tray": {
-    "quit": "Thôi",
-    "show_quick_assistant": "Trợ lý Nhanh",
-    "show_window": "Hiển thị cửa sổ"
   },
   "update": {
     "install": "Cài đặt",

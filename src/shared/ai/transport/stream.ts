@@ -9,8 +9,10 @@ import type { SerializedError } from '../../types/error'
 /** A single chunk of a running stream. */
 export interface StreamChunkPayload {
   topicId: string
-  /** Multi-model: source model that produced this chunk. Frontend demuxes by this. */
+  /** Multi-model: source model that produced this chunk. Frontend demuxes by this plus anchorMessageId. */
   executionId?: UniqueModelId
+  /** Assistant row this execution writes to. Disambiguates same-model chained turns. */
+  anchorMessageId?: string
   chunk: UIMessageChunk
 }
 
@@ -89,6 +91,7 @@ export interface TopicStatusSnapshotEntry {
 export interface StreamDonePayload {
   topicId: string
   executionId?: UniqueModelId
+  anchorMessageId?: string
   status: 'success' | 'paused'
   isTopicDone?: boolean
 }
@@ -98,6 +101,7 @@ export interface StreamErrorPayload {
   topicId: string
   /** Multi-model: which model's execution errored. */
   executionId?: UniqueModelId
+  anchorMessageId?: string
   /** True when the topic has no remaining streaming executions. */
   isTopicDone?: boolean
   error: SerializedError

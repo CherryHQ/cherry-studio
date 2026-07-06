@@ -1,15 +1,15 @@
 import { HorizontalScrollContainer, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
-import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
 import { CommandTooltip } from '@renderer/components/command'
-import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/Icons'
+import { RightSidebarCollapseIcon, RightSidebarExpandIcon } from '@renderer/components/icons/SidebarToggleIcons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
-import { isMac } from '@renderer/config/constant'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
+import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command/definitions'
 import { Maximize2, Minimize2, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, MouseEvent, ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -48,34 +48,61 @@ interface ShellContextValue {
   actions: ShellActions
 }
 
-const ShellContext = createContext<ShellContextValue | null>(null)
+const ShellStateContext = createContext<ShellState | null>(null)
+const ShellActionsContext = createContext<ShellActions | null>(null)
 
 function useShell(): ShellContextValue {
-  const value = use(ShellContext)
-  if (!value) throw new Error('useShell must be used within <Shell>')
-  return value
+  return {
+    state: useShellState(),
+    actions: useShellActions()
+  }
 }
 
 export function useShellActions(): ShellActions {
-  return useShell().actions
+  const actions = use(ShellActionsContext)
+  if (!actions) throw new Error('useShellActions must be used within <Shell>')
+  return actions
 }
 
 export function useShellState(): ShellState {
-  return useShell().state
+  const state = use(ShellStateContext)
+  if (!state) throw new Error('useShellState must be used within <Shell>')
+  return state
 }
 
 export function useOptionalShellState(): ShellState | undefined {
-  return use(ShellContext)?.state
+  return use(ShellStateContext) ?? undefined
 }
 
-function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultTab: string }) {
-  const [open, setOpen] = useState(false)
+function ShellProvider({
+  children,
+  defaultTab,
+  defaultOpen = false,
+  onOpenChange
+}: {
+  children: ReactNode
+  defaultTab: string
+  defaultOpen?: boolean
+  /**
+   * Notified whenever the pane opens/closes. Owners that remount this provider across UI branches
+   * (e.g. the agent chat's draft→persistent handoff) use it to persist the open state into
+   * `defaultOpen` so the pane survives the remount instead of snapping shut.
+   */
+  onOpenChange?: (open: boolean) => void
+}) {
+  const [open, setOpen] = useState(defaultOpen)
   const [maximized, setMaximized] = useState(false)
   const [activeTab, setActiveTab] = useState(defaultTab)
   const [pdfLayoutPending, setPdfLayoutPending] = useState(false)
   const [pdfLayoutRefreshKey, setPdfLayoutRefreshKey] = useState(0)
   const openRef = useRef(open)
   const closeCallbacksRef = useRef<Array<() => void>>([])
+  // Held in a ref so the open/close actions stay referentially stable (no memo churn for consumers).
+  const onOpenChangeRef = useRef(onOpenChange)
+
+  useEffect(() => {
+    onOpenChangeRef.current = onOpenChange
+  }, [onOpenChange])
 
   useEffect(() => {
     openRef.current = open
@@ -98,6 +125,7 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
     setOpen(false)
     setMaximized(false)
     setPdfLayoutPending(false)
+    onOpenChangeRef.current?.(false)
   }, [])
   const openTab = useCallback((tab: string) => {
     setActiveTab(tab)
@@ -106,6 +134,7 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
       if (!currentOpen) setPdfLayoutPending(true)
       return true
     })
+    onOpenChangeRef.current?.(true)
   }, [])
   const toggleMaximized = useCallback(() => {
     setPdfLayoutPending(false)
@@ -116,26 +145,20 @@ function ShellProvider({ children, defaultTab }: { children: ReactNode; defaultT
     setPdfLayoutRefreshKey((key) => key + 1)
   }, [])
 
-  const value = useMemo<ShellContextValue>(
-    () => ({
-      state: { open, maximized, activeTab, pdfLayoutPending, pdfLayoutRefreshKey },
-      actions: { close, finishClose, openTab, toggleMaximized, refreshPdfLayout }
-    }),
-    [
-      activeTab,
-      close,
-      finishClose,
-      maximized,
-      open,
-      openTab,
-      pdfLayoutPending,
-      pdfLayoutRefreshKey,
-      refreshPdfLayout,
-      toggleMaximized
-    ]
+  const state = useMemo<ShellState>(
+    () => ({ open, maximized, activeTab, pdfLayoutPending, pdfLayoutRefreshKey }),
+    [activeTab, maximized, open, pdfLayoutPending, pdfLayoutRefreshKey]
+  )
+  const actions = useMemo<ShellActions>(
+    () => ({ close, finishClose, openTab, toggleMaximized, refreshPdfLayout }),
+    [close, finishClose, openTab, refreshPdfLayout, toggleMaximized]
   )
 
-  return <ShellContext value={value}>{children}</ShellContext>
+  return (
+    <ShellActionsContext value={actions}>
+      <ShellStateContext value={state}>{children}</ShellStateContext>
+    </ShellActionsContext>
+  )
 }
 
 // Docked, resizable side container. Unmounted entirely while maximized: the
@@ -232,7 +255,7 @@ function ShellToggle({
   const { t } = useTranslation()
   const pressed = state.open
   const ToggleIcon = pressed ? RightSidebarCollapseIcon : RightSidebarExpandIcon
-  const toggleLabel = t(pressed ? 'common.close_sidebar' : 'common.open_sidebar')
+  const toggleLabel = pressed ? t('common.close_sidebar') : t('common.open_sidebar')
   const handleClick = useCallback(() => {
     if (state.open) {
       actions.close()
@@ -272,6 +295,56 @@ function ShellToggle({
   )
 }
 
+function ShellTabShortcut({
+  tab,
+  label,
+  icon,
+  disabled = false,
+  tooltip = label,
+  className,
+  onClick,
+  ...buttonProps
+}: Omit<ComponentProps<typeof NavbarIcon>, 'aria-label' | 'children' | 'onClick'> & {
+  tab: string
+  label: string
+  icon: ReactNode
+  tooltip?: ReactNode | false
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void
+}) {
+  const { state, actions } = useShell()
+  const handleClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      onClick?.(event)
+      if (event.defaultPrevented) return
+      actions.openTab(tab)
+    },
+    [actions, onClick, tab]
+  )
+
+  if (state.open || state.maximized) return null
+
+  const button = (
+    <NavbarIcon
+      {...buttonProps}
+      tone="conversation"
+      className={cn('[&_svg]:!size-3.5 shrink-0', className)}
+      disabled={disabled}
+      aria-label={label}
+      data-shell-tab-shortcut={tab}
+      onClick={handleClick}>
+      {icon}
+    </NavbarIcon>
+  )
+
+  if (tooltip === false) return button
+
+  return (
+    <Tooltip content={tooltip} delay={800}>
+      {button}
+    </Tooltip>
+  )
+}
+
 function ShellTabs({ children }: { children: ReactNode }) {
   const { state, actions } = useShell()
   return (
@@ -287,8 +360,8 @@ function ShellTabs({ children }: { children: ReactNode }) {
 
 // Header bar: the tab strip plus the pane-level maximize toggle.
 // `extraTrailing` hosts the navbar-right cluster (sub-window controls, pane toggle) when the
-// pane is open — see ConversationShellTopRightTool, which suppresses itself in that state so
-// the cluster doesn't sit on top of this header.
+// pane is open; ConversationShell hides its closed-state topbar cluster in that state so the
+// cluster doesn't sit on top of this header.
 function ShellTabList({ children, extraTrailing }: { children: ReactNode; extraTrailing?: ReactNode }) {
   const { state, actions } = useShell()
   const { t } = useTranslation()
@@ -303,11 +376,11 @@ function ShellTabList({ children, extraTrailing }: { children: ReactNode; extraT
     <div
       data-testid="shell-tab-list"
       className={cn(
-        // pr reserves the OS window controls corner in a frameless sub-window (--window-controls-width,
-        // 0px = pr-3 in the main window and on macOS).
-        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-[calc(0.75rem+var(--window-controls-width,0px))]',
+        // Match ConversationShell's edge inset so the closed-state expand button and
+        // opened-state close button keep the same distance from the nearest edge.
+        'flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-[calc(0.5rem+var(--window-controls-width,0px))]',
         isWindowTopBar ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]',
-        isWindowTopBar && isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
+        isWindowTopBar && isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-2'
       )}>
       <HorizontalScrollContainer className="min-w-0 flex-1" gap="4px" scrollDistance={180}>
         <TabsList className="min-w-max justify-start gap-1 [-webkit-app-region:no-drag]">{children}</TabsList>
@@ -421,6 +494,7 @@ export const Shell = Object.assign(ShellProvider, {
   Host: ShellHost,
   MaximizedOverlay: ShellMaximizedOverlay,
   Toggle: ShellToggle,
+  TabShortcut: ShellTabShortcut,
   Tabs: ShellTabs,
   TabList: ShellTabList,
   Tab: ShellTab,

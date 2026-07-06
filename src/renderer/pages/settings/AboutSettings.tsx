@@ -1,39 +1,33 @@
-import {
-  Badge,
-  Button,
-  CircularProgress,
-  Divider,
-  Flex,
-  InfoTooltip,
-  SegmentedControl,
-  Switch,
-  Tooltip
-} from '@cherrystudio/ui'
+import { Badge, Button, CircularProgress, Divider, SegmentedControl, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import LogoAvatar from '@renderer/components/Icons/LogoAvatar'
+import AppLogo from '@renderer/assets/images/logo.png'
+import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
-import { APP_NAME, AppLogo } from '@renderer/config/env'
+import {
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingsContentColumn,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
 import i18n from '@renderer/i18n'
 import { ipcApi } from '@renderer/ipc'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
-import { debounce } from 'lodash'
-import { BadgeQuestionMark, Briefcase, Bug, Building2, Code, Github, Globe, Mail, Rss } from 'lucide-react'
+import { debounce } from 'es-toolkit/compat'
+import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Streamdown } from 'streamdown'
 
-import { SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
-
 const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
   const [testPlan, setTestPlan] = usePreference('app.dist.test_plan.enabled')
   const [testChannel, setTestChannel] = usePreference('app.dist.test_plan.channel')
-  const [enableDeveloperMode, setEnableDeveloperMode] = usePreference('app.developer_mode.enabled')
 
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
@@ -75,7 +69,7 @@ const AboutSettings: FC = () => {
 
   const mailto = async () => {
     const email = 'support@cherry-ai.com'
-    const subject = `${APP_NAME} Feedback`
+    const subject = 'Cherry Studio Feedback'
     const version = (await window.api.getAppInfo()).version
     const platform = window.electron.process.platform
     const url = `mailto:${email}?subject=${subject}&body=%0A%0AVersion: ${version} | Platform: ${platform}`
@@ -211,7 +205,7 @@ const AboutSettings: FC = () => {
             </button>
 
             <div className="flex min-h-18 flex-col items-start justify-center">
-              <div className="mb-1 font-bold text-foreground text-lg">{APP_NAME}</div>
+              <div className="mb-1 font-bold text-foreground text-lg">Cherry Studio</div>
               <div className="text-foreground-secondary text-sm">{t('settings.about.description')}</div>
               <button
                 type="button"
@@ -358,17 +352,6 @@ const AboutSettings: FC = () => {
           actionLabel={t('settings.about.debug.open')}
           onAction={debug}
         />
-        <Divider className="my-3" />
-        <SettingRow className="gap-3">
-          <SettingRowTitle className="gap-2.5">
-            <Code className="size-4.5" />
-            <Flex className="items-center gap-1">
-              {t('settings.developer.enable_developer_mode')}
-              <InfoTooltip content={t('settings.developer.help')} />
-            </Flex>
-          </SettingRowTitle>
-          <Switch checked={enableDeveloperMode} onCheckedChange={setEnableDeveloperMode} />
-        </SettingRow>
       </SettingGroup>
     </SettingsContentColumn>
   )

@@ -1,7 +1,7 @@
 import type * as z from 'zod'
 
 import type { RouteDef } from './define'
-import type { IpcEventName, IpcEventSchemas, IpcRequestSchemas, IpcRoute } from './schemas'
+import type { IpcEventName, IpcEventSchemas, IpcRequestSchemas, IpcRoute } from './schemas/ipcSchemas'
 
 /**
  * A WindowManager window UUID. This is the single id concept used across the

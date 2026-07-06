@@ -1,11 +1,11 @@
+import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
+import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
   RefreshProvider,
   TranslationOverlayProvider,
   TranslationOverlaySetterProvider
-} from '@renderer/components/chat/messages/blocks'
-import { MessageEditingProvider } from '@renderer/components/chat/messages/editing/MessageEditingContext'
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
+} from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
@@ -27,6 +27,7 @@ interface Props {
   topic: Topic
   onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
@@ -48,6 +49,7 @@ const ChatContent: FC<Props> = ({
   topic,
   onOpenCitationsPanel,
   onNewTopic,
+  onCreateEmptyTopic,
   locateMessageId,
   onLocateMessageHandled,
   onBranchLiveStateChange,
@@ -71,6 +73,7 @@ const ChatContent: FC<Props> = ({
       topic={topic}
       onOpenCitationsPanel={onOpenCitationsPanel}
       onNewTopic={onNewTopic}
+      onCreateEmptyTopic={onCreateEmptyTopic}
       locateMessageId={locateMessageId}
       onLocateMessageHandled={onLocateMessageHandled}
       onBranchLiveStateChange={onBranchLiveStateChange}
@@ -114,6 +117,7 @@ const ChatContentInner: FC<InnerProps> = ({
   topic,
   onOpenCitationsPanel,
   onNewTopic,
+  onCreateEmptyTopic,
   locateMessageId,
   onLocateMessageHandled,
   onBranchLiveStateChange,
@@ -189,12 +193,21 @@ const ChatContentInner: FC<InnerProps> = ({
       openCitationsPanel={onOpenCitationsPanel}
     />
   )
-  const composer = (
+  const composer = runtime.shouldRenderHomeComposer ? (
     <ChatComposerSlot
-      isHome={runtime.shouldRenderHomeComposer}
+      placement="home"
       topic={topic}
       onSend={runtime.sendMessage}
       onNewTopic={onNewTopic}
+      composerContext={runtime.composerContext}
+    />
+  ) : (
+    <ChatComposerSlot
+      placement="docked"
+      topic={topic}
+      onSend={runtime.sendMessage}
+      onNewTopic={onNewTopic}
+      onCreateEmptyTopic={onCreateEmptyTopic}
       sendDisabled={isHistoryLoading}
       composerContext={runtime.composerContext}
     />

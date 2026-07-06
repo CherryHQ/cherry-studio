@@ -1,7 +1,7 @@
 import IndicatorLight from '@renderer/components/IndicatorLight'
-import CustomTag from '@renderer/components/Tags/CustomTag'
+import CustomTag from '@renderer/components/tags/CustomTag'
 import { getProviderLabelKey } from '@renderer/i18n/label'
-import NavigationService from '@renderer/services/NavigationService'
+import { navigationService } from '@renderer/services/NavigationService'
 import { ArrowUpRight } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,14 +25,14 @@ export const FreeTrialModelTag: FC<Props> = ({ modelId, providerId, showLabel = 
   if (!linkedProviderId) return null
 
   const onSelectProvider = () => {
-    void NavigationService.navigate?.({ to: '/settings/provider', search: { id: linkedProviderId } })
+    void navigationService.navigate?.({ to: '/settings/provider', search: { id: linkedProviderId } })
   }
 
   const onNavigateProvider = (e: MouseEvent) => {
     e.stopPropagation()
     // v1 SelectModelPopup was removed in the v2 ModelSelector migration; the
     // inline v2 selector unmounts on route change, so no explicit hide needed.
-    void NavigationService.navigate?.({ to: '/settings/provider', search: { id: linkedProviderId } })
+    void navigationService.navigate?.({ to: '/settings/provider', search: { id: linkedProviderId } })
   }
 
   if (!showLabel) {

@@ -1,11 +1,24 @@
-import { Button, Input, Kbd, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Input, Kbd, MenuItem, MenuList, PageHeader, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { isMac, platform } from '@renderer/config/constant'
-import { getAllShortcutDefaultPreferences, useCommandShortcuts } from '@renderer/hooks/command/useCommandShortcuts'
+import { SettingsContentBody } from '@renderer/components/SettingsPrimitives'
+import {
+  getAllShortcutDefaultPreferences,
+  type ShortcutSettingsGroup,
+  useCommandShortcuts
+} from '@renderer/hooks/command/useCommandShortcuts'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import {
+  settingsContentHeaderClassName,
+  settingsContentHeaderTitleClassName,
+  settingsContentScrollClassName,
+  settingsSubmenuItemClassName,
+  settingsSubmenuListClassName,
+  settingsSubmenuScrollClassName
+} from '@renderer/pages/settings/settingsStyles'
+import { isMac, platform } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { SupportedPlatform } from '@shared/types/command'
@@ -20,18 +33,11 @@ import {
   type ShortcutBinding,
   type ShortcutToken
 } from '@shared/utils/shortcut'
-import { isEmpty } from 'lodash'
-import { Search, Undo2 } from 'lucide-react'
-import type { FC, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { isEmpty } from 'es-toolkit/compat'
+import { Keyboard, MessageSquareText, Search, Sparkles, Tags, Undo2 } from 'lucide-react'
+import type { FC, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import {
-  SettingsContentBody,
-  settingsContentHeaderClassName,
-  settingsContentHeaderTitleClassName,
-  settingsContentScrollClassName
-} from '.'
 
 const logger = loggerService.withContext('ShortcutSettings')
 
@@ -61,6 +67,13 @@ const usableEndKeys = (code: string): ShortcutToken | null => {
   return null
 }
 
+const groupIconMap: Record<ShortcutSettingsGroup, ReactNode> = {
+  general: <Keyboard size={16} />,
+  chat: <MessageSquareText size={16} />,
+  topic: <Tags size={16} />,
+  assistant: <Sparkles size={16} />
+}
+
 const ShortcutSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -71,11 +84,34 @@ const ShortcutSettings: FC = () => {
   const [conflictLabel, setConflictLabel] = useState<string | null>(null)
   const [systemConflictKey, setSystemConflictKey] = useState<ShortcutPreferenceKey | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [activeGroup, setActiveGroup] = useState<ShortcutSettingsGroup>('general')
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
+
+  const groupMeta = useMemo(
+    () => [
+      { key: 'general' as const, label: t('settings.shortcuts.categories.general') },
+      { key: 'chat' as const, label: t('settings.shortcuts.categories.chat') },
+      { key: 'topic' as const, label: t('settings.shortcuts.categories.topic') },
+      { key: 'assistant' as const, label: t('settings.shortcuts.categories.assistant') }
+    ],
+    [t]
+  )
+
+  const shortcutsByGroup = useMemo(() => {
+    return shortcuts.reduce<Record<ShortcutSettingsGroup, typeof shortcuts>>(
+      (acc, shortcut) => {
+        acc[shortcut.group].push(shortcut)
+        return acc
+      },
+      { general: [], chat: [], topic: [], assistant: [] }
+    )
+  }, [shortcuts])
+
+  const currentGroupShortcuts = shortcutsByGroup[activeGroup]
 
   const visibleShortcuts = useMemo(() => {
     const query = searchQuery.toLowerCase().trim()
-    return shortcuts.filter((record) => {
+    return currentGroupShortcuts.filter((record) => {
       if (!query) return true
       const display =
         record.preference.binding.length > 0
@@ -83,7 +119,7 @@ const ShortcutSettings: FC = () => {
           : ''
       return record.label.toLowerCase().includes(query) || display.includes(query)
     })
-  }, [shortcuts, searchQuery])
+  }, [currentGroupShortcuts, searchQuery])
 
   const shortcutPreferences = useMemo(
     () =>
@@ -124,6 +160,15 @@ const ShortcutSettings: FC = () => {
       }
     })
   }, [t])
+
+  useEffect(() => {
+    if (currentGroupShortcuts.length === 0) {
+      const firstAvailable = groupMeta.find((group) => shortcutsByGroup[group.key].length > 0)
+      if (firstAvailable && firstAvailable.key !== activeGroup) {
+        setActiveGroup(firstAvailable.key)
+      }
+    }
+  }, [activeGroup, currentGroupShortcuts.length, groupMeta, shortcutsByGroup])
 
   const handleAddShortcut = (key: ShortcutPreferenceKey) => {
     clearEditingState()
@@ -298,7 +343,7 @@ const ShortcutSettings: FC = () => {
       clearSystemConflict()
       await preferenceService.setMultiple(updates)
     } catch (error) {
-      logger.error('Failed to toggle visible shortcuts', error as Error)
+      logger.error(`Failed to toggle shortcuts for group ${activeGroup}`, error as Error)
       window.toast.error(t('settings.shortcuts.save_failed'))
     }
   }
@@ -466,10 +511,39 @@ const ShortcutSettings: FC = () => {
   return (
     <div className="flex flex-1" data-theme-mode={theme}>
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
+        <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
+          <PageHeader title={t('settings.shortcuts.title')} />
+          <Scrollbar className="min-h-0 flex-1">
+            <MenuList className={settingsSubmenuListClassName}>
+              {groupMeta.map((group) => {
+                const count = shortcutsByGroup[group.key].length
+                const isActive = activeGroup === group.key
+
+                return (
+                  <MenuItem
+                    key={group.key}
+                    className={settingsSubmenuItemClassName}
+                    icon={groupIconMap[group.key]}
+                    active={isActive}
+                    label={group.label}
+                    suffix={<span className="shrink-0 text-[11px] text-muted-foreground">{count}</span>}
+                    onClick={() => {
+                      setActiveGroup(group.key)
+                      setSearchQuery('')
+                    }}
+                  />
+                )
+              })}
+            </MenuList>
+          </Scrollbar>
+        </div>
+
         <Scrollbar className={settingsContentScrollClassName}>
           <SettingsContentBody>
             <div className={cn(settingsContentHeaderClassName, 'mb-3 flex items-center justify-between gap-2')}>
-              <h1 className={settingsContentHeaderTitleClassName}>{t('settings.shortcuts.title')}</h1>
+              <h1 className={settingsContentHeaderTitleClassName}>
+                {groupMeta.find((item) => item.key === activeGroup)?.label}
+              </h1>
               <div className="flex items-center gap-1">
                 <Button
                   variant="ghost"

@@ -1,4 +1,7 @@
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
+import type {
+  ConversationResourceMenuItem,
+  ResourceListRevealRequest
+} from '@renderer/components/chat/resourceList/base'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import Sessions from './components/Sessions'
@@ -11,6 +14,7 @@ interface AgentSidePanelProps {
   onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
   revealRequest?: ResourceListRevealRequest
+  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   setActiveSessionId: (id: string | null, session?: AgentSessionEntity | null) => void
 }
 
@@ -21,6 +25,7 @@ const AgentSidePanel = ({
   onStartDraftSession,
   onStartMissingAgentDraft,
   revealRequest,
+  resourceMenuItems,
   setActiveSessionId
 }: AgentSidePanelProps) => {
   return (
@@ -37,6 +42,7 @@ const AgentSidePanel = ({
           onSelectItem={onSelectItem}
           onOpenHistoryRecords={onOpenHistoryRecords}
           revealRequest={revealRequest}
+          resourceMenuItems={resourceMenuItems}
           onStartDraftSession={onStartDraftSession}
           onStartMissingAgentDraft={onStartMissingAgentDraft}
         />

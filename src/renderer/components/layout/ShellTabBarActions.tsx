@@ -3,13 +3,13 @@ import { usePreference } from '@data/hooks/usePreference'
 import { CommandTooltip } from '@renderer/components/command'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import type { SidebarVisibleLayout } from '@renderer/components/Sidebar/types'
-import { isLinux, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { getThemeModeLabelKey } from '@renderer/i18n/label'
+import { isLinux, isWin } from '@renderer/utils/platform'
 import { Monitor, Moon, Search, Settings, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import WindowControls from '../WindowControls'
+import { WindowControls } from '../WindowControls'
 
 export function useShellTabBarLayout() {
   const [useSystemTitleBar] = usePreference('app.use_system_title_bar')

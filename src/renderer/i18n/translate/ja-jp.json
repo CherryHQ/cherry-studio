@@ -556,6 +556,7 @@
       "list": {
         "title": "タスク"
       },
+      "new": "新しいタスク",
       "pin": {
         "title": "タスクをピン留め"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "検索タスク"
+        "placeholder": "検索タスク",
+        "title": "タスクを検索"
       },
       "unpin": {
         "title": "タスクのピンを外す"
@@ -602,9 +604,7 @@
         "select_failed": "フォルダを選択できませんでした。"
       },
       "workspace_status": {
-        "inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
-        "missing": "ワークスペースパスが存在しません: {{path}}",
-        "not_directory": "ワークスペースパスがディレクトリではありません: {{path}}"
+        "inaccessible": "ワークスペースパスにアクセスできません: {{path}}"
       }
     },
     "settings": {
@@ -935,6 +935,10 @@
           "description": "環境でシェルコマンドを実行します",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "ナレッジベース内のドキュメントを追加、削除、または更新します",
+          "label": "ナレッジ管理"
+        },
         "CherryKbSearch": {
           "description": "ナレッジベースを検索します",
           "label": "ナレッジ検索"
@@ -1077,41 +1081,6 @@
       "stopped": "停止中"
     },
     "title": "API サーバー"
-  },
-  "appMenu": {
-    "about": "について",
-    "close": "ウィンドウを閉じる",
-    "copy": "コピー",
-    "cut": "切る",
-    "delete": "削除",
-    "documentation": "ドキュメント",
-    "edit": "編集",
-    "feedback": "フィードバック",
-    "file": "ファイル",
-    "forceReload": "強制再読み込み",
-    "front": "すべてを前面に移動",
-    "help": "助け",
-    "hide": "隠す",
-    "hideOthers": "他を隠す",
-    "minimize": "最小化",
-    "paste": "ペースト",
-    "quit": "やめる",
-    "redo": "やり直し",
-    "releases": "リリース",
-    "reload": "リロード",
-    "resetZoom": "実寸",
-    "selectAll": "すべて選択",
-    "services": "サービス",
-    "toggleDevTools": "開発者ツールを切り替え",
-    "toggleFullscreen": "全画面表示を切り替え",
-    "undo": "元に戻す",
-    "unhide": "すべて表示",
-    "view": "表示",
-    "website": "ウェブサイト",
-    "window": "窓",
-    "zoom": "ズーム",
-    "zoomIn": "ズームイン",
-    "zoomOut": "ズームアウト"
   },
   "assistants": {
     "abbr": "アシスタント",
@@ -1593,6 +1562,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "[to be translated]:Cache {{hit_rate}}%",
+        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+      },
       "editing_current": "このメッセージはコンポーザーで編集中です",
       "flow": {
         "branches": "枝",
@@ -1757,16 +1730,10 @@
         "label": "プレビューツールを有効にする",
         "tip": "mermaid などのコードブロックから生成された画像に対してプレビューツールを有効にする"
       },
-      "code_tools": {
-        "title": "[to be translated]:Code Tools"
-      },
       "code_wrappable": "コードブロック折り返し",
       "context_count": {
         "label": "コンテキスト",
         "tip": "コンテキストに保持する以前のメッセージの数"
-      },
-      "input_editor": {
-        "title": "[to be translated]:Input & Editor"
       },
       "max": "制限なし",
       "max_tokens": {
@@ -2061,7 +2028,6 @@
     "copy_failed": "コピーに失敗しました",
     "create_success": "正常に作成されました",
     "current": "現在",
-    "cut": "切り取り",
     "default": "デフォルト",
     "delete": "削除",
     "delete_confirm": "削除してもよろしいですか？",
@@ -2099,7 +2065,6 @@
     "image_preview": "画像プレビュー",
     "image_url": "画像URL",
     "image_url_or_upload": "画像のURLを入力するか、ファイルをアップロードしてください",
-    "inspect": "検査",
     "invalid_value": "無効な値",
     "knowledge_base": "ナレッジベース",
     "language": "言語",
@@ -2120,7 +2085,6 @@
     "open_in": "{{name}}で開く",
     "open_in_new_tab": "新しいタブで開く",
     "open_sidebar": "サイドバーを開く",
-    "paste": "貼り付け",
     "placeholders": {
       "select": {
         "model": "モデルを選択"
@@ -2175,18 +2139,6 @@
     "warning": "警告",
     "yesterday": "昨日",
     "you": "あなた"
-  },
-  "dialog": {
-    "all_files": "すべてのファイル",
-    "html_files": "HTMLファイル",
-    "open_file": "ファイルを開く",
-    "pdf_files": "PDFファイル",
-    "png_image": "PNG画像",
-    "save_as_html": "HTMLとして保存",
-    "save_as_pdf": "PDFとして保存",
-    "save_file": "ファイルを保存",
-    "select_folder": "フォルダを選択",
-    "word_document": "ワード文書"
   },
   "docs": {
     "title": "ドキュメント"
@@ -3168,12 +3120,22 @@
           "agent_title": "新エージェント",
           "assistant_title": "新しいアシスタント",
           "avatar_aria": "アバターを選択",
+          "back": "戻る",
+          "capability": {
+            "import": "スキルインポート",
+            "no_skills": "インストールされているスキルがありません",
+            "search": "検索スキル"
+          },
           "description_placeholder": "それが何のためにあるのかを説明してください…",
-          "dialog_description": "軽量なアシスタントまたはエージェントを作成する",
-          "model_placeholder": "モデルを選択してください",
-          "model_required": "モデルを選択してください",
+          "guided_progress": "Guided setup · ステップ {{current}} / {{total}}",
           "name_placeholder": "名前を入力してください",
-          "name_required": "名前を入力してください",
+          "next": "次",
+          "step": {
+            "basic": "基本情報",
+            "capability": "スキル",
+            "knowledge": "知識",
+            "persona": "ペルソナ"
+          },
           "submit": "作成",
           "submit_failed": "作成に失敗しました"
         },
@@ -4716,10 +4678,10 @@
     "baichuan": "百川",
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "[to be translated]:Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -4772,7 +4734,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "テッセラクト",
     "together": "Together",
-    "tokenflux": "TokenFlux",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "天翼クラウド 息壤",
@@ -5264,6 +5226,7 @@
     "assistant": {
       "create_new": "新しいアシスタント",
       "empty_text": "まだアシスタントはいません",
+      "filter": "フィルターアシスタント",
       "multi_hint": "（マルチモデルとは相互に排他的）",
       "multi_label": "マルチアシスタント並列",
       "search_placeholder": "検索アシスタント…"
@@ -5339,9 +5302,6 @@
       "auto_switch_to_topics": "トピックに自動的に切り替える",
       "title": "詳細設定"
     },
-    "appearance": {
-      "title": "[to be translated]:Appearance"
-    },
     "assistant": {
       "icon": {
         "type": {
@@ -5410,7 +5370,6 @@
         "cloud_storage": "クラウドバックアップ設定",
         "export_settings": "エクスポート設定",
         "import_settings": "設定のインポート",
-        "note_export": "[to be translated]:Note Export",
         "third_party": "サードパーティー連携"
       },
       "export_menu": {
@@ -5972,48 +5931,6 @@
         "token_placeholder": "Yuqueトークンを入力してください"
       }
     },
-    "dependencies": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "カスタムツールはまだありません。始めるには、1つ追加してください。",
-      "description": "アプリに必要なバイナリツールとランタイム依存関係を管理します。",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "インストール",
-      "installError": "Failed to install tool",
-      "installing": "インストール中...",
-      "invalidTool": "無効なツール名またはキー",
-      "notInstalled": "インストールされていません",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
-      "source": {
-        "bundled": "bundled"
-      },
-      "title": "環境依存",
-      "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
-      },
-      "update": "Update to latest version"
-    },
     "developer": {
       "enable_developer_mode": "開発者モードを有効にする",
       "help": "開発者モードを有効にすると、トレース機能を使用してモデルの呼び出しプロセスにおけるデータフローを確認できるようになります。",
@@ -6334,12 +6251,6 @@
         "usage": "使用法",
         "version": "バージョン"
       },
-      "oauth": {
-        "callback": {
-          "message": "このページを閉じてCherry Studioに戻ることができます",
-          "title": "認証成功"
-        }
-      },
       "prompts": {
         "arguments": "引数",
         "availablePrompts": "利用可能なプロンプト",
@@ -6464,11 +6375,10 @@
       "user": "ユーザー"
     },
     "menuGroups": {
-      "automation": "[to be translated]:Automation",
-      "capabilities": "[to be translated]:Capabilities & Tools",
-      "models": "[to be translated]:Models",
-      "personal": "[to be translated]:Personal",
-      "quickAccess": "[to be translated]:Quick Access",
+      "appSettings": "アプリ設定",
+      "integrations": "モデル",
+      "productivity": "生産性",
+      "services": "プラグイン",
       "system": "システム"
     },
     "messages": {
@@ -6489,6 +6399,12 @@
         "send_shortcuts": "送信ショートカット",
         "show_estimated_tokens": "推定トークン数を表示",
         "title": "入力設定"
+      },
+      "layout": {
+        "classic": "クラシック",
+        "conversation": "会話ビュー",
+        "modern": "モダン",
+        "work": "ワークビュー"
       },
       "markdown_rendering_input_message": "Markdownで入力メッセージをレンダリング",
       "metrics": "最初のトークンまでの時間 {{time_first_token_millsec}}ms | トークン速度 {{token_speed}} tok/sec",
@@ -6518,8 +6434,8 @@
         "logo_upload_label": "ロゴをアップロード",
         "name": "名前",
         "name_placeholder": "名前を入力してください",
-        "remove_confirm_description": "[to be translated]:Delete custom mini app \"{{name}}\"? This action cannot be undone.",
-        "remove_confirm_title": "[to be translated]:Delete custom mini app?",
+        "remove_confirm_description": "カスタムミニアプリ「{{name}}」を削除しますか？この操作は取り消せません。",
+        "remove_confirm_title": "カスタムミニアプリを削除しますか？",
         "remove_error": "カスタムミニアプリの削除に失敗しました。",
         "remove_success": "カスタムミニアプリの削除に成功しました。",
         "save_error": "カスタムミニアプリの保存に失敗しました。",
@@ -6548,7 +6464,7 @@
         "title": "ミニアプリ地域絞り込み"
       },
       "reset_tooltip": "デフォルト値にリセット",
-      "title": "[to be translated]:Mini Apps Settings",
+      "title": "ミニアプリ設定",
       "visible": "表示するミニアプリ"
     },
     "model": "デフォルトモデル",
@@ -6700,7 +6616,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
-        "sync_apply_default_in_use": "[to be translated]:Some models are in use as the default model and cannot be removed.",
+        "sync_apply_default_in_use": "一部のモデルはデフォルトモデルとして使用中のため、削除できません。",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6815,6 +6731,48 @@
       }
     },
     "parameter_settings": "パラメータ設定",
+    "plugins": {
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "カスタムツールはまだありません。始めるには、1つ追加してください。",
+      "description": "アプリに必要なバイナリツールとランタイム依存関係を管理します。",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "インストール",
+      "installError": "Failed to install tool",
+      "installing": "インストール中...",
+      "invalidTool": "無効なツール名またはキー",
+      "notInstalled": "インストールされていません",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
+      "title": "環境依存",
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
+    },
     "power": {
       "prevent_sleep_when_busy": "タスクが実行されている間はシステムをスリープさせない"
     },
@@ -6980,9 +6938,19 @@
       "cherryin": {
         "api_host": {
           "acceleration": "加速度領域",
-          "backup": "バックアップドメイン",
           "international": "国際ドメイン"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "description": "[to be translated]:Sign in with your Claude subscription",
+        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
+        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
+        "legal_link": "[to be translated]:Legal & Compliance",
+        "logged_in": "[to be translated]:Signed in to Claude Code",
+        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
+        "open_terminal": "[to be translated]:Open terminal to sign in",
+        "recheck": "[to be translated]:Recheck"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7165,8 +7133,7 @@
         "system": "システムプロキシ",
         "title": "プロキシモード"
       },
-      "tip": "ワイルドカード一致をサポート (*.test.com, 192.168.0.0/16)",
-      "title": "[to be translated]:Network Proxy"
+      "tip": "ワイルドカード一致をサポート (*.test.com, 192.168.0.0/16)"
     },
     "quickAssistant": {
       "click_tray_to_show": "トレイアイコンをクリックして起動",
@@ -7222,6 +7189,13 @@
       "all_disable": "すべて無効にする",
       "all_enable": "すべて有効にする",
       "bind_first_to_enable": "ショートカットを最初に割り当てて、その有効状態を変更してください",
+      "categories": {
+        "assistant": "AIアシスタントツール",
+        "chat": "メッセージインタラクション",
+        "general": "グローバルとウィンドウ",
+        "title": "ショートカットグループ",
+        "topic": "会話と話題"
+      },
       "clear_shortcut": "ショートカットをクリア",
       "clear_topic": "メッセージを消去",
       "close_tab": "タブを閉じる",
@@ -7299,9 +7273,6 @@
       "uninstallSuccess": "スキルがアンインストールされました: {{name}}",
       "viewSource": "ソースを表示",
       "zip": "ZIP"
-    },
-    "system": {
-      "title": "[to be translated]:System"
     },
     "theme": {
       "color_primary": "テーマ色",
@@ -7450,6 +7421,7 @@
           "exa": "AIアプリ向けニューラル検索API、セマンティックWeb検索に最適化されています。",
           "exa_mcp": "Exa MCPサーバーを通じて、エージェントにExa検索を公開する。",
           "fetch": "組み込みURLフェッチプロバイダー。URLからウェブページのコンテンツを取得し、検索結果を充実させます。",
+          "firecrawl": "Firecrawl クローラーおよび検索サービスは、WebサイトをMarkdownに変換することに最適化されています。",
           "jina": "Jina Reader の検索および読み取り API は、クリーンな Web コンテンツを取得するためのものです。",
           "querit": "AIアプリ向けのWeb検索結果を含む検索サービス",
           "searxng": "多くのソースにまたがる、セルフホスティング可能な無料インターネットメタ検索エンジン。",
@@ -7769,11 +7741,6 @@
     "tooltip": {
       "newline": "改行"
     }
-  },
-  "tray": {
-    "quit": "終了",
-    "show_quick_assistant": "クイックアシスタント",
-    "show_window": "ウィンドウを表示"
   },
   "update": {
     "install": "今すぐインストール",

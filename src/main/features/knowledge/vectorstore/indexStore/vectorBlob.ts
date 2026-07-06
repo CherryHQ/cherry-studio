@@ -1,8 +1,8 @@
 /**
  * Canonical embedding storage format: raw little-endian float32 bytes in a plain
- * BLOB (not libsql's F32_BLOB). The bytes are byte-identical across libsql and
- * better-sqlite3 + sqlite-vec, so switching engines needs no re-encode and no
- * user migration — see knowledge-technical-design.md §5.6 / decision A1.
+ * SQLite BLOB. The encoding is engine-portable, so the storage engine can change
+ * with no re-encode and no user migration — see knowledge-technical-design.md
+ * §5.6 / decision A1.
  */
 export function encodeVectorBlob(values: number[]): Uint8Array {
   const buffer = new ArrayBuffer(values.length * 4)

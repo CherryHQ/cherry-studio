@@ -15,6 +15,10 @@ function toRequired<T>(value: unknown, fallback: T): T {
   return (value ?? fallback) as T
 }
 
+function toRequiredString(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim().length > 0 ? value : fallback
+}
+
 export interface McpServerTransformResult {
   row: InsertMcpServerRow
   oldId: string
@@ -28,7 +32,7 @@ export function transformMcpServer(source: Record<string, unknown>, index: numbe
     oldId,
     row: {
       id: newId,
-      name: toRequired<string>(source.name, ''),
+      name: toRequiredString(source.name, newId),
       type: toNullable(source.type),
       description: toNullable(source.description),
       baseUrl: toNullable(source.baseUrl ?? source.url),

@@ -1,9 +1,9 @@
+import type { MultiEditToolInput, MultiEditToolOutput } from '../shared/agentToolTypes'
+import { AgentToolsType } from '../shared/agentToolTypes'
+import { ClickableFilePath } from '../shared/ClickableFilePath'
+import { ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { AgentFileDiffView } from './AgentFileDiffView'
-import { ClickableFilePath } from './ClickableFilePath'
-import { ToolHeader } from './GenericTools'
-import type { MultiEditToolInput, MultiEditToolOutput } from './types'
-import { AgentToolsType } from './types'
 
 function MultiEditToolChildren({ input }: { input?: MultiEditToolInput }) {
   const edits = Array.isArray(input?.edits) ? input.edits : []

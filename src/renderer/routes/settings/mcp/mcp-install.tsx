@@ -1,5 +1,5 @@
-import { SettingsContentColumn } from '@renderer/pages/settings'
-import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
+import EnvironmentDependencies from '@renderer/pages/settings/McpSettings/EnvironmentDependencies'
 import { createFileRoute } from '@tanstack/react-router'
 
 const McpInstallWrapper = () => (

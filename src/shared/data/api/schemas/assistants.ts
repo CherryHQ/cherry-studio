@@ -9,7 +9,7 @@ import * as z from 'zod'
 
 import { type Assistant, AssistantSchema, AssistantSettingsSchema } from '../../types/assistant'
 import { TagIdSchema } from '../../types/tag'
-import type { OffsetPaginationResponse } from '../apiTypes'
+import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 
 // ============================================================================
@@ -125,6 +125,15 @@ export type ListAssistantsQueryParams = z.input<typeof ListAssistantsQuerySchema
  */
 export type ListAssistantsQuery = z.output<typeof ListAssistantsQuerySchema>
 
+export const DeleteAssistantQuerySchema = z.strictObject({
+  /**
+   * Delete the assistant's topics in the same main-process transaction.
+   * Omitted/false preserves the historical "delete assistant only" behavior.
+   */
+  deleteTopics: z.boolean().optional()
+})
+export type DeleteAssistantQueryParams = z.input<typeof DeleteAssistantQuerySchema>
+
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -172,6 +181,7 @@ export type AssistantSchemas = {
     /** Delete an assistant */
     DELETE: {
       params: { id: string }
+      query?: DeleteAssistantQueryParams
       response: void
     }
   }

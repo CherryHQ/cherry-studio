@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { atomicWriteFile } from '@main/utils/file/fs'
+import { atomicWriteFile } from '@main/utils/file'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import type { FilePath } from '@shared/types/file'
 import { net } from 'electron'

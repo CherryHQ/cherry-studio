@@ -1,11 +1,26 @@
+import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, getMetadataByPathMock } = vi.hoisted(() => ({
+const { appGetMock, getMetadataByPathMock, safeOpenMock, showPathInFolderMock } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
-  getMetadataByPathMock: vi.fn()
+  getMetadataByPathMock: vi.fn(),
+  safeOpenMock: vi.fn(),
+  showPathInFolderMock: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
-vi.mock('@main/services/file/utils/metadata', () => ({ getMetadataByPath: getMetadataByPathMock }))
+vi.mock('@main/services/file', async () => {
+  // The handler now reaches dispatchHandle / getMetadataByPath through the file
+  // facade (previously deep-imported). dispatchHandle is exercised for real —
+  // the tests assert its routing — while the other facade exports it uses are
+  // stubbed.
+  const { dispatchHandle } = await vi.importActual<typeof FileDispatchModule>('@main/services/file/internal/dispatch')
+  return {
+    dispatchHandle,
+    getMetadataByPath: getMetadataByPathMock,
+    safeOpen: safeOpenMock,
+    showInFolder: showPathInFolderMock
+  }
+})
 
 import { fileHandlers } from '../file'
 
@@ -29,6 +44,7 @@ const fileManager = {
   batchTrash: vi.fn(),
   batchRestore: vi.fn(),
   batchPermanentDelete: vi.fn(),
+  emptyTrash: vi.fn(),
   rename: vi.fn(),
   open: vi.fn(),
   showInFolder: vi.fn(),
@@ -66,7 +82,9 @@ describe('fileHandlers', () => {
   })
 
   it('batch_get_physical_paths returns null for per-entry path failures', async () => {
-    fileManager.getPhysicalPath.mockResolvedValueOnce('/tmp/a.png').mockRejectedValueOnce(new Error('ENOENT'))
+    fileManager.getPhysicalPath.mockReturnValueOnce('/tmp/a.png').mockImplementationOnce(() => {
+      throw new Error('ENOENT')
+    })
 
     await expect(fileHandlers['file.batch_get_physical_paths']({ ids }, ctx)).resolves.toEqual({
       [ids[0]]: '/tmp/a.png',
@@ -81,6 +99,7 @@ describe('fileHandlers', () => {
     fileManager.batchTrash.mockResolvedValue(batchResult)
     fileManager.batchRestore.mockResolvedValue(batchResult)
     fileManager.batchPermanentDelete.mockResolvedValue(batchResult)
+    fileManager.emptyTrash.mockResolvedValue(batchResult)
 
     await expect(fileHandlers['file.batch_get_dangling_states']({ ids }, ctx)).resolves.toEqual({
       [ids[0]]: 'present'
@@ -88,11 +107,13 @@ describe('fileHandlers', () => {
     await expect(fileHandlers['file.batch_trash']({ ids }, ctx)).resolves.toBe(batchResult)
     await expect(fileHandlers['file.batch_restore']({ ids }, ctx)).resolves.toBe(batchResult)
     await expect(fileHandlers['file.batch_permanent_delete']({ ids }, ctx)).resolves.toBe(batchResult)
+    await expect(fileHandlers['file.empty_trash'](undefined, ctx)).resolves.toBe(batchResult)
 
     expect(fileManager.batchGetDanglingStates).toHaveBeenCalledWith({ ids })
     expect(fileManager.batchTrash).toHaveBeenCalledWith(ids)
     expect(fileManager.batchRestore).toHaveBeenCalledWith(ids)
     expect(fileManager.batchPermanentDelete).toHaveBeenCalledWith(ids)
+    expect(fileManager.emptyTrash).toHaveBeenCalled()
   })
 
   it('delegates single-entry commands to FileManager', async () => {
@@ -100,12 +121,22 @@ describe('fileHandlers', () => {
     fileManager.rename.mockResolvedValue(renamed)
 
     await expect(fileHandlers['file.rename']({ id: ids[0], newName: 'renamed' }, ctx)).resolves.toBe(renamed)
-    await fileHandlers['file.open']({ id: ids[0] }, ctx)
-    await fileHandlers['file.show_in_folder']({ id: ids[0] }, ctx)
+    await fileHandlers['file.open']({ kind: 'entry', entryId: ids[0] }, ctx)
+    await fileHandlers['file.show_in_folder']({ kind: 'entry', entryId: ids[0] }, ctx)
 
     expect(fileManager.rename).toHaveBeenCalledWith(ids[0], 'renamed')
     expect(fileManager.open).toHaveBeenCalledWith(ids[0])
     expect(fileManager.showInFolder).toHaveBeenCalledWith(ids[0])
+  })
+
+  it('dispatches path system commands without FileManager entry lookup', async () => {
+    await fileHandlers['file.open']({ kind: 'path', path: '/tmp/report.md' }, ctx)
+    await fileHandlers['file.show_in_folder']({ kind: 'path', path: '/tmp/report.md' }, ctx)
+
+    expect(safeOpenMock).toHaveBeenCalledWith('/tmp/report.md')
+    expect(showPathInFolderMock).toHaveBeenCalledWith('/tmp/report.md')
+    expect(fileManager.open).not.toHaveBeenCalled()
+    expect(fileManager.showInFolder).not.toHaveBeenCalled()
   })
 
   it('delegates internal-entry batch create items to FileManager', async () => {

@@ -10,7 +10,6 @@ interface NavigateToolInput {
 const ROUTE_LABELS: Record<string, { icon: string; label: string }> = {
   // Top-level pages
   '/': { icon: '🏠', label: 'Home' },
-  '/store': { icon: '🏪', label: 'Store' },
   '/paintings': { icon: '🎨', label: 'Paintings' },
   '/translate': { icon: '🌐', label: 'Translate' },
   '/files': { icon: '📁', label: 'Files' },
@@ -25,8 +24,7 @@ const ROUTE_LABELS: Record<string, { icon: string; label: string }> = {
   // Settings pages
   '/settings/provider': { icon: '🔑', label: 'Provider' },
   '/settings/model': { icon: '🤖', label: 'Models' },
-  '/settings/general': { icon: '🎛️', label: 'General' },
-  '/settings/appearance': { icon: '🎨', label: 'Appearance' },
+  '/settings/general': { icon: '⚙️', label: 'Common Settings' },
   '/settings/data': { icon: '💾', label: 'Data' },
   '/settings/mcp': { icon: '🔌', label: 'MCP' },
   '/settings/websearch': { icon: '🔍', label: 'Web Search' },

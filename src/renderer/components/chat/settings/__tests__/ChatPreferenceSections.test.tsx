@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,6 +7,8 @@ import ChatPreferenceSections from '../ChatPreferenceSections'
 const mocks = vi.hoisted(() => ({
   setPreference: vi.fn(),
   preferenceValues: {
+    'topic.layout': 'modern',
+    'agent.layout': 'classic',
     'chat.message.style': 'plain',
     'chat.message.font_size': 14,
     'chat.input.send_message_shortcut': 'Enter',
@@ -72,6 +74,7 @@ vi.mock('@cherrystudio/ui', () => ({
   SelectItem: ({ children, value }: PropsWithChildren<{ value: string }>) => <div data-value={value}>{children}</div>,
   SelectTrigger: ({ children }: PropsWithChildren) => <button type="button">{children}</button>,
   SelectValue: ({ placeholder }: { placeholder?: ReactNode }) => <span>{placeholder}</span>,
+  Slider: ({ value }: { value: number[] }) => <div data-testid="slider" data-value={value.join(',')} />,
   Switch: ({
     'aria-label': ariaLabel,
     checked,
@@ -98,39 +101,37 @@ vi.mock('react-i18next', () => ({
 
 describe('ChatPreferenceSections', () => {
   beforeEach(() => {
+    mocks.preferenceValues['chat.message.font_size'] = 14
     mocks.preferenceValues['chat.narrow_mode'] = true
     mocks.setPreference.mockClear()
   })
 
-  it('renders message and code-block display settings in the display variant', () => {
-    render(<ChatPreferenceSections variant="display" />)
+  it('renders shared chat preferences without assistant-only controls by default', () => {
+    render(<ChatPreferenceSections />)
 
+    expect(screen.getByText('settings.messages.use_serif_font')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.wide_mode')).toBeInTheDocument()
-    expect(screen.getByText('message.message.multi_model_style.label')).toBeInTheDocument()
-    expect(screen.getByText('settings.messages.show_message_outline')).toBeInTheDocument()
-    expect(screen.getByText('chat.settings.code_fancy_block.label')).toBeInTheDocument()
+    expect(screen.queryByText('settings.math.engine.label')).toBeNull()
     expect(screen.getByText('settings.math.single_dollar.label')).toBeInTheDocument()
-    // message-behavior settings (navigation, delete confirm) live with the message section
-    expect(screen.getByText('settings.messages.navigation.label')).toBeInTheDocument()
-    expect(screen.getByText('settings.messages.input.confirm_delete_message')).toBeInTheDocument()
-    // input/editor controls live in the general variant only
-    expect(screen.queryByText('settings.messages.input.show_estimated_tokens')).toBeNull()
+    expect(screen.getByText('chat.settings.code_fancy_block.label')).toBeInTheDocument()
+    expect(screen.getByText('settings.messages.show_message_outline')).toBeInTheDocument()
+    expect(screen.getByText('message.message.multi_model_style.label')).toBeInTheDocument()
+    expect(screen.getByText('settings.messages.input.show_estimated_tokens')).toBeInTheDocument()
+    expect(screen.queryByText('settings.messages.input.enable_quick_triggers')).toBeNull()
   })
 
-  it('renders input/editor and code-tool settings in the general variant', () => {
-    render(<ChatPreferenceSections variant="general" />)
+  it('does not render input translation controls', () => {
+    mocks.preferenceValues['app.language'] = 'zh-cn'
 
-    expect(screen.getByText('settings.messages.input.show_estimated_tokens')).toBeInTheDocument()
-    expect(screen.getByText('settings.messages.input.send_shortcuts')).toBeInTheDocument()
-    expect(screen.getByText('chat.settings.code_editor.title')).toBeInTheDocument()
-    expect(screen.getByText('chat.settings.code_execution.title')).toBeInTheDocument()
-    // message-behavior + display controls are absent
-    expect(screen.queryByText('settings.messages.navigation.label')).toBeNull()
-    expect(screen.queryByText('settings.messages.wide_mode')).toBeNull()
+    render(<ChatPreferenceSections />)
+
+    expect(screen.queryByText('settings.input.auto_translate_with_space')).toBeNull()
+    expect(screen.queryByText('settings.input.show_translate_confirm')).toBeNull()
+    expect(screen.queryByText('settings.input.target_language.label')).toBeNull()
   })
 
   it('renders wide layout mode off by default and enables it by disabling narrow mode', () => {
-    render(<ChatPreferenceSections variant="display" />)
+    render(<ChatPreferenceSections />)
 
     const wideModeSwitch = screen.getByRole('button', { name: 'settings.messages.wide_mode' })
     expect(wideModeSwitch).toHaveAttribute('data-checked', 'false')
@@ -140,14 +141,36 @@ describe('ChatPreferenceSections', () => {
     expect(mocks.setPreference).toHaveBeenCalledWith('chat.narrow_mode', false)
   })
 
-  it('renders the section headings for each variant', () => {
-    const { unmount } = render(<ChatPreferenceSections variant="general" />)
-    expect(screen.getByText('chat.settings.input_editor.title')).toBeInTheDocument()
-    expect(screen.getByText('chat.settings.code_tools.title')).toBeInTheDocument()
-    unmount()
+  it('renders preference groups without collapsible controls', () => {
+    render(<ChatPreferenceSections />)
 
-    render(<ChatPreferenceSections variant="display" />)
-    expect(screen.getByText('settings.messages.title')).toBeInTheDocument()
-    expect(screen.getByText('chat.settings.code.title')).toBeInTheDocument()
+    for (const heading of [
+      'settings.messages.input.title',
+      'settings.messages.title',
+      'settings.math.title',
+      'chat.settings.code.title'
+    ]) {
+      expect(screen.getByText(heading)).toBeInTheDocument()
+    }
+
+    expect(
+      screen
+        .getByText('settings.messages.input.title')
+        .compareDocumentPosition(screen.getByText('settings.messages.title')) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'settings.messages.title' })).toBeNull()
+  })
+
+  it('syncs the font-size slider draft when the preference changes externally', async () => {
+    const { rerender } = render(<ChatPreferenceSections />)
+
+    expect(screen.getByTestId('slider')).toHaveAttribute('data-value', '14')
+
+    mocks.preferenceValues['chat.message.font_size'] = 18
+    rerender(<ChatPreferenceSections />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('slider')).toHaveAttribute('data-value', '18')
+    })
   })
 })

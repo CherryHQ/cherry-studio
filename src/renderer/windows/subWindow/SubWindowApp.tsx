@@ -3,39 +3,26 @@ import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
-import TopViewContainer from '@renderer/components/TopView'
+import TopViewContainer from '@renderer/components/TopView/TopView'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 void preferenceService.preloadAll()
 
-// Create React Query client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false
-    }
-  }
-})
-
 function SubWindowApp(): React.ReactElement {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <CodeStyleProvider>
-          <CommandContextKeyProvider>
-            <CommandProvider>
-              <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
-                <TopViewContainer>
-                  <SubWindowAppShell />
-                </TopViewContainer>
-              </TabsProvider>
-            </CommandProvider>
-          </CommandContextKeyProvider>
-        </CodeStyleProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <CodeStyleProvider>
+        <CommandContextKeyProvider>
+          <CommandProvider>
+            <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
+              <TopViewContainer>
+                <SubWindowAppShell />
+              </TopViewContainer>
+            </TabsProvider>
+          </CommandProvider>
+        </CommandContextKeyProvider>
+      </CodeStyleProvider>
+    </ThemeProvider>
   )
 }
 

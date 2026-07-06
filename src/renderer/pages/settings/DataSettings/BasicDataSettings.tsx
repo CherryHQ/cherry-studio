@@ -1,9 +1,16 @@
 import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
-import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
+import { LanTransferPopup } from '@renderer/components/Popups/LanTransferPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
-import { occupiedDirs } from '@renderer/config/constant'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
@@ -14,7 +21,17 @@ import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+/**
+ * @deprecated v1 leftover. v2's preboot relocation copies the entire Electron
+ * userData directory tree at startup (in `src/main/core/preboot/userDataLocation.ts`),
+ * after the previous process has fully exited and no file is locked. The
+ * distinction between "occupied" and "non-occupied" directories has no meaning
+ * in v2 — the entire tree is opaque and copied as one unit.
+ *
+ * Only used by the v1 in-process migration flow below, to be rewritten to the new
+ * BootConfig `temp.user_data_relocation` protocol. Remove this at the same time.
+ */
+const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']
 
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -23,7 +40,6 @@ const BasicDataSettings: React.FC = () => {
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
-  const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
   useEffect(() => {
     void window.api.getAppInfo().then(setAppInfo)
@@ -532,20 +548,6 @@ const BasicDataSettings: React.FC = () => {
               {t('settings.general.reset.title')}
             </Button>
           </RowFlex>
-        </SettingRow>
-      </SettingGroup>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.privacy.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.privacy.enable_privacy_mode')}</SettingRowTitle>
-          <Switch
-            checked={enableDataCollection}
-            onCheckedChange={(v) => {
-              void setEnableDataCollection(v)
-              void window.api.config.set('enableDataCollection', v)
-            }}
-          />
         </SettingRow>
       </SettingGroup>
     </>

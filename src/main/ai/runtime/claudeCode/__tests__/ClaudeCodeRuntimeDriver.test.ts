@@ -71,7 +71,7 @@ vi.mock('../streamAdapter', () => ({
   }
 }))
 
-const { ClaudeCodeRuntimeDriver } = await import('../ClaudeCodeRuntimeDriver')
+const { ClaudeCodeRuntimeDriver, buildAgentUserContent } = await import('../ClaudeCodeRuntimeDriver')
 
 function createAsyncQueue<T>() {
   const items: T[] = []
@@ -232,7 +232,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
         type: 'chunk',
         chunk: {
           type: 'message-metadata',
-          messageMetadata: { totalTokens: 20, promptTokens: 15, completionTokens: 5 }
+          messageMetadata: {
+            totalTokens: 20,
+            promptTokens: 15,
+            completionTokens: 5,
+            noCacheTokens: 10,
+            cacheReadTokens: 2,
+            cacheWriteTokens: 3
+          }
         }
       }
     })
@@ -477,6 +484,33 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     // Turn completes cleanly — no `error` event surfaced for the dropped stream.
     await expect(events.next()).resolves.toMatchObject({ value: { type: 'turn-complete' } })
+    void connection.close()
+  })
+
+  it('logs non-salvage SDK failures before surfacing the runtime error', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
+    await events.next()
+    void connection.send({ message: userMessage() })
+    await events.next()
+
+    queryQueue.push({ type: 'result', subtype: 'error_during_execution', session_id: 'resume-init', usage: {} })
+
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'chunk', chunk: { type: 'finish' } } })
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'error' } })
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+      'Claude Code query loop failed',
+      expect.objectContaining({ sessionId: 'session-1', modelId: 'sonnet-sdk', error: expect.any(Error) })
+    )
     void connection.close()
   })
 
@@ -751,5 +785,43 @@ describe('ClaudeCodeRuntimeDriver', () => {
     // Teardown is the only place that disposes.
     void connection.close()
     expect(dispose).toHaveBeenCalled()
+  })
+})
+
+describe('buildAgentUserContent', () => {
+  const messageWith = (parts: unknown[]) =>
+    ({ data: { parts } }) as unknown as Parameters<typeof buildAgentUserContent>[0]
+
+  it('returns plain text when there are no attachments', () => {
+    expect(buildAgentUserContent(messageWith([{ type: 'text', text: 'hello' }]))).toBe('hello')
+  })
+
+  it('appends absolute paths of file attachments below the text', () => {
+    const content = buildAgentUserContent(
+      messageWith([
+        { type: 'text', text: 'look at these' },
+        { type: 'file', url: 'file:///tmp/diagram.png', filename: 'diagram.png' },
+        { type: 'file', url: 'file:///tmp/spec.pdf', filename: 'spec.pdf' }
+      ])
+    )
+    expect(content).toBe(
+      'look at these\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/diagram.png\n- /tmp/spec.pdf'
+    )
+  })
+
+  it('emits only the attachment section when there is no text', () => {
+    const content = buildAgentUserContent(messageWith([{ type: 'file', url: 'file:///tmp/a.png' }]))
+    expect(content).toBe('Attached files (read them with your tools using these absolute paths):\n- /tmp/a.png')
+  })
+
+  it('ignores non-file parts and non-file:// urls', () => {
+    const content = buildAgentUserContent(
+      messageWith([
+        { type: 'text', text: 'hi' },
+        { type: 'file', url: 'https://example.com/x.png' },
+        { type: 'image', url: 'file:///tmp/nope.png' }
+      ])
+    )
+    expect(content).toBe('hi')
   })
 })

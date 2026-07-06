@@ -1,5 +1,5 @@
 import { useMultiplePreferences } from '@data/hooks/usePreference'
-import { platform } from '@renderer/config/constant'
+import { platform } from '@renderer/utils/platform'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { CommandShortcutPreferenceKey, SupportedPlatform } from '@shared/types/command'
 import type { ResolvedShortcut } from '@shared/types/shortcut'
@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useCommandContextReader } from './useCommandContext'
 
+export type ShortcutSettingsGroup = 'general' | 'chat' | 'topic' | 'assistant'
 type CommandShortcutKey = CommandShortcutPreferenceKey<CommandId>
 
 const shortcutPreferenceKeyMap = REGISTERED_KEYBINDINGS.reduce<Record<CommandId, CommandShortcutKey>>(
@@ -26,6 +27,19 @@ const shortcutPreferenceKeyMap = REGISTERED_KEYBINDINGS.reduce<Record<CommandId,
   },
   {} as Record<CommandId, CommandShortcutKey>
 )
+
+const commandCategoryToSettingsGroup = (categoryKey: string): ShortcutSettingsGroup => {
+  if (categoryKey === 'settings.shortcuts.general') {
+    return 'general'
+  }
+  if (categoryKey === 'settings.shortcuts.chat') {
+    return 'chat'
+  }
+  if (categoryKey === 'settings.shortcuts.topic') {
+    return 'topic'
+  }
+  return 'assistant'
+}
 
 const buildNextPreference = (
   state: ResolvedShortcut,
@@ -53,6 +67,7 @@ export interface ShortcutListItem {
   command: CommandId
   key: CommandShortcutKey
   label: string
+  group: ShortcutSettingsGroup
   keybinding: (typeof REGISTERED_KEYBINDINGS)[number]
   preference: ResolvedShortcut
   defaultPreference: ResolvedShortcut
@@ -122,6 +137,7 @@ export const useCommandShortcuts = () => {
             command: rule.command,
             key: rule.preferenceKey,
             label: t(command.titleKey),
+            group: commandCategoryToSettingsGroup(command.categoryKey),
             keybinding: rule,
             preference: {
               binding: preference.binding,

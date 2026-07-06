@@ -43,11 +43,11 @@ vi.mock('@main/core/application', () => ({
   }
 }))
 
-vi.mock('@main/utils/file/pathStatus', () => ({
+vi.mock('@main/utils/file', () => ({
   getPathStatus: mockGetPathStatus
 }))
 
-vi.mock('@main/utils/language', () => ({
+vi.mock('@main/i18n', () => ({
   getAppLanguage: vi.fn(() => 'en-US'),
   t: vi.fn((key: string, vars?: { path?: string }) => `${key}:${vars?.path ?? ''}`)
 }))
@@ -99,16 +99,29 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
 }
 
 describe('adjustAllowedToolsForMcp', () => {
-  it('adds the cherry-tools + claw + agent-memory wildcards in Soul Mode', () => {
-    expect(adjustAllowedToolsForMcp(true, false)).toEqual(
-      expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__claw__*', 'mcp__agent-memory__*'])
+  it('lists read-only cherry-tools + claw + agent-memory in Soul Mode, excluding the mutating kb_manage', () => {
+    const allowed = adjustAllowedToolsForMcp(true, false)
+    expect(allowed).toEqual(
+      expect.arrayContaining([
+        'mcp__cherry-tools__kb_search',
+        'mcp__cherry-tools__kb_list',
+        'mcp__claw__*',
+        'mcp__agent-memory__*'
+      ])
     )
+    // The mutating kb_manage tool must NOT be pre-approved by the SDK allowlist — it requires
+    // per-call approval via canUseTool. A bare wildcard would silently re-include it.
+    expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
+    expect(allowed).not.toContain('mcp__cherry-tools__*')
   })
 
-  it('adds the cherry-tools + assistant wildcards for the Cherry Assistant', () => {
-    expect(adjustAllowedToolsForMcp(false, true)).toEqual(
-      expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__assistant__*'])
+  it('lists read-only cherry-tools + assistant for the Cherry Assistant, excluding kb_manage', () => {
+    const allowed = adjustAllowedToolsForMcp(false, true)
+    expect(allowed).toEqual(
+      expect.arrayContaining(['mcp__cherry-tools__kb_search', 'mcp__cherry-tools__kb_list', 'mcp__assistant__*'])
     )
+    expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
+    expect(allowed).not.toContain('mcp__cherry-tools__*')
   })
 
   it('leaves the allowlist undefined for a plain agent (all tools permitted)', () => {
@@ -118,17 +131,17 @@ describe('adjustAllowedToolsForMcp', () => {
 
 describe('buildMcpServers', () => {
   it('injects the agent-memory server in Soul Mode (REGRESSION agents-jobs-3)', async () => {
-    const result = await buildMcpServers(session, agent, true, false)
+    const result = buildMcpServers(session, agent, true, false)
     expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['claw', 'agent-memory']))
   })
 
   it('does not inject agent-memory when Soul Mode is off', async () => {
-    const result = await buildMcpServers(session, agent, false, false)
+    const result = buildMcpServers(session, agent, false, false)
     expect(result?.['agent-memory']).toBeUndefined()
   })
 
   it('injects cherry-tools for every session and no longer injects exa', async () => {
-    const result = await buildMcpServers(session, agent, false, false)
+    const result = buildMcpServers(session, agent, false, false)
     expect(result?.['cherry-tools']).toBeDefined()
     expect(result?.exa).toBeUndefined()
   })

@@ -1,11 +1,11 @@
-import { DataApiErrorFactory } from '@shared/data/api/apiErrors'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const configMock = vi.hoisted(() => ({
   isDev: true
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   get isDev() {
     return configMock.isDev
   }
