@@ -181,6 +181,64 @@ describe('parseCharts — sparse cache idx padding', () => {
   })
 })
 
+describe('parseCharts — hostile cache declarations are bounded', () => {
+  const hostileValCacheChartXml = (numCache: string) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <c:chartSpace ${CHART_NS}>
+        <c:chart>
+          <c:plotArea>
+            <c:lineChart>
+              <c:ser>
+                <c:idx val="0"/>
+                <c:cat><c:strRef><c:f>Sheet1!$A$2:$A$3</c:f><c:strCache><c:ptCount val="2"/><c:pt idx="0"><c:v>A</c:v></c:pt><c:pt idx="1"><c:v>B</c:v></c:pt></c:strCache></c:strRef></c:cat>
+                <c:val><c:numRef><c:f>Sheet1!$B$2:$B$3</c:f><c:numCache>${numCache}</c:numCache></c:numRef></c:val>
+              </c:ser>
+            </c:lineChart>
+          </c:plotArea>
+        </c:chart>
+      </c:chartSpace>`
+
+  const twoCellDataAccessor: SheetDataAccessor = {
+    readRange: () => [[10], [20]]
+  }
+
+  const buildHostileZip = (numCache: string): JSZip => {
+    const zip = buildBaseZip()
+    zip.file('xl/drawings/drawing1.xml', wrapDrawing(twoCellAnchorXml('rId1')))
+    zip.file('xl/drawings/_rels/drawing1.xml.rels', drawingRelsXml([{ id: 'rId1', target: '../charts/chart1.xml' }]))
+    zip.file('xl/charts/chart1.xml', hostileValCacheChartXml(numCache))
+    return zip
+  }
+
+  it('drops a cache declaring a huge ptCount and falls back to referenced cells', async () => {
+    const zip = buildHostileZip('<c:ptCount val="2000000000"/><c:pt idx="0"><c:v>1</c:v></c:pt>')
+
+    const { charts, warnings } = await parseCharts(zip, 'Sheet1', DEFAULT_LAYOUT, twoCellDataAccessor)
+
+    expect(warnings).toContain(
+      'chart cache declares an out-of-range ptCount (2000000000); falling back to cell references'
+    )
+    expect(charts[0].series[0].values).toEqual([10, 20])
+  })
+
+  it('drops a cache containing a far-out sparse pt idx and falls back to referenced cells', async () => {
+    const zip = buildHostileZip('<c:ptCount val="2"/><c:pt idx="999999999"><c:v>1</c:v></c:pt>')
+
+    const { charts, warnings } = await parseCharts(zip, 'Sheet1', DEFAULT_LAYOUT, twoCellDataAccessor)
+
+    expect(warnings).toContain('chart cache point index out of range (999999999); falling back to cell references')
+    expect(charts[0].series[0].values).toEqual([10, 20])
+  })
+
+  it('drops a cache with a non-integer ptCount and falls back to referenced cells', async () => {
+    const zip = buildHostileZip('<c:ptCount val="2.5"/><c:pt idx="0"><c:v>1</c:v></c:pt>')
+
+    const { charts, warnings } = await parseCharts(zip, 'Sheet1', DEFAULT_LAYOUT, twoCellDataAccessor)
+
+    expect(warnings.some((w) => w.includes('out-of-range ptCount'))).toBe(true)
+    expect(charts[0].series[0].values).toEqual([10, 20])
+  })
+})
+
 describe('parseCharts — single series normalization', () => {
   it('treats a lone c:ser node (not an array) the same as an array of one', async () => {
     const chartXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

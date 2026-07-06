@@ -291,11 +291,18 @@ const parseTitle = (chartNode: unknown): string | undefined => {
   return text.length > 0 ? text : undefined
 }
 
-/** numCache/strCache → 按 idx 补齐到 ptCount 长度的数组(缺失 idx → null) */
-const readCache = (refNode: unknown, cacheTag: string): (string | number | null)[] | null => {
+/** 图表缓存数据点数上限:ptCount/pt idx 来自不受信 XML,越界即弃用缓存回退单元格引用 */
+const MAX_CHART_CACHE_POINTS = 10_000
+
+/** numCache/strCache → 按 idx 补齐到 ptCount 长度的数组(缺失 idx → null);声明越界时返回 null 走引用回退 */
+const readCache = (refNode: unknown, cacheTag: string, warnings: string[]): (string | number | null)[] | null => {
   const cache = findChild(refNode, cacheTag)
   if (!cache) return null
   const ptCount = toNumber(valAttr(findChild(cache, 'ptCount'))) ?? 0
+  if (!Number.isInteger(ptCount) || ptCount < 0 || ptCount > MAX_CHART_CACHE_POINTS) {
+    warnings.push(`chart cache declares an out-of-range ptCount (${ptCount}); falling back to cell references`)
+    return null
+  }
   const pts = findChildren(cache, 'pt')
   if (pts.length === 0 && ptCount === 0) return null
 
@@ -303,6 +310,10 @@ const readCache = (refNode: unknown, cacheTag: string): (string | number | null)
   for (const pt of pts) {
     const idx = toNumber(getAttr(pt, 'idx'))
     if (idx === undefined) continue
+    if (!Number.isInteger(idx) || idx < 0 || idx >= MAX_CHART_CACHE_POINTS) {
+      warnings.push(`chart cache point index out of range (${idx}); falling back to cell references`)
+      return null
+    }
     const vNode = findChild(pt, 'v')
     const raw = typeof vNode === 'object' ? undefined : vNode
     if (raw === undefined) continue
@@ -310,7 +321,7 @@ const readCache = (refNode: unknown, cacheTag: string): (string | number | null)
     if (idx < result.length) {
       result[idx] = value
     } else {
-      // ptCount 与实际 idx 不一致时兜底扩展
+      // ptCount 与实际 idx 不一致时兜底扩展(上界已由 MAX_CHART_CACHE_POINTS 约束)
       while (result.length <= idx) result.push(null)
       result[idx] = value
     }
@@ -325,13 +336,16 @@ const readRefFormula = (refNode: unknown): string | undefined => {
 }
 
 /** c:cat 或 c:val 节点(内部是 numRef 或 strRef)→ 数据数组 + 引用串 */
-const readDataSource = (sourceNode: unknown): { cache: (string | number | null)[] | null; ref: string | undefined } => {
+const readDataSource = (
+  sourceNode: unknown,
+  warnings: string[]
+): { cache: (string | number | null)[] | null; ref: string | undefined } => {
   if (!sourceNode) return { cache: null, ref: undefined }
   const numRef = findChild(sourceNode, 'numRef')
   const strRef = findChild(sourceNode, 'strRef')
   const refNode = numRef ?? strRef
   const cacheTag = numRef ? 'numCache' : 'strCache'
-  const cache = readCache(refNode, cacheTag)
+  const cache = readCache(refNode, cacheTag, warnings)
   const ref = readRefFormula(refNode)
   return { cache, ref }
 }
@@ -341,7 +355,7 @@ const readSeriesName = (txNode: unknown, data: SheetDataAccessor, warnings: stri
   if (!txNode) return undefined
   const strRef = findChild(txNode, 'strRef')
   if (strRef) {
-    const cache = readCache(strRef, 'strCache')
+    const cache = readCache(strRef, 'strCache', warnings)
     if (cache && cache.length > 0 && cache[0] !== null) return String(cache[0])
     const ref = readRefFormula(strRef)
     if (ref) {
@@ -379,7 +393,7 @@ const readCategoriesOrValues = (
   data: SheetDataAccessor,
   warnings: string[]
 ): (string | number | null)[] => {
-  const { cache, ref } = readDataSource(sourceNode)
+  const { cache, ref } = readDataSource(sourceNode, warnings)
   if (cache && cache.length > 0) return cache
   if (ref) {
     const rows = safeReadRange(data, ref, warnings)
