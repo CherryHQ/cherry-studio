@@ -2,9 +2,10 @@
  * Knowledge base search tool — agentic.
  *
  * The model picks the query and target `baseIds` (typically after `kb_list`).
- * The effective knowledge base scope (`assistant.knowledgeBaseIds` unioned with the composer's
- * per-turn selection) flows in via `RequestContext.knowledgeBaseIds` and scopes which base IDs are
- * accepted. The search itself lives in the shared `knowledgeLookup` core so the Claude Code MCP
+ * The effective knowledge base scope (the assistant's static binding when non-empty, else the
+ * composer's per-turn selection — see `resolveKnowledgeBaseIds`) flows in via
+ * `RequestContext.knowledgeBaseIds` and scopes which base IDs are accepted. The search itself lives
+ * in the shared `knowledgeLookup` core so the Claude Code MCP
  * bridge runs identical logic; this file is just the AI-SDK `tool()` wrapper.
  */
 

@@ -24,9 +24,10 @@ export interface RequestContext {
   readonly fileAttachments?: ReadonlyArray<FileAttachmentRef>
 
   /**
-   * Effective knowledge base scope for this request — `assistant.knowledgeBaseIds` unioned with
-   * the composer's per-turn `/` picker selection. The `kb_*` tools read this instead of
-   * `assistant.knowledgeBaseIds` directly. Defaults to empty.
+   * Effective knowledge base scope for this request, resolved by `resolveKnowledgeBaseIds`: the
+   * assistant's static `knowledgeBaseIds` binding when non-empty, otherwise the composer's per-turn
+   * `/` picker selection. The `kb_*` tools read this instead of `assistant.knowledgeBaseIds`
+   * directly. Defaults to empty.
    */
   readonly knowledgeBaseIds?: readonly string[]
 }

@@ -77,7 +77,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const hasFileAttachments = fileAttachments.length > 0
   const knowledgeBaseIds = resolveKnowledgeBaseIds(assistant, request.knowledgeBaseIds)
   const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
-    ? await resolveTools(request, assistant, model, hasFileAttachments)
+    ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
 
@@ -164,11 +164,12 @@ function canModelConsumeTools(model: Model): boolean {
  * sync the MCP entries into the registry, then materialise the active
  * `ToolSet` via `applies` predicates and defer exposition.
  */
-async function resolveTools(
+export async function resolveTools(
   request: BuildAgentParamsInput['request'],
   assistant: Assistant | undefined,
   model: Model,
-  hasFileAttachments: boolean
+  hasFileAttachments: boolean,
+  knowledgeBaseIds: readonly string[]
 ): Promise<{
   tools: ToolSet | undefined
   deferredEntries: ToolEntry[]
@@ -187,7 +188,13 @@ async function resolveTools(
   }
 
   const hasAnyKnowledgeBase = resolveHasAnyKnowledgeBase()
-  const activeEntries = registry.selectActive({ assistant, mcpToolIds, hasFileAttachments, hasAnyKnowledgeBase })
+  const activeEntries = registry.selectActive({
+    assistant,
+    mcpToolIds,
+    hasFileAttachments,
+    hasAnyKnowledgeBase,
+    knowledgeBaseIds
+  })
   let tools: ToolSet | undefined
   if (activeEntries.length > 0) {
     tools = {}
@@ -222,13 +229,17 @@ function resolveHasAnyKnowledgeBase(): boolean {
 }
 
 /**
- * Effective knowledge base scope for this request: the assistant's own bound bases, unioned with
- * whatever the composer's `/` picker selected for this turn. Union (not caller-wins, unlike
- * `mcpToolIds`) because a per-turn selection is additive on top of the assistant's default scope,
- * not a replacement for it.
+ * Effective knowledge base scope for this request. When the assistant has its own static binding,
+ * that binding IS the scope — the composer's per-turn selection can never expand it, since main
+ * cannot trust a renderer/IPC-supplied id list to stay within the assistant's configured bases (the
+ * composer UI happens to restrict picks to that set today, but that's a UI nicety, not a security
+ * boundary). Only an assistant with no static binding lets the per-turn selection define the scope —
+ * which is the actual gap this resolves: composer-only, ad-hoc knowledge base use.
  */
 export function resolveKnowledgeBaseIds(assistant: Assistant | undefined, requestIds: string[] | undefined): string[] {
-  return Array.from(new Set([...(assistant?.knowledgeBaseIds ?? []), ...(requestIds ?? [])]))
+  const assistantIds = assistant?.knowledgeBaseIds ?? []
+  if (assistantIds.length > 0) return assistantIds
+  return Array.from(new Set(requestIds ?? []))
 }
 
 /**

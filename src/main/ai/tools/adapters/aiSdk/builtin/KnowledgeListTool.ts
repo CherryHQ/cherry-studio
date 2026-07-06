@@ -10,8 +10,9 @@
  * Both modes live in the shared `knowledgeLookup` core so the Claude Code MCP bridge runs identical
  * logic; this file is just the AI-SDK `tool()` wrapper.
  *
- * Scope: when the effective scope (`assistant.knowledgeBaseIds` unioned with the composer's per-turn
- * selection) is non-empty, only those bases are reachable; when empty, all user bases are.
+ * Scope: when the effective scope (the assistant's static binding when non-empty, else the composer's
+ * per-turn selection — see `resolveKnowledgeBaseIds`) is non-empty, only those bases are reachable;
+ * when empty, all user bases are.
  */
 
 import {
