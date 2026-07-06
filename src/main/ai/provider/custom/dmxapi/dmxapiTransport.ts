@@ -1,7 +1,8 @@
+import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
-import { readErrorMessage } from '@shared/ai/readErrorMessage'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import { readErrorMessage } from '../readErrorMessage'
 import { fileToDataUrl } from '../transportUtils'
 
 export const DEFAULT_DMXAPI_BASE_URL = 'https://www.dmxapi.com'
@@ -241,7 +242,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     if (!response.ok) {
       if (response.status === 401) throw createPaintingGenerateError('REQ_ERROR_TOKEN')
       if (response.status === 403) throw createPaintingGenerateError('REQ_ERROR_NO_BALANCE')
-      const message = await readErrorMessage(response, 'paintings.generate_failed')
+      const message = await readErrorMessage(response, t('paintings.generate_failed'))
       throw createPaintingGenerateError('REMOTE_ERROR', { message })
     }
 

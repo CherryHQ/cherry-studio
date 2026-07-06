@@ -1,6 +1,6 @@
 import { Tooltip, useMarkdownBlockContext } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { CopyIcon } from '@renderer/components/Icons'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { Check, FileSpreadsheet } from 'lucide-react'
 import MarkdownIt from 'markdown-it'

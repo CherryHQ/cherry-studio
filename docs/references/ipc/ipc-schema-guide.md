@@ -9,7 +9,7 @@ One file per domain under `src/shared/ipc/schemas/`, each split into two blocks:
 | Request (`*RequestSchemas`) | zod **values** (`defineRoute`) | renderer→main | untrusted → parsed |
 | Event (`*EventSchemas`) | pure **types** | main→renderer | trusted → not parsed |
 
-A domain with no events simply omits the Event block. `schemas/index.ts` composes the per-domain pieces:
+A domain with no events simply omits the Event block. `schemas/ipcSchemas.ts` composes the per-domain pieces:
 
 ```ts
 export const ipcRequestSchemas = { ...windowRequestSchemas, ...appRequestSchemas } satisfies Record<string, RouteDef>
@@ -51,7 +51,7 @@ The dot structure is a naming convention, not type syntax — `IpcRoute` is the 
 zod schemas are runtime values.
 
 - **Main** (`IpcRouter`) imports `ipcRequestSchemas` as a **value** to `parse`.
-- **Renderer** must `import type` from `@shared/ipc/schemas` and `@shared/ipc/types` only. A value import would pull the entire zod schema set into the renderer bundle. This is enforced by an ESLint rule (`@typescript-eslint/no-restricted-imports` with `allowTypeImports`, scoped to `src/renderer/**` in `eslint.config.mjs`) that flags any value import of `@shared/ipc/schemas`. `IpcError` is the one exception — it is a value import, but plain TS with no zod dependency, so it is bundle-safe.
+- **Renderer** must `import type` from the `@shared/ipc/schemas/*` modules and `@shared/ipc/types` only. A value import would pull the entire zod schema set into the renderer bundle. This is enforced by an ESLint rule (`@typescript-eslint/no-restricted-imports` with `allowTypeImports`, scoped to `src/renderer/**` in `eslint.config.mjs`) that flags any value import under `@shared/ipc/schemas`. `IpcError` is the one exception — it is a value import, but plain TS with no zod dependency, so it is bundle-safe.
 
 Validation is always on: the router `parse`s every request route. There is no skip-validation knob (add a field later only if profiling proves a hot route needs it).
 

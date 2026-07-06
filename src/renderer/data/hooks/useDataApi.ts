@@ -43,14 +43,14 @@ import type {
   QueryParamsForPath,
   ResponseForPath,
   TemplateApiPaths
-} from '@shared/data/api/apiPaths'
-import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
+} from '@shared/data/api/paths'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import {
   type CursorPaginationResponse,
   type InferPaginationMode,
   type OffsetPaginationResponse,
   type PaginationResponse
-} from '@shared/data/api/apiTypes'
+} from '@shared/data/api/types'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Cache, KeyedMutator, ScopedMutator, SWRConfiguration } from 'swr'
 import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'

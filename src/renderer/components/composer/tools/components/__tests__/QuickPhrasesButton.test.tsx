@@ -26,8 +26,10 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/components/resource/dialogs', () => ({
-  PromptEditDialog: ({ open }: { open: boolean }) => (open ? <div data-testid="prompt-edit-dialog" /> : null),
+vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
+  PromptEditDialog: ({ open }: { open: boolean }) => (open ? <div data-testid="prompt-edit-dialog" /> : null)
+}))
+vi.mock('@renderer/components/resourceCatalog/dialogs/manage', () => ({
   PromptManagementDialog: ({ open }: { open: boolean }) =>
     open ? <div data-testid="prompt-management-dialog" /> : null
 }))

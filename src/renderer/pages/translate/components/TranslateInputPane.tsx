@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Scrollbar } from '@cherrystudio/ui'
 import uploadExcelIcon from '@renderer/assets/images/translate/upload-excel.svg'
 import uploadImageIcon from '@renderer/assets/images/translate/upload-image.svg'
 import uploadPdfIcon from '@renderer/assets/images/translate/upload-pdf.svg'
@@ -7,18 +7,18 @@ import uploadTextIcon from '@renderer/assets/images/translate/upload-text.svg'
 import uploadWordIcon from '@renderer/assets/images/translate/upload-word.svg'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { Copy, LoaderCircle, X } from 'lucide-react'
-import type { KeyboardEvent, Ref, UIEvent } from 'react'
-import { useCallback } from 'react'
+import type { KeyboardEvent, Ref } from 'react'
+import { useCallback, useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import IconButton from './IconButton'
 
 type Props = {
-  ref?: Ref<HTMLTextAreaElement>
+  ref?: Ref<HTMLDivElement>
   text: string
   onTextChange: (value: string) => void
   onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void
-  onScroll: (event: UIEvent<HTMLTextAreaElement>) => void
+  onScroll: () => void
   onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void
   onDrop: (event: React.DragEvent<HTMLDivElement>) => void
   onSelectFile: () => void
@@ -45,6 +45,7 @@ const TranslateInputPane = ({
   selecting
 }: Props) => {
   const { t } = useTranslation()
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const {
     isDragging,
@@ -58,6 +59,13 @@ const TranslateInputPane = ({
     onTextChange('')
   }, [onTextChange])
 
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }, [text])
+
   const uploadIcons = [uploadImageIcon, uploadPdfIcon, uploadWordIcon, uploadPptIcon, uploadTextIcon, uploadExcelIcon]
 
   return (
@@ -68,18 +76,19 @@ const TranslateInputPane = ({
       onDragOver={handleDragOver}
       onDrop={handleDropEvent}>
       <div className="relative min-h-0 flex-1">
-        <textarea
-          ref={ref}
-          value={text}
-          onChange={(e) => onTextChange(e.target.value)}
-          onKeyDown={onKeyDown}
-          onScroll={onScroll}
-          onPaste={onPaste}
-          disabled={disabled}
-          spellCheck={false}
-          placeholder={t('translate.input.placeholder')}
-          className="h-full w-full resize-none bg-transparent p-4 pr-12 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-foreground-muted"
-        />
+        <Scrollbar ref={ref} onScroll={onScroll} className="h-full overflow-x-hidden">
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={(e) => onTextChange(e.target.value)}
+            onKeyDown={onKeyDown}
+            onPaste={onPaste}
+            disabled={disabled}
+            spellCheck={false}
+            placeholder={t('translate.input.placeholder')}
+            className="min-h-full w-full resize-none overflow-hidden bg-transparent p-4 pr-12 text-base text-foreground leading-relaxed outline-none placeholder:font-normal placeholder:text-foreground-muted"
+          />
+        </Scrollbar>
         <IconButton
           size="sm"
           onClick={onCopy}

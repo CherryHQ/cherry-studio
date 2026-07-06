@@ -1,4 +1,4 @@
-import type { IpcEventName } from '@shared/ipc/schemas'
+import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
 import { useEffect, useEffectEvent } from 'react'
 

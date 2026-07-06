@@ -1,4 +1,4 @@
-import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type {
   DataUIPart,
   DynamicToolUIPart,

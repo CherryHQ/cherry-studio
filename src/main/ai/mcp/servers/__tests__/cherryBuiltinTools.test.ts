@@ -233,7 +233,7 @@ describe('cherryBuiltinTools', () => {
   })
 
   it('steers kb_read to re-check the conceptId when the document is not found', async () => {
-    const { DataApiErrorFactory } = await import('@shared/data/api')
+    const { DataApiErrorFactory } = await import('@shared/data/api/errors')
     kbReadConcept.mockRejectedValue(DataApiErrorFactory.notFound('Knowledge concept', 'docs/gone.md'))
 
     const result = await callCherryBuiltinTool('kb_read', { baseId: 'b1', conceptId: 'docs/gone.md' }, signal)

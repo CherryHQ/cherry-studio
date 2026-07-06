@@ -15826,6 +15826,40 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
+      "contextWindow": 1048576,
+      "family": "glm",
+      "id": "glm-5-2",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "GLM-5.2",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.275
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 3.851
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["high", "max"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 204800,
       "family": "glm",
       "id": "glm-5",
@@ -16029,40 +16063,6 @@
       },
       "reasoning": {
         "supportedEfforts": ["none", "auto"]
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1048576,
-      "family": "glm",
-      "id": "glm-5-2",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 131072,
-      "metadata": {},
-      "name": "GLM 5.2",
-      "openWeights": true,
-      "outputModalities": ["text"],
-      "ownedBy": "zhipu",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.26
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.4
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 4.4
-        }
-      },
-      "reasoning": {
-        "supportedEfforts": ["high", "max"]
       }
     },
     {
@@ -17372,5 +17372,5 @@
       "ownedBy": "vercel"
     }
   ],
-  "version": "8760e3d6fabec4f2"
+  "version": "1c1b294c48509533"
 }

@@ -1,4 +1,7 @@
-import { buildKnowledgeBaseGroupSections, DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils'
+import {
+  buildKnowledgeBaseGroupSections,
+  DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY
+} from '@renderer/pages/knowledge/utils/group'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'

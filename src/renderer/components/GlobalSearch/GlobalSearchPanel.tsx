@@ -15,7 +15,10 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
+import {
+  ResourceEditDialogHost,
+  type ResourceEditDialogTarget
+} from '@renderer/components/resourceCatalog/dialogs/edit'
 import {
   type DynamicVirtualListRef,
   GroupedVirtualList,

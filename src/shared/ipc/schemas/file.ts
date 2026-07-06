@@ -5,7 +5,8 @@ import {
   FileEntrySchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import { FileHandleSchema, PhysicalFileMetadataSchema, SafeExtSchema } from '@shared/types/file'
+import { FileHandleSchema } from '@shared/data/types/file'
+import { PhysicalFileMetadataSchema, SafeExtSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'

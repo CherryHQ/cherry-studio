@@ -6,7 +6,7 @@ import {
   ToolsCallingTag,
   VisionTag,
   WebSearchTag
-} from '@renderer/components/Tags/Model'
+} from '@renderer/components/tags/Model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'

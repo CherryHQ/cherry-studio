@@ -1,5 +1,5 @@
 import type { FileMetadata } from '@renderer/types/file'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
 
 /**
  * Adapt a v2 `FileEntry` into the v1 `FileMetadata` the painting state +

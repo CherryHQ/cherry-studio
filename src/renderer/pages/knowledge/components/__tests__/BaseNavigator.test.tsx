@@ -5,7 +5,7 @@ import type * as ReactModule from 'react'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import BaseNavigator from '../navigator'
+import { BaseNavigator } from '../navigator'
 
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react') as typeof ReactModule
@@ -197,6 +197,7 @@ vi.mock('@cherrystudio/ui', () => {
           onClick?: (event: ReactMouseEvent) => void
         }>
 
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(child, {
           onClick: (event: ReactMouseEvent) => {
             child.props.onClick?.(event)
@@ -246,6 +247,7 @@ vi.mock('@cherrystudio/ui', () => {
         }
       }
       if (asChild && React.isValidElement(children)) {
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, triggerProps)
       }
       return (
@@ -317,6 +319,7 @@ vi.mock('@cherrystudio/ui', () => {
             }
           }
         }
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
         return React.cloneElement(children, merged)
       }
       return (

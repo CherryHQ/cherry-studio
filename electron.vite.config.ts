@@ -54,6 +54,7 @@ export default defineConfig({
       }
     },
     build: {
+      lib: { entry: resolve(__dirname, 'src/main/main.ts') },
       rollupOptions: {
         external: isMainExternalModule,
         output: {
@@ -90,7 +91,7 @@ export default defineConfig({
         // Unlike renderer which auto-discovers entries from HTML files,
         // preload requires explicit entry point configuration for multiple scripts
         input: {
-          index: resolve(__dirname, 'src/preload/index.ts'),
+          preload: resolve(__dirname, 'src/preload/preload.ts'),
           simplest: resolve(__dirname, 'src/preload/simplest.ts') // Minimal preload
         },
         external: ['electron'],

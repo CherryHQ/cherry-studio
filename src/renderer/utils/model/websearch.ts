@@ -8,7 +8,7 @@ import {
   isWebSearchModel as sharedIsWebSearchModel
 } from '@shared/utils/model'
 
-export { GEMINI_FLASH_MODEL_REGEX } from './utils'
+export { GEMINI_FLASH_MODEL_REGEX } from './capabilities'
 
 const PERPLEXITY_SEARCH_MODELS = ['sonar-pro', 'sonar', 'sonar-reasoning', 'sonar-reasoning-pro', 'sonar-deep-research']
 

@@ -5,7 +5,7 @@ import { omit } from 'es-toolkit/compat'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useProviderDeepLinkImport } from './hooks/useProviderDeepLinkImport'
-import ProviderList from './ProviderList'
+import { ProviderList } from './ProviderList'
 import ProviderSetting from './ProviderSetting'
 import { isProviderSettingsListVisibleProvider } from './utils/providerDisplay'
 

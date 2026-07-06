@@ -1,5 +1,5 @@
-import { IpcError, IpcErrorCode, type IpcResult } from '@shared/ipc/errors'
-import type { IpcEventName, IpcRoute } from '@shared/ipc/schemas'
+import { IpcError, IpcErrorCode, type IpcResult } from '@shared/ipc/errors/IpcError'
+import type { IpcEventName, IpcRoute } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload, InputFor, OutputFor } from '@shared/ipc/types'
 
 /**
