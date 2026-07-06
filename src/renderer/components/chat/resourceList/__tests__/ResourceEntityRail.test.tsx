@@ -83,6 +83,9 @@ vi.mock('@renderer/components/VirtualList', () => {
     return (
       <div
         ref={(node) => {
+          // The real virtual list exposes an imperative scrollToIndex; stub it so keyboard
+          // navigation (which scrolls the active item into view) works under this mock.
+          if (node && typeof node.scrollToIndex !== 'function') node.scrollToIndex = () => {}
           if (typeof ref === 'function') ref(node)
           else if (ref) (ref as { current: HTMLDivElement | null }).current = node
           if (typeof scrollElementRef === 'function') scrollElementRef(node)
@@ -260,6 +263,38 @@ describe('ResourceEntityRail', () => {
     expect(onSelect).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByText('Assistant B').closest('[role="option"]') as HTMLElement)
+    expect(onSelect).toHaveBeenCalledWith(ITEMS[1])
+    expect(onSelectedClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('activates entities from the keyboard, toggling the already-selected one', () => {
+    const onSelect = vi.fn()
+    const onSelectedClick = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        items={ITEMS}
+        selectedId="assistant-a"
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={onSelect}
+        onSelectedClick={onSelectedClick}
+      />
+    )
+
+    const listbox = screen.getByRole('listbox', { name: 'Assistants' })
+
+    // Enter on the already-selected entity toggles its pane instead of reselecting.
+    fireEvent.keyDown(listbox, { key: 'Home' })
+    fireEvent.keyDown(listbox, { key: 'Enter' })
+    expect(onSelectedClick).toHaveBeenCalledWith(ITEMS[0])
+    expect(onSelect).not.toHaveBeenCalled()
+
+    // Space on a different entity selects it, mirroring a mouse click.
+    fireEvent.keyDown(listbox, { key: 'End' })
+    fireEvent.keyDown(listbox, { key: ' ' })
     expect(onSelect).toHaveBeenCalledWith(ITEMS[1])
     expect(onSelectedClick).toHaveBeenCalledTimes(1)
   })

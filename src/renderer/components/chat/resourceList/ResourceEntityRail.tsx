@@ -154,6 +154,16 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     },
     [effectiveSelectedClickId, onSelect, onSelectedClick]
   )
+  // Keyboard activation (Enter/Space) goes through the list's `selectItem` action, not the row's
+  // onClick, so route it back through `handleItemClick` to keep keyboard and mouse in sync —
+  // including the "activate the already-selected entity to toggle its pane" behavior.
+  const handleSelectItemById = useCallback(
+    (id: string) => {
+      const item = items.find((entry) => entry.id === id)
+      if (item) handleItemClick(item)
+    },
+    [handleItemClick, items]
+  )
   const runContextMenuAction = useCallback(
     (item: T, action: ResolvedAction<TActionContext>) => {
       if (!action.availability.enabled || !onContextMenuAction) return
@@ -185,8 +195,11 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       const extraItems = hasVisibleMenuActions
         ? actionsToCommandMenuExtraItems(actions, (action) => runContextMenuAction(item, action))
         : []
+      // No row onClick: selection for mouse, row-Enter, and listbox-keyboard all funnel through
+      // the list's selectItem action → onSelectItem (handleSelectItemById → handleItemClick), so
+      // every path stays consistent and fires exactly once.
       const row = (
-        <ResourceList.Item item={item} data-testid="resource-entity-rail-row" onClick={() => handleItemClick(item)}>
+        <ResourceList.Item item={item} data-testid="resource-entity-rail-row">
           {item.icon && (
             <ResourceList.ItemLeadingSlot className={ENTITY_RAIL_LEADING_SLOT_CLASS}>
               {item.icon}
@@ -228,7 +241,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         </ResourceListActionContextMenu>
       )
     },
-    [getContextMenuActions, handleItemClick, onContextMenuAction, runContextMenuAction, t]
+    [getContextMenuActions, onContextMenuAction, runContextMenuAction, t]
   )
   const empty = useMemo(() => emptyFallback ?? <div className="min-h-0 flex-1" />, [emptyFallback])
   const providerItems = useMemo(
@@ -276,6 +289,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       variant={variant}
       items={providerItems}
       selectedId={effectiveSelectedId}
+      onSelectItem={handleSelectItemById}
       status={status}
       groupBy={groupBy}
       sectionBy={sectionBy}
