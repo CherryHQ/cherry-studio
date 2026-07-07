@@ -631,20 +631,33 @@ export class AgentSessionRuntimeService extends BaseService {
     return this.entries.get(entry.sessionId) === entry
   }
 
+  /**
+   * Model the session's connection should serve right now. A live turn runs on the model captured
+   * when it was created — its assistant row, persistence and trace are already stamped with it, so
+   * a model edit landing between turn creation and its stream opening must NOT retarget the
+   * connection (the turn would execute on a different model than it records). Without a live turn
+   * the connection follows the agent's latest model.
+   */
+  private connectionTargetModelId(entry: AgentSessionRuntimeEntry): UniqueModelId {
+    const turn = entry.currentTurn
+    return turn && !turn.terminalStatus ? turn.modelId : entry.modelId
+  }
+
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     while (this.isCurrentEntry(entry)) {
+      const targetModelId = this.connectionTargetModelId(entry)
       if (entry.connection) {
-        if (entry.connectionModelId === entry.modelId) return true
+        if (entry.connectionModelId === targetModelId) return true
         this.closeConnectionAsync(entry)
         continue
       }
 
       // Share a single in-flight connect across concurrent callers so two streams opening at once
-      // can't each spin up a connection (the second would leak/clobber the first). If the agent's
+      // can't each spin up a connection (the second would leak/clobber the first). If the target
       // model changed while that connect was in flight, wait for the stale attempt to self-discard,
       // then loop and open the new model.
       if (entry.connecting) {
-        if (entry.connectingModelId === entry.modelId) {
+        if (entry.connectingModelId === targetModelId) {
           // Don't hand the shared promise straight back: it resolves false when the attempt
           // self-discards on a mid-flight model edit, and a caller surfacing that false while the
           // entry is still current would leave its turn stream waiting forever. Loop and retry.
@@ -655,7 +668,7 @@ export class AgentSessionRuntimeService extends BaseService {
         continue
       }
 
-      const connectingModelId = entry.modelId
+      const connectingModelId = targetModelId
       const connecting = this.connect(entry, connectingModelId).finally(() => {
         if (entry.connecting === connecting) {
           entry.connecting = undefined
@@ -685,7 +698,7 @@ export class AgentSessionRuntimeService extends BaseService {
       resumeToken: entry.lastResumeToken,
       trace: this.sessionTraceContext(entry, modelId)
     })
-    if (!this.isCurrentEntry(entry) || entry.modelId !== modelId) {
+    if (!this.isCurrentEntry(entry) || this.connectionTargetModelId(entry) !== modelId) {
       void Promise.resolve(connection.close()).catch((error) =>
         logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
       )

@@ -115,6 +115,24 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
   })
 
+  it('routes with the connection-scoped model override instead of the agent latest model', async () => {
+    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
+      id: modelId,
+      apiModelId: `${modelId}-api`
+    }))
+
+    // A live turn's connection pins the model captured at turn creation; the agent may have been
+    // edited to a different model since (here: agent.model is still provider-1::model-1).
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      'session-1',
+      undefined,
+      'provider-1::model-2' as any
+    )
+
+    expect(request?.sdkModelId).toBe('model-2-api')
+    expect(request?.settings.env?.ANTHROPIC_MODEL).toBe('model-2-api')
+  })
+
   it('uses the provider Anthropic endpoint directly when all selected models belong to that provider', async () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 

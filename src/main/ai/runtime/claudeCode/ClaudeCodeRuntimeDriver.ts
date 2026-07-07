@@ -150,7 +150,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
-    const request = await buildClaudeCodeQueryRequestForAgentSession(this.input.sessionId, this.resumeToken)
+    // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
+    // the model captured when that turn was created, even if the agent was edited since.
+    const request = await buildClaudeCodeQueryRequestForAgentSession(
+      this.input.sessionId,
+      this.resumeToken,
+      this.input.modelId
+    )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }

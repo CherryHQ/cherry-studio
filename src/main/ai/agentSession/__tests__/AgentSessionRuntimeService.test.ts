@@ -434,14 +434,16 @@ describe('AgentSessionRuntimeService', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
     const entry = getEntry(service)
+    // Turn-less entry (primed / idle-warm): a live turn would pin the target to its captured model.
+    entry.currentTurn = undefined
 
     // Starter opens the first connect; a second caller latches onto the shared in-flight promise.
     const starter = (service as any).ensureConnection(entry) as Promise<boolean>
     const waiter = (service as any).ensureConnection(entry) as Promise<boolean>
 
-    // Model edited while that connect is in flight (live turn → connection kept, modelId updated),
-    // so the first attempt self-discards and resolves false. Both callers must retry, not surface
-    // false — a false with a current entry leaves openTurnStream's turn hanging forever.
+    // Model edited while that connect is in flight → the first attempt self-discards and resolves
+    // false. Both callers must retry, not surface false — a false with a current entry leaves
+    // openTurnStream's turn hanging forever.
     await (service as any).handleAgentUpdated(
       'agent-1',
       { model: switchedModelId },
@@ -457,6 +459,48 @@ describe('AgentSessionRuntimeService', () => {
     expect(connect).toHaveBeenNthCalledWith(1, expect.objectContaining({ modelId: baseTurnInput.modelId }))
     expect(connect).toHaveBeenNthCalledWith(2, expect.objectContaining({ modelId: switchedModelId }))
     expect(getEntry(service).connection).toBe(secondConnection)
+  })
+
+  it('connects a turn created before a model edit with its captured model (edit-before-open-stream)', async () => {
+    const connection = { events: createAsyncQueue<any>().iterable, send: vi.fn(), close: vi.fn() }
+    const connect = vi.fn().mockResolvedValue(connection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+
+    // Model edited in the window between beginTurn (assistant row, turn.modelId, persistence and
+    // trace already stamped with the old model) and the renderer opening the turn stream. The turn
+    // must execute on the model it records — not silently connect with the edited one.
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { model: switchedModelId },
+      { id: 'agent-1', model: switchedModelId }
+    )
+
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalled())
+
+    expect(connect).toHaveBeenCalledTimes(1)
+    expect(connect).toHaveBeenCalledWith(expect.objectContaining({ modelId: baseTurnInput.modelId }))
+    expect(connection.close).not.toHaveBeenCalled()
+    // The next turn (idle entry, no live turn) targets the edited model again.
+    expect((service as any).connectionTargetModelId({ ...getEntry(service), currentTurn: undefined })).toBe(
+      switchedModelId
+    )
+
+    await reader.cancel().catch(() => undefined)
   })
 
   it('applies tool-policy updates when disabled tools change', async () => {

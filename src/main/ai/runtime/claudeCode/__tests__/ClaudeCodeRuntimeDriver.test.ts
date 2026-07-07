@@ -148,7 +148,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
       resumeToken: 'resume-1'
     })
 
-    expect(mocks.buildRequest).toHaveBeenCalledWith('session-1', 'resume-1')
+    // The connection routes with the host-chosen model — not a fresh DB read — so a live turn keeps
+    // the model captured at its creation even if the agent was edited since.
+    expect(mocks.buildRequest).toHaveBeenCalledWith('session-1', 'resume-1', 'claude-code::sonnet')
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
 

@@ -46,7 +46,11 @@ interface ClaudeCodeRuntimeRoute {
 
 export async function buildClaudeCodeQueryRequestForAgentSession(
   sessionId: string,
-  effectiveResume?: string
+  effectiveResume?: string,
+  /** Connection-scoped model override: a live turn runs on the model captured at its creation,
+   *  which may differ from the agent's latest model after a mid-window edit. Defaults to the
+   *  agent's current model (prewarm and turn-less connections). */
+  connectionModelId?: UniqueModelId
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
@@ -54,7 +58,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   const agent = agentService.getAgent(session.agentId)
   if (!agent?.model) return undefined
 
-  const uniqueModelId = agent.model
+  const uniqueModelId = connectionModelId ?? agent.model
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
