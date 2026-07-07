@@ -167,6 +167,19 @@ function extractSteerText(input: AgentRuntimeUserInput): string {
   )
 }
 
+export function redactProxyUrlForAssistantContext(proxyUrl: string): string {
+  try {
+    const url = new URL(proxyUrl)
+    if (!url.username && !url.password) return proxyUrl
+    // Drop proxy userinfo before this value enters the assistant system prompt.
+    url.username = ''
+    url.password = ''
+    return url.toString()
+  } catch {
+    return proxyUrl.replace(/^([a-z][a-z\d+.-]*:\/\/)[^/@\s]+@/i, '$1')
+  }
+}
+
 /**
  * Build a lightweight environment snapshot (~200 tokens) for Cherry Assistant.
  * Injected into system prompt so the agent knows the user's setup immediately.
@@ -197,7 +210,7 @@ async function buildAssistantContext(): Promise<string> {
     `- App: Cherry Studio v${appVersion}`,
     `- OS: ${platform}`,
     `- Language: ${language}, Theme: ${theme}`,
-    proxy ? `- Proxy: ${proxy}` : '- Proxy: none',
+    proxy ? `- Proxy: ${redactProxyUrlForAssistantContext(proxy)}` : '- Proxy: none',
     `- Providers (${providers.length}): ${providers.map((p) => p.name ?? p.id).join(', ') || 'none configured'}`,
     `- MCP Servers: ${activeMcp.length} active / ${mcpServers.length} total`,
     '',

@@ -158,7 +158,19 @@ vi.mock('../ToolApprovalRegistry', () => ({
   }
 }))
 
-const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot } = await import('../settingsBuilder')
+const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot, redactProxyUrlForAssistantContext } = await import(
+  '../settingsBuilder'
+)
+
+describe('redactProxyUrlForAssistantContext', () => {
+  it('redacts proxy credentials while keeping the host and port visible', () => {
+    expect(redactProxyUrlForAssistantContext('http://user:pass@proxy.example:8080')).toBe('http://proxy.example:8080/')
+  })
+
+  it('leaves plain proxy URLs unchanged', () => {
+    expect(redactProxyUrlForAssistantContext('http://proxy.example:8080')).toBe('http://proxy.example:8080')
+  })
+})
 
 describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
