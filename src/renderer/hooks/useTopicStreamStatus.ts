@@ -57,9 +57,10 @@ export function useTopicAwaitingApproval(topicId: string): boolean {
   return classifyTurn(entry?.status).isAwaitingApproval
 }
 
-// Fire `refresh` once per live→terminal transition. Gate is `classifyTurn`-driven
-// so new TopicStreamStatus values participate by construction.
-export function useTopicDbRefreshOnTerminal(topicId: string, refresh: () => Promise<unknown>): void {
+// Fire `refresh` once when a live turn pauses for approval. The final
+// done/error/aborted handoff is owned by the page-level overlay handoff so it
+// can refresh before dropping live overlay parts.
+export function useTopicDbRefreshOnAwaitingApproval(topicId: string, refresh: () => Promise<unknown>): void {
   const [entry] = useSharedCache(`topic.stream.statuses.${topicId}` as const)
   const status = entry?.status
   const refreshRef = useRef(refresh)
@@ -68,7 +69,7 @@ export function useTopicDbRefreshOnTerminal(topicId: string, refresh: () => Prom
   useEffect(() => {
     const prev = prevRef.current
     prevRef.current = status
-    if (classifyTurn(prev).isStreamLive && classifyTurn(status).isTerminal) {
+    if (classifyTurn(prev).isStreamLive && classifyTurn(status).isAwaitingApproval) {
       void refreshRef.current().catch(() => {
         // Caller logs; the invalidation signal must not throw out of the effect.
       })
@@ -88,7 +89,7 @@ export function useTopicDbRefreshOnTerminal(topicId: string, refresh: () => Prom
  * card — a continue stream will resume it). That distinction lives only here in
  * `classifyTurn`, not inside the status-agnostic overlay hook — hence the
  * handoff is decided at the consumer layer, separate from
- * `useTopicDbRefreshOnTerminal` (whose refresh-on-awaiting-approval is wanted).
+ * `useTopicDbRefreshOnAwaitingApproval` (whose refresh-on-awaiting-approval is wanted).
  */
 export function useTopicOverlayHandoffOnTerminal(topicId: string, onHandoff: () => Promise<void> | void): void {
   const [entry] = useSharedCache(`topic.stream.statuses.${topicId}` as const)

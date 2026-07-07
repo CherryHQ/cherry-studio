@@ -3924,6 +3924,7 @@
       "approvalRequired": "工具 \"{{tool}}\" 需要審批",
       "autoApproveEnabled": "此工具已啟用自動批准",
       "cancelled": "已取消",
+      "collapse": "收合",
       "completed": "已完成",
       "error": "發生錯誤",
       "groupHeader": "{{count}} 次工具呼叫",
@@ -3968,6 +3969,7 @@
         "usingTools": "正在處理任務"
       },
       "preview": "預覽",
+      "processed": "已處理",
       "raw": "原始碼",
       "runningCount": "{{count}} 個工具正在運行",
       "runningHeader": "執行中…",

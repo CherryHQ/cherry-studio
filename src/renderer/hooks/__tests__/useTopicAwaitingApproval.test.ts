@@ -30,7 +30,11 @@ vi.mock('@renderer/data/hooks/useCache', () => ({
   }
 }))
 
-import { useTopicAwaitingApproval, useTopicStreamStatus } from '../useTopicStreamStatus'
+import {
+  useTopicAwaitingApproval,
+  useTopicDbRefreshOnAwaitingApproval,
+  useTopicStreamStatus
+} from '../useTopicStreamStatus'
 
 const setEntry = (status: TopicStreamStatus | undefined, lastCompletedAt?: number) => {
   mockEntry.mockReturnValue({ status, lastCompletedAt, activeExecutions: [], awaitingApprovalAnchors: [] })
@@ -75,4 +79,43 @@ describe('useTopicAwaitingApproval', () => {
 
     expect(result.current.isFulfilled).toBe(true)
   })
+
+  it.each<TopicStreamStatus>(['pending', 'streaming'])(
+    'refreshes once on %s to awaiting-approval',
+    async (liveStatus) => {
+      const refresh = vi.fn(async () => {})
+      setEntry(liveStatus)
+      const { rerender } = renderHook(() => useTopicDbRefreshOnAwaitingApproval('t', refresh))
+
+      setEntry('awaiting-approval')
+      await act(async () => {
+        rerender()
+        await Promise.resolve()
+      })
+      expect(refresh).toHaveBeenCalledTimes(1)
+
+      await act(async () => {
+        rerender()
+        await Promise.resolve()
+      })
+      expect(refresh).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it.each<TopicStreamStatus>(['done', 'error', 'aborted'])(
+    'does not refresh on streaming to %s',
+    async (terminalStatus) => {
+      const refresh = vi.fn(async () => {})
+      setEntry('streaming')
+      const { rerender } = renderHook(() => useTopicDbRefreshOnAwaitingApproval('t', refresh))
+
+      setEntry(terminalStatus)
+      await act(async () => {
+        rerender()
+        await Promise.resolve()
+      })
+
+      expect(refresh).not.toHaveBeenCalled()
+    }
+  )
 })
