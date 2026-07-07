@@ -7,18 +7,15 @@ const ZIP_UINT16_MAX = 0xffff
 const ZIP_UINT32_MAX = 0xffffffff
 
 const OFFICE_ZIP_MAX_ENTRIES = 4000
-const OFFICE_ZIP_MAX_ENTRY_UNCOMPRESSED_BYTES = 32 * 1024 * 1024
 const OFFICE_ZIP_MAX_TOTAL_UNCOMPRESSED_BYTES = 256 * 1024 * 1024
 
 interface OfficeZipLimits {
   maxEntries: number
-  maxEntryUncompressedBytes: number
   maxTotalUncompressedBytes: number
 }
 
 const OFFICE_ZIP_LIMITS: OfficeZipLimits = {
   maxEntries: OFFICE_ZIP_MAX_ENTRIES,
-  maxEntryUncompressedBytes: OFFICE_ZIP_MAX_ENTRY_UNCOMPRESSED_BYTES,
   maxTotalUncompressedBytes: OFFICE_ZIP_MAX_TOTAL_UNCOMPRESSED_BYTES
 }
 
@@ -109,12 +106,6 @@ function assertZipLimits(bytes: Uint8Array, label: string, limits: OfficeZipLimi
 
     if (diskStart !== 0) {
       throw new Error(`${label} preview does not support multi-disk ZIP archives`)
-    }
-
-    if (uncompressedBytes > limits.maxEntryUncompressedBytes) {
-      throw new Error(
-        `${label} preview supports ZIP entries up to ${limits.maxEntryUncompressedBytes} uncompressed bytes`
-      )
     }
 
     totalUncompressedBytes += uncompressedBytes

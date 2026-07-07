@@ -20,22 +20,23 @@ describe('assertZipLimits', () => {
     expect(() => assertZipLimits(bytes, 'DOCX')).toThrow('up to 4000 entries')
   })
 
-  it('rejects oversized uncompressed entries', () => {
+  it('accepts a single large entry within the total limit', () => {
     const bytes = createZipBytes([
       {
-        name: 'word/document.xml',
-        uncompressedSize: OFFICE_ZIP_LIMITS.maxEntryUncompressedBytes + 1
+        name: 'xl/worksheets/sheet1.xml',
+        uncompressedSize: OFFICE_ZIP_LIMITS.maxTotalUncompressedBytes
       }
     ])
 
-    expect(() => assertZipLimits(bytes, 'DOCX')).toThrow('ZIP entries up to')
+    expect(() => assertZipLimits(bytes, 'XLSX')).not.toThrow()
   })
 
   it('rejects oversized total uncompressed payloads', () => {
+    const entrySize = Math.ceil(OFFICE_ZIP_LIMITS.maxTotalUncompressedBytes / 8)
     const bytes = createZipBytes(
       Array.from({ length: 9 }, (_, index) => ({
         name: `word/file-${index}.xml`,
-        uncompressedSize: OFFICE_ZIP_LIMITS.maxEntryUncompressedBytes
+        uncompressedSize: entrySize
       }))
     )
 
@@ -43,13 +44,14 @@ describe('assertZipLimits', () => {
   })
 
   it('prefixes errors with the caller-provided format label', () => {
-    const bytes = createZipBytes([
-      {
-        name: 'xl/worksheets/sheet1.xml',
-        uncompressedSize: OFFICE_ZIP_LIMITS.maxEntryUncompressedBytes + 1
-      }
-    ])
+    const entrySize = Math.ceil(OFFICE_ZIP_LIMITS.maxTotalUncompressedBytes / 8)
+    const bytes = createZipBytes(
+      Array.from({ length: 9 }, (_, index) => ({
+        name: `xl/worksheets/sheet${index}.xml`,
+        uncompressedSize: entrySize
+      }))
+    )
 
-    expect(() => assertZipLimits(bytes, 'XLSX')).toThrow(/^XLSX preview supports ZIP entries up to/)
+    expect(() => assertZipLimits(bytes, 'XLSX')).toThrow(/^XLSX preview supports ZIP archives up to/)
   })
 })
