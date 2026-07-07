@@ -644,7 +644,13 @@ export class AgentSessionRuntimeService extends BaseService {
       // model changed while that connect was in flight, wait for the stale attempt to self-discard,
       // then loop and open the new model.
       if (entry.connecting) {
-        if (entry.connectingModelId === entry.modelId) return entry.connecting
+        if (entry.connectingModelId === entry.modelId) {
+          // Don't hand the shared promise straight back: it resolves false when the attempt
+          // self-discards on a mid-flight model edit, and a caller surfacing that false while the
+          // entry is still current would leave its turn stream waiting forever. Loop and retry.
+          if (await entry.connecting) return true
+          continue
+        }
         await entry.connecting.catch(() => false)
         continue
       }

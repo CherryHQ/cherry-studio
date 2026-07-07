@@ -419,6 +419,46 @@ describe('AgentSessionRuntimeService', () => {
     await secondReader.cancel().catch(() => undefined)
   })
 
+  it('retries callers sharing an in-flight connect when a mid-flight model edit discards it', async () => {
+    const firstConnection = { events: createAsyncQueue<any>().iterable, send: vi.fn(), close: vi.fn() }
+    const secondConnection = { events: createAsyncQueue<any>().iterable, send: vi.fn(), close: vi.fn() }
+    const firstConnect = createDeferred<any>()
+    const connect = vi.fn().mockReturnValueOnce(firstConnect.promise).mockResolvedValueOnce(secondConnection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+
+    // Starter opens the first connect; a second caller latches onto the shared in-flight promise.
+    const starter = (service as any).ensureConnection(entry) as Promise<boolean>
+    const waiter = (service as any).ensureConnection(entry) as Promise<boolean>
+
+    // Model edited while that connect is in flight (live turn → connection kept, modelId updated),
+    // so the first attempt self-discards and resolves false. Both callers must retry, not surface
+    // false — a false with a current entry leaves openTurnStream's turn hanging forever.
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { model: switchedModelId },
+      { id: 'agent-1', model: switchedModelId }
+    )
+    firstConnect.resolve(firstConnection)
+
+    await expect(starter).resolves.toBe(true)
+    await expect(waiter).resolves.toBe(true)
+    expect(firstConnection.close).toHaveBeenCalled()
+    expect(secondConnection.close).not.toHaveBeenCalled()
+    expect(connect).toHaveBeenCalledTimes(2)
+    expect(connect).toHaveBeenNthCalledWith(1, expect.objectContaining({ modelId: baseTurnInput.modelId }))
+    expect(connect).toHaveBeenNthCalledWith(2, expect.objectContaining({ modelId: switchedModelId }))
+    expect(getEntry(service).connection).toBe(secondConnection)
+  })
+
   it('applies tool-policy updates when disabled tools change', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)

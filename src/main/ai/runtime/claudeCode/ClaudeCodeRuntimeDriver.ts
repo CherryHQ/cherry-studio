@@ -138,6 +138,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private resumeToken?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
+  private sessionTornDown = false
   /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
    *  emits a `steer-boundary` (rolls A1a + A2) and clears this. */
   private steerBoundaryPending?: AgentRuntimeUserInput[]
@@ -387,9 +388,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
    * Tear down all session-scoped resources. This is the ONLY place they are disposed — wired only to
    * close()/the query-loop error path, never to a turn boundary. Centralising disposal here is what
    * keeps the lifetime correct: there is no per-resource dispose for a turn handler to misplace.
-   * Idempotent (each holder's dispose is), so the close-after-error double call is safe.
+   * Runs ONCE per connection: the second of the close/query-loop-error pair must no-op, because a
+   * successor connection for the same session (e.g. after a model edit reconnect) may have registered
+   * fresh session-keyed state by then — approval registry entries, tool-policy snapshot — and a
+   * repeated by-id dispose would destroy the successor's state, not ours.
    */
   private teardownSession(): void {
+    if (this.sessionTornDown) return
+    this.sessionTornDown = true
     this.approvalEmitter?.dispose?.()
     this.steerHolder?.dispose()
     disposeToolPolicySnapshot(this.input.sessionId)
