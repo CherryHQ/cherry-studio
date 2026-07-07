@@ -60,7 +60,7 @@ describe('EmojiPicker', () => {
   })
 
   it('uses larger emoji cells for avatar picking', async () => {
-    loadEmojiDataMock.mockResolvedValue([{ emoji: '🙂', annotation: 'smile', group: 0, order: 1 }])
+    loadEmojiDataMock.mockResolvedValue([{ emoji: '🙂', annotation: 'smile', group: 0, order: 1, version: 1 }])
 
     const { container } = render(<EmojiPicker onEmojiClick={vi.fn()} />)
     await act(async () => {})
@@ -104,7 +104,7 @@ describe('EmojiPicker', () => {
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     i18nLanguageMock.value = 'zh-CN'
     loadEmojiDataMock.mockRejectedValueOnce(error)
-    loadEmojiDataMock.mockResolvedValueOnce([{ emoji: '🙂', annotation: 'smile', group: 0, order: 1 }])
+    loadEmojiDataMock.mockResolvedValueOnce([{ emoji: '🙂', annotation: 'smile', group: 0, order: 1, version: 1 }])
 
     render(<EmojiPicker onEmojiClick={vi.fn()} />)
     await act(async () => {})

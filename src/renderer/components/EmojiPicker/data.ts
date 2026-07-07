@@ -16,7 +16,10 @@ export interface EmojiRecord {
   shortcodes?: string[]
   group: number
   order: number
+  version: number
 }
+
+export const MAX_AVATAR_EMOJI_VERSION = 13.1
 
 const DATA_URL_MAP: Record<LanguageVarious, string> = {
   'en-US': dataEN,
@@ -48,7 +51,7 @@ export const loadEmojiData = (locale: LanguageVarious): Promise<EmojiRecord[]> =
 
       return response.json() as Promise<EmojiRecord[]>
     })
-    .then((records) => records.filter((record) => record.group < 9))
+    .then((records) => records.filter((record) => record.group < 9 && record.version <= MAX_AVATAR_EMOJI_VERSION))
     .catch((error) => {
       dataCache.delete(url)
       throw error

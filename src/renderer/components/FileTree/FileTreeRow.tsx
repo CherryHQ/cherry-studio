@@ -23,8 +23,6 @@ const INDENT_BASE_PX = 8
 const ICON_SIZE_PX = 16
 const CHEVRON_SIZE_PX = 11
 const MATERIAL_ICON_PREFIX = 'material-icon-theme:'
-const FOLDER_ICON_NAME = 'folder-other'
-const FOLDER_OPEN_ICON_NAME = 'folder-other-open'
 
 export function FileTreeRow(props: FileTreeRowProps) {
   const { args, renameSlot, animationSlot, renderRowExtras, getMenuItems, fileIcon, folderIcon } = props
@@ -49,7 +47,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
         folderIcon(node, isExpanded)
       ) : (
         <Icon
-          icon={`${MATERIAL_ICON_PREFIX}${isExpanded ? FOLDER_OPEN_ICON_NAME : FOLDER_ICON_NAME}`}
+          icon={`${MATERIAL_ICON_PREFIX}${isExpanded ? 'folder-open' : 'folder'}`}
           className="shrink-0"
           width={ICON_SIZE_PX}
           height={ICON_SIZE_PX}
