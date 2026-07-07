@@ -1,6 +1,6 @@
 # services/popup
 
-The imperative **dialog track** — blocking, answer-returning interactions. Its non-blocking twin is [`services/toast`](../toast.ts); the two tracks are documented together in [renderer-architecture §3.2](../../../../docs/references/renderer-architecture.md).
+The imperative **dialog track** — blocking, answer-returning interactions. Its non-blocking twin is [`services/toast`](../toast.ts).
 
 ## API — the barrel `index.ts` is the only entry
 

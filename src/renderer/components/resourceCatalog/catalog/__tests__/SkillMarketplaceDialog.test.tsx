@@ -12,8 +12,11 @@ const searchMock = vi.fn()
 const clearMock = vi.fn()
 const installMock = vi.fn()
 const isInstallingMock = vi.fn()
-const toastSuccess = vi.fn()
-const toastError = vi.fn()
+const { toastSuccess, toastError } = vi.hoisted(() => ({ toastSuccess: vi.fn(), toastError: vi.fn() }))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: { success: toastSuccess, error: toastError }
+}))
 const SEARCH_DEBOUNCE_MS = 300
 
 const resultsFixture: SkillSearchResult[] = [
@@ -170,7 +173,6 @@ beforeEach(() => {
   installMock.mockResolvedValue({ skill: { id: 'skill-1', name: 'Installed Skill' } })
   isInstallingMock.mockReturnValue(false)
   Object.assign(window, {
-    toast: { ...window.toast, success: toastSuccess, error: toastError },
     open: vi.fn()
   })
 })
