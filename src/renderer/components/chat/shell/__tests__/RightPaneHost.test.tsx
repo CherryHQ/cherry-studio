@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -97,15 +97,35 @@ describe('RightPaneHost', () => {
   })
 
   it('constrains the right pane to the chat shell height while preserving width', () => {
-    render(
+    const { container } = render(
       <RightPaneHost open width={460}>
         <div>artifact pane</div>
       </RightPaneHost>
     )
 
-    const host = screen.getByText('artifact pane').parentElement
+    const host = container.querySelector('[data-right-pane]')
 
     expect(host).toHaveClass('h-full', 'min-h-0', 'shrink-0', 'overflow-hidden')
+  })
+
+  it('disables pointer events on the pane content while resizing', () => {
+    // A real mouse/document-level drag routes mousemove/mouseup to whatever DOM
+    // element is under the cursor — an iframe (e.g. the HTML preview tab) swallows
+    // those events instead of letting them bubble to this component's document
+    // listeners. Shrinking the pane moves the cursor into space the content still
+    // occupies before the resize catches up, so without this the drag looks stuck
+    // as soon as the cursor crosses into an iframe. The content wrapper must carry
+    // the pointer-events-none toggle (driven by the data-resizing group state) so
+    // pointer events keep reaching the document-level listeners for the whole drag.
+    render(
+      <RightPaneHost open resizable width={460}>
+        <div>artifact pane</div>
+      </RightPaneHost>
+    )
+
+    const contentWrapper = screen.getByText('artifact pane').parentElement
+
+    expect(contentWrapper).toHaveClass('group-data-[resizing=true]/right-pane:pointer-events-none')
   })
 
   it('does not render a resize handle by default', () => {
@@ -119,13 +139,13 @@ describe('RightPaneHost', () => {
   })
 
   it('caps its width when reserving space for the conversation center', () => {
-    render(
+    const { container } = render(
       <RightPaneHost open width={460} reservedCenterWidth={360}>
         <div>artifact pane</div>
       </RightPaneHost>
     )
 
-    const host = screen.getByText('artifact pane').parentElement
+    const host = container.querySelector('[data-right-pane]')
 
     expect(host).toHaveStyle({ maxWidth: 'max(0px, calc(100% - 360px))' })
   })
@@ -197,7 +217,7 @@ describe('RightPaneHost', () => {
     expect(onOpenAnimationComplete).toHaveBeenCalledTimes(1)
   })
 
-  it('clamps drag width from the right edge and cleans document resize styles', () => {
+  it('commits the final drag width once on mouse up and cleans document resize styles', () => {
     const onOpenAnimationComplete = vi.fn()
     const { container } = render(
       <RightPaneHost open resizable width={460} onOpenAnimationComplete={onOpenAnimationComplete}>
@@ -225,18 +245,22 @@ describe('RightPaneHost', () => {
     fireEvent.mouseMove(document, { clientX: 500 })
     fireEvent.mouseMove(document, { clientX: 20 })
 
-    expect(persistCacheMock.setWidth).toHaveBeenNthCalledWith(1, 500)
-    expect(persistCacheMock.setWidth).toHaveBeenNthCalledWith(2, ARTIFACT_RIGHT_PANE_MIN_WIDTH)
-    expect(persistCacheMock.setWidth).toHaveBeenNthCalledWith(3, ARTIFACT_RIGHT_PANE_MAX_WIDTH)
+    // No commits to the persisted cache while the drag is in progress — the
+    // rAF-batched live width never touches usePersistCache.
+    expect(persistCacheMock.setWidth).not.toHaveBeenCalled()
 
     fireEvent.mouseUp(document)
 
+    // Exactly one commit, with the last mousemove's clamped width (800 - 20 = 780,
+    // clamped down to the max).
+    expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
+    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(ARTIFACT_RIGHT_PANE_MAX_WIDTH)
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
     expect(pane).not.toHaveAttribute('data-resizing')
   })
 
-  it('cleans the right pane resize state on window blur', () => {
+  it('does not commit to the persisted cache before window blur ends the drag', () => {
     const { container } = render(
       <RightPaneHost open resizable width={460}>
         <div>artifact pane</div>
@@ -255,17 +279,138 @@ describe('RightPaneHost', () => {
     fireEvent.mouseMove(document, { clientX: 300 })
     expect(pane).toHaveAttribute('data-resizing', 'true')
     expect(document.body.style.cursor).toBe('col-resize')
-    expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
+    expect(persistCacheMock.setWidth).not.toHaveBeenCalled()
 
     fireEvent.blur(window)
 
+    // Blur ends the drag, committing the last pending width once (800 - 300 = 500).
+    expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
+    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(500)
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
     expect(pane).not.toHaveAttribute('data-resizing')
 
     fireEvent.mouseMove(document, { clientX: 20 })
 
+    // The drag already ended — a later mousemove must not commit again.
     expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
+  })
+
+  describe('rAF-batched drag width', () => {
+    let rafCallbacks: FrameRequestCallback[]
+    let nextRafId: number
+    const originalRaf = window.requestAnimationFrame
+    const originalCancelRaf = window.cancelAnimationFrame
+
+    beforeEach(() => {
+      rafCallbacks = []
+      nextRafId = 1
+      window.requestAnimationFrame = vi.fn((callback: FrameRequestCallback) => {
+        rafCallbacks.push(callback)
+        return nextRafId++
+      }) as typeof window.requestAnimationFrame
+      window.cancelAnimationFrame = vi.fn()
+    })
+
+    afterEach(() => {
+      window.requestAnimationFrame = originalRaf
+      window.cancelAnimationFrame = originalCancelRaf
+    })
+
+    function flushRaf() {
+      const callbacks = rafCallbacks
+      rafCallbacks = []
+      act(() => {
+        callbacks.forEach((callback) => callback(0))
+      })
+    }
+
+    it('schedules at most one rAF-driven width update per animation frame', () => {
+      const { container } = render(
+        <RightPaneHost open resizable width={460}>
+          <div>artifact pane</div>
+        </RightPaneHost>
+      )
+      const pane = container.querySelector('[data-right-pane]')
+      const handle = container.querySelector('[data-right-pane-resize-handle]')
+
+      if (!pane || !handle) {
+        throw new Error('Expected right pane and resize handle')
+      }
+
+      vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(340, 0, 460, 500))
+
+      fireEvent.mouseDown(handle, { clientX: 340 })
+
+      fireEvent.mouseMove(document, { clientX: 300 })
+      fireEvent.mouseMove(document, { clientX: 320 })
+      fireEvent.mouseMove(document, { clientX: 310 })
+
+      // Three mousemoves within the same (un-flushed) frame only schedule once.
+      expect(window.requestAnimationFrame).toHaveBeenCalledTimes(1)
+
+      flushRaf()
+
+      fireEvent.mouseMove(document, { clientX: 305 })
+
+      // The previous flush cleared the "scheduled" flag, so a new move schedules again.
+      expect(window.requestAnimationFrame).toHaveBeenCalledTimes(2)
+
+      fireEvent.mouseUp(document)
+    })
+
+    it('commits immediately via the keyboard/a11y path, bypassing rAF', () => {
+      const { container } = render(
+        <RightPaneHost open resizable width={460}>
+          <div>artifact pane</div>
+        </RightPaneHost>
+      )
+      const handle = container.querySelector('[data-right-pane-resize-handle]')
+
+      if (!handle) {
+        throw new Error('Expected resize handle')
+      }
+
+      // The handle uses `invert: true`, so ArrowLeft grows the pane.
+      fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+
+      expect(window.requestAnimationFrame).not.toHaveBeenCalled()
+      expect(persistCacheMock.setWidth).toHaveBeenCalledTimes(1)
+    })
+
+    it('cancels a pending rAF and does not update state after unmount', () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const { container, unmount } = render(
+        <RightPaneHost open resizable width={460}>
+          <div>artifact pane</div>
+        </RightPaneHost>
+      )
+      const pane = container.querySelector('[data-right-pane]')
+      const handle = container.querySelector('[data-right-pane-resize-handle]')
+
+      if (!pane || !handle) {
+        throw new Error('Expected right pane and resize handle')
+      }
+
+      vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(340, 0, 460, 500))
+
+      fireEvent.mouseDown(handle, { clientX: 340 })
+      fireEvent.mouseMove(document, { clientX: 300 })
+
+      expect(rafCallbacks).toHaveLength(1)
+
+      unmount()
+
+      // Drag end (fired by useResizeDrag's own unmount cleanup) cancels the pending rAF.
+      expect(window.cancelAnimationFrame).toHaveBeenCalledTimes(1)
+
+      // Flushing the rAF callback captured before unmount must not throw or
+      // trigger a React "state update on an unmounted component" warning.
+      expect(() => flushRaf()).not.toThrow()
+      expect(consoleError).not.toHaveBeenCalled()
+
+      consoleError.mockRestore()
+    })
   })
 })
 
