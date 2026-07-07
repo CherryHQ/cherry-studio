@@ -393,7 +393,7 @@ export class ChannelMessageHandler {
             [
               `Current chat ID: \`${command.chatId}\``,
               '',
-              'Add this value to `allow_ids` in settings to receive notifications.'
+              'Add this value to `allowed_chat_ids` (or `allowed_channel_ids` for Discord) in settings to receive notifications.'
             ].join('\n'),
             replyOpts
           )

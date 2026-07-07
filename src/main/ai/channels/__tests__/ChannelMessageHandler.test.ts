@@ -523,7 +523,7 @@ describe('ChannelMessageHandler', () => {
 
     expect(adapter.sendMessage).toHaveBeenCalledWith(
       'oc_123',
-      'Current chat ID: `oc_123`\n\nAdd this value to `allow_ids` in settings to receive notifications.',
+      'Current chat ID: `oc_123`\n\nAdd this value to `allowed_chat_ids` (or `allowed_channel_ids` for Discord) in settings to receive notifications.',
       { replyToMessageId: undefined }
     )
   })
