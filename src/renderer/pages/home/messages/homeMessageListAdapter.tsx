@@ -28,6 +28,11 @@ import type {
   MessageRuntime
 } from '@renderer/components/chat/messages/types'
 import {
+  bindCaptureMessageImageRuntime,
+  flushPendingMessageImageActions,
+  runMessageImageAction
+} from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
+import {
   getMessageListItemModel,
   modelToSnapshot,
   toMessageListItem
@@ -79,6 +84,7 @@ interface HomeMessageListParams {
   loadOlder?: () => void
   hasOlder?: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  imageActionConsumer?: 'capture'
   onStartBranchDraft?: MessageListActions['startMessageBranch']
   onComponentUpdate?(): void
   onFirstUpdate?(): void
@@ -93,6 +99,7 @@ export function useHomeMessageListProviderValue({
   loadOlder,
   hasOlder = false,
   openCitationsPanel,
+  imageActionConsumer,
   onStartBranchDraft,
   onComponentUpdate,
   onFirstUpdate
@@ -115,6 +122,7 @@ export function useHomeMessageListProviderValue({
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
   const { editingMessageId, startEditing } = useMessageEditing()
+  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
 
   const messageItems = useMemo(
     () =>
@@ -167,6 +175,8 @@ export function useHomeMessageListProviderValue({
   )
 
   useEffect(() => {
+    if (!normalInteractionsEnabled) return
+
     const unsubscribes = [
       EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, async (data: Topic) => {
         window.modal.confirm({
@@ -182,7 +192,7 @@ export function useHomeMessageListProviderValue({
     ]
 
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [clearTopic, t])
+  }, [clearTopic, normalInteractionsEnabled, t])
 
   useEffect(() => {
     if (!assistant) return
@@ -194,40 +204,40 @@ export function useHomeMessageListProviderValue({
     return () => cancelAnimationFrame(handle)
   }, [onComponentUpdate])
 
-  useCommandHandler('chat.message.copy_last', () => {
-    const lastMessage = last(messageItems)
-    if (lastMessage) {
-      const parts = partsByMessageIdRef.current[lastMessage.id] ?? []
-      const richContent = leafCapabilities.copyRichContent ? createComposerRichClipboardContentFromParts(parts) : null
-      const text = getComposerTextFromParts(parts)
-      const copyTask = richContent
-        ? leafCapabilities.copyRichContent?.(richContent, { successMessage: t('message.copy.success') })
-        : navigator.clipboard.writeText(text)
-      void Promise.resolve(copyTask)
-        .then(() => {
-          if (!richContent) window.toast.success(t('message.copy.success'))
-        })
-        .catch((error) => {
-          logger.error('Failed to copy last message:', error as Error)
-          window.toast.error(formatErrorMessageWithPrefix(error, t('common.copy_failed')))
-        })
-    }
-  })
+  useCommandHandler(
+    'chat.message.copy_last',
+    () => {
+      const lastMessage = last(messageItems)
+      if (lastMessage) {
+        const parts = partsByMessageIdRef.current[lastMessage.id] ?? []
+        const richContent = leafCapabilities.copyRichContent ? createComposerRichClipboardContentFromParts(parts) : null
+        const text = getComposerTextFromParts(parts)
+        const copyTask = richContent
+          ? leafCapabilities.copyRichContent?.(richContent, { successMessage: t('message.copy.success') })
+          : navigator.clipboard.writeText(text)
+        void Promise.resolve(copyTask)
+          .then(() => {
+            if (!richContent) window.toast.success(t('message.copy.success'))
+          })
+          .catch((error) => {
+            logger.error('Failed to copy last message:', error as Error)
+            window.toast.error(formatErrorMessageWithPrefix(error, t('common.copy_failed')))
+          })
+      }
+    },
+    { enabled: normalInteractionsEnabled }
+  )
 
-  useCommandHandler('chat.message.edit_last_user', () => {
-    const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && m.type !== 'clear')
-    if (lastUserMessage) {
-      void EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, lastUserMessage.id)
-    }
-  })
-
-  const runTopicImageAction = useCallback((runtime: MessageListRuntime, type: TopicImageActionType) => {
-    if (type === 'copy') {
-      return runtime.copyTopicImage()
-    }
-
-    return runtime.exportTopicImage()
-  }, [])
+  useCommandHandler(
+    'chat.message.edit_last_user',
+    () => {
+      const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && m.type !== 'clear')
+      if (lastUserMessage) {
+        void EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, lastUserMessage.id)
+      }
+    },
+    { enabled: normalInteractionsEnabled }
+  )
 
   const consumeTopicImageAction = useCallback(
     (runtime: MessageListRuntime, type: TopicImageActionType, data?: Topic) => {
@@ -235,25 +245,27 @@ export function useHomeMessageListProviderValue({
 
       const requests = consumePendingTopicImageActions(topic.id, type)
       if (requests.length === 0) {
-        void runTopicImageAction(runtime, type)
+        void runMessageImageAction(runtime, type)
         return
       }
 
       for (const request of requests) {
-        settleTopicImageActionRequest(request, runTopicImageAction(runtime, type))
+        settleTopicImageActionRequest(request, runMessageImageAction(runtime, type))
       }
     },
-    [runTopicImageAction, topic.id]
+    [topic.id]
   )
 
   const flushPendingTopicImageActions = useCallback(
     (runtime: MessageListRuntime) => {
-      const requests = consumePendingTopicImageActions(topic.id)
-      for (const request of requests) {
-        settleTopicImageActionRequest(request, runTopicImageAction(runtime, request.type))
-      }
+      flushPendingMessageImageActions({
+        consumePendingActions: consumePendingTopicImageActions,
+        runtime,
+        settleActionRequest: settleTopicImageActionRequest,
+        targetId: topic.id
+      })
     },
-    [runTopicImageAction, topic.id]
+    [topic.id]
   )
 
   useEffect(() => {
@@ -263,6 +275,17 @@ export function useHomeMessageListProviderValue({
 
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
+      if (imageActionConsumer === 'capture') {
+        return bindCaptureMessageImageRuntime({
+          cancelMessage: 'Topic image export was cancelled',
+          consumePendingActions: consumePendingTopicImageActions,
+          rejectPendingActions: rejectPendingTopicImageActions,
+          runtime,
+          settleActionRequest: settleTopicImageActionRequest,
+          targetId: topic.id
+        })
+      }
+
       flushPendingTopicImageActions(runtime)
 
       const unsubscribes = [
@@ -276,29 +299,39 @@ export function useHomeMessageListProviderValue({
 
       return () => unsubscribes.forEach((unsub) => unsub())
     },
-    [consumeTopicImageAction, flushPendingTopicImageActions]
+    [consumeTopicImageAction, flushPendingTopicImageActions, imageActionConsumer, topic.id]
   )
 
-  const bindMessageRuntime = useCallback((messageId: string, runtime: MessageRuntime) => {
-    const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, runtime.locateMessage),
-      EventEmitter.on(EVENT_NAMES.EDIT_MESSAGE, (targetId: string) => {
-        if (targetId === messageId) {
-          runtime.startEditing()
-        }
-      })
-    ]
+  const bindMessageRuntime = useCallback(
+    (messageId: string, runtime: MessageRuntime) => {
+      if (!normalInteractionsEnabled) return () => {}
 
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [])
+      const unsubscribes = [
+        EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, runtime.locateMessage),
+        EventEmitter.on(EVENT_NAMES.EDIT_MESSAGE, (targetId: string) => {
+          if (targetId === messageId) {
+            runtime.startEditing()
+          }
+        })
+      ]
 
-  const bindMessageGroupRuntime = useCallback((messageIds: string[], runtime: MessageGroupRuntime) => {
-    const unsubscribes = messageIds.map((messageId) =>
-      EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, () => runtime.locateMessage(messageId))
-    )
+      return () => unsubscribes.forEach((unsub) => unsub())
+    },
+    [normalInteractionsEnabled]
+  )
 
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [])
+  const bindMessageGroupRuntime = useCallback(
+    (messageIds: string[], runtime: MessageGroupRuntime) => {
+      if (!normalInteractionsEnabled) return () => {}
+
+      const unsubscribes = messageIds.map((messageId) =>
+        EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, () => runtime.locateMessage(messageId))
+      )
+
+      return () => unsubscribes.forEach((unsub) => unsub())
+    },
+    [normalInteractionsEnabled]
+  )
 
   const locateMessage = useCallback((messageId: string, highlight?: boolean) => {
     void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, highlight)

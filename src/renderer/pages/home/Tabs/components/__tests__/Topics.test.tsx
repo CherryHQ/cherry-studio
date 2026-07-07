@@ -1,3 +1,4 @@
+import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
@@ -92,6 +93,25 @@ const notesSettingsMocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/hooks/useNotesSettings', () => notesSettingsMocks)
 
+const imageCaptureTargetsMock = vi.hoisted(() => ({
+  targets: undefined as Array<{ requestId: number; target: unknown }> | undefined
+}))
+
+vi.mock('@renderer/hooks/useImageCaptureTargets', async () => {
+  const actual = await vi.importActual<typeof ImageCaptureTargetsHook>('@renderer/hooks/useImageCaptureTargets')
+
+  return {
+    ...actual,
+    useImageCaptureTargets: (options: Parameters<typeof actual.useImageCaptureTargets>[0]) => {
+      const actualResult = actual.useImageCaptureTargets(options)
+
+      return imageCaptureTargetsMock.targets
+        ? { ...actualResult, targets: imageCaptureTargetsMock.targets as typeof actualResult.targets }
+        : actualResult
+    }
+  }
+})
+
 const tabsContextMocks = vi.hoisted(() => ({
   closeConversationTabs: vi.fn(),
   openTab: vi.fn(),
@@ -111,6 +131,13 @@ vi.mock('@renderer/hooks/tab', () => ({
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
   ResourceEditDialogHost: ({ target }: { target: { kind: string; id: string } | null }) =>
     target ? <div data-testid="resource-edit-dialog-host" data-kind={target.kind} data-id={target.id} /> : null
+}))
+
+vi.mock('@renderer/pages/home/messages/TopicImageCaptureHost', () => ({
+  __esModule: true,
+  default: ({ topic }: { topic: { id: string } }) => (
+    <div data-testid="topic-image-capture-host" data-topic-id={topic.id} />
+  )
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
@@ -579,6 +606,7 @@ describe('Topics', () => {
     vi.setSystemTime(new Date(2026, 0, 3, 12))
     MockUsePreferenceUtils.resetMocks()
     cacheHookMocks.values.clear()
+    imageCaptureTargetsMock.targets = undefined
     setTopicGroupExpansionCache(createExpandedTopicGroupExpansionFixture())
     MockUsePreferenceUtils.setMultiplePreferenceValues({
       'assistant.icon_type': 'emoji',
@@ -1150,8 +1178,8 @@ describe('Topics', () => {
     expect(menuContent).not.toHaveTextContent('Open in new tab')
   })
 
-  it('shows loading while selecting the right-clicked topic before exporting it as an image', async () => {
-    const { getByText, rerenderTopicList, setActiveTopic } = renderTopicList()
+  it('shows loading while exporting a right-clicked topic as an image without switching topics', async () => {
+    const { getByText, setActiveTopic } = renderTopicList()
     fireEvent.contextMenu(getByText('Gamma topic'))
     const gammaMenu = getByText('Gamma topic').closest('[data-testid="context-menu"]')
     const menuContent = gammaMenu?.querySelector('[data-testid="context-menu-content"]')
@@ -1183,15 +1211,10 @@ describe('Topics', () => {
         title: 'Exporting image. Please stay on this page.'
       })
     )
-    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
-    expect(EventEmitter.emit).toHaveBeenCalledWith(
+    expect(setActiveTopic).not.toHaveBeenCalled()
+    expect(EventEmitter.emit).not.toHaveBeenCalledWith(
       EVENT_NAMES.EXPORT_TOPIC_IMAGE,
       expect.objectContaining({ id: 'topic-c' })
-    )
-
-    rerenderTopicList(
-      undefined,
-      createRendererTopic({ assistantId: 'assistant-2', id: 'topic-c', name: 'Gamma topic' })
     )
 
     const [request] = consumePendingTopicImageActions('topic-c', 'export')
@@ -1237,9 +1260,9 @@ describe('Topics', () => {
       }
     })
 
-    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
+    expect(setActiveTopic).not.toHaveBeenCalled()
     expect(window.toast.loading).not.toHaveBeenCalled()
-    expect(EventEmitter.emit).toHaveBeenCalledWith(
+    expect(EventEmitter.emit).not.toHaveBeenCalledWith(
       EVENT_NAMES.COPY_TOPIC_IMAGE,
       expect.objectContaining({ id: 'topic-c' })
     )
@@ -1252,6 +1275,25 @@ describe('Topics', () => {
       expect(window.toast.error).toHaveBeenCalledWith('Copy failed')
     })
     requestAnimationFrameSpy.mockRestore()
+  })
+
+  it('keeps separate capture hosts for repeated image requests on the same topic', async () => {
+    imageCaptureTargetsMock.targets = [
+      {
+        requestId: 1,
+        target: createRendererTopic({ assistantId: 'assistant-2', id: 'topic-c', name: 'Gamma topic' })
+      },
+      {
+        requestId: 2,
+        target: createRendererTopic({ assistantId: 'assistant-2', id: 'topic-c', name: 'Gamma topic' })
+      }
+    ]
+
+    renderTopicList()
+
+    const hosts = screen.getAllByTestId('topic-image-capture-host')
+    expect(hosts).toHaveLength(2)
+    expect(hosts.map((host) => host.getAttribute('data-topic-id'))).toEqual(['topic-c', 'topic-c'])
   })
 
   it('autofocuses inline rename when double-clicking a topic title', () => {

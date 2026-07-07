@@ -16,7 +16,12 @@ import CustomTag from '@renderer/components/tags/CustomTag'
 import { TopView } from '@renderer/components/TopView/TopView'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
-import { analyzeTopicContent, processTopicContent } from '@renderer/services/knowledgeContent'
+import {
+  analyzeMessagesContent,
+  analyzeTopicContent,
+  processMessagesContent,
+  processTopicContent
+} from '@renderer/services/knowledgeContent'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { NotesTreeNode } from '@renderer/types/note'
 import type { Topic } from '@renderer/types/topic'
@@ -86,12 +91,14 @@ interface ContentTypeOption {
 
 type ContentSource =
   | { type: 'message'; data: ExportableMessage }
+  | { type: 'messages'; data: { title: string; messages: ExportableMessage[] } }
   | { type: 'topic'; data: Topic }
   | { type: 'note'; data: NotesTreeNode }
 
 interface ShowParams {
+  dialogTitle?: string
   source: ContentSource
-  title?: string
+  sourceTitle?: string
 }
 
 interface SaveResult {
@@ -103,11 +110,11 @@ interface Props extends ShowParams {
   resolve: (data: SaveResult | null) => void
 }
 
-const getNoteSource = (source: ContentSource, title?: string) => {
-  const trimmedTitle = title?.trim()
+const getNoteSource = (source: ContentSource, fallbackConversationTitle: string, sourceTitle?: string) => {
+  const trimmedSourceTitle = sourceTitle?.trim()
 
-  if (trimmedTitle) {
-    return trimmedTitle
+  if (trimmedSourceTitle) {
+    return trimmedSourceTitle
   }
 
   if (source.type === 'note') {
@@ -118,10 +125,14 @@ const getNoteSource = (source: ContentSource, title?: string) => {
     return source.data.name.trim() || source.data.id
   }
 
+  if (source.type === 'messages') {
+    return source.data.title.trim() || fallbackConversationTitle
+  }
+
   return source.data.id
 }
 
-const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ dialogTitle, source, sourceTitle, resolve }) => {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
   const [analysisLoading, setAnalysisLoading] = useState(true)
@@ -135,6 +146,8 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   const { t } = useTranslation()
 
   const isTopicMode = source?.type === 'topic'
+  const isMessagesMode = source?.type === 'messages'
+  const isConversationMode = isTopicMode || isMessagesMode
   const isNoteMode = source?.type === 'note'
 
   // 异步分析内容统计
@@ -148,7 +161,11 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       setAnalysisLoading(true)
       setContentStats(null)
       try {
-        const stats = isTopicMode ? await analyzeTopicContent(source?.data) : analyzeMessageContent(source?.data)
+        const stats = isTopicMode
+          ? await analyzeTopicContent(source?.data)
+          : isMessagesMode
+            ? analyzeMessagesContent(source?.data.messages)
+            : analyzeMessageContent(source?.data)
         setContentStats(stats)
       } catch (error) {
         logger.error('analyze content failed:', error as Error)
@@ -162,14 +179,14 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
           citations: 0,
           translations: 0,
           errors: 0,
-          ...(isTopicMode && { messages: 0 })
+          ...(isConversationMode && { messages: 0 })
         })
       } finally {
         setAnalysisLoading(false)
       }
     }
     void analyze()
-  }, [source, isTopicMode, isNoteMode])
+  }, [source, isTopicMode, isMessagesMode, isConversationMode, isNoteMode])
 
   // 生成内容类型选项
   const contentTypeOptions: ContentTypeOption[] = useMemo(() => {
@@ -180,7 +197,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         const contentType = type as ContentType
         const count = contentStats[contentType as keyof ContentStats] || 0
         const descriptionKey =
-          isTopicMode && 'topicDescription' in config && config.topicDescription
+          isConversationMode && 'topicDescription' in config && config.topicDescription
             ? config.topicDescription
             : config.description
         return {
@@ -192,7 +209,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         }
       })
       .filter((option) => option.enabled)
-  }, [contentStats, t, isTopicMode, isNoteMode])
+  }, [contentStats, t, isConversationMode, isNoteMode])
 
   // 知识库选项
   const knowledgeBaseOptions = useMemo(
@@ -254,7 +271,9 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
     if (!formState.hasContent && !isNoteMode) {
       return {
         type: 'empty',
-        message: t(isTopicMode ? 'chat.save.topic.knowledge.empty.no_content' : 'chat.save.knowledge.empty.no_content')
+        message: t(
+          isConversationMode ? 'chat.save.topic.knowledge.empty.no_content' : 'chat.save.knowledge.empty.no_content'
+        )
       }
     }
 
@@ -263,7 +282,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
     }
 
     return { type: 'form' }
-  }, [analysisLoading, formState.hasContent, bases.length, t, isTopicMode, isNoteMode])
+  }, [analysisLoading, formState.hasContent, bases.length, t, isConversationMode, isNoteMode])
 
   const handleContentTypeToggle = (type: ContentType) => {
     setSelectedTypes((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]))
@@ -301,7 +320,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       }
 
       const items: KnowledgeAddItemInput[] = []
-      const noteSource = getNoteSource(source, title)
+      const noteSource = getNoteSource(source, t('chat.save.topic.knowledge.source_fallback'), sourceTitle)
 
       if (isNoteMode) {
         const note = source.data
@@ -334,7 +353,9 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         // 原有的消息或主题处理逻辑
         const result = isTopicMode
           ? await processTopicContent(source?.data, selectedTypes)
-          : processMessageContent(source?.data, selectedTypes)
+          : isMessagesMode
+            ? processMessagesContent(source.data.title, source.data.messages, selectedTypes)
+            : processMessageContent(source?.data, selectedTypes)
 
         logger.debug('Processed content:', result)
         if (result.text.trim() && selectedTypes.some((type) => type !== CONTENT_TYPES.FILE)) {
@@ -393,7 +414,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
 
       // Provide more specific error messages
       let errorMessage = t(
-        isTopicMode ? 'chat.save.topic.knowledge.error.save_failed' : 'chat.save.knowledge.error.save_failed'
+        isConversationMode ? 'chat.save.topic.knowledge.error.save_failed' : 'chat.save.knowledge.error.save_failed'
       )
 
       if (error instanceof Error) {
@@ -450,7 +471,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         <div className="space-y-2">
           <Label>
             {t(
-              isTopicMode
+              isConversationMode
                 ? 'chat.save.topic.knowledge.select.content.label'
                 : 'chat.save.knowledge.select.content.title'
             )}
@@ -483,12 +504,12 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
           {formState.selectedCount > 0 && (
             <span className="text-muted-foreground text-xs">
               {t(
-                isTopicMode
+                isConversationMode
                   ? 'chat.save.topic.knowledge.select.content.selected_tip'
                   : 'chat.save.knowledge.select.content.tip',
                 {
                   count: formState.selectedCount,
-                  ...(isTopicMode && { messages: (contentStats as TopicContentStats)?.messages || 0 })
+                  ...(isConversationMode && { messages: (contentStats as TopicContentStats)?.messages || 0 })
                 }
               )}
             </span>
@@ -509,11 +530,11 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       <DialogContent closeOnOverlayClick={false} className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
-            {title ||
+            {dialogTitle ||
               t(
                 isNoteMode
                   ? 'notes.export_knowledge'
-                  : isTopicMode
+                  : isConversationMode
                     ? 'chat.save.topic.knowledge.title'
                     : 'chat.save.knowledge.title'
               )}
@@ -556,14 +577,18 @@ export default class SaveToKnowledgePopup {
   }
 
   static showForMessage(message: ExportableMessage, title?: string): Promise<SaveResult | null> {
-    return this.show({ source: { type: 'message', data: message }, title })
+    return this.show({ dialogTitle: title, source: { type: 'message', data: message }, sourceTitle: title })
+  }
+
+  static showForMessages(messages: ExportableMessage[], title: string): Promise<SaveResult | null> {
+    return this.show({ source: { type: 'messages', data: { title, messages } }, sourceTitle: title })
   }
 
   static showForTopic(topic: Topic, title?: string): Promise<SaveResult | null> {
-    return this.show({ source: { type: 'topic', data: topic }, title })
+    return this.show({ dialogTitle: title, source: { type: 'topic', data: topic }, sourceTitle: title })
   }
 
   static showForNote(note: NotesTreeNode, title?: string): Promise<SaveResult | null> {
-    return this.show({ source: { type: 'note', data: note }, title })
+    return this.show({ dialogTitle: title, source: { type: 'note', data: note }, sourceTitle: title })
   }
 }
