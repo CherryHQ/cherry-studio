@@ -750,7 +750,14 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
   }
 
   // Formula evaluation second pass.
-  if (pendingFormulas.length > 0) {
+  if (pendingFormulas.length > 0 && date1904) {
+    // fast-formula-parser hard-codes the 1900 epoch (its date functions are built on a d1900 constant with no
+    // 1904 option) and rawValueTable stores 1900-system serials, so evaluating a 1904-system workbook could
+    // silently shift results by 1462 days wherever the workbook's own serial convention shows through (serial
+    // literals in formulas, raw serial display). Prefer honestly unevaluated formulas over wrong values: skip
+    // the second pass and keep the first-pass unevaluated state. Cached formula results are unaffected.
+    warnings.add('formulas-unevaluated-date1904')
+  } else if (pendingFormulas.length > 0) {
     // Forward refs to formula cells later in file order must evaluate recursively instead of reading the null
     // placeholders left in rawValueTable from the first pass. The evaluator has memoization and cycle detection,
     // so re-entry is safe.
