@@ -1,11 +1,6 @@
 import {
   Button,
   ColFlex,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   Divider,
   Flex,
   Popover,
@@ -18,12 +13,9 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
 import { SettingSubtitle } from '@renderer/components/SettingsPrimitives'
-import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { CircleHelp } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-
-type Props = PopupInjectedProps<any>
 
 export const TopicNamingSettings = () => {
   const [enableTopicNaming, setEnableTopicNaming] = usePreference('topic.naming.enabled')
@@ -87,33 +79,3 @@ export const TopicNamingSettings = () => {
     </section>
   )
 }
-
-const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
-  const { t } = useTranslation()
-
-  const closePopup = () => resolve({})
-
-  return (
-    <Dialog open={open} onOpenChange={(next) => !next && closePopup()}>
-      <DialogContent
-        closeOnOverlayClick={false}
-        className="p-6"
-        onPointerDownOutside={(event) => event.preventDefault()}>
-        <DialogHeader>
-          <DialogTitle>{t('settings.models.quick_model.setting_title')}</DialogTitle>
-        </DialogHeader>
-        <TopicNamingSettings />
-        <DialogFooter>
-          <Button variant="outline" onClick={closePopup}>
-            {t('common.cancel')}
-          </Button>
-          <Button onClick={closePopup}>{t('common.confirm')}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-const TopicNamingModalPopup = createPopup<Record<string, never>, any>(PopupContainer, { dismissResult: {} })
-
-export default TopicNamingModalPopup
