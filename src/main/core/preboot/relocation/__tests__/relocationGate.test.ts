@@ -161,7 +161,7 @@ describe('runUserDataRelocationGate', () => {
     expect(bootConfigFlush).toHaveBeenCalled()
   })
 
-  it('pending + copy=false: commits the new path and reports completed (handled)', async () => {
+  it('pending + copy=false: commits the new path, restarts immediately (handled)', async () => {
     stubElectron(true)
     stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: false })
     stubFsAndFsp()
@@ -170,9 +170,9 @@ describe('runUserDataRelocationGate', () => {
     const result = await runUserDataRelocationGate()
     expect(result).toBe('handled')
     expect(wm.create).toHaveBeenCalled()
-    // No copy → no copying stage emitted; jump straight to committing/completed.
+    // No copy → no copying stage emitted; commit then restart immediately.
     expect(commitRelocation).toHaveBeenCalledWith('/new/data')
-    expect(wm.sendProgress).toHaveBeenCalledWith(expect.objectContaining({ stage: 'completed' }))
+    expect(wm.restartApp).toHaveBeenCalled()
   })
 
   it('pending + copy=false: preflight failure persists failed status and no commit', async () => {
@@ -192,7 +192,7 @@ describe('runUserDataRelocationGate', () => {
     })
   })
 
-  it('pending + copy=true: runs the copy then commits (handled)', async () => {
+  it('pending + copy=true: runs the copy, commits, then restarts immediately (handled)', async () => {
     stubElectron(true)
     stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true })
     stubFsAndFsp()
@@ -202,7 +202,7 @@ describe('runUserDataRelocationGate', () => {
     expect(result).toBe('handled')
     expect(wm.sendProgress).toHaveBeenCalledWith(expect.objectContaining({ stage: 'copying' }))
     expect(commitRelocation).toHaveBeenCalledWith('/new/data')
-    expect(wm.sendProgress).toHaveBeenCalledWith(expect.objectContaining({ stage: 'completed' }))
+    expect(wm.restartApp).toHaveBeenCalled()
   })
 
   it('preflight failure (from === to): persists failed status, reports failed, no commit (handled)', async () => {
