@@ -22,8 +22,8 @@ type PopoverContentProps = ComponentPropsWithoutRef<typeof PopoverContent>
 export type SelectorShellMountStrategy = 'destroy' | 'lazy-keep'
 const DEFAULT_COLLISION_PADDING = 12
 export const DEFAULT_SELECTOR_CONTENT_HEIGHT = 344
-const SELECTOR_CONTENT_STABLE_POSITION_CLASS =
-  'data-[state=open]:animate-none data-[state=closed]:animate-none data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0'
+const SELECTOR_CONTENT_POSITION_CLASS = 'animation-selector-shell-content'
+const SELECTOR_PANEL_ANIMATION_CLASS = 'animation-selector-shell-panel'
 
 export type SelectorShellLayout = {
   availableListHeight?: number
@@ -403,108 +403,115 @@ export function SelectorShell({
             }}
             onKeyDown={onKeyDown}
             className={cn(
-              'flex max-h-[var(--radix-popover-content-available-height)] w-90 flex-col overflow-hidden rounded-lg border-border bg-popover p-0 py-1 shadow-lg',
-              SELECTOR_CONTENT_STABLE_POSITION_CLASS,
+              'max-h-[var(--radix-popover-content-available-height)] w-90 overflow-visible rounded-none border-0 bg-transparent p-0 shadow-none',
+              SELECTOR_CONTENT_POSITION_CLASS,
               contentClassName
             )}
             data-selector-shell-content="true"
             ref={setContentElement}
             data-testid={dataTestId}>
-            {search ? (
-              <div
-                ref={setSearchElement}
-                className="flex items-center gap-2 border-border border-b px-3 py-1"
-                data-selector-shell-chrome="search">
-                <Search className="pointer-events-none size-3.25 shrink-0 text-muted-foreground/50" />
-                <Input
-                  ref={search.inputRef}
-                  value={search.value}
-                  autoFocus={search.autoFocus ?? true}
-                  spellCheck={search.spellCheck ?? false}
-                  placeholder={search.placeholder}
-                  aria-activedescendant={search.activeDescendant}
-                  aria-controls={search.ariaControls}
-                  className={cn(
-                    'h-[var(--cs-size-xs)] flex-1 border-0 bg-transparent p-0 shadow-none transition-none',
-                    'text-xs md:text-xs',
-                    'focus-visible:border-transparent focus-visible:ring-0',
-                    'placeholder:text-muted-foreground/40'
-                  )}
-                  data-testid={search.dataTestId}
-                  onChange={(event) => search.onChange(event.target.value)}
-                  onKeyDown={search.onKeyDown}
-                />
-              </div>
-            ) : null}
-
-            {filterContent ? (
-              <div
-                ref={setFilterElement}
-                className="flex flex-wrap items-center gap-1.5 border-border border-b px-3 py-2"
-                data-selector-shell-chrome="filter">
-                {filterContent}
-              </div>
-            ) : null}
-
-            {multiSelect ? (
-              <div
-                ref={setMultiSelectElement}
-                className="flex items-center justify-between gap-3 border-border border-b px-3 py-2"
-                data-selector-shell-chrome="multi-select"
-                data-testid={multiSelect.rowTestId}>
-                <div className="flex min-w-0 flex-1 items-center gap-1 text-[10px] text-muted-foreground">
-                  <span className="truncate">{multiSelect.label}</span>
-                  {multiSelect.hint ? (
-                    <span className="truncate text-muted-foreground/60">{multiSelect.hint}</span>
-                  ) : null}
+            <div
+              className={cn(
+                'flex h-full max-h-[inherit] w-full flex-col overflow-hidden rounded-lg border-[0.5px] border-border bg-popover py-1 shadow-lg',
+                SELECTOR_PANEL_ANIMATION_CLASS
+              )}
+              data-selector-shell-panel="true">
+              {search ? (
+                <div
+                  ref={setSearchElement}
+                  className="flex items-center gap-2 border-border border-b px-3 py-1"
+                  data-selector-shell-chrome="search">
+                  <Search className="pointer-events-none size-3.25 shrink-0 text-muted-foreground/50" />
+                  <Input
+                    ref={search.inputRef}
+                    value={search.value}
+                    autoFocus={search.autoFocus ?? true}
+                    spellCheck={search.spellCheck ?? false}
+                    placeholder={search.placeholder}
+                    aria-activedescendant={search.activeDescendant}
+                    aria-controls={search.ariaControls}
+                    className={cn(
+                      'h-[var(--cs-size-xs)] flex-1 border-0 bg-transparent p-0 shadow-none transition-none',
+                      'text-xs md:text-xs',
+                      'focus-visible:border-transparent focus-visible:ring-0',
+                      'placeholder:text-muted-foreground/40'
+                    )}
+                    data-testid={search.dataTestId}
+                    onChange={(event) => search.onChange(event.target.value)}
+                    onKeyDown={search.onKeyDown}
+                  />
                 </div>
-                <Switch
-                  checked={multiSelect.checked}
-                  disabled={multiSelect.disabled}
-                  size="sm"
-                  data-testid={multiSelect.dataTestId}
-                  onCheckedChange={multiSelect.onCheckedChange}
-                />
-              </div>
-            ) : null}
+              ) : null}
 
-            <div ref={setListBodyElement} className="min-h-0 flex-1 overflow-hidden" data-selector-shell-body="true">
-              {body}
+              {filterContent ? (
+                <div
+                  ref={setFilterElement}
+                  className="flex flex-wrap items-center gap-1.5 border-border border-b px-3 py-2"
+                  data-selector-shell-chrome="filter">
+                  {filterContent}
+                </div>
+              ) : null}
+
+              {multiSelect ? (
+                <div
+                  ref={setMultiSelectElement}
+                  className="flex items-center justify-between gap-3 border-border border-b px-3 py-2"
+                  data-selector-shell-chrome="multi-select"
+                  data-testid={multiSelect.rowTestId}>
+                  <div className="flex min-w-0 flex-1 items-center gap-1 text-[10px] text-muted-foreground">
+                    <span className="truncate">{multiSelect.label}</span>
+                    {multiSelect.hint ? (
+                      <span className="truncate text-muted-foreground/60">{multiSelect.hint}</span>
+                    ) : null}
+                  </div>
+                  <Switch
+                    checked={multiSelect.checked}
+                    disabled={multiSelect.disabled}
+                    size="sm"
+                    data-testid={multiSelect.dataTestId}
+                    onCheckedChange={multiSelect.onCheckedChange}
+                  />
+                </div>
+              ) : null}
+
+              <div ref={setListBodyElement} className="min-h-0 flex-1 overflow-hidden" data-selector-shell-body="true">
+                {body}
+              </div>
+              {hasBottomAction ? (
+                <div
+                  ref={setBottomActionElement}
+                  className="relative z-1 shrink-0 border-border border-t bg-popover"
+                  data-selector-shell-chrome="bottom-action">
+                  {resolvedBottomActions.map((action, index) => {
+                    const selected = action.type === 'selectable' && action.selected
+
+                    return (
+                      <button
+                        key={index}
+                        type="button"
+                        disabled={action.disabled}
+                        aria-pressed={action.type === 'selectable' ? selected : undefined}
+                        onClick={action.onClick}
+                        className={cn(
+                          'relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                          selected
+                            ? 'bg-accent/70 text-foreground'
+                            : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                        )}>
+                        {selected ? (
+                          <span
+                            aria-hidden="true"
+                            className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-full bg-muted-foreground/60"
+                          />
+                        ) : null}
+                        {action.icon}
+                        <span className="min-w-0 flex-1 truncate">{action.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : null}
             </div>
-            {hasBottomAction ? (
-              <div
-                ref={setBottomActionElement}
-                className="relative z-1 shrink-0 border-border border-t bg-popover"
-                data-selector-shell-chrome="bottom-action">
-                {resolvedBottomActions.map((action, index) => {
-                  const selected = action.type === 'selectable' && action.selected
-
-                  return (
-                    <button
-                      key={index}
-                      type="button"
-                      disabled={action.disabled}
-                      aria-pressed={action.type === 'selectable' ? selected : undefined}
-                      onClick={action.onClick}
-                      className={cn(
-                        'relative flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-                        selected
-                          ? 'bg-accent/70 text-foreground'
-                          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-                      )}>
-                      {selected ? (
-                        <span
-                          aria-hidden="true"
-                          className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-full bg-muted-foreground/60"
-                        />
-                      ) : null}
-                      {action.icon}
-                      <span className="min-w-0 flex-1 truncate">{action.label}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            ) : null}
           </PopoverContent>
         ) : null}
       </Popover>

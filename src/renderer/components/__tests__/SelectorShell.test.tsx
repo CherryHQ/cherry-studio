@@ -98,7 +98,7 @@ describe('SelectorShell', () => {
     })
   })
 
-  it('keeps selector popover positioning stable during open and close', () => {
+  it('keeps selector popover positioning stable while animating the visible panel', () => {
     render(
       <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()}>
         <div />
@@ -106,8 +106,11 @@ describe('SelectorShell', () => {
     )
 
     const content = document.querySelector<HTMLElement>('[data-selector-shell-content]')
-    expect(content).toHaveClass('data-[state=open]:animate-none')
-    expect(content).toHaveClass('data-[state=closed]:animate-none')
+    const panel = document.querySelector<HTMLElement>('[data-selector-shell-panel]')
+    expect(content).toHaveClass('animation-selector-shell-content')
+    expect(content).not.toHaveClass('data-[state=open]:zoom-in-95')
+    expect(content).not.toHaveClass('data-[side=bottom]:slide-in-from-top-2')
+    expect(panel).toHaveClass('animation-selector-shell-panel')
   })
 
   it('applies contentHeight as a fixed popover target height', () => {
