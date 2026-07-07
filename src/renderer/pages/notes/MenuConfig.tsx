@@ -13,7 +13,7 @@ export interface MenuItem {
   component?: (settings: NotesSettings, updateSettings: (newSettings: Partial<NotesSettings>) => void) => ReactNode
   copyAction?: boolean
   exportToWordAction?: boolean
-  exportToPDFAction?: boolean
+  exportToPdfAction?: boolean
   printAction?: boolean
   showSettingsPopup?: boolean
 }
@@ -35,7 +35,7 @@ export const menuItems: MenuItem[] = [
     key: 'export-to-pdf',
     labelKey: 'notes.exportToPDF',
     icon: FileDown,
-    exportToPDFAction: true
+    exportToPdfAction: true
   },
   {
     key: 'print',

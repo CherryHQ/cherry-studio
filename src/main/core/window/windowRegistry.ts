@@ -110,8 +110,6 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     preload: '',
     showMode: 'manual',
     windowOptions: {
-      width: 794,
-      height: 1123,
       skipTaskbar: true,
       autoHideMenuBar: true,
       frame: false,

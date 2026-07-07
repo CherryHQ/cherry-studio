@@ -37,9 +37,7 @@ const windowManager = {
 
 const payload = {
   title: 'Meeting Notes',
-  source: {
-    markdown: '# Heading\n\nBody text'
-  },
+  markdown: '# Heading\n\nBody text',
   sourcePath: '/Users/me/Notes/meeting.md'
 }
 
@@ -74,9 +72,7 @@ describe('PrintService', () => {
   it('builds paper-oriented HTML from rendered Markdown and a file base URL', () => {
     const html = buildPrintableHtml({
       title: '<Unsafe>',
-      source: {
-        markdown: '# Safe\n\n<script>alert(1)</script>'
-      },
+      markdown: '# Safe\n\n<script>alert(1)</script>',
       sourcePath: '/Users/me/Notes/safe.md'
     })
 
@@ -90,9 +86,7 @@ describe('PrintService', () => {
   it('includes CJK-capable font fallbacks for printable documents', () => {
     const html = buildPrintableHtml({
       title: '会议记录',
-      source: {
-        markdown: '# 标题\n\n中文正文'
-      }
+      markdown: '# 标题\n\n中文正文'
     })
 
     expect(html).toContain('<html>')
@@ -112,7 +106,7 @@ describe('PrintService', () => {
   it('reports success after exporting a printable document to PDF through a WindowManager-owned print window', async () => {
     const service = new PrintService()
 
-    const result = await service.exportToPDF(payload)
+    const result = await service.exportToPdf(payload)
 
     expect(result).toBe(true)
     expect(dialog.showSaveDialog).toHaveBeenCalledWith(
@@ -140,7 +134,7 @@ describe('PrintService', () => {
     vi.mocked(dialog.showSaveDialog).mockResolvedValue({ canceled: true, filePath: undefined } as never)
     const service = new PrintService()
 
-    const result = await service.exportToPDF(payload)
+    const result = await service.exportToPdf(payload)
 
     expect(result).toBe(false)
     expect(open).not.toHaveBeenCalled()
@@ -150,7 +144,7 @@ describe('PrintService', () => {
     getWindow.mockReturnValue(undefined)
     const service = new PrintService()
 
-    await expect(service.exportToPDF(payload)).rejects.toThrow('Print window not found')
+    await expect(service.exportToPdf(payload)).rejects.toThrow('Print window not found')
 
     expect(open).toHaveBeenCalledWith(WindowType.Print)
     expect(close).toHaveBeenCalledWith(windowId)
@@ -163,7 +157,7 @@ describe('PrintService', () => {
     loadURL.mockRejectedValue(new Error('load failed'))
     const service = new PrintService()
 
-    await expect(service.exportToPDF(payload)).rejects.toThrow('load failed')
+    await expect(service.exportToPdf(payload)).rejects.toThrow('load failed')
 
     expect(close).toHaveBeenCalledWith(windowId)
     expect(printToPDF).not.toHaveBeenCalled()
@@ -174,7 +168,7 @@ describe('PrintService', () => {
     printToPDF.mockRejectedValue(new Error('pdf failed'))
     const service = new PrintService()
 
-    await expect(service.exportToPDF(payload)).rejects.toThrow('pdf failed')
+    await expect(service.exportToPdf(payload)).rejects.toThrow('pdf failed')
 
     expect(close).toHaveBeenCalledWith(windowId)
     expect(writeFile).not.toHaveBeenCalled()

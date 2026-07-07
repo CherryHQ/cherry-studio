@@ -122,14 +122,12 @@ const HeaderNavbar = ({
     }
     return {
       title: activeNode.name.replace('.md', ''),
-      source: {
-        markdown: content
-      },
+      markdown: content,
       sourcePath: activeNode.externalPath
     }
   }, [activeNode, getCurrentNoteContent])
 
-  const handleExportToPDF = useCallback(async () => {
+  const handleExportToPdf = useCallback(async () => {
     const payload = getPrintableDocumentPayload()
     if (!payload) return
 
@@ -249,8 +247,8 @@ const HeaderNavbar = ({
             void handleCopyContent()
           } else if (item.exportToWordAction) {
             void handleExportToWord()
-          } else if (item.exportToPDFAction) {
-            void handleExportToPDF()
+          } else if (item.exportToPdfAction) {
+            void handleExportToPdf()
           } else if (item.printAction) {
             void handlePrint()
           } else if (item.showSettingsPopup) {

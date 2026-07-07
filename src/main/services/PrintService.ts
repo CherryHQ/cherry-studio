@@ -6,21 +6,12 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
 import { t } from '@main/i18n'
+import type { PrintableDocumentPayload } from '@shared/ipc/schemas/print'
 import { sanitizeFilename } from '@shared/utils/file'
 import { type BrowserWindow, dialog } from 'electron'
 import MarkdownIt from 'markdown-it'
 
 const logger = loggerService.withContext('PrintService')
-
-export interface PrintableMarkdownSource {
-  markdown: string
-}
-
-export interface PrintableDocumentPayload {
-  title: string
-  source: PrintableMarkdownSource
-  sourcePath?: string
-}
 
 const markdownIt = new MarkdownIt({
   html: false,
@@ -120,8 +111,8 @@ new Promise((resolve) => {
 })`
 }
 
-export function buildPrintableHtml({ title, source, sourcePath }: PrintableDocumentPayload): string {
-  const renderedContent = markdownIt.render(source.markdown)
+export function buildPrintableHtml({ title, markdown, sourcePath }: PrintableDocumentPayload): string {
+  const renderedContent = markdownIt.render(markdown)
   const escapedTitle = escapeHtml(title.trim() || 'Untitled')
   const baseTag = getBaseTag(sourcePath)
 
@@ -299,7 +290,7 @@ export class PrintService {
     }
   }
 
-  async exportToPDF(payload: PrintableDocumentPayload): Promise<boolean> {
+  async exportToPdf(payload: PrintableDocumentPayload): Promise<boolean> {
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: t('dialog.save_as_pdf'),
       defaultPath: getDefaultPdfPath(payload.title),

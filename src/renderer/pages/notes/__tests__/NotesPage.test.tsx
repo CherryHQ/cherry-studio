@@ -307,16 +307,14 @@ describe('NotesPage print payloads', () => {
     await waitFor(() => {
       expect(mocks.ipcRequest).toHaveBeenCalledWith(route, {
         title: 'note',
-        source: {
-          markdown: mocks.sourceEditorContent
-        },
+        markdown: mocks.sourceEditorContent,
         sourcePath: '/notes/note.md'
       })
     })
     expect(mocks.ipcRequest).not.toHaveBeenCalledWith(
       route,
       expect.objectContaining({
-        source: expect.objectContaining({ markdown: mocks.currentContent })
+        markdown: mocks.currentContent
       })
     )
   })
@@ -343,16 +341,14 @@ describe('NotesPage print payloads', () => {
       await waitFor(() => {
         expect(mocks.ipcRequest).toHaveBeenCalledWith(route, {
           title: 'note',
-          source: {
-            markdown: editedRichContent
-          },
+          markdown: editedRichContent,
           sourcePath: '/notes/note.md'
         })
       })
       expect(mocks.ipcRequest).not.toHaveBeenCalledWith(
         route,
         expect.objectContaining({
-          source: expect.objectContaining({ markdown: mocks.currentContent })
+          markdown: mocks.currentContent
         })
       )
     }
@@ -395,9 +391,7 @@ describe('NotesPage print payloads', () => {
     await waitFor(() => {
       expect(mocks.ipcRequest).toHaveBeenCalledWith('print.print', {
         title: 'note',
-        source: {
-          markdown: mocks.sourceEditorContent
-        },
+        markdown: mocks.sourceEditorContent,
         sourcePath: '/notes/note.md'
       })
     })
