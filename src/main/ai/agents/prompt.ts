@@ -191,8 +191,10 @@ ${content}
   /**
    * Determine whether bootstrap should run.
    * - If `bootstrap_completed` is explicitly true, skip.
-   * - If SOUL.md has substantial non-template content, skip (legacy agent migration).
+   * - If `bootstrap_completed` is explicitly false (via `config reset_bootstrap`), run — an explicit
+   *   reset overrides the instruction-based skip so the tool's "next session will onboard" holds.
    * - If the agent already has non-blank user instructions, skip.
+   * - If SOUL.md has substantial non-template content, skip (legacy agent migration).
    * - Otherwise, run bootstrap.
    */
   private async shouldRunBootstrap(
@@ -200,7 +202,13 @@ ${content}
     config?: AgentConfiguration,
     hasUserInstructions = false
   ): Promise<boolean> {
-    if (config?.bootstrap_completed === true || hasUserInstructions) {
+    if (config?.bootstrap_completed === true) {
+      return false
+    }
+    if (config?.bootstrap_completed === false) {
+      return true
+    }
+    if (hasUserInstructions) {
       return false
     }
 

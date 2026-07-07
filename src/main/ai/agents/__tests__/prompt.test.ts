@@ -227,6 +227,16 @@ describe('PromptBuilder', () => {
       expect(result).toContain('## Bootstrap Mode')
     })
 
+    it('runs bootstrap when reset (bootstrap_completed false) even if the agent has instructions', async () => {
+      // `config reset_bootstrap` sets bootstrap_completed=false and promises the next session onboards.
+      // That explicit reset must override the instruction-based skip, or the tool's promise is a lie.
+      setupFiles({})
+
+      const result = await builder.buildSystemPrompt('/workspace', { ...baseConfig, bootstrap_completed: false }, true)
+
+      expect(result).toContain('## Bootstrap Mode')
+    })
+
     it('skips bootstrap when bootstrap_completed is true', async () => {
       setupFiles({})
 
