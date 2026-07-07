@@ -60,7 +60,7 @@ const getRelativePath = (filePath: string, accessiblePaths: readonly string[]) =
 }
 
 interface AgentResourceSuggestionOptions {
-  accessiblePaths: string[]
+  accessiblePaths: readonly string[]
   files: ComposerAttachment[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
   /** Whether the agent session exposes any accessible workspace paths to mention. */
@@ -103,12 +103,12 @@ export function useAgentResourceSearchProvider({
 
         const results = await Promise.allSettled(
           accessiblePaths.map((dirPath) =>
-            window.api.file.listDirectory(dirPath, {
+            window.api.file.listDirectoryEntries(dirPath, {
               recursive: true,
               maxDepth: 3,
               includeHidden: false,
               includeFiles: true,
-              includeDirectories: true,
+              includeDirectories: false,
               maxEntries: 20,
               searchPattern
             })
@@ -117,8 +117,10 @@ export function useAgentResourceSearchProvider({
         const collected = new Set<string>()
         for (const result of results) {
           if (result.status !== 'fulfilled') continue
-          for (const filePath of result.value) {
-            collected.add(filePath.replace(/\\/g, '/'))
+          for (const entry of result.value) {
+            if (!entry.isDirectory) {
+              collected.add(entry.path.replace(/\\/g, '/'))
+            }
           }
         }
 

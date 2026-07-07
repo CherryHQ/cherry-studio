@@ -46,8 +46,11 @@ import { cn } from '@renderer/utils/style'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
+import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
+import { createFilePathHandle, toFileUrl } from '@shared/utils/file'
 import { Bot, ChevronDown, CircleSlash, Folder, MessageSquarePlus, Sparkles, TriangleAlert } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -94,6 +97,57 @@ const ResourceEditDialogHost = React.lazy(() =>
 )
 
 const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
+const EMPTY_ACCESSIBLE_PATHS: readonly string[] = []
+
+const normalizePathForAccessiblePathComparison = (value: string) => {
+  const normalized = value.replace(/\\/g, '/')
+  return normalized === '/' ? normalized : normalized.replace(/\/+$/, '')
+}
+
+const isPathWithinAccessiblePath = (filePath: string, accessiblePaths: readonly string[]) => {
+  const normalizedFilePath = normalizePathForAccessiblePathComparison(filePath)
+
+  return accessiblePaths.some((basePath) => {
+    const normalizedBasePath = normalizePathForAccessiblePathComparison(basePath)
+    if (!normalizedBasePath) return false
+    if (normalizedBasePath === '/') return normalizedFilePath.startsWith('/')
+    return normalizedFilePath === normalizedBasePath || normalizedFilePath.startsWith(`${normalizedBasePath}/`)
+  })
+}
+
+const buildAccessiblePathFilePart = async (attachment: ComposerAttachment): Promise<FileUIPart> => {
+  const filePath = attachment.path as FilePath
+  const metadata = await window.api.file.getMetadata(createFilePathHandle(filePath))
+  if (metadata.kind !== 'file') {
+    throw new Error(`Agent workspace reference is not a file: ${attachment.path}`)
+  }
+
+  return {
+    type: 'file',
+    url: toFileUrl(filePath),
+    mediaType: metadata.mime,
+    filename: attachment.origin_name || attachment.name
+  }
+}
+
+const buildAgentFilePartsForAttachments = (
+  attachments: ComposerAttachment[],
+  accessiblePaths: readonly string[]
+): Promise<FileUIPart[]> => {
+  return Promise.all(
+    attachments.map((attachment) =>
+      isPathWithinAccessiblePath(attachment.path, accessiblePaths)
+        ? buildAccessiblePathFilePart(attachment)
+        : buildFilePartsForAttachments([attachment]).then((fileParts) => {
+            const [filePart] = fileParts
+            if (!filePart) {
+              throw new Error(`Failed to build file part for attachment: ${attachment.path}`)
+            }
+            return filePart
+          })
+    )
+  )
+}
 
 const createSkillQuickPanelItems = (
   skills: readonly LocalSkill[],
@@ -693,7 +747,7 @@ const AgentComposerInner = ({
   const textRef = useRef(text)
   const draftTokensRef = useRef(draftTokens)
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
-  const accessiblePaths = sessionData?.accessiblePaths ?? []
+  const accessiblePaths = sessionData?.accessiblePaths ?? EMPTY_ACCESSIBLE_PATHS
   const enableMentionModelTrigger = accessiblePaths.length > 0
   const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
   const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath)
@@ -930,7 +984,7 @@ const AgentComposerInner = ({
     async (payload: ComposerQueuedMessagePayload) => {
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
-        const fileParts = await buildFilePartsForAttachments(attachments)
+        const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
         await chatSendMessage(
           { text: payload.text },
           { body: { agentId, sessionId, userMessageParts: [...payload.userMessageParts, ...fileParts] } }
@@ -942,7 +996,7 @@ const AgentComposerInner = ({
         return false
       }
     },
-    [agentId, chatSendMessage, sessionId, sessionTopicId]
+    [accessiblePaths, agentId, chatSendMessage, sessionId, sessionTopicId]
   )
 
   const clearCurrentDraft = useCallback(() => {
