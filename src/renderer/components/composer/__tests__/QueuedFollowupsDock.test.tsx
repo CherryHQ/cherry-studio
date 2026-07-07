@@ -10,8 +10,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
 
 vi.mock('lucide-react', async (importOriginal) => ({
   ...(await importOriginal<typeof LucideReact>()),
-  ArrowUp: () => <span data-testid="arrow-up-icon" />,
-  Zap: () => <span data-testid="zap-icon" />
+  ArrowUp: () => <span data-testid="arrow-up-icon" />
 }))
 
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
@@ -51,7 +50,6 @@ describe('QueuedFollowupsDock', () => {
     expect(container.querySelector('[data-composer-token-kind="skill"]')).toHaveTextContent('mySkill')
     for (const steerButton of screen.getAllByLabelText('chat.input.followup_queue.steer')) {
       expect(within(steerButton).getByTestId('arrow-up-icon')).toBeInTheDocument()
-      expect(within(steerButton).queryByTestId('zap-icon')).not.toBeInTheDocument()
     }
 
     fireEvent.click(screen.getAllByLabelText('chat.input.followup_queue.steer')[0])
