@@ -2,6 +2,7 @@ import type {
   ConversationResourceMenuItem,
   ResourceListRevealRequest
 } from '@renderer/components/chat/resourceList/base'
+import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 
@@ -10,6 +11,7 @@ import type { CreateAgentSessionDefaults } from './types'
 
 interface AgentSidePanelProps {
   activeSessionId: string | null
+  agentSessionsSource: AgentSessionsSource
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
@@ -26,6 +28,7 @@ interface AgentSidePanelProps {
 
 const AgentSidePanel = ({
   activeSessionId,
+  agentSessionsSource,
   onActiveAgentDeleted,
   onAddAgent,
   onOpenHistoryRecords,
@@ -46,6 +49,7 @@ const AgentSidePanel = ({
       }}>
       <div className="flex flex-1 flex-col overflow-hidden">
         <Sessions
+          agentSessionsSource={agentSessionsSource}
           activeSessionId={activeSessionId}
           setActiveSessionId={setActiveSessionId}
           onActiveAgentDeleted={onActiveAgentDeleted}

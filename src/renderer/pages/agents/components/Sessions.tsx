@@ -28,7 +28,7 @@ import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
-import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
+import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { usePins } from '@renderer/hooks/usePins'
 import { formatErrorMessage, formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -81,6 +81,7 @@ import {
 } from './workdirGroupActions'
 
 type SessionsBaseProps = {
+  agentSessionsSource: AgentSessionsSource
   agentIdFilter?: string | null
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
@@ -262,6 +263,7 @@ export function findLatestCreateSessionSeed(
 }
 
 const Sessions = ({
+  agentSessionsSource,
   activeSessionId,
   agentIdFilter,
   onActiveAgentDeleted,
@@ -305,7 +307,7 @@ const Sessions = ({
     reload,
     reorderSession,
     togglePin
-  } = useAgentSessionsSource()
+  } = agentSessionsSource
   const { agents, error: agentsError, isLoading: isAgentsLoading, refetch: refetchAgents } = useAgents()
   const listRef = useRef<HTMLDivElement>(null)
   const [optimisticMove, setOptimisticMove] = useState<ResourceListItemReorderPayload | null>(null)

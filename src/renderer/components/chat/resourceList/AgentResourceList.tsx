@@ -7,7 +7,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
-import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
+import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { usePins } from '@renderer/hooks/usePins'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -40,6 +40,7 @@ type SessionListItem = AgentSessionEntity & {
 
 type AgentResourceListProps = {
   activeAgentId?: string | null
+  agentSessionsSource: AgentSessionsSource
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
@@ -57,6 +58,7 @@ type AgentResourceListProps = {
 
 export function AgentResourceList({
   activeAgentId,
+  agentSessionsSource,
   onAddAgent,
   onOpenHistoryRecords,
   onSelectSession,
@@ -81,7 +83,7 @@ export function AgentResourceList({
     isPinsLoading,
     error: sessionsError,
     reload
-  } = useAgentSessionsSource()
+  } = agentSessionsSource
   const {
     isLoading: isAgentPinsLoading,
     isRefreshing: isAgentPinsRefreshing,

@@ -230,6 +230,7 @@ const sessionDataMocks = vi.hoisted(() => ({
   deleteSession: vi.fn().mockResolvedValue(true),
   reload: vi.fn().mockResolvedValue(undefined),
   reorderSession: vi.fn().mockResolvedValue(true),
+  source: null as unknown,
   togglePin: vi.fn().mockResolvedValue(undefined),
   updateSession: vi.fn().mockResolvedValue(undefined),
   useUpdateSession: vi.fn(),
@@ -542,10 +543,18 @@ type SessionsForTestProps = Partial<ComponentProps<typeof Sessions>> & {
 
 function SessionsForTest({
   activeSessionId = cacheMocks.state.activeSessionId,
+  agentSessionsSource = sessionDataMocks.source as ComponentProps<typeof Sessions>['agentSessionsSource'],
   setActiveSessionId = cacheMocks.setActiveSessionId,
   ...props
 }: SessionsForTestProps) {
-  return <Sessions activeSessionId={activeSessionId ?? null} setActiveSessionId={setActiveSessionId} {...props} />
+  return (
+    <Sessions
+      activeSessionId={activeSessionId ?? null}
+      agentSessionsSource={agentSessionsSource}
+      setActiveSessionId={setActiveSessionId}
+      {...props}
+    />
+  )
 }
 
 function getHeaderNewTaskButton() {
@@ -662,7 +671,7 @@ function openSessionListOptions() {
 }
 
 function setupSessions(overrides: Record<string, unknown> = {}) {
-  sessionDataMocks.useSessions.mockReturnValue({
+  const source = {
     sessions: [
       createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
       createSession({ id: 'session-b', name: 'Beta session', orderKey: 'b' })
@@ -682,7 +691,9 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
     reorderSession: sessionDataMocks.reorderSession,
     togglePin: sessionDataMocks.togglePin,
     ...overrides
-  })
+  }
+  sessionDataMocks.source = source
+  sessionDataMocks.useSessions.mockReturnValue(source)
 }
 
 describe('Sessions', () => {
@@ -761,7 +772,7 @@ describe('Sessions', () => {
 
     const view = render(<SessionsForTest />)
 
-    expect(sessionDataMocks.useSessions).toHaveBeenCalledWith(undefined, { loadAll: true, pageSize: 200 })
+    expect(sessionDataMocks.useSessions).not.toHaveBeenCalled()
     expect(screen.getByTestId('resource-list-session')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('Search tasks')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'false')

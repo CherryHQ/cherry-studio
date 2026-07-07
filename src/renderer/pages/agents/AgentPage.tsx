@@ -57,6 +57,7 @@ import type { CreateAgentSessionDefaults } from './types'
 
 const logger = loggerService.withContext('AgentPage')
 type AgentConversationResourceKind = 'agent' | 'skill'
+const MAX_REUSABLE_EMPTY_MESSAGE_CHECKS = 8
 
 function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined): boolean {
   return !!session?.workspaceId && session.workspace?.type !== 'system'
@@ -103,29 +104,8 @@ async function sessionHasNoMessages(sessionId: string): Promise<boolean> {
   return page.items.length === 0
 }
 
-async function findReusableEmptySessions(
-  sessions: readonly AgentSessionEntity[],
-  isMatch: (session: AgentSessionEntity) => boolean
-): Promise<AgentSessionEntity[]> {
-  const candidates = sessions.filter((session) => isMatch(session) && isUntitledPlaceholderSession(session))
-  const reusableSessions: AgentSessionEntity[] = []
-
-  for (const session of candidates) {
-    if (isUntouchedSinceCreation(session)) {
-      reusableSessions.push(session)
-      continue
-    }
-
-    try {
-      if (await sessionHasNoMessages(session.id)) {
-        reusableSessions.push(session)
-      }
-    } catch (err) {
-      logger.warn('Failed to verify reusable empty agent session', err as Error, { sessionId: session.id })
-    }
-  }
-
-  return reusableSessions.sort((left, right) => {
+function sortLatestSessions(sessions: AgentSessionEntity[]): AgentSessionEntity[] {
+  return [...sessions].sort((left, right) => {
     const leftUpdatedAt = Date.parse(left.updatedAt)
     const rightUpdatedAt = Date.parse(right.updatedAt)
     const leftMs = Number.isFinite(leftUpdatedAt) ? leftUpdatedAt : Number.NEGATIVE_INFINITY
@@ -134,19 +114,41 @@ async function findReusableEmptySessions(
   })
 }
 
-async function fetchAllAgentSessionsForReuse(): Promise<AgentSessionEntity[]> {
-  const sessions: AgentSessionEntity[] = []
-  let cursor: string | undefined
+async function findReusableEmptySessions(
+  sessions: readonly AgentSessionEntity[],
+  isMatch: (session: AgentSessionEntity) => boolean
+): Promise<AgentSessionEntity[]> {
+  const candidates = sortLatestSessions(
+    sessions.filter((session) => isMatch(session) && isUntitledPlaceholderSession(session))
+  )
+  const reusableSessions: AgentSessionEntity[] = []
+  const touchedCandidates: AgentSessionEntity[] = []
 
-  do {
-    const page = await dataApiService.get('/agent-sessions', {
-      query: { cursor, limit: 200 }
+  for (const session of candidates) {
+    if (isUntouchedSinceCreation(session)) {
+      reusableSessions.push(session)
+    } else {
+      touchedCandidates.push(session)
+    }
+  }
+
+  const candidatesToVerify = touchedCandidates.slice(0, MAX_REUSABLE_EMPTY_MESSAGE_CHECKS)
+  const verifiedSessions = await Promise.all(
+    candidatesToVerify.map(async (session) => {
+      try {
+        return (await sessionHasNoMessages(session.id)) ? session : null
+      } catch (err) {
+        logger.warn('Failed to verify reusable empty agent session', err as Error, { sessionId: session.id })
+        return null
+      }
     })
-    sessions.push(...page.items)
-    cursor = page.nextCursor
-  } while (cursor)
+  )
 
-  return sessions
+  for (const session of verifiedSessions) {
+    if (session) reusableSessions.push(session)
+  }
+
+  return sortLatestSessions(reusableSessions)
 }
 
 const AgentPage = () => {
@@ -160,13 +162,14 @@ const AgentPage = () => {
   const routeSessionId = routeSearch.sessionId
   const tabMetadataSessionId = currentTab ? getTabInstanceKey(currentTab, 'agents') : undefined
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
-  // The page-level creator needs the full session list to reuse existing empty placeholders instead
-  // of stacking duplicates. Classic rail/panel consumers share this SWR key too.
+  // Shared full-list source for the session UI and the composer reuse path. Reuse must read this
+  // upper-layer data instead of issuing a second ad-hoc full pagination request.
+  const agentSessionsSource = useAgentSessionsSource({ enabled: !isMessageOnlyView })
   const {
     sessions: agentSessions,
     isLoadingAll: isAgentSessionsLoading = false,
     isFullyLoaded: isAgentSessionsFullyLoaded = true
-  } = useAgentSessionsSource({ enabled: !isMessageOnlyView })
+  } = agentSessionsSource
   const isAgentSessionsReady = !isAgentSessionsLoading && isAgentSessionsFullyLoaded
   const isClassicSessionLayoutHistoryReady = !isClassicSessionLayout || isAgentSessionsReady
   const isWindowFrame = useWindowFrame().mode === 'window'
@@ -418,16 +421,15 @@ const AgentPage = () => {
     [lastUsedWorkspaceId, setLastUsedWorkspaceId]
   )
 
-  const getSessionReuseCandidates = useCallback(async () => {
-    const sourceSessions = isAgentSessionsReady ? agentSessions : await fetchAllAgentSessionsForReuse()
+  const getSessionReuseCandidates = useCallback(() => {
     const byId = new Map<string, AgentSessionEntity>()
 
-    for (const session of [pendingSelectedSessionRef.current, visibleSession, ...sourceSessions]) {
+    for (const session of [pendingSelectedSessionRef.current, visibleSession, ...agentSessions]) {
       if (session?.id) byId.set(session.id, session)
     }
 
     return Array.from(byId.values())
-  }, [agentSessions, isAgentSessionsReady, visibleSession])
+  }, [agentSessions, visibleSession])
 
   const activateSession = useCallback(
     (session: AgentSessionEntity, fallbackAgentId?: string | null) => {
@@ -482,7 +484,7 @@ const AgentPage = () => {
         }
 
         const workspaceSource = await resolveCreateWorkspaceSource(defaults, visibleSession)
-        const reuseCandidates = await getSessionReuseCandidates()
+        const reuseCandidates = getSessionReuseCandidates()
         const reusableSessions = await findReusableEmptySessions(
           reuseCandidates,
           (candidate) => candidate.agentId === agentId && sessionMatchesWorkspaceSource(candidate, workspaceSource)
@@ -587,8 +589,8 @@ const AgentPage = () => {
       setAgentPickerOpen(false)
       try {
         // Reuse the agent's latest empty placeholder regardless of workspace — the picker resolves a
-        // fresh workspace below only when it has to create one. See findReusableEmptySessions.
-        const reuseCandidates = await getSessionReuseCandidates()
+        // fresh workspace below only when it has to create one.
+        const reuseCandidates = getSessionReuseCandidates()
         const reusableSessions = await findReusableEmptySessions(
           reuseCandidates,
           (candidate) => candidate.agentId === agentId
@@ -871,6 +873,7 @@ const AgentPage = () => {
     isClassicSessionLayout && sessionListPosition === 'right' ? (
       <AgentResourceList
         activeAgentId={activeResourceAgentId}
+        agentSessionsSource={agentSessionsSource}
         onAddAgent={() => {
           setAgentPickerOpen(true)
         }}
@@ -888,6 +891,7 @@ const AgentPage = () => {
     ) : (
       <AgentSidePanel
         activeSessionId={activeSessionId}
+        agentSessionsSource={agentSessionsSource}
         onActiveAgentDeleted={handleActiveAgentDeleted}
         onAddAgent={() => {
           setAgentPickerOpen(true)
@@ -911,6 +915,7 @@ const AgentPage = () => {
           label: t('agent.session.list.title'),
           node: (
             <Sessions
+              agentSessionsSource={agentSessionsSource}
               presentation="right-panel"
               activeSessionId={activeSessionId}
               agentIdFilter={activeResourceAgentId}

@@ -29,3 +29,5 @@ export function useAssistantTopicsSource({ enabled }: { enabled?: boolean } = {}
 export function useAgentSessionsSource({ enabled }: { enabled?: boolean } = {}) {
   return useSessions(undefined, { loadAll: true, pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE, enabled })
 }
+
+export type AgentSessionsSource = ReturnType<typeof useAgentSessionsSource>

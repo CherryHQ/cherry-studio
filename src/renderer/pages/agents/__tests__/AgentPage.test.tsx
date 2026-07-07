@@ -99,12 +99,15 @@ vi.mock('@data/DataApiService', () => ({
 }))
 
 vi.mock('@renderer/hooks/resourceViewSources', () => ({
-  useAgentSessionsSource: () => ({
-    sessions: agentPageMocks.classicLayoutSessions,
-    isFullyLoaded: true,
-    isLoading: false,
-    hasMore: false
-  })
+  useAgentSessionsSource: (options?: { enabled?: boolean }) => {
+    return {
+      sessions: options?.enabled === false ? [] : agentPageMocks.classicLayoutSessions,
+      isFullyLoaded: true,
+      isLoadingAll: false,
+      isLoading: false,
+      hasMore: false
+    }
+  }
 }))
 
 vi.mock('@renderer/hooks/command', () => ({

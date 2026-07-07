@@ -1,5 +1,6 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
+import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -190,16 +191,6 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
 }))
 
 vi.mock('@renderer/hooks/resourceViewSources', () => ({
-  useAgentSessionsSource: () => ({
-    error: null,
-    isFullyLoaded: true,
-    isLoading: false,
-    isLoadingAll: false,
-    isPinsLoading: false,
-    pinIdBySessionId: new Set(),
-    reload: vi.fn(),
-    sessions: [{ id: 'session-1', agentId: 'agent-1', name: 'Session 1' }]
-  }),
   useAssistantTopicsSource: () => ({
     error: null,
     isFullyLoaded: true,
@@ -265,6 +256,30 @@ vi.mock('@renderer/hooks/usePins', () => ({
     togglePin: vi.fn()
   })
 }))
+
+function createAgentSessionsSource(): AgentSessionsSource {
+  return {
+    createSession: vi.fn(),
+    deleteSession: vi.fn(),
+    deleteSessions: vi.fn(),
+    error: null,
+    hasMore: false,
+    isFullyLoaded: true,
+    isLoading: false,
+    isLoadingAll: false,
+    isLoadingMore: false,
+    isPinsLoading: false,
+    isValidating: false,
+    loadMore: vi.fn(),
+    pinIdBySessionId: new Map(),
+    reload: vi.fn(),
+    reorderSession: vi.fn(),
+    reorderSessions: vi.fn(),
+    sessions: [{ id: 'session-1', agentId: 'agent-1', name: 'Session 1' }],
+    togglePin: vi.fn(),
+    total: 1
+  } as unknown as AgentSessionsSource
+}
 
 vi.mock('@renderer/hooks/useTopic', () => ({
   mapApiTopicToRendererTopic: (topic: unknown) => topic,
@@ -600,6 +615,7 @@ describe('classic layout entity resource list actions', () => {
     render(
       <AgentResourceList
         activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
         onSelectSession={vi.fn()}
         onCreateSession={vi.fn()}
         onShowMissingAgentSelection={onShowMissingAgentSelection}
@@ -632,6 +648,7 @@ describe('classic layout entity resource list actions', () => {
     render(
       <AgentResourceList
         activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
         onSelectSession={vi.fn()}
         onCreateSession={vi.fn()}
         onShowMissingAgentSelection={vi.fn()}
@@ -649,6 +666,7 @@ describe('classic layout entity resource list actions', () => {
     render(
       <AgentResourceList
         activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
         onSelectSession={vi.fn()}
         onCreateSession={vi.fn()}
         onShowMissingAgentSelection={vi.fn()}
@@ -668,6 +686,7 @@ describe('classic layout entity resource list actions', () => {
     render(
       <AgentResourceList
         activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
         resourceMenuItems={[
           {
             id: 'agent-resource-view',
@@ -696,6 +715,7 @@ describe('classic layout entity resource list actions', () => {
     render(
       <AgentResourceList
         activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
         resourceMenuItems={[
           {
             active: true,
@@ -719,6 +739,7 @@ describe('classic layout entity resource list actions', () => {
     render(
       <AgentResourceList
         activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
         onOpenHistoryRecords={onOpenHistoryRecords}
         onSelectSession={vi.fn()}
         onCreateSession={vi.fn()}
