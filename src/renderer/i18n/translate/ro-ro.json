@@ -1460,6 +1460,7 @@
       "pause": "Pauză",
       "placeholder": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite - @ pentru a selecta modelul, / pentru a include instrumente",
       "placeholder_without_triggers": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite",
+      "resize_height": "Redimensionează înălțimea intrării",
       "resource_panel": {
         "categories": {
           "agents": "Agenți",
@@ -1478,6 +1479,7 @@
         },
         "title": "Resurse"
       },
+      "restore": "Restaurare",
       "send": "Trimite",
       "send_failed": "Nu s-a putut trimite mesajul",
       "settings": "Setări",
@@ -1486,8 +1488,7 @@
           "clear": "Ștergeți istoricul conversației",
           "compact": "Conversație compactă cu instrucțiuni opționale de focalizare",
           "context": "Vizualizează utilizarea contextului curent ca o grilă colorată",
-          "cost": "Afișează statisticile de utilizare a tokenilor (consultă ghidul de urmărire a costurilor pentru detalii specifice abonamentului)",
-          "todos": "Listează elementele curente de pe lista de sarcini"
+          "usage": "Afișează costul sesiunii, limitele de utilizare ale planului și statisticile activității"
         },
         "description": "Comenzi slash pentru sesiunea agentului",
         "title": "Comenzi slash"
@@ -1585,6 +1586,11 @@
       "new": {
         "branch": {
           "created": "Ramură nouă creată",
+          "disabled": {
+            "active": "Acest nod este deja selectat. Continuați să tastați pentru a extinde ramura de aici.",
+            "latest": "Ești deja la sfârșitul acestei ramuri. Continuă să tastezi pentru a o extinde.",
+            "no_follow_up": "Nu există încă un mesaj de continuare după acest mesaj. Comută la acest nod și continuă să scrii în schimb."
+          },
           "label": "Ramură nouă"
         },
         "context": "Context nou"
@@ -1615,6 +1621,13 @@
       "top": "Înapoi sus"
     },
     "resend": "Retrimite",
+    "resource_view": {
+      "menu": {
+        "agent": "Agenți",
+        "assistant": "Asistenți",
+        "skill": "Abilități"
+      }
+    },
     "save": {
       "file": {
         "title": "Salvează în fișier local"
@@ -2061,6 +2074,7 @@
     "generate_random_seed": "Generează sămânță aleatoare",
     "get_embedding_dimension": "Obține dimensiunea de înglobare",
     "go_to_settings": "Mergi la setări",
+    "help": "Ajutor",
     "html_preview": "Previzualizare HTML",
     "i_know": "Am înțeles",
     "ignore": "Ignoră",
@@ -2785,15 +2799,11 @@
         "chunk_size": "Numărul țintă de tokeni pentru fiecare fragment de document. Acest lucru afectează granularitatea recuperării și lungimea contextului.",
         "document_count": "Numărul maxim de fragmente de document returnate pentru fiecare recuperare. Valori mai mari acoperă mai mult conținut, dar folosesc mai mult context.",
         "embedding_model": "Folosit pentru a converti conținutul bazei de cunoștințe în vectori. Schimbarea modelului necesită de obicei reindexarea conținutului existent.",
-        "hybrid_alpha": "Ponderea scorului vectorial în recuperarea hibridă. Valorile mai mari favorizează potrivirea semantică.",
         "processor": "Parser utilizat la importul fișierelor pentru extragerea textului principal, tabelelor și conținutului aferent.",
         "rerank_model": "Model folosit pentru reordonarea rezultatelor inițiale de recuperare și îmbunătățirea relevanței fragmentelor finale.",
-        "search_mode": "Alegeți un mod de recuperare: căutare vectorială pentru potrivire semantică, căutare text complet pentru cuvinte cheie sau căutare hibridă pentru ambele.",
         "smart_chunking": "Împarte automat în funcție de structura Markdown (titluri, blocuri de cod, paragrafe) și nu împărți niciodată în interiorul unui bloc de cod. Dezactivează pentru a împărți pur și simplu după separator.",
-        "threshold": "Prag de similaritate pentru filtrarea fragmentelor cu relevanță scăzută. Valori mai mari fac recuperarea mai strictă.",
-        "threshold_disabled": "Acest mod de recuperare returnează rezultate ordonate și nu utilizează un prag de similaritate."
+        "threshold": "Prag de similaritate pentru filtrarea fragmentelor cu relevanță scăzută. Valori mai mari fac recuperarea mai strictă."
       },
-      "hybrid_alpha": "Alpha Hibrid",
       "processor": "Furnizor de procesare",
       "rerank_disabled": "Dezactivat",
       "rerank_model": "Model de Reordonare",
@@ -2802,12 +2812,6 @@
       "retrieval": "Setări de recuperare",
       "save_action": "Salvează",
       "saved": "Salvat",
-      "search_mode": {
-        "bm25": "Căutare în text complet",
-        "hybrid": "Căutare hibridă (recomandat)",
-        "title": "Mod de căutare",
-        "vector": "Căutare Vectorială"
-      },
       "separator_rule": "Regula Separator",
       "smart_chunking": "Fragmentare inteligentă",
       "threshold": "Prag de similaritate",
@@ -2916,7 +2920,8 @@
       "preview_description": "Prezentare generală",
       "preview_prompt": "Prompt",
       "scroll_left": "Derulați categoriile spre stânga",
-      "scroll_right": "Derulați categoriile spre dreapta"
+      "scroll_right": "Derulați categoriile spre dreapta",
+      "title": "Bibliotecă asistent"
     },
     "badge": {
       "update": "Actualizare"
@@ -3351,6 +3356,10 @@
       "tags": "Etichete",
       "title": "Bibliotecă"
     },
+    "skill_add": {
+      "local_import": "Import local",
+      "online_search": "Căutare online"
+    },
     "skill_detail": {
       "created_at": "Creat",
       "delete_description": "Elimină această abilitate și toată configurația sa. Această acțiune nu poate fi anulată.",
@@ -3361,6 +3370,15 @@
       "no_description": "Fără descriere",
       "source_files": "Fișiere sursă",
       "updated_at": "Actualizat recent"
+    },
+    "skill_marketplace": {
+      "empty_description": "Căutați în registrele online pentru a găsi abilități instalabile.",
+      "empty_title": "Căutați competențe",
+      "no_results_description": "Încearcă un alt cuvânt cheie sau importă un fișier ZIP sau director local.",
+      "no_results_title": "Nu au fost găsite abilități",
+      "search_failed_description": "Căutarea a eșuat. Vă rugăm să încercați din nou mai târziu.",
+      "search_placeholder": "Căutare abilități...",
+      "title": "Căutare abilități online"
     },
     "sort": {
       "created": "Sortează după data creării",
@@ -4689,7 +4707,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -4702,6 +4720,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
@@ -4725,6 +4744,7 @@
     "ollama": "Ollama",
     "open-mineru": "MinerU Deschis",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
     "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
@@ -6253,7 +6273,7 @@
         "success": "Serverele MCP au fost preluate cu succes"
       },
       "filter": {
-        "label": "[to be translated]:Filter"
+        "label": "Filtru"
       },
       "findMore": "Găsește mai multe MCP",
       "headers": "Headere",
@@ -6295,7 +6315,7 @@
       "noDescriptionAvailable": "Nicio descriere disponibilă",
       "noLogs": "Niciun jurnal încă",
       "noServers": "Niciun server configurat",
-      "notInstalled": "[to be translated]:Not installed",
+      "notInstalled": "Neinstalat",
       "not_support": "Model neacceptat",
       "npx_list": {
         "actions": "Acțiuni",
@@ -6325,7 +6345,7 @@
         "title": "Rulezi MCP extern?"
       },
       "provider": "Furnizor",
-      "providerNotFound": "[to be translated]:MCP provider not found",
+      "providerNotFound": "Furnizor MCP negăsit",
       "providerPlaceholder": "Nume furnizor",
       "providerUrl": "URL furnizor",
       "providers": "Furnizori",
@@ -6806,6 +6826,7 @@
         "reorderFailed": "Nu s-a reușit reordonarea solicitărilor",
         "updateFailed": "Nu s-a reușit actualizarea promptului"
       },
+      "manage": "Gestionați Prompturile",
       "title": "Gestionarea prompturilor",
       "titleLabel": "Titlu",
       "titlePlaceholder": "Introduceți titlul solicitării",
@@ -6954,15 +6975,25 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "Furnizorul Claude Code este disponibil doar pentru Agenți — nu poate fi utilizat în chat sau asistenți.",
+        "description": "Conectează-te cu abonamentul tău Claude",
+        "description_detail": "Acest furnizor refolosește autentificarea CLI Claude Code (Claude Pro/Max) și este disponibil doar pentru Agenți. Deschide un terminal și rulează `claude /login` pentru a te autentifica.",
+        "launch_failed": "Nu s-a putut deschide terminalul. Rulează manual `claude /login` pentru a te autentifica.",
+        "legal_link": "Juridic și Conformitate",
+        "logged_in": "Conectat la Claude Code",
+        "logged_in_detail": "Agenții vor folosi acreditările tale de abonament CLI Claude Code.",
+        "open_terminal": "Deschide terminalul pentru a te autentifica",
+        "recheck": "Verificare din nou"
+      },
+      "codex": {
+        "account": "Cont: {{accountId}}",
+        "description": "Conectează-te cu abonamentul tău ChatGPT",
+        "description_detail": "Acest furnizor folosește autentificarea ta ChatGPT Plus/Pro (OAuth) pentru a accesa modelele OpenAI Codex. Browserul tău se va deschide pentru a finaliza autentificarea.",
+        "logged_in": "Conectat la OpenAI Codex",
+        "sign_in_button": "Conectează-te cu ChatGPT",
+        "sign_in_failed": "Autentificarea a eșuat. Vă rugăm să încercați din nou.",
+        "sign_in_success": "Conectat la OpenAI Codex",
+        "signing_in": "Așteptând browserul…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7038,6 +7069,15 @@
       },
       "filter_agent": "Furnizori acceptați de agentul de filtrare",
       "get_api_key": "Obține cheie API",
+      "grok_cli": {
+        "description": "Conectează-te cu abonamentul tău SuperGrok",
+        "description_detail": "Acest furnizor utilizează autentificarea dvs. xAI SuperGrok (OAuth) pentru a accesa modelele Grok CLI (Grok Build, Composer). Browserul dvs. se va deschide pentru a finaliza conectarea.",
+        "logged_in": "Conectat la Grok CLI",
+        "sign_in_button": "Conectează-te cu xAI",
+        "sign_in_failed": "Conectarea a eșuat. Vă rugăm să încercați din nou.",
+        "sign_in_success": "Conectat la Grok CLI",
+        "signing_in": "Așteptând browserul…"
+      },
       "logo_upload_failed": "Nu s-a putut procesa imaginea selectată",
       "misc": "Altele",
       "more_endpoints": {
@@ -7255,6 +7295,9 @@
     },
     "skills": {
       "author": "Autor",
+      "batchInstallComplete": "Instalate {{count}} abilități",
+      "batchInstallPartialFailed": "Instalate {{success}}/{{total}} competențe, {{failed}} eșuate",
+      "batchInstallQueued": "În așteptare",
       "batchUninstallSuccess": "{{count}} competențe dezinstalate",
       "builtin": "Încorporat",
       "confirmBatchUninstall": "Sigur dorești să dezinstalezi {{count}} competențe selectate?",
@@ -7563,7 +7606,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Imagini",
     "settings": "Setări",
-    "store": "Bibliotecă asistenți",
     "translate": "Traducere",
     "work": "Muncă"
   },
