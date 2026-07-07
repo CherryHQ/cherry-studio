@@ -6,6 +6,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import type { AgentSession, AgentSessionEvent, CompactionResult, ContextUsage } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
+import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { application } from '@main/core/application'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
@@ -105,6 +106,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     const settingsManager = pi.SettingsManager.inMemory({}, { projectTrusted: false })
 
+    // The agent's ENABLED Cherry-managed skills, resolved to absolute on-disk dirs
+    // from the same store the claude driver reads. These are injected explicitly
+    // via `additionalSkillPaths` below; disk auto-discovery stays off (see comment).
+    const additionalSkillPaths = await resolveEnabledSkillPaths(session.agentId)
+
     const instructions = agent.instructions?.trim()
     const resourceLoader = new pi.DefaultResourceLoader({
       cwd: workspacePath,
@@ -112,14 +118,18 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       settingsManager,
       // Provider injection re-applies across reloads (plan D1); the approval/policy
       // gate enforces disabledTools/global-install/rtk/approval per turn (plan D4).
-      // Project-local and user-global pi resources are disabled for v1. Loading
-      // workspace `.pi/*`, `.agents/skills`, AGENTS.md/CLAUDE.md, or user
-      // ~/.agents requires an explicit Cherry trust/import model first.
+      // Disk auto-discovery of pi resources stays off for v1: loading workspace
+      // `.pi/*`, `.agents/skills`, AGENTS.md/CLAUDE.md, or user ~/.agents still
+      // requires an explicit Cherry trust/import model first. The one exception is
+      // the agent's enabled Cherry-managed skills, injected explicitly via
+      // `additionalSkillPaths` — those load even under `noSkills` because the paths
+      // are Cherry-owned, not discovered from disk.
       noExtensions: true,
       noSkills: true,
       noPromptTemplates: true,
       noThemes: true,
       noContextFiles: true,
+      additionalSkillPaths,
       extensionFactories: [
         createPiProviderExtension(injection.providerName, injection.providerConfig),
         createPiApprovalExtension({
@@ -411,6 +421,21 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.resumeToken = token
     this.eventQueue.push({ type: 'resume-token', token })
   }
+}
+
+/**
+ * Resolve the agent's ENABLED managed skills to their absolute on-disk directories,
+ * reusing the SAME store the claude driver reads (`skillService.list({ agentId })`,
+ * `isEnabled` from the `agent_skill` join). Each `folderName` maps to its canonical
+ * `{dataPath}/Skills/<folderName>` dir via `getSkillDirectory`.
+ *
+ * Workspace-local `.claude/skills` are intentionally NOT included (the claude driver
+ * merges them, but pi keeps disk auto-discovery off for trust) — only Cherry-managed,
+ * explicitly-enabled skills cross the boundary as `additionalSkillPaths`.
+ */
+async function resolveEnabledSkillPaths(agentId: string): Promise<string[]> {
+  const installed = await skillService.list({ agentId })
+  return installed.filter((skill) => skill.isEnabled).map((skill) => skillService.getSkillDirectory(skill.folderName))
 }
 
 /**

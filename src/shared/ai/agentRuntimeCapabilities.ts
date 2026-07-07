@@ -94,7 +94,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     modelTiers: false,
     heartbeat: false,
     mcp: false,
-    skills: false,
+    skills: true,
     slashCommands: PI_BUILTIN_COMMANDS,
     createDefaults: { permissionMode: 'default' },
     // Orphan models are rejected (pre-descriptor behavior): pi needs the provider's endpoint

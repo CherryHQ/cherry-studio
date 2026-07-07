@@ -198,6 +198,10 @@ Allowed in v1:
 - Cherry agent instructions from the agent record, via `systemPromptOverride`.
 - Inline Cherry-owned extensions required for the integration: provider
   injection and tool approval/policy enforcement.
+- The agent's enabled Cherry-managed skills, passed explicitly as
+  `additionalSkillPaths` (their canonical `{dataPath}/Skills/<folderName>` dirs).
+  These load even under `noSkills` because the paths are Cherry-owned and
+  resolved from the `agent_skill` join, not discovered from disk.
 
 Disallowed in v1 unless Cherry adds an explicit trust/import flow:
 
@@ -216,7 +220,9 @@ The implementation enforces this by creating pi `SettingsManager` with
 pi does not discover prompt files from disk, and constructing
 `DefaultResourceLoader` with `noExtensions`, `noSkills`, `noPromptTemplates`,
 `noThemes`, and `noContextFiles`. Inline extension factories still load because
-they are passed by Cherry code, not discovered from disk.
+they are passed by Cherry code, not discovered from disk; likewise the agent's
+enabled managed skills load via `additionalSkillPaths`, which pi honors even
+under `noSkills` because the paths are supplied by Cherry, not disk-discovered.
 
 If future work enables workspace pi resources, it must add a Cherry-owned trust
 prompt and persisted decision first, then selectively pass that decision into

@@ -14,6 +14,8 @@ const SESSION_FILE = `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_${SESSION_ID}.json
 const mocks = vi.hoisted(() => ({
   getById: vi.fn(),
   getAgent: vi.fn(),
+  skillList: vi.fn(),
+  getSkillDirectory: vi.fn(),
   resolveInjection: vi.fn(),
   getPath: vi.fn(),
   loadPiSdk: vi.fn(),
@@ -53,6 +55,9 @@ vi.mock('@logger', () => ({
 vi.mock('@main/core/application', () => ({ application: { getPath: mocks.getPath } }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getById } }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
+vi.mock('@main/ai/skills/SkillService', () => ({
+  skillService: { list: mocks.skillList, getSkillDirectory: mocks.getSkillDirectory }
+}))
 vi.mock('./modelInjection', () => ({ resolvePiProviderInjection: mocks.resolveInjection }))
 vi.mock('./piSdk', () => ({ loadPiSdk: mocks.loadPiSdk }))
 vi.mock('@main/utils/rtk', () => ({ rtkRewrite: vi.fn().mockResolvedValue(null) }))
@@ -160,6 +165,8 @@ beforeEach(() => {
 
   mocks.getById.mockReturnValue({ id: 'sess-1', agentId: 'agent-1', workspace: { path: WORKSPACE } })
   mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.' })
+  mocks.skillList.mockResolvedValue([])
+  mocks.getSkillDirectory.mockImplementation((folderName: string) => `/cherry/skills/${folderName}`)
   mocks.resolveInjection.mockResolvedValue({
     providerName: 'p',
     providerConfig: { name: 'P', baseUrl: 'https://x', apiKey: 'placeholder', api: 'anthropic-messages', models: [] },
@@ -636,6 +643,29 @@ describe('PiRuntimeConnection', () => {
       noContextFiles: true
     })
     expect(mocks.reload).toHaveBeenCalledWith()
+  })
+
+  it('injects the agent enabled managed skills as additionalSkillPaths while keeping noSkills', async () => {
+    mocks.skillList.mockResolvedValue([
+      { folderName: 'pdf-skill', isEnabled: true },
+      { folderName: 'disabled-skill', isEnabled: false },
+      { folderName: 'repo-skill', isEnabled: true }
+    ])
+    await new PiRuntimeConnection(input).start()
+
+    expect(mocks.skillList).toHaveBeenCalledWith({ agentId: 'agent-1' })
+    // Only enabled skills, resolved to their canonical on-disk dirs; disk auto-discovery stays off.
+    expect(mocks.loaderOpts).toMatchObject({
+      noSkills: true,
+      additionalSkillPaths: ['/cherry/skills/pdf-skill', '/cherry/skills/repo-skill']
+    })
+  })
+
+  it('passes an empty additionalSkillPaths list when no skills are enabled', async () => {
+    mocks.skillList.mockResolvedValue([{ folderName: 'disabled-skill', isEnabled: false }])
+    await new PiRuntimeConnection(input).start()
+
+    expect(mocks.loaderOpts).toMatchObject({ noSkills: true, additionalSkillPaths: [] })
   })
 
   it('wires both the provider and approval extensions and bakes disabledTools into excludeTools', async () => {
