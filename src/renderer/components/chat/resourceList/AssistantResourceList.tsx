@@ -46,12 +46,12 @@ type AssistantResourceListProps = {
   onSelectTopic: (topic: Topic) => void | boolean
   onCreateTopicAfterClear?: (assistantId: string) => void | Promise<void>
   onSelectedAssistantClick?: () => void | Promise<void>
-  onStartDraftAssistant: (assistantId: string | null) => void | Promise<void>
+  onCreateTopic: (assistantId: string | null) => void | Promise<void>
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
   /**
    * Called after the currently-active assistant is deleted so the classic-layout page
    * can settle (select the latest remaining topic / fall back). This is the old
-   * layout's reset and is distinct from `onStartDraftAssistant`.
+   * layout's reset and is distinct from `onCreateTopic`.
    */
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
 }
@@ -63,7 +63,7 @@ export function AssistantResourceList({
   onSelectTopic,
   onCreateTopicAfterClear,
   onSelectedAssistantClick,
-  onStartDraftAssistant,
+  onCreateTopic,
   resourceMenuItems,
   onActiveAssistantDeleted
 }: AssistantResourceListProps) {
@@ -182,9 +182,9 @@ export function AssistantResourceList({
     [t]
   )
 
-  const handleStartDraftAssistant = useCallback(
-    (assistantId: string) => onStartDraftAssistant(assistantId === DEFAULT_ASSISTANT_ENTITY_ID ? null : assistantId),
-    [onStartDraftAssistant]
+  const handleCreateTopic = useCallback(
+    (assistantId: string) => onCreateTopic(assistantId === DEFAULT_ASSISTANT_ENTITY_ID ? null : assistantId),
+    [onCreateTopic]
   )
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
@@ -195,7 +195,7 @@ export function AssistantResourceList({
     isError: !!(assistantsError || topicsError),
     sortResourcesForEntity: sortTopicsForEntity,
     onPickResource: onSelectTopic,
-    onStartDraft: handleStartDraftAssistant,
+    onCreateResource: handleCreateTopic,
     reorder: reorderAssistant,
     refetchEntities: refreshAssistants,
     onReorderError: handleReorderError
@@ -452,7 +452,7 @@ export function AssistantResourceList({
         groupByTag={isTagGrouping}
         addIcon={<Plus />}
         addLabel={t('chat.add.assistant.title')}
-        onAdd={onAddAssistant ?? (() => onStartDraftAssistant(null))}
+        onAdd={onAddAssistant ?? (() => onCreateTopic(null))}
         headerActions={
           <TopicListOptionsMenu
             manageAssistantsActive={manageAssistantsMenuItem?.active}

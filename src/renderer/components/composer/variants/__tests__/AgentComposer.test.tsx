@@ -590,8 +590,7 @@ describe('AgentComposer', () => {
     expect(mocks.updateModel).not.toHaveBeenCalled()
   })
 
-  it('routes new session shortcuts through the explicit parent action', () => {
-    const onNewSessionDraft = vi.fn()
+  it('routes new session shortcuts through the empty session action', () => {
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -600,30 +599,6 @@ describe('AgentComposer', () => {
         sessionId="session-1"
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
-        onNewSessionDraft={onNewSessionDraft}
-        onCreateEmptySession={onCreateEmptySession}
-        isStreaming={false}
-      />
-    )
-
-    mocks.shortcutHandlers.get('topic.create')?.()
-
-    expect(onNewSessionDraft).toHaveBeenCalledTimes(1)
-    expect(onCreateEmptySession).not.toHaveBeenCalled()
-  })
-
-  it('routes classic-layout new session shortcuts through the empty session action', () => {
-    mocks.sessionLayout = 'classic'
-    const onNewSessionDraft = vi.fn()
-    const onCreateEmptySession = vi.fn()
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        onNewSessionDraft={onNewSessionDraft}
         onCreateEmptySession={onCreateEmptySession}
         isStreaming={false}
       />
@@ -632,7 +607,26 @@ describe('AgentComposer', () => {
     mocks.shortcutHandlers.get('topic.create')?.()
 
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
-    expect(onNewSessionDraft).not.toHaveBeenCalled()
+  })
+
+  it('routes classic-layout new session shortcuts through the empty session action', () => {
+    mocks.sessionLayout = 'classic'
+    const onCreateEmptySession = vi.fn()
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        onCreateEmptySession={onCreateEmptySession}
+        isStreaming={false}
+      />
+    )
+
+    mocks.shortcutHandlers.get('topic.create')?.()
+
+    expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
   })
 
   it('puts the classic-layout empty session action first in the slash panel and calls the explicit handler', () => {
@@ -673,8 +667,7 @@ describe('AgentComposer', () => {
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the tool menu at the far left and puts the modern-layout new session action in the slash panel', () => {
-    const onNewSessionDraft = vi.fn()
+  it('keeps the tool menu at the far left and puts the new session action in the slash panel', () => {
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -683,7 +676,6 @@ describe('AgentComposer', () => {
         sessionId="session-1"
         sendMessage={mocks.sendMessage}
         stop={mocks.stop}
-        onNewSessionDraft={onNewSessionDraft}
         onCreateEmptySession={onCreateEmptySession}
         isStreaming={false}
       />
@@ -711,8 +703,7 @@ describe('AgentComposer', () => {
       item: newSessionItem
     })
 
-    expect(onNewSessionDraft).toHaveBeenCalledTimes(1)
-    expect(onCreateEmptySession).not.toHaveBeenCalled()
+    expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
   })
 
   it('hides the empty session action without a handler', () => {

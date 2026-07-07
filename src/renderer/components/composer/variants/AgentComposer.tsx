@@ -130,8 +130,7 @@ type Props = {
   sessionOverride?: AgentComposerSessionSnapshot
   sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
   stop: () => Promise<void>
-  onNewSessionDraft?: () => void | Promise<void>
-  onCreateEmptySession?: () => void | Promise<void>
+  onCreateEmptySession?: () => void | Promise<unknown>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
   agentChanging?: boolean
   workspaceId?: string | null
@@ -154,7 +153,6 @@ const AgentComposerRoot = ({
   sessionOverride,
   sendMessage,
   stop,
-  onNewSessionDraft,
   onCreateEmptySession,
   onAgentChange,
   agentChanging,
@@ -173,19 +171,10 @@ const AgentComposerRoot = ({
   const { agent } = useAgent(agentId)
   const { model: sessionModel } = useModelById((agent?.model ?? '') as UniqueModelId)
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
-  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
-  const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const handleNewSessionShortcut = useCallback(() => {
-    if (isClassicSessionLayout && onCreateEmptySession) {
-      void onCreateEmptySession()
-      return
-    }
-
-    void onNewSessionDraft?.()
-  }, [isClassicSessionLayout, onCreateEmptySession, onNewSessionDraft])
-  const hasNewSessionShortcutAction = isClassicSessionLayout
-    ? Boolean(onCreateEmptySession || onNewSessionDraft)
-    : Boolean(onNewSessionDraft)
+    void onCreateEmptySession?.()
+  }, [onCreateEmptySession])
+  const hasNewSessionShortcutAction = Boolean(onCreateEmptySession)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewSessionShortcut, {
@@ -225,7 +214,7 @@ const AgentComposerRoot = ({
       actions={{
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
         addNewTopic: () => {
-          void onNewSessionDraft?.()
+          void onCreateEmptySession?.()
         }
       }}>
       <AgentComposerInner
@@ -238,7 +227,6 @@ const AgentComposerRoot = ({
         actionsRef={actionsRef}
         chatSendMessage={sendMessage}
         chatStop={stop}
-        onNewSessionDraft={onNewSessionDraft}
         onCreateEmptySession={onCreateEmptySession}
         onAgentChange={onAgentChange}
         agentChanging={agentChanging}
@@ -265,7 +253,6 @@ interface InnerProps {
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
   chatSendMessage: Props['sendMessage']
   chatStop: Props['stop']
-  onNewSessionDraft?: Props['onNewSessionDraft']
   onCreateEmptySession?: Props['onCreateEmptySession']
   onAgentChange?: Props['onAgentChange']
   agentChanging?: boolean
@@ -648,7 +635,6 @@ const AgentComposerInner = ({
   actionsRef,
   chatSendMessage,
   chatStop,
-  onNewSessionDraft,
   onCreateEmptySession,
   onAgentChange,
   agentChanging,
@@ -835,28 +821,9 @@ const AgentComposerInner = ({
   }, [onCreateEmptySession])
 
   const rootPanelNewSessionItems = useMemo<QuickPanelListItem[]>(() => {
-    if (!agentBase) return []
+    if (!agentBase || !onCreateEmptySession) return []
 
     const label = t('agent.session.new')
-
-    if (isClassicSessionLayout) {
-      if (!onCreateEmptySession) return []
-
-      return [
-        {
-          id: 'composer:new-session',
-          label,
-          icon: <MessageSquarePlus size={16} />,
-          filterText: label,
-          searchAliases: getQuickPanelSearchAliases(t, 'agent.session.new'),
-          action: () => {
-            handleCreateEmptySession()
-          }
-        }
-      ]
-    }
-
-    if (!onNewSessionDraft) return []
 
     return [
       {
@@ -866,11 +833,11 @@ const AgentComposerInner = ({
         filterText: label,
         searchAliases: getQuickPanelSearchAliases(t, 'agent.session.new'),
         action: () => {
-          void onNewSessionDraft()
+          handleCreateEmptySession()
         }
       }
     ]
-  }, [agentBase, handleCreateEmptySession, isClassicSessionLayout, onCreateEmptySession, onNewSessionDraft, t])
+  }, [agentBase, handleCreateEmptySession, onCreateEmptySession, t])
 
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined

@@ -802,9 +802,9 @@ describe('Sessions', () => {
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
   })
 
-  it('keeps the header new task action enabled without agents and starts a missing-agent draft', () => {
-    const onStartDraftSession = vi.fn()
-    const onStartMissingAgentDraft = vi.fn()
+  it('keeps the header new task action enabled without agents and shows missing-agent selection', () => {
+    const onCreateSession = vi.fn()
+    const onShowMissingAgentSelection = vi.fn()
     setupSessions({ sessions: [] })
     agentDataMocks.useAgents.mockReturnValue({
       agents: [],
@@ -814,7 +814,7 @@ describe('Sessions', () => {
     })
 
     render(
-      <SessionsForTest onStartDraftSession={onStartDraftSession} onStartMissingAgentDraft={onStartMissingAgentDraft} />
+      <SessionsForTest onCreateSession={onCreateSession} onShowMissingAgentSelection={onShowMissingAgentSelection} />
     )
 
     const newTaskButton = getHeaderNewTaskButton()
@@ -822,8 +822,8 @@ describe('Sessions', () => {
 
     fireEvent.click(newTaskButton)
 
-    expect(onStartMissingAgentDraft).toHaveBeenCalledTimes(1)
-    expect(onStartDraftSession).not.toHaveBeenCalled()
+    expect(onShowMissingAgentSelection).toHaveBeenCalledTimes(1)
+    expect(onCreateSession).not.toHaveBeenCalled()
   })
 
   it('uses only the redesigned search control in right panel mode', () => {
@@ -876,54 +876,54 @@ describe('Sessions', () => {
     expect(screen.getByText('Session 56')).toBeInTheDocument()
   })
 
-  it('starts a first-agent draft from the header when there are agents but no sessions', async () => {
-    const onStartDraftSession = vi.fn()
-    const onStartMissingAgentDraft = vi.fn()
+  it('creates a first-agent session from the header when there are agents but no sessions', async () => {
+    const onCreateSession = vi.fn()
+    const onShowMissingAgentSelection = vi.fn()
     setupSessions({ sessions: [] })
 
     render(
-      <SessionsForTest onStartDraftSession={onStartDraftSession} onStartMissingAgentDraft={onStartMissingAgentDraft} />
+      <SessionsForTest onCreateSession={onCreateSession} onShowMissingAgentSelection={onShowMissingAgentSelection} />
     )
 
     fireEvent.click(getHeaderNewTaskButton())
 
     await vi.waitFor(() =>
-      expect(onStartDraftSession).toHaveBeenCalledWith({
+      expect(onCreateSession).toHaveBeenCalledWith({
         agentId: 'agent-a',
         workspace: { type: 'system' }
       })
     )
-    expect(onStartMissingAgentDraft).not.toHaveBeenCalled()
+    expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
   })
 
   it('shows the empty task state without a creation action', () => {
-    const onStartDraftSession = vi.fn()
+    const onCreateSession = vi.fn()
     setupSessions({ sessions: [] })
 
-    render(<SessionsForTest onStartDraftSession={onStartDraftSession} />)
+    render(<SessionsForTest onCreateSession={onCreateSession} />)
 
     expect(screen.getByText('No tasks yet')).toBeInTheDocument()
     expect(screen.getByText('Tasks will appear here after you start one.')).toBeInTheDocument()
     expect(getHeaderNewTaskButton()).toBeInTheDocument()
-    expect(onStartDraftSession).not.toHaveBeenCalled()
+    expect(onCreateSession).not.toHaveBeenCalled()
   })
 
   it('uses the top header action to add an agent in agent display mode', () => {
     const onAddAgent = vi.fn()
-    const onStartDraftSession = vi.fn()
+    const onCreateSession = vi.fn()
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     setupSessions()
 
-    render(<SessionsForTest onAddAgent={onAddAgent} onStartDraftSession={onStartDraftSession} />)
+    render(<SessionsForTest onAddAgent={onAddAgent} onCreateSession={onCreateSession} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Add Agent' }))
 
     expect(onAddAgent).toHaveBeenCalledTimes(1)
-    expect(onStartDraftSession).not.toHaveBeenCalled()
+    expect(onCreateSession).not.toHaveBeenCalled()
   })
 
   it('renders no-project sessions in a bottom no-project section', () => {
-    const onStartDraftSession = vi.fn()
+    const onCreateSession = vi.fn()
     const systemWorkspace = makeWorkspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session', {
       id: 'system-ws',
       name: 'System Workspace',
@@ -949,7 +949,7 @@ describe('Sessions', () => {
       ]
     })
 
-    render(<SessionsForTest onStartDraftSession={onStartDraftSession} />)
+    render(<SessionsForTest onCreateSession={onCreateSession} />)
 
     const projectSection = screen.getByRole('button', { name: 'Work directory' })
     const noProjectSection = screen.getByRole('button', { name: 'No work directory' })
@@ -962,7 +962,7 @@ describe('Sessions', () => {
     expect(noProjectSectionHeader).not.toBeNull()
     fireEvent.click(within(noProjectSectionHeader as HTMLElement).getByRole('button', { name: 'New task' }))
 
-    expect(onStartDraftSession).toHaveBeenCalledWith({
+    expect(onCreateSession).toHaveBeenCalledWith({
       agentId: 'agent-a',
       workspace: { type: 'system' }
     })
@@ -1317,7 +1317,7 @@ describe('Sessions', () => {
   })
 
   it('creates sessions from agent group actions', async () => {
-    const onStartDraftSession = vi.fn()
+    const onCreateSession = vi.fn()
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
@@ -1359,14 +1359,14 @@ describe('Sessions', () => {
       ]
     })
 
-    render(<SessionsForTest onStartDraftSession={onStartDraftSession} />)
+    render(<SessionsForTest onCreateSession={onCreateSession} />)
 
     const betaGroup = screen.getByRole('button', { name: 'Beta agent' }).closest('div')
     expect(betaGroup).not.toBeNull()
     fireEvent.click(within(betaGroup as HTMLElement).getByRole('button', { name: 'New task' }))
 
     await vi.waitFor(() =>
-      expect(onStartDraftSession).toHaveBeenCalledWith({
+      expect(onCreateSession).toHaveBeenCalledWith({
         agentId: 'agent-b',
         workspace: { type: 'user', workspaceId: 'ws-c' }
       })
@@ -1477,8 +1477,8 @@ describe('Sessions', () => {
     expect(within(todayHeader as HTMLElement).queryByRole('button', { name: 'New task' })).not.toBeInTheDocument()
   })
 
-  it('starts a draft session from the header without creating inline', async () => {
-    const onStartDraftSession = vi.fn()
+  it('requests a new session from the header without creating inline', async () => {
+    const onCreateSession = vi.fn()
     dataApiMocks.workspaces = [
       makeWorkspace('/Users/jd/project-b', { id: 'ws-b', name: 'Project B Workspace', orderKey: 'a' }),
       makeWorkspace('/Users/jd/project-a', { id: 'ws-a', name: 'Project A Workspace', orderKey: 'b' })
@@ -1512,12 +1512,12 @@ describe('Sessions', () => {
       ]
     })
 
-    render(<SessionsForTest onStartDraftSession={onStartDraftSession} />)
+    render(<SessionsForTest onCreateSession={onCreateSession} />)
 
     fireEvent.click(getHeaderNewTaskButton())
 
     expect(sessionDataMocks.createSession).not.toHaveBeenCalled()
-    expect(onStartDraftSession).toHaveBeenCalledWith({
+    expect(onCreateSession).toHaveBeenCalledWith({
       agentId: 'agent-b',
       workspace: { type: 'user', workspaceId: 'ws-b' }
     })
@@ -1823,7 +1823,7 @@ describe('Sessions', () => {
     expect(setActiveSessionId).not.toHaveBeenCalledWith('session-a', expect.anything())
   })
 
-  it('starts an agent-scoped draft after deleting the active agent last session in the right panel', async () => {
+  it('creates an agent-scoped session after deleting the active agent last session in the right panel', async () => {
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
         { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
@@ -1850,7 +1850,7 @@ describe('Sessions', () => {
         })
       ]
     })
-    const onStartDraftSession = vi.fn()
+    const onCreateSession = vi.fn()
     const setActiveSessionId = vi.fn()
 
     render(
@@ -1858,7 +1858,7 @@ describe('Sessions', () => {
         agentIdFilter="agent-a"
         presentation="right-panel"
         activeSessionId="session-a-only"
-        onStartDraftSession={onStartDraftSession}
+        onCreateSession={onCreateSession}
         setActiveSessionId={setActiveSessionId}
       />
     )
@@ -1874,7 +1874,7 @@ describe('Sessions', () => {
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a-only'))
     await vi.waitFor(() =>
-      expect(onStartDraftSession).toHaveBeenCalledWith({
+      expect(onCreateSession).toHaveBeenCalledWith({
         agentId: 'agent-a',
         workspace: { type: 'user', workspaceId: 'ws-a' }
       })
@@ -1882,7 +1882,7 @@ describe('Sessions', () => {
     expect(setActiveSessionId).not.toHaveBeenCalledWith('session-b-first', expect.anything())
   })
 
-  it('clears the active session and toasts when the post-delete draft start fails in the right panel', async () => {
+  it('clears the active session and toasts when the post-delete session create fails in the right panel', async () => {
     agentDataMocks.useAgents.mockReturnValue({
       agents: [{ id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } }],
       isLoading: false,
@@ -1899,7 +1899,7 @@ describe('Sessions', () => {
         })
       ]
     })
-    const onStartDraftSession = vi.fn().mockRejectedValue(new Error('workspace refetch failed'))
+    const onCreateSession = vi.fn().mockRejectedValue(new Error('workspace refetch failed'))
     const setActiveSessionId = vi.fn()
 
     render(
@@ -1907,7 +1907,7 @@ describe('Sessions', () => {
         agentIdFilter="agent-a"
         presentation="right-panel"
         activeSessionId="session-a-only"
-        onStartDraftSession={onStartDraftSession}
+        onCreateSession={onCreateSession}
         setActiveSessionId={setActiveSessionId}
       />
     )
@@ -1921,7 +1921,7 @@ describe('Sessions', () => {
       fireEvent.click(deleteButton)
     })
 
-    await vi.waitFor(() => expect(onStartDraftSession).toHaveBeenCalled())
+    await vi.waitFor(() => expect(onCreateSession).toHaveBeenCalled())
     // The rejection must be surfaced and the active id cleared in `finally` so the view never
     // stays pointed at the just-deleted session.
     await vi.waitFor(() => expect(window.toast.error).toHaveBeenCalled())
@@ -2355,7 +2355,7 @@ describe('Sessions', () => {
   })
 
   it('creates sessions from workspace group actions', async () => {
-    const onStartDraftSession = vi.fn()
+    const onCreateSession = vi.fn()
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     cacheMocks.state.activeSessionId = 'session-b'
     setupSessions({
@@ -2380,14 +2380,14 @@ describe('Sessions', () => {
         })
       ]
     })
-    render(<SessionsForTest onStartDraftSession={onStartDraftSession} />)
+    render(<SessionsForTest onCreateSession={onCreateSession} />)
 
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
     expect(workdirGroup).not.toBeNull()
     fireEvent.click(within(workdirGroup as HTMLElement).getByRole('button', { name: 'New task' }))
 
     await vi.waitFor(() =>
-      expect(onStartDraftSession).toHaveBeenCalledWith({
+      expect(onCreateSession).toHaveBeenCalledWith({
         agentId: 'agent-a',
         workspace: { type: 'user', workspaceId: 'ws-a' }
       })

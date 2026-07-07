@@ -260,7 +260,8 @@ vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
       </div>
     )
   },
-  AgentHomeComposer: () => <div data-testid="agent-home-composer" />
+  AgentHomeComposer: () => <div data-testid="agent-home-composer" />,
+  MissingAgentHomeComposer: () => <div data-testid="missing-agent-home-composer" />
 }))
 
 vi.mock('../components/AgentSessionMessages', () => ({
@@ -436,7 +437,7 @@ describe('AgentChat settings panel', () => {
     expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
   })
 
-  it('keeps the agent home composer for pending ask-user-question requests', () => {
+  it('keeps the missing-agent home composer for pending ask-user-question requests', () => {
     partsByMessageIdMock.value = {
       'message-1': [
         {
@@ -463,15 +464,11 @@ describe('AgentChat settings panel', () => {
 
     renderAgentChat({
       activeSession: null,
-      draftConversation: {
-        agentId: 'agent-1',
-        workspaceSource: { type: 'user', workspaceId: 'workspace-1' },
-        workspace: { id: 'workspace-1', name: 'Workspace', path: '/tmp/workspace', type: 'user' }
-      } as any
+      missingAgentSelection: true
     })
 
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
-    expect(screen.getByTestId('agent-home-composer')).toBeInTheDocument()
+    expect(screen.getByTestId('missing-agent-home-composer')).toBeInTheDocument()
     expect(screen.queryByText('Choose logger')).not.toBeInTheDocument()
   })
 
@@ -550,7 +547,7 @@ describe('AgentChat settings panel', () => {
     expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
   })
 
-  it('keeps the agent home composer for pending tool permissions', () => {
+  it('keeps the missing-agent home composer for pending tool permissions', () => {
     partsByMessageIdMock.value = {
       'message-1': [
         {
@@ -572,15 +569,11 @@ describe('AgentChat settings panel', () => {
 
     renderAgentChat({
       activeSession: null,
-      draftConversation: {
-        agentId: 'agent-1',
-        workspaceSource: { type: 'user', workspaceId: 'workspace-1' },
-        workspace: { id: 'workspace-1', name: 'Workspace', path: '/tmp/workspace', type: 'user' }
-      } as any
+      missingAgentSelection: true
     })
 
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'home')
-    expect(screen.getByTestId('agent-home-composer')).toBeInTheDocument()
+    expect(screen.getByTestId('missing-agent-home-composer')).toBeInTheDocument()
     expect(screen.queryByText('CustomTool')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'agent.toolPermission.button.allow' })).not.toBeInTheDocument()
   })

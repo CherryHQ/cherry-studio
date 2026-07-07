@@ -330,14 +330,14 @@ describe('classic layout entity resource list actions', () => {
   })
 
   it('uses delete-assistant actions for the classic layout assistant context and more menus', async () => {
-    const onStartDraftAssistant = vi.fn()
+    const onCreateTopic = vi.fn()
     const onActiveAssistantDeleted = vi.fn()
 
     render(
       <AssistantResourceList
         activeAssistantId="assistant-1"
         onSelectTopic={vi.fn()}
-        onStartDraftAssistant={onStartDraftAssistant}
+        onCreateTopic={onCreateTopic}
         onActiveAssistantDeleted={onActiveAssistantDeleted}
       />
     )
@@ -358,7 +358,7 @@ describe('classic layout entity resource list actions', () => {
     // Classic layout resets via the dedicated callback (page settles to the latest
     // remaining topic) and must NOT open the modern layout draft compose.
     await waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
-    expect(onStartDraftAssistant).not.toHaveBeenCalled()
+    expect(onCreateTopic).not.toHaveBeenCalled()
   })
 
   it('clears assistant topics from the classic layout assistant context menu', async () => {
@@ -370,7 +370,7 @@ describe('classic layout entity resource list actions', () => {
         activeAssistantId="assistant-1"
         onSelectTopic={onSelectTopic}
         onCreateTopicAfterClear={onCreateTopicAfterClear}
-        onStartDraftAssistant={vi.fn()}
+        onCreateTopic={vi.fn()}
       />
     )
 
@@ -412,7 +412,7 @@ describe('classic layout entity resource list actions', () => {
       activeAssistantId: 'assistant-1',
       onSelectTopic: vi.fn(),
       onCreateTopicAfterClear,
-      onStartDraftAssistant: vi.fn()
+      onCreateTopic: vi.fn()
     }
     const { rerender } = render(<AssistantResourceList {...props} />)
 
@@ -445,7 +445,7 @@ describe('classic layout entity resource list actions', () => {
       { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }
     ]
 
-    render(<AssistantResourceList activeAssistantId={null} onSelectTopic={vi.fn()} onStartDraftAssistant={vi.fn()} />)
+    render(<AssistantResourceList activeAssistantId={null} onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />)
 
     const defaultAssistantRegion = screen.getByRole('region', { name: 'chat.default.name' })
     const assistantRegion = screen.getByRole('region', { name: 'Assistant 1' })
@@ -472,7 +472,7 @@ describe('classic layout entity resource list actions', () => {
         activeAssistantId="assistant-2"
         onSelectTopic={vi.fn()}
         onCreateTopicAfterClear={onCreateTopicAfterClear}
-        onStartDraftAssistant={vi.fn()}
+        onCreateTopic={vi.fn()}
       />
     )
 
@@ -490,7 +490,7 @@ describe('classic layout entity resource list actions', () => {
   })
 
   it('disables classic assistant rail reorder while grouping by tag', () => {
-    const props = { activeAssistantId: 'assistant-1', onSelectTopic: vi.fn(), onStartDraftAssistant: vi.fn() }
+    const props = { activeAssistantId: 'assistant-1', onSelectTopic: vi.fn(), onCreateTopic: vi.fn() }
 
     preferenceMocks.sortType = 'list'
     const { rerender } = render(<AssistantResourceList {...props} />)
@@ -508,9 +508,7 @@ describe('classic layout entity resource list actions', () => {
   })
 
   it('toggles assistant tag grouping from the context menu (list → tags)', () => {
-    render(
-      <AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onStartDraftAssistant={vi.fn()} />
-    )
+    render(<AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />)
 
     // sort_type === 'list' → the menu offers "group by tag".
     const menu = screen.getByTestId('assistant-1-context-menu')
@@ -522,9 +520,7 @@ describe('classic layout entity resource list actions', () => {
   })
 
   it('lets the classic assistant rail switch icon display mode from the context menu', () => {
-    render(
-      <AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onStartDraftAssistant={vi.fn()} />
-    )
+    render(<AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />)
 
     expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.icon.type')
 
@@ -536,9 +532,7 @@ describe('classic layout entity resource list actions', () => {
   it('offers turning tag grouping off when already grouping (tags → list)', () => {
     preferenceMocks.sortType = 'tags'
 
-    render(
-      <AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onStartDraftAssistant={vi.fn()} />
-    )
+    render(<AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />)
 
     expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.tags.ungroup')
 
@@ -547,9 +541,7 @@ describe('classic layout entity resource list actions', () => {
   })
 
   it('lets the classic assistant rail switch back to the time topic view', async () => {
-    render(
-      <AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onStartDraftAssistant={vi.fn()} />
-    )
+    render(<AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.topics.display.time' }))
 
@@ -566,7 +558,7 @@ describe('classic layout entity resource list actions', () => {
         activeAssistantId="assistant-1"
         onOpenHistoryRecords={onOpenHistoryRecords}
         onSelectTopic={vi.fn()}
-        onStartDraftAssistant={vi.fn()}
+        onCreateTopic={vi.fn()}
       />
     )
 
@@ -590,7 +582,7 @@ describe('classic layout entity resource list actions', () => {
           }
         ]}
         onSelectTopic={vi.fn()}
-        onStartDraftAssistant={vi.fn()}
+        onCreateTopic={vi.fn()}
       />
     )
 
@@ -602,15 +594,15 @@ describe('classic layout entity resource list actions', () => {
   })
 
   it('uses delete-agent actions for the classic layout agent context and more menus', async () => {
-    const onStartMissingAgentDraft = vi.fn()
+    const onShowMissingAgentSelection = vi.fn()
     const onActiveAgentDeleted = vi.fn()
 
     render(
       <AgentResourceList
         activeAgentId="agent-1"
         onSelectSession={vi.fn()}
-        onStartDraftAgent={vi.fn()}
-        onStartMissingAgentDraft={onStartMissingAgentDraft}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={onShowMissingAgentSelection}
         onActiveAgentDeleted={onActiveAgentDeleted}
       />
     )
@@ -633,7 +625,7 @@ describe('classic layout entity resource list actions', () => {
     )
     // Classic layout resets via the dedicated callback, never the draft compose.
     await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1'))
-    expect(onStartMissingAgentDraft).not.toHaveBeenCalled()
+    expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
   })
 
   it('lets the classic agent rail switch icon display mode from the context menu', () => {
@@ -641,8 +633,8 @@ describe('classic layout entity resource list actions', () => {
       <AgentResourceList
         activeAgentId="agent-1"
         onSelectSession={vi.fn()}
-        onStartDraftAgent={vi.fn()}
-        onStartMissingAgentDraft={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
       />
     )
 
@@ -658,8 +650,8 @@ describe('classic layout entity resource list actions', () => {
       <AgentResourceList
         activeAgentId="agent-1"
         onSelectSession={vi.fn()}
-        onStartDraftAgent={vi.fn()}
-        onStartMissingAgentDraft={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
       />
     )
 
@@ -689,8 +681,8 @@ describe('classic layout entity resource list actions', () => {
           }
         ]}
         onSelectSession={vi.fn()}
-        onStartDraftAgent={vi.fn()}
-        onStartMissingAgentDraft={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
       />
     )
 
@@ -713,8 +705,8 @@ describe('classic layout entity resource list actions', () => {
           }
         ]}
         onSelectSession={vi.fn()}
-        onStartDraftAgent={vi.fn()}
-        onStartMissingAgentDraft={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
       />
     )
 
@@ -729,8 +721,8 @@ describe('classic layout entity resource list actions', () => {
         activeAgentId="agent-1"
         onOpenHistoryRecords={onOpenHistoryRecords}
         onSelectSession={vi.fn()}
-        onStartDraftAgent={vi.fn()}
-        onStartMissingAgentDraft={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
       />
     )
 

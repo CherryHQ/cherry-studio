@@ -1,7 +1,6 @@
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -78,17 +77,7 @@ const homeMocks = vi.hoisted(() => ({
   routeTopic: undefined as Topic | undefined,
   routeTopicLoading: false,
   setShowSidebar: vi.fn(),
-  isActiveTab: false,
-  streamOpen: vi.fn()
-}))
-
-// The send path calls ipcApi.request('ai.stream_open', …); route it to homeMocks.streamOpen.
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: {
-    request: (route: string, input: unknown) =>
-      route === 'ai.stream_open' ? homeMocks.streamOpen(input) : Promise.resolve(undefined),
-    on: () => () => {}
-  }
+  isActiveTab: false
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -218,23 +207,6 @@ vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
   )
 }))
 
-vi.mock('@renderer/components/chat/shell/ConversationStageCenter', () => ({
-  default: ({
-    placement,
-    composer,
-    homeWelcomeText
-  }: {
-    placement: string
-    composer?: ReactNode
-    homeWelcomeText?: string
-  }) => (
-    <div data-placement={placement} data-testid="conversation-stage">
-      <output data-testid="welcome-text">{homeWelcomeText ?? ''}</output>
-      {composer}
-    </div>
-  )
-}))
-
 vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
   ...(await importActual<typeof ChatPrimitives>()),
   EmptyState: ({ title }: { title?: string }) => <div data-testid="empty-state">{title}</div>,
@@ -256,48 +228,6 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
       {resourceType === 'assistant' && (
         <button type="button" onClick={() => onOpenAssistantChat?.('assistant-2')}>
           Go to chat with assistant 2
-        </button>
-      )}
-    </div>
-  )
-}))
-
-vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
-  ChatHomePlacementComposer: ({
-    assistantId,
-    onDraftAssistantChange,
-    onCreateEmptyTopic,
-    onNewTopic,
-    onSend,
-    scopeKey
-  }: {
-    assistantId?: string
-    onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
-    onCreateEmptyTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
-    onNewTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
-    onSend: (
-      text: string,
-      options?: {
-        userMessageParts?: CherryMessagePart[]
-      }
-    ) => void | Promise<void>
-    scopeKey: string
-  }) => (
-    <div data-assistant-id={assistantId ?? ''} data-scope-key={scopeKey} data-testid="draft-composer">
-      <button
-        type="button"
-        onClick={() => onSend('hello', { userMessageParts: [{ type: 'text', text: 'hello' }] as CherryMessagePart[] })}>
-        Send draft
-      </button>
-      <button type="button" onClick={() => onDraftAssistantChange?.('assistant-2')}>
-        Switch draft assistant
-      </button>
-      <button type="button" onClick={() => onNewTopic?.({ assistantId: 'assistant-2' })}>
-        New draft with assistant 2
-      </button>
-      {onCreateEmptyTopic && (
-        <button type="button" onClick={() => onCreateEmptyTopic({ assistantId })}>
-          Create empty topic from composer
         </button>
       )}
     </div>
@@ -707,7 +637,6 @@ describe('HomePage', () => {
     homeMocks.isActiveTab = false
     homeMocks.createTopic.mockResolvedValue(createdTopic)
     homeMocks.refreshTopics.mockResolvedValue(undefined)
-    homeMocks.streamOpen.mockResolvedValue({ mode: 'started', userMessageId: 'user-created' })
     homeMocks.activeTopicLoading = false
     homeMocks.activeTopicOverride = undefined
     homeMocks.activeTopicSource = 'query'
@@ -896,19 +825,19 @@ describe('HomePage', () => {
     await waitFor(() => expect(within(shell).getByTestId('pane-open')).toHaveTextContent('true'))
   })
 
-  it('starts a modern-layout draft from the inline assistant catalog go-to-chat action', async () => {
+  it('creates an empty modern-layout topic from the inline assistant catalog go-to-chat action', async () => {
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
 
     render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
     fireEvent.click(screen.getByRole('button', { name: 'Go to chat with assistant 2' }))
 
-    await waitFor(() =>
-      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-2')
-    )
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
     expect(screen.queryByTestId('resource-catalog-assistant')).not.toBeInTheDocument()
-    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
   })
 
   it('creates an empty classic-layout topic from the inline assistant catalog go-to-chat action', async () => {
@@ -999,10 +928,11 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
-  it('excludes the deleted active assistant when falling back to a draft after deletion', async () => {
+  it('excludes the deleted active assistant when creating a fallback topic after deletion', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
     homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-1')
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
     homeMocks.classicLayoutTopics = [
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-1', updatedAt: '2026-01-05T00:00:00.000Z' }
     ]
@@ -1011,9 +941,8 @@ describe('HomePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete active assistant' }))
 
-    await waitFor(() =>
-      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-2')
-    )
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
     expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.last_used_assistant_id', null)
   })
 
@@ -1339,16 +1268,17 @@ describe('HomePage', () => {
     expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
   })
 
-  it('starts a draft assistant selection when history clears the selected topic', async () => {
+  it('creates an empty topic when history clears the selected topic', async () => {
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-default' })
+
     render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
     fireEvent.click(screen.getByRole('button', { name: 'Clear history selection' }))
 
-    await waitFor(() => {
-      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-default')
-    })
-    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-default' }))
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-default')
   })
 
   it('toggles the left sidebar off with the left sidebar shortcut', () => {
@@ -1473,7 +1403,7 @@ describe('HomePage', () => {
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial')
   })
 
-  it('waits for a cached active topic before starting the first-launch draft', () => {
+  it('waits for a cached active topic before creating the first-launch empty topic', () => {
     homeMocks.locationState = undefined
     homeMocks.activeTopicLoading = true
     homeMocks.forceActiveTopicUndefined = true
@@ -1481,7 +1411,7 @@ describe('HomePage', () => {
     const { rerender } = render(<HomePage />)
 
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('draft-composer')).not.toBeInTheDocument()
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
 
     homeMocks.activeTopicLoading = false
     homeMocks.forceActiveTopicUndefined = false
@@ -1489,7 +1419,7 @@ describe('HomePage', () => {
     rerender(<HomePage />)
 
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial')
-    expect(screen.queryByTestId('draft-composer')).not.toBeInTheDocument()
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
   it('renders a message-only route topic without updating global chat state', () => {
@@ -1541,63 +1471,45 @@ describe('HomePage', () => {
     expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
   })
 
-  it('starts the first-launch draft from the remembered assistant', async () => {
+  it('creates the first-launch empty topic from the remembered assistant', async () => {
     homeMocks.locationState = undefined
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
     homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-2')
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
 
     render(<HomePage />)
 
-    await waitFor(() => {
-      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-2')
-    })
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
     expect(vi.mocked(useTabSelfMetadata)).toHaveBeenLastCalledWith(
       expect.objectContaining({
         instanceAppId: 'assistants',
-        instanceKey: null
+        instanceKey: 'topic-created'
       })
     )
   })
 
-  it('updates the draft assistant without creating a topic', async () => {
-    homeMocks.locationState = undefined
+  it('creates a new topic from the selected assistant payload', async () => {
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
 
     render(<HomePage />)
 
-    await waitFor(() =>
-      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-default')
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'New topic with assistant 2' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Switch draft assistant' }))
-
-    await waitFor(() =>
-      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-2')
-    )
-    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
   })
 
-  it('creates the real topic and opens the stream only when the draft sends', async () => {
+  it('creates the first-launch topic immediately without opening a stream', async () => {
     homeMocks.locationState = undefined
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
     homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-2')
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
 
     render(<HomePage />)
 
-    await waitFor(() =>
-      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-2')
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Send draft' }))
-
-    await waitFor(() => {
-      expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
-    })
-    expect(homeMocks.streamOpen).toHaveBeenCalledWith({
-      trigger: 'submit-message',
-      topicId: 'topic-created',
-      userMessageParts: [{ type: 'text', text: 'hello' }],
-      mentionedModelIds: undefined
-    })
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created'))
     expect(homeMocks.refreshTopics).toHaveBeenCalled()
   })
@@ -1610,10 +1522,8 @@ describe('HomePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'New topic with assistant 2' }))
 
-    await waitFor(() =>
-      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-2')
-    )
-    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
   })
 
   it('passes URL topicId to useActiveTopic as activeTopicId', async () => {

@@ -44,13 +44,13 @@ type AgentResourceListProps = {
   onOpenHistoryRecords?: () => void
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
   onSelectedAgentClick?: () => void | Promise<void>
-  onStartDraftAgent: (agentId: string) => void | Promise<void>
-  onStartMissingAgentDraft?: () => void | Promise<void>
+  onCreateSession: (agentId: string) => void | Promise<unknown>
+  onShowMissingAgentSelection?: () => void | Promise<void>
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
   /**
    * Called after the currently-active agent is deleted so the classic-layout page can
    * settle (select the latest remaining session / clear). This is the classic
-   * layout's reset — unlike the modern layout it must NOT open the draft compose.
+   * layout's reset.
    */
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
 }
@@ -61,8 +61,8 @@ export function AgentResourceList({
   onOpenHistoryRecords,
   onSelectSession,
   onSelectedAgentClick,
-  onStartDraftAgent,
-  onStartMissingAgentDraft,
+  onCreateSession,
+  onShowMissingAgentSelection,
   resourceMenuItems,
   onActiveAgentDeleted
 }: AgentResourceListProps) {
@@ -153,7 +153,7 @@ export function AgentResourceList({
     isError: !!(agentsError || sessionsError),
     sortResourcesForEntity: sortSessionsForEntity,
     onPickResource: handlePickSession,
-    onStartDraft: onStartDraftAgent,
+    onCreateResource: onCreateSession,
     reorder: reorderAgentEntity,
     refetchEntities: refetchAgents,
     onReorderError: handleReorderError
@@ -287,7 +287,7 @@ export function AgentResourceList({
         defaultGroupLabel={t('agent.sidebar_title')}
         addIcon={<Plus />}
         addLabel={t('agent.add.title')}
-        onAdd={onAddAgent ?? (() => onStartMissingAgentDraft?.())}
+        onAdd={onAddAgent ?? (() => onShowMissingAgentSelection?.())}
         headerActions={
           <SessionListOptionsMenu
             manageAgentsActive={manageAgentsMenuItem?.active}

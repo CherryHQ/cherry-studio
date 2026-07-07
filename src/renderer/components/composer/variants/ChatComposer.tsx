@@ -685,63 +685,42 @@ const ChatComposerInner = ({
     [onDraftAssistantChange, selectedAssistantId, topicId, updateTopic]
   )
 
-  const addNewTopic = useCallback(
+  const createEmptyTopic = useCallback(
     (payload?: AddNewTopicPayload) => {
-      void onNewTopic?.(payload)
+      if (isAssistantLoading || hasMissingPersistedAssistant) return
+      void onCreateEmptyTopic?.(payload ?? (selectedAssistantId ? { assistantId: selectedAssistantId } : undefined))
     },
-    [onNewTopic]
+    [hasMissingPersistedAssistant, isAssistantLoading, onCreateEmptyTopic, selectedAssistantId]
   )
 
-  const handleCreateEmptyTopic = useCallback(() => {
-    void onCreateEmptyTopic?.(selectedAssistantId ? { assistantId: selectedAssistantId } : undefined)
-  }, [onCreateEmptyTopic, selectedAssistantId])
+  const addNewTopic = useCallback(
+    (payload?: AddNewTopicPayload) => {
+      if (onCreateEmptyTopic) {
+        createEmptyTopic(payload)
+        return
+      }
+      void onNewTopic?.(payload)
+    },
+    [createEmptyTopic, onCreateEmptyTopic, onNewTopic]
+  )
 
   const handleNewTopicShortcut = useCallback(() => {
-    if (isClassicTopicLayout && onCreateEmptyTopic) {
-      if (isAssistantLoading || hasMissingPersistedAssistant) return
-      handleCreateEmptyTopic()
-      return
-    }
-
     addNewTopic()
-  }, [
-    addNewTopic,
-    isClassicTopicLayout,
-    handleCreateEmptyTopic,
-    hasMissingPersistedAssistant,
-    isAssistantLoading,
-    onCreateEmptyTopic
-  ])
+  }, [addNewTopic])
 
   const rootPanelLeadingItems = useMemo<QuickPanelListItem[]>(() => {
     const label = t('chat.conversation.new')
 
-    if (isClassicTopicLayout) {
-      if (!onCreateEmptyTopic) return []
+    if (!onCreateEmptyTopic && !onNewTopic) return []
 
-      const disabled = isAssistantLoading || hasMissingPersistedAssistant
-      return [
-        {
-          id: 'composer:new-conversation',
-          label,
-          icon: <MessageSquarePlus size={16} />,
-          disabled,
-          filterText: label,
-          searchAliases: getQuickPanelSearchAliases(t, 'chat.conversation.new', ['new chat']),
-          action: () => {
-            handleCreateEmptyTopic()
-          }
-        }
-      ]
-    }
-
-    if (!onNewTopic) return []
+    const disabled = Boolean(onCreateEmptyTopic) && (isAssistantLoading || hasMissingPersistedAssistant)
 
     return [
       {
         id: 'composer:new-conversation',
         label,
         icon: <MessageSquarePlus size={16} />,
+        disabled,
         filterText: label,
         searchAliases: getQuickPanelSearchAliases(t, 'chat.conversation.new', ['new chat']),
         action: () => {
@@ -749,16 +728,7 @@ const ChatComposerInner = ({
         }
       }
     ]
-  }, [
-    addNewTopic,
-    handleCreateEmptyTopic,
-    hasMissingPersistedAssistant,
-    isAssistantLoading,
-    onCreateEmptyTopic,
-    onNewTopic,
-    t,
-    isClassicTopicLayout
-  ])
+  }, [addNewTopic, hasMissingPersistedAssistant, isAssistantLoading, onCreateEmptyTopic, onNewTopic, t])
 
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
@@ -1153,10 +1123,6 @@ export const ChatPlacementComposer = (props: ChatPlacementComposerProps) => {
   }
 
   return <ChatComposerRoot {...composerProps} useMentionedModelSelector renderControls={renderChatToolbarControls} />
-}
-
-export const ChatHomePlacementComposer = (props: ChatComposerProps) => {
-  return <ChatPlacementComposer {...props} placement="home" />
 }
 
 export default ChatComposer

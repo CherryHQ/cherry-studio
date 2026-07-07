@@ -1063,18 +1063,30 @@ describe('ChatComposer', () => {
       item: newTopicItem
     })
 
-    expect(onNewTopic).toHaveBeenCalledWith(undefined)
-    expect(onCreateEmptyTopic).not.toHaveBeenCalled()
+    expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+    expect(onNewTopic).not.toHaveBeenCalled()
   })
 
-  it('hides the empty topic slash panel action without a handler for the active layout', () => {
+  it('shows the empty topic slash panel action when a create handler is available', () => {
     mocks.topicLayout = 'modern'
     const onCreateEmptyTopic = vi.fn()
 
     const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
 
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
-    expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([])
+    const newTopicItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
+    expect(newTopicItem).toEqual(
+      expect.objectContaining({
+        id: 'composer:new-conversation',
+        label: 'chat.conversation.new'
+      })
+    )
+    newTopicItem?.action?.({
+      context: {} as any,
+      action: 'enter',
+      item: newTopicItem
+    })
+    expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
 
     mocks.topicLayout = 'classic'
     rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)

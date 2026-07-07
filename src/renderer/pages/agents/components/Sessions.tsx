@@ -45,7 +45,7 @@ import { Folder, FolderOpen, MoreHorizontal, Plus, SquarePen } from 'lucide-reac
 import { memo, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { DraftAgentSessionDefaults } from '../types'
+import type { CreateAgentSessionDefaults } from '../types'
 import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
 import SessionItem from './SessionItem'
 import {
@@ -86,8 +86,10 @@ type SessionsBaseProps = {
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
-  onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
-  onStartMissingAgentDraft?: () => void | Promise<void>
+  onCreateSession?: (
+    defaults: CreateAgentSessionDefaults
+  ) => AgentSessionEntity | null | void | Promise<AgentSessionEntity | null | void>
+  onShowMissingAgentSelection?: () => void | Promise<void>
   panePosition?: TopicTabPosition
   presentation?: 'sidebar' | 'right-panel'
   revealRequest?: ResourceListRevealRequest
@@ -266,8 +268,8 @@ const Sessions = ({
   onAddAgent,
   onOpenHistoryRecords,
   onSetPanePosition,
-  onStartDraftSession,
-  onStartMissingAgentDraft,
+  onCreateSession,
+  onShowMissingAgentSelection,
   panePosition,
   presentation = 'sidebar',
   revealRequest,
@@ -604,7 +606,7 @@ const Sessions = ({
         return
       }
 
-      // Classic layout scoped to a single agent and now empty: start a fresh draft session for it.
+      // Classic layout scoped to a single agent and now empty: create a fresh empty session for it.
       const deletedSession =
         filteredGroupedSessions.find((session) => session.id === id) ??
         sessionItemsRef.current.find((session) => session.id === id)
@@ -618,20 +620,21 @@ const Sessions = ({
           ? { agentId: agentIdFilter, workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
           : null
       // Mirror the sibling create paths (createSessionFromSeed / handleRenameSession): if the
-      // draft start rejects (e.g. the user-workspace refetch fails) surface a toast and still
+      // session create rejects (e.g. the user-workspace refetch fails) surface a toast and still
       // clear the active id in `finally`, so we never strand the view on the just-deleted session.
+      let createdSession: AgentSessionEntity | null | void = null
       try {
-        if (seed?.agentId && onStartDraftSession) {
-          await onStartDraftSession({
+        if (seed?.agentId && onCreateSession) {
+          createdSession = await onCreateSession({
             agentId: seed.agentId,
             workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
           })
         }
       } catch (err) {
-        logger.error('Failed to start draft session after deleting last session', { err, sessionId: id })
+        logger.error('Failed to create session after deleting last session', { err, sessionId: id })
         window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
-        setActiveSessionId(null)
+        if (!createdSession) setActiveSessionId(null)
       }
     },
     [
@@ -640,7 +643,7 @@ const Sessions = ({
       deleteSession,
       filteredGroupedSessions,
       isRightPanel,
-      onStartDraftSession,
+      onCreateSession,
       setActiveSessionId,
       t
     ]
@@ -693,15 +696,15 @@ const Sessions = ({
       if (!seed?.agentId) {
         const defaultAgent = agentsForDisplay[0]
         if (defaultAgent) {
-          await onStartDraftSession?.({
+          const createdSession = await onCreateSession?.({
             agentId: defaultAgent.id,
             workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
           })
-          setActiveSessionId(null)
-          return null
+          if (!createdSession) setActiveSessionId(null)
+          return createdSession ?? null
         }
 
-        await onStartMissingAgentDraft?.()
+        await onShowMissingAgentSelection?.()
         return null
       }
 
@@ -719,13 +722,13 @@ const Sessions = ({
               } satisfies AgentSessionWorkspaceSource)
             : ({ type: AGENT_WORKSPACE_TYPE.SYSTEM } satisfies AgentSessionWorkspaceSource))
 
-        await onStartDraftSession?.({
+        const createdSession = await onCreateSession?.({
           agentId: seed.agentId,
           workspace
         })
 
-        setActiveSessionId(null)
-        return null
+        if (!createdSession) setActiveSessionId(null)
+        return createdSession ?? null
       } catch (err) {
         logger.error('Failed to create session from session list', { err, agentId: seed.agentId })
         window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
@@ -739,8 +742,8 @@ const Sessions = ({
       agentsForDisplay,
       creatingSession,
       findOrCreateWorkspace,
-      onStartMissingAgentDraft,
-      onStartDraftSession,
+      onShowMissingAgentSelection,
+      onCreateSession,
       setActiveSessionId,
       t
     ]
@@ -1396,7 +1399,9 @@ const Sessions = ({
   const manageSkillsMenuItem = resourceMenuItems?.find((item) => item.id === 'skill-resource-view')
   const headerCreateLabel = displayMode === 'agent' ? t('agent.add.title') : t('agent.session.new')
   const headerCreateDisabled =
-    displayMode === 'agent' ? !onAddAgent : creatingSession || (!headerCreateSessionSeed && !onStartMissingAgentDraft)
+    displayMode === 'agent'
+      ? !onAddAgent
+      : creatingSession || (!headerCreateSessionSeed && !onShowMissingAgentSelection)
   const handleHeaderCreate = displayMode === 'agent' ? () => void onAddAgent?.() : handleHeaderCreateSession
   const canSetPanePosition = displayMode === 'agent' || isRightPanel
 
