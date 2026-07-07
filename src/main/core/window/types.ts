@@ -7,6 +7,7 @@ import type { BrowserWindow, BrowserWindowConstructorOptions, VisibleOnAllWorksp
  */
 export enum WindowType {
   Main = 'main',
+  Print = 'print',
   QuickAssistant = 'quickAssistant',
   SubWindow = 'subWindow',
   SelectionToolbar = 'selectionToolbar',

@@ -4221,10 +4221,13 @@
     "drop_markdown_hint": "拖拽 .md 文件或目录到此处导入",
     "empty": "暂无笔记",
     "expand": "展开",
+    "exportToPDF": "导出为 PDF",
     "exportToWord": "导出为 Word",
     "export_failed": "导出到知识库失败",
     "export_knowledge": "导出笔记到知识库",
     "export_success": "成功导出到知识库",
+    "export_to_pdf_failed": "导出为 PDF 失败",
+    "export_to_pdf_success": "已导出为 PDF",
     "export_to_word_failed": "导出为 Word 失败",
     "folder": "文件夹",
     "load_failed": "笔记加载失败",
@@ -4241,6 +4244,8 @@
     "no_valid_files": "没有上传有效的文件",
     "open_folder": "打开外部文件夹",
     "open_outside": "从外部打开",
+    "print": "打印",
+    "print_failed": "打印笔记失败",
     "rename": "重命名",
     "rename_changed": "由于安全策略，文件名已从 {{original}} 更改为 {{final}}",
     "rename_failed": "重命名笔记失败",
@@ -6148,6 +6153,7 @@
     "dependencies": {
       "addTool": "添加工具",
       "addToolDescription": "使用 mise 工具键添加工具（例如 github:sharkdp/fd、uv、bun）。",
+      "checkUpdates": "检查更新",
       "coreDepsMissing": "核心依赖未安装",
       "customTools": "自定义工具",
       "customToolsEmpty": "暂无自定义工具，点击上方添加。",
@@ -6185,7 +6191,8 @@
         "rtk": "CLI 代理工具，通过压缩终端输出来减少 LLM token 消耗。",
         "uv": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
       },
-      "update": "更新到最新版本"
+      "update": "更新到最新版本",
+      "updateCheckFailed": "检查更新失败"
     },
     "developer": {
       "enable_developer_mode": "启用开发者模式",
@@ -7447,6 +7454,7 @@
       "open_tab_in_new_window": "在新窗口中打开标签页",
       "pin_tab": "切换置顶标签页",
       "press_shortcut": "按下快捷键",
+      "print": "打印",
       "quick_assistant": "快捷助手",
       "rename_topic": "重命名对话",
       "reset": "重置",

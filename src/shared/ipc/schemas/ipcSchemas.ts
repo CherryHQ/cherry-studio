@@ -10,6 +10,7 @@ import { knowledgeRequestSchemas } from './knowledge'
 import { navigationRequestSchemas } from './navigation'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
 import { openclawRequestSchemas } from './openclaw'
+import { printRequestSchemas } from './print'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { webSearchRequestSchemas } from './webSearch'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -33,6 +34,7 @@ export const ipcRequestSchemas = {
   ...navigationRequestSchemas,
   ...oauthRequestSchemas,
   ...openclawRequestSchemas,
+  ...printRequestSchemas,
   ...selectionRequestSchemas,
   ...webSearchRequestSchemas,
   ...windowRequestSchemas
