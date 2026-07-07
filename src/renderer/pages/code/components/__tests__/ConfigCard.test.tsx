@@ -35,7 +35,7 @@ function renderCard(options: { isCurrent?: boolean; modelName?: string } = {}) {
     />
   )
 
-  const enableButton = screen.getByRole('button', { name: isCurrent ? 'code.enabled' : 'code.enable' })
+  const enableButton = screen.getByRole('button', { name: isCurrent ? 'code.disable' : 'code.enable' })
   return {
     enableButton,
     cardShell: enableButton.closest('.rounded-xl') as HTMLElement,
@@ -58,10 +58,18 @@ describe('ProviderCard', () => {
     expect(onToggleCurrent).toHaveBeenCalledWith(provider)
   })
 
-  it('toggles off the active provider when the Enabled button is clicked', () => {
+  it('toggles off the active provider when the Disable button is clicked', () => {
     const { enableButton, onToggleCurrent } = renderCard({ isCurrent: true })
 
     fireEvent.click(enableButton)
+
+    expect(onToggleCurrent).toHaveBeenCalledWith(provider)
+  })
+
+  it('toggles the provider when the card body is clicked', () => {
+    const { onToggleCurrent } = renderCard()
+
+    fireEvent.click(screen.getByRole('button', { name: /Anthropic/ }))
 
     expect(onToggleCurrent).toHaveBeenCalledWith(provider)
   })
@@ -75,7 +83,7 @@ describe('ProviderCard', () => {
     expect(onToggleCurrent).not.toHaveBeenCalled()
   })
 
-  it('labels the toggle button Enable when inactive and Enabled when active', () => {
+  it('labels the toggle button Enable when inactive and Disable when active', () => {
     const { unmount } = render(
       <ProviderCard
         provider={provider}
@@ -86,7 +94,7 @@ describe('ProviderCard', () => {
       />
     )
     expect(screen.getByText('code.enable')).toBeInTheDocument()
-    expect(screen.queryByText('code.enabled')).not.toBeInTheDocument()
+    expect(screen.queryByText('code.disable')).not.toBeInTheDocument()
     unmount()
 
     render(
@@ -98,7 +106,7 @@ describe('ProviderCard', () => {
         onToggleCurrent={vi.fn()}
       />
     )
-    expect(screen.getByText('code.enabled')).toBeInTheDocument()
+    expect(screen.getByText('code.disable')).toBeInTheDocument()
     expect(screen.queryByText('code.enable')).not.toBeInTheDocument()
   })
 
