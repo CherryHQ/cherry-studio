@@ -23,6 +23,8 @@ const chatWriteMock = vi.hoisted(() => ({
   setActiveNode: vi.fn()
 }))
 
+const commandHandlerMock = vi.hoisted(() => vi.fn())
+
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
     get: vi.fn(),
@@ -73,6 +75,10 @@ vi.mock('@renderer/components/chat/editing/MessageEditingContext', () => ({
 
 vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
   useChatWrite: () => chatWriteMock
+}))
+
+vi.mock('@renderer/hooks/command', () => ({
+  useCommandHandler: commandHandlerMock
 }))
 
 vi.mock('@renderer/hooks/translate', () => ({
@@ -227,12 +233,14 @@ const createTopic = (id: string): Topic =>
   }) as Topic
 
 function MessageListAdapterHarness({
+  imageActionConsumer,
   messages = [],
   onStartBranchDraft,
   onValue,
   partsByMessageId = {},
   topic
 }: {
+  imageActionConsumer?: 'capture'
   messages?: CherryUIMessage[]
   onStartBranchDraft?: MessageListProviderValue['actions']['startMessageBranch']
   onValue?: (value: MessageListProviderValue) => void
@@ -243,6 +251,7 @@ function MessageListAdapterHarness({
     topic,
     messages,
     partsByMessageId,
+    imageActionConsumer,
     onStartBranchDraft
   })
 
@@ -306,6 +315,63 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(eventMocks.on).not.toHaveBeenCalledWith('SEND_MESSAGE', runtime.scrollToBottom)
     expect(eventMocks.on).toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
     expect(eventMocks.on).toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
+  })
+
+  it('capture consumer consumes pending topic image requests without binding visible image events', async () => {
+    const request = requestTopicImageAction('copy', createTopic('topic-a'), { emit: false })
+    let value: MessageListProviderValue | undefined
+    render(
+      <MessageListAdapterHarness
+        imageActionConsumer="capture"
+        topic={createTopic('topic-a')}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    const runtime: MessageListRuntime = {
+      copyTopicImage: vi.fn().mockResolvedValue(undefined),
+      exportTopicImage: vi.fn(),
+      locateMessage: vi.fn(),
+      scrollToBottom: vi.fn()
+    }
+
+    value?.actions.bindRuntime?.(runtime)
+
+    await expect(request.promise).resolves.toBeUndefined()
+    expect(runtime.copyTopicImage).toHaveBeenCalledTimes(1)
+    expect(commandHandlerMock).toHaveBeenCalledWith('chat.message.copy_last', expect.any(Function), {
+      enabled: false
+    })
+    expect(commandHandlerMock).toHaveBeenCalledWith('chat.message.edit_last_user', expect.any(Function), {
+      enabled: false
+    })
+    expect(eventMocks.on).not.toHaveBeenCalledWith('CLEAR_MESSAGES', expect.any(Function))
+    expect(eventMocks.on).not.toHaveBeenCalledWith('NEW_CONTEXT', expect.any(Function))
+    expect(eventMocks.on).not.toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
+    expect(eventMocks.on).not.toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
+    expect(consumePendingTopicImageActions('topic-a')).toEqual([])
+  })
+
+  it('capture consumer does not bind message-level global listeners', () => {
+    let value: MessageListProviderValue | undefined
+    render(
+      <MessageListAdapterHarness
+        imageActionConsumer="capture"
+        topic={createTopic('topic-a')}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    value?.actions.bindMessageRuntime?.('message-a', {
+      locateMessage: vi.fn(),
+      startEditing: vi.fn()
+    })
+    value?.actions.bindMessageGroupRuntime?.(['message-a'], {
+      locateMessage: vi.fn()
+    })
+
+    expect(eventMocks.on).not.toHaveBeenCalledWith('LOCATE_MESSAGE:message-a', expect.any(Function))
+    expect(eventMocks.on).not.toHaveBeenCalledWith('EDIT_MESSAGE', expect.any(Function))
   })
 
   it('saves code block edits through chat write', async () => {

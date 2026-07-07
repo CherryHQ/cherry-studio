@@ -440,7 +440,7 @@ const MessageList = () => {
     })
   }, [bindRuntime])
 
-  if (data.isInitialLoading) {
+  if (data.isInitialLoading && (messages.length === 0 || data.isMessagesStale)) {
     return <MessageListInitialLoading />
   }
 
@@ -548,11 +548,6 @@ const MessageList = () => {
                 directAssistantModelsByUserId={directAssistantModelsByUserId}
                 messages={groupMessages}
                 topic={topic}
-                onMultiModelMessageStyleChange={(style) => {
-                  setGroupLayoutOverrides((current) =>
-                    current[key] === style ? current : { ...current, [key]: style }
-                  )
-                }}
               />
             </NarrowLayout>
           ))}

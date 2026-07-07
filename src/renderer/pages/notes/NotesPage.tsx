@@ -61,7 +61,7 @@ const NotesPage: FC = () => {
   const { t } = useTranslation()
   const { showWorkspace } = useShowWorkspace()
   const [activeFilePath, setActiveFilePath] = useCache('notes.active_file_path')
-  const { settings, notesPath, updateNotesPath, sortType, updateSortType } = useNotesSettings()
+  const { notesPath, updateNotesPath, sortType, updateSortType } = useNotesSettings()
   const { noteByPath, patchNode, removePath, rewritePath } = useNote(notesPath)
 
   // `useDirectoryTree` owns the FS scan + chokidar watcher behind a single
@@ -976,12 +976,14 @@ const NotesPage: FC = () => {
   )
 
   const getCurrentNoteContent = useCallback(() => {
-    if (settings.defaultEditMode === 'source') {
-      return currentContent
-    } else {
-      return editorRef.current?.getMarkdown() || currentContent
+    const sourceContent = codeEditorRef.current?.getContent?.()
+    if (sourceContent !== undefined) {
+      return sourceContent
     }
-  }, [currentContent, settings.defaultEditMode])
+
+    const richContent = editorRef.current?.getMarkdown?.()
+    return richContent ?? currentContent
+  }, [currentContent])
 
   // Listen for external requests to locate a specific line in a note
   useEffect(() => {

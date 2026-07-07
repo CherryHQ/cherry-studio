@@ -160,6 +160,12 @@ describe('PermissionRequestComposer', () => {
     expect(screen.getByTestId('permission-builtin-body-scroll')).toHaveClass('max-h-60', 'overflow-y-auto')
   })
 
+  it('uses a visible light-mode background for the tool input preview', () => {
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    expect(screen.getByTestId('permission-preview')).toHaveClass('bg-muted', 'dark:bg-muted/30')
+  })
+
   it('does not add a fallback body scroller when the tool content owns scrolling', () => {
     render(
       <PermissionRequestComposer

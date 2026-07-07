@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,10 +10,12 @@ const setCustomToolsMock = vi.hoisted(() => vi.fn())
 const ipcMocks = vi.hoisted(() => ({
   getState: vi.fn(),
   probeBundled: vi.fn(),
+  latestVersions: vi.fn(),
   installTool: vi.fn(),
   removeTool: vi.fn(),
   getToolDir: vi.fn()
 }))
+const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>())
 
 // Route ipcApi.request by binary.* route to the per-method mocks above.
 vi.mock('@renderer/ipc', () => ({
@@ -30,13 +32,16 @@ vi.mock('@renderer/ipc', () => ({
           return ipcMocks.removeTool(input)
         case 'binary.get_tool_dir':
           return ipcMocks.getToolDir(input)
+        case 'binary.get_latest_versions':
+          return ipcMocks.latestVersions(input)
         default:
           throw new Error(`unexpected route: ${route}`)
       }
     }
   },
-  // Event subscriptions are inert in these tests — refreshState drives all UI state.
-  useIpcOn: vi.fn()
+  useIpcOn: vi.fn((event: string, handler: (payload: unknown) => void) => {
+    ipcEventHandlers.set(event, handler)
+  })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -50,6 +55,11 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [customToolsRef.value, setCustomToolsMock]
+}))
+
+vi.mock('semver', () => ({
+  gt: vi.fn(() => true),
+  valid: vi.fn((version: string) => (/^\d+\.\d+\.\d+/.test(version) ? version : null))
 }))
 
 // The shared global @cherrystudio/ui mock omits ConfirmDialog / DialogDescription
@@ -69,12 +79,16 @@ vi.mock('@cherrystudio/ui', () => {
     Button: ({
       children,
       onClick,
-      'aria-label': ariaLabel
+      'aria-label': ariaLabel,
+      disabled,
+      title
     }: {
       children?: React.ReactNode
       onClick?: () => void
       'aria-label'?: string
-    }) => React.createElement('button', { onClick, 'aria-label': ariaLabel }, children),
+      disabled?: boolean
+      title?: string
+    }) => React.createElement('button', { onClick, 'aria-label': ariaLabel, disabled, title }, children),
     ConfirmDialog: childrenOnly,
     Dialog: childrenOnly,
     DialogContent: passthrough('div'),
@@ -89,9 +103,11 @@ vi.mock('@cherrystudio/ui', () => {
 describe('EnvironmentDependencies', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ipcEventHandlers.clear()
     customToolsRef.value = []
     ipcMocks.getState.mockResolvedValue({ tools: {} })
     ipcMocks.probeBundled.mockResolvedValue({})
+    ipcMocks.latestVersions.mockResolvedValue({})
     ipcMocks.installTool.mockResolvedValue(undefined)
     ipcMocks.removeTool.mockResolvedValue(undefined)
     ipcMocks.getToolDir.mockResolvedValue('/dir')
@@ -141,6 +157,106 @@ describe('EnvironmentDependencies', () => {
     expect(container).toBeEmptyDOMElement()
     await waitFor(() => expect(ipcMocks.probeBundled).toHaveBeenCalled())
     await waitFor(() => expect(container).toBeEmptyDOMElement())
+  })
+
+  it('fetches latest versions on mount', async () => {
+    ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0' })
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledWith(false))
+  })
+
+  it('does not fetch latest versions in mini mode', async () => {
+    render(<EnvironmentDependencies mini />)
+
+    // Mini mode mounts without rendering update-version UI, so the fetch must be skipped.
+    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    expect(ipcMocks.latestVersions).not.toHaveBeenCalled()
+  })
+
+  it('shows update available badge when latest version is newer', async () => {
+    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0' })
+    render(<EnvironmentDependencies />)
+
+    // The update badge shows the latest version (v2.0.0)
+    await waitFor(() => expect(screen.getByText('v2.0.0')).toBeInTheDocument())
+  })
+
+  it('does not show update badge when versions are equal', async () => {
+    // Override the semver mock: gt returns false (versions equal or older)
+    const { gt } = await import('semver')
+    vi.mocked(gt).mockReturnValue(false)
+
+    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.latestVersions.mockResolvedValue({ uv: '1.0.0' })
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalled())
+    // Only the installed-version badge renders; no second update badge for the same version.
+    await waitFor(() => expect(screen.getAllByText('v1.0.0')).toHaveLength(1))
+  })
+
+  it('does not throw or show update badge for a non-semver latest version', async () => {
+    const { gt } = await import('semver')
+    vi.mocked(gt).mockImplementation(() => {
+      throw new TypeError('Invalid Version')
+    })
+
+    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.latestVersions.mockResolvedValue({ uv: 'nightly' })
+
+    expect(() => render(<EnvironmentDependencies />)).not.toThrow()
+    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalled())
+    expect(screen.queryByText('vnightly')).not.toBeInTheDocument()
+  })
+
+  it('clears latest versions when binary state changes', async () => {
+    const { gt } = await import('semver')
+    vi.mocked(gt).mockReturnValue(true)
+
+    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0' })
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(screen.getByText('v2.0.0')).toBeInTheDocument())
+
+    act(() => {
+      ipcEventHandlers.get('binary.state_changed')?.({ tools: { uv: { version: '1.0.0' } } })
+    })
+
+    await waitFor(() => expect(screen.queryByText('v2.0.0')).not.toBeInTheDocument())
+  })
+
+  it('updates a managed tool without forcing a full latest-version refresh', async () => {
+    const { gt } = await import('semver')
+    vi.mocked(gt).mockImplementation((latest) => latest === '2.0.0')
+
+    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.latestVersions.mockResolvedValue({ uv: '1.0.0' })
+
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledWith(false))
+    const updateButtons = await screen.findAllByTitle('settings.dependencies.update')
+    fireEvent.click(updateButtons[0])
+
+    await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv', tool: 'uv' }))
+    expect(ipcMocks.latestVersions).not.toHaveBeenCalledWith(true)
+  })
+
+  it('continues installing latest when update versions are not comparable semver', async () => {
+    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: 'nightly' } } })
+    ipcMocks.latestVersions.mockResolvedValue({ uv: 'nightly' })
+
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledWith(false))
+    const updateButtons = await screen.findAllByTitle('settings.dependencies.update')
+    fireEvent.click(updateButtons[0])
+
+    await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv', tool: 'uv' }))
+    expect(ipcMocks.latestVersions).not.toHaveBeenCalledWith(true)
   })
 
   it('waits for dependency checks before showing the mini warning', async () => {

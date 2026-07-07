@@ -244,7 +244,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       topicsLength
     ]
   )
-  const menuActions = useMemo(() => getTopicMenuActions(actionContext), [actionContext])
+  const getMenuActions = useCallback(() => getTopicMenuActions(actionContext), [actionContext])
   const handleMenuAction = useCallback(
     async (action: ResolvedAction<TopicActionContext>) => {
       await runTopicMenuAction(action, actionContext)
@@ -252,5 +252,5 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     [actionContext]
   )
 
-  return { actionContext, menuActions, handleMenuAction }
+  return { actionContext, getMenuActions, handleMenuAction }
 }

@@ -8,6 +8,7 @@ import {
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
+import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -91,6 +92,7 @@ export function AgentResourceList({
     pinnedIds: agentPinnedIds,
     togglePin: toggleAgentPin
   } = usePins('agent')
+  const closeConversationTabs = useCloseConversationTabs()
   const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
     refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
@@ -198,7 +200,8 @@ export function AgentResourceList({
         })
         if (!confirmed) return
 
-        await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+        const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+        closeConversationTabs('agents', result.deletedSessionIds ?? [])
         if (activeAgentId === agentId) {
           await onActiveAgentDeleted?.(agentId)
         }
@@ -213,7 +216,7 @@ export function AgentResourceList({
         setDeletingAgentId(null)
       }
     },
-    [activeAgentId, deleteAgent, deletingAgentId, onActiveAgentDeleted, refetchAgents, reload, t]
+    [activeAgentId, closeConversationTabs, deleteAgent, deletingAgentId, onActiveAgentDeleted, refetchAgents, reload, t]
   )
 
   const getContextMenuActions = useCallback(

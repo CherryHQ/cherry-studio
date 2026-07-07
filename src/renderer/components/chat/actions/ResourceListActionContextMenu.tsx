@@ -1,4 +1,4 @@
-import { CommandContextMenu } from '@renderer/components/command'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import ConfirmActionPopup from '@renderer/components/Popups/ConfirmActionPopup'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
@@ -8,11 +8,15 @@ import { actionsToCommandMenuExtraItems } from './actionMenuItems'
 import type { ResolvedAction } from './actionTypes'
 
 type ResourceListActionContextMenuProps<T extends ResourceListItemBase, TActionContext = unknown> = {
-  actions: readonly ResolvedAction<TActionContext>[]
+  actions?: readonly ResolvedAction<TActionContext>[]
+  getActions?: () => readonly ResolvedAction<TActionContext>[]
   item: T
   children: ReactNode
   onAction: (action: ResolvedAction<TActionContext>) => void | Promise<void>
 }
+
+const EMPTY_ACTIONS: readonly ResolvedAction[] = []
+const EMPTY_EXTRA_ITEMS: readonly CommandContextMenuExtraItem[] = []
 
 /**
  * Resource-list (topics, agent sessions, …) row context menu, rendered through the
@@ -23,6 +27,7 @@ type ResourceListActionContextMenuProps<T extends ResourceListItemBase, TActionC
  */
 export function ResourceListActionContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
   actions,
+  getActions,
   item,
   children,
   onAction
@@ -54,7 +59,18 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
     [onAction]
   )
 
-  const extraItems = useMemo(() => actionsToCommandMenuExtraItems(actions, runAction), [actions, runAction])
+  const extraItems = useMemo(
+    () =>
+      actionsToCommandMenuExtraItems(
+        actions ?? (EMPTY_ACTIONS as readonly ResolvedAction<TActionContext>[]),
+        runAction
+      ),
+    [actions, runAction]
+  )
+  const getExtraItems = useCallback(
+    () => (getActions ? actionsToCommandMenuExtraItems(getActions(), runAction) : extraItems),
+    [extraItems, getActions, runAction]
+  )
 
   // Set the active context-menu item on the right-click itself, not via `onOpenChange`:
   // open-change does not include the clicked row, while this wrapper fires for both
@@ -62,7 +78,10 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
   const markActiveItem = useCallback(() => listActions.openContextMenu(getItemId(item)), [listActions, getItemId, item])
 
   return (
-    <CommandContextMenu location="webcontents.context" extraItems={extraItems}>
+    <CommandContextMenu
+      location="webcontents.context"
+      extraItems={getActions ? EMPTY_EXTRA_ITEMS : extraItems}
+      getExtraItems={getActions ? getExtraItems : undefined}>
       <span className="contents" onContextMenu={markActiveItem}>
         {children}
       </span>
