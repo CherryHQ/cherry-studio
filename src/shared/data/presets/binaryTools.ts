@@ -65,6 +65,7 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     name: 'lark-cli',
     displayName: 'Lark CLI',
     tool: 'github:larksuite/cli',
+    icon: 'simple-icons:lark',
     repoUrl: 'https://github.com/larksuite/cli'
   },
   {

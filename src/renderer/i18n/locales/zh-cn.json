@@ -6004,9 +6004,8 @@
         "rtk": "CLI 代理工具，通过压缩终端输出来减少 LLM token 消耗。",
         "uv": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
       },
-      "upToDate": "已是最新",
+      "checkUpdates": "检查更新",
       "update": "更新到最新版本",
-      "updateAvailable": "可升级",
       "updateCheckFailed": "检查更新失败"
     },
     "developer": {

@@ -662,6 +662,12 @@ export class BinaryManager extends BaseService {
     })
     await Promise.all(workers)
 
+    // Every lookup failed (offline, rate-limited, …) — surface the failure so the
+    // caller can distinguish "nothing newer" from "couldn't check at all".
+    if (entries.length > 0 && Object.keys(result).length === 0) {
+      throw new Error('Failed to query latest versions for all managed tools')
+    }
+
     return this.stateMutex.runExclusive(async () => {
       const current = Object.entries(this.loadState().tools)
         .map(([name, { tool }]) => `${name}@${tool}`)

@@ -6004,9 +6004,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "upToDate": "Up to date",
+      "checkUpdates": "Check for updates",
       "update": "Update to latest version",
-      "updateAvailable": "Update available",
       "updateCheckFailed": "Failed to check for updates"
     },
     "developer": {

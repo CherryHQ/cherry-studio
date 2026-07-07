@@ -108,7 +108,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       const requestId = ++latestRequestIdRef.current
       setCheckingUpdates(true)
       try {
-        const versions = await ipcApi.request('binary.latest_versions', force)
+        const versions = await ipcApi.request('binary.get_latest_versions', force)
         if (mountedRef.current && requestId === latestRequestIdRef.current) {
           setLatestVersions(versions)
         }
@@ -138,6 +138,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   useIpcOn('binary.state_changed', (state) => {
     setBinaryState(state)
     setBinaryStateReady(true)
+    // Clear all latest-version badges: the managed-tool set changed, so any
+    // previously fetched latest-version hints are stale. Next explicit refresh
+    // (header button or per-tool Update) will repopulate per-tool results.
     setLatestVersions(null)
     // mise install may shadow a bundled binary; re-probe so the source label stays accurate.
     void ipcApi.request('binary.probe_bundled').then((b) => {
@@ -164,10 +167,6 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       })
       await refreshState()
     }
-  }
-
-  const handleUpdate = async (tool: ManagedBinary) => {
-    await installTool(tool)
   }
 
   const handleAddCustomTool = async (tool: ManagedBinary) => {
@@ -243,7 +242,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             className="text-muted-foreground/50 hover:text-foreground"
             onClick={() => void fetchLatestVersions(true)}
             disabled={checkingUpdates}
-            title={t('settings.dependencies.update')}>
+            title={t('settings.dependencies.checkUpdates')}>
             {checkingUpdates ? (
               <Loader2 className="size-3 motion-safe:animate-spin" />
             ) : (
@@ -271,7 +270,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               latestVersion={hasUpdate ? latestVersion : undefined}
               installing={installingTools.has(tool.name)}
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
-              onUpdate={() => handleUpdate({ name: tool.name, tool: tool.tool })}
+              onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
               onOpenPath={() => openToolDir(tool.name)}
               onRemove={() => setDeleteTarget(tool.name)}
             />
@@ -307,7 +306,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
                 latestVersion={hasUpdate ? latestVersion : undefined}
                 installing={installingTools.has(tool.name)}
                 onInstall={() => installTool(tool)}
-                onUpdate={() => handleUpdate({ name: tool.name, tool: tool.tool })}
+                onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
                 onOpenPath={() => openToolDir(tool.name)}
                 onRemove={() => setDeleteTarget(tool.name)}
               />

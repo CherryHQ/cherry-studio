@@ -32,7 +32,7 @@ vi.mock('@renderer/ipc', () => ({
           return ipcMocks.removeTool(input)
         case 'binary.get_tool_dir':
           return ipcMocks.getToolDir(input)
-        case 'binary.latest_versions':
+        case 'binary.get_latest_versions':
           return ipcMocks.latestVersions(input)
         default:
           throw new Error(`unexpected route: ${route}`)
@@ -244,7 +244,6 @@ describe('EnvironmentDependencies', () => {
 
     await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv', tool: 'uv' }))
     expect(ipcMocks.latestVersions).not.toHaveBeenCalledWith(true)
-    expect(window.toast.success).not.toHaveBeenCalledWith('settings.dependencies.upToDate')
   })
 
   it('continues installing latest when update versions are not comparable semver', async () => {
@@ -259,7 +258,6 @@ describe('EnvironmentDependencies', () => {
 
     await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv', tool: 'uv' }))
     expect(ipcMocks.latestVersions).not.toHaveBeenCalledWith(true)
-    expect(window.toast.success).not.toHaveBeenCalledWith('settings.dependencies.upToDate')
   })
 
   it('waits for dependency checks before showing the mini warning', async () => {
