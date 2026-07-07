@@ -104,20 +104,6 @@
       "description": "Web search provider overrides (from complex migration)"
     },
     {
-      "targetKey": "topic.layout",
-      "type": "PreferenceTypes.ChatLayoutMode",
-      "defaultValue": "classic",
-      "status": "classified",
-      "description": "Assistant conversation layout: 'classic' = entity rail + right topic panel, 'modern' = single topic sidebar (new v2 preference, no v1 source)"
-    },
-    {
-      "targetKey": "agent.layout",
-      "type": "PreferenceTypes.ChatLayoutMode",
-      "defaultValue": "classic",
-      "status": "classified",
-      "description": "Agent work layout: 'classic' = entity rail + right session panel, 'modern' = single session sidebar (v2 new feature, no v1 source)"
-    },
-    {
       "targetKey": "ui.sidebar.favorites",
       "type": "PreferenceTypes.SidebarFavoriteItem[]",
       "defaultValue": [
@@ -158,11 +144,25 @@
       "description": "Topic sidebar display grouping mode"
     },
     {
+      "targetKey": "agent.icon_type",
+      "type": "PreferenceTypes.AssistantIconType",
+      "defaultValue": "emoji",
+      "status": "classified",
+      "description": "Agent rail entity icon style (emoji/model/none), independent of the assistant icon type"
+    },
+    {
       "targetKey": "agent.session.display_mode",
       "type": "PreferenceTypes.AgentSessionDisplayMode",
       "defaultValue": "workdir",
       "status": "classified",
       "description": "Agent session sidebar display grouping mode"
+    },
+    {
+      "targetKey": "agent.session.position",
+      "type": "PreferenceTypes.TopicTabPosition",
+      "defaultValue": "left",
+      "status": "classified",
+      "description": "Agent session resource pane position (left/right), independent of the Home topic pane"
     },
     {
       "targetKey": "feature.quick_assistant.model_id",
