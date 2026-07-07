@@ -19,47 +19,56 @@ const RelocationApp = () => {
   const stage = progress?.stage
 
   return (
-    <div className="flex h-full flex-col items-center bg-background px-8 py-8">
-      <div className="flex h-full w-full max-w-[420px] flex-col">
-        <h1 className="text-center text-lg font-semibold text-foreground">{t('relocation.title')}</h1>
+    <div className="flex h-screen w-screen flex-col bg-background text-foreground">
+      <header className="relative flex h-11 shrink-0 items-center justify-center border-border border-b [-webkit-app-region:drag]">
+        <h1 className="text-center font-medium text-foreground text-sm">{t('relocation.title')}</h1>
+      </header>
 
-        <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          {!progress && <Loader2 className="animate-spin text-foreground-muted" size={28} />}
+      <main className="flex min-h-0 flex-1 justify-center px-8 py-6 [-webkit-app-region:no-drag]">
+        <div className="flex h-full w-full max-w-[420px] flex-col">
+          <div className="flex flex-1 flex-col items-center justify-center gap-4">
+            {!progress && <Loader2 className="animate-spin text-foreground-muted" size={28} />}
 
-          {stage === 'preparing' && <Spinner label={t('relocation.preparing')} />}
+            {stage === 'preparing' && <Spinner label={t('relocation.preparing')} />}
 
-          {stage === 'copying' && progress && (
-            <Copying label={t('relocation.copying')} copied={progress.bytesCopied} total={progress.bytesTotal} />
-          )}
+            {stage === 'copying' && progress && (
+              <Copying label={t('relocation.copying')} copied={progress.bytesCopied} total={progress.bytesTotal} />
+            )}
 
-          {stage === 'committing' && <Spinner label={t('relocation.committing')} />}
+            {stage === 'committing' && <Spinner label={t('relocation.committing')} />}
 
-          {stage === 'completed' && (
-            <Terminal
-              icon={<CheckCircle2 className="text-success" size={40} />}
-              title={t('relocation.completed.title')}
-              description={t('relocation.completed.description')}
-              buttonLabel={t('relocation.restart')}
-              onRestart={restart}
-            />
-          )}
+            {stage === 'completed' && (
+              <Terminal
+                icon={<CheckCircle2 className="text-success" size={40} />}
+                title={t('relocation.completed.title')}
+                description={t('relocation.completed.description')}
+                buttonLabel={t('relocation.restart')}
+                onRestart={restart}
+              />
+            )}
 
-          {stage === 'failed' && (
-            <Terminal
-              icon={<XCircle className="text-destructive" size={40} />}
-              title={t('relocation.failed.title')}
-              description={t('relocation.failed.description')}
-              buttonLabel={t('relocation.restart_failure')}
-              onRestart={restart}
-              error={progress?.error}
+            {stage === 'failed' && (
+              <Terminal
+                icon={<XCircle className="text-destructive" size={40} />}
+                title={t('relocation.failed.title')}
+                description={t('relocation.failed.description')}
+                buttonLabel={t('relocation.restart_failure')}
+                onRestart={restart}
+                error={progress?.error}
+              />
+            )}
+          </div>
+
+          {progress && (
+            <Paths
+              fromLabel={t('relocation.from')}
+              toLabel={t('relocation.to')}
+              from={progress.from}
+              to={progress.to}
             />
           )}
         </div>
-
-        {progress && (
-          <Paths fromLabel={t('relocation.from')} toLabel={t('relocation.to')} from={progress.from} to={progress.to} />
-        )}
-      </div>
+      </main>
     </div>
   )
 }
@@ -67,7 +76,7 @@ const RelocationApp = () => {
 const Spinner = ({ label }: { label: string }) => (
   <div className="flex flex-col items-center gap-3">
     <Loader2 className="animate-spin text-foreground-muted" size={28} />
-    <p className="text-sm text-foreground-secondary">{label}</p>
+    <p className="text-foreground-secondary text-sm">{label}</p>
   </div>
 )
 
@@ -77,7 +86,7 @@ const Copying = ({ label, copied, total }: { label: string; copied: number; tota
 
   return (
     <div className="flex w-full max-w-[360px] flex-col items-center gap-3">
-      <p className="text-sm text-foreground-secondary">{label}</p>
+      <p className="text-foreground-secondary text-sm">{label}</p>
       <div className="h-2 w-full overflow-hidden rounded-full bg-border">
         {hasTotal ? (
           <div
@@ -110,8 +119,8 @@ const Terminal = ({
 }) => (
   <div className="flex w-full flex-col items-center gap-3 text-center">
     {icon}
-    <h2 className="text-base font-semibold text-foreground">{title}</h2>
-    <p className="text-sm text-foreground-secondary">{description}</p>
+    <h2 className="font-semibold text-base text-foreground">{title}</h2>
+    <p className="text-foreground-secondary text-sm">{description}</p>
     {error && (
       <pre className="max-h-24 w-full overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-background-subtle px-3 py-2 text-left text-foreground-muted text-xs">
         {error}
@@ -124,7 +133,7 @@ const Terminal = ({
 )
 
 const Paths = ({ fromLabel, toLabel, from, to }: { fromLabel: string; toLabel: string; from: string; to: string }) => (
-  <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 text-xs">
+  <div className="mt-4 flex flex-col gap-2 border-border border-t pt-4 text-xs">
     <PathRow label={fromLabel} value={from} />
     <PathRow label={toLabel} value={to} />
   </div>
