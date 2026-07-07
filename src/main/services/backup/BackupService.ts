@@ -25,7 +25,7 @@
 import { randomUUID } from 'node:crypto'
 import { readFileSync, statSync } from 'node:fs'
 import { stat, statfs } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
@@ -150,7 +150,7 @@ export class BackupService extends BaseService {
     try {
       // Preflight BEFORE any copy/archive work — disk-full surfaces as a clear error
       // here rather than a mid-export SQLITE_FULL (spec export-orchestrator.md §磁盘预算).
-      await this.preflightDisk(preset)
+      await this.preflightDisk(preset, outputPath)
       const result = await this.orchestrator.exportBackup({
         preset,
         outputPath,
@@ -186,7 +186,7 @@ export class BackupService extends BaseService {
    * best-effort early check; a mid-export disk-full is caught at the archive write
    * stream (DiskFullError + temp cleanup, see archive.ts).
    */
-  private async preflightDisk(preset: 'full' | 'lite'): Promise<void> {
+  private async preflightDisk(preset: 'full' | 'lite', outputPath: string): Promise<void> {
     const liveDbPath = application.getPath('app.database.file')
     const liveDbSize = (await stat(liveDbPath)).size
     let needed = liveDbSize * 2
@@ -194,8 +194,19 @@ export class BackupService extends BaseService {
       const internalBlobBytes = await this.sumInternalBlobBytes()
       needed += internalBlobBytes * 2
     }
-    const tempDir = application.getPath('feature.backup.temp')
-    const fsStats = await statfs(tempDir)
+    // Staging volume (backup.sqlite + staged files) and the output archive volume
+    // can differ — e.g. user backs up to an external USB / network drive while
+    // temp lives on the system disk. Preflight MUST cover both, otherwise the
+    // disk-full scenario it exists to prevent slips back to a mid-archive
+    // DiskFullError. The archive is compressed, so reusing the uncompressed
+    // `needed` is a conservative upper bound for the output volume.
+    await this.assertDiskSpace(application.getPath('feature.backup.temp'), needed)
+    await this.assertDiskSpace(dirname(outputPath), needed)
+  }
+
+  /** Throw InsufficientDiskSpaceError when `dir`'s volume has < needed * 1.2 free. */
+  private async assertDiskSpace(dir: string, needed: number): Promise<void> {
+    const fsStats = await statfs(dir)
     const available = fsStats.bavail * fsStats.bsize
     if (available < needed * 1.2) {
       throw new InsufficientDiskSpaceError({ needed: Math.round(needed * 1.2), available })

@@ -391,16 +391,25 @@ export class ExportOrchestrator {
       // Chunk to stay under SQLITE_MAX_VARIABLE_NUMBER (default 999); matches
       // SqliteFileStager's chunked IN(...) lookup.
       const CHUNK = 500
-      const deleteIds = (table: string, ids: readonly string[]): void => {
+      // Table names are string literals (no parameterization → no injection
+      // surface); each helper hardcodes its own table. CASCADE FKs remove
+      // dependent rows (file_ref.fileEntryId / knowledge_item.baseId).
+      const deleteFileEntries = (ids: readonly string[]): void => {
         for (let i = 0; i < ids.length; i += CHUNK) {
           const batch = ids.slice(i, i + CHUNK)
           const placeholders = batch.map(() => '?').join(',')
-          // Cascade FKs remove dependent rows (file_ref.fileEntryId / knowledge_item.baseId).
-          db.prepare(`DELETE FROM ${table} WHERE id IN (${placeholders})`).run(...batch)
+          db.prepare(`DELETE FROM file_entry WHERE id IN (${placeholders})`).run(...batch)
         }
       }
-      if (filesMissing.length > 0) deleteIds('file_entry', filesMissing)
-      if (knowledgeMissing.length > 0) deleteIds('knowledge_base', knowledgeMissing)
+      const deleteKnowledgeBases = (ids: readonly string[]): void => {
+        for (let i = 0; i < ids.length; i += CHUNK) {
+          const batch = ids.slice(i, i + CHUNK)
+          const placeholders = batch.map(() => '?').join(',')
+          db.prepare(`DELETE FROM knowledge_base WHERE id IN (${placeholders})`).run(...batch)
+        }
+      }
+      if (filesMissing.length > 0) deleteFileEntries(filesMissing)
+      if (knowledgeMissing.length > 0) deleteKnowledgeBases(knowledgeMissing)
     } finally {
       db.close()
     }
