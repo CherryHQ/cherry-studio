@@ -782,11 +782,8 @@ const Sessions = ({
         })
         if (!confirmed) return
 
-        const agentSessionIds = sessionItemsRef.current
-          .filter((session) => session.agentId === agentId)
-          .map((session) => session.id)
-        await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
-        closeConversationTabs('agents', agentSessionIds)
+        const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+        closeConversationTabs('agents', result.deletedSessionIds ?? [])
         if (currentActiveSession?.agentId === agentId) {
           if (onActiveAgentDeleted) {
             await onActiveAgentDeleted(agentId)
