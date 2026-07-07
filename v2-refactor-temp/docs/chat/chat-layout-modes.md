@@ -142,9 +142,10 @@ level instead of prop-threaded).
   right-panel expand button. Clicking a shortcut opens the right panel directly to
   that tab; clicking the expand button opens the default tab. Once the panel is open
   or maximized, the whole top-right tool cluster disappears and the internal tab strip
-  owns tab switching / close controls. Dynamic Agent tabs (`flow:*`, `file-preview`)
-  stay inside the panel only; the Agent Status shortcut keeps the same hover preview
-  as the previous status summary entry.
+  owns tab switching / close controls. Dynamic Agent tabs (`flow:*`) stay inside
+  the panel only; file previews stay inside the stable Files tab as an overlay.
+  The Agent Status shortcut keeps the same hover preview as the previous status
+  summary entry.
 - Fixed time grouping, groups expanded by default; does not read/write the
   single sidebar's group-collapsed state or display options. Header keeps only search,
   scoped to the current entity; creating a topic/session stays on the left rail

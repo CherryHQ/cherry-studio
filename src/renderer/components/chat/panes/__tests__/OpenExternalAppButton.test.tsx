@@ -40,9 +40,14 @@ vi.mock('@cherrystudio/ui', async () => {
         {children}
       </button>
     ),
-    ButtonGroup: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
-      <div {...props}>{children}</div>
-    ),
+    ButtonGroup: ({
+      children,
+      ...props
+    }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'> & { attached?: boolean }>) => {
+      const domProps = { ...props }
+      delete domProps.attached
+      return <div {...domProps}>{children}</div>
+    },
     MenuItem: ({
       label,
       icon,
@@ -69,7 +74,7 @@ vi.mock('@cherrystudio/ui', async () => {
       const { open } = ReactActual.use(PopoverContext)
       return open ? <div>{children}</div> : null
     },
-    PopoverTrigger: ({ children }: PropsWithChildren) => {
+    PopoverTrigger: ({ children }: PropsWithChildren<{ asChild?: boolean }>) => {
       const { setOpen } = ReactActual.use(PopoverContext)
       return ReactActual.isValidElement(children) ? (
         // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
@@ -193,6 +198,14 @@ describe('OpenExternalAppButton', () => {
     mocks.externalApps = [vscodeApp, cursorApp]
 
     render(<OpenExternalAppButton workdir="/tmp/workspace" />)
+
+    const primaryButton = screen.getByRole('button', { name: 'Open in VS Code' })
+    const moreButton = screen.getByRole('button', { name: 'More' })
+    expect(primaryButton.parentElement).toHaveClass('h-8', 'border', 'border-border-subtle')
+    expect(primaryButton).toHaveClass('h-full')
+    expect(primaryButton).not.toHaveClass('border')
+    expect(moreButton).toHaveClass('h-full')
+    expect(moreButton).not.toHaveClass('border')
 
     // Menu targets live behind the split button's "More" popover trigger.
     fireEvent.click(screen.getByRole('button', { name: 'More' }))
