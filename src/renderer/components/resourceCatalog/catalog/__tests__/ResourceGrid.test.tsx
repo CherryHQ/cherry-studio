@@ -33,9 +33,12 @@ vi.mock('react-i18next', () => ({
           'library.assistant_catalog.title': '助手库',
           'library.assistant_catalog.go_to_chat': '去对话',
           'library.create_menu.create': '新建助手',
+          'library.skill_add.local_import': '本地导入',
+          'library.skill_add.online_search': '在线搜索',
           'library.toolbar.all_tags': '全部标签',
           'library.toolbar.tag_button': '标签',
-          'library.type.assistant': '助手'
+          'library.type.assistant': '助手',
+          'library.type.skill': '技能'
         }) satisfies Record<string, string>
       )[key] ?? key
   })
@@ -316,6 +319,7 @@ function renderResourceGrid(props: Partial<ComponentProps<typeof ResourceGrid>> 
       onExport={vi.fn()}
       onCreate={vi.fn()}
       onImportAssistant={vi.fn()}
+      onOpenSkillMarketplace={vi.fn()}
       tags={[]}
       activeTag={null}
       onTagFilter={vi.fn()}
@@ -406,6 +410,33 @@ describe('ResourceGrid assistant add actions', () => {
     expect(screen.getByRole('button', { name: '新建助手' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '助手库' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '导入助手' })).toBeInTheDocument()
+  })
+})
+
+describe('ResourceGrid skill add actions', () => {
+  it('renders skill actions inline and dispatches online search or local import', async () => {
+    const user = userEvent.setup()
+    const onCreate = vi.fn()
+    const onOpenSkillMarketplace = vi.fn()
+
+    renderResourceGrid({
+      activeResourceType: 'skill',
+      onCreate,
+      onOpenSkillMarketplace
+    })
+
+    expect(screen.getByRole('button', { name: '在线搜索' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '本地导入' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /添加技能/ })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '在线搜索' }))
+
+    expect(onOpenSkillMarketplace).toHaveBeenCalledTimes(1)
+    expect(onCreate).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '本地导入' }))
+
+    expect(onCreate).toHaveBeenCalledWith('skill')
   })
 })
 
