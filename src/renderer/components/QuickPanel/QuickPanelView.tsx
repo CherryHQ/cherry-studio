@@ -26,7 +26,8 @@ import {
   type QuickPanelKeyDownEvent,
   type QuickPanelListItem,
   type QuickPanelOpenOptions,
-  type QuickPanelScrollTrigger
+  type QuickPanelScrollTrigger,
+  type QuickPanelTriggerInfo
 } from './types'
 
 const ITEM_HEIGHT = QUICK_PANEL_ITEM_HEIGHT
@@ -54,6 +55,17 @@ function isInputQueryCursorAtEnd(text: string, cursorOffset: number) {
 function getInputQueryText(searchText: string, triggerSymbol?: string) {
   if (!triggerSymbol) return searchText
   return searchText.startsWith(triggerSymbol) ? searchText.slice(triggerSymbol.length) : searchText
+}
+
+function getTrackedInputSearchText(options: {
+  triggerType?: QuickPanelTriggerInfo['type']
+  inputSearchText: string
+  initialSearchText?: string
+}) {
+  if (options.triggerType === 'button' && options.inputSearchText.length === 0 && options.initialSearchText) {
+    return options.initialSearchText
+  }
+  return options.inputSearchText
 }
 
 interface Props {
@@ -254,6 +266,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       parentPanel: ctx.parentPanel,
       triggerInfo: ctx.triggerInfo,
       trackInputQuery: ctx.trackInputQuery,
+      initialSearchText: activeSearchQuery,
       beforeAction: ctx.beforeAction,
       afterAction: ctx.afterAction,
       onClose: ctx.onClose,
@@ -261,7 +274,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       filterFn: ctx.filterFn,
       sortFn: ctx.sortFn
     }),
-    [ctx]
+    [activeSearchQuery, ctx]
   )
 
   const consumeInputQuery = useCallback(() => {
@@ -494,7 +507,13 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    setInputSearchText(nextSearchText)
+    setInputSearchText(
+      getTrackedInputSearchText({
+        triggerType: ctx.triggerInfo?.type,
+        inputSearchText: nextSearchText,
+        initialSearchText: ctx.initialSearchText
+      })
+    )
     inputAdapter.focus()
 
     return inputAdapter.subscribeInput?.((event) => {
@@ -505,6 +524,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     ctx.isVisible,
     ctx.queryAnchor,
     ctx.symbol,
+    ctx.initialSearchText,
     ctx.triggerInfo?.originalText,
     ctx.triggerInfo?.position,
     ctx.triggerInfo?.type,
@@ -680,6 +700,18 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
     if (!isPanelVisible) return
     return registerKeyDownHandler(handlePanelKeyDown)
   }, [isPanelVisible, registerKeyDownHandler, handlePanelKeyDown])
+
+  useEffect(() => {
+    if (!isPanelVisible) return
+
+    const handleGlobalEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.isComposing) return
+      handlePanelKeyDown(event)
+    }
+
+    window.addEventListener('keydown', handleGlobalEscape, true)
+    return () => window.removeEventListener('keydown', handleGlobalEscape, true)
+  }, [handlePanelKeyDown, isPanelVisible])
 
   const handlePanelKeyUp = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (isMac ? !e.metaKey : !e.ctrlKey) {

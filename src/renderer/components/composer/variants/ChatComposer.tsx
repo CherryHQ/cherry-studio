@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
@@ -68,9 +68,11 @@ import {
   COMPOSER_ICON_ONLY_LABEL_CLASS,
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS,
+  COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
   ComposerToolbarControls,
+  ComposerToolMenuButton,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
 import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
@@ -284,7 +286,9 @@ const ChatComposerContextControls = ({
   )
 }
 
-type ChatComposerControlProps = Omit<ChatComposerContextControlsProps, 'side'>
+type ChatComposerControlProps = Omit<ChatComposerContextControlsProps, 'side'> & {
+  leadingControl?: React.ReactNode
+}
 
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
 type ComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
@@ -308,6 +312,8 @@ const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
   renderLeftControls: (inputAdapter, unifiedPanelControl) => (
     <ComposerToolbarControls
       inputAdapter={inputAdapter}
+      leading={props.leadingControl}
+      showToolMenu={false}
       unifiedPanelControl={unifiedPanelControl}
       toolMenuPlacement="beforeContext"
       renderContextControls={({ side, iconOnly }) => (
@@ -325,7 +331,12 @@ const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
 const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
   renderLeftControls: (inputAdapter, unifiedPanelControl) => (
     <div className={COMPOSER_TOOLBAR_CLASS}>
-      <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
+      {props.leadingControl}
+      <ComposerToolMenuControls
+        inputAdapter={inputAdapter}
+        unifiedPanelControl={unifiedPanelControl}
+        showToolMenu={false}
+      />
     </div>
   ),
   renderBelowControls: (inputAdapter) => (
@@ -707,20 +718,20 @@ const ChatComposerInner = ({
   const handleNewTopicShortcut = useCallback(() => {
     addNewTopic()
   }, [addNewTopic])
+  const hasNewTopicAction = Boolean(onCreateEmptyTopic || onNewTopic)
+  const newTopicDisabled = Boolean(onCreateEmptyTopic) && (isAssistantLoading || hasMissingPersistedAssistant)
 
   const rootPanelLeadingItems = useMemo<QuickPanelListItem[]>(() => {
     const label = t('chat.conversation.new')
 
-    if (!onCreateEmptyTopic && !onNewTopic) return []
-
-    const disabled = Boolean(onCreateEmptyTopic) && (isAssistantLoading || hasMissingPersistedAssistant)
+    if (!hasNewTopicAction) return []
 
     return [
       {
         id: 'composer:new-conversation',
         label,
         icon: <MessageSquarePlus size={16} />,
-        disabled,
+        disabled: newTopicDisabled,
         filterText: label,
         searchAliases: getQuickPanelSearchAliases(t, 'chat.conversation.new', ['new chat']),
         action: () => {
@@ -728,7 +739,7 @@ const ChatComposerInner = ({
         }
       }
     ]
-  }, [addNewTopic, hasMissingPersistedAssistant, isAssistantLoading, onCreateEmptyTopic, onNewTopic, t])
+  }, [addNewTopic, hasNewTopicAction, newTopicDisabled, t])
 
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
@@ -981,6 +992,21 @@ const ChatComposerInner = ({
 
   if (isMultiSelectMode) return null
 
+  const newTopicControl = hasNewTopicAction ? (
+    <Tooltip content={t('chat.conversation.new')} placement="top">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className={COMPOSER_SEND_ACCESSORY_BUTTON_CLASS}
+        disabled={newTopicDisabled}
+        aria-label={t('chat.conversation.new')}
+        onClick={() => addNewTopic()}>
+        <MessageSquarePlus size={18} aria-hidden />
+      </Button>
+    </Tooltip>
+  ) : undefined
+
   const controlSlots = renderControls({
     assistantId: selectedAssistantId,
     assistantName,
@@ -997,12 +1023,16 @@ const ChatComposerInner = ({
     shouldAutoSelectCreatedAssistant: Boolean(onDraftAssistantChange),
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
     showAssistantTrigger: !isClassicTopicLayout || !selectedAssistantId,
+    leadingControl: newTopicControl,
     onAssistantChange: handleAssistantChange,
     onModelSelect: handleModelSelect,
     onMentionedModelsSelect: handleMentionedModelsSelect,
     onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange,
     onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
   })
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter, unifiedPanelControl) => (
+    <ComposerToolMenuButton inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
+  )
 
   return (
     <ComposerToolDerivedStateProvider
@@ -1092,6 +1122,7 @@ const ChatComposerInner = ({
         toolLaunchersVersion={toolLaunchersVersion}
         rootPanelLeadingItems={rootPanelLeadingItems}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+        sendAccessory={sendAccessory}
         {...controlSlots}
       />
     </ComposerToolDerivedStateProvider>

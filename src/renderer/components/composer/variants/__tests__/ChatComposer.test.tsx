@@ -127,10 +127,13 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
     }
 
     mocks.surfaceProps = props
+    const sendAccessory =
+      typeof props.sendAccessory === 'function' ? props.sendAccessory(inputAdapter) : props.sendAccessory
     return (
       <div>
         <div data-testid="composer-left-controls">{props.renderLeftControls?.(inputAdapter)}</div>
         <div data-testid="composer-below-controls">{props.renderBelowControls?.(inputAdapter)}</div>
+        <div data-testid="composer-send-accessory">{sendAccessory}</div>
       </div>
     )
   }
@@ -657,16 +660,18 @@ describe('ChatComposer', () => {
     globalThis.ResizeObserver = originalResizeObserver
   })
 
-  it('keeps the tool menu at the far left in the modern layout', () => {
+  it('puts the tool menu on the right in the modern layout', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
     const leftControls = screen.getByTestId('composer-left-controls')
     const assistantButton = within(leftControls).getByRole('button', { name: /Assistant 1/ })
     const modelButton = within(leftControls).getByRole('button', { name: /Model A/ })
-    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
 
-    expect(toolMenuButton.compareDocumentPosition(assistantButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(assistantButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
+    ).toBeInTheDocument()
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
   })
 
@@ -990,17 +995,22 @@ describe('ChatComposer', () => {
     expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
   })
 
-  it('puts the classic-layout empty topic action first in the slash panel and passes the selected assistant', () => {
+  it('puts the classic-layout empty topic action first in the toolbar and passes the selected assistant', () => {
     mocks.topicLayout = 'classic'
     const onCreateEmptyTopic = vi.fn()
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
 
     const leftControls = screen.getByTestId('composer-left-controls')
+    const newTopicButton = within(leftControls).getByRole('button', { name: 'chat.conversation.new' })
     const modelButton = within(leftControls).getByRole('button', { name: /Model A/ })
-    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
-    expect(toolMenuButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(within(leftControls).queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+    expect(newTopicButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
+    ).toBeInTheDocument()
+    fireEvent.click(newTopicButton)
+    expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
 
     const newTopicItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
     expect(newTopicItem).toEqual(
@@ -1017,7 +1027,8 @@ describe('ChatComposer', () => {
       item: newTopicItem
     })
 
-    expect(onCreateEmptyTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+    expect(onCreateEmptyTopic).toHaveBeenCalledTimes(2)
+    expect(onCreateEmptyTopic).toHaveBeenLastCalledWith({ assistantId: 'assistant-1' })
   })
 
   it('disables the classic-layout empty topic slash action while the assistant is loading', () => {
@@ -1033,13 +1044,18 @@ describe('ChatComposer', () => {
         disabled: true
       })
     )
+    expect(
+      within(screen.getByTestId('composer-left-controls')).getByRole('button', {
+        name: 'chat.conversation.new'
+      })
+    ).toBeDisabled()
 
     mocks.commandHandlers.get('topic.create')?.()
 
     expect(onCreateEmptyTopic).not.toHaveBeenCalled()
   })
 
-  it('puts the modern-layout new topic action first in the slash panel', () => {
+  it('puts the modern-layout new topic action first in the toolbar', () => {
     mocks.topicLayout = 'modern'
     const onNewTopic = vi.fn()
     const onCreateEmptyTopic = vi.fn()
@@ -1048,7 +1064,13 @@ describe('ChatComposer', () => {
       <ChatComposer topic={topic} onSend={vi.fn()} onNewTopic={onNewTopic} onCreateEmptyTopic={onCreateEmptyTopic} />
     )
 
-    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+    const leftControls = screen.getByTestId('composer-left-controls')
+    const newTopicButton = within(leftControls).getByRole('button', { name: 'chat.conversation.new' })
+    const assistantButton = within(leftControls).getByRole('button', { name: /Assistant 1/ })
+    expect(newTopicButton.compareDocumentPosition(assistantButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(
+      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
+    ).toBeInTheDocument()
 
     const newTopicItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
     expect(newTopicItem).toEqual(
@@ -1073,7 +1095,11 @@ describe('ChatComposer', () => {
 
     const { rerender } = render(<ChatComposer topic={topic} onSend={vi.fn()} onCreateEmptyTopic={onCreateEmptyTopic} />)
 
-    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('composer-left-controls')).getByRole('button', {
+        name: 'chat.conversation.new'
+      })
+    ).toBeInTheDocument()
     const newTopicItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
     expect(newTopicItem).toEqual(
       expect.objectContaining({
@@ -1091,7 +1117,11 @@ describe('ChatComposer', () => {
     mocks.topicLayout = 'classic'
     rerender(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
-    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('composer-left-controls')).queryByRole('button', {
+        name: 'chat.conversation.new'
+      })
+    ).not.toBeInTheDocument()
     expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([])
   })
 
@@ -1531,7 +1561,8 @@ describe('ChatComposer', () => {
   it('renders selectors below the surface in draft home mode', () => {
     render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
 
-    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent('tool menu')
+    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('tool menu')
+    expect(screen.getByTestId('composer-send-accessory')).toHaveTextContent('tool menu')
     expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Assistant 1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Assistant 1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')

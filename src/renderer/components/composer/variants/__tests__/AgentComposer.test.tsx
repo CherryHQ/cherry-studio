@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { installSyncRafMock } from '../../../../../../tests/__mocks__/requestAnimationFrame'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
+import type { ComposerToolLauncher } from '../../toolLauncher'
 import AgentComposer, { AgentHomeComposer, MissingAgentHomeComposer } from '../AgentComposer'
 
 const mocks = vi.hoisted(() => ({
@@ -33,6 +34,9 @@ const mocks = vi.hoisted(() => ({
   updateSession: vi.fn(),
   setFiles: vi.fn(),
   inputAdapterFocus: vi.fn(),
+  quickPanelOpen: vi.fn(),
+  toolLaunchers: [] as ComposerToolLauncher[],
+  toolLaunchersVersion: 0,
   reconcileTokens: vi.fn(),
   insertToken: vi.fn(),
   availableSkills: [] as LocalSkill[],
@@ -103,6 +107,18 @@ const pdfSkillToken = {
   payload: pdfSkill
 } as const
 
+function createThinkingLauncher(overrides: Partial<ComposerToolLauncher> = {}): ComposerToolLauncher {
+  return {
+    id: 'thinking',
+    kind: 'group',
+    label: 'assistants.settings.reasoning_effort.label',
+    icon: <span data-testid="thinking-icon" />,
+    sources: ['popover'],
+    submenu: [{ id: 'thinking-high', kind: 'command', label: 'high', icon: 'high', sources: ['popover'] }],
+    ...overrides
+  }
+}
+
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     getCasual: vi.fn(() => ''),
@@ -138,11 +154,21 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
       insertToken: mocks.insertToken,
       deleteTriggerRange: vi.fn()
     }
+    const unifiedPanelControl = {
+      available: true,
+      open: mocks.quickPanelOpen
+    }
+    const sendAccessory =
+      typeof props.sendAccessory === 'function'
+        ? props.sendAccessory(inputAdapter, unifiedPanelControl)
+        : props.sendAccessory
     return (
       <div>
-        <div data-testid="composer-left-controls">{props.renderLeftControls?.(inputAdapter)}</div>
-        <div data-testid="composer-below-controls">{props.renderBelowControls?.(inputAdapter)}</div>
-        <div data-testid="composer-send-accessory">{props.sendAccessory}</div>
+        <div data-testid="composer-left-controls">{props.renderLeftControls?.(inputAdapter, unifiedPanelControl)}</div>
+        <div data-testid="composer-below-controls">
+          {props.renderBelowControls?.(inputAdapter, unifiedPanelControl)}
+        </div>
+        <div data-testid="composer-send-accessory">{sendAccessory}</div>
         <button
           type="button"
           onClick={() =>
@@ -215,19 +241,19 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
       registerLaunchers: vi.fn(() => vi.fn())
     },
     triggers: {
-      getLaunchers: vi.fn(() => []),
-      version: 0
+      getLaunchers: vi.fn(() => mocks.toolLaunchers),
+      version: mocks.toolLaunchersVersion
     }
   }),
   useComposerToolLauncherController: () => ({
-    getLaunchers: vi.fn(() => []),
+    getLaunchers: vi.fn(() => mocks.toolLaunchers),
     dispatchLauncher: vi.fn()
   }),
   useComposerToolLauncherActions: () => ({
-    getLaunchers: vi.fn(() => []),
+    getLaunchers: vi.fn(() => mocks.toolLaunchers),
     dispatchLauncher: vi.fn()
   }),
-  useComposerToolLauncherVersion: () => 0,
+  useComposerToolLauncherVersion: () => mocks.toolLaunchersVersion,
   useComposerTokenReconcile: () => mocks.reconcileTokens
 }))
 
@@ -490,6 +516,9 @@ describe('AgentComposer', () => {
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
     mocks.inputAdapterFocus.mockReset()
+    mocks.quickPanelOpen.mockReset()
+    mocks.toolLaunchers = []
+    mocks.toolLaunchersVersion = 0
     mocks.insertToken.mockReset()
     mocks.availableSkills = []
     mocks.availableSkillsRefresh.mockReset()
@@ -629,7 +658,7 @@ describe('AgentComposer', () => {
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
   })
 
-  it('puts the classic-layout empty session action first in the slash panel and calls the explicit handler', () => {
+  it('puts the classic-layout empty session action first in the toolbar and calls the explicit handler', () => {
     mocks.sessionLayout = 'classic'
     const onCreateEmptySession = vi.fn()
 
@@ -645,10 +674,15 @@ describe('AgentComposer', () => {
     )
 
     const leftControls = screen.getByTestId('composer-left-controls')
+    const newSessionButton = within(leftControls).getByRole('button', { name: 'agent.session.new' })
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
-    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
-    expect(toolMenuButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(within(leftControls).queryByRole('button', { name: 'agent.session.new' })).not.toBeInTheDocument()
+    expect(newSessionButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
+    ).toBeInTheDocument()
+    fireEvent.click(newSessionButton)
+    expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
 
     const newSessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
     expect(newSessionItem).toEqual(
@@ -664,10 +698,10 @@ describe('AgentComposer', () => {
       item: newSessionItem
     })
 
-    expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
+    expect(onCreateEmptySession).toHaveBeenCalledTimes(2)
   })
 
-  it('keeps the tool menu at the far left and puts the new session action in the slash panel', () => {
+  it('keeps the new session action at the far left and puts the tool menu on the right', () => {
     const onCreateEmptySession = vi.fn()
 
     render(
@@ -682,13 +716,16 @@ describe('AgentComposer', () => {
     )
 
     const leftControls = screen.getByTestId('composer-left-controls')
+    const newSessionButton = within(leftControls).getByRole('button', { name: 'agent.session.new' })
     const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
-    const toolMenuButton = within(leftControls).getByRole('button', { name: 'tool menu' })
 
-    expect(toolMenuButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(newSessionButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(agentButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(within(leftControls).queryByRole('button', { name: 'agent.session.new' })).not.toBeInTheDocument()
+    expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
+    ).toBeInTheDocument()
 
     const newSessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
     expect(newSessionItem).toEqual(
@@ -704,6 +741,95 @@ describe('AgentComposer', () => {
     })
 
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps reasoning and skill shortcuts in the input toolbar and opens the unified panel', () => {
+    mocks.toolLaunchers = [createThinkingLauncher()]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const leftControls = screen.getByTestId('composer-left-controls')
+    const reasoningButton = within(leftControls).getByRole('button', {
+      name: 'assistants.settings.reasoning_effort.label'
+    })
+    const skillButton = within(leftControls).getByRole('button', { name: 'plugins.skills' })
+    const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
+
+    expect(reasoningButton.compareDocumentPosition(skillButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(skillButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+    fireEvent.click(reasoningButton)
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith({
+      launcherId: 'thinking',
+      searchText: 'assistants.settings.reasoning_effort.label'
+    })
+
+    fireEvent.click(skillButton)
+    expect(mocks.quickPanelOpen).toHaveBeenLastCalledWith({ searchText: 'plugins.skills' })
+  })
+
+  it('disables the reasoning shortcut when the model cannot configure reasoning', () => {
+    mocks.toolLaunchers = [
+      createThinkingLauncher({
+        disabled: true,
+        disabledReason: 'chat.input.thinking.unsupported_model'
+      })
+    ]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const reasoningButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
+      name: 'assistants.settings.reasoning_effort.label'
+    })
+    expect(reasoningButton).toBeDisabled()
+    expect(screen.getByText('chat.input.thinking.unsupported_model')).toBeInTheDocument()
+
+    fireEvent.click(reasoningButton)
+
+    expect(mocks.quickPanelOpen).not.toHaveBeenCalled()
+  })
+
+  it('uses the active reasoning launcher icon and style after reasoning is selected', () => {
+    mocks.toolLaunchers = [
+      createThinkingLauncher({
+        active: true,
+        icon: <span data-testid="thinking-active-icon" />,
+        suffix: 'assistants.settings.reasoning_effort.high'
+      })
+    ]
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const reasoningButton = within(screen.getByTestId('composer-left-controls')).getByRole('button', {
+      name: 'assistants.settings.reasoning_effort.label'
+    })
+    expect(reasoningButton).toHaveAttribute('data-active', 'true')
+    expect(reasoningButton).toHaveClass('bg-accent', 'text-foreground')
+    expect(within(reasoningButton).getByTestId('thinking-active-icon')).toBeInTheDocument()
   })
 
   it('hides the empty session action without a handler', () => {
@@ -754,9 +880,16 @@ describe('AgentComposer', () => {
       />
     )
 
-    const workspaceButton = screen.getByText('Workspace 1').closest('button')!
+    const leftControls = screen.getByTestId('composer-left-controls')
+    const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
+    const workspaceButton = within(leftControls).getByText('Workspace 1').closest('button')!
     const indicator = screen.getByLabelText('agent.right_pane.info.context_usage 42%')
+    const toolMenuButton = within(screen.getByTestId('composer-send-accessory')).getByRole('button', {
+      name: 'tool menu'
+    })
+    expect(modelButton.compareDocumentPosition(workspaceButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(workspaceButton.compareDocumentPosition(indicator)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(indicator.compareDocumentPosition(toolMenuButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(indicator).toBeInTheDocument()
     expect(indicator).not.toHaveTextContent('42%')
     expect(indicator).toHaveAttribute('style', expect.stringContaining('--context-usage-progress: 42%'))
@@ -1770,8 +1903,9 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Workspace 1')
-    expect(screen.getByTestId('composer-send-accessory')).toHaveTextContent('Workspace 1')
+    const leftControls = screen.getByTestId('composer-left-controls')
+    expect(leftControls).toHaveTextContent('Workspace 1')
+    expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
     expect(screen.queryByText('select workspace 2')).not.toBeInTheDocument()
   })
 
@@ -1832,7 +1966,7 @@ describe('AgentComposer', () => {
       await Promise.resolve()
     })
 
-    expect(screen.queryByTestId('tooltip-content')).not.toBeInTheDocument()
+    expect(screen.queryByText('agent.session.workspace_status.inaccessible')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByText('send'))
 
@@ -1860,10 +1994,10 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent(
+    expect(screen.getByTestId('composer-left-controls')).toHaveTextContent(
       'agent.session.workspace_selector.no_project'
     )
-    expect(screen.getByTestId('composer-send-accessory')).toHaveTextContent(
+    expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent(
       'agent.session.workspace_selector.no_project'
     )
     expect(mocks.isDirectory).not.toHaveBeenCalled()

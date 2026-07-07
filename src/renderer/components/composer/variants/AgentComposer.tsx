@@ -14,6 +14,7 @@ import {
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import { ModelSelector } from '@renderer/components/ModelSelector'
@@ -48,7 +49,16 @@ import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspa
 import type { AgentEntity } from '@shared/data/types/agent'
 import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { LocalSkill } from '@shared/types/skill'
-import { Bot, ChevronDown, CircleSlash, Folder, MessageSquarePlus, Sparkles, TriangleAlert } from 'lucide-react'
+import {
+  Bot,
+  ChevronDown,
+  CircleSlash,
+  Folder,
+  Lightbulb,
+  MessageSquarePlus,
+  Sparkles,
+  TriangleAlert
+} from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -76,9 +86,11 @@ import {
   COMPOSER_ICON_ONLY_LABEL_CLASS,
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS,
+  COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
   ComposerToolbarControls,
+  ComposerToolMenuButton,
   ComposerToolMenuControls
 } from './shared/ComposerControlScaffolding'
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
@@ -108,8 +120,9 @@ const createSkillQuickPanelItems = (
     description: skill.description ?? undefined,
     icon: <Sparkles size={16} />,
     suffix: options.skillLabel,
-    // Skills match by name only in the root panel search.
+    // Skills still exclude descriptions from root-panel search; the category alias powers the persistent shortcut.
     filterText: skill.name,
+    searchAliases: [options.skillLabel],
     action: ({ inputAdapter }) => {
       options.onInsertSkill(skill, inputAdapter)
     }
@@ -546,18 +559,74 @@ type AgentComposerControlProps = Omit<AgentComposerContextControlsProps, 'side'>
   canChangeModel: boolean
   onModelSelect: (model: Model | undefined) => void
   modelFilter?: (model: Model) => boolean
+  leadingControl?: React.ReactNode
+  renderQuickPanelShortcuts?: (args: {
+    inputAdapter?: AgentComposerInputAdapter
+    unifiedPanelControl?: AgentComposerUnifiedPanelControl
+  }) => React.ReactNode
   renderWorkspaceControl?: (args: { side: 'top' | 'bottom'; iconOnly?: boolean }) => React.ReactNode
 }
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
-type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'> & {
-  placesWorkspaceInBelowControls?: boolean
-}
+type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
 type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
 
 type AgentComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
+type AgentComposerUnifiedPanelControl = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[1]
 
 const restoreAgentComposerInputFocus = (inputAdapter: AgentComposerInputAdapter) => {
   window.requestAnimationFrame(() => inputAdapter?.focus())
+}
+
+const AgentComposerQuickPanelShortcuts = ({
+  reasoningLabel,
+  reasoningLauncher,
+  skillLabel,
+  unifiedPanelControl
+}: {
+  reasoningLabel: string
+  reasoningLauncher?: ComposerToolLauncher
+  skillLabel: string
+  unifiedPanelControl?: AgentComposerUnifiedPanelControl
+}) => {
+  const panelDisabled = !unifiedPanelControl?.available
+  const reasoningDisabled = panelDisabled || !reasoningLauncher || reasoningLauncher.disabled
+  const reasoningTooltip =
+    reasoningDisabled && reasoningLauncher?.disabledReason ? reasoningLauncher.disabledReason : reasoningLabel
+  const reasoningIcon = reasoningLauncher?.icon ?? <Lightbulb size={18} aria-hidden />
+
+  return (
+    <>
+      <Tooltip content={reasoningTooltip} placement="top">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className={cn(
+            COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
+            'disabled:pointer-events-none disabled:opacity-40',
+            reasoningLauncher?.active && 'bg-accent text-foreground [&_svg]:text-primary'
+          )}
+          aria-label={reasoningLabel}
+          disabled={reasoningDisabled}
+          data-active={reasoningLauncher?.active || undefined}
+          onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking', searchText: reasoningLabel })}>
+          {reasoningIcon}
+        </Button>
+      </Tooltip>
+      <Tooltip content={skillLabel} placement="top">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, 'disabled:pointer-events-none disabled:opacity-40')}
+          aria-label={skillLabel}
+          disabled={panelDisabled}
+          onClick={() => unifiedPanelControl?.open({ searchText: skillLabel })}>
+          <Sparkles size={18} aria-hidden />
+        </Button>
+      </Tooltip>
+    </>
+  )
 }
 
 const AgentComposerContextControlsWithAutoFocus = ({
@@ -572,35 +641,57 @@ const AgentComposerContextControlsWithAutoFocus = ({
 // Active agent sessions are bound to their agent, so the agent trigger opens edit instead of switching.
 const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
   return {
-    renderLeftControls: (inputAdapter, unifiedPanelControl) => (
-      <ComposerToolbarControls
-        inputAdapter={inputAdapter}
-        unifiedPanelControl={unifiedPanelControl}
-        toolMenuPlacement="beforeContext"
-        renderContextControls={({ side, iconOnly }) => (
-          <>
-            <AgentComposerContextControlsWithAutoFocus
-              {...props}
-              side={side}
-              iconOnly={iconOnly}
-              agentTriggerMode="edit"
-              inputAdapter={inputAdapter}
-            />
-            <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
-          </>
-        )}
-      />
-    )
+    renderLeftControls: (inputAdapter, unifiedPanelControl) => {
+      const quickPanelShortcuts = props.renderQuickPanelShortcuts?.({ inputAdapter, unifiedPanelControl })
+
+      return (
+        <ComposerToolbarControls
+          inputAdapter={inputAdapter}
+          leading={
+            <>
+              {props.leadingControl}
+              {quickPanelShortcuts}
+            </>
+          }
+          showToolMenu={false}
+          unifiedPanelControl={unifiedPanelControl}
+          toolMenuPlacement="beforeContext"
+          renderContextControls={({ side, iconOnly }) => (
+            <>
+              <AgentComposerContextControlsWithAutoFocus
+                {...props}
+                side={side}
+                iconOnly={iconOnly}
+                agentTriggerMode="edit"
+                inputAdapter={inputAdapter}
+              />
+              <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
+              {props.renderWorkspaceControl?.({ side, iconOnly })}
+            </>
+          )}
+        />
+      )
+    }
   }
 }
 
 const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
   return {
-    renderLeftControls: (inputAdapter, unifiedPanelControl) => (
-      <div className={COMPOSER_TOOLBAR_CLASS}>
-        <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
-      </div>
-    ),
+    renderLeftControls: (inputAdapter, unifiedPanelControl) => {
+      const quickPanelShortcuts = props.renderQuickPanelShortcuts?.({ inputAdapter, unifiedPanelControl })
+
+      return (
+        <div className={COMPOSER_TOOLBAR_CLASS}>
+          {props.leadingControl}
+          {quickPanelShortcuts}
+          <ComposerToolMenuControls
+            inputAdapter={inputAdapter}
+            unifiedPanelControl={unifiedPanelControl}
+            showToolMenu={false}
+          />
+        </div>
+      )
+    },
     renderBelowControls: (inputAdapter) => (
       <ComposerBelowControls
         renderContextControls={({ side, iconOnly }) => (
@@ -612,16 +703,11 @@ const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
               inputAdapter={inputAdapter}
             />
             <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
+            {props.renderWorkspaceControl?.({ side, iconOnly })}
           </>
         )}
-        trailing={
-          props.renderWorkspaceControl
-            ? ({ iconOnly }) => props.renderWorkspaceControl?.({ side: 'bottom', iconOnly })
-            : undefined
-        }
       />
-    ),
-    placesWorkspaceInBelowControls: true
+    )
   }
 }
 
@@ -789,6 +875,11 @@ const AgentComposerInner = ({
     })
   }, [refreshAvailableSkills])
 
+  const reasoningLauncher = useMemo(() => {
+    void toolLaunchersVersion
+    return getLaunchers().find((launcher) => launcher.id === 'thinking')
+  }, [getLaunchers, toolLaunchersVersion])
+
   useComposerQuoteInsertion(actionsRef)
 
   const abortAgentSession = useCallback(async () => {
@@ -819,9 +910,10 @@ const AgentComposerInner = ({
   const handleCreateEmptySession = useCallback(() => {
     void onCreateEmptySession?.()
   }, [onCreateEmptySession])
+  const hasNewSessionAction = Boolean(agentBase && onCreateEmptySession)
 
   const rootPanelNewSessionItems = useMemo<QuickPanelListItem[]>(() => {
-    if (!agentBase || !onCreateEmptySession) return []
+    if (!hasNewSessionAction) return []
 
     const label = t('agent.session.new')
 
@@ -837,7 +929,7 @@ const AgentComposerInner = ({
         }
       }
     ]
-  }, [agentBase, handleCreateEmptySession, onCreateEmptySession, t])
+  }, [handleCreateEmptySession, hasNewSessionAction, t])
 
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined
@@ -1035,7 +1127,33 @@ const AgentComposerInner = ({
       )
     : undefined
 
-  const renderedControlSlots = renderControls({
+  const newSessionControl = hasNewSessionAction ? (
+    <Tooltip content={t('agent.session.new')} placement="top">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className={COMPOSER_SEND_ACCESSORY_BUTTON_CLASS}
+        aria-label={t('agent.session.new')}
+        onClick={handleCreateEmptySession}>
+        <MessageSquarePlus size={18} aria-hidden />
+      </Button>
+    </Tooltip>
+  ) : undefined
+
+  const renderQuickPanelShortcuts = useCallback(
+    ({ unifiedPanelControl }: { unifiedPanelControl?: AgentComposerUnifiedPanelControl }) => (
+      <AgentComposerQuickPanelShortcuts
+        reasoningLabel={t('assistants.settings.reasoning_effort.label')}
+        reasoningLauncher={reasoningLauncher}
+        skillLabel={t('plugins.skills')}
+        unifiedPanelControl={unifiedPanelControl}
+      />
+    ),
+    [reasoningLauncher, t]
+  )
+
+  const controlSlots = renderControls({
     agent: agentBase,
     model,
     modelProviderName,
@@ -1047,16 +1165,17 @@ const AgentComposerInner = ({
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
+    leadingControl: newSessionControl,
+    renderQuickPanelShortcuts,
     onAgentChange: handleAgentChange,
     renderWorkspaceControl
   })
-  const { placesWorkspaceInBelowControls, ...controlSlots } = renderedControlSlots
 
-  const sendAccessory = (
-    <div className="flex items-center gap-1.5">
-      {!placesWorkspaceInBelowControls ? renderWorkspaceControl?.({ side: 'top' }) : null}
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (inputAdapter, unifiedPanelControl) => (
+    <>
       <AgentComposerContextUsage model={model} sessionId={sessionId} />
-    </div>
+      <ComposerToolMenuButton inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
+    </>
   )
 
   return (
