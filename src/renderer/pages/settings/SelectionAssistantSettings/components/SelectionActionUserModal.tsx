@@ -110,7 +110,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
 
   return (
     <Dialog open={isModalOpen} onOpenChange={(next) => !next && onCancel()}>
-      <DialogContent closeOnOverlayClick={false} className="sm:max-w-130">
+      <DialogContent aria-describedby={undefined} closeOnOverlayClick={false} className="sm:max-w-130">
         <DialogHeader>
           <DialogTitle>
             {editingAction
@@ -213,8 +213,14 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.assistant.label')}</ModalSectionTitleLabel>
               </ModalSectionTitle>
               <Select value={formData.assistantId} onValueChange={(value) => handleInputChange('assistantId', value)}>
-                <SelectTrigger className="w-full min-w-0 overflow-hidden">
-                  <SelectValue className="min-w-0 flex-1 overflow-hidden" />
+                <SelectTrigger
+                  className={cn(
+                    'w-full min-w-0 overflow-hidden',
+                    '*:data-[slot=select-value]:min-w-0',
+                    '*:data-[slot=select-value]:flex-1',
+                    '*:data-[slot=select-value]:overflow-hidden'
+                  )}>
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="w-(--radix-select-trigger-width) max-w-(--radix-select-trigger-width)">
                   {assistantOptions.map((a) => (

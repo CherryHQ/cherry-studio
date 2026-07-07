@@ -1,7 +1,8 @@
 import '@testing-library/jest-dom/vitest'
 
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import type * as CherryStudioUI from '@cherrystudio/ui'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import SelectionActionUserModal from '../SelectionActionUserModal'
 
@@ -46,6 +47,27 @@ vi.mock('@renderer/components/CopyButton', () => ({
   default: () => <button type="button" aria-label="copy-placeholder" />
 }))
 
+vi.mock('@cherrystudio/ui', async () => {
+  return vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui')
+})
+
+beforeAll(() => {
+  if (!HTMLElement.prototype.hasPointerCapture) {
+    HTMLElement.prototype.hasPointerCapture = () => false
+  }
+  if (!HTMLElement.prototype.releasePointerCapture) {
+    HTMLElement.prototype.releasePointerCapture = () => {}
+  }
+  if (!HTMLElement.prototype.setPointerCapture) {
+    HTMLElement.prototype.setPointerCapture = () => {}
+  }
+  HTMLElement.prototype.scrollIntoView = () => {}
+})
+
+afterEach(() => {
+  cleanup()
+})
+
 describe('SelectionActionUserModal', () => {
   it('lets assistant names use the available select row width', () => {
     render(
@@ -71,7 +93,7 @@ describe('SelectionActionUserModal', () => {
     expect(screen.getByTestId('model-avatar')).toHaveClass('shrink-0')
   })
 
-  it('clips long assistant options to the select width', () => {
+  it('clips long assistant options to the select width', async () => {
     render(
       <SelectionActionUserModal
         isModalOpen={true}
@@ -87,13 +109,29 @@ describe('SelectionActionUserModal', () => {
       />
     )
 
-    expect(screen.getByTestId('select-trigger')).toHaveClass('min-w-0', 'overflow-hidden')
-    expect(screen.getByTestId('select-value')).toHaveClass('min-w-0', 'flex-1', 'overflow-hidden')
-    expect(screen.getByTestId('select-content')).toHaveClass(
-      'w-(--radix-select-trigger-width)',
-      'max-w-(--radix-select-trigger-width)'
+    const trigger = screen.getByRole('combobox')
+    expect(trigger).toHaveAttribute('data-slot', 'select-trigger')
+    expect(trigger).toHaveClass(
+      'min-w-0',
+      'overflow-hidden',
+      '*:data-[slot=select-value]:min-w-0',
+      '*:data-[slot=select-value]:flex-1',
+      '*:data-[slot=select-value]:overflow-hidden'
     )
-    expect(screen.getByTestId('select-item')).toHaveClass('overflow-hidden')
-    expect(screen.getByText(testData.longAssistantName).parentElement).toHaveClass('max-w-full', 'overflow-hidden')
+    expect(trigger.querySelector('[data-slot="select-value"]')).toBeInTheDocument()
+
+    fireEvent.pointerDown(trigger)
+    fireEvent.click(trigger)
+
+    const content = await screen.findByRole('listbox')
+    expect(content).toHaveClass('w-(--radix-select-trigger-width)', 'max-w-(--radix-select-trigger-width)')
+    const option = within(content).getByText(testData.longAssistantName).closest('[role="option"]')
+    expect(option).toBeInstanceOf(HTMLElement)
+    const optionElement = option as HTMLElement
+    expect(optionElement).toHaveClass('overflow-hidden')
+    expect(within(optionElement).getByText(testData.longAssistantName).parentElement).toHaveClass(
+      'max-w-full',
+      'overflow-hidden'
+    )
   })
 })
