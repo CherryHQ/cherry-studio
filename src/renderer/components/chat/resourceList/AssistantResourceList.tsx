@@ -7,6 +7,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
+import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { usePins } from '@renderer/hooks/usePins'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
@@ -95,6 +96,7 @@ export function AssistantResourceList({
     pinnedIds: assistantPinnedIds,
     togglePin: toggleAssistantPin
   } = usePins('assistant')
+  const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
   const { deleteTopicsByAssistantId, refreshTopics } = useTopicMutations()
   const topicPinnedIdSet = useMemo(() => new Set(topicPinnedIds), [topicPinnedIds])
@@ -289,7 +291,8 @@ export function AssistantResourceList({
         })
         if (!confirmed) return
 
-        await deleteAssistant(assistantId, { deleteTopics: true })
+        const result = await deleteAssistant(assistantId, { deleteTopics: true })
+        closeConversationTabs('assistants', result.deletedTopicIds ?? [])
         if (activeAssistantId === assistantId) {
           await onActiveAssistantDeleted?.(assistantId)
         }
@@ -306,6 +309,7 @@ export function AssistantResourceList({
     },
     [
       activeAssistantId,
+      closeConversationTabs,
       deleteAssistant,
       deletingAssistantId,
       onActiveAssistantDeleted,
