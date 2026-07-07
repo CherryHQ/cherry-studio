@@ -3,11 +3,11 @@
  *
  * Renders one of five states driven by the preboot gate's progress
  * payload: preparing → copying (with a progress bar) → committing →
- * completed | failed. Both terminal states surface a restart button
- * (success: "Restart"; failure: "Stay on current directory and restart").
+ * failed. Successful relocation relaunches immediately after commit; the
+ * window only surfaces an action when relocation fails.
  */
 import { Button } from '@cherrystudio/ui'
-import { CheckCircle2, Loader2, XCircle } from 'lucide-react'
+import { Loader2, XCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { useRelocationProgress } from './hooks/useRelocationProgress'
@@ -36,16 +36,6 @@ const RelocationApp = () => {
             )}
 
             {stage === 'committing' && <Spinner label={t('relocation.committing')} />}
-
-            {stage === 'completed' && (
-              <Terminal
-                icon={<CheckCircle2 className="text-success" size={40} />}
-                title={t('relocation.completed.title')}
-                description={t('relocation.completed.description')}
-                buttonLabel={t('relocation.restart')}
-                onRestart={restart}
-              />
-            )}
 
             {stage === 'failed' && (
               <Terminal

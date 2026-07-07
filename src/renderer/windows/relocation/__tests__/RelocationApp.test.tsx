@@ -70,19 +70,20 @@ describe('RelocationApp', () => {
     expect(screen.getByText('25%')).toBeInTheDocument()
   })
 
-  it('keeps the restart action clickable in terminal states', () => {
+  it('keeps the restart action clickable after failure', () => {
     relocationHookMock.progress = {
       bytesCopied: 100,
       bytesTotal: 100,
       copy: true,
+      error: 'copy failed',
       from: '/old/data',
-      stage: 'completed',
+      stage: 'failed',
       to: '/new/data'
     }
 
     render(<RelocationApp />)
 
-    screen.getByRole('button', { name: 'relocation.restart' }).click()
+    screen.getByRole('button', { name: 'relocation.restart_failure' }).click()
     expect(relocationHookMock.restart).toHaveBeenCalledTimes(1)
   })
 })
