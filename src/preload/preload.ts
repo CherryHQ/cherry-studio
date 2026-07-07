@@ -9,7 +9,7 @@ import type { FileEntry, FileHandle } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ApiGatewayStatusResult } from '@shared/types/apiGateway'
-import type { BackupProgressUpdate, BackupV2StartResult, S3Config, WebDavConfig } from '@shared/types/backup'
+import type { S3Config, WebDavConfig } from '@shared/types/backup'
 import type { TerminalConfig } from '@shared/types/codeCli'
 import type { CodeToolsRunResult, OperationResult } from '@shared/types/codeTools'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
@@ -34,7 +34,7 @@ import type { StorageHealth } from '@shared/types/storageMonitor'
 import type { CommandId } from '@shared/utils/command'
 import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/utils/file'
 import type { OpenDialogOptions } from 'electron'
-import { contextBridge, ipcRenderer, shell, webUtils, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
 
 import { ipcApi } from './ipc'
@@ -126,21 +126,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Backup_CreateLanTransferBackup, data, destinationPath),
     deleteLanTransferBackup: (filePath: string): Promise<boolean> =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteLanTransferBackup, filePath)
-  },
-  // V2 modular backup (contributor stack). Export-only this slice; the v2 backup
-  // settings page (a new V2 surface, not mixed into legacy v1 LocalBackupSettings)
-  // binds via renderer/src/hooks/useBackupV2.ts.
-  backupV2: {
-    startBackup: (opts: { preset: 'full' | 'lite'; outputPath: string }): Promise<BackupV2StartResult> =>
-      ipcRenderer.invoke(IpcChannel.BackupV2_StartBackup, opts),
-    cancelBackup: (backupId: string): Promise<{ cancelled: boolean }> =>
-      ipcRenderer.invoke(IpcChannel.BackupV2_CancelBackup, { backupId }),
-    /** Subscribe to BackupV2_Progress broadcasts; returns an unsubscribe function. */
-    onProgress: (listener: (update: BackupProgressUpdate) => void): (() => void) => {
-      const handler = (_e: IpcRendererEvent, update: BackupProgressUpdate): void => listener(update)
-      ipcRenderer.on(IpcChannel.BackupV2_Progress, handler)
-      return () => ipcRenderer.removeListener(IpcChannel.BackupV2_Progress, handler)
-    }
   },
   file: {
     select: (options?: OpenDialogOptions): Promise<FileMetadata[] | null> =>

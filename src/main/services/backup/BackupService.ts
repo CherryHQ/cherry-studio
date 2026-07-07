@@ -16,7 +16,7 @@
 // snapshot a pre-migration DB.
 //
 // SLICE SCOPE: export-only, FULL + LITE presets, DB + file-blob archive. The
-// renderer triggers export via the BackupV2_StartBackup IPC channel (filled
+// renderer triggers export via the backup.start_backup IpcApi route (filled
 // defaults: restoreId / producerAppVersion / schemaMigrationId). preflightDisk
 // guards the entry. Step 2.5 (SqliteBackupStripper) strips ALWAYS_STRIP + lite
 // excluded rows from the copy. cancel/progress/validate channels and the restore
@@ -31,7 +31,6 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Emitter, ErrorHandling, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { fileEntryTable } from '@main/data/db/schemas/file'
-import { IpcChannel } from '@shared/IpcChannel'
 import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/backup'
 import { and, eq, isNull, sum } from 'drizzle-orm'
 import { app } from 'electron'
@@ -66,7 +65,7 @@ export class BackupService extends BaseService {
   private orchestrator?: ExportOrchestrator
   /** Cached last migration `when` (folderMillis) — the schema-version fingerprint. */
   private schemaMigrationId?: string
-  /** Progress event bus — bridged to the renderer (BackupV2_Progress) in onInit. */
+  /** Progress event bus — bridged to the renderer (backup.progress event) in onInit. */
   private readonly _onProgress = new Emitter<BackupProgressUpdate>()
   /** The single active export (null when idle). */
   private activeExport: ActiveExport | null = null
@@ -79,9 +78,10 @@ export class BackupService extends BaseService {
     this.registerDisposable(this._onProgress)
     this.registerDisposable(
       this._onProgress.event((update) => {
-        // broadcast (not broadcastToType(Main)) — the export can be triggered from any
-        // window hosting the backup UI (dev Settings route today; main / dedicated later).
-        application.get('WindowManager').broadcast(IpcChannel.BackupV2_Progress, update)
+        // broadcast (not send-to-window) — the export can be triggered from any window
+        // hosting the backup UI (dev Settings route today; main / dedicated later), and
+        // every hosting window subscribes via useIpcOn('backup.progress').
+        application.get('IpcApiService').broadcast('backup.progress', update)
       })
     )
     // Lazily run the 26-invariant contributor finalize at startup. A violation
@@ -109,27 +109,6 @@ export class BackupService extends BaseService {
       notesRoot: () => this.resolveNotesRoot(),
       stripper: new SqliteBackupStripper()
     })
-
-    this.registerIpcHandlers()
-  }
-
-  private registerIpcHandlers(): void {
-    // TODO(ipc-boundary): IpcApi routes (backup.start_backup / backup.cancel) are now
-    // wired in src/main/ipc/handlers/backup.ts with zod-validated input. This legacy
-    // ipcHandle stays only until the renderer switches to ipcApi.request — then it and
-    // the BackupV2_* IpcChannel entries are removed. It remains the one un-validated
-    // entry while both coexist.
-    // Export entry. Renderer passes { preset, outputPath }; the service fills
-    // restoreId / producerAppVersion / schemaMigrationId + runs preflightDisk.
-    this.ipcHandle(IpcChannel.BackupV2_StartBackup, async (_e, opts: BackupV2StartOptions) => {
-      const result = await this.startBackup(opts)
-      return { backupId: result.backupId, archivePath: result.archivePath }
-    })
-    // Cancel: aborts the active export's AbortController (no-op if backupId mismatches
-    // or idle). The orchestrator checks the signal at the next step boundary.
-    this.ipcHandle(IpcChannel.BackupV2_CancelBackup, (_e, { backupId }: { backupId: string }) =>
-      this.cancel(backupId)
-    )
   }
 
   /**
@@ -148,7 +127,7 @@ export class BackupService extends BaseService {
   /**
    * Export a .cbu archive (renderer-facing). Returns { backupId, archivePath } —
    * backupId is the cancel/progress routing key. Throws BackupCancelledError if the
-   * user cancels via BackupV2_CancelBackup; the orchestrator's finally block still
+   * user cancels via backup.cancel; the orchestrator's finally block still
    * cleans up temp + staging. A second startBackup while one is running throws 'busy'.
    */
   async startBackup({ preset, outputPath }: BackupV2StartOptions): Promise<BackupV2StartResult> {
