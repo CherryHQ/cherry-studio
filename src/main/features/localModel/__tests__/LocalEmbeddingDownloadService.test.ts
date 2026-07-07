@@ -196,6 +196,10 @@ describe('LocalEmbeddingDownloadService', () => {
     loadEmbedding.mockImplementation(
       (_source, _repo, _dtype, _onProgress, signal: AbortSignal) =>
         new Promise((_resolve, reject) => {
+          // Mirror InferenceHost.send's fail-fast check: an await between download() and
+          // this call (e.g. resolving the model source) can let cancel() abort the signal
+          // before this listener attaches, so an already-aborted signal must reject directly.
+          if (signal.aborted) return reject(signal.reason ?? new Error('aborted'))
           signal.addEventListener('abort', () => reject(signal.reason ?? new Error('aborted')), { once: true })
         })
     )

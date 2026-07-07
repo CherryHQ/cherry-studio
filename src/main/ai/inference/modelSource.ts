@@ -29,14 +29,19 @@ export function getModelSource(id: ModelSourceId): InferenceModelSource {
   return SOURCES[id]
 }
 
-/** Chinese locales default to ModelScope (HuggingFace is hard to reach in China). */
-export function defaultModelSourceId(locale: string): ModelSourceId {
-  return locale.toLowerCase().startsWith('zh') ? 'modelscope' : 'huggingface'
+/**
+ * China defaults to ModelScope (HuggingFace is hard to reach in China). `inChina` is the
+ * egress-IP-based signal from `regionService.isInChina()` — the same one BinaryManager uses
+ * to pick binary download mirrors — not the app's display locale, which reflects language
+ * preference rather than network reachability.
+ */
+export function defaultModelSourceId(inChina: boolean): ModelSourceId {
+  return inChina ? 'modelscope' : 'huggingface'
 }
 
-/** Mirrors to try in order for `locale`: the locale default first, the other as fallback. */
-export function modelSourceOrder(locale: string): ModelSourceId[] {
-  return defaultModelSourceId(locale) === 'modelscope' ? ['modelscope', 'huggingface'] : ['huggingface', 'modelscope']
+/** Mirrors to try in order: the region default first, the other as fallback. */
+export function modelSourceOrder(inChina: boolean): ModelSourceId[] {
+  return defaultModelSourceId(inChina) === 'modelscope' ? ['modelscope', 'huggingface'] : ['huggingface', 'modelscope']
 }
 
 /**

@@ -39,7 +39,7 @@ export async function getLocalEmbeddingTokenCounter(): Promise<CountTokens> {
 
 async function loadLocalEmbeddingTokenCounter(): Promise<CountTokens> {
   const { AutoTokenizer, env } = await import('@huggingface/transformers')
-  const source = currentModelSource()
+  const source = await currentModelSource()
   env.allowRemoteModels = true
   env.cacheDir = application.getPath('feature.embedding.models')
   env.remoteHost = source.remoteHost

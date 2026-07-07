@@ -1,11 +1,12 @@
 import { application } from '@application'
 import { LOCAL_MODELS } from '@main/ai/inference/localModelCatalog'
 import { defaultModelSourceId, getModelSource } from '@main/ai/inference/modelSource'
-import { app } from 'electron'
+import { regionService } from '@main/services/RegionService'
 
-/** Default download source, picked from the app locale (zh → ModelScope). */
-export function currentModelSource() {
-  return getModelSource(defaultModelSourceId(app.getLocale()))
+/** Default download source, picked from the egress region (China → ModelScope) — same signal BinaryManager uses for its mirrors. */
+export async function currentModelSource() {
+  const inChina = await regionService.isInChina().catch(() => false)
+  return getModelSource(defaultModelSourceId(inChina))
 }
 
 /**
@@ -16,5 +17,5 @@ export function currentModelSource() {
 export async function embedTexts(texts: string[], signal?: AbortSignal): Promise<number[][]> {
   if (texts.length === 0) return []
   const { repo, dtype } = LOCAL_MODELS.embedding
-  return application.get('EmbeddingInferenceHost').embed(texts, currentModelSource(), repo, dtype, signal)
+  return application.get('EmbeddingInferenceHost').embed(texts, await currentModelSource(), repo, dtype, signal)
 }

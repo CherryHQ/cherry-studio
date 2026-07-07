@@ -2,8 +2,10 @@ import type * as NodeFs from 'node:fs'
 import { Writable } from 'node:stream'
 
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { app, net } from 'electron'
+import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina: vi.fn().mockResolvedValue(false) } }))
 
 const { createWriteStream, mkdir, rename, writeFile, rm } = vi.hoisted(() => ({
   createWriteStream: vi.fn(),
@@ -31,6 +33,7 @@ vi.mock('node:fs', async () => {
 })
 
 const { localOcrDownloadService } = await import('../LocalOcrDownloadService')
+const { regionService } = await import('@main/services/RegionService')
 
 const DEFAULT_KEY = 'feature.file_processing.default_image_to_text'
 const VALID_WEIGHT_BYTES = 1_000_001 // just over the 1MB min-size guard
@@ -68,7 +71,10 @@ describe('LocalOcrDownloadService.download — mirror fallback + min-size guard'
   beforeEach(() => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
-    ;(app as unknown as { getLocale: () => string }).getLocale = () => 'en-US'
+    // afterEach's restoreAllMocks reverts vi.fn() mocks (not just vi.spyOn ones) to their
+    // construction-time no-op, so the module-level mockResolvedValue(false) only survives
+    // the first test unless it's re-armed here.
+    vi.mocked(regionService.isInChina).mockResolvedValue(false)
     mkdir.mockResolvedValue(undefined)
     rename.mockResolvedValue(undefined)
     writeFile.mockResolvedValue(undefined)
@@ -102,7 +108,7 @@ describe('LocalOcrDownloadService.download — mirror fallback + min-size guard'
     expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).toBe('mistral')
   })
 
-  it('falls back to the next mirror when the locale-default mirror fails', async () => {
+  it('falls back to the next mirror when the region-default mirror fails', async () => {
     const urls: string[] = []
     vi.mocked(net.fetch).mockImplementation((async (url: string) => {
       urls.push(url)
@@ -112,7 +118,7 @@ describe('LocalOcrDownloadService.download — mirror fallback + min-size guard'
 
     await localOcrDownloadService.download()
 
-    // en-US → HuggingFace first (fails) → ModelScope (succeeds) for every file.
+    // Not in China → HuggingFace first (fails) → ModelScope (succeeds) for every file.
     expect(urls.some((u) => u.startsWith('https://huggingface.co'))).toBe(true)
     expect(urls.some((u) => u.startsWith('https://www.modelscope.cn'))).toBe(true)
     expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).toBe('local-paddleocr')

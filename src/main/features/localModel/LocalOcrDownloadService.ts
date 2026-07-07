@@ -9,8 +9,9 @@ import { LOCAL_MODELS, type RemoteModelFile } from '@main/ai/inference/localMode
 import { modelSourceOrder, resolveModelFileUrl } from '@main/ai/inference/modelSource'
 import { isLocalPaddleocrModelDownloaded, ocrModelDir, ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
 import { LocalModelDownloadService } from '@main/features/localModel/LocalModelDownloadService'
+import { regionService } from '@main/services/RegionService'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
-import { app, net } from 'electron'
+import { net } from 'electron'
 import { parse } from 'yaml'
 
 const logger = loggerService.withContext('LocalOcrDownloadService')
@@ -97,14 +98,15 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
     return { removed: true }
   }
 
-  /** Try each mirror (locale default first) in order; the first valid file wins. */
+  /** Try each mirror (region default first) in order; the first valid file wins. */
   private async downloadFile(
     file: RemoteModelFile,
     dest: string,
     signal: AbortSignal,
     onProgress: (fraction: number) => void
   ): Promise<void> {
-    const urls = modelSourceOrder(app.getLocale()).map((id) => resolveModelFileUrl(id, file.repo, file.remoteFile))
+    const inChina = await regionService.isInChina().catch(() => false)
+    const urls = modelSourceOrder(inChina).map((id) => resolveModelFileUrl(id, file.repo, file.remoteFile))
     let lastError: unknown
     for (const url of urls) {
       try {
@@ -122,7 +124,8 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
   /** Fetch the recognition model's inference.yml (mirror fallback) and write the parsed dict. */
   private async downloadDictionary(dest: string, signal: AbortSignal): Promise<void> {
     const { repo, sourceFile, minBytes } = LOCAL_MODELS.ocr.dictionary
-    const urls = modelSourceOrder(app.getLocale()).map((id) => resolveModelFileUrl(id, repo, sourceFile))
+    const inChina = await regionService.isInChina().catch(() => false)
+    const urls = modelSourceOrder(inChina).map((id) => resolveModelFileUrl(id, repo, sourceFile))
     let lastError: unknown
     for (const url of urls) {
       try {

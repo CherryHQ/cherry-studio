@@ -54,9 +54,10 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
   }
 
   protected async performDownload(signal: AbortSignal): Promise<void> {
+    const source = await currentModelSource()
     await application
       .get('EmbeddingInferenceHost')
-      .loadEmbedding(currentModelSource(), MODEL_REPO, MODEL_DTYPE, (p) => this.broadcastProgress(p), signal)
+      .loadEmbedding(source, MODEL_REPO, MODEL_DTYPE, (p) => this.broadcastProgress(p), signal)
     // Now that the weights are on disk, register the provider/model so the KB
     // embedding picker lists it (lazy equivalent of the old boot seeder).
     await registerLocalEmbeddingModel()

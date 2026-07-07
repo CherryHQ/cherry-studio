@@ -3,16 +3,14 @@ import { describe, expect, it } from 'vitest'
 import { defaultModelSourceId, getModelSource, modelSourceOrder, resolveModelFileUrl } from '../modelSource'
 
 describe('modelSource', () => {
-  it('defaults zh locales to ModelScope, everything else to HuggingFace', () => {
-    expect(defaultModelSourceId('zh-CN')).toBe('modelscope')
-    expect(defaultModelSourceId('ZH-tw')).toBe('modelscope')
-    expect(defaultModelSourceId('en-US')).toBe('huggingface')
-    expect(defaultModelSourceId('')).toBe('huggingface')
+  it('defaults to ModelScope when in China, HuggingFace otherwise', () => {
+    expect(defaultModelSourceId(true)).toBe('modelscope')
+    expect(defaultModelSourceId(false)).toBe('huggingface')
   })
 
-  it('orders mirrors with the locale default first and the other as fallback', () => {
-    expect(modelSourceOrder('zh-CN')).toEqual(['modelscope', 'huggingface'])
-    expect(modelSourceOrder('en-US')).toEqual(['huggingface', 'modelscope'])
+  it('orders mirrors with the region default first and the other as fallback', () => {
+    expect(modelSourceOrder(true)).toEqual(['modelscope', 'huggingface'])
+    expect(modelSourceOrder(false)).toEqual(['huggingface', 'modelscope'])
   })
 
   it('builds HuggingFace file URLs with the {model}/resolve/{revision} route', () => {
