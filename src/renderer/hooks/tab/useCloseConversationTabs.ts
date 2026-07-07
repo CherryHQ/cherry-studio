@@ -18,6 +18,7 @@ export function useCloseConversationTabs() {
       const keySet = new Set(keys)
       const tabIds: string[] = []
       for (const tab of tabsContext.tabs) {
+        if (tab.id === tabsContext.activeTabId) continue
         if (tab.type !== 'route' || !tabBelongsToApp(app, tab.url)) continue
 
         const key = getSidebarAppTabInstanceKey(app, tab)
@@ -26,7 +27,9 @@ export function useCloseConversationTabs() {
         }
       }
 
-      tabsContext.closeTabs(tabIds)
+      if (tabIds.length > 0) {
+        tabsContext.closeTabs(tabIds)
+      }
     },
     [tabsContext]
   )
