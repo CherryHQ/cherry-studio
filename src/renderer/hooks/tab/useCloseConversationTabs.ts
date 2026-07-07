@@ -27,9 +27,7 @@ export function useCloseConversationTabs() {
         }
       }
 
-      if (tabIds.length > 0) {
-        tabsContext.closeTabs(tabIds)
-      }
+      tabsContext.closeTabs(tabIds)
     },
     [tabsContext]
   )

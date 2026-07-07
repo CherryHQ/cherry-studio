@@ -154,7 +154,7 @@ describe('useCloseConversationTabs', () => {
     expect(closeTabs).toHaveBeenCalledWith(['background-topic-tab'])
   })
 
-  it('does not close anything when only the active tab matches', () => {
+  it('delegates an empty close list when only the active tab matches', () => {
     const closeTabs = vi.fn()
     const context = createTabsContext(
       [
@@ -176,7 +176,7 @@ describe('useCloseConversationTabs', () => {
       result.current('assistants', ['topic-a'])
     })
 
-    expect(closeTabs).not.toHaveBeenCalled()
+    expect(closeTabs).toHaveBeenCalledWith([])
   })
 
   it('keeps the active matching agent session tab open', () => {
