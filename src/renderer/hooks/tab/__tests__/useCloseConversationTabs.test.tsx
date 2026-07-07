@@ -178,4 +178,35 @@ describe('useCloseConversationTabs', () => {
 
     expect(closeTabs).not.toHaveBeenCalled()
   })
+
+  it('keeps the active matching agent session tab open', () => {
+    const closeTabs = vi.fn()
+    const context = createTabsContext(
+      [
+        {
+          id: 'active-session-tab',
+          type: 'route',
+          url: '/app/agents',
+          title: 'Active Session',
+          metadata: { instanceAppId: 'agents', instanceKey: 'session-a' }
+        },
+        {
+          id: 'background-session-tab',
+          type: 'route',
+          url: '/app/agents?sessionId=session-a',
+          title: 'Background Session'
+        }
+      ],
+      closeTabs,
+      'active-session-tab'
+    )
+
+    const { result } = renderHook(() => useCloseConversationTabs(), { wrapper: wrapperFor(context) })
+
+    act(() => {
+      result.current('agents', ['session-a'])
+    })
+
+    expect(closeTabs).toHaveBeenCalledWith(['background-session-tab'])
+  })
 })
