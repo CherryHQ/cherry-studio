@@ -72,7 +72,7 @@ Approval metadata dropped (decision #4). `AgentToolsType` derived from the regis
 ### Layer 3 — policy & MCP injection (main)
 - `useAgentTools.ts` + `agentTools.ts` source descriptors from the registry.
 - `settingsBuilder.buildToolPermissions()` → `resolveDisallowedTools(agent, ctx)`.
-- `settingsBuilder.buildMcpServers()` injects an in-process server iff ≥1 of its tools is effectively enabled (replaces the `if (soulEnabled)` gates; wires `skills`).
+- `settingsBuilder.buildMcpServers()` injects an in-process server iff ≥1 of its tools is effectively enabled (replaces the `if (soulEnabled)` gates). `skills` stays unmounted — `SkillsServer` is defined but injected nowhere.
 
 ## Enable/disable model
 
@@ -143,12 +143,12 @@ Future: media tools (image gen, audio/video) → `category:'media'`; notes → `
 - **PR-4 — edit-dialog UI: real enable/disable + category sections + cherry fold-in.** Toggle writes `disabledTools`; group by `category`; one switch per `pairGroup`; show only `exposure==='user'`; drop per-tool approve.
 - **PR-5 — i18n.** `agent.tools.<Key>.label/.description` in en/zh-cn/zh-tw; migrate `getAgentToolLabel`.
 - **PR-6 — render-registry unification + cleanup.** `TOOL_UI_BINDINGS` + registry-driven `ToolHeader`; delete `builtinTools.ts`.
-- **PR-7 — conditional exposure + in-process MCP de-soul-gating.** Introduce the `ctx` predicates (`workspace-has-git` via `.git` stat; `agent-has-channel` via `channelService`); enforce `conditional`. De-soul-gate claw/agent-memory; wire `skills`; inject servers per-tool-enabled; remove `SOUL_MODE_DISALLOWED_TOOLS` + soul server gates. **Behavior change** — explicit before/after, tested.
+- **PR-7 — conditional exposure + in-process MCP de-soul-gating.** Introduce the `ctx` predicates (`workspace-has-git` via `.git` stat; `agent-has-channel` via `channelService`); enforce `conditional`. De-soul-gate claw/agent-memory; inject servers per-tool-enabled; remove `SOUL_MODE_DISALLOWED_TOOLS` + soul server gates. (`skills` wiring deferred — `SkillsServer` stays defined-but-unmounted.) **Behavior change** — explicit before/after, tested.
 
 ## Risks
 
 - **`exposure:'disabled'` correctness (high):** WebSearch/WebFetch hard-disabled today; mis-encoding re-grants them. PR-2 snapshot assertion is the safety net.
-- **De-soul-gating + conditional (high):** PR-7 changes which agents see claw/memory/skills/worktree. Must be explicit + tested; existing soul agents keep their tools; conditional predicates must be cheap (cache `.git` stat / channel count per session build).
-- **`skills` newly wired:** confirm marketplace install/authoring is safe to expose (internal = on for every agent).
+- **De-soul-gating + conditional (high):** PR-7 changes which agents see claw/memory/worktree. Must be explicit + tested; existing soul agents keep their tools; conditional predicates must be cheap (cache `.git` stat / channel count per session build).
+- **`skills` wiring (deferred):** not wired in this pass — `SkillsServer` stays unmounted. If/when wired, confirm marketplace install/authoring is safe to expose (internal = on for every agent).
 - **Teams outside typed union:** `SendMessage`/`Team*` can't be union-guarded; need explicit `internal` entries + bindings or they fall to `UnknownToolRenderer`.
 - **Warm-query staleness (low):** `disabledTools`/`ctx` re-key the warm signature; applies next session, not mid-session.
