@@ -3767,6 +3767,7 @@
       "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",
+      "collapse": "Collapse",
       "completed": "Completed",
       "error": "Error occurred",
       "groupHeader": "{{count}} tool calls",
@@ -3811,6 +3812,7 @@
         "usingTools": "Working on the task"
       },
       "preview": "Preview",
+      "processed": "Processed",
       "raw": "Raw",
       "runningCount": "{{count}} tools running",
       "runningHeader": "Working…",
