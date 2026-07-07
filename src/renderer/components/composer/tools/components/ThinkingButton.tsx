@@ -1,3 +1,4 @@
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
   MdiLightbulbAutoOutline,
@@ -184,6 +185,10 @@ const useThinkingToolController = ({
         order: 60,
         label: t('assistants.settings.reasoning_effort.label'),
         description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'assistants.settings.reasoning_effort.label', [
+          'think',
+          'reasoning effort'
+        ]),
         disabledReason,
         icon: ThinkingIcon({ option: currentReasoningEffort }),
         active: isReasoningConfigurable && isThinkingEnabled,

@@ -19,7 +19,8 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
 }))
 
 const chatWriteMock = vi.hoisted(() => ({
-  editMessage: vi.fn()
+  editMessage: vi.fn(),
+  setActiveNode: vi.fn()
 }))
 
 vi.mock('@data/DataApiService', () => ({
@@ -227,11 +228,13 @@ const createTopic = (id: string): Topic =>
 
 function MessageListAdapterHarness({
   messages = [],
+  onStartBranchDraft,
   onValue,
   partsByMessageId = {},
   topic
 }: {
   messages?: CherryUIMessage[]
+  onStartBranchDraft?: MessageListProviderValue['actions']['startMessageBranch']
   onValue?: (value: MessageListProviderValue) => void
   partsByMessageId?: Record<string, CherryMessagePart[]>
   topic: Topic
@@ -239,7 +242,8 @@ function MessageListAdapterHarness({
   const value = useHomeMessageListProviderValue({
     topic,
     messages,
-    partsByMessageId
+    partsByMessageId,
+    onStartBranchDraft
   })
 
   useEffect(() => {
@@ -349,6 +353,25 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(chatWriteMock.editMessage).toHaveBeenCalledWith('message-1', [updatedPart])
     expect(dataApiService.patch).not.toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('code_block.edit.save.success')
+  })
+
+  it('starts message branches through the injected branch draft handler', async () => {
+    const onStartBranchDraft = vi.fn().mockResolvedValue(undefined)
+    let value: MessageListProviderValue | undefined
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        onStartBranchDraft={onStartBranchDraft}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await waitFor(() => expect(value).toBeDefined())
+    await value?.actions.startMessageBranch?.('assistant-old')
+
+    expect(onStartBranchDraft).toHaveBeenCalledWith('assistant-old')
+    expect(chatWriteMock.setActiveNode).not.toHaveBeenCalled()
   })
 
   it('shows an error when saving code block edits through chat write fails', async () => {

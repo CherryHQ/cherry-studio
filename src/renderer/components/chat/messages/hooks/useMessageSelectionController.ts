@@ -67,6 +67,9 @@ export function useMessageSelectionController({
 
   useEffect(() => {
     toggleMultiSelectMode(false)
+    return () => {
+      toggleMultiSelectMode(false)
+    }
   }, [topicId, toggleMultiSelectMode])
 
   const selectMessage = useCallback(

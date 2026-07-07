@@ -184,11 +184,15 @@ const TopicBranchPanel: FC<Props> = ({
       contextMenuMessageIdRef.current = null
       if (!messageId) return []
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
+      const canShowStartBranch = !!onStartBranchDraft && selectedNode?.data.role === 'assistant'
       const canStartBranch =
-        !!onStartBranchDraft &&
-        selectedNode?.data.role === 'assistant' &&
-        !!selectedNode.data.hasAssistantDescendant &&
-        messageId !== graph.activeNodeId
+        canShowStartBranch && !!selectedNode.data.hasAssistantDescendant && messageId !== graph.activeNodeId
+      const startBranchDisabledReason =
+        canShowStartBranch && !canStartBranch
+          ? messageId === graph.activeNodeId
+            ? t('chat.message.new.branch.disabled.active')
+            : t('chat.message.new.branch.disabled.no_follow_up')
+          : undefined
 
       const actions: ResolvedAction[] = [
         {
@@ -199,8 +203,9 @@ const TopicBranchPanel: FC<Props> = ({
           group: 'branch',
           danger: false,
           availability: {
-            visible: canStartBranch,
-            enabled: true
+            visible: canShowStartBranch,
+            enabled: canStartBranch,
+            reason: startBranchDisabledReason
           },
           children: []
         },

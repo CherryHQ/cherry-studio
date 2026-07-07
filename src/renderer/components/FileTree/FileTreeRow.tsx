@@ -79,7 +79,6 @@ export function FileTreeRow(props: FileTreeRowProps) {
       data-node-id={node.id}
       data-kind={node.kind}
       onClick={handleRowClick}
-      onContextMenu={(e) => e.stopPropagation()}
       title={node.name}
       style={indent}
       className={cn(

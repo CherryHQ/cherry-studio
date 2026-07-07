@@ -17,6 +17,7 @@ import { buildEditorUrl } from '@renderer/utils/editor'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
+import { cn } from '@renderer/utils/style'
 import type { ExternalAppId, ExternalAppInfo } from '@shared/types/externalApp'
 import { ChevronDown, FileText, FolderOpen } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
@@ -24,6 +25,8 @@ import { useTranslation } from 'react-i18next'
 
 const FILE_MANAGER_TARGET = 'file_manager' as const
 const TOOLBAR_BUTTON_CLASS = 'text-muted-foreground hover:bg-accent hover:text-foreground'
+const SPLIT_BUTTON_GROUP_CLASS = 'h-8 overflow-hidden rounded-md border border-border-subtle'
+const SPLIT_BUTTON_CLASS = 'h-full rounded-none p-0'
 
 type OpenExternalAppButtonProps = {
   workdir: string
@@ -123,11 +126,11 @@ const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalApp
     const primaryLabel = t('common.open_in', { name: defaultAppName })
 
     return (
-      <ButtonGroup className={className}>
+      <ButtonGroup attached={false} className={cn(SPLIT_BUTTON_GROUP_CLASS, 'gap-0', className)}>
         <NormalTooltip content={primaryLabel} delayDuration={500}>
           <Button
             type="button"
-            className={`h-7 w-8 min-w-8 border-r-0 p-0 ${TOOLBAR_BUTTON_CLASS}`}
+            className={`w-8 min-w-8 ${SPLIT_BUTTON_CLASS} ${TOOLBAR_BUTTON_CLASS}`}
             variant="ghost"
             size="icon-sm"
             aria-label={primaryLabel}
@@ -139,7 +142,7 @@ const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalApp
           <PopoverTrigger asChild>
             <Button
               type="button"
-              className={`h-7 w-6 min-w-6 p-0 ${TOOLBAR_BUTTON_CLASS}`}
+              className={`w-6 min-w-6 ${SPLIT_BUTTON_CLASS} ${TOOLBAR_BUTTON_CLASS}`}
               variant="ghost"
               size="icon-sm"
               aria-label={t('common.more')}>
@@ -186,11 +189,11 @@ const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalApp
   }
 
   return (
-    <ButtonGroup className={className}>
+    <ButtonGroup attached={false} className={cn(SPLIT_BUTTON_GROUP_CLASS, 'gap-0', className)}>
       <NormalTooltip content={primaryLabel} delayDuration={500}>
         <Button
           type="button"
-          className={`h-7 w-8 min-w-8 border-r-0 p-0 ${TOOLBAR_BUTTON_CLASS}`}
+          className={`w-8 min-w-8 ${SPLIT_BUTTON_CLASS} ${TOOLBAR_BUTTON_CLASS}`}
           variant="ghost"
           size="icon-sm"
           aria-label={primaryLabel}
@@ -202,7 +205,7 @@ const OpenExternalAppButton = ({ workdir, filePath, className }: OpenExternalApp
         <PopoverTrigger asChild>
           <Button
             type="button"
-            className={`h-7 w-6 min-w-6 p-0 ${TOOLBAR_BUTTON_CLASS}`}
+            className={`w-6 min-w-6 ${SPLIT_BUTTON_CLASS} ${TOOLBAR_BUTTON_CLASS}`}
             variant="ghost"
             size="icon-sm"
             aria-label={t('common.more')}>

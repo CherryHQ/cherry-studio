@@ -234,12 +234,36 @@ export function useSkillSearch() {
  * Hook for installing a skill from search results.
  */
 export function useSkillInstall() {
-  const [installingKey, setInstallingKey] = useState<string | null>(null)
+  const [installingCounts, setInstallingCounts] = useState<Map<string, number>>(() => new Map())
   const invalidate = useInvalidateCache()
+  const installingKey = useMemo(() => installingCounts.keys().next().value ?? null, [installingCounts])
+
+  const beginInstalling = useCallback((key: string) => {
+    setInstallingCounts((current) => {
+      const next = new Map(current)
+      next.set(key, (next.get(key) ?? 0) + 1)
+      return next
+    })
+  }, [])
+
+  const finishInstalling = useCallback((key: string) => {
+    setInstallingCounts((current) => {
+      const count = current.get(key) ?? 0
+      if (count <= 0) return current
+
+      const next = new Map(current)
+      if (count === 1) {
+        next.delete(key)
+      } else {
+        next.set(key, count - 1)
+      }
+      return next
+    })
+  }, [])
 
   const install = useCallback(
     async (installSource: string): Promise<{ skill: InstalledSkill | null; error?: string }> => {
-      setInstallingKey(installSource)
+      beginInstalling(installSource)
       try {
         const skill = unwrapSkillResult(await window.api.skill.install({ installSource }))
         await refreshSkillsBestEffort(invalidate)
@@ -247,15 +271,15 @@ export function useSkillInstall() {
       } catch (err) {
         return { skill: null, error: skillErrorMessage(err) }
       } finally {
-        setInstallingKey(null)
+        finishInstalling(installSource)
       }
     },
-    [invalidate]
+    [beginInstalling, finishInstalling, invalidate]
   )
 
   const installFromZip = useCallback(
     async (zipFilePath: string): Promise<InstalledSkill | null> => {
-      setInstallingKey('zip')
+      beginInstalling('zip')
       try {
         const skill = unwrapSkillResult(await window.api.skill.installFromZip({ zipFilePath }))
         await refreshSkillsBestEffort(invalidate)
@@ -263,15 +287,15 @@ export function useSkillInstall() {
       } catch (error) {
         reportAndRethrowSkillMutationError('install skill from zip', error)
       } finally {
-        setInstallingKey(null)
+        finishInstalling('zip')
       }
     },
-    [invalidate]
+    [beginInstalling, finishInstalling, invalidate]
   )
 
   const installFromDirectory = useCallback(
     async (directoryPath: string): Promise<InstalledSkill | null> => {
-      setInstallingKey('directory')
+      beginInstalling('directory')
       try {
         const skill = unwrapSkillResult(await window.api.skill.installFromDirectory({ directoryPath }))
         await refreshSkillsBestEffort(invalidate)
@@ -279,19 +303,18 @@ export function useSkillInstall() {
       } catch (error) {
         reportAndRethrowSkillMutationError('install skill from directory', error)
       } finally {
-        setInstallingKey(null)
+        finishInstalling('directory')
       }
     },
-    [invalidate]
+    [beginInstalling, finishInstalling, invalidate]
   )
 
   const isInstalling = useCallback(
     (key?: string) => {
-      if (!installingKey) return false
-      if (!key) return !!installingKey
-      return installingKey === key
+      if (!key) return installingCounts.size > 0
+      return installingCounts.has(key)
     },
-    [installingKey]
+    [installingCounts]
   )
 
   return { installingKey, isInstalling, install, installFromZip, installFromDirectory }

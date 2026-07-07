@@ -83,7 +83,6 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 
 vi.mock('@renderer/hooks/useConversationNavigation', () => ({
   useConversationNavigation: () => ({
-    focusExistingTab: vi.fn(),
     openConversationTab: hookMocks.openConversationTab
   })
 }))

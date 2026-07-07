@@ -27,6 +27,13 @@ vi.mock('@data/DataApiService', () => ({
 
 vi.mock('@renderer/components/command', async () => {
   const React = await import('react')
+  type MockExtraItem = {
+    id?: string
+    label?: string
+    enabled?: boolean
+    description?: React.ReactNode
+    onSelect?: () => void
+  }
 
   return {
     CommandContextMenu: ({
@@ -35,10 +42,10 @@ vi.mock('@renderer/components/command', async () => {
       onOpenChange
     }: {
       children: React.ReactNode
-      getExtraItems?: (event: React.MouseEvent) => Array<{ id: string; label?: string; onSelect?: () => void }>
+      getExtraItems?: (event: React.MouseEvent) => MockExtraItem[]
       onOpenChange?: (open: boolean) => void
     }) => {
-      const [items, setItems] = React.useState<Array<{ id: string; label?: string; onSelect?: () => void }>>([])
+      const [items, setItems] = React.useState<MockExtraItem[]>([])
       return (
         <div
           data-testid="topic-branch-context-menu-host"
@@ -53,6 +60,8 @@ vi.mock('@renderer/components/command', async () => {
               <button
                 key={item.id}
                 type="button"
+                disabled={item.enabled === false}
+                data-description={typeof item.description === 'string' ? item.description : undefined}
                 onClick={() => {
                   item.onSelect?.()
                   onOpenChange?.(false)
@@ -574,7 +583,7 @@ describe('TopicBranchPanel', () => {
     expect(mocks.refetchTree).toHaveBeenCalled()
   })
 
-  it('hides the branch action for the latest assistant node but keeps copy-as-topic available', async () => {
+  it('shows a disabled branch action for assistant nodes without follow-up', async () => {
     mocks.useQuery.mockReturnValue({
       data: {
         activeNodeId: 'user-2',
@@ -617,11 +626,60 @@ describe('TopicBranchPanel', () => {
       refetch: mocks.refetchTree
     })
 
-    render(<TopicBranchPanel open={true} topicId="topic-1" />)
+    render(<TopicBranchPanel open={true} topicId="topic-1" onStartBranchDraft={mocks.startBranchDraft} />)
 
     fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-assistant-1'))
 
-    expect(screen.queryByRole('button', { name: 'chat.message.new.branch.label' })).not.toBeInTheDocument()
+    const branchButton = await screen.findByRole('button', { name: 'chat.message.new.branch.label' })
+    expect(branchButton).toBeDisabled()
+    expect(branchButton).toHaveAttribute('data-description', 'chat.message.new.branch.disabled.no_follow_up')
+    fireEvent.click(branchButton)
+    expect(mocks.startBranchDraft).not.toHaveBeenCalled()
+    expect(await screen.findByRole('button', { name: 'chat.message.flow.copy_topic.label' })).toBeInTheDocument()
+  })
+
+  it('shows a disabled branch action for the active assistant node', async () => {
+    mocks.useQuery.mockReturnValue({
+      data: {
+        activeNodeId: 'assistant-1',
+        nodes: [
+          {
+            id: 'user-1',
+            parentId: null,
+            role: 'user',
+            preview: 'Question',
+            modelId: null,
+            status: 'success',
+            createdAt: '2026-05-22T00:00:00.000Z',
+            hasChildren: true
+          },
+          {
+            id: 'assistant-1',
+            parentId: 'user-1',
+            role: 'assistant',
+            preview: 'Latest answer',
+            modelId: null,
+            status: 'success',
+            createdAt: '2026-05-22T00:00:01.000Z',
+            hasChildren: false
+          }
+        ],
+        siblingsGroups: []
+      },
+      error: undefined,
+      isLoading: false,
+      refetch: mocks.refetchTree
+    })
+
+    render(<TopicBranchPanel open={true} topicId="topic-1" onStartBranchDraft={mocks.startBranchDraft} />)
+
+    fireEvent.contextMenu(screen.getByTestId('topic-message-flow-node-assistant-1'))
+
+    const branchButton = await screen.findByRole('button', { name: 'chat.message.new.branch.label' })
+    expect(branchButton).toBeDisabled()
+    expect(branchButton).toHaveAttribute('data-description', 'chat.message.new.branch.disabled.active')
+    fireEvent.click(branchButton)
+    expect(mocks.startBranchDraft).not.toHaveBeenCalled()
     expect(await screen.findByRole('button', { name: 'chat.message.flow.copy_topic.label' })).toBeInTheDocument()
   })
 
