@@ -12,10 +12,29 @@
  * equivalent are unsupported for pi agents.
  */
 
+import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
+import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isExternalCliProvider } from '@shared/utils/provider'
+import { isLoginBasedProvider } from '@shared/utils/provider'
+
+/**
+ * Login-based providers Cherry can still drive through pi via a per-request
+ * "transport adapter" (main-side: `src/main/ai/provider/runtimeTransport.ts`):
+ * their OAuth token, provider headers, and payload rewrite are injected at
+ * stream time, so unlike an external-CLI login (`claude-code`) they DO fit pi's
+ * provider model. This id list is the pure, cross-process source of truth; the
+ * main-side adapter registry keys off the SAME ids (its record type is derived
+ * from this const, so the two cannot drift). Kept as a tuple so that derivation
+ * stays exhaustive.
+ */
+export const PI_TRANSPORT_ADAPTER_PROVIDER_IDS = [GROK_CLI_PROVIDER_ID, OPENAI_CODEX_PROVIDER_ID] as const
+
+/** Whether the provider is a login-based provider Cherry can drive via a pi transport adapter. */
+export function hasPiTransportAdapter(providerId: string): boolean {
+  return (PI_TRANSPORT_ADAPTER_PROVIDER_IDS as readonly string[]).includes(providerId)
+}
 
 /**
  * The subset of pi's `KnownApi` families Cherry can drive in v1. Kept as a
@@ -89,11 +108,13 @@ function resolveEndpointType(provider: Provider, model: Model): EndpointType | u
 
 /** Resolve the pi `api` family for a Cherry provider+model, or `undefined` if unsupported. */
 export function resolvePiApi(provider: Provider, model: Model): PiApi | undefined {
-  // External-CLI providers (e.g. `claude-code`) authenticate through their own
-  // CLI login and hold no app-side API key, so — like Bedrock/Vertex above —
-  // they cannot fit pi's apiKey/baseUrl `registerProvider` model. They are
-  // usable only by the runtime that owns the CLI.
-  if (isExternalCliProvider(provider)) return undefined
+  // Login-based providers hold no plain app-side API key. An external-CLI login
+  // (`claude-code`) reuses a CLI's own stored session and cannot be injected, so
+  // it stays unsupported like Bedrock/Vertex above. App-managed OAuth providers
+  // (`grok-cli`/`openai-codex`), however, have a pi transport adapter that
+  // injects their OAuth token + provider headers + payload rewrite per request —
+  // so they ARE drivable and fall through to the normal endpoint mapping.
+  if (isLoginBasedProvider(provider) && !hasPiTransportAdapter(provider.id)) return undefined
   const endpointType = resolveEndpointType(provider, model)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   return mapEndpointToPiApi(endpointType, adapterFamily)

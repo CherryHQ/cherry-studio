@@ -13,22 +13,27 @@ export interface CodexCredentials {
 }
 
 /**
- * Coerce the OpenAI Responses request body into the shape the ChatGPT codex
- * backend requires: server-side `store` is rejected, response length caps are
- * not accepted, and with store off the encrypted reasoning must be included so
- * it round-trips across turns. Bodies that are not JSON strings (shouldn't
- * happen for responses) pass through untouched.
+ * Rewrite a parsed OpenAI Responses payload (mutated in place and returned) into
+ * the shape the ChatGPT codex backend requires: server-side `store` is rejected,
+ * response length caps are not accepted, and encrypted reasoning must round-trip.
+ */
+export function coerceCodexRequestJson(json: Record<string, any>): Record<string, any> {
+  json.store = false
+  delete json.max_output_tokens
+  const include = new Set<string>(Array.isArray(json.include) ? json.include : [])
+  include.add(CODEX_REASONING_INCLUDE)
+  json.include = [...include]
+  return json
+}
+
+/**
+ * Coerce a serialized Responses body via {@link coerceCodexRequestJson}.
+ * Non-JSON bodies pass through untouched.
  */
 export function coerceCodexRequestBody(body: BodyInit | null | undefined): BodyInit | null | undefined {
   if (typeof body !== 'string') return body
   try {
-    const json = JSON.parse(body)
-    json.store = false
-    delete json.max_output_tokens
-    const include = new Set<string>(Array.isArray(json.include) ? json.include : [])
-    include.add(CODEX_REASONING_INCLUDE)
-    json.include = [...include]
-    return JSON.stringify(json)
+    return JSON.stringify(coerceCodexRequestJson(JSON.parse(body)))
   } catch {
     return body
   }

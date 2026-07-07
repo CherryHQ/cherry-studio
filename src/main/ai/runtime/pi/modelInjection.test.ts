@@ -162,4 +162,37 @@ describe('buildPiProviderInjection', () => {
 
     expect(() => buildPiProviderInjection(provider, makeModel({}), REAL_KEY)).toThrow(PiUnsupportedProviderError)
   })
+
+  it('attaches a transport adapter for an app-managed-OAuth provider and keeps the placeholder key', () => {
+    const provider = makeProvider({
+      id: 'grok-cli',
+      name: 'Grok CLI',
+      authMethods: ['oauth'],
+      defaultChatEndpoint: 'openai-responses',
+      endpointConfigs: { 'openai-responses': { adapterFamily: 'grok', baseUrl: 'https://cli-chat-proxy.grok.com/v1' } }
+    })
+    // The connect-time key is only the placeholder; the real token comes from the adapter per call.
+    const injection = buildPiProviderInjection(
+      provider,
+      makeModel({ id: 'grok-cli::grok-build', apiModelId: 'grok-build' }),
+      PI_PLACEHOLDER_API_KEY
+    )
+
+    expect(injection.transportAdapter).toBeDefined()
+    expect(injection.providerConfig.api).toBe('openai-responses')
+    expect(injection.providerConfig.apiKey).toBe(PI_PLACEHOLDER_API_KEY)
+    expect(injection.modelId).toBe('grok-build')
+  })
+
+  it('throws PiUnsupportedProviderError for a login-based external-CLI provider even with no key', () => {
+    // Unsupported beats missing-key: claude-code has no adapter and no app-side key by design.
+    const provider = makeProvider({
+      id: 'claude-code',
+      authMethods: ['external-cli'],
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' } }
+    })
+
+    expect(() => buildPiProviderInjection(provider, makeModel({}), '')).toThrow(PiUnsupportedProviderError)
+  })
 })

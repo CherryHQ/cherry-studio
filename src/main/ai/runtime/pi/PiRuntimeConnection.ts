@@ -32,9 +32,10 @@ import type {
 import { createPiApprovalExtension } from './approvalExtension'
 import { resolvePiProviderInjection } from './modelInjection'
 import { buildMcpToolDefinitions } from './piMcpToolAdapter'
-import { loadPiSdk } from './piSdk'
+import { loadPiAi, loadPiOpenAiResponsesApi, loadPiSdk } from './piSdk'
 import { PiStreamAdapter } from './piStreamAdapter'
 import { AUTONOMY_TOOL_NAMES, buildAutonomyToolDefinitions } from './piToolAdapter'
+import { type PiAiStreamFns, withTransportStream } from './piTransportStream'
 import { createPiProviderExtension } from './providerExtension'
 
 const logger = loggerService.withContext('PiRuntimeConnection')
@@ -103,13 +104,21 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     const pi = await loadPiSdk()
 
+    // App-managed-OAuth providers register a `streamSimple` that injects a fresh
+    // OAuth token + provider headers + payload rewrite per call (the placeholder
+    // key is never used for auth). pi's api-family stream functions must be
+    // in-hand before the sync `streamSimple` is invoked, so load them here.
+    const providerConfig = injection.transportAdapter
+      ? withTransportStream(injection.providerConfig, injection.transportAdapter, await loadPiAiStreamFns())
+      : injection.providerConfig
+
     // Cherry owns the credential + model registry: in-memory only, never pi's
     // global auth.json/models.json. The real key is a runtime override; the
     // registered provider config carries only the placeholder (plan D1).
     const authStorage = pi.AuthStorage.inMemory()
     authStorage.setRuntimeApiKey(injection.providerName, injection.apiKey)
     const modelRegistry = pi.ModelRegistry.inMemory(authStorage)
-    modelRegistry.registerProvider(injection.providerName, injection.providerConfig)
+    modelRegistry.registerProvider(injection.providerName, providerConfig)
     const model = modelRegistry.find(injection.providerName, injection.modelId)
     if (!model) {
       throw new Error(`pi model ${injection.providerName}/${injection.modelId} could not be resolved after injection`)
@@ -147,7 +156,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       noContextFiles: false,
       additionalSkillPaths,
       extensionFactories: [
-        createPiProviderExtension(injection.providerName, injection.providerConfig),
+        createPiProviderExtension(injection.providerName, providerConfig),
         createPiApprovalExtension({
           sessionId: this.input.sessionId,
           workspacePath,
@@ -447,6 +456,17 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     this.resumeToken = token
     this.eventQueue.push({ type: 'resume-token', token })
   }
+}
+
+/**
+ * Load the pi-ai api-family stream functions a transport-adapter provider needs.
+ * Both adapter providers (grok-cli, openai-codex) speak the openai-responses
+ * surface, so only that family is loaded (simplification ceiling: map by
+ * `providerConfig.api` if a non-responses adapter provider is ever added).
+ */
+async function loadPiAiStreamFns(): Promise<PiAiStreamFns> {
+  const [piAi, responsesApi] = await Promise.all([loadPiAi(), loadPiOpenAiResponsesApi()])
+  return { lazyStream: piAi.lazyStream, apiStreamSimple: responsesApi.streamSimple }
 }
 
 /**

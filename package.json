@@ -97,6 +97,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.185",
+    "@earendil-works/pi-ai": "0.80.3",
     "@earendil-works/pi-coding-agent": "0.80.3",
     "@expo/sudo-prompt": "^9.3.2",
     "@huggingface/transformers": "4.2.0",

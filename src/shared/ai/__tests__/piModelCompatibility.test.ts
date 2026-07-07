@@ -95,4 +95,20 @@ describe('resolvePiApi', () => {
     expect(resolvePiApi(provider, makeModel({}))).toBeUndefined()
     expect(isPiCompatibleModel(provider, makeModel({}))).toBe(false)
   })
+
+  it.each([
+    ['grok-cli', 'grok'],
+    ['openai-codex', 'openai']
+  ])('accepts the app-managed-OAuth provider %s via its transport adapter', (providerId, adapterFamily) => {
+    // Login-based (authMethods declared, no api-key) but adapter-backed, so pi
+    // CAN drive it on its openai-responses endpoint.
+    const provider = makeProvider({
+      id: providerId,
+      authMethods: ['oauth'],
+      defaultChatEndpoint: 'openai-responses',
+      endpointConfigs: { 'openai-responses': { adapterFamily } }
+    })
+    expect(resolvePiApi(provider, makeModel({}))).toBe('openai-responses')
+    expect(isPiCompatibleModel(provider, makeModel({}))).toBe(true)
+  })
 })

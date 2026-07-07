@@ -10,6 +10,7 @@
  * `AuthStorage.setRuntimeApiKey(providerName, apiKey)` (Phase 2).
  */
 
+import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import type { ProviderConfig, ProviderModelConfig } from '@earendil-works/pi-coding-agent'
@@ -24,6 +25,7 @@ import {
 import type { Provider } from '@shared/data/types/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
+import { getProviderTransportAdapter, type ProviderTransportAdapter } from '../../provider/runtimeTransport'
 
 /**
  * Non-secret placeholder written into the `registerProvider` config. pi
@@ -69,6 +71,12 @@ export interface PiProviderInjection {
   apiKey: string
   /** The pi model id to select for the session (Cherry's `apiModelId`). */
   modelId: string
+  /**
+   * Present for app-managed-OAuth providers. When set, the connection wires a
+   * `streamSimple` onto the pi provider config that fetches per-call OAuth creds
+   * from this adapter; `apiKey` is then only the placeholder (no real app-side key).
+   */
+  transportAdapter?: ProviderTransportAdapter
 }
 
 /**
@@ -79,12 +87,17 @@ export interface PiProviderInjection {
  * @throws PiUnsupportedProviderError when the provider's endpoint has no pi mapping.
  */
 export function buildPiProviderInjection(provider: Provider, model: Model, apiKey: string): PiProviderInjection {
-  if (!apiKey.trim()) throw new PiMissingApiKeyError(provider.id)
-
+  // Unsupported-provider beats missing-key: a login-based provider (grok-cli,
+  // claude-code) has no key by design, and "missing API key" would misdiagnose it.
   const api = resolvePiApi(provider, model)
   if (!api) {
     throw new PiUnsupportedProviderError(provider.id)
   }
+  // Transport-adapter (app-managed-OAuth) providers authenticate per stream call
+  // via the adapter; the connect-time `apiKey` is only the placeholder, so the
+  // empty-key guard does not apply to them.
+  const transportAdapter = getProviderTransportAdapter(provider.id)
+  if (!transportAdapter && !apiKey.trim()) throw new PiMissingApiKeyError(provider.id)
 
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
   const modelId = model.apiModelId ?? model.id
@@ -98,7 +111,13 @@ export function buildPiProviderInjection(provider: Provider, model: Model, apiKe
     models: [modelConfig]
   }
 
-  return { providerName: provider.id, providerConfig, apiKey, modelId }
+  return {
+    providerName: provider.id,
+    providerConfig,
+    apiKey,
+    modelId,
+    ...(transportAdapter ? { transportAdapter } : {})
+  }
 }
 
 /**
@@ -109,11 +128,19 @@ export function buildPiProviderInjection(provider: Provider, model: Model, apiKe
  */
 export async function resolvePiProviderInjection(uniqueModelId: UniqueModelId): Promise<PiProviderInjection> {
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const [provider, model, apiKey] = await Promise.all([
+  const [provider, model] = await Promise.all([
     providerService.getByProviderId(providerId),
-    modelService.getByKey(providerId, modelId),
-    providerService.getRotatedApiKey(providerId)
+    modelService.getByKey(providerId, modelId)
   ])
+
+  // Transport-adapter providers hold no app-side key: the real OAuth token is
+  // fetched per stream call by the adapter. Skip the round-robin key rotation
+  // entirely and register with the non-secret placeholder.
+  if (getProviderTransportAdapter(providerId)) {
+    return buildPiProviderInjection(provider, model, PI_PLACEHOLDER_API_KEY)
+  }
+
+  const apiKey = providerService.getRotatedApiKey(providerId)
   if (!apiKey.trim()) throw new PiMissingApiKeyError(providerId)
   return buildPiProviderInjection(provider, model, apiKey)
 }
@@ -125,14 +152,26 @@ export async function resolvePiProviderInjection(uniqueModelId: UniqueModelId): 
  */
 export async function assertPiProviderUsable(uniqueModelId: UniqueModelId): Promise<void> {
   const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  const [provider, model, apiKeys] = await Promise.all([
+  const [provider, model] = await Promise.all([
     providerService.getByProviderId(providerId),
-    modelService.getByKey(providerId, modelId),
-    providerService.getApiKeys(providerId, { enabled: true })
+    modelService.getByKey(providerId, modelId)
   ])
 
-  if (!apiKeys.some((entry) => entry.key.trim())) throw new PiMissingApiKeyError(providerId)
+  // Unsupported beats missing-credential (parity with buildPiProviderInjection):
+  // a login-based provider with no adapter has no key by design, and reporting
+  // "missing API key" for it would misdiagnose an unsupported provider.
   if (!resolvePiApi(provider, model)) throw new PiUnsupportedProviderError(providerId)
+
+  // Transport-adapter providers validate the OAuth session (cheap `hasToken`),
+  // not app-side keys; a signed-out provider is surfaced as a missing credential.
+  if (getProviderTransportAdapter(providerId)) {
+    const signedIn = await application.get('OAuthRuntimeService').hasToken(providerId)
+    if (!signedIn) throw new PiMissingApiKeyError(providerId)
+    return
+  }
+
+  const apiKeys = providerService.getApiKeys(providerId, { enabled: true })
+  if (!apiKeys.some((entry) => entry.key.trim())) throw new PiMissingApiKeyError(providerId)
 }
 
 function buildPiModelConfig(model: Model, id: string, api: PiApi): ProviderModelConfig {
