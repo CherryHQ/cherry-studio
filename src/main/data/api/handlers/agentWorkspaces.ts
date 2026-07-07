@@ -35,8 +35,7 @@ export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
       return agentWorkspaceService.update(params.workspaceId, parsed.data)
     },
     DELETE: async ({ params }) => {
-      agentSessionService.deleteWorkspaceCascade(params.workspaceId)
-      return undefined
+      return agentSessionService.deleteWorkspaceCascade(params.workspaceId)
     }
   },
 

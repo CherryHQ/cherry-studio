@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type * as RouteTitle from '@renderer/utils/routeTitle'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useEffect, useRef } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -97,6 +97,39 @@ function PinnedRouteTitle() {
 function TabIds() {
   const { tabs } = useTabsContext()
   return <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+}
+
+function BatchCloseControls() {
+  const { activeTabId, addTab, closeTabs, setActiveTab, tabs } = useTabsContext()
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          for (const id of ['b', 'c', 'd']) {
+            addTab({
+              id,
+              type: 'route',
+              url: `/app/chat?topicId=${id}`,
+              title: id.toUpperCase(),
+              lastAccessTime: 0,
+              isDormant: false
+            })
+          }
+        }}>
+        Seed tabs
+      </button>
+      <button type="button" onClick={() => setActiveTab('c')}>
+        Activate C
+      </button>
+      <button type="button" onClick={() => closeTabs(['b', 'c'])}>
+        Close B and C
+      </button>
+      <div data-testid="active-tab-id">{activeTabId}</div>
+      <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+    </>
+  )
 }
 
 function TabSnapshot() {
@@ -258,6 +291,33 @@ describe('TabsProvider', () => {
 
     expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home')
     await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalledWith([PINNED_FILES_TAB]))
+  })
+
+  it('closes active and adjacent tabs atomically when closing a batch', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}>
+        <BatchCloseControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,b,c,d'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate C' }))
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close B and C' }))
+
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,d'))
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home')
   })
 
   it('opens launchpad when closing the only tab', async () => {
