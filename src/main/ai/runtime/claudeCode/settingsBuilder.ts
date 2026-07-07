@@ -637,7 +637,7 @@ async function buildToolPermissions(
 }> {
   const agentConfig = agent.configuration
   const isAssistant = agentConfig?.builtin_role === 'assistant'
-  const isHeadless = options.headless === true || Boolean(channelService.findBySessionId(session.id))
+  const isHeadless = options.headless === true
 
   // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
