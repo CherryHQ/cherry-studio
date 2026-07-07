@@ -1,5 +1,6 @@
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import { analyzeMessagesContent, processMessagesContent } from '@renderer/services/knowledgeContent'
 import type { FileMetadata } from '@renderer/types/file'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -59,7 +60,20 @@ vi.mock('@renderer/utils/knowledge', () => ({
 }))
 
 vi.mock('@renderer/services/knowledgeContent', () => ({
+  analyzeMessagesContent: vi.fn(() => ({
+    text: 0,
+    code: 0,
+    thinking: 0,
+    images: 0,
+    files: 0,
+    tools: 0,
+    citations: 0,
+    translations: 0,
+    errors: 0,
+    messages: 0
+  })),
   analyzeTopicContent: vi.fn(),
+  processMessagesContent: vi.fn(),
   processTopicContent: vi.fn()
 }))
 
@@ -189,6 +203,62 @@ describe('SaveToKnowledgePopup', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('keeps the dialog title separate from the message group source title', async () => {
+    const { default: SaveToKnowledgePopup } = await import('../SaveToKnowledgePopup')
+    const message = createMessageWithFiles([])
+
+    void SaveToKnowledgePopup.showForMessages([message], 'Session title')
+    const rendered = mocks.TopView.show.mock.calls[0][0] as React.ReactNode
+
+    render(<>{rendered}</>)
+
+    expect(screen.getByRole('heading', { name: 'chat.save.topic.knowledge.title' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Session title' })).not.toBeInTheDocument()
+    expect(screen.getByText('chat.save.topic.knowledge.empty.no_content')).toBeInTheDocument()
+  })
+
+  it('uses the translated conversation fallback for blank message group source titles', async () => {
+    const message = createMessageWithFiles([])
+
+    ;(analyzeMessagesContent as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+      text: 1,
+      code: 0,
+      thinking: 0,
+      images: 0,
+      files: 0,
+      tools: 0,
+      citations: 0,
+      translations: 0,
+      errors: 0,
+      messages: 1
+    })
+    ;(processMessagesContent as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+      text: 'Saved conversation',
+      files: []
+    })
+
+    const promise = SaveToKnowledgePopup.showForMessages([message], '   ')
+    const rendered = mocks.TopView.show.mock.calls[0][0] as React.ReactNode
+
+    render(<>{rendered}</>)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+
+    await waitFor(() =>
+      expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
+        {
+          type: 'note',
+          data: {
+            source: 'chat.save.topic.knowledge.source_fallback',
+            content: 'Saved conversation'
+          }
+        }
+      ])
+    )
+    await expect(promise).resolves.toEqual({ success: true, savedCount: 1 })
   })
 
   it('saves resolvable files and warns about failed files', async () => {

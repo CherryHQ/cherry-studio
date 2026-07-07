@@ -15,12 +15,12 @@ import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import type { GetAgentResponse } from '@renderer/types/agent'
+import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { isToolUIPart } from 'ai'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 
@@ -180,13 +180,10 @@ export function useAgentChatRuntimeState({
     [chat, deleteSessionMessage]
   )
 
-  const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(() => {
-    const modelString = activeAgent?.model
-    if (!isUniqueModelId(modelString)) return undefined
-    const { providerId, modelId } = parseUniqueModelId(modelString)
-    if (!providerId || !modelId) return undefined
-    return { id: modelId, name: activeAgent?.modelName ?? modelId, provider: providerId }
-  }, [activeAgent?.model, activeAgent?.modelName])
+  const fallbackSnapshot = useMemo(
+    () => getAgentModelFallbackSnapshot({ model: activeAgent?.model, modelName: activeAgent?.modelName }),
+    [activeAgent?.model, activeAgent?.modelName]
+  )
 
   const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
     const next: Record<string, CherryMessagePart[]> = {}
