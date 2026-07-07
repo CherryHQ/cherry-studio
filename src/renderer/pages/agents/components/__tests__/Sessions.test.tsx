@@ -257,6 +257,7 @@ const cacheMocks = vi.hoisted(() => ({
 }))
 
 const tabsContextMocks = vi.hoisted(() => ({
+  closeConversationTabs: vi.fn(),
   openTab: vi.fn(),
   setActiveTab: vi.fn(),
   tabs: [] as Array<{ id: string; type: string; url: string }>
@@ -264,7 +265,7 @@ const tabsContextMocks = vi.hoisted(() => ({
 
 const dataApiMocks = vi.hoisted(() => ({
   deleteAgent: vi.fn().mockResolvedValue(undefined),
-  deleteWorkspace: vi.fn().mockResolvedValue(undefined),
+  deleteWorkspace: vi.fn().mockResolvedValue({ deletedIds: [] as string[] }),
   findOrCreateWorkspace: vi.fn(async ({ body }: { body: { path: string } }) => {
     const workspace = dataApiMocks.workspaces.find((candidate) => candidate.path === body.path)
     return workspace ?? { id: 'ws-test', name: 'Test Workspace', path: body.path }
@@ -316,6 +317,7 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
+  useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs,
   useOptionalTabsContext: () => tabsContextMocks,
   useCurrentTabId: () => null
 }))
@@ -701,8 +703,8 @@ describe('Sessions', () => {
     dataApiMocks.workspacesError = undefined
     dataApiMocks.workspacesLoading = false
     dataApiMocks.workspacesRefreshing = false
-    dataApiMocks.deleteAgent.mockResolvedValue(undefined)
-    dataApiMocks.deleteWorkspace.mockResolvedValue(undefined)
+    dataApiMocks.deleteAgent.mockResolvedValue({ deleted: true, deletedSessionIds: [] })
+    dataApiMocks.deleteWorkspace.mockResolvedValue({ deletedIds: [] })
     dataApiMocks.refetchAgents.mockResolvedValue(undefined)
     dataApiMocks.reorderAgent.mockResolvedValue(undefined)
     dataApiMocks.updateWorkspace.mockResolvedValue(undefined)
@@ -2281,6 +2283,7 @@ describe('Sessions', () => {
     const callOrder: string[] = []
     dataApiMocks.deleteWorkspace.mockImplementationOnce(async () => {
       callOrder.push('workspace')
+      return { deletedIds: ['session-a'] }
     })
     agentDataMocks.useAgents.mockReturnValue({
       agents: [],
@@ -2346,9 +2349,10 @@ describe('Sessions', () => {
     ])
     expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
     expect(callOrder).toEqual(['workspace'])
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a'])
     expect(cacheMocks.setActiveSessionId).toHaveBeenCalledWith(
-      'session-b',
-      expect.objectContaining({ id: 'session-b' })
+      'session-pinned',
+      expect.objectContaining({ id: 'session-pinned' })
     )
     expect(dataApiMocks.refetchWorkspaces).toHaveBeenCalled()
     expect(sessionDataMocks.reload).toHaveBeenCalled()
@@ -2498,6 +2502,8 @@ describe('Sessions', () => {
     expect(deleteAgentMenuItem).toBeDefined()
     expect(deleteAgentMenuItem?.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
 
+    dataApiMocks.deleteAgent.mockResolvedValueOnce({ deleted: true, deletedSessionIds: ['session-a'] })
+
     fireEvent.click(deleteAgentMenuItem as HTMLElement)
 
     await vi.waitFor(() =>
@@ -2520,6 +2526,9 @@ describe('Sessions', () => {
       '/pins',
       '/agent-channels'
     ])
+    expect(sessionDataMocks.deleteSession).not.toHaveBeenCalled()
+    expect(tabsContextMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-a'])
+    expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-a')
     await vi.waitFor(() => expect(dataApiMocks.refetchAgents).toHaveBeenCalled())
     await vi.waitFor(() => expect(sessionDataMocks.reload).toHaveBeenCalled())
     expect(window.toast.success).toHaveBeenCalledWith('Deleted successfully')
