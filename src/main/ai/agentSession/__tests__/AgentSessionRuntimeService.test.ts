@@ -404,6 +404,34 @@ describe('AgentSessionRuntimeService', () => {
     expect(getEntry(service).headless).toBe(true)
   })
 
+  it('rebuilds instead of reusing an idle in-flight (connecting) non-headless connection for a headless run', () => {
+    // No live connection yet — a non-headless connect is still in flight (`connecting` set, `connection`
+    // undefined). A headless run must not latch onto that pending non-headless connection; it should tear
+    // the entry down and rebuild with the headless policy baked in.
+    const service = new AgentSessionRuntimeService()
+    const first = service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.lastResumeToken = 'resume-1'
+
+    void terminalListener(first).onDone({ status: 'success', isTopicDone: true })
+    // Simulate primeConnection still mid-connect, built non-headless (never resolves in this test).
+    entry.connection = undefined
+    entry.connecting = new Promise<boolean>(() => {})
+    entry.headless = false
+
+    const second = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2'),
+      headless: true
+    })
+
+    expect(second).not.toBe(first)
+    const rebuilt = getEntry(service)
+    expect(rebuilt.connecting).toBeUndefined() // stale in-flight connect dropped; fresh entry rebuilds headless
+    expect(rebuilt.headless).toBe(true)
+  })
+
   it('applies tool-policy updates when disabled tools change', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
