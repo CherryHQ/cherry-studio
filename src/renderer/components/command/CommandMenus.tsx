@@ -553,28 +553,30 @@ export function CommandContextMenu({
       <ContextMenuTrigger asChild onContextMenu={handleCherryContextMenu}>
         {children}
       </ContextMenuTrigger>
-      <ContextMenuContent
-        className={contentClassName}
-        onPointerDown={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}>
-        {combinedItems.map((item, index) =>
-          isExtraMenuItem(item) ? (
-            <CommandContextMenuExtraItemView
-              key={`extra-${item.id}`}
-              item={item}
-              onSelectItem={handleCherrySelectItem}
-            />
-          ) : (
-            <CommandMenuItemView
-              key={`${item.type}-${index}`}
-              item={item}
-              onExecute={runtime.execute}
-              onSelectItem={handleCherrySelectItem}
-              renderIcon={renderIcon}
-            />
-          )
-        )}
-      </ContextMenuContent>
+      {combinedItems.length > 0 && (
+        <ContextMenuContent
+          className={contentClassName}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}>
+          {combinedItems.map((item, index) =>
+            isExtraMenuItem(item) ? (
+              <CommandContextMenuExtraItemView
+                key={`extra-${item.id}`}
+                item={item}
+                onSelectItem={handleCherrySelectItem}
+              />
+            ) : (
+              <CommandMenuItemView
+                key={`${item.type}-${index}`}
+                item={item}
+                onExecute={runtime.execute}
+                onSelectItem={handleCherrySelectItem}
+                renderIcon={renderIcon}
+              />
+            )
+          )}
+        </ContextMenuContent>
+      )}
     </ContextMenu>
   )
 }
