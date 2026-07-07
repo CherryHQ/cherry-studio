@@ -39,10 +39,6 @@ import { gt as semverGt, valid as semverValid } from 'semver'
 
 const logger = loggerService.withContext('EnvironmentDependencies')
 
-const isComparableVersionPair = (latest?: string, installed?: string): boolean => {
-  return Boolean(latest && installed && semverValid(latest) && semverValid(installed))
-}
-
 const isNewerVersion = (latest?: string, installed?: string): boolean => {
   const validLatest = latest ? semverValid(latest) : null
   const validInstalled = installed ? semverValid(installed) : null
@@ -142,6 +138,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   useIpcOn('binary.state_changed', (state) => {
     setBinaryState(state)
     setBinaryStateReady(true)
+    setLatestVersions(null)
     // mise install may shadow a bundled binary; re-probe so the source label stays accurate.
     void ipcApi.request('binary.probe_bundled').then((b) => {
       if (mountedRef.current) setBundled(b)
@@ -170,20 +167,6 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   }
 
   const handleUpdate = async (tool: ManagedBinary) => {
-    const installed = binaryState?.tools[tool.name]
-    let latest = latestVersions?.[tool.name]
-
-    if (installed?.version) {
-      const fresh = await fetchLatestVersions(true)
-      if (!fresh) return
-      latest = fresh[tool.name]
-    }
-
-    if (isComparableVersionPair(latest, installed?.version) && !isNewerVersion(latest, installed?.version)) {
-      window.toast.success(t('settings.dependencies.upToDate'))
-      return
-    }
-
     await installTool(tool)
   }
 

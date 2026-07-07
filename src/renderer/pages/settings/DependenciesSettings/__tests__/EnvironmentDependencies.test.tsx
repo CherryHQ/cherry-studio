@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,6 +15,7 @@ const ipcMocks = vi.hoisted(() => ({
   removeTool: vi.fn(),
   getToolDir: vi.fn()
 }))
+const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>())
 
 // Route ipcApi.request by binary.* route to the per-method mocks above.
 vi.mock('@renderer/ipc', () => ({
@@ -38,8 +39,9 @@ vi.mock('@renderer/ipc', () => ({
       }
     }
   },
-  // Event subscriptions are inert in these tests — refreshState drives all UI state.
-  useIpcOn: vi.fn()
+  useIpcOn: vi.fn((event: string, handler: (payload: unknown) => void) => {
+    ipcEventHandlers.set(event, handler)
+  })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -101,6 +103,7 @@ vi.mock('@cherrystudio/ui', () => {
 describe('EnvironmentDependencies', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ipcEventHandlers.clear()
     customToolsRef.value = []
     ipcMocks.getState.mockResolvedValue({ tools: {} })
     ipcMocks.probeBundled.mockResolvedValue({})
@@ -209,12 +212,26 @@ describe('EnvironmentDependencies', () => {
     expect(screen.queryByText('vnightly')).not.toBeInTheDocument()
   })
 
-  it('force-refreshes before deciding whether a managed tool update is up to date', async () => {
+  it('clears latest versions when binary state changes', async () => {
+    ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
+    ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0' })
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(screen.getByText('v2.0.0')).toBeInTheDocument())
+
+    act(() => {
+      ipcEventHandlers.get('binary.state_changed')?.({ tools: { uv: { version: '1.0.0' } } })
+    })
+
+    await waitFor(() => expect(screen.queryByText('v2.0.0')).not.toBeInTheDocument())
+  })
+
+  it('updates a managed tool without forcing a full latest-version refresh', async () => {
     const { gt } = await import('semver')
     vi.mocked(gt).mockImplementation((latest) => latest === '2.0.0')
 
     ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
-    ipcMocks.latestVersions.mockResolvedValueOnce({ uv: '1.0.0' }).mockResolvedValueOnce({ uv: '2.0.0' })
+    ipcMocks.latestVersions.mockResolvedValue({ uv: '1.0.0' })
 
     render(<EnvironmentDependencies />)
 
@@ -222,8 +239,8 @@ describe('EnvironmentDependencies', () => {
     const updateButtons = await screen.findAllByTitle('settings.dependencies.update')
     fireEvent.click(updateButtons[1])
 
-    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledWith(true))
     await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv', tool: 'uv' }))
+    expect(ipcMocks.latestVersions).not.toHaveBeenCalledWith(true)
     expect(window.toast.success).not.toHaveBeenCalledWith('settings.dependencies.upToDate')
   })
 
@@ -237,8 +254,8 @@ describe('EnvironmentDependencies', () => {
     const updateButtons = await screen.findAllByTitle('settings.dependencies.update')
     fireEvent.click(updateButtons[1])
 
-    await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledWith(true))
     await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv', tool: 'uv' }))
+    expect(ipcMocks.latestVersions).not.toHaveBeenCalledWith(true)
     expect(window.toast.success).not.toHaveBeenCalledWith('settings.dependencies.upToDate')
   })
 

@@ -47,6 +47,7 @@ export const binaryRequestSchemas = {
   'binary.search_registry': defineRoute({ input: z.string(), output: z.array(registryEntrySchema) }),
   'binary.get_tool_dir': defineRoute({ input: toolNameSchema, output: z.string() }),
   'binary.probe_bundled': defineRoute({ input: z.void(), output: z.record(z.string(), z.string().nullable()) }),
+  // false = read session shared cache only; true = run mise latest and refresh the cache.
   'binary.latest_versions': defineRoute({ input: z.boolean(), output: z.record(z.string(), z.string()) })
 }
 

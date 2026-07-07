@@ -36,11 +36,14 @@ These are the stable boundaries that survive across versions and renderer reload
 | Path key | `feature.binary.data` → `~/.cherrystudio/binary-manager` | mise install root |
 | Path key | `feature.binary.state_file` → `~/.cherrystudio/binary-manager/state.json` | Install state on disk |
 | Path key | `cherry.bin` → `~/.cherrystudio/bin` | Bundled-binary extraction target |
-| IPC | `binary.install_tool`, `binary.remove_tool`, `binary.get_state`, `binary.search_registry`, `binary.get_tool_dir`, `binary.probe_bundled` | Renderer → main |
+| Shared cache key | `feature.binary.latest_versions` → `Record<string, string>` | Session latest-version results |
+| IPC | `binary.install_tool`, `binary.remove_tool`, `binary.get_state`, `binary.search_registry`, `binary.get_tool_dir`, `binary.probe_bundled`, `binary.latest_versions` | Renderer → main |
 | IPC events | `binary.state_changed`, `binary.reconcile_failed` | Main → renderer |
 | Types | `ManagedBinary`, `BinaryState`, `ToolInstallState` (`src/shared/data/preference/preferenceTypes.ts`) | Both sides |
 
 `ManagedBinary` is `{ name, tool, version? }` where `tool` is a mise tool spec (`npm:foo`, `pipx:bar`, `gh`, `claude`, …). Adding new fields requires regenerating preference schemas via `cd v2-refactor-temp/tools/data-classify && npm run generate`.
+
+`binary.latest_versions` is an on-demand update-check surface. `force=false` is a read-only cache lookup: it returns the current `feature.binary.latest_versions` shared-cache value, or `{}` when no session result exists. `force=true` runs `mise latest` for the current managed tools, omits failed lookups, and writes the confirmed result back to `feature.binary.latest_versions` only if the managed-tool snapshot has not changed during the batch. Install, remove, and state-mutation paths delete the shared cache so version hints do not survive a managed-set change.
 
 > **No v1→v2 migrator.** v2 data is throwaway per [CLAUDE.md](../../../CLAUDE.md) — the v2 pref key (`feature.binary.tools`) has no predecessor in v1, so there is intentionally nothing to migrate.
 
