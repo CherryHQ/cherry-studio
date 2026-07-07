@@ -119,6 +119,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
       const activeIndex = nextIds.indexOf(activeId)
       const overIndex = nextIds.indexOf(payload.overId)
       if (activeIndex < 0 || overIndex < 0) return
+      if (items[activeIndex]?.reorderable === false || items[overIndex]?.reorderable === false) return
 
       nextIds.splice(activeIndex, 1)
       const adjustedOverIndex = nextIds.indexOf(payload.overId)
