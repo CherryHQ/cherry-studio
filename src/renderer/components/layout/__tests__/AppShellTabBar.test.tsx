@@ -250,6 +250,29 @@ describe('AppShellTabBar', () => {
     expect(pinnedTab).toHaveClass('nodrag')
   })
 
+  it('slightly enlarges normal tab titles and leading icons without restoring medium weight', () => {
+    renderTabBar({
+      tabs: [
+        { id: 'chat', type: 'route', url: '/app/chat?topicId=topic-1', title: 'Chat title' },
+        { id: 'a', type: 'route', url: '/app/a', title: 'A' }
+      ],
+      activeTabId: 'chat'
+    })
+
+    const title = screen.getByText('Chat title')
+    const tabButton = screen.getByRole('button', { name: 'Chat title' })
+    const icon = tabButton.querySelector('svg')
+    const iconBox = icon?.parentElement
+
+    expect(title).toHaveClass('font-normal')
+    expect(title).toHaveClass('text-xs')
+    expect(title).toHaveClass('leading-none')
+    expect(title).not.toHaveClass('font-medium')
+    expect(icon).toHaveAttribute('width', '14')
+    expect(icon).toHaveAttribute('height', '14')
+    expect(iconBox).toHaveClass('h-[14px]', 'w-[14px]')
+  })
+
   it('requests ResourceList reveal when selecting a chat or agent tab from the window tab bar', async () => {
     const setActiveTab = vi.fn()
     const tabs: Tab[] = [

@@ -192,8 +192,8 @@ const NormalTabButton = ({
         isActive ? tone.activeClass : tone.hoverClass
       )}>
       {/* Icon — on narrow tabs, X overlay replaces icon on hover (Chrome-style) */}
-      <div className="relative flex h-[13px] w-[13px] shrink-0 items-center justify-center">
-        <TabIcon tab={tab} size={13} className={cn(showIconOverlayClose && 'group-hover:hidden')} />
+      <div className="relative flex h-[14px] w-[14px] shrink-0 items-center justify-center">
+        <TabIcon tab={tab} size={14} className={cn(showIconOverlayClose && 'group-hover:hidden')} />
         {showIconOverlayClose && (
           <div
             role="button"
@@ -214,7 +214,7 @@ const NormalTabButton = ({
         )}
       </div>
       <span
-        className="min-w-0 flex-1 truncate text-left font-medium text-[11px] leading-none"
+        className="min-w-0 flex-1 truncate text-left font-normal text-xs leading-none"
         style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
         {tab.title}
       </span>
