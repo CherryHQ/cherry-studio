@@ -303,6 +303,9 @@ describe('runAgentTask', () => {
       name: 'heartbeat',
       workspace: { type: 'user', workspaceId: 'ws-1' }
     })
+    // Scheduled runs have no interactive responder — the dispatch must be headless so AskUserQuestion
+    // stays disallowed and the run can't stall on an approval prompt.
+    expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ headless: true }))
   })
 
   // Regular tasks carry the workspace bound at creation time (system by
