@@ -182,6 +182,46 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  describe('per-turn headless state', () => {
+    it('opens a queued busy follow-up as headless when enqueueUserMessage is marked headless', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'), { headless: true })
+      expect(getEntry(service).headlessMessageIds.has('user-2')).toBe(true)
+
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      const entry = getEntry(service)
+      expect(entry.currentTurn.userMessage.id).toBe('user-2')
+      expect(entry.currentTurn.headless).toBe(true)
+      expect(entry.headlessMessageIds?.has('user-2')).toBe(false)
+      expect(service.isCurrentTurnHeadless('session-1')).toBe(true)
+    })
+
+    it('opens an unmarked queued busy follow-up as interactive', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, headless: true })
+
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      service.markTurnTerminal('session-1', 'success')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(getEntry(service).currentTurn.headless).toBe(false)
+      expect(service.isCurrentTurnHeadless('session-1')).toBe(false)
+    })
+
+    it('sets current turn headless from beginTurn input', () => {
+      const service = new AgentSessionRuntimeService()
+
+      service.beginTurn({ ...baseTurnInput, headless: true })
+
+      expect(getEntry(service).currentTurn.headless).toBe(true)
+      expect(service.isCurrentTurnHeadless('session-1')).toBe(true)
+    })
+  })
+
   describe('reconcileStalePendingMessages — boot crash recovery', () => {
     it('marks crash-orphaned pending assistant messages as errored on init', async () => {
       mocks.findPendingAssistantMessageIds.mockReturnValue(['stale-1', 'stale-2'])

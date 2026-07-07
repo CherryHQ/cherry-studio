@@ -425,6 +425,64 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.disallowedTools ?? []).toContain('AskUserQuestion')
   })
 
+  it('denies AskUserQuestion at tool fire time for the current headless turn', async () => {
+    const isCurrentTurnHeadless = vi.fn(() => true)
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const result = await settings.canUseTool?.('AskUserQuestion', {}, {
+      signal: { aborted: false },
+      toolUseID: 'tool-use-1'
+    } as never)
+
+    expect(isCurrentTurnHeadless).toHaveBeenCalledWith('session-1')
+    expect(result).toEqual({
+      behavior: 'deny',
+      message:
+        'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+    })
+  })
+
+  it('does not deny AskUserQuestion at tool fire time for the current interactive turn', async () => {
+    const isCurrentTurnHeadless = vi.fn(() => false)
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(() => ({ approval: 'auto' })),
+      isDisabled: vi.fn(() => false),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const result = await settings.canUseTool?.('AskUserQuestion', { prompt: 'Need input?' }, {
+      signal: { aborted: false },
+      toolUseID: 'tool-use-1'
+    } as never)
+
+    expect(isCurrentTurnHeadless).toHaveBeenCalledWith('session-1')
+    expect(result).toEqual({ behavior: 'allow', updatedInput: { prompt: 'Need input?' } })
+  })
+
   it('keeps AskUserQuestion available for channel-linked interactive sessions', async () => {
     mocks.findBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'session-1' })
     const session = {

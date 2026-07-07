@@ -672,6 +672,19 @@ async function buildToolPermissions(
       return { behavior: 'deny', message: 'Tool request was cancelled' }
     }
 
+    // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce per-turn
+    // headless AskUserQuestion denial at fire time.
+    if (
+      toolName === 'AskUserQuestion' &&
+      application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)
+    ) {
+      return {
+        behavior: 'deny',
+        message:
+          'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+      }
+    }
+
     // Resolve the snapshot by id at fire-time — a warm-pooled query's baked `canUseTool` must read
     // the live session snapshot, not a per-build instance the running subprocess never sees.
     const snapshot = getToolPolicySnapshot(session.id)
