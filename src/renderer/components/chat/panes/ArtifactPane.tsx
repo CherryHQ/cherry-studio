@@ -763,7 +763,7 @@ export function ArtifactPaneView({
     <div
       ref={artifactPaneRef}
       className={cn(
-        'flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground',
+        'flex h-full min-h-0 flex-col overflow-hidden text-card-foreground',
         maximized && 'rounded-lg border border-border-subtle shadow-sm'
       )}>
       <div className="relative min-h-0 flex-1 overflow-hidden">

@@ -339,6 +339,9 @@
     "home": {
       "welcome_title": "今天想聊点什么？"
     },
+    "icon": {
+      "type": "智能体图标"
+    },
     "input": {
       "placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令",
       "soul_placeholder": "帮我连接微信"
@@ -347,6 +350,9 @@
       "error": {
         "failed": "获取智能体列表失败"
       }
+    },
+    "manage": {
+      "title": "管理智能体"
     },
     "pin": {
       "title": "置顶智能体"
@@ -784,6 +790,11 @@
       }
     },
     "sidebar_title": "智能体",
+    "skill": {
+      "manage": {
+        "title": "管理技能"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1085,8 +1096,9 @@
   "assistants": {
     "abbr": "助手",
     "clear": {
-      "content": "清空对话会删除助手下所有对话和文件，确定要继续吗？",
-      "menu_title": "删除助手下所有对话",
+      "content": "清空话题会删除助手下所有话题，确定要继续吗？",
+      "menu_title": "清空话题",
+      "success_title": "已清空 {{count}} 个话题",
       "title": "清空对话"
     },
     "copy": {
@@ -3208,7 +3220,7 @@
             "skills_coming_soon": "Skill 绑定即将支持",
             "skills_require_save": "保存后才能启用技能",
             "tab": {
-              "mcp": "MCP Server",
+              "mcp": "MCP",
               "skills": "Skills",
               "tools": "内置工具"
             },
@@ -5491,6 +5503,13 @@
       "auto_switch_to_topics": "自动切换到对话",
       "title": "高级设置"
     },
+    "agent": {
+      "position": {
+        "label": "会话位置",
+        "left": "左侧",
+        "right": "右侧"
+      }
+    },
     "appearance": {
       "title": "外观"
     },
@@ -7756,6 +7775,7 @@
   },
   "title": {
     "apps": "小程序",
+    "chat": "对话",
     "code": "Code",
     "files": "文件",
     "home": "首页",
