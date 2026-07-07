@@ -7984,6 +7984,9 @@
   },
   "xlsx_preview": {
     "chart_unsupported": "暫不支援此圖表類型",
+    "error": {
+      "description": "無法預覽此試算表。"
+    },
     "formula_not_evaluated": "公式無法求值",
     "sheet_tabs_label": "工作表",
     "too_large": {

@@ -194,7 +194,9 @@ function parseA1Range(ref: string): ParsedA1Range | null {
   let rest = ref
   const bangIndex = ref.lastIndexOf('!')
   if (bangIndex !== -1) {
-    sheet = ref.slice(0, bangIndex).replace(/^'|'$/g, '')
+    // Quoted sheet names escape an embedded apostrophe by doubling it, e.g. `'Bob''s Data'`. Strip the outer quotes,
+    // then unescape `''` -> `'` so the lookup key matches the sheet name stored in rawValueTable.
+    sheet = ref.slice(0, bangIndex).replace(/^'|'$/g, '').replace(/''/g, "'")
     rest = ref.slice(bangIndex + 1)
   }
   const cellPattern = /\$?([A-Z]+)\$?(\d+)/g

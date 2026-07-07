@@ -170,6 +170,8 @@ describe('useXlsxWorkbook', () => {
     act(() => lastWorker().respond({ id: mocks.requests[0].id, ok: false, message: 'not an xlsx' }))
 
     await waitFor(() => expect(result.current).toEqual({ status: 'error', message: 'not an xlsx' }))
+    // The raw technical message is logged at the failure site so the UI can show a generic translated description.
+    expect(mocks.logger.error).toHaveBeenCalledWith('Failed to parse xlsx file: not an xlsx')
   })
 
   it('maps a file read failure to the error state without creating a worker', async () => {

@@ -28,6 +28,13 @@ describe('readRangeFromValueTable — chart reference range guard', () => {
     expect(readRangeFromValueTable(table, 'Data', '$A$1')).toEqual([['x']])
   })
 
+  it('unescapes doubled apostrophes in a quoted sheet name so the lookup matches the stored sheet', () => {
+    // A reference like `'Bob''s Data'!$A$1` must resolve to the sheet named `Bob's Data`, not `Bob''s Data`.
+    const table = new Map<string, string | number | boolean | null>([["Bob's Data!1:1", 42]])
+
+    expect(readRangeFromValueTable(table, 'Sheet1', "'Bob''s Data'!$A$1")).toEqual([[42]])
+  })
+
   it('returns null for an unparseable reference', () => {
     expect(readRangeFromValueTable(new Map(), 'Sheet1', 'not-a-range')).toBeNull()
   })

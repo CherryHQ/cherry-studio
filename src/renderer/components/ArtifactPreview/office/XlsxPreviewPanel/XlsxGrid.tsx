@@ -612,12 +612,14 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
 
           {/* Floating layer: images and charts are absolutely positioned in zoom=1 PxRect coordinates. */}
           <div className="pointer-events-none absolute">
-            {sheet.floatingImages.map((img) => {
+            {sheet.floatingImages.map((img, i) => {
               const src = imageUrls[img.imageId]
               if (!src) return null
               return (
                 <img
-                  key={`img:${img.imageId}`}
+                  // imageId is deduplicated across anchors (one workbook image reused at multiple placements), so the
+                  // list index disambiguates repeated placements that would otherwise share a React key.
+                  key={`img:${img.imageId}:${i}`}
                   src={src}
                   alt=""
                   data-testid="xlsx-grid-floating-image"

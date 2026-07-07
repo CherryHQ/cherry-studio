@@ -8060,6 +8060,9 @@
   },
   "xlsx_preview": {
     "chart_unsupported": "暂不支持此图表类型",
+    "error": {
+      "description": "无法预览此电子表格。"
+    },
     "formula_not_evaluated": "公式无法求值",
     "sheet_tabs_label": "工作表",
     "too_large": {

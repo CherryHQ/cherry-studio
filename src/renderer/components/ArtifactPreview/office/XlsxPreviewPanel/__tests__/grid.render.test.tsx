@@ -537,6 +537,33 @@ describe('XlsxGrid — floating layer', () => {
     expect(screen.getByTestId('xlsx-grid-zoom-layer')).toHaveStyle({ transform: 'scale(2)' })
   })
 
+  it('renders one image per anchor when the same imageId is reused, without a duplicate React key', () => {
+    setRangeFromCounts(
+      [0],
+      [0],
+      () => 20,
+      () => 64,
+      () => 0,
+      () => 0
+    )
+    // parseWorkbook deduplicates image data, so the same imageId can back multiple anchors. Each placement must
+    // still render, and the keys must be unique (a duplicate key warning would signal a reconciliation hazard).
+    const reusedImageSheet: SheetRenderModel = {
+      ...salesSheet,
+      floatingImages: [
+        { rect: { x: 10, y: 10, width: 80, height: 60 }, imageId: 1 },
+        { rect: { x: 200, y: 120, width: 80, height: 60 }, imageId: 1 }
+      ]
+    }
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    render(<XlsxGrid sheet={reusedImageSheet} styles={model.styles} imageUrls={{ 1: 'blob:mock-url' }} zoom={1} />)
+
+    expect(screen.getAllByTestId('xlsx-grid-floating-image')).toHaveLength(2)
+    expect(consoleError.mock.calls.some((call) => String(call[0]).includes('same key'))).toBe(false)
+    consoleError.mockRestore()
+  })
+
   it('does not render an image when its object URL has not been resolved yet', () => {
     setRangeFromCounts(
       [0],

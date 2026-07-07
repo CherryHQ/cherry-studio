@@ -189,13 +189,15 @@ describe('XlsxPreviewPanel', () => {
     expect(screen.queryByTestId('xlsx-grid')).not.toBeInTheDocument()
   })
 
-  it('renders the error state with the parse failure message', () => {
+  it('renders the error state with a translated description, not the raw technical message', () => {
     setWorkbookState({ status: 'error', message: 'not an xlsx' })
 
     renderPanel()
 
     expect(screen.getByTestId('empty-state')).toHaveTextContent('common.error')
-    expect(screen.getByTestId('empty-state')).toHaveTextContent('not an xlsx')
+    // The raw worker message is logged, not shown; the UI uses a translated, generic description.
+    expect(screen.getByTestId('empty-state')).toHaveTextContent('xlsx_preview.error.description')
+    expect(screen.getByTestId('empty-state')).not.toHaveTextContent('not an xlsx')
   })
 
   it('renders the oversize state with the size-limit message', () => {

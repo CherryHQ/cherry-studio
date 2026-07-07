@@ -102,6 +102,7 @@ export function useXlsxWorkbook(filePath: string, refreshKey: number, sourceSize
           }
           setState({ status: 'ready', model: event.data.model })
         } else {
+          logger.error(`Failed to parse xlsx file: ${event.data.message}`)
           setState({ status: 'error', message: event.data.message })
         }
       }

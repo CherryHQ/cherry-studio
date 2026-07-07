@@ -143,7 +143,16 @@ const XlsxPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
   }
 
   if (state.status === 'error') {
-    return <EmptyState icon={AlertCircle} title={t('common.error')} description={state.message} actions={actions} />
+    // state.message carries the raw technical detail (hardcoded English from the worker/parse path); it is logged at
+    // the failure site in useXlsxWorkbook. Show a translated, generic description instead of the internal string.
+    return (
+      <EmptyState
+        icon={AlertCircle}
+        title={t('common.error')}
+        description={t('xlsx_preview.error.description')}
+        actions={actions}
+      />
+    )
   }
 
   if (state.status === 'oversize') {
