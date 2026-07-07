@@ -55,7 +55,10 @@ function stubBootConfig(relocation: Relocation | null) {
 
 function stubFsAndFsp(
   overrides: Partial<
-    Record<'existsSync' | 'accessSync' | 'statSync' | 'readdir' | 'stat' | 'statfs' | 'mkdir' | 'copyFile' | 'rm', ReturnType<typeof vi.fn>>
+    Record<
+      'existsSync' | 'accessSync' | 'statSync' | 'readdir' | 'stat' | 'statfs' | 'mkdir' | 'copyFile' | 'rm',
+      ReturnType<typeof vi.fn>
+    >
   > = {}
 ) {
   vi.doMock('node:fs', () => {
