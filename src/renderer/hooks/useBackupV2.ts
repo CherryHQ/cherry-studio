@@ -8,10 +8,9 @@
 // mixed into the legacy v1 LocalBackupSettings, which is throwaway under the v2
 // refactor) lands in a follow-up UX slice. This hook is the consumer-side binding.
 
-import { useCallback, useState } from 'react'
-
 import { ipcApi } from '@renderer/ipc'
 import type { BackupProgressUpdate } from '@shared/types/backup'
+import { useCallback, useState } from 'react'
 
 export interface UseBackupV2State {
   readonly loading: boolean
