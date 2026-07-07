@@ -381,6 +381,36 @@ describe('MessageList', () => {
     expect(reportNarrow).toHaveBeenLastCalledWith(true)
   })
 
+  it('keeps existing messages visible while history refresh is loading', () => {
+    render(
+      <MessageListProvider
+        value={createValue([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant')], {
+          isInitialLoading: true
+        })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(screen.queryByTestId('message-list-loading')).toBeNull()
+    expect(screen.getByTestId('virtual-list')).toHaveTextContent('user-1')
+    expect(screen.getByTestId('virtual-list')).toHaveTextContent('assistant-1')
+  })
+
+  it('keeps the loading gate while stale cached messages are present', () => {
+    render(
+      <MessageListProvider
+        value={createValue([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant')], {
+          isInitialLoading: true,
+          isMessagesStale: true
+        })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(screen.getByTestId('message-list-loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('virtual-list')).toBeNull()
+  })
+
   it('reports narrow=false when narrow mode is off', () => {
     const reportNarrow = vi.fn()
     render(
