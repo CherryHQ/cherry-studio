@@ -20,6 +20,7 @@ import type { BinaryState, ManagedBinary } from '@shared/data/preference/prefere
 import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binaryTools'
 import { useNavigate } from '@tanstack/react-router'
 import {
+  ArrowBigUp,
   Download,
   ExternalLink,
   FolderOpen,
@@ -34,8 +35,20 @@ import {
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { gt as semverGt, valid as semverValid } from 'semver'
 
 const logger = loggerService.withContext('EnvironmentDependencies')
+
+const isNewerVersion = (latest?: string, installed?: string): boolean => {
+  const validLatest = latest ? semverValid(latest) : null
+  const validInstalled = installed ? semverValid(installed) : null
+  if (!validLatest || !validInstalled) return false
+  try {
+    return semverGt(validLatest, validInstalled)
+  } catch {
+    return false
+  }
+}
 
 const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }) => {
   if (icon) {
@@ -54,6 +67,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [binaryState, setBinaryState] = useState<BinaryState | null>(null)
   const [binaryStateReady, setBinaryStateReady] = useState(false)
   const [bundled, setBundled] = useState<Record<string, string | null>>({})
+  const [latestVersions, setLatestVersions] = useState<Record<string, string> | null>(null)
+  const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
   const [customTools, setCustomTools] = usePreference('feature.binary.tools')
   const [showAddDialog, setShowAddDialog] = useState(false)
@@ -64,6 +79,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const { t } = useTranslation()
   const navigate = useNavigate()
   const mountedRef = useRef(true)
+  const latestRequestIdRef = useRef(0)
 
   useEffect(() => {
     mountedRef.current = true
@@ -87,13 +103,45 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     }
   }, [])
 
+  const fetchLatestVersions = useCallback(
+    async (force = false): Promise<Record<string, string> | null> => {
+      const requestId = ++latestRequestIdRef.current
+      setCheckingUpdates(true)
+      try {
+        const versions = await ipcApi.request('binary.get_latest_versions', force)
+        if (mountedRef.current && requestId === latestRequestIdRef.current) {
+          setLatestVersions(versions)
+        }
+        return versions
+      } catch (error) {
+        logger.error('Failed to fetch latest versions', error as Error)
+        if (force) window.toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
+        return null
+      } finally {
+        if (mountedRef.current && requestId === latestRequestIdRef.current) setCheckingUpdates(false)
+      }
+    },
+    [t]
+  )
+
   useEffect(() => {
     void refreshState()
   }, [refreshState])
 
+  useEffect(() => {
+    // Update-version data is only rendered in the full view; mini mode (mounted
+    // by McpServersList) skips the fetch to avoid hitting rate-limited registries.
+    if (mini) return
+    void fetchLatestVersions(false)
+  }, [fetchLatestVersions, mini])
+
   useIpcOn('binary.state_changed', (state) => {
     setBinaryState(state)
     setBinaryStateReady(true)
+    // Clear all latest-version badges: the managed-tool set changed, so any
+    // previously fetched latest-version hints are stale. Next explicit refresh
+    // (header button or per-tool Update) will repopulate per-tool results.
+    setLatestVersions(null)
     // mise install may shadow a bundled binary; re-probe so the source label stays accurate.
     void ipcApi.request('binary.probe_bundled').then((b) => {
       if (mountedRef.current) setBundled(b)
@@ -188,6 +236,19 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         <div className="flex min-w-0 items-center gap-2">
           <h1 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.dependencies.title')}</h1>
           <span className="text-muted-foreground/50 text-xs">{totalCount}</span>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground/50 hover:text-foreground"
+            onClick={() => void fetchLatestVersions(true)}
+            disabled={checkingUpdates}
+            title={t('settings.dependencies.checkUpdates')}>
+            {checkingUpdates ? (
+              <Loader2 className="size-3 motion-safe:animate-spin" />
+            ) : (
+              <RefreshCw className="size-3" />
+            )}
+          </Button>
         </div>
         <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.dependencies.description')}</p>
       </div>
@@ -197,12 +258,16 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           const installed = binaryState?.tools[tool.name]
           const bundledVersion = bundled[tool.name]
           const source: ToolSource = installed ? 'managed' : tool.name in bundled ? 'bundled' : 'none'
+          const installedVersion = installed?.version ?? bundledVersion ?? undefined
+          const latestVersion = latestVersions?.[tool.name]
+          const hasUpdate = !!installed && isNewerVersion(latestVersion, installedVersion)
           return (
             <BinaryToolPresetCard
               key={tool.name}
               tool={tool}
               source={source}
-              installedVersion={installed?.version ?? bundledVersion ?? undefined}
+              installedVersion={installedVersion}
+              latestVersion={hasUpdate ? latestVersion : undefined}
               installing={installingTools.has(tool.name)}
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
               onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
@@ -229,12 +294,16 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {customTools.map((tool) => {
             const installed = binaryState?.tools[tool.name]
+            const installedVersion = installed?.version
+            const latestVersion = latestVersions?.[tool.name]
+            const hasUpdate = !!installed && isNewerVersion(latestVersion, installedVersion)
             return (
               <CustomToolCard
                 key={tool.name}
                 tool={tool}
                 installed={!!installed}
-                installedVersion={installed?.version}
+                installedVersion={installedVersion}
+                latestVersion={hasUpdate ? latestVersion : undefined}
                 installing={installingTools.has(tool.name)}
                 onInstall={() => installTool(tool)}
                 onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
@@ -270,12 +339,13 @@ const BinaryToolPresetCard: FC<{
   tool: BinaryToolPreset
   source: ToolSource
   installedVersion?: string
+  latestVersion?: string
   installing: boolean
   onInstall: () => void
   onUpdate: () => void
   onOpenPath: () => void
   onRemove: () => void
-}> = ({ tool, source, installedVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
+}> = ({ tool, source, installedVersion, latestVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
   const { t } = useTranslation()
   const description = t(`settings.dependencies.tools.${tool.name}`)
   const present = source !== 'none'
@@ -306,6 +376,13 @@ const BinaryToolPresetCard: FC<{
                 {installedVersion && (
                   <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
                     v{installedVersion}
+                  </Badge>
+                )}
+                {latestVersion && (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-success/40 bg-success/10 px-1.5 py-0 text-[11px] text-success leading-4">
+                    <ArrowBigUp className="size-2.5" />v{latestVersion}
                   </Badge>
                 )}
                 {isBundled && (
@@ -351,21 +428,21 @@ const BinaryToolPresetCard: FC<{
         {description}
       </p>
 
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-3 flex min-w-0 items-center gap-3">
         <button
           type="button"
-          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
+          className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
           onClick={() => void window.api.openWebsite(tool.repoUrl)}>
-          <ExternalLink className="size-3" />
-          {tool.repoUrl.replace('https://github.com/', '')}
+          <ExternalLink className="size-3 shrink-0" />
+          <span className="truncate">{tool.repoUrl.replace('https://github.com/', '')}</span>
         </button>
         {tool.homepage && (
           <button
             type="button"
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
+            className="inline-flex min-w-0 items-center gap-1 overflow-hidden text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
             onClick={() => void window.api.openWebsite(tool.homepage!)}>
-            <SquareArrowOutUpRight className="size-3" />
-            {tool.homepage.replace(/^https?:\/\//, '')}
+            <SquareArrowOutUpRight className="size-3 shrink-0" />
+            <span className="truncate">{tool.homepage.replace(/^https?:\/\//, '')}</span>
           </button>
         )}
         {present && (
@@ -374,7 +451,7 @@ const BinaryToolPresetCard: FC<{
             onClick={onOpenPath}
             aria-label={t('settings.dependencies.openBinariesDir')}
             title={t('settings.dependencies.openBinariesDir')}
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground">
+            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground">
             <FolderOpen className="size-3" />
           </button>
         )}
@@ -406,12 +483,13 @@ const CustomToolCard: FC<{
   tool: ManagedBinary
   installed: boolean
   installedVersion?: string
+  latestVersion?: string
   installing: boolean
   onInstall: () => void
   onUpdate: () => void
   onOpenPath: () => void
   onRemove: () => void
-}> = ({ tool, installed, installedVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
+}> = ({ tool, installed, installedVersion, latestVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
   const { t } = useTranslation()
 
   return (
@@ -430,10 +508,21 @@ const CustomToolCard: FC<{
           <div className="min-w-0">
             <span className="font-semibold text-foreground text-sm leading-5">{tool.name}</span>
             <div className="mt-0.5 text-muted-foreground text-xs">{tool.tool}</div>
-            {installed && installedVersion && (
-              <Badge variant="secondary" className="mt-0.5 gap-1 px-1.5 py-0 text-[11px] leading-4">
-                v{installedVersion}
-              </Badge>
+            {installed && (
+              <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                {installedVersion && (
+                  <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+                    v{installedVersion}
+                  </Badge>
+                )}
+                {latestVersion && (
+                  <Badge
+                    variant="outline"
+                    className="gap-1 border-success/40 bg-success/10 px-1.5 py-0 text-[11px] text-success leading-4">
+                    <ArrowBigUp className="size-2.5" />v{latestVersion}
+                  </Badge>
+                )}
+              </div>
             )}
           </div>
         </div>
