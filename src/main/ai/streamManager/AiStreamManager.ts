@@ -19,7 +19,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import { type UIMessageChunk } from 'ai'
 
-import { isAgentSessionTopic } from '../agentSession/topic'
+import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
 import type { AiStreamRequest, CallOverrides } from '../types'
 import { buildCompactReplay } from './buildCompactReplay'
@@ -79,6 +79,7 @@ export interface SendModelSpec {
   modelId: UniqueModelId
   request: AiStreamRequest
   rootSpan?: Span
+  abortController?: AbortController
 }
 
 export interface SendInput {
@@ -105,6 +106,7 @@ export interface StartRuntimeTurnInput {
   request: AiStreamRequest
   listeners: StreamListener[]
   rootSpan?: Span
+  abortController?: AbortController
 }
 
 // ── Inspection snapshots ────────────────────────────────────────────
@@ -356,11 +358,18 @@ export class AiStreamManager extends BaseService {
     const isMultiModel = input.models.length > 1
     const executions = new Map<UniqueModelId, StreamExecution>()
 
-    for (const { modelId, request, rootSpan } of input.models) {
+    for (const { modelId, request, rootSpan, abortController } of input.models) {
       if (executions.has(modelId)) {
         throw new Error(`send() got duplicate modelId ${modelId} for topic ${input.topicId}`)
       }
-      const exec = this.createAndLaunchExecution(input.topicId, modelId, request, input.siblingsGroupId, rootSpan)
+      const exec = this.createAndLaunchExecution(
+        input.topicId,
+        modelId,
+        request,
+        input.siblingsGroupId,
+        rootSpan,
+        abortController
+      )
       executions.set(modelId, exec)
     }
 
@@ -379,6 +388,10 @@ export class AiStreamManager extends BaseService {
     this.activeStreams.set(input.topicId, stream)
     // Chat broadcasts to SharedCache so `useChatWithHistory.resumeActiveStream` can attach; prompt is silent.
     stream.lifecycle.onCreated(stream)
+
+    if ([...executions.values()].every((exec) => exec.abortController.signal.aborted)) {
+      stream.status = 'aborted'
+    }
 
     return {
       mode: 'started',
@@ -437,7 +450,14 @@ export class AiStreamManager extends BaseService {
 
     return this.send({
       topicId: input.topicId,
-      models: [{ modelId: input.modelId, request: input.request, rootSpan: input.rootSpan }],
+      models: [
+        {
+          modelId: input.modelId,
+          request: input.request,
+          rootSpan: input.rootSpan,
+          abortController: input.abortController
+        }
+      ],
       listeners: [...carriedListeners, ...input.listeners]
     })
   }
@@ -541,7 +561,12 @@ export class AiStreamManager extends BaseService {
   /** Abort all executions in a topic. */
   abort(topicId: string, reason: string): void {
     const stream = this.activeStreams.get(topicId)
-    if (!stream || !isLiveStatus(stream.status)) return
+    if (!stream || !isLiveStatus(stream.status)) {
+      if (isAgentSessionTopic(topicId)) {
+        application.get('AgentSessionRuntimeService').abortPendingTurn(extractAgentSessionId(topicId), reason)
+      }
+      return
+    }
     logger.info('Aborting stream', { topicId, reason })
     for (const exec of stream.executions.values()) {
       if (exec.status === 'streaming') {
@@ -961,14 +986,15 @@ export class AiStreamManager extends BaseService {
     modelId: UniqueModelId,
     request: AiStreamRequest,
     siblingsGroupId?: number,
-    rootSpan?: Span
+    rootSpan?: Span,
+    abortController?: AbortController
   ): StreamExecution {
     // `loopPromise` is overwritten right after launch; initialise to a resolved sentinel
     // so the `exec` object reference is stable inside the arrow function below.
     const exec: StreamExecution = {
       modelId,
       anchorMessageId: request.messageId,
-      abortController: new AbortController(),
+      abortController: abortController ?? new AbortController(),
       status: 'streaming',
       buffer: [],
       droppedChunks: 0,

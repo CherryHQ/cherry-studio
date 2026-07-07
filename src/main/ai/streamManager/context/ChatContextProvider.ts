@@ -16,7 +16,12 @@ import type { MainDispatchRequest } from './dispatch'
 
 export interface PreparedDispatch {
   topicId: string
-  models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest; rootSpan?: Span }>
+  models: ReadonlyArray<{
+    modelId: UniqueModelId
+    request: AiStreamRequest
+    rootSpan?: Span
+    abortController?: AbortController
+  }>
   listeners: StreamListener[]
   /** DB id of the user message row this dispatch created, surfaced back to renderer for optimistic join. */
   userMessageId?: string
