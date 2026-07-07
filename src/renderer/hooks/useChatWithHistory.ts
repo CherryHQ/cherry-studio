@@ -7,7 +7,7 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import type { ChatRequestOptions, FileUIPart } from 'ai'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { useTopicDbRefreshOnTerminal } from './useTopicStreamStatus'
+import { useTopicDbRefreshOnAwaitingApproval } from './useTopicStreamStatus'
 import { useTopicStreamStatus } from './useTopicStreamStatus'
 
 const logger = loggerService.withContext('useChatWithHistory')
@@ -108,11 +108,10 @@ export function useChatWithHistory(
     resumeActiveStream('mount')
   }, [resumeActiveStream])
 
-  // Single invalidation signal — extracted into a dedicated hook so the
-  // "DB re-read on any terminal transition" architecture is visible at the
-  // import. Classifier-driven, so `awaiting-approval` participates without
-  // an explicit `=== 'awaiting-approval'` gate here (or anywhere else).
-  useTopicDbRefreshOnTerminal(topicId, refresh)
+  // Approval pauses need the persisted row refreshed while the live card stays
+  // visible. Final done/error/aborted refresh is handled by the page-level
+  // overlay handoff so it can refresh before dropping live overlay parts.
+  useTopicDbRefreshOnAwaitingApproval(topicId, refresh)
 
   // Resume-on-pending — distinct purpose from the invalidation signal: it
   // re-attaches a stream that started while this window was unmounted /
@@ -128,11 +127,9 @@ export function useChatWithHistory(
   }, [resumeActiveStream, topicStreamStatus])
 
   // PR 3: dropped the per-window `onStreamDone` / `onStreamError` IPC
-  // listeners that previously called `refresh()` here. `useTopicDbRefreshOnTerminal`
-  // above already revalidates SWR on every terminal transition via the
-  // classifier (covers done / aborted / error / awaiting-approval), so the
-  // IPC subscription was a second producer of the same `mutate()` call and
-  // produced the double-mutate race documented in the plan.
+  // listeners that previously called `refresh()` here. Final DB handoff now
+  // belongs to the page-level overlay handoff; keeping it there avoids a
+  // second producer of the same `mutate()` call.
 
   return {
     sendMessage,
