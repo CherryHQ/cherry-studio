@@ -1,6 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import type { CodeCli } from '@shared/types/codeCli'
-import { GripVertical, Pencil, Play } from 'lucide-react'
+import { GripVertical, Pencil, Play, Power } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -45,6 +45,7 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
       <Button
         type="button"
         variant="ghost"
+        tabIndex={-1}
         onClick={onToggle}
         aria-label={title}
         className="absolute inset-0 rounded-xl p-0 hover:bg-transparent"
@@ -63,7 +64,7 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
           </div>
         </div>
 
-        <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+        <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
           {configurable && onConfigure && (
             <Button
               type="button"
@@ -77,11 +78,11 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
           )}
           <Button
             type="button"
-            variant={selected ? 'secondary' : 'default'}
+            variant={selected ? 'outline' : 'default'}
             size="sm"
             onClick={onToggle}
             className="min-h-0 px-2.5 py-1">
-            <Play size={11} />
+            {selected ? <Power size={11} /> : <Play size={11} />}
             {selected ? t('code.disable') : t('code.enable')}
           </Button>
         </div>

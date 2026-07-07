@@ -2,7 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
-import { GripVertical, Pencil, Play } from 'lucide-react'
+import { GripVertical, Pencil, Play, Power } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -44,6 +44,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
       <Button
         type="button"
         variant="ghost"
+        tabIndex={-1}
         onClick={() => onToggleCurrent(provider)}
         aria-label={providerName}
         className="absolute inset-0 rounded-xl p-0 hover:bg-transparent"
@@ -76,7 +77,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
           </div>
         </div>
 
-        <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+        <div className="pointer-events-auto flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100">
           <Button
             type="button"
             variant="outline"
@@ -88,11 +89,11 @@ export const ProviderCard: FC<ProviderCardProps> = ({
           </Button>
           <Button
             type="button"
-            variant={isCurrent ? 'secondary' : 'default'}
+            variant={isCurrent ? 'outline' : 'default'}
             size="sm"
             onClick={() => onToggleCurrent(provider)}
             className="min-h-0 px-2.5 py-1">
-            <Play size={11} />
+            {isCurrent ? <Power size={11} /> : <Play size={11} />}
             {isCurrent ? t('code.disable') : t('code.enable')}
           </Button>
         </div>
