@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
-  listToolsForSnapshot: vi.fn(async (_serverId: string) => [] as unknown[]),
+  listToolsForSnapshot: vi.fn<(serverId: string) => Promise<unknown[]>>(async () => [] as unknown[]),
   findByIdOrName: vi.fn(),
   applicationGet: vi.fn(),
   applicationGetPath: vi.fn(),
