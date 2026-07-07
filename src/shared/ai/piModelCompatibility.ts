@@ -15,6 +15,7 @@
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { isExternalCliProvider } from '@shared/utils/provider'
 
 /**
  * The subset of pi's `KnownApi` families Cherry can drive in v1. Kept as a
@@ -88,6 +89,11 @@ function resolveEndpointType(provider: Provider, model: Model): EndpointType | u
 
 /** Resolve the pi `api` family for a Cherry provider+model, or `undefined` if unsupported. */
 export function resolvePiApi(provider: Provider, model: Model): PiApi | undefined {
+  // External-CLI providers (e.g. `claude-code`) authenticate through their own
+  // CLI login and hold no app-side API key, so — like Bedrock/Vertex above —
+  // they cannot fit pi's apiKey/baseUrl `registerProvider` model. They are
+  // usable only by the runtime that owns the CLI.
+  if (isExternalCliProvider(provider)) return undefined
   const endpointType = resolveEndpointType(provider, model)
   const adapterFamily = endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined
   return mapEndpointToPiApi(endpointType, adapterFamily)

@@ -84,4 +84,15 @@ describe('resolvePiApi', () => {
     })
     expect(isPiCompatibleModel(provider, makeModel({}))).toBe(false)
   })
+
+  it('rejects an external-CLI provider (claude-code) even on a pi-speakable endpoint', () => {
+    const provider = makeProvider({
+      id: 'claude-code',
+      authMethods: ['external-cli'],
+      defaultChatEndpoint: 'anthropic-messages',
+      endpointConfigs: { 'anthropic-messages': { adapterFamily: 'anthropic' } }
+    })
+    expect(resolvePiApi(provider, makeModel({}))).toBeUndefined()
+    expect(isPiCompatibleModel(provider, makeModel({}))).toBe(false)
+  })
 })
