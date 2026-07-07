@@ -1452,7 +1452,7 @@
         "pause": "Pause auto-send",
         "remove": "Remove",
         "resume": "Resume auto-send",
-        "steer": "Send into current turn",
+        "steer": "steer",
         "title": "Queued ({{count}})"
       },
       "generate_image": "Generate image",

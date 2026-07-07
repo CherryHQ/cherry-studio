@@ -1,10 +1,17 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
+import type * as LucideReact from 'lucide-react'
 import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({ t: (key: string) => key })
+}))
+
+vi.mock('lucide-react', async (importOriginal) => ({
+  ...(await importOriginal<typeof LucideReact>()),
+  ArrowUp: () => <span data-testid="arrow-up-icon" />,
+  Zap: () => <span data-testid="zap-icon" />
 }))
 
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
@@ -42,6 +49,10 @@ describe('QueuedFollowupsDock', () => {
     expect(screen.getByText('second')).toBeInTheDocument()
     // Composer token chip is rendered read-only from the stored draft tokens.
     expect(container.querySelector('[data-composer-token-kind="skill"]')).toHaveTextContent('mySkill')
+    for (const steerButton of screen.getAllByLabelText('chat.input.followup_queue.steer')) {
+      expect(within(steerButton).getByTestId('arrow-up-icon')).toBeInTheDocument()
+      expect(within(steerButton).queryByTestId('zap-icon')).not.toBeInTheDocument()
+    }
 
     fireEvent.click(screen.getAllByLabelText('chat.input.followup_queue.steer')[0])
     expect(onSteer).toHaveBeenCalledWith('1')

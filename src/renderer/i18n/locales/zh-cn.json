@@ -1452,7 +1452,7 @@
         "pause": "暂停自动发送",
         "remove": "移除",
         "resume": "恢复自动发送",
-        "steer": "插入当前回合",
+        "steer": "插入消息",
         "title": "排队中 ({{count}})"
       },
       "generate_image": "生成图片",
