@@ -286,6 +286,11 @@ export async function buildClaudeCodeSessionSettings(
     throw new Error(`Agent not found for session ${session.id}: ${session.agentId}`)
   }
 
+  // Warm the agent's MCP tool caches before building approval descriptors (step 4) and tool-card
+  // metadata (step 6), both of which read cache-only. Bounded so a dead server can't stall — see
+  // `warmAgentMcpToolCaches`.
+  await warmAgentMcpToolCaches(agent)
+
   // 1. Working directory (session-bound)
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
@@ -1065,6 +1070,37 @@ function addMcpToolMetadataAliases(
   addMcpToolMetadataAlias(metadataByName, `mcp__${server.id}__${toCamelCase(tool.name)}`, metadata)
   addMcpToolMetadataAlias(metadataByName, `mcp__${server.name}__${tool.name}`, metadata)
   addMcpToolMetadataAlias(metadataByName, `mcp__${toCamelCase(server.name)}__${tool.name}`, metadata)
+}
+
+// Session build reads MCP tools from cache-only `listTools` (sync, so a dead server can't stall
+// startup — issue #16242). The approval descriptors + tool-card metadata built below therefore
+// see nothing for a server whose cache is still cold on a first session. Warm the agent's own
+// servers via the single-flighted `listToolsForSnapshot` (shared with the SDK bridge) so those
+// cache-only reads reflect configured tools — bounded by a short cap so a dead/slow server still
+// can't stall session start; on timeout we fall back to the empty cache and the bridge / later
+// turns fill it. The in-flight refresh keeps running past the cap and warms the next read.
+const MCP_SNAPSHOT_WARM_TIMEOUT_MS = 3_000
+
+async function warmAgentMcpToolCaches(agent: AgentEntity): Promise<void> {
+  const mcpIds = agent.mcps
+  if (!mcpIds?.length) return
+
+  const mcpService = application.get('McpCatalogService')
+  const warm = Promise.allSettled(
+    mcpIds.flatMap((mcpId) => {
+      const server = mcpServerService.findByIdOrName(mcpId)
+      return server ? [mcpService.listToolsForSnapshot(server.id)] : []
+    })
+  )
+
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, MCP_SNAPSHOT_WARM_TIMEOUT_MS)
+    timer.unref?.()
+  })
+
+  await Promise.race([warm.then(() => undefined), timeout])
+  if (timer) clearTimeout(timer)
 }
 
 async function buildMcpToolMetadata(agent: AgentEntity): Promise<Record<string, McpToolDisplayMetadata> | undefined> {

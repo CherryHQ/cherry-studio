@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
+  listToolsForSnapshot: vi.fn(async (_serverId: string) => [] as unknown[]),
+  findByIdOrName: vi.fn(),
   applicationGet: vi.fn(),
   applicationGetPath: vi.fn(),
   getShellEnv: vi.fn(),
@@ -61,7 +63,7 @@ vi.mock('@data/services/AgentChannelService', () => ({
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: {
     list: vi.fn(() => ({ items: [] })),
-    findByIdOrName: vi.fn()
+    findByIdOrName: mocks.findByIdOrName
   }
 }))
 
@@ -205,12 +207,14 @@ describe('buildClaudeCodeSessionSettings', () => {
       update: vi.fn(),
       setPermissionMode: vi.fn()
     })
+    mocks.listToolsForSnapshot.mockResolvedValue([])
+    mocks.findByIdOrName.mockImplementation((idOrName: string) => ({ id: idOrName, name: idOrName }))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
       }
       if (name === 'McpCatalogService') {
-        return { listTools: vi.fn(async () => []) }
+        return { listTools: vi.fn(async () => []), listToolsForSnapshot: mocks.listToolsForSnapshot }
       }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -973,6 +977,68 @@ describe('buildClaudeCodeSessionSettings', () => {
       const settings = await buildClaudeCodeSessionSettings(session as never, { id: 'anthropic' } as never)
 
       expect(settings.env!.ANTHROPIC_API_KEY).toBe('sk-shell')
+    })
+  })
+
+  describe('MCP tool cache warming', () => {
+    const sessionWithMcps = (mcps: string[]) => {
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        type: 'claude-code',
+        model: 'anthropic::claude-sonnet',
+        mcps,
+        allowedTools: [],
+        configuration: {}
+      })
+      return {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      }
+    }
+
+    it('warms each configured MCP server once via listToolsForSnapshot', async () => {
+      const session = sessionWithMcps(['srv-a', 'srv-b'])
+
+      await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+      expect(mocks.listToolsForSnapshot).toHaveBeenCalledTimes(2)
+      expect(mocks.listToolsForSnapshot).toHaveBeenCalledWith('srv-a')
+      expect(mocks.listToolsForSnapshot).toHaveBeenCalledWith('srv-b')
+    })
+
+    it('does not stall the build when a server never responds (issue #16242 guard)', async () => {
+      // A dead/slow server returns a never-resolving snapshot promise. The bounded race must let the
+      // build finish; without the timeout race this build would hang forever.
+      mocks.listToolsForSnapshot.mockReturnValue(new Promise<never>(() => {}))
+      const session = sessionWithMcps(['srv-dead'])
+
+      vi.useFakeTimers()
+      try {
+        const build = buildClaudeCodeSessionSettings(session as never, {} as never)
+        // Advance past MCP_SNAPSHOT_WARM_TIMEOUT_MS (3_000ms) so the warm race resolves via timeout.
+        await vi.advanceTimersByTimeAsync(3_000)
+        await expect(build).resolves.toBeDefined()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('tolerates a rejecting server and still resolves', async () => {
+      mocks.listToolsForSnapshot.mockImplementation((serverId: string) =>
+        serverId === 'srv-a' ? Promise.reject(new Error('boom')) : Promise.resolve([])
+      )
+      const session = sessionWithMcps(['srv-a', 'srv-b'])
+
+      await expect(buildClaudeCodeSessionSettings(session as never, {} as never)).resolves.toBeDefined()
+    })
+
+    it('skips warming entirely when the agent has no MCP servers', async () => {
+      const session = sessionWithMcps([])
+
+      await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+      expect(mocks.listToolsForSnapshot).not.toHaveBeenCalled()
     })
   })
 })
