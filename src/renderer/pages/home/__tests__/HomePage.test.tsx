@@ -264,8 +264,8 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 
 vi.mock('@renderer/hooks/resourceViewSources', () => ({
   // Match the real useTopics shape: isLoadingAll/isFullyLoaded are always present.
-  useAssistantTopicsSource: () => ({
-    topics: homeMocks.classicLayoutTopics,
+  useAssistantTopicsSource: ({ enabled }: { enabled?: boolean } = {}) => ({
+    topics: enabled === false ? [] : homeMocks.classicLayoutTopics,
     isLoadingAll: false,
     isFullyLoaded: true
   })
@@ -1501,6 +1501,47 @@ describe('HomePage', () => {
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
   })
 
+  it('reuses a modern-layout empty topic from the shared topic source', async () => {
+    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
+    homeMocks.classicLayoutTopics = [
+      {
+        id: 'topic-empty-modern',
+        assistantId: 'assistant-2',
+        name: '',
+        createdAt: '2026-01-04T00:00:00.000Z',
+        updatedAt: '2026-01-04T00:00:00.000Z'
+      }
+    ]
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'New topic with assistant 2' }))
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-empty-modern'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('reuses the current modern-layout empty topic even before the topic source refreshes', async () => {
+    homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
+    homeMocks.locationState = {
+      topic: {
+        ...initialTopic,
+        id: 'topic-empty-current',
+        name: '',
+        createdAt: '2026-01-04T00:00:00.000Z',
+        updatedAt: '2026-01-04T00:00:00.000Z'
+      }
+    }
+    homeMocks.classicLayoutTopics = []
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create empty topic from composer' }))
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-empty-current'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
   it('creates the first-launch topic immediately without opening a stream', async () => {
     homeMocks.locationState = undefined
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
@@ -1512,6 +1553,25 @@ describe('HomePage', () => {
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created'))
     expect(homeMocks.refreshTopics).toHaveBeenCalled()
+  })
+
+  it('unlocks first-launch empty topic creation after a failure', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.createTopic
+      .mockRejectedValueOnce(new Error('create failed'))
+      .mockResolvedValueOnce({ ...createdTopic, assistantId: 'assistant-default' })
+    const toastError = vi.fn()
+    Object.assign(window, { toast: { error: toastError } })
+
+    const { rerender } = render(<HomePage />)
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledTimes(1))
+    expect(toastError).toHaveBeenCalled()
+
+    rerender(<HomePage />)
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created'))
   })
 
   it('uses a valid explicit payload assistant before remembered and first assistants', async () => {

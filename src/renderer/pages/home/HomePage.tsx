@@ -39,6 +39,7 @@ import { findLatestUpdated, isUntouchedSinceCreation } from '@renderer/utils/res
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
+import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useLocation, useSearch } from '@tanstack/react-router'
 import { MessageCircle } from 'lucide-react'
@@ -90,6 +91,19 @@ function findReusableEmptyTopic<T extends { assistantId?: string; createdAt?: st
   )
 }
 
+function mergeReusableTopicCandidates(apiTopics: readonly ApiTopic[], visibleTopic?: Topic): Topic[] {
+  const byId = new Map<string, Topic>()
+
+  for (const topic of apiTopics) {
+    byId.set(topic.id, mapApiTopicToRendererTopic(topic))
+  }
+  if (visibleTopic?.id && !visibleTopic.name.trim()) {
+    byId.set(visibleTopic.id, visibleTopic)
+  }
+
+  return Array.from(byId.values())
+}
+
 const HomePage: FC = () => {
   const { t } = useTranslation()
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
@@ -111,15 +125,6 @@ const HomePage: FC = () => {
   const isClassicTopicLayout = topicDisplayMode === 'assistant'
   // Classic-layout right-pane open state, cached on the assistant surface's own key.
   const [topicPaneOpen, setTopicPaneOpen] = useClassicLayoutRightPaneOpen('chat', isClassicTopicLayout)
-  // Classic layout shares this full-topics source with the rail; modern layout leaves it disabled (no fetch).
-  // The picker uses it to reuse an empty placeholder topic instead of stacking new ones.
-  const {
-    topics: classicLayoutTopics,
-    isLoadingAll: isClassicTopicLayoutLoading,
-    isFullyLoaded: isClassicTopicLayoutFullyLoaded
-  } = useAssistantTopicsSource({ enabled: isClassicTopicLayout })
-  const isClassicTopicLayoutHistoryReady =
-    !isClassicTopicLayout || (!isClassicTopicLayoutLoading && isClassicTopicLayoutFullyLoaded)
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
@@ -131,6 +136,14 @@ const HomePage: FC = () => {
   const tabMetadataTopicId = currentTab ? getTabInstanceKey(currentTab, 'assistants') : undefined
   const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
+  // Shared full-topics source for classic history selection and persisted empty-topic reuse.
+  // Modern layout also creates real empty topics now, so it needs the same candidates.
+  const {
+    topics: allTopics,
+    isLoadingAll: isAllTopicsLoading,
+    isFullyLoaded: isAllTopicsFullyLoaded
+  } = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
+  const isTopicHistoryReady = isMessageOnlyView || (!isAllTopicsLoading && isAllTopicsFullyLoaded)
   // Detached windows are single-topic: no topic list, so no sidebar at all.
   const isWindowFrame = useWindowFrame().mode === 'window'
   const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar && !autoCollapsedResourceList
@@ -212,6 +225,10 @@ const HomePage: FC = () => {
   const visibleTopic = isMessageOnlyView
     ? routeTopic
     : (activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined) ?? undefined)
+  const topicReuseCandidates = useMemo(
+    () => mergeReusableTopicCandidates(allTopics, visibleTopic),
+    [allTopics, visibleTopic]
+  )
   const resourceConversationKey = useMemo(() => {
     if (visibleTopic?.id) return `topic:${visibleTopic.id}`
     return 'empty'
@@ -312,9 +329,9 @@ const HomePage: FC = () => {
 
     return {
       label: t('chat.topics.title'),
-      count: classicLayoutTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
+      count: allTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
     }
-  }, [isClassicTopicLayout, panePosition, classicLayoutTopics, t, visibleAssistantId])
+  }, [allTopics, isClassicTopicLayout, panePosition, t, visibleAssistantId])
   const tabInstanceTopicId = !isMessageOnlyView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
   useTabSelfMetadata({
     title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
@@ -403,10 +420,9 @@ const HomePage: FC = () => {
         const assistantId = await resolveAssistantIdForSelection(selection)
 
         // Reuse the assistant's latest empty placeholder topic (see findReusableEmptyTopic).
-        const reusableTopic = findReusableEmptyTopic(classicLayoutTopics, assistantId)
+        const reusableTopic = findReusableEmptyTopic(topicReuseCandidates, assistantId)
 
-        const topic = reusableTopic ?? (await createTopic({ assistantId }))
-        const rendererTopic = mapApiTopicToRendererTopic(topic)
+        const rendererTopic = reusableTopic ?? mapApiTopicToRendererTopic(await createTopic({ assistantId }))
 
         setActiveTopicAndCloseResourceView(rendererTopic)
         if (!reusableTopic) {
@@ -423,27 +439,28 @@ const HomePage: FC = () => {
     },
     [
       createTopic,
-      classicLayoutTopics,
       refreshTopics,
       resolveAssistantIdForSelection,
       setActiveTopicAndCloseResourceView,
-      t
+      t,
+      topicReuseCandidates
     ]
   )
 
   const createAndActivateEmptyTopic = useCallback(
-    async (payload?: AddNewTopicPayload, options?: NewTopicAssistantTargetOptions) => {
-      if (isCreatingTopicRef.current) return
+    async (payload?: AddNewTopicPayload, options?: NewTopicAssistantTargetOptions): Promise<Topic | null> => {
+      if (isCreatingTopicRef.current) return null
       isCreatingTopicRef.current = true
       try {
         const selection = resolveNewTopicAssistantTarget(payload?.assistantId, options)
-        const reusableTopic = findReusableEmptyTopic(classicLayoutTopics, selection.assistantId)
-        const topic =
+        const reusableTopic = findReusableEmptyTopic(topicReuseCandidates, selection.assistantId)
+        const rendererTopic =
           reusableTopic ??
-          (await createTopic({
-            ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
-          }))
-        const rendererTopic = mapApiTopicToRendererTopic(topic)
+          mapApiTopicToRendererTopic(
+            await createTopic({
+              ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
+            })
+          )
 
         setActiveTopicAndCloseResourceView(rendererTopic)
         if (!reusableTopic) {
@@ -451,20 +468,22 @@ const HomePage: FC = () => {
             logger.warn('Failed to refresh topics after composer topic create', err as Error)
           })
         }
+        return rendererTopic
       } catch (err) {
         logger.error('Failed to create empty topic', err as Error)
         window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        return null
       } finally {
         isCreatingTopicRef.current = false
       }
     },
     [
       createTopic,
-      classicLayoutTopics,
       refreshTopics,
       resolveNewTopicAssistantTarget,
       setActiveTopicAndCloseResourceView,
-      t
+      t,
+      topicReuseCandidates
     ]
   )
 
@@ -491,31 +510,47 @@ const HomePage: FC = () => {
     [createTopic, refreshTopics, resolveNewTopicAssistantTarget, setActiveTopicAndCloseResourceView, t]
   )
 
+  const handleCreateEmptyTopic = useCallback(
+    (payload?: AddNewTopicPayload) => {
+      void createAndActivateEmptyTopic(payload)
+    },
+    [createAndActivateEmptyTopic]
+  )
+
+  const handleCreateEmptyTopicForAssistant = useCallback(
+    (assistantId: string | null) => {
+      void createAndActivateEmptyTopic(assistantId ? { assistantId } : undefined)
+    },
+    [createAndActivateEmptyTopic]
+  )
+
   useEffect(() => {
     if (!shouldAutoCreateTopic || initialTopicStartStateRef.current.firstLaunchStarted || state?.topic) return
     if (activeTopic || isActiveTopicLoading) return
     if (!isAssistantListResolved) return
-    if (isClassicTopicLayout && !isClassicTopicLayoutHistoryReady) return
+    if (!isTopicHistoryReady) return
 
     initialTopicStartStateRef.current.firstLaunchStarted = true
 
     if (isClassicTopicLayout && !routeAssistantId) {
-      const latestTopic = findLatestUpdated(classicLayoutTopics)
+      const latestTopic = findLatestUpdated(allTopics)
       if (latestTopic) {
         setActiveTopic(mapApiTopicToRendererTopic(latestTopic))
         return
       }
     }
 
-    void createAndActivateEmptyTopic(routeAssistantId ? { assistantId: routeAssistantId } : undefined)
+    void createAndActivateEmptyTopic(routeAssistantId ? { assistantId: routeAssistantId } : undefined).then((topic) => {
+      if (!topic) initialTopicStartStateRef.current.firstLaunchStarted = false
+    })
   }, [
     activeTopic,
+    allTopics,
     createAndActivateEmptyTopic,
     isActiveTopicLoading,
     isAssistantListResolved,
     isClassicTopicLayout,
-    isClassicTopicLayoutHistoryReady,
-    classicLayoutTopics,
+    isTopicHistoryReady,
     routeAssistantId,
     setActiveTopic,
     shouldAutoCreateTopic,
@@ -528,9 +563,7 @@ const HomePage: FC = () => {
   // a real empty topic with another available assistant.
   const handleActiveAssistantDeleted = useCallback(
     (deletedAssistantId: string) => {
-      const nextTopic = findLatestUpdated(
-        classicLayoutTopics.filter((topic) => topic.assistantId !== deletedAssistantId)
-      )
+      const nextTopic = findLatestUpdated(allTopics.filter((topic) => topic.assistantId !== deletedAssistantId))
       if (lastUsedAssistantId === deletedAssistantId) {
         setLastUsedAssistantId(null)
       }
@@ -540,7 +573,7 @@ const HomePage: FC = () => {
       void createAndActivateEmptyTopic(undefined, { excludedAssistantIds: [deletedAssistantId] })
     },
     [
-      classicLayoutTopics,
+      allTopics,
       createAndActivateEmptyTopic,
       lastUsedAssistantId,
       setActiveTopicAndCloseResourceView,
@@ -665,9 +698,7 @@ const HomePage: FC = () => {
         const activeAssistantGroupId = visibleTopic ? getTopicAssistantDisplayGroupId(visibleTopic) : undefined
         const collapsedAssistantGroupIds = Array.from(
           new Set(
-            classicLayoutTopics
-              .map(getTopicAssistantDisplayGroupId)
-              .filter((groupId) => groupId !== activeAssistantGroupId)
+            allTopics.map(getTopicAssistantDisplayGroupId).filter((groupId) => groupId !== activeAssistantGroupId)
           )
         )
         setTopicExpansionAssistant(collapsedAssistantGroupIds)
@@ -677,7 +708,7 @@ const HomePage: FC = () => {
       setResourceListOpen(true)
     },
     [
-      classicLayoutTopics,
+      allTopics,
       setPanePosition,
       setResourceListOpen,
       setTopicDisplayMode,
@@ -719,7 +750,7 @@ const HomePage: FC = () => {
         onSelectTopic={setActiveTopicAndCloseResourceView}
         onCreateTopicAfterClear={(assistantId) => createAndActivateFreshTopic({ assistantId })}
         onSelectedAssistantClick={() => setTopicPaneOpen(!topicPaneOpen)}
-        onCreateTopic={(assistantId) => createAndActivateEmptyTopic({ assistantId })}
+        onCreateTopic={handleCreateEmptyTopicForAssistant}
         resourceMenuItems={resourceMenuItems}
         onActiveAssistantDeleted={handleActiveAssistantDeleted}
       />
@@ -732,7 +763,7 @@ const HomePage: FC = () => {
         }}
         setActiveTopic={setActiveTopicAndCloseResourceView}
         onCreateTopicAfterClear={isMessageOnlyView ? undefined : createAndActivateFreshTopic}
-        onNewTopic={isMessageOnlyView ? undefined : createAndActivateEmptyTopic}
+        onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
         onOpenHistoryRecords={openHistoryRecords}
         revealRequest={topicRevealRequest}
         resourceMenuItems={resourceMenuItems}
@@ -754,7 +785,7 @@ const HomePage: FC = () => {
               assistantIdFilter={visibleAssistantId ?? null}
               setActiveTopic={setActiveTopicAndCloseResourceView}
               onCreateTopicAfterClear={isMessageOnlyView ? undefined : createAndActivateFreshTopic}
-              onNewTopic={isMessageOnlyView ? undefined : createAndActivateEmptyTopic}
+              onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
               onSetPanePosition={setTopicListPosition}
               panePosition="right"
               revealRequest={topicRevealRequest}
@@ -823,8 +854,8 @@ const HomePage: FC = () => {
           panePosition={shellPanePosition}
           onPaneCollapse={() => setResourceListOpen(false)}
           onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
-          onNewTopic={isMessageOnlyView ? undefined : createAndActivateEmptyTopic}
-          onCreateEmptyTopic={isMessageOnlyView ? undefined : createAndActivateEmptyTopic}
+          onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
+          onCreateEmptyTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
           showResourceListControls={!isMessageOnlyView && !isWindowFrame}
           sidebarOpen={effectiveShowSidebar}
           onSidebarToggle={toggleResourceListOpen}
