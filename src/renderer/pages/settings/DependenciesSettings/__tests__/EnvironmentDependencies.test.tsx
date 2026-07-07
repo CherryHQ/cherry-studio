@@ -240,7 +240,7 @@ describe('EnvironmentDependencies', () => {
 
     await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledWith(false))
     const updateButtons = await screen.findAllByTitle('settings.dependencies.update')
-    fireEvent.click(updateButtons[1])
+    fireEvent.click(updateButtons[0])
 
     await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv', tool: 'uv' }))
     expect(ipcMocks.latestVersions).not.toHaveBeenCalledWith(true)
@@ -254,7 +254,7 @@ describe('EnvironmentDependencies', () => {
 
     await waitFor(() => expect(ipcMocks.latestVersions).toHaveBeenCalledWith(false))
     const updateButtons = await screen.findAllByTitle('settings.dependencies.update')
-    fireEvent.click(updateButtons[1])
+    fireEvent.click(updateButtons[0])
 
     await waitFor(() => expect(ipcMocks.installTool).toHaveBeenCalledWith({ name: 'uv', tool: 'uv' }))
     expect(ipcMocks.latestVersions).not.toHaveBeenCalledWith(true)
