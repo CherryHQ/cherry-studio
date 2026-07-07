@@ -90,6 +90,10 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
       return { sessionId: null, result: 'Skipped (disabled)' }
     }
+    if (config.builtin_role === 'assistant') {
+      logger.debug('Heartbeat skipped (assistant role)', { agentId, scheduleId })
+      return { sessionId: null, result: 'Skipped (assistant role)' }
+    }
     switch (workspace.type) {
       case AGENT_WORKSPACE_TYPE.SYSTEM:
         logger.debug('Heartbeat skipped (no file)', { agentId, scheduleId })
