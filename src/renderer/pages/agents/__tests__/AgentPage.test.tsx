@@ -50,7 +50,6 @@ const agentPageMocks = vi.hoisted(() => ({
   lastUsedSessionId: null as string | null,
   lastUsedWorkspaceId: null as string | null,
   classicLayoutRightPaneOpen: true,
-  focusExistingTab: vi.fn(() => false),
   activeSessionOptions: null as {
     activeSessionId: string | null
     setActiveSessionId: (id: string | null) => void
@@ -251,13 +250,6 @@ vi.mock('@tanstack/react-router', () => ({
   useSearch: () => agentPageMocks.routeSearch
 }))
 
-vi.mock('@renderer/hooks/useConversationNavigation', () => ({
-  useConversationNavigation: () => ({
-    focusExistingTab: agentPageMocks.focusExistingTab,
-    openConversationTab: vi.fn()
-  })
-}))
-
 vi.mock('@renderer/components/chat/shell/ConversationPageShell', () => ({
   default: ({
     center,
@@ -354,7 +346,8 @@ vi.mock('../AgentChat', () => ({
     showResourceListControls,
     sessionPaneOpen,
     onSessionPaneOpenChange,
-    onPaneCollapse
+    onPaneCollapse,
+    onPaneAutoCollapseChange
   }: {
     activeSession?: { id: string } | null
     activeSessionLoading?: boolean
@@ -387,6 +380,7 @@ vi.mock('../AgentChat', () => ({
     sessionPaneOpen?: boolean
     onSessionPaneOpenChange?: (open: boolean) => void
     onPaneCollapse?: () => void
+    onPaneAutoCollapseChange?: (collapsed: boolean) => void
   }) => (
     <section data-testid="agent-chat">
       <output data-testid="active-session">{activeSession?.id ?? ''}</output>
@@ -401,6 +395,16 @@ vi.mock('../AgentChat', () => ({
       <output data-testid="pane-position">{panePosition ?? ''}</output>
       <output data-testid="session-pane-open">{String(sessionPaneOpen)}</output>
       <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
+      {onPaneAutoCollapseChange && (
+        <>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
+            Auto collapse pane
+          </button>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(false)}>
+            Auto restore pane
+          </button>
+        </>
+      )}
       {resourcePaneCount && (
         <output data-testid="resource-pane-count">
           {resourcePaneCount.label}:{resourcePaneCount.count}
@@ -623,7 +627,6 @@ describe('AgentPage', () => {
     agentPageMocks.sessionExpansionAgent = []
     agentPageMocks.classicLayoutRightPaneOpen = true
     agentPageMocks.activeSessionOptions = null
-    agentPageMocks.focusExistingTab.mockReturnValue(false)
     agentPageMocks.sessionDisplayMode = 'time'
     agentPageMocks.sessionPanePosition = 'right'
     agentPageMocks.showSidebar = false
@@ -1482,9 +1485,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBeNull()
   })
 
-  it('does not mutate the current tab before focusing an already-open global-search session', () => {
-    agentPageMocks.focusExistingTab.mockReturnValue(true)
-
+  it('writes locate state into the current tab for a global-search session message', async () => {
     render(<AgentPage />)
 
     const sessionMessageHandler = vi
@@ -1494,18 +1495,16 @@ describe('AgentPage', () => {
       | undefined
 
     act(() => {
-      sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open' })
+      sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open', targetTabId: 'agent-tab' })
     })
 
-    expect(agentPageMocks.focusExistingTab).toHaveBeenCalledWith('session-open', { excludeTabId: 'agent-tab' })
-    expect(agentPageMocks.setShowSidebar).not.toHaveBeenCalled()
-    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-open'))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open')
   })
 
   it('opens the session pane when a global-search locate targets a session in the current tab', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.classicLayoutRightPaneOpen = false
-    agentPageMocks.focusExistingTab.mockReturnValue(false)
 
     render(<AgentPage />)
 
@@ -1519,10 +1518,31 @@ describe('AgentPage', () => {
       | undefined
 
     act(() => {
-      sessionMessageHandler?.({ sessionId: 'session-locate', messageId: 'message-locate' })
+      sessionMessageHandler?.({ sessionId: 'session-locate', messageId: 'message-locate', targetTabId: 'agent-tab' })
     })
 
     expect(screen.getByTestId('session-pane-open')).toHaveTextContent('true')
+  })
+
+  it('ignores a global-search session message targeted at another tab', async () => {
+    render(<AgentPage />)
+
+    const sessionMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      sessionMessageHandler?.({
+        sessionId: 'session-open',
+        messageId: 'message-open',
+        targetTabId: 'other-agent-tab'
+      })
+    })
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-initial'))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
   it('forwards a reveal request when navigation asks the current agent tab to reveal its selection', async () => {
@@ -1563,6 +1583,25 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.setShowSidebar).toHaveBeenCalledWith(false))
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+  })
+  it('temporarily hides and restores the agent sidebar for responsive auto-collapse without changing the user preference', async () => {
+    agentPageMocks.showSidebar = true
+
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auto collapse pane' }))
+
+    await waitFor(() => expect(screen.getByTestId('pane-open')).toHaveTextContent('false'))
+    expect(agentPageMocks.setShowSidebar).not.toHaveBeenCalled()
+    expect(agentPageMocks.showSidebar).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auto restore pane' }))
+
+    await waitFor(() => expect(screen.getByTestId('pane-open')).toHaveTextContent('true'))
+    expect(agentPageMocks.setShowSidebar).not.toHaveBeenCalled()
+    expect(agentPageMocks.showSidebar).toBe(true)
   })
 
   it('keeps the agent sidebar open after selecting a session from the sidebar', async () => {

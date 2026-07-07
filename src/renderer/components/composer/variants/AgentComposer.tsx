@@ -13,6 +13,7 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import { ModelSelector } from '@renderer/components/ModelSelector'
@@ -847,6 +848,7 @@ const AgentComposerInner = ({
           label,
           icon: <MessageSquarePlus size={16} />,
           filterText: label,
+          searchAliases: getQuickPanelSearchAliases(t, 'agent.session.new'),
           action: () => {
             handleCreateEmptySession()
           }
@@ -862,6 +864,7 @@ const AgentComposerInner = ({
         label,
         icon: <MessageSquarePlus size={16} />,
         filterText: label,
+        searchAliases: getQuickPanelSearchAliases(t, 'agent.session.new'),
         action: () => {
           void onNewSessionDraft()
         }

@@ -169,6 +169,19 @@ describe('RightPaneHost', () => {
     expect(handle).toHaveClass('left-0', 'cursor-col-resize')
   })
 
+  it('keeps the resize handle above pane content overlays', () => {
+    const { container } = render(
+      <RightPaneHost open resizable width={460}>
+        <div className="absolute inset-0 z-20">preview overlay</div>
+      </RightPaneHost>
+    )
+
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+
+    expect(handle).toBeInTheDocument()
+    expect(handle).toHaveClass('z-30')
+  })
+
   it('notifies when the open animation completes', () => {
     const onOpenAnimationComplete = vi.fn()
 
