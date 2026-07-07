@@ -226,6 +226,22 @@ describe('AgentChannelWorkflowService', () => {
       )
     })
 
+    it('re-clears task subscriptions after rolling back a failed agentId rebind', async () => {
+      const existing = makeChannel({ agentId: 'agent-1' })
+      const updated = makeChannel({ agentId: 'agent-2' })
+      getChannelMock.mockReturnValue(existing)
+      updateChannelMock.mockReturnValueOnce(updated).mockReturnValueOnce(existing)
+      syncChannelMock.mockRejectedValue(new Error('sync failed'))
+
+      await expect(agentChannelWorkflowService.updateChannel('ch-1', { agentId: 'agent-2' })).rejects.toThrow(
+        'sync failed'
+      )
+
+      expect(clearTaskSubscriptionsForChannelMock).toHaveBeenCalledTimes(2)
+      expect(clearTaskSubscriptionsForChannelMock).toHaveBeenNthCalledWith(1, 'ch-1')
+      expect(clearTaskSubscriptionsForChannelMock).toHaveBeenNthCalledWith(2, 'ch-1')
+    })
+
     it('rejects discord-shaped config when existing channel is telegram (cross-type guard)', async () => {
       const existing = makeChannel({ type: 'telegram', config: { bot_token: 'tok' } })
       getChannelMock.mockReturnValue(existing)

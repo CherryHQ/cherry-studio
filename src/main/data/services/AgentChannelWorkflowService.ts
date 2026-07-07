@@ -69,7 +69,8 @@ export class AgentChannelWorkflowService {
       logger.warn('updateChannel: row disappeared mid-update', { channelId })
       return null
     }
-    if (updates.agentId !== undefined && updates.agentId !== (existing.agentId ?? null)) {
+    const agentIdChanged = updates.agentId !== undefined && updates.agentId !== (existing.agentId ?? null)
+    if (agentIdChanged) {
       // Deliberately not restored if syncChannel fails: conservative cleanup prevents wrong-agent delivery.
       agentChannelService.clearTaskSubscriptionsForChannel(channelId)
     }
@@ -94,6 +95,10 @@ export class AgentChannelWorkflowService {
 
       try {
         agentChannelService.updateChannel(channelId, restoreUpdates)
+        if (agentIdChanged) {
+          // Re-clear subscriptions created during the transient rebind window.
+          agentChannelService.clearTaskSubscriptionsForChannel(channelId)
+        }
       } catch (restoreError) {
         logger.warn('Failed to restore channel after sync failure', {
           channelId,
