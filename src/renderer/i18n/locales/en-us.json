@@ -339,6 +339,9 @@
     "home": {
       "welcome_title": "What shall we talk about today?"
     },
+    "icon": {
+      "type": "Agent Icon"
+    },
     "input": {
       "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands.",
       "soul_placeholder": "Help me connect to Telegram"
@@ -347,6 +350,9 @@
       "error": {
         "failed": "Failed to list agents."
       }
+    },
+    "manage": {
+      "title": "Manage Agents"
     },
     "pin": {
       "title": "Pin Agent"
@@ -785,6 +791,11 @@
       }
     },
     "sidebar_title": "Agents",
+    "skill": {
+      "manage": {
+        "title": "Manage skills"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1086,8 +1097,9 @@
   "assistants": {
     "abbr": "Assistants",
     "clear": {
-      "content": "Clearing conversations will delete all conversations and files in the assistant. Are you sure you want to continue?",
-      "menu_title": "Delete all assistant conversations",
+      "content": "Clearing topics will delete all topics under this assistant. Are you sure you want to continue?",
+      "menu_title": "Clear Topics",
+      "success_title": "Cleared {{count}} topics",
       "title": "Clear conversations"
     },
     "copy": {
@@ -3051,7 +3063,7 @@
             "skills_coming_soon": "Skill bindings coming soon",
             "skills_require_save": "Save before enabling skills",
             "tab": {
-              "mcp": "MCP Server",
+              "mcp": "MCP",
               "skills": "Skills",
               "tools": "Built-in tools"
             },
@@ -5333,6 +5345,13 @@
       "auto_switch_to_topics": "Auto switch to conversation",
       "title": "Advanced Settings"
     },
+    "agent": {
+      "position": {
+        "label": "Session position",
+        "left": "Left",
+        "right": "Right"
+      }
+    },
     "appearance": {
       "title": "Appearance"
     },
@@ -7598,6 +7617,7 @@
   },
   "title": {
     "apps": "Apps",
+    "chat": "Chat",
     "code": "Code",
     "files": "Files",
     "home": "Home",

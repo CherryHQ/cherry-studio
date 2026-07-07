@@ -122,7 +122,7 @@ vi.mock('react-i18next', () => ({
       const label =
         {
           'agent.sidebar_title': 'Agent',
-          'agent.session.group.conversation': 'Chat',
+          'title.chat': 'Chat',
           'assistants.presets.title': 'Library',
           'code.title': 'Code',
           'files.title': 'Files',

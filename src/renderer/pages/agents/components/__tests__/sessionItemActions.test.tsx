@@ -38,6 +38,8 @@ function createSessionActionFixture(overrides: Partial<SessionActionContext> = {
     onExportYuque: vi.fn(),
     onSaveToKnowledge: vi.fn(),
     onSaveToNotes: vi.fn(),
+    onSetPanePosition: vi.fn(),
+    panePosition: 'left',
     pinned: false,
     sessionName: 'Session title',
     startEdit: vi.fn(),
@@ -53,6 +55,7 @@ describe('session item actions', () => {
     expect(actions.map((action) => action.id)).toEqual([
       'session.auto-rename',
       'session.rename',
+      'session.position',
       'session.save-notes',
       'session.save-knowledge',
       'session.export',
@@ -75,6 +78,7 @@ describe('session item actions', () => {
       'session.auto-rename',
       'session.rename',
       'session.toggle-pin',
+      'session.position',
       'session.save-notes',
       'session.save-knowledge',
       'session.export',
@@ -104,6 +108,7 @@ describe('session item actions', () => {
     expect(actions.map((action) => action.id)).toEqual([
       'session.auto-rename',
       'session.rename',
+      'session.position',
       'session.save-notes',
       'session.save-knowledge',
       'session.export',
@@ -123,6 +128,7 @@ describe('session item actions', () => {
     expect(actions.map((action) => action.id)).toEqual([
       'session.auto-rename',
       'session.rename',
+      'session.position',
       'session.open-in-new-window',
       'session.save-notes',
       'session.save-knowledge',
@@ -134,6 +140,35 @@ describe('session item actions', () => {
     const action = actions.find((candidate) => candidate.id === 'session.open-in-new-window')
     await executeSessionMenuAction(action as (typeof actions)[number], actionContext)
     expect(onOpenInNewWindow).toHaveBeenCalled()
+  })
+
+  it('sets the pane position from the position submenu', async () => {
+    const onSetPanePosition = vi.fn()
+    const actionContext = createSessionActionFixture({ onSetPanePosition })
+    const actions = resolveSessionMenuActions(actionContext)
+    const positionAction = actions.find((action) => action.id === 'session.position')
+    const rightAction = positionAction?.children.find((action) => action.id === 'session.position-right')
+
+    expect(positionAction?.label).toBe('settings.agent.position.label')
+    expect(rightAction?.availability.enabled).toBe(true)
+
+    await executeSessionMenuAction(rightAction as (typeof actions)[number], actionContext)
+
+    expect(onSetPanePosition).toHaveBeenCalledWith('right')
+  })
+
+  it('sets the pane position back to left from the right pane state', async () => {
+    const onSetPanePosition = vi.fn()
+    const actionContext = createSessionActionFixture({ onSetPanePosition, panePosition: 'right' })
+    const actions = resolveSessionMenuActions(actionContext)
+    const positionAction = actions.find((action) => action.id === 'session.position')
+    const leftAction = positionAction?.children.find((action) => action.id === 'session.position-left')
+
+    expect(leftAction?.availability.enabled).toBe(true)
+
+    await executeSessionMenuAction(leftAction as (typeof actions)[number], actionContext)
+
+    expect(onSetPanePosition).toHaveBeenCalledWith('left')
   })
 
   it('uses localized cancel text for the delete confirmation', () => {

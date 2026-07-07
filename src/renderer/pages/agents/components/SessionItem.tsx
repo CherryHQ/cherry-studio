@@ -1,5 +1,6 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
+import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
 import {
   ResourceList,
   useResourceListActions,
@@ -11,6 +12,7 @@ import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { PinIcon, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -28,8 +30,9 @@ interface SessionItemProps {
   onOpenInNewTab?: (session: AgentSessionEntity) => void
   onOpenInNewWindow?: (session: AgentSessionEntity) => void
   onPress: (id: string) => void
-  onSelectItem?: () => void
+  onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onTogglePin?: (id: string) => void | Promise<unknown>
+  panePosition?: TopicTabPosition
   pinned?: boolean
   reserveLeadingIconSlot?: boolean
   session: AgentSessionEntity
@@ -62,7 +65,8 @@ const SessionItem = ({
   onOpenInNewTab,
   onOpenInNewWindow,
   onPress,
-  onSelectItem,
+  onSetPanePosition,
+  panePosition,
   onTogglePin,
   pinned = false,
   reserveLeadingIconSlot = true,
@@ -70,6 +74,8 @@ const SessionItem = ({
   sessionMenuActions
 }: SessionItemProps) => {
   const { t } = useTranslation()
+  const shellState = useOptionalShellState()
+  const shellActions = useOptionalShellActions()
   const actions = useResourceListActions()
   const rowState = useResourceListRowState(session.id)
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
@@ -142,7 +148,9 @@ const SessionItem = ({
       onOpenInNewWindow: onOpenInNewWindow ? handleOpenInNewWindow : undefined,
       onSaveToKnowledge: () => sessionMenuActions.onSaveToKnowledge(session),
       onSaveToNotes: () => sessionMenuActions.onSaveToNotes(session),
+      onSetPanePosition,
       onTogglePin: onTogglePin ? handleTogglePin : undefined,
+      panePosition,
       pinned,
       sessionName,
       startEdit: startMenuEdit,
@@ -157,7 +165,9 @@ const SessionItem = ({
       isRenaming,
       onOpenInNewTab,
       onOpenInNewWindow,
+      onSetPanePosition,
       onTogglePin,
+      panePosition,
       pinned,
       session,
       sessionMenuActions,
@@ -207,10 +217,10 @@ const SessionItem = ({
         handleOpenInNewTab()
         return
       }
+      if (shellState?.maximized) shellActions?.minimize()
       onPress(session.id)
-      onSelectItem?.()
     },
-    [active, handleOpenInNewTab, onOpenInNewTab, onPress, onSelectItem, session.id]
+    [active, handleOpenInNewTab, onOpenInNewTab, onPress, session.id, shellActions, shellState?.maximized]
   )
 
   const handleAuxClick = useCallback(

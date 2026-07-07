@@ -207,6 +207,16 @@ function ShellStateSnapshot() {
   )
 }
 
+function ShellMinimizeButton() {
+  const actions = useShellActions()
+
+  return (
+    <button type="button" onClick={actions.minimize}>
+      minimize shell
+    </button>
+  )
+}
+
 function triggerRightSidebarShortcut() {
   const handler = shortcutHandlers.get('topic.sidebar.toggle')
   if (!handler) throw new Error('Expected right sidebar shortcut to be registered')
@@ -326,6 +336,41 @@ describe('Shell.Toggle', () => {
     expect(screen.getByRole('button', { name: 'common.close_sidebar' })).toHaveAttribute('data-state', 'open')
   })
 
+  it('syncs when the owning component changes the default open state', () => {
+    const { rerender } = render(
+      <Shell defaultTab="files" defaultOpen>
+        <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
+        <OpenTraceButton />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+
+    fireEvent.click(screen.getByRole('button', { name: 'open trace' }))
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:trace:false')
+
+    rerender(
+      <Shell defaultTab="files" defaultOpen={false}>
+        <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
+        <OpenTraceButton />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:trace:false')
+
+    rerender(
+      <Shell defaultTab="files" defaultOpen>
+        <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
+        <OpenTraceButton />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
+  })
+
   it('does not rerender actions-only consumers when shell state changes', () => {
     render(
       <Shell defaultTab="files">
@@ -380,6 +425,29 @@ describe('Shell.Toggle', () => {
     triggerRightSidebarShortcut()
 
     expect(screen.getByTestId('shell-state')).toHaveTextContent('closed:files:false')
+  })
+
+  it('minimizes from maximized mode without closing the pane', () => {
+    render(
+      <Shell defaultTab="files">
+        <Shell.Toggle tab="files" command="topic.sidebar.toggle" />
+        <Shell.Tabs>
+          <Shell.TabList>
+            <Shell.Tab value="files">Files</Shell.Tab>
+          </Shell.TabList>
+        </Shell.Tabs>
+        <ShellMinimizeButton />
+        <ShellStateSnapshot />
+      </Shell>
+    )
+
+    triggerRightSidebarShortcut()
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'minimize shell' }))
+
+    expect(screen.getByTestId('shell-state')).toHaveTextContent('open:files:false')
   })
 
   it('does not respond to the right sidebar shortcut when disabled', () => {
