@@ -1358,6 +1358,47 @@ describe('AgentPage', () => {
     ])
   })
 
+  it('bounds message probes for touched blank session reuse candidates', async () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    activeSessionMocks.session = {
+      ...agentPageMocks.persistedSession,
+      id: 'session-active',
+      agentId: 'agent-a',
+      workspaceId: 'workspace-a',
+      workspace: agentPageMocks.workspace
+    }
+    activeSessionMocks.sessionSource = 'query'
+    agentPageMocks.classicLayoutSessions = Array.from({ length: 12 }, (_, index) => ({
+      id: `session-blank-touched-${index}`,
+      agentId: 'agent-a',
+      name: '',
+      isNameManuallyEdited: false,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: `2026-01-03T00:00:${String(index).padStart(2, '0')}.000Z`,
+      workspaceId: 'workspace-a',
+      workspace: { type: 'user' }
+    }))
+    agentPageMocks.dataApiPost.mockResolvedValue({
+      ...agentPageMocks.persistedSession,
+      id: 'session-composer-empty',
+      agentId: 'agent-a',
+      name: '',
+      workspaceId: 'workspace-a',
+      workspace: agentPageMocks.workspace
+    })
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create empty session from composer' }))
+
+    await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalled())
+    const messageProbeCalls = agentPageMocks.dataApiGet.mock.calls.filter(
+      ([path]) => typeof path === 'string' && path.startsWith('/agent-sessions/') && path.endsWith('/messages')
+    )
+    expect(messageProbeCalls).toHaveLength(8)
+    expect(agentPageMocks.dataApiGet).not.toHaveBeenCalledWith('/agent-sessions', expect.anything())
+  })
+
   it('toasts when the classic-layout composer empty-session creation fails', async () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     activeSessionMocks.session = {
