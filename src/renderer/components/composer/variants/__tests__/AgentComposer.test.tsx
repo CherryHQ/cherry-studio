@@ -910,6 +910,27 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.resourceProvider).not.toBe(firstResourceProvider)
   })
 
+  it('calls onWorkspaceChange with null when clicking the quick clear button on hover', async () => {
+    const onWorkspaceChange = vi.fn()
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        onWorkspaceChange={onWorkspaceChange}
+        showWorkspaceSelector
+      />
+    )
+
+    const clearButton = screen.getByTestId('clear-workspace-button')
+    expect(clearButton).toBeInTheDocument()
+
+    fireEvent.click(clearButton)
+    expect(onWorkspaceChange).toHaveBeenCalledWith(null)
+  })
+
   it('marks already selected workspace resources as disabled', async () => {
     mocks.files = [
       {

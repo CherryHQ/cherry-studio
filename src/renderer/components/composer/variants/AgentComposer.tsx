@@ -52,7 +52,7 @@ import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data
 import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Bot, ChevronDown, CircleSlash, Folder, MessageSquarePlus, Sparkles, TriangleAlert } from 'lucide-react'
+import { Bot, ChevronDown, CircleSlash, Folder, MessageSquarePlus, Sparkles, TriangleAlert, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -500,6 +500,7 @@ const AgentComposerWorkspaceControl = ({
   onWorkspaceChange
 }: AgentComposerWorkspaceControlProps) => {
   const { t } = useTranslation()
+  const [menuOpen, setMenuOpen] = useState(false)
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const hasWarning = Boolean(workspaceWarning)
   const isSystemWorkspace = workspace?.type === 'system'
@@ -509,26 +510,79 @@ const AgentComposerWorkspaceControl = ({
     : (workspace?.name ?? selectWorkspaceLabel)
   const trigger = (
     <Button
+      asChild
       variant="ghost"
       size="sm"
       className={cn(
         baseTriggerClassName,
+        !menuOpen && 'group',
+        'relative',
         iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
         hasWarning && 'text-warning hover:text-warning'
       )}
       disabled={!onWorkspaceChange || workspaceChanging}
       aria-label={workspaceWarning}>
-      {hasWarning ? (
-        <TriangleAlert size={14} aria-hidden />
-      ) : isSystemWorkspace ? (
-        <CircleSlash size={14} aria-hidden className="text-muted-foreground" />
-      ) : (
-        <Folder size={14} aria-hidden className="text-muted-foreground" />
-      )}
-      <span className={cn('max-w-40 truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{workspaceLabel}</span>
-      {onWorkspaceChange ? (
-        <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
-      ) : null}
+      <div
+        role="button"
+        tabIndex={!onWorkspaceChange || workspaceChanging ? -1 : 0}
+        aria-disabled={!onWorkspaceChange || workspaceChanging}>
+        {hasWarning ? (
+          <TriangleAlert size={14} aria-hidden />
+        ) : isSystemWorkspace ? (
+          <CircleSlash size={14} aria-hidden className="text-muted-foreground" />
+        ) : (
+          <div className="relative flex size-4 shrink-0 items-center justify-center">
+            <Folder
+              size={14}
+              aria-hidden
+              className={cn(
+                'shrink-0 text-muted-foreground transition-all duration-200',
+                onWorkspaceChange && !menuOpen && !iconOnly && 'group-hover:scale-75 group-hover:opacity-0'
+              )}
+            />
+            {/* R8: 仅在有有效工作目录且非 iconOnly 时渲染清除按钮 */}
+            {onWorkspaceChange && workspace && !iconOnly && (
+              <div
+                className={cn(
+                  'pointer-events-none absolute inset-0 z-10 flex scale-75 items-center justify-center opacity-0 transition-all duration-200',
+                  !menuOpen && 'group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100'
+                )}>
+                <Tooltip content={t('agent.session.workspace_selector.no_project')}>
+                  <span
+                    role="button"
+                    data-testid="clear-workspace-button"
+                    tabIndex={workspaceChanging ? -1 : 0}
+                    aria-disabled={workspaceChanging}
+                    aria-hidden={menuOpen || !onWorkspaceChange || iconOnly}
+                    className={cn(
+                      'flex size-4 items-center justify-center rounded-full bg-transparent text-muted-foreground/95 transition-all hover:bg-muted-foreground/25 hover:text-foreground active:scale-95',
+                      workspaceChanging && 'cursor-not-allowed opacity-50'
+                    )}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (!workspaceChanging) void onWorkspaceChange(null)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (!workspaceChanging) void onWorkspaceChange(null)
+                      }
+                    }}>
+                    <X size={10} className="stroke-[2.5]" />
+                  </span>
+                </Tooltip>
+              </div>
+            )}
+          </div>
+        )}
+        <span className={cn('max-w-40 truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{workspaceLabel}</span>
+        {onWorkspaceChange ? (
+          <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
+        ) : null}
+      </div>
     </Button>
   )
   const selector = onWorkspaceChange ? (
@@ -540,6 +594,8 @@ const AgentComposerWorkspaceControl = ({
       mountStrategy="lazy-keep"
       disabled={workspaceChanging}
       trigger={trigger}
+      open={menuOpen}
+      onOpenChange={setMenuOpen}
     />
   ) : (
     trigger
