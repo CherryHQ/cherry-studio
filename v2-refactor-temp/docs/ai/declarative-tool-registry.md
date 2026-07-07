@@ -72,7 +72,7 @@ Approval metadata dropped (decision #4). `AgentToolsType` derived from the regis
 ### Layer 3 — policy & MCP injection (main)
 - `useAgentTools.ts` + `agentTools.ts` source descriptors from the registry.
 - `settingsBuilder.buildToolPermissions()` → `resolveDisallowedTools(agent, ctx)`.
-- `settingsBuilder.buildMcpServers()` injects an in-process server iff ≥1 of its tools is effectively enabled (replaces the `if (soulEnabled)` gates). `skills` stays unmounted — `SkillsServer` is defined but injected nowhere.
+- `settingsBuilder.buildMcpServers()` injects `cherry-tools` and `agent-memory` for every session; per-tool policy is enforced by `disallowedTools`/hooks, not by mounting/unmounting the server. `skills` stays unmounted — `SkillsServer` is defined but injected nowhere.
 
 ## Enable/disable model
 
@@ -143,7 +143,7 @@ Future: media tools (image gen, audio/video) → `category:'media'`; notes → `
 - **PR-4 — edit-dialog UI: real enable/disable + category sections + cherry fold-in.** Toggle writes `disabledTools`; group by `category`; one switch per `pairGroup`; show only `exposure==='user'`; drop per-tool approve.
 - **PR-5 — i18n.** `agent.tools.<Key>.label/.description` in en/zh-cn/zh-tw; migrate `getAgentToolLabel`.
 - **PR-6 — render-registry unification + cleanup.** `TOOL_UI_BINDINGS` + registry-driven `ToolHeader`; delete `builtinTools.ts`.
-- **PR-7 — conditional exposure + in-process MCP de-soul-gating.** Introduce the `ctx` predicates (`workspace-has-git` via `.git` stat; `agent-has-channel` via `channelService`); enforce `conditional`. De-soul-gate claw/agent-memory; inject servers per-tool-enabled; remove `SOUL_MODE_DISALLOWED_TOOLS` + soul server gates. (`skills` wiring deferred — `SkillsServer` stays defined-but-unmounted.) **Behavior change** — explicit before/after, tested.
+- **PR-7 — conditional exposure + in-process MCP de-soul-gating.** Introduce the `ctx` predicates (`workspace-has-git` via `.git` stat; `agent-has-channel` via `channelService`); enforce `conditional`. De-soul-gate cherry-tools/agent-memory by injecting them for every session and enforcing per-tool policy through `disallowedTools`/hooks; remove `SOUL_MODE_DISALLOWED_TOOLS` + soul server gates. (`skills` wiring deferred — `SkillsServer` stays defined-but-unmounted.) **Behavior change** — explicit before/after, tested.
 
 ## Risks
 
