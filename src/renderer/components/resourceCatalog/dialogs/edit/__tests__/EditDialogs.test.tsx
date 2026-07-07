@@ -1,4 +1,5 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -188,10 +189,6 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 
 vi.mock('@renderer/hooks/usePromptProcessor', () => ({
   usePromptProcessor: ({ prompt }: { prompt: string }) => prompt
-}))
-
-vi.mock('@renderer/components/TopView/toast', () => ({
-  useToasts: () => ({ error: toastErrorMock })
 }))
 
 vi.mock('@renderer/utils/aiGeneration', () => ({
@@ -794,7 +791,7 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
 
     await waitFor(() =>
-      expect(toastErrorMock).toHaveBeenCalledWith({
+      expect(toast.error).toHaveBeenCalledWith({
         description: 'Check or change the default model, then try again.',
         title: 'Failed to generate prompt'
       })
@@ -817,7 +814,7 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Generate prompt' }))
 
     await waitFor(() =>
-      expect(toastErrorMock).toHaveBeenCalledWith({
+      expect(toast.error).toHaveBeenCalledWith({
         description: 'Check or change the default model, then try again.',
         title: 'Failed to generate prompt'
       })

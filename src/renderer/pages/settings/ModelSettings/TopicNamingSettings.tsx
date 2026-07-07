@@ -1,11 +1,6 @@
 import {
   Button,
   ColFlex,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   Divider,
   Flex,
   Popover,
@@ -18,14 +13,9 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
 import { SettingSubtitle } from '@renderer/components/SettingsPrimitives'
-import { TopView } from '@renderer/components/TopView/TopView'
 import { CircleHelp } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-
-interface Props {
-  resolve: (data: any) => void
-}
 
 export const TopicNamingSettings = () => {
   const [enableTopicNaming, setEnableTopicNaming] = usePreference('topic.naming.enabled')
@@ -88,58 +78,4 @@ export const TopicNamingSettings = () => {
       </ColFlex>
     </section>
   )
-}
-
-const PopupContainer: React.FC<Props> = ({ resolve }) => {
-  const [open, setOpen] = useState(true)
-  const { t } = useTranslation()
-
-  const closePopup = () => {
-    setOpen(false)
-    resolve({})
-  }
-
-  TopicNamingModalPopup.hide = closePopup
-
-  return (
-    <Dialog open={open} onOpenChange={(next) => !next && closePopup()}>
-      <DialogContent
-        closeOnOverlayClick={false}
-        className="p-6"
-        onPointerDownOutside={(event) => event.preventDefault()}>
-        <DialogHeader>
-          <DialogTitle>{t('settings.models.quick_model.setting_title')}</DialogTitle>
-        </DialogHeader>
-        <TopicNamingSettings />
-        <DialogFooter>
-          <Button variant="outline" onClick={closePopup}>
-            {t('common.cancel')}
-          </Button>
-          <Button onClick={closePopup}>{t('common.confirm')}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-const TopViewKey = 'TopicNamingModalPopup'
-
-export default class TopicNamingModalPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide(TopViewKey)
-  }
-  static show() {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
-    })
-  }
 }

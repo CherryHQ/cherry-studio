@@ -10,6 +10,7 @@ import {
   toCreateAssistantDtoFromCatalogPreset,
   useAssistantCatalogPresets
 } from '@renderer/hooks/useAssistantCatalogPresets'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -108,7 +109,7 @@ export function AssistantLibraryDialog({
         [getAssistantPresetCatalogKey(preset)]: assistant.id
       }))
       onAssistantAdded?.()
-      window.toast.success(t('common.add_success'))
+      toast.success(t('common.add_success'))
       return assistant
     },
     [createAssistant, onAssistantAdded, t]
@@ -123,7 +124,7 @@ export function AssistantLibraryDialog({
       try {
         await addPreset(preset)
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('library.assistant_catalog.add_failed')))
+        toast.error(formatErrorMessageWithPrefix(error, t('library.assistant_catalog.add_failed')))
       } finally {
         setAddingPresetKeys((prev) => {
           const next = new Set(prev)
@@ -142,7 +143,7 @@ export function AssistantLibraryDialog({
     try {
       await addPreset(previewPreset)
     } catch (error) {
-      window.toast.error(formatErrorMessageWithPrefix(error, t('library.assistant_catalog.add_failed')))
+      toast.error(formatErrorMessageWithPrefix(error, t('library.assistant_catalog.add_failed')))
     } finally {
       setPreviewAdding(false)
     }

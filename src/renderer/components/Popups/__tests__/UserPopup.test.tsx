@@ -1,16 +1,9 @@
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { render, screen } from '@testing-library/react'
-import type React from 'react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import type ReactType from 'react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  TopView: {
-    show: vi.fn(),
-    hide: vi.fn()
-  }
-}))
 
 type PopoverContextValue = {
   open: boolean
@@ -106,9 +99,8 @@ vi.mock('@cherrystudio/ui', () => {
   }
 })
 
-vi.mock('@renderer/components/TopView/TopView', () => ({
-  TopView: mocks.TopView
-}))
+// This suite renders the real popup through the store + host, so opt out of the global mock.
+vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 
 vi.mock('@renderer/services/ImageStorage', () => ({
   default: {
@@ -136,13 +128,18 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-async function renderUserPopup() {
-  const { default: UserPopup } = await import('../UserPopup')
+import { PopupHost } from '@renderer/components/PopupHost'
 
-  void UserPopup.show()
-  const rendered = mocks.TopView.show.mock.calls[0][0] as React.ReactNode
+import UserPopup from '../UserPopup'
 
-  render(<>{rendered}</>)
+function showUserPopup() {
+  render(<PopupHost />)
+
+  // show() adds an entry to the popup store and synchronously notifies PopupHost;
+  // wrap it so the resulting useSyncExternalStore re-render runs inside act().
+  act(() => {
+    void UserPopup.show()
+  })
 }
 
 describe('UserPopup', () => {
@@ -152,16 +149,26 @@ describe('UserPopup', () => {
   })
 
   afterEach(() => {
-    vi.resetModules()
+    // Unmount the host before draining so settling leftover entries triggers no React
+    // update on a still-mounted host, then flush the shared singleton store. Fake timers
+    // fire the exit phase synchronously (no wall-clock wait).
+    cleanup()
+    vi.useFakeTimers()
+    for (const entry of [...popupService.getSnapshot()]) {
+      popupService.settle(entry.instanceId, {})
+    }
+    vi.advanceTimersByTime(POPUP_EXIT_MS)
+    vi.useRealTimers()
   })
 
   it('renders image avatars with object-cover cropping', async () => {
     const avatar = 'file:///tmp/wide-avatar.png'
     MockUseCacheUtils.setCacheValue('app.user.avatar', avatar)
 
-    await renderUserPopup()
+    showUserPopup()
 
-    expect(screen.getByTestId('avatar-image')).toHaveClass('object-cover')
-    expect(screen.getByTestId('avatar-image')).toHaveAttribute('src', avatar)
+    const image = await screen.findByTestId('avatar-image')
+    expect(image).toHaveClass('object-cover')
+    expect(image).toHaveAttribute('src', avatar)
   })
 })

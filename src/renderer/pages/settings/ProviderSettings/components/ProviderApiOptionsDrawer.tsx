@@ -1,5 +1,6 @@
 import { Button, Input, PageSidePanelItem, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import {
   ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES,
@@ -134,7 +135,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   }, [openAIOptions, provider, t])
 
   const handleSaveError = useCallback(() => {
-    window.toast.error(t('settings.provider.save_failed'))
+    toast.error(t('settings.provider.save_failed'))
   }, [t])
 
   const updateApiFeature = useCallback(

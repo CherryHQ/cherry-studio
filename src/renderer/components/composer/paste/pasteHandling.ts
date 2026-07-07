@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import { COMPOSER_FILE_KIND, type PastedTextFileMetadata } from '@renderer/types/file'
 import { getFileExtension, isSupportedFile } from '@renderer/utils/file'
 import { type ComposerAttachment, toComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -87,7 +88,7 @@ export const handlePaste = async (
               }
             } else {
               if (t) {
-                window.toast.info(t('chat.input.file_not_supported'))
+                toast.info(t('chat.input.file_not_supported'))
               }
             }
             continue
@@ -101,14 +102,14 @@ export const handlePaste = async (
             }
           } else {
             if (t) {
-              window.toast.info(t('chat.input.file_not_supported'))
+              toast.info(t('chat.input.file_not_supported'))
             }
           }
         }
       } catch (error) {
         logger.error('onPaste:', error as Error)
         if (t) {
-          window.toast.error(t('chat.input.file_error'))
+          toast.error(t('chat.input.file_error'))
         }
       }
       return true

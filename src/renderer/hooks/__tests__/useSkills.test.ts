@@ -8,13 +8,13 @@ const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
 const listLocalSkillsMock = vi.hoisted(() => vi.fn())
-const toastErrorMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: useQueryMock,
   useInvalidateCache: () => invalidateMock
 }))
 
+import { toast } from '@renderer/services/toast'
 import type { InstalledSkill } from '@shared/types/skill'
 
 import { SKILL_SEARCH_FAILED_ERROR } from '../../utils/skillSearch'
@@ -67,7 +67,6 @@ describe('useInstalledSkills', () => {
         listLocal: listLocalSkillsMock
       }
     })
-    vi.stubGlobal('toast', { error: toastErrorMock })
   })
 
   afterEach(() => {
@@ -115,7 +114,7 @@ describe('useInstalledSkills', () => {
     await act(async () => {
       await expect(result.current.uninstall('skill-1')).rejects.toThrow('uninstall failed')
     })
-    expect(toastErrorMock).toHaveBeenCalledWith('uninstall failed')
+    expect(toast.error).toHaveBeenCalledWith('uninstall failed')
   })
 
   it('combines enabled installed skills with local workspace skills', async () => {
@@ -195,7 +194,6 @@ describe('useSkillInstall', () => {
         installFromDirectory: installSkillFromDirectoryMock
       }
     })
-    vi.stubGlobal('toast', { error: toastErrorMock })
   })
 
   afterEach(() => {
@@ -296,13 +294,13 @@ describe('useSkillInstall', () => {
     await act(async () => {
       await expect(result.current.installFromZip('/tmp/bad.zip')).rejects.toThrow('zip failed')
     })
-    expect(toastErrorMock).toHaveBeenCalledWith('zip failed')
+    expect(toast.error).toHaveBeenCalledWith('zip failed')
 
     installSkillFromDirectoryMock.mockResolvedValueOnce({ success: false, error: 'directory failed' })
     await act(async () => {
       await expect(result.current.installFromDirectory('/tmp/bad-dir')).rejects.toThrow('directory failed')
     })
-    expect(toastErrorMock).toHaveBeenCalledWith('directory failed')
+    expect(toast.error).toHaveBeenCalledWith('directory failed')
   })
 })
 

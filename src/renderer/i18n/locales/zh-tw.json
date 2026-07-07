@@ -505,6 +505,7 @@
         "label": "預先授權工具",
         "placeholder": "選擇預先授權的工具"
       },
+      "auto_rename": "產生任務名",
       "create": {
         "error": {
           "failed": "無法新增工作階段"
@@ -525,7 +526,7 @@
         "workdir": "工作目錄"
       },
       "edit": {
-        "title": "編輯工作階段"
+        "title": "編輯任務名"
       },
       "empty": {
         "description": "開始任務後，任務記錄會顯示在這裡。",
@@ -1452,7 +1453,7 @@
         "pause": "暫停自動傳送",
         "remove": "移除",
         "resume": "恢復自動傳送",
-        "steer": "插入目前回合",
+        "steer": "插入訊息",
         "title": "排隊中 ({{count}})"
       },
       "generate_image": "產生圖片",
@@ -1724,6 +1725,7 @@
               "tip": "對話將以包含完整上下文的形式儲存到知識庫"
             }
           },
+          "source_fallback": "對話",
           "success": "對話已成功儲存到知識庫（{{count}} 項內容）",
           "title": "儲存對話到知識庫"
         }

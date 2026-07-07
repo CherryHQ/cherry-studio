@@ -13,6 +13,7 @@ import {
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/services/ExportService'
+import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
@@ -112,10 +113,10 @@ export function createTopicActionContext({
       try {
         const result = await SaveToKnowledgePopup.showForTopic(topic)
         if (result?.success) {
-          window.toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
+          toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
         }
       } catch {
-        window.toast.error(t('chat.save.topic.knowledge.error.save_failed'))
+        toast.error(t('chat.save.topic.knowledge.error.save_failed'))
       }
     },
     onSaveToNotes: (topic) => exportTopicToNotes(topic, notesPath),
@@ -243,7 +244,7 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       topicsLength
     ]
   )
-  const menuActions = useMemo(() => getTopicMenuActions(actionContext), [actionContext])
+  const getMenuActions = useCallback(() => getTopicMenuActions(actionContext), [actionContext])
   const handleMenuAction = useCallback(
     async (action: ResolvedAction<TopicActionContext>) => {
       await runTopicMenuAction(action, actionContext)
@@ -251,5 +252,5 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     [actionContext]
   )
 
-  return { actionContext, menuActions, handleMenuAction }
+  return { actionContext, getMenuActions, handleMenuAction }
 }

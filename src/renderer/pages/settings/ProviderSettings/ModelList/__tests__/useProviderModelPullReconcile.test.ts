@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -55,10 +56,6 @@ describe('useProviderModelPullReconcile', () => {
       provider: { id: 'cherryin', isEnabled: false },
       updateProvider: updateProviderMock
     })
-    window.toast = {
-      success: vi.fn(),
-      error: vi.fn()
-    } as unknown as typeof window.toast
   })
 
   it('enables the provider when the pull is up to date and local models exist', async () => {
@@ -78,7 +75,7 @@ describe('useProviderModelPullReconcile', () => {
     )
     expect(resetPreviewMock).toHaveBeenCalled()
     expect(result.current.pullReconcileDrawerOpen).toBe(false)
-    expect(window.toast.success).toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalled()
   })
 
   it('passes a zero count when up to date with no local models (helper no-ops)', async () => {
