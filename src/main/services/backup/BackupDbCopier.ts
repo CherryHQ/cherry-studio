@@ -4,12 +4,12 @@
 // Per export-orchestrator.md "createBackupCopy": export uses better-sqlite3
 // `db.backup()` (sqlite's ONLINE backup API — page-by-page, safe under
 // concurrent writes, no write-quiesce needed), NOT createSnapshot (VACUUM INTO,
-// which is restore-merge-base only). fullex #16714 floated `backupTo(path)` via
+// which is restore-merge-base only). @0xfullex #16714 floated `backupTo(path)` via
 // `db.backup()` for export.
 //
 // DbService.sqlite is private (DbService.ts L40), so the interim impl opens a
 // 2nd better-sqlite3 connection to the live file (sqlite allows multi-connection
-// to the same file; the backup API is designed for online backup). When fullex
+// to the same file; the backup API is designed for online backup). When @0xfullex
 // lands `DbService.backupTo(path)` upstream, the orchestrator swaps in a thin
 // adapter behind this same port — zero churn for callers.
 
