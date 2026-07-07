@@ -45,7 +45,7 @@ import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window
 import { useSearch } from '@tanstack/react-router'
 import { Bot, Zap } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import HistoryRecordsPage from '../history/HistoryRecordsPage'
@@ -127,7 +127,7 @@ const AgentPage = () => {
   const [sessionPaneOpen, setSessionPaneOpen] = useClassicLayoutRightPaneOpen('agent', isClassicSessionLayout)
   const isCreatingClassicEmptySessionRef = useRef(false)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     pendingSelectedSessionRef.current = null
     if (routeActiveSessionId === null && draftSessionRef.current) {
       setActiveSessionId(null)

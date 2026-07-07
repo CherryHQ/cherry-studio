@@ -1014,6 +1014,7 @@ describe('HomePage', () => {
     await waitFor(() =>
       expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-2')
     )
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
     expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.last_used_assistant_id', null)
   })
 

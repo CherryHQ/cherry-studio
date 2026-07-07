@@ -55,7 +55,7 @@ import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window
 import { useLocation, useSearch } from '@tanstack/react-router'
 import { MessageCircle } from 'lucide-react'
 import type { FC, HTMLAttributes, ReactNode } from 'react'
-import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import HistoryRecordsPage from '../history/HistoryRecordsPage'
@@ -222,7 +222,7 @@ const HomePage: FC = () => {
   const routeActiveTopicId = isMessageOnlyView ? null : (routeTopicId ?? tabMetadataTopicId ?? null)
   const [activeTopicId, setActiveTopicId] = useState<string | null>(() => routeActiveTopicId)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setActiveTopicId(routeActiveTopicId)
   }, [routeActiveTopicId])
 
@@ -536,6 +536,8 @@ const HomePage: FC = () => {
       if (nextTopic && setActiveTopicAndDiscardDraft(mapApiTopicToRendererTopic(nextTopic))) {
         return
       }
+      lastVisibleTopicRef.current = undefined
+      setPendingLocateMessageId(undefined)
       startDraftAssistantSelection(undefined, { excludedAssistantIds: [deletedAssistantId] })
     },
     [

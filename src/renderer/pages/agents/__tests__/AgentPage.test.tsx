@@ -1707,6 +1707,7 @@ describe('AgentPage', () => {
     rerender(<AgentPage />)
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-2'))
+    expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-active-session-id', 'session-2')
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-1')
     expect(screen.getByTestId('active-session-loading')).toHaveTextContent('true')
     expect(vi.mocked(useTabSelfMetadata)).toHaveBeenLastCalledWith(
