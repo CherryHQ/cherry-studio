@@ -2607,9 +2607,7 @@ describe('Topics', () => {
       }
     })
 
-    await vi.waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith('Failed to reorder assistants: order failed')
-    )
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to reorder assistants: order failed'))
     expect(patchSpy).toHaveBeenCalledWith('/assistants/assistant-1/order', { body: { after: 'assistant-2' } })
   })
 
