@@ -117,15 +117,30 @@ npx skills add vercel-labs/agent-skills@react-best-practices
 Learn more: https://skills.sh/vercel-labs/agent-skills/react-best-practices
 ```
 
-### Step 6: Offer to Install
+### Step 6: Install (Requires User Confirmation)
 
-If the user wants to proceed, you can install the skill for them:
+**⚠️ Security:** Skills are third-party code that runs with full agent
+permissions. A malicious skill could read, modify, or delete files on your
+system.
+
+Before installing any skill you **MUST**:
+
+1. **Show a security warning** — tell the user that the skill is third-party
+   code and will run with full agent permissions.
+2. **Provide a review link** — the skills.sh page (or source repository) so
+   the user can review the skill's SKILL.md and any scripts it contains.
+3. **Ask the user for explicit confirmation** — do NOT run `npx skills add`
+   until the user says "yes" or equivalent. Never install silently.
+
+Only after the user confirms, run:
 
 ```bash
 npx skills add <owner/repo@skill> -g -y
 ```
 
-The `-g` flag installs globally (user-level) and `-y` skips confirmation prompts.
+The `-g` flag installs globally (user-level) and `-y` skips the CLI's own
+interactive prompt — the user confirmation step above is what ensures the
+install was actually reviewed and approved, so it must happen first.
 
 ## Common Skill Categories
 
