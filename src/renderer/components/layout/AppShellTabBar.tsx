@@ -192,7 +192,7 @@ const NormalTabButton = ({
         isActive ? tone.activeClass : tone.hoverClass
       )}>
       {/* Icon — on narrow tabs, X overlay replaces icon on hover (Chrome-style) */}
-      <div className="relative flex h-[14px] w-[14px] shrink-0 items-center justify-center">
+      <div className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
         <TabIcon tab={tab} size={14} className={cn(showIconOverlayClose && 'group-hover:hidden')} />
         {showIconOverlayClose && (
           <div

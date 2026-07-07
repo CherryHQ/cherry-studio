@@ -81,8 +81,8 @@ describe('MessageTokens', () => {
     const tokenStats = container.querySelector('.message-tokens')
 
     expect(tokenStats?.textContent).toBe('Tokens: 0.0K')
-    expect(tokenStats).toHaveClass('text-[length:var(--font-size-body-xs)]')
-    expect(tokenStats).toHaveClass('leading-[var(--line-height-body-xs)]')
+    expect(tokenStats).toHaveClass('text-(length:--font-size-body-xs)')
+    expect(tokenStats).toHaveClass('leading-(--line-height-body-xs)')
     expect(tokenStats).toHaveClass('text-foreground-secondary')
     expect(tokenStats).not.toHaveClass('text-foreground-muted')
   })
@@ -98,8 +98,8 @@ describe('MessageTokens', () => {
     const tokenStats = container.querySelector('.message-tokens')
 
     expect(tokenStats?.textContent).toBe('Tokens:3.3K↑1.2K↓2.0K')
-    expect(tokenStats).toHaveClass('text-[length:var(--font-size-body-xs)]')
-    expect(tokenStats).toHaveClass('leading-[var(--line-height-body-xs)]')
+    expect(tokenStats).toHaveClass('text-(length:--font-size-body-xs)')
+    expect(tokenStats).toHaveClass('leading-(--line-height-body-xs)')
     expect(tokenStats).toHaveClass('text-foreground-secondary')
     expect(tokenStats).not.toHaveClass('text-foreground-muted')
   })

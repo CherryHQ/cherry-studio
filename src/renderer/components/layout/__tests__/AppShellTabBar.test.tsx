@@ -270,7 +270,7 @@ describe('AppShellTabBar', () => {
     expect(title).not.toHaveClass('font-medium')
     expect(icon).toHaveAttribute('width', '14')
     expect(icon).toHaveAttribute('height', '14')
-    expect(iconBox).toHaveClass('h-[14px]', 'w-[14px]')
+    expect(iconBox).toHaveClass('h-3.5', 'w-3.5')
   })
 
   it('requests ResourceList reveal when selecting a chat or agent tab from the window tab bar', async () => {
