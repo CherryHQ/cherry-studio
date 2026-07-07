@@ -180,6 +180,8 @@ export function SelectorShell({
   const searchRef = useRef<HTMLDivElement | null>(null)
   const filterRef = useRef<HTMLDivElement | null>(null)
   const multiSelectRef = useRef<HTMLDivElement | null>(null)
+  // The visible panel owns padding after the positioning/animation split, so measurement must include it.
+  const panelRef = useRef<HTMLDivElement | null>(null)
   const listBodyRef = useRef<HTMLDivElement | null>(null)
   const bottomActionRef = useRef<HTMLDivElement | null>(null)
   const localPortalRootRef = useRef<HTMLDivElement | null>(null)
@@ -208,8 +210,12 @@ export function SelectorShell({
     }
 
     const contentStyles = window.getComputedStyle(contentElement)
+    const panelStyles = panelRef.current ? window.getComputedStyle(panelRef.current) : null
     const verticalPadding =
-      (parsePixelValue(contentStyles.paddingTop) ?? 0) + (parsePixelValue(contentStyles.paddingBottom) ?? 0)
+      (parsePixelValue(contentStyles.paddingTop) ?? 0) +
+      (parsePixelValue(contentStyles.paddingBottom) ?? 0) +
+      (parsePixelValue(panelStyles?.paddingTop) ?? 0) +
+      (parsePixelValue(panelStyles?.paddingBottom) ?? 0)
     const chromeHeight = [searchRef.current, filterRef.current, multiSelectRef.current, bottomActionRef.current].reduce(
       (height, element) => height + (element?.getBoundingClientRect().height ?? 0),
       0
@@ -266,6 +272,14 @@ export function SelectorShell({
     [scheduleMeasureAvailableListHeight]
   )
 
+  const setPanelElement = useCallback(
+    (element: HTMLDivElement | null) => {
+      panelRef.current = element
+      scheduleMeasureAvailableListHeight()
+    },
+    [scheduleMeasureAvailableListHeight]
+  )
+
   const setListBodyElement = useCallback(
     (element: HTMLDivElement | null) => {
       listBodyRef.current = element
@@ -317,8 +331,10 @@ export function SelectorShell({
     }
 
     const observer = new ResizeObserver(measureAvailableListHeight)
+    // Keep every element that can change availableListHeight in this observer list.
     const observedElements = [
       contentRef.current,
+      panelRef.current,
       searchRef.current,
       filterRef.current,
       multiSelectRef.current,
@@ -411,6 +427,7 @@ export function SelectorShell({
             ref={setContentElement}
             data-testid={dataTestId}>
             <div
+              ref={setPanelElement}
               className={cn(
                 'flex h-full max-h-[inherit] w-full flex-col overflow-hidden rounded-lg border-[0.5px] border-border bg-popover py-1 shadow-lg',
                 SELECTOR_PANEL_ANIMATION_CLASS

@@ -98,7 +98,7 @@ describe('SelectorShell', () => {
     })
   })
 
-  it('keeps selector popover positioning stable while animating the visible panel', () => {
+  it('separates the positioning shell from the animated visible panel', () => {
     render(
       <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()}>
         <div />
@@ -107,9 +107,11 @@ describe('SelectorShell', () => {
 
     const content = document.querySelector<HTMLElement>('[data-selector-shell-content]')
     const panel = document.querySelector<HTMLElement>('[data-selector-shell-panel]')
+    expect(content).toHaveClass('bg-transparent')
+    expect(content).toHaveClass('shadow-none')
     expect(content).toHaveClass('animation-selector-shell-content')
-    expect(content).not.toHaveClass('data-[state=open]:zoom-in-95')
-    expect(content).not.toHaveClass('data-[side=bottom]:slide-in-from-top-2')
+    expect(panel).toHaveClass('bg-popover')
+    expect(panel).toHaveClass('shadow-lg')
     expect(panel).toHaveClass('animation-selector-shell-panel')
   })
 
@@ -144,13 +146,22 @@ describe('SelectorShell', () => {
     vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
       const style = originalGetComputedStyle(element)
       const isContent = element instanceof HTMLElement && element.getAttribute('data-selector-shell-content') === 'true'
-      if (!isContent) return style
+      const isPanel = element instanceof HTMLElement && element.getAttribute('data-selector-shell-panel') === 'true'
+      if (!isContent && !isPanel) return style
 
-      Object.defineProperties(style, {
-        height: { configurable: true, value: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px` },
-        paddingTop: { configurable: true, value: '0px' },
-        paddingBottom: { configurable: true, value: '0px' }
-      })
+      if (isContent) {
+        Object.defineProperties(style, {
+          height: { configurable: true, value: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px` },
+          paddingTop: { configurable: true, value: '0px' },
+          paddingBottom: { configurable: true, value: '0px' }
+        })
+      }
+      if (isPanel) {
+        Object.defineProperties(style, {
+          paddingTop: { configurable: true, value: '4px' },
+          paddingBottom: { configurable: true, value: '4px' }
+        })
+      }
       vi.spyOn(style, 'getPropertyValue').mockImplementation((property: string) =>
         property === '--radix-popover-content-available-height'
           ? '500px'
@@ -185,7 +196,7 @@ describe('SelectorShell', () => {
     )
 
     await waitFor(() =>
-      expect(screen.getByTestId('available-height')).toHaveTextContent(String(DEFAULT_SELECTOR_CONTENT_HEIGHT - 20))
+      expect(screen.getByTestId('available-height')).toHaveTextContent(String(DEFAULT_SELECTOR_CONTENT_HEIGHT - 28))
     )
   })
 
@@ -252,12 +263,21 @@ describe('SelectorShell', () => {
     vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
       const style = originalGetComputedStyle(element)
       const isContent = element instanceof HTMLElement && element.getAttribute('data-selector-shell-content') === 'true'
-      if (!isContent) return style
+      const isPanel = element instanceof HTMLElement && element.getAttribute('data-selector-shell-panel') === 'true'
+      if (!isContent && !isPanel) return style
 
-      Object.defineProperties(style, {
-        paddingTop: { configurable: true, value: '4px' },
-        paddingBottom: { configurable: true, value: '4px' }
-      })
+      if (isContent) {
+        Object.defineProperties(style, {
+          paddingTop: { configurable: true, value: '0px' },
+          paddingBottom: { configurable: true, value: '0px' }
+        })
+      }
+      if (isPanel) {
+        Object.defineProperties(style, {
+          paddingTop: { configurable: true, value: '4px' },
+          paddingBottom: { configurable: true, value: '4px' }
+        })
+      }
       vi.spyOn(style, 'getPropertyValue').mockImplementation((property: string) =>
         property === '--radix-popover-content-available-height'
           ? '200px'
