@@ -63,12 +63,16 @@ const navigationMocks = vi.hoisted(() => ({
   openConversation: vi.fn()
 }))
 
+const channelDataMock = vi.hoisted(() => ({
+  channels: [] as Array<Record<string, unknown>>
+}))
+
 vi.mock('@renderer/data/DataApiService', () => ({
   dataApiService: dataApiMock
 }))
 
 vi.mock('@renderer/hooks/agent/useChannels', () => ({
-  useChannels: () => ({ channels: [] })
+  useChannels: () => ({ channels: channelDataMock.channels })
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
@@ -158,7 +162,20 @@ vi.mock('@cherrystudio/ui', () => {
         {children}
       </button>
     ),
-    Combobox: passthrough('div'),
+    Combobox: ({
+      options,
+      placeholder
+    }: {
+      options?: Array<{ value: string; label: React.ReactNode }>
+      placeholder?: React.ReactNode
+    }) => (
+      <div>
+        {placeholder && <span>{placeholder}</span>}
+        {options?.map((option) => (
+          <span key={option.value}>{option.label}</span>
+        ))}
+      </div>
+    ),
     ConfirmDialog: ({
       cancelText,
       confirmText,
@@ -364,6 +381,7 @@ describe('TasksSettings task logs', () => {
     vi.clearAllMocks()
     taskLogsMock.logs = [taskLogsMock.defaultTaskLog]
     taskDataMock.task = { ...taskDataMock.defaultTask }
+    channelDataMock.channels = []
     dataApiMock.get.mockImplementation((path: string) => {
       if (path === '/agents') {
         return Promise.resolve({
@@ -421,6 +439,32 @@ describe('TasksSettings task logs', () => {
     expect(tableWidth).toHaveClass('min-w-[720px]')
     expect(dataTableScroll).not.toHaveClass('overflow-y-auto')
     expect(dataTableScroll).not.toHaveStyle({ maxHeight: '300px' })
+  })
+
+  it('only offers channels owned by the selected task agent', async () => {
+    channelDataMock.channels = [
+      {
+        id: 'channel-agent-1',
+        agentId: 'agent-1',
+        name: 'Agent One Telegram',
+        isActive: true,
+        activeChatIds: ['chat-1']
+      },
+      {
+        id: 'channel-agent-2',
+        agentId: 'agent-2',
+        name: 'Agent Two Slack',
+        isActive: true,
+        activeChatIds: ['chat-2']
+      }
+    ]
+
+    render(<TasksSettings />)
+
+    await screen.findByText('agent.tasks.logs.viewSession')
+
+    expect(screen.getByText('Agent One Telegram')).toBeInTheDocument()
+    expect(screen.queryByText('Agent Two Slack')).not.toBeInTheDocument()
   })
 
   it('renders the segmented schedule type selector for the selected task', async () => {

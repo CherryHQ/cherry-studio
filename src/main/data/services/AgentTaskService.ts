@@ -74,8 +74,20 @@ export class AgentTaskService {
     }
   }
 
+  private assertChannelsBelongToAgent(agentId: string, channelIds: string[]): void {
+    for (const channelId of channelIds) {
+      const channel = agentChannelService.getChannel(channelId)
+      if (!channel || channel.agentId !== agentId) {
+        throw DataApiErrorFactory.notFound('Channel', channelId)
+      }
+    }
+  }
+
   async createTask(agentId: string, dto: CreateTaskDto): Promise<ScheduledTaskEntity> {
     this.assertAgentExists(agentId)
+    if (dto.channelIds?.length) {
+      this.assertChannelsBelongToAgent(agentId, dto.channelIds)
+    }
 
     const timeoutMinutes = dto.timeoutMinutes ?? 2
     const jobInputTemplate: AgentTaskJobInputTemplate = {
@@ -161,6 +173,9 @@ export class AgentTaskService {
     const existingSnapshot = jobScheduleService.getById(taskId)
     const existingTemplate = existingSnapshot ? normalizeAgentTaskTemplate(existingSnapshot.jobInputTemplate) : null
     if (!existingSnapshot || !existingTemplate) return null
+    if (patch.channelIds !== undefined) {
+      this.assertChannelsBelongToAgent(agentId, patch.channelIds)
+    }
 
     // Build the updated jobInputTemplate when prompt/timeoutMinutes changed.
     const nextPrompt = patch.prompt ?? existingTemplate.prompt

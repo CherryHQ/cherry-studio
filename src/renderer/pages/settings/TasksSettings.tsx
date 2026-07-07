@@ -80,7 +80,7 @@ const logger = loggerService.withContext('TasksSettings')
 // --------------- Types ---------------
 
 type AgentInfo = { id: string; name: string }
-type ChannelInfo = { id: string; name: string; isActive?: boolean; hasActiveChatIds?: boolean }
+type ChannelInfo = { id: string; agentId?: string | null; name: string; isActive?: boolean; hasActiveChatIds?: boolean }
 
 const parseScheduleDate = (value: string) => {
   if (!value) return undefined
@@ -324,6 +324,10 @@ const TaskDetail: FC<{
     once: t('agent.tasks.scheduleType.once')
   }
   const agentName = agents.find((a) => a.id === task.agentId)?.name ?? task.agentId
+  const taskChannels = useMemo(
+    () => channels.filter((channel) => channel.agentId === task.agentId),
+    [channels, task.agentId]
+  )
 
   const initialSchedule = triggerToFormState(task.trigger)
   const [name, setName] = useState(task.name)
@@ -541,7 +545,7 @@ const TaskDetail: FC<{
             onCommit={saveField}
           />
           <TaskChannelSelector
-            channels={channels}
+            channels={taskChannels}
             channelIds={channelIds}
             onChange={(value) => {
               setChannelIds(value)
@@ -834,6 +838,17 @@ const CreateForm: FC<{
   const { data: workspaces } = useQuery('/agent-workspaces')
   const [saving, setSaving] = useState(false)
 
+  const availableChannels = useMemo(
+    () => (agentId ? channels.filter((channel) => channel.agentId === agentId) : []),
+    [agentId, channels]
+  )
+
+  useEffect(() => {
+    setChannelIds((current) =>
+      current.filter((channelId) => availableChannels.some((channel) => channel.id === channelId))
+    )
+  }, [availableChannels])
+
   const isSystemWorkspace = workspaceId === null
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
@@ -933,7 +948,7 @@ const CreateForm: FC<{
           </Dialog>
 
           <TaskScheduleControls value={schedule} onChange={setSchedule} />
-          <TaskChannelSelector channels={channels} channelIds={channelIds} onChange={setChannelIds} />
+          <TaskChannelSelector channels={availableChannels} channelIds={channelIds} onChange={setChannelIds} />
 
           {/* Workspace is a secondary detail — scheduled tasks default to "No work directory". */}
           <div className="flex items-center gap-1.5 text-foreground-muted text-xs">
@@ -986,6 +1001,7 @@ const TasksSettings: FC = () => {
     () =>
       rawChannels.map((ch: any) => ({
         id: ch.id,
+        agentId: ch.agent_id ?? ch.agentId ?? null,
         name: ch.name || ch.type,
         isActive: ch.is_active === true || ch.isActive === true,
         hasActiveChatIds:
