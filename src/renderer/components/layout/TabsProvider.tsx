@@ -22,6 +22,17 @@ const DEFAULT_TAB: Tab = {
   isDormant: false
 }
 
+function createLaunchpadFallbackTab(): Tab {
+  return {
+    id: uuid(),
+    type: 'route',
+    url: '/app/launchpad',
+    title: getDefaultRouteTitle('/app/launchpad'),
+    lastAccessTime: Date.now(),
+    isDormant: false
+  }
+}
+
 const LEGACY_LIBRARY_ROUTE_PATH = '/app/library'
 
 function isLegacyLibraryTab(tab: Tab): boolean {
@@ -216,8 +227,13 @@ export function TabsProvider({
       const closingTabs = tabs.filter((tab) => closingIdSet.has(tab.id))
       if (closingTabs.length === 0) return
 
+      const remainingTabs = tabs.filter((tab) => !closingIdSet.has(tab.id))
+      const fallbackTab = remainingTabs.length === 0 ? createLaunchpadFallbackTab() : null
+
       let newActiveId = activeTabId
-      if (closingIdSet.has(activeTabId)) {
+      if (fallbackTab) {
+        newActiveId = fallbackTab.id
+      } else if (closingIdSet.has(activeTabId)) {
         const activeIndex = tabs.findIndex((tab) => tab.id === activeTabId)
         const leftTab = [...tabs.slice(0, activeIndex)].reverse().find((tab) => !closingIdSet.has(tab.id))
         const rightTab = tabs.slice(activeIndex + 1).find((tab) => !closingIdSet.has(tab.id))
@@ -230,8 +246,11 @@ export function TabsProvider({
       if (pinnedIds.size > 0) {
         setPinnedTabs((prev) => prev.filter((tab) => !pinnedIds.has(tab.id)))
       }
-      if (normalIds.size > 0) {
-        setNormalTabs((prev) => prev.filter((tab) => !normalIds.has(tab.id)))
+      if (normalIds.size > 0 || fallbackTab) {
+        setNormalTabs((prev) => {
+          const next = normalIds.size > 0 ? prev.filter((tab) => !normalIds.has(tab.id)) : prev
+          return fallbackTab ? [fallbackTab] : next
+        })
       }
 
       setActiveTabIdState(newActiveId)

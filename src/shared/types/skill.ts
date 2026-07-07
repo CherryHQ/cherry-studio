@@ -77,7 +77,8 @@ export const ClawhubSearchItemSchema = z.object({
   displayName: z.string(),
   summary: z.string(),
   version: z.string().nullable(),
-  updatedAt: z.number()
+  updatedAt: z.number(),
+  ownerHandle: z.string().optional()
 })
 export type ClawhubSearchItem = z.infer<typeof ClawhubSearchItemSchema>
 

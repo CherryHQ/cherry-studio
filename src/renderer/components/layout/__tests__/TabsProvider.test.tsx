@@ -63,7 +63,8 @@ vi.mock('@renderer/utils/routeTitle', async () => {
   const titles: Record<string, Record<string, string>> = {
     '/app/agents': { en: 'Agent', zh: '代理' },
     '/app/chat': { en: 'Chat', zh: '聊天' },
-    '/app/files': { en: 'Files', zh: '文件' }
+    '/app/files': { en: 'Files', zh: '文件' },
+    '/app/launchpad': { en: 'Launchpad', zh: '启动台' }
   }
   return {
     ...actual,
@@ -129,6 +130,51 @@ function BatchCloseControls() {
       <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
     </>
   )
+}
+
+function TabSnapshot() {
+  const { activeTabId, tabs } = useTabsContext()
+  return (
+    <div>
+      <div data-testid="tab-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+      <div data-testid="tab-urls">{tabs.map((tab) => tab.url).join(',')}</div>
+      <div data-testid="tab-titles">{tabs.map((tab) => tab.title).join(',')}</div>
+      <div data-testid="active-tab-id">{activeTabId}</div>
+    </div>
+  )
+}
+
+function CloseTabOnMount({ tabId }: { tabId: string }) {
+  const { closeTab } = useTabsContext()
+  const didCloseRef = useRef(false)
+
+  useEffect(() => {
+    if (didCloseRef.current) return
+    didCloseRef.current = true
+    closeTab(tabId)
+  }, [closeTab, tabId])
+
+  return <TabSnapshot />
+}
+
+function CloseHomeAfterSecondTabOpens() {
+  const { closeTab, openTab, tabs } = useTabsContext()
+  const didOpenRef = useRef(false)
+  const didCloseRef = useRef(false)
+
+  useEffect(() => {
+    if (didOpenRef.current) return
+    didOpenRef.current = true
+    openTab('/app/agents', { id: 'agents', forceNew: true })
+  }, [openTab])
+
+  useEffect(() => {
+    if (didCloseRef.current || !tabs.some((tab) => tab.id === 'agents')) return
+    didCloseRef.current = true
+    closeTab('home')
+  }, [closeTab, tabs])
+
+  return <TabSnapshot />
 }
 
 // Materializes a pinned tab from "init" the way a detached sub-window re-creates its tab.
@@ -272,5 +318,48 @@ describe('TabsProvider', () => {
 
     await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home,d'))
     expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home')
+  })
+
+  it('opens launchpad when closing the only tab', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}
+        includePinnedTabs={false}>
+        <CloseTabOnMount tabId="home" />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/launchpad'))
+    expect(screen.getByTestId('tab-titles')).toHaveTextContent('Launchpad')
+    expect(screen.getByTestId('active-tab-id')).not.toHaveTextContent('home')
+  })
+
+  it('does not open launchpad when closing one tab while another remains', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}
+        includePinnedTabs={false}>
+        <CloseHomeAfterSecondTabOpens />
+      </TabsProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('tab-ids')).toHaveTextContent('agents'))
+    expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/agents')
+    expect(screen.getByTestId('tab-urls')).not.toHaveTextContent('/app/launchpad')
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('agents')
   })
 })
