@@ -67,7 +67,7 @@ const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {
   const showRecentSection = recent.length > 0
 
   return (
-    <div className="flex h-88 max-h-[min(22rem,calc(100vh-6rem))] w-72 max-w-[calc(100vw-2rem)] flex-col rounded-lg bg-card text-card-foreground">
+    <div className="flex h-88 max-h-[min(22rem,calc(100vh-6rem))] w-80 max-w-[calc(100vw-2rem)] flex-col rounded-lg bg-card text-card-foreground">
       <Scrollbar className="min-h-0 flex-1 overscroll-contain px-2.5 pb-2">
         {showRecentSection ? (
           <EmojiSection
@@ -108,7 +108,7 @@ interface EmojiGridProps {
 
 const EmojiGrid: FC<EmojiGridProps> = ({ emojis, onPick }) => {
   return (
-    <div className="grid grid-cols-8 gap-0.5">
+    <div className="grid grid-cols-7 gap-0.5">
       {emojis.map((record) => (
         <button
           key={record.emoji}
@@ -116,7 +116,7 @@ const EmojiGrid: FC<EmojiGridProps> = ({ emojis, onPick }) => {
           aria-label={record.annotation ?? record.emoji}
           onClick={() => onPick(record.emoji)}
           className={cn(
-            'flex aspect-square items-center justify-center rounded-md text-base leading-none',
+            'flex aspect-square items-center justify-center rounded-md text-2xl leading-none',
             'transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none'
           )}>
           {record.emoji}

@@ -47,16 +47,26 @@ describe('EmojiPicker', () => {
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
   })
 
-  it('uses the compact floating picker dimensions', async () => {
+  it('uses the avatar emoji picker dimensions', async () => {
     const { container } = render(<EmojiPicker onEmojiClick={vi.fn()} />)
     await act(async () => {})
 
     expect(container.firstElementChild).toHaveClass(
       'h-88',
-      'w-72',
+      'w-80',
       'max-h-[min(22rem,calc(100vh-6rem))]',
       'max-w-[calc(100vw-2rem)]'
     )
+  })
+
+  it('uses larger emoji cells for avatar picking', async () => {
+    loadEmojiDataMock.mockResolvedValue([{ emoji: '🙂', annotation: 'smile', group: 0, order: 1 }])
+
+    const { container } = render(<EmojiPicker onEmojiClick={vi.fn()} />)
+    await act(async () => {})
+
+    expect(container.querySelector('.grid')).toHaveClass('grid-cols-7')
+    expect(screen.getByRole('button', { name: 'smile' })).toHaveClass('text-2xl')
   })
 
   it('uses a contained internal scrollbar for the emoji grid', async () => {

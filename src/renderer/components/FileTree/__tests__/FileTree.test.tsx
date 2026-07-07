@@ -193,13 +193,13 @@ describe('FileTree - icon behaviour', () => {
   it('shows material folder icons for expanded and collapsed folders', () => {
     const { rerender } = render(<FileTree nodes={nodes} expandedIds={new Set()} renderList={passthroughRenderList} />)
     const rootRow = screen.getByText('Root').closest('[data-node-id="root"]')!
-    const collapsedIcon = rootRow.querySelector('[data-icon="material-icon-theme:folder"]')
+    const collapsedIcon = rootRow.querySelector('[data-icon="material-icon-theme:folder-other"]')
     expect(collapsedIcon).toBeTruthy()
     expect(collapsedIcon).toHaveAttribute('data-width', '16')
     expect(collapsedIcon).toHaveAttribute('data-height', '16')
     rerender(<FileTree nodes={nodes} expandedIds={new Set(['root'])} renderList={passthroughRenderList} />)
     const rootRow2 = screen.getByText('Root').closest('[data-node-id="root"]')!
-    expect(rootRow2.querySelector('[data-icon="material-icon-theme:folder-open"]')).toBeTruthy()
+    expect(rootRow2.querySelector('[data-icon="material-icon-theme:folder-other-open"]')).toBeTruthy()
   })
 
   it('shows material file icons by extension', () => {

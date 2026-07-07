@@ -104,7 +104,7 @@ const extensionMap: Record<string, string> = {
   yml: 'yaml',
   toml: 'toml',
   xml: 'xml',
-  csv: 'csv',
+  csv: 'table',
   ini: 'settings',
   cfg: 'settings',
   conf: 'settings',
@@ -132,7 +132,7 @@ const extensionMap: Record<string, string> = {
   zig: 'zig',
   asm: 'assembly',
   s: 'assembly',
-  wasm: 'wasm',
+  wasm: 'webassembly',
 
   // JVM
   java: 'java',
@@ -167,16 +167,16 @@ const extensionMap: Record<string, string> = {
   m: 'objective-c',
   mm: 'objective-cpp',
   cs: 'csharp',
-  vb: 'visualbasic',
+  vb: 'visualstudio',
 
   // Shell
-  sh: 'shell',
-  bash: 'shell',
-  zsh: 'shell',
-  fish: 'shell',
+  sh: 'console',
+  bash: 'console',
+  zsh: 'console',
+  fish: 'console',
   ps1: 'powershell',
-  bat: 'windows',
-  cmd: 'windows',
+  bat: 'console',
+  cmd: 'console',
 
   // Database
   sql: 'database',
@@ -234,6 +234,10 @@ const extensionMap: Record<string, string> = {
 }
 
 const DEFAULT_ICON = 'document'
+
+export const FILE_ICON_NAMES = Object.freeze(
+  Array.from(new Set([...Object.values(filenameMap), ...Object.values(extensionMap), DEFAULT_ICON])).sort()
+)
 
 export function getFileIconName(filePath: string): string {
   if (!filePath) return DEFAULT_ICON
