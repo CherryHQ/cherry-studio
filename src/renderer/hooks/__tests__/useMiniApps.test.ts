@@ -365,6 +365,7 @@ describe('useMiniApps', () => {
         await result.current.removeCustomMiniApp('custom-app')
       })
 
+      expect(trigger).toHaveBeenCalledWith({ params: { appId: 'custom-app' } })
       expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites')).toEqual([
         { type: 'app', id: 'assistants' },
         { type: 'mini_app', id: 'other-app' }
