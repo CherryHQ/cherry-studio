@@ -359,6 +359,10 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
 
   return {
     providerId: 'openai-compatible',
+    // @ai-sdk/openai-compatible derives its request-level providerOptions namespace
+    // from this name. LongCat therefore runs on the openai-compatible runtime while
+    // still reading providerOptions.longcat, which lets its top-level thinking field
+    // pass through to the final request body.
     endpoint: ctx.endpoint,
     providerSettings: { ...ctx.baseConfig, ...commonOptions, name: ctx.actualProvider.id, includeUsage }
   }
