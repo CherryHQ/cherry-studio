@@ -20,6 +20,13 @@ import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 
 const logger = loggerService.withContext('SdkMcpBridge')
 
+// The SDK snapshots this bridge server's tools once per session via the ListTools handler below. A
+// cold cache makes `listToolsForSnapshot` await a live connect (up to the ~180s MCP connect floor),
+// which would stall the session's tool snapshot on a dead/slow server. Cap the wait — mirroring the
+// warm-up cap in `buildClaudeCodeSessionSettings` — and fall back to the current cache (`[]` when
+// cold); the single-flighted refresh keeps running and warms the next session's snapshot.
+const SNAPSHOT_LIST_TIMEOUT_MS = 3_000
+
 function toSdkTool(tool: McpTool): SdkTool {
   const sdkTool = { ...tool } as SdkTool & Record<'id' | 'serverId' | 'serverName' | 'type', unknown>
   Reflect.deleteProperty(sdkTool, 'id')
@@ -84,9 +91,16 @@ export function createSdkMcpServerInstance(mcpId: string): McpServer {
   rawServer.setRequestHandler(ListToolsRequestSchema, async () => {
     try {
       logger.debug('SDK bridge: listing tools', { mcpId })
-      const tools = await application
-        .get('McpCatalogService')
-        .listToolsForSnapshot(serverConfig.id, { includeDisabled: false })
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const timeout = new Promise<McpTool[]>((resolve) => {
+        timer = setTimeout(() => resolve([]), SNAPSHOT_LIST_TIMEOUT_MS)
+        timer.unref?.()
+      })
+      const tools = await Promise.race([
+        application.get('McpCatalogService').listToolsForSnapshot(serverConfig.id, { includeDisabled: false }),
+        timeout
+      ])
+      if (timer) clearTimeout(timer)
       return {
         tools: tools.map(toSdkTool)
       }

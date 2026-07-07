@@ -74,8 +74,11 @@ async function listMcpDescriptors(mcpIds: readonly string[]): Promise<{
         })
       }
     } catch (error) {
-      failedMcpIds.add(id)
-      logger.warn('Failed to list MCP tools for agent catalog', { id, error })
+      // Key by the resolved server.id, not the raw entry: the carry-forward in rebuild() matches
+      // failedMcpIds against prior descriptors' sourceId (server.id), so a name-referenced entry keyed
+      // by its name would lose its approvals on a transient failure instead of preserving them.
+      failedMcpIds.add(server.id)
+      logger.warn('Failed to list MCP tools for agent catalog', { id, serverId: server.id, error })
     }
   }
 

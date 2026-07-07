@@ -100,6 +100,26 @@ describe('createSdkMcpServerInstance', () => {
     })
   })
 
+  it('returns an empty tool list rather than stalling when the snapshot never resolves', async () => {
+    // A cold cache + dead/slow server makes listToolsForSnapshot hang on the live connect. The bridge
+    // must cap that wait so the SDK's per-session tool snapshot can't stall agent startup.
+    mocks.listToolsForSnapshot.mockReturnValue(new Promise<never>(() => {}))
+
+    const sdkServer = createSdkMcpServerInstance('server-1')
+    const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
+    const handler = handlers.get('tools/list')!
+
+    vi.useFakeTimers()
+    try {
+      const result = handler({ method: 'tools/list' }, {})
+      // Advance past SNAPSHOT_LIST_TIMEOUT_MS (3_000ms) so the bounded race resolves via timeout.
+      await vi.advanceTimersByTimeAsync(3_000)
+      await expect(result).resolves.toEqual({ tools: [] })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('responds to resource template discovery when resources are advertised', async () => {
     const sdkServer = createSdkMcpServerInstance('server-1')
     const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers

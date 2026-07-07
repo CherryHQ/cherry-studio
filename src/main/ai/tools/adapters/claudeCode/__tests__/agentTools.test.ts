@@ -134,6 +134,25 @@ describe('createClaudeAgentToolPolicySnapshot — live disabledTools', () => {
     expect(snapshot.resolve('mcp__server__searchDocs')).toBeUndefined()
   })
 
+  it('preserves prior descriptors of a name-referenced server on a transient failure', async () => {
+    // agent.mcps holds the server NAME; failedMcpIds must be keyed by the resolved server.id so the
+    // carry-forward (which matches against prior descriptors' sourceId = server.id) still fires.
+    mocks.findMcpServer.mockImplementation((idOrName: string) =>
+      idOrName === 'docs' ? { id: 'mcp-1', name: 'docs' } : undefined
+    )
+    mocks.listMcpTools.mockReturnValueOnce([{ name: 'search_docs', description: 'Search docs' }])
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['docs']))
+    expect(snapshot.resolve('mcp__docs__searchDocs')).toMatchObject({ name: 'search_docs' })
+
+    // Transient catalog failure on the same (name-referenced) server must not drop its descriptor.
+    mocks.listMcpTools.mockImplementationOnce(() => {
+      throw new Error('catalog unavailable')
+    })
+    await snapshot.update(makeAgent([], ['docs']))
+
+    expect(snapshot.resolve('mcp__docs__searchDocs')).toMatchObject({ name: 'search_docs' })
+  })
+
   it('keeps the newest policy when an older rebuild completes late', async () => {
     // Construction runs one rebuild against the default (immediately-resolved) mock.
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent([], ['mcp-1']))
