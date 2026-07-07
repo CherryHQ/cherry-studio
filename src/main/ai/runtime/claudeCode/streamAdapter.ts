@@ -148,20 +148,29 @@ function stringifyJsonValue(value: unknown): string {
   }
 }
 
+function isMcpContentBlock(value: unknown): value is JSONObject {
+  if (!isRecord(value) || typeof value.type !== 'string') return false
+  if (value.type === 'text') return typeof value.text === 'string'
+  if (value.type === 'image' || value.type === 'audio') {
+    return typeof value.data === 'string' && typeof value.mimeType === 'string'
+  }
+  return value.type === 'resource' && isRecord(value.resource)
+}
+
+function getContentArray(value: unknown): unknown[] | undefined {
+  if (Array.isArray(value)) return value
+  if (isRecord(value) && Array.isArray(value.content)) return value.content
+  return undefined
+}
+
 function normalizeMcpContentBlock(block: unknown): JSONObject {
+  if (isMcpContentBlock(block)) return block
+
   if (!isRecord(block)) {
     return { type: 'text', text: stringifyJsonValue(block) }
   }
 
-  if (block.type === 'text' && typeof block.text === 'string') {
-    return { type: 'text', text: block.text }
-  }
-
   if (block.type === 'image') {
-    if (typeof block.data === 'string' && typeof block.mimeType === 'string') {
-      return { type: 'image', data: block.data, mimeType: block.mimeType }
-    }
-
     const source = block.source
     if (isRecord(source) && source.type === 'base64' && typeof source.data === 'string') {
       return {
@@ -172,35 +181,26 @@ function normalizeMcpContentBlock(block: unknown): JSONObject {
     }
   }
 
-  if (block.type === 'audio' && typeof block.data === 'string' && typeof block.mimeType === 'string') {
-    return { type: 'audio', data: block.data, mimeType: block.mimeType }
-  }
-
-  if (block.type === 'resource' && isRecord(block.resource)) {
-    return { type: 'resource', resource: JSON.parse(JSON.stringify(block.resource)) as JSONValue }
-  }
-
   return { type: 'text', text: stringifyJsonValue(block) }
 }
 
 function normalizeMcpToolContent(value: unknown): JSONValue[] {
-  if (Array.isArray(value)) return value.map(normalizeMcpContentBlock)
-
-  if (isRecord(value) && Array.isArray(value.content)) {
-    return value.content.map(normalizeMcpContentBlock)
-  }
-
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value) as unknown
-      if (Array.isArray(parsed)) return parsed.map(normalizeMcpContentBlock)
-    } catch {
-      // Plain text tool results are valid; expose them as MCP text content.
-    }
-    return [{ type: 'text', text: value }]
-  }
+  const content = getContentArray(value)
+  if (content?.every(isMcpContentBlock)) return content
+  if (content) return content.map(normalizeMcpContentBlock)
 
   return [{ type: 'text', text: stringifyJsonValue(value) }]
+}
+
+function hasMcpNonTextContent(value: unknown): boolean {
+  const content = getContentArray(value)
+  if (!content) return false
+
+  return content.some((block) => {
+    if (!isRecord(block)) return false
+    if (block.type === 'image' || block.type === 'audio') return true
+    return block.type === 'resource' && isRecord(block.resource) && typeof block.resource.blob === 'string'
+  })
 }
 
 function createEmptyUsage(): LanguageModelV3Usage {
@@ -1203,7 +1203,7 @@ export class ClaudeCodeStreamAdapter {
   ): NonNullable<JSONValue> {
     if (state.toolType !== 'mcp') return result
     return {
-      content: normalizeMcpToolContent(rawContent ?? result),
+      content: hasMcpNonTextContent(rawContent) ? normalizeMcpToolContent(rawContent) : result,
       metadata: {
         type: 'mcp',
         ...(state.displayName ? { name: state.displayName } : {}),

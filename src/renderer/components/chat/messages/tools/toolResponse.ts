@@ -42,6 +42,19 @@ function isToolType(value: unknown): value is ToolType {
   return value === 'mcp' || value === 'builtin' || value === 'provider'
 }
 
+function isMcpContentBlock(value: unknown): boolean {
+  if (!isRecord(value) || typeof value.type !== 'string') return false
+  if (value.type === 'text') return typeof value.text === 'string'
+  if (value.type === 'image' || value.type === 'audio') {
+    return typeof value.data === 'string' && typeof value.mimeType === 'string'
+  }
+  return value.type === 'resource' && isRecord(value.resource)
+}
+
+function isMcpContentArray(value: unknown): value is unknown[] {
+  return Array.isArray(value) && value.every(isMcpContentBlock)
+}
+
 function normalizeToolName(part: ToolResponsePart): string {
   const toolName = getToolName(part)
   return toolName.trim() || 'unknown'
@@ -83,8 +96,7 @@ function extractOutputMetadata(part: ToolResponsePart): { response: unknown; met
           type: isToolType(metadata.type) ? metadata.type : undefined
         }
       : undefined
-    const response =
-      normalizedMeta?.type === 'mcp' && Array.isArray(output.content) ? { content: output.content } : output.content
+    const response = normalizedMeta?.type === 'mcp' && isMcpContentArray(output.content) ? output : output.content
     return { response, metadata: normalizedMeta }
   }
 

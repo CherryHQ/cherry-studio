@@ -472,8 +472,49 @@ describe('ClaudeCodeStreamAdapter', () => {
       type: 'tool-output-available',
       toolCallId: 'mcp-1',
       output: {
-        content: [{ type: 'text', text: 'result text' }],
+        content: 'result text',
         metadata: { type: 'mcp', serverName: 'docs', serverId: 'docs' }
+      }
+    })
+  })
+
+  it('keeps JSON text MCP tool results parsed for dedicated tool cards', () => {
+    const { adapter, parts } = createAdapter()
+    const results = [{ id: 1, title: 'Cherry Studio', url: 'https://example.com', content: 'result' }]
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'mcp_tool_use',
+          id: 'mcp-search',
+          name: 'web_search',
+          server_name: 'cherry-tools',
+          input: { query: 'Cherry Studio' }
+        }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          type: 'mcp_tool_result',
+          tool_use_id: 'mcp-search',
+          is_error: false,
+          content: [{ type: 'text', text: JSON.stringify(results) }]
+        }
+      })
+    )
+
+    expect(parts.at(-1)).toMatchObject({
+      type: 'tool-output-available',
+      toolCallId: 'mcp-search',
+      output: {
+        content: results,
+        metadata: { type: 'mcp', serverName: 'cherry-tools', serverId: 'cherry-tools' }
       }
     })
   })
