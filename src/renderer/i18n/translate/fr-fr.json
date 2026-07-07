@@ -873,6 +873,10 @@
           "description": "Exécute des commandes shell dans votre environnement",
           "label": "Bash"
         },
+        "CherryConfig": {
+          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
+          "label": "[to be translated]:Agent Config"
+        },
         "CherryCron": {
           "description": "Gère le planificateur intégré à l'application",
           "label": "Planificateur"
@@ -884,6 +888,10 @@
         "CherryKbSearch": {
           "description": "Recherche dans vos bases de connaissances",
           "label": "Recherche de connaissances"
+        },
+        "CherryNotify": {
+          "description": "[to be translated]:Sends a notification through a connected channel",
+          "label": "[to be translated]:Notify"
         },
         "CherryWebFetch": {
           "description": "Récupère et lit une page web",

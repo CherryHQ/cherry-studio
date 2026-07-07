@@ -873,6 +873,10 @@
           "description": "Executes shell commands in your environment",
           "label": "Bash"
         },
+        "CherryConfig": {
+          "description": "Inspects and manages this agent configuration and channels",
+          "label": "Agent Config"
+        },
         "CherryCron": {
           "description": "Manages the in-app scheduler",
           "label": "Scheduler"
@@ -884,6 +888,10 @@
         "CherryKbSearch": {
           "description": "Searches your knowledge bases",
           "label": "Knowledge Search"
+        },
+        "CherryNotify": {
+          "description": "Sends a notification through a connected channel",
+          "label": "Notify"
         },
         "CherryWebFetch": {
           "description": "Fetches and reads a web page",

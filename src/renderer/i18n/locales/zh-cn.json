@@ -873,6 +873,10 @@
           "description": "在你的环境中执行 Shell 命令",
           "label": "Bash"
         },
+        "CherryConfig": {
+          "description": "检查并管理此智能体配置和频道",
+          "label": "智能体配置"
+        },
         "CherryCron": {
           "description": "管理应用内的定时调度",
           "label": "定时任务"
@@ -884,6 +888,10 @@
         "CherryKbSearch": {
           "description": "搜索你的知识库",
           "label": "知识库搜索"
+        },
+        "CherryNotify": {
+          "description": "通过已连接的频道发送通知",
+          "label": "通知"
         },
         "CherryWebFetch": {
           "description": "抓取并读取网页",

@@ -873,6 +873,10 @@
           "description": "環境でシェルコマンドを実行します",
           "label": "Bash"
         },
+        "CherryConfig": {
+          "description": "[to be translated]:Inspects and manages this agent configuration and channels",
+          "label": "[to be translated]:Agent Config"
+        },
         "CherryCron": {
           "description": "アプリ内スケジューラを管理します",
           "label": "スケジューラ"
@@ -884,6 +888,10 @@
         "CherryKbSearch": {
           "description": "ナレッジベースを検索します",
           "label": "ナレッジ検索"
+        },
+        "CherryNotify": {
+          "description": "[to be translated]:Sends a notification through a connected channel",
+          "label": "[to be translated]:Notify"
         },
         "CherryWebFetch": {
           "description": "ウェブページを取得して読み取る",
