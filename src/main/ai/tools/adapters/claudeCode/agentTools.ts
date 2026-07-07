@@ -51,8 +51,12 @@ async function listMcpDescriptors(mcpIds: readonly string[]): Promise<{
   const failedMcpIds = new Set<string>()
 
   for (const id of mcpIds) {
+    // `agent.mcps` entries may be a server id or a name (matching buildMcpServers / buildMcpToolMetadata).
+    // A genuinely unknown/deleted server is skipped — not marked failed, so it can't spuriously trigger
+    // the carry-forward of stale descriptors reserved for transient listTools fetch failures below.
+    const server = mcpServerService.findByIdOrName(id)
+    if (!server) continue
     try {
-      const server = mcpServerService.getById(id)
       const tools = application.get('McpCatalogService').listTools(server.id)
 
       for (const tool of tools) {
