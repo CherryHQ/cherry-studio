@@ -35,6 +35,27 @@ describe('toolResponse adapter', () => {
     expect(response.response).toBe('ok')
   })
 
+  it('preserves MCP content arrays as CallToolResult-shaped responses', () => {
+    const content = [
+      { type: 'text', text: 'QR code generated' },
+      { type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' }
+    ]
+    const part = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-image',
+      toolName: 'config',
+      state: 'output-available',
+      input: {},
+      output: {
+        content,
+        metadata: { serverName: 'cherry-tools', serverId: 'cherry-tools', type: 'mcp' }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.response).toEqual({ content })
+  })
+
   it('parses the cherry-tools wire name into server + tool (no metadata path)', () => {
     // Real production shape (from the agent_session_message table): a dynamic-tool part whose
     // toolName is the full `mcp__cherry-tools__web_search`, with NO output metadata. The single-

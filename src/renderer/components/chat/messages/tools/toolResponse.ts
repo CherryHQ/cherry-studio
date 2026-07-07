@@ -83,7 +83,9 @@ function extractOutputMetadata(part: ToolResponsePart): { response: unknown; met
           type: isToolType(metadata.type) ? metadata.type : undefined
         }
       : undefined
-    return { response: output.content, metadata: normalizedMeta }
+    const response =
+      normalizedMeta?.type === 'mcp' && Array.isArray(output.content) ? { content: output.content } : output.content
+    return { response, metadata: normalizedMeta }
   }
 
   return { response: output }

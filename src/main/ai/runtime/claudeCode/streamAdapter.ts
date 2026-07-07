@@ -135,6 +135,74 @@ function isSubagentToolName(toolName: string): boolean {
   return toolName === 'Task' || toolName === 'Agent'
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function stringifyJsonValue(value: unknown): string {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function normalizeMcpContentBlock(block: unknown): JSONObject {
+  if (!isRecord(block)) {
+    return { type: 'text', text: stringifyJsonValue(block) }
+  }
+
+  if (block.type === 'text' && typeof block.text === 'string') {
+    return { type: 'text', text: block.text }
+  }
+
+  if (block.type === 'image') {
+    if (typeof block.data === 'string' && typeof block.mimeType === 'string') {
+      return { type: 'image', data: block.data, mimeType: block.mimeType }
+    }
+
+    const source = block.source
+    if (isRecord(source) && source.type === 'base64' && typeof source.data === 'string') {
+      return {
+        type: 'image',
+        data: source.data,
+        mimeType: typeof source.media_type === 'string' ? source.media_type : 'image/png'
+      }
+    }
+  }
+
+  if (block.type === 'audio' && typeof block.data === 'string' && typeof block.mimeType === 'string') {
+    return { type: 'audio', data: block.data, mimeType: block.mimeType }
+  }
+
+  if (block.type === 'resource' && isRecord(block.resource)) {
+    return { type: 'resource', resource: JSON.parse(JSON.stringify(block.resource)) as JSONValue }
+  }
+
+  return { type: 'text', text: stringifyJsonValue(block) }
+}
+
+function normalizeMcpToolContent(value: unknown): JSONValue[] {
+  if (Array.isArray(value)) return value.map(normalizeMcpContentBlock)
+
+  if (isRecord(value) && Array.isArray(value.content)) {
+    return value.content.map(normalizeMcpContentBlock)
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown
+      if (Array.isArray(parsed)) return parsed.map(normalizeMcpContentBlock)
+    } catch {
+      // Plain text tool results are valid; expose them as MCP text content.
+    }
+    return [{ type: 'text', text: value }]
+  }
+
+  return [{ type: 'text', text: stringifyJsonValue(value) }]
+}
+
 function createEmptyUsage(): LanguageModelV3Usage {
   return {
     inputTokens: { total: 0, noCache: 0, cacheRead: 0, cacheWrite: 0 },
@@ -725,7 +793,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.sink.enqueue({
         type: 'tool-output-available',
         toolCallId: result.tool_use_id,
-        output: this.buildToolOutput(normalizedResult, state),
+        output: this.buildToolOutput(normalizedResult, state, result.content),
         dynamic: true,
         providerExecuted: true,
         providerMetadata
@@ -1128,10 +1196,14 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private buildToolOutput(result: NonNullable<JSONValue>, state: ToolStreamState): NonNullable<JSONValue> {
+  private buildToolOutput(
+    result: NonNullable<JSONValue>,
+    state: ToolStreamState,
+    rawContent?: unknown
+  ): NonNullable<JSONValue> {
     if (state.toolType !== 'mcp') return result
     return {
-      content: result,
+      content: normalizeMcpToolContent(rawContent ?? result),
       metadata: {
         type: 'mcp',
         ...(state.displayName ? { name: state.displayName } : {}),
