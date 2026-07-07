@@ -79,6 +79,12 @@ const createToastStore = () => {
 
   const subscribe = (listener: () => void) => {
     listeners.add(listener)
+    // Invariant: exactly one ToastViewport per window. A second subscriber renders
+    // every toast twice — always a bug. Log at error level, but do NOT throw:
+    // subscribe runs inside React's commit phase and the failure mode is non-fatal.
+    if (listeners.size > 1) {
+      console.error('multiple ToastViewport mounted in one window; every toast will render once per host')
+    }
     return () => {
       listeners.delete(listener)
     }

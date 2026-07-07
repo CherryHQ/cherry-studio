@@ -5,9 +5,11 @@ import type { ComponentPopupEntry, ConfirmPopupProps, ConfirmPopupType, PopupCom
 const logger = loggerService.withContext('PopupService')
 
 /**
- * Exit-phase duration. Kept equal to the @cherrystudio/ui Dialog close animation
- * (Tailwind `duration-200`); the two live in different packages, so update both
- * together if that animation changes.
+ * Exit-phase duration: the host keeps a closing popup mounted this long so the Dialog close
+ * animation can finish. Must equal @cherrystudio/ui's DIALOG_CLOSE_DURATION_MS, which mirrors
+ * DialogContent's `duration-200` class. Kept as a local literal rather than imported from the
+ * ui barrel so the many renderer tests that mock `@cherrystudio/ui` wholesale needn't expose
+ * it; PopupService.test.ts imports the real ui constant and asserts they stay equal.
  */
 export const POPUP_EXIT_MS = 200
 
@@ -27,6 +29,14 @@ class PopupService {
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
+    // Invariant: exactly one PopupHost per window. A second subscriber means every
+    // entry renders twice (nested app shell, or a pooled window keeping an old tree
+    // mounted while a new one commits) — always a bug. Log at error level, but do NOT
+    // throw: subscribe runs inside React's commit phase where throwing would corrupt
+    // the tree, and the failure mode (duplicate render) is non-fatal.
+    if (this.listeners.size > 1) {
+      logger.error('multiple PopupHost mounted in one window; every popup will render once per host')
+    }
     return () => {
       this.listeners.delete(listener)
     }

@@ -148,14 +148,17 @@ describe('UserPopup', () => {
     MockUseCacheUtils.resetMocks()
   })
 
-  afterEach(async () => {
+  afterEach(() => {
     // Unmount the host before draining so settling leftover entries triggers no React
-    // update on a still-mounted host, then flush the shared singleton store.
+    // update on a still-mounted host, then flush the shared singleton store. Fake timers
+    // fire the exit phase synchronously (no wall-clock wait).
     cleanup()
+    vi.useFakeTimers()
     for (const entry of [...popupService.getSnapshot()]) {
       popupService.settle(entry.instanceId, {})
     }
-    await new Promise((resolve) => setTimeout(resolve, POPUP_EXIT_MS + 20))
+    vi.advanceTimersByTime(POPUP_EXIT_MS)
+    vi.useRealTimers()
   })
 
   it('renders image avatars with object-cover cropping', async () => {

@@ -85,15 +85,18 @@ import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
 
 import SearchPopup from '../SearchPopup'
 
-afterEach(async () => {
+afterEach(() => {
   // Unmount the host first so settling/removing leftover entries triggers no React
   // update on a still-mounted host (which would fire act warnings). Then drain the
-  // singleton store so the next test starts empty and single-flight is cleared.
+  // singleton store so the next test starts empty and single-flight is cleared. Fake
+  // timers fire the exit phase synchronously (no wall-clock wait).
   cleanup()
+  vi.useFakeTimers()
   for (const entry of [...popupService.getSnapshot()]) {
     popupService.settle(entry.instanceId, {})
   }
-  await new Promise((resolve) => setTimeout(resolve, POPUP_EXIT_MS + 20))
+  vi.advanceTimersByTime(POPUP_EXIT_MS)
+  vi.useRealTimers()
 })
 
 describe('SearchPopup', () => {

@@ -65,15 +65,18 @@ import { popup } from '@renderer/services/popup'
 
 import { PopupHost } from '../index'
 
-afterEach(async () => {
+afterEach(() => {
   // Unmount first so settling/removing leftover entries triggers no React update
   // on a still-mounted host (which would fire act warnings). Then drain the
-  // singleton store so the next test starts empty.
+  // singleton store so the next test starts empty. Fake timers fire the exit phase
+  // synchronously (no wall-clock wait).
   cleanup()
+  vi.useFakeTimers()
   for (const entry of [...popupService.getSnapshot()]) {
     popupService.settle(entry.instanceId, false)
   }
-  await new Promise((resolve) => setTimeout(resolve, POPUP_EXIT_MS + 20))
+  vi.advanceTimersByTime(POPUP_EXIT_MS)
+  vi.useRealTimers()
   toastError.mockClear()
   dialogMock.onOpenChange = undefined
 })

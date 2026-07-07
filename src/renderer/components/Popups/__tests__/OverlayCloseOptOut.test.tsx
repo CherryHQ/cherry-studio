@@ -124,15 +124,18 @@ beforeEach(() => {
   })
 })
 
-afterEach(async () => {
+afterEach(() => {
   // Unmount the host first so draining the singleton store fires no React update
   // on a still-mounted host (which would warn), then settle + flush the exit timers
-  // so the next test starts from an empty store.
+  // so the next test starts from an empty store. Fake timers fire the exit phase
+  // synchronously (no wall-clock wait).
   cleanup()
+  vi.useFakeTimers()
   for (const entry of [...popupService.getSnapshot()]) {
     popupService.settle(entry.instanceId, {})
   }
-  await new Promise((resolve) => setTimeout(resolve, POPUP_EXIT_MS + 20))
+  vi.advanceTimersByTime(POPUP_EXIT_MS)
+  vi.useRealTimers()
 })
 
 describe('popup overlay close opt-out', () => {

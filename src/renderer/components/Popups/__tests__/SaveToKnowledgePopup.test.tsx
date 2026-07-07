@@ -184,14 +184,16 @@ describe('SaveToKnowledgePopup', () => {
     })
   })
 
-  afterEach(async () => {
+  afterEach(() => {
     // Unmount the host first so draining leftover entries fires no React update on a
-    // still-mounted host, then settle+drain the singleton store for the next test.
+    // still-mounted host, then settle+drain the singleton store for the next test. Fake
+    // timers fire the exit phase synchronously (no wall-clock wait).
     cleanup()
+    vi.useFakeTimers()
     for (const entry of [...popupService.getSnapshot()]) {
       popupService.settle(entry.instanceId, null)
     }
-    await new Promise((resolve) => setTimeout(resolve, POPUP_EXIT_MS + 20))
+    vi.advanceTimersByTime(POPUP_EXIT_MS)
     vi.useRealTimers()
   })
 

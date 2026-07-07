@@ -262,17 +262,17 @@ describe('FileProcessingSettings', () => {
     })
   })
 
-  afterEach(async () => {
+  afterEach(() => {
     // Unmount the host first so settling leftover popups triggers no React update on a
-    // still-mounted tree, then drain the singleton popup store so the next test starts empty.
+    // still-mounted tree, then drain the singleton popup store so the next test starts
+    // empty. Fake timers fire the exit phase synchronously (no wall-clock wait).
     cleanup()
-    const openEntries = [...popupService.getSnapshot()]
-    for (const entry of openEntries) {
+    vi.useFakeTimers()
+    for (const entry of [...popupService.getSnapshot()]) {
       popupService.settle(entry.instanceId, null)
     }
-    if (openEntries.length > 0) {
-      await new Promise((resolve) => setTimeout(resolve, POPUP_EXIT_MS + 20))
-    }
+    vi.advanceTimersByTime(POPUP_EXIT_MS)
+    vi.useRealTimers()
   })
 
   it('sets the active image processor as the image-to-text default', async () => {

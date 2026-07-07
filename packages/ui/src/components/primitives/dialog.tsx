@@ -54,6 +54,14 @@ type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> &
   size?: DialogContentSize
 }
 
+/**
+ * Close-animation duration (ms) of DialogContent. The `duration-200` Tailwind class below
+ * cannot be interpolated (Tailwind needs a literal class name), so this constant mirrors it
+ * and a co-located test asserts they stay equal. Imperative popup hosts import this to delay
+ * unmount until the close animation finishes (renderer services/popup POPUP_EXIT_MS).
+ */
+export const DIALOG_CLOSE_DURATION_MS = 200
+
 function DialogContent({
   className,
   children,
@@ -89,9 +97,9 @@ function DialogContent({
       )}
       <PortalContainerProvider container={contentElement}>
         {/*
-          The `duration-200` close animation on DialogContent below is mirrored by
-          imperative hosts that delay unmount until it finishes — keep it in sync with
-          the renderer's services/popup POPUP_EXIT_MS constant.
+          The `duration-200` close animation below must equal DIALOG_CLOSE_DURATION_MS
+          (above); a test enforces it. Imperative hosts delay unmount by that long so the
+          animation finishes (see renderer services/popup POPUP_EXIT_MS).
         */}
         <DialogPrimitive.Content
           ref={handleRef}
