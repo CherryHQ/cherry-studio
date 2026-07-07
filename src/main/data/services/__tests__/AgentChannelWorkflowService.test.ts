@@ -15,11 +15,18 @@ vi.mock('@application', async () => {
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
-const { createChannelMock, getChannelMock, updateChannelMock, deleteChannelMock } = vi.hoisted(() => ({
+const {
+  createChannelMock,
+  getChannelMock,
+  updateChannelMock,
+  deleteChannelMock,
+  clearTaskSubscriptionsForChannelMock
+} = vi.hoisted(() => ({
   createChannelMock: vi.fn(),
   getChannelMock: vi.fn(),
   updateChannelMock: vi.fn(),
-  deleteChannelMock: vi.fn()
+  deleteChannelMock: vi.fn(),
+  clearTaskSubscriptionsForChannelMock: vi.fn()
 }))
 
 vi.mock('@data/services/AgentChannelService', () => ({
@@ -27,7 +34,8 @@ vi.mock('@data/services/AgentChannelService', () => ({
     createChannel: createChannelMock,
     getChannel: getChannelMock,
     updateChannel: updateChannelMock,
-    deleteChannel: deleteChannelMock
+    deleteChannel: deleteChannelMock,
+    clearTaskSubscriptionsForChannel: clearTaskSubscriptionsForChannelMock
   }
 }))
 
@@ -154,6 +162,30 @@ describe('AgentChannelWorkflowService', () => {
       const result = await agentChannelWorkflowService.updateChannel('ch-1', { name: 'New Name' })
 
       expect(result).toEqual(updated)
+    })
+
+    it('clears task subscriptions when agentId is rebound', async () => {
+      const existing = makeChannel({ agentId: 'agent-1' })
+      const updated = makeChannel({ agentId: 'agent-2' })
+      getChannelMock.mockReturnValue(existing)
+      updateChannelMock.mockReturnValue(updated)
+      syncChannelMock.mockResolvedValue(undefined)
+
+      await agentChannelWorkflowService.updateChannel('ch-1', { agentId: 'agent-2' })
+
+      expect(clearTaskSubscriptionsForChannelMock).toHaveBeenCalledWith('ch-1')
+    })
+
+    it('keeps task subscriptions when agentId is not updated', async () => {
+      const existing = makeChannel({ agentId: 'agent-1' })
+      const updated = makeChannel({ name: 'New Name', agentId: 'agent-1' })
+      getChannelMock.mockReturnValue(existing)
+      updateChannelMock.mockReturnValue(updated)
+      syncChannelMock.mockResolvedValue(undefined)
+
+      await agentChannelWorkflowService.updateChannel('ch-1', { name: 'New Name' })
+
+      expect(clearTaskSubscriptionsForChannelMock).not.toHaveBeenCalled()
     })
 
     it('restores all fields (name/agentId/sessionId/config/isActive/activeChatIds/permissionMode) when syncChannel throws', async () => {

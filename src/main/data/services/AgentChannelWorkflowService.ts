@@ -69,6 +69,10 @@ export class AgentChannelWorkflowService {
       logger.warn('updateChannel: row disappeared mid-update', { channelId })
       return null
     }
+    if (updates.agentId !== undefined && updates.agentId !== (existing.agentId ?? null)) {
+      // Deliberately not restored if syncChannel fails: conservative cleanup prevents wrong-agent delivery.
+      agentChannelService.clearTaskSubscriptionsForChannel(channelId)
+    }
 
     try {
       await application.get('ChannelManager').syncChannel(channelId, { awaitConnect: true, strictDisconnect: true })

@@ -146,7 +146,10 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     workspace
   })
 
-  const subscribedChannels = scheduleId ? agentChannelService.getSubscribedChannels(scheduleId) : []
+  // Guards legacy rows and races that data hygiene cannot catch.
+  const subscribedChannels = scheduleId
+    ? agentChannelService.getSubscribedChannels(scheduleId).filter((channel) => channel.agentId === agentId)
+    : []
 
   const channelManager = application.get('ChannelManager')
   const channelListeners: StreamListener[] = subscribedChannels.flatMap((ch) => {
