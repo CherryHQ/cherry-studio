@@ -241,7 +241,7 @@ const TopicBranchPanel: FC<Props> = ({
   }, [])
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden text-card-foreground">
       <div className="flex min-h-10 shrink-0 items-center gap-2 border-border-subtle border-b px-3 text-xs">
         {topicName && (
           <>
