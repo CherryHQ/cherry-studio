@@ -1,7 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import CodeViewer from '@renderer/components/CodeViewer'
-import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
+import ContentPopup from '@renderer/components/Popups/ContentPopup'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import i18n from '@renderer/i18n/resolver'
 import { toast } from '@renderer/services/toast'
@@ -606,12 +606,11 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
 }
 
 export function showErrorDetailPopup(params: ErrorDetailContentProps) {
-  void GeneralPopup.show({
+  void ContentPopup.show({
     title: i18n.t('error.detail'),
     content: <ErrorDetailContent {...params} />,
-    footer: null,
     width: '60vw',
-    style: { maxWidth: '1200px', minWidth: '600px' }
+    styles: { content: { maxWidth: '1200px', minWidth: '600px' } }
   })
 }
 

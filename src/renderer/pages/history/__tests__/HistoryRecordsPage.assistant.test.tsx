@@ -161,6 +161,16 @@ vi.mock('@renderer/components/Popups/SaveToKnowledgePopup', () => ({
   default: { showForTopic: hookMocks.saveToKnowledge }
 }))
 
+// The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
+// the gated action (as if the user confirmed).
+const { confirmActionShow } = vi.hoisted(() => ({
+  confirmActionShow: vi.fn(async (options?: { action?: () => unknown }) => {
+    await options?.action?.()
+    return true
+  })
+}))
+vi.mock('@renderer/components/Popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
+
 vi.mock('@renderer/services/copy', () => ({
   copyTopicAsMarkdown: vi.fn(),
   copyTopicAsPlainText: vi.fn()
@@ -266,7 +276,6 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 
 import HistoryRecordsPage from '../HistoryRecordsPage'
@@ -323,6 +332,7 @@ const flushCommandMenuAction = () => new Promise<void>((resolve) => queueMicrota
 describe('HistoryRecordsPage assistant mode', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="home-page"></div><div id="agent-page"></div>'
+    confirmActionShow.mockClear()
     hookMocks.useAgents.mockReset()
     hookMocks.useTopics.mockReset()
     hookMocks.useAssistants.mockReset()
@@ -1098,7 +1108,6 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
-    vi.mocked(popup.confirm).mockImplementationOnce(async () => true)
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
@@ -1106,7 +1115,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       await flushCommandMenuAction()
     })
 
-    expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Conversations' }))
+    expect(confirmActionShow).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Conversations' }))
 
     await act(async () => {
       await flushAnimationFrame()
@@ -1134,7 +1143,6 @@ describe('HistoryRecordsPage assistant mode', () => {
       />
     )
 
-    vi.mocked(popup.confirm).mockImplementationOnce(async () => true)
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
@@ -1196,7 +1204,6 @@ describe('HistoryRecordsPage assistant mode', () => {
       />
     )
 
-    vi.mocked(popup.confirm).mockImplementationOnce(async () => true)
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
@@ -1232,7 +1239,6 @@ describe('HistoryRecordsPage assistant mode', () => {
       />
     )
 
-    vi.mocked(popup.confirm).mockImplementationOnce(async () => true)
     const alphaMenu = screen.getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))

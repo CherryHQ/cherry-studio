@@ -1,5 +1,5 @@
 import { CommandContextMenu } from '@renderer/components/command'
-import { popup } from '@renderer/services/popup'
+import ConfirmActionPopup from '@renderer/components/Popups/ConfirmActionPopup'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 
@@ -18,8 +18,8 @@ type ResourceListActionContextMenuProps<T extends ResourceListItemBase, TActionC
  * Resource-list (topics, agent sessions, …) row context menu, rendered through the
  * command system's CommandContextMenu so it honors the `menu.presentation_mode`
  * preference (Cherry vs Native). Actions map to extra items; an action's inline
- * confirm becomes a `popup.confirm` popup (a native OS menu cannot host an
- * inline dialog).
+ * confirm becomes a `ConfirmActionPopup` that runs the action in-dialog (a native
+ * OS menu cannot host an inline dialog).
  */
 export function ResourceListActionContextMenu<T extends ResourceListItemBase, TActionContext = unknown>({
   actions,
@@ -35,17 +35,16 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
       if (!action.availability.enabled) return
       const confirm = action.confirm
       if (confirm) {
-        const confirmed = await popup.confirm({
+        // Confirm gates a fallible action: ConfirmActionPopup runs it in-dialog and
+        // surfaces failures (toast + retry), so a rejected action is never silent.
+        await ConfirmActionPopup.show({
           title: confirm.title,
           content: confirm.description ?? confirm.content,
           okText: confirm.confirmText,
           cancelText: confirm.cancelText,
-          centered: true,
-          okButtonProps: confirm.destructive ? { danger: true } : undefined
+          danger: confirm.destructive,
+          action: () => onAction(action)
         })
-        if (confirmed) {
-          void onAction(action)
-        }
         return
       }
       // Defer until after the menu has closed so the action's own UI (rename input,

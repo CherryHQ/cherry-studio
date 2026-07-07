@@ -1,4 +1,3 @@
-import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { act, fireEvent, render, screen } from '@testing-library/react'
@@ -113,6 +112,16 @@ vi.mock('@renderer/components/tags/Model', () => ({
 vi.mock('@renderer/components/icons/CopyIcon', () => ({
   default: () => <span>copy-icon</span>
 }))
+
+// The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
+// the gated action (as if the user confirmed) and assert the delete flow.
+const { confirmActionShow } = vi.hoisted(() => ({
+  confirmActionShow: vi.fn(async (options?: { action?: () => unknown }) => {
+    await options?.action?.()
+    return true
+  })
+}))
+vi.mock('@renderer/components/Popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
 
 vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
   default: ({ open, title, children, footer }: any) =>
@@ -377,10 +386,7 @@ describe('Model drawers', () => {
       fireEvent.click(screen.getByRole('button', { name: /common\.delete/i }))
     })
 
-    expect(popup.confirm).toHaveBeenCalledTimes(1)
-    const options = vi.mocked(popup.confirm).mock.calls[0][0]
-    expect(options.okButtonProps).toEqual({ danger: true })
-
+    expect(confirmActionShow).toHaveBeenCalledTimes(1)
     expect(deleteModelMock).toHaveBeenCalledWith('openai', 'claude-4-sonnet')
     expect(toast.success).toHaveBeenCalledWith('common.delete_success')
     expect(onClose).toHaveBeenCalled()

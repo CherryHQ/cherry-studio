@@ -1,5 +1,6 @@
 import { PageHeader } from '@cherrystudio/ui'
 import { useReorder } from '@data/hooks/useReorder'
+import ConfirmActionPopup from '@renderer/components/Popups/ConfirmActionPopup'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
@@ -7,7 +8,6 @@ import {
   isProviderSettingsListVisibleProvider,
   matchKeywordsInProvider
 } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
-import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
 import { canManageProvider, isAgentSupportedProvider } from '@shared/utils/provider'
@@ -223,16 +223,13 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   const handleDeleteProvider = useCallback(
     async (providerId: Provider['id']) => {
-      const confirmed = await popup.confirm({
+      await ConfirmActionPopup.show({
         title: t('settings.provider.delete.title'),
         content: t('settings.provider.delete.content'),
-        okButtonProps: { danger: true },
+        danger: true,
         okText: t('common.delete'),
-        centered: true
+        action: () => deleteProvider(providerId)
       })
-      if (!confirmed) return
-
-      await deleteProvider(providerId)
     },
     [deleteProvider, t]
   )

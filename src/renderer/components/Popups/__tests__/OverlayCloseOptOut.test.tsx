@@ -111,7 +111,7 @@ vi.mock('@cherrystudio/ui', async () => {
 })
 
 import BackupPopup from '../BackupPopup'
-import GeneralPopup from '../GeneralPopup'
+import ContentPopup from '../ContentPopup'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -139,13 +139,11 @@ afterEach(() => {
 })
 
 describe('popup overlay close opt-out', () => {
-  it('keeps GeneralPopup open when maskClosable is false', async () => {
-    const afterClose = vi.fn()
+  it('keeps ContentPopup open when maskClosable is false', async () => {
     render(<PopupHost />)
 
     act(() => {
-      void GeneralPopup.show({
-        afterClose,
+      void ContentPopup.show({
         content: 'Non dismissable content',
         maskClosable: false,
         title: 'Non dismissable'
@@ -156,9 +154,7 @@ describe('popup overlay close opt-out', () => {
 
     fireEvent.click(screen.getByTestId('dialog-overlay'))
 
-    // The overlay click is suppressed, so the popup never settles: afterClose stays
-    // uncalled and the content is still on screen.
-    expect(afterClose).not.toHaveBeenCalled()
+    // The overlay click is suppressed, so the popup stays on screen.
     expect(screen.getByText('Non dismissable content')).toBeInTheDocument()
   })
 

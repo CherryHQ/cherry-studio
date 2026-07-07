@@ -17,7 +17,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/Navbar'
 import BaseNavbarIcon from '@renderer/components/NavbarIcon'
-import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
+import ContentPopup from '@renderer/components/Popups/ContentPopup'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
@@ -107,10 +107,9 @@ const HeaderNavbar = ({
   }, [getCurrentNoteContent, activeNode])
 
   const handleShowSettings = useCallback(() => {
-    void GeneralPopup.show({
+    void ContentPopup.show({
       title: t('notes.settings.title'),
       content: <NotesSettings />,
-      footer: null,
       width: 600,
       styles: { body: { padding: 0, maxHeight: 'calc(100vh - 8rem)', display: 'flex', flexDirection: 'column' } }
     })

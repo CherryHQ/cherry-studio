@@ -206,6 +206,16 @@ vi.mock('@renderer/services/EventService', () => ({
   }
 }))
 
+// The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
+// the gated action (as if the user confirmed).
+const { confirmActionShow } = vi.hoisted(() => ({
+  confirmActionShow: vi.fn(async (options?: { action?: () => unknown }) => {
+    await options?.action?.()
+    return true
+  })
+}))
+vi.mock('@renderer/components/Popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
+
 vi.mock('@renderer/components/Popups/ObsidianExportPopup', () => ({
   default: { show: vi.fn() }
 }))
@@ -1255,30 +1265,19 @@ describe('Topics', () => {
   it('confirms topic deletion from the shared context menu before deleting', async () => {
     const { getByText } = renderTopicList()
 
-    // Hold the confirm promise open so the "not deleted yet" gate below is reliable: the
-    // default mock resolves immediately, which would race the deletion ahead of the check.
-    let resolveConfirm!: (value: boolean) => void
-    vi.mocked(popup.confirm).mockReturnValue(
-      new Promise<boolean>((resolve) => {
-        resolveConfirm = resolve
-      })
-    )
-
     fireEvent.contextMenu(getByText('Alpha topic'))
     const alphaMenu = getByText('Alpha topic').closest('[data-testid="context-menu"]')
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
     fireEvent.click(within(menuContent as HTMLElement).getByRole('button', { name: 'Delete' }))
 
-    // Deletion is gated behind a confirm popup (command-menu items have no inline dialog).
+    // Deletion is delegated to ConfirmActionPopup, which gates the action behind its own confirm
+    // dialog (that "don't run until confirmed" gate is covered by ConfirmActionPopup's unit test).
+    // The default mock confirms and runs the gated action, so the topic is deleted.
     await vi.waitFor(() =>
-      expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Conversations' }))
+      expect(confirmActionShow).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Delete Conversations', action: expect.any(Function) })
+      )
     )
-    expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
-
-    await act(async () => {
-      resolveConfirm(true)
-    })
-
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
   })
 

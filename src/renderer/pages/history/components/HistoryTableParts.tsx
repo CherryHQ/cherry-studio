@@ -2,8 +2,8 @@ import { Button, Checkbox, RowFlex } from '@cherrystudio/ui'
 import { ActionConfirmDialog } from '@renderer/components/chat/actions/ActionConfirmDialog'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import ConfirmActionPopup from '@renderer/components/Popups/ConfirmActionPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
-import { popup } from '@renderer/services/popup'
 import { cn } from '@renderer/utils/style'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
@@ -221,17 +221,16 @@ export function HistoryActionContextMenu<TContext = unknown>({
       if (!action.availability.enabled) return
       const confirm = action.confirm
       if (confirm) {
-        const confirmed = await popup.confirm({
+        // Confirm gates a fallible action: ConfirmActionPopup runs it in-dialog and
+        // surfaces failures (toast + retry), so a rejected action is never silent.
+        await ConfirmActionPopup.show({
           title: confirm.title,
           content: confirm.description ?? confirm.content,
           okText: confirm.confirmText,
           cancelText: confirm.cancelText,
-          centered: true,
-          okButtonProps: confirm.destructive ? { danger: true } : undefined
+          danger: confirm.destructive,
+          action: () => onAction(action)
         })
-        if (confirmed) {
-          void onAction(action)
-        }
         return
       }
       window.requestAnimationFrame(() => void onAction(action))

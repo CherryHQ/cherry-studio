@@ -2,7 +2,7 @@ import { Alert, Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
-import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
+import ContentPopup from '@renderer/components/Popups/ContentPopup'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServerMutations } from '@renderer/hooks/useMcpServer'
 import { getMcpTypeLabelKey } from '@renderer/i18n/label'
@@ -167,7 +167,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
       const errorDetails = formatErrorMessage(error)
 
       const onClickDetails = () => {
-        void GeneralPopup.show({
+        void ContentPopup.show({
           content: (
             <div
               style={{

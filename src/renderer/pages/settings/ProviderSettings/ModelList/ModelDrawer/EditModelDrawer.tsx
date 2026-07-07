@@ -9,9 +9,9 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
+import ConfirmActionPopup from '@renderer/components/Popups/ConfirmActionPopup'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
@@ -261,16 +261,15 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
     const { modelId } = parseUniqueModelId(model.id)
 
-    const confirmed = await popup.confirm({
+    const deleted = await ConfirmActionPopup.show({
       title: t('common.delete_confirm'),
       content: t('settings.models.manage.remove_model'),
-      okButtonProps: { danger: true },
+      danger: true,
       okText: t('common.delete'),
-      centered: true
+      action: () => deleteModel(model.providerId ?? providerId, modelId)
     })
-    if (!confirmed) return
+    if (!deleted) return
 
-    await deleteModel(model.providerId ?? providerId, modelId)
     toast.success(t('common.delete_success'))
     onClose()
   }, [deleteModel, model, onClose, providerId, t])

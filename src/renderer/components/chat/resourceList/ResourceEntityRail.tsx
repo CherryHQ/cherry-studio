@@ -3,7 +3,7 @@ import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/action
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
-import { popup } from '@renderer/services/popup'
+import ConfirmActionPopup from '@renderer/components/Popups/ConfirmActionPopup'
 import { cn } from '@renderer/utils/style'
 import { History, MoreHorizontal } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
@@ -171,17 +171,16 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
 
       const confirm = action.confirm
       if (confirm) {
-        const confirmed = await popup.confirm({
+        // Confirm gates a fallible action: ConfirmActionPopup runs it in-dialog and
+        // surfaces failures (toast + retry), so a rejected action is never silent.
+        await ConfirmActionPopup.show({
           title: confirm.title,
           content: confirm.description ?? confirm.content,
           okText: confirm.confirmText,
           cancelText: confirm.cancelText,
-          centered: true,
-          okButtonProps: confirm.destructive ? { danger: true } : undefined
+          danger: confirm.destructive,
+          action: () => onContextMenuAction(item, action)
         })
-        if (confirmed) {
-          void onContextMenuAction(item, action)
-        }
         return
       }
 

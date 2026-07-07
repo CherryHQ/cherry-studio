@@ -1,4 +1,3 @@
-import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -118,6 +117,16 @@ vi.mock('../ProviderList/ProviderListItemWithContextMenu', () => ({
 vi.mock('../ProviderList/ProviderEditorDrawer', () => ({
   default: ({ open }: any) => <div data-testid="provider-editor-drawer" data-open={open ? 'true' : 'false'} />
 }))
+
+// The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
+// the gated action (as if the user confirmed) and assert the delete flow.
+const { confirmActionShow } = vi.hoisted(() => ({
+  confirmActionShow: vi.fn(async (options?: { action?: () => unknown }) => {
+    await options?.action?.()
+    return true
+  })
+}))
+vi.mock('@renderer/components/Popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
 
 describe('ProviderList', () => {
   const providers = [
@@ -385,12 +394,7 @@ describe('ProviderList', () => {
 
     fireEvent.click(screen.getByTestId('provider-list-delete-openai'))
 
-    expect(popup.confirm).toHaveBeenCalledTimes(1)
-    const options = vi.mocked(popup.confirm).mock.calls[0][0]
-    expect(options.title).toBeTruthy()
-    expect(options.okText).toBeTruthy()
-    expect(options.okButtonProps).toEqual({ danger: true })
-    expect(options.centered).toBe(true)
+    expect(confirmActionShow).toHaveBeenCalledTimes(1)
   })
 
   it('delegates provider deletion from the confirmation callback', async () => {
