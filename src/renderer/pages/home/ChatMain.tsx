@@ -12,6 +12,7 @@ interface ChatMainProps {
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   isInitialLoading?: boolean
+  isMessagesStale?: boolean
   loadOlder: () => void
   hasOlder: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
@@ -23,6 +24,7 @@ const ChatMain: FC<ChatMainProps> = ({
   messages,
   partsByMessageId,
   isInitialLoading,
+  isMessagesStale,
   loadOlder,
   hasOlder,
   openCitationsPanel,
@@ -33,6 +35,7 @@ const ChatMain: FC<ChatMainProps> = ({
     messages,
     partsByMessageId,
     isInitialLoading,
+    isMessagesStale,
     loadOlder,
     hasOlder,
     openCitationsPanel,
