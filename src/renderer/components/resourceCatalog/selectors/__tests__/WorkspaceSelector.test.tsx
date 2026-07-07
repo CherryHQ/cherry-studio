@@ -76,8 +76,6 @@ const CREATED_WORKSPACE = {
   updatedAt: '2026-01-03T00:00:00.000Z'
 }
 
-const toastErrorMock = vi.fn()
-
 beforeAll(() => {
   globalThis.ResizeObserver = class {
     observe() {}
@@ -122,7 +120,6 @@ beforeEach(() => {
       }
     }
   })
-  window.toast = { error: toastErrorMock } as unknown as typeof window.toast
 })
 
 afterEach(() => {

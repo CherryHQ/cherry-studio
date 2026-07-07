@@ -16,6 +16,7 @@ import {
 } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -147,7 +148,7 @@ export const useSessions = (
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
       if (!agentId) {
-        window.toast.error(t('agent.session.create.error.failed'))
+        toast.error(t('agent.session.create.error.failed'))
         return null
       }
       let result: AgentSessionEntity
@@ -161,12 +162,12 @@ export const useSessions = (
           }
         })
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
         return null
       }
 
       await refresh().catch((error) => {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.get.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.get.error.failed')))
       })
 
       return result
@@ -187,7 +188,7 @@ export const useSessions = (
         closeConversationTabs('agents', [id])
         return true
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
         return false
       }
     },
@@ -201,7 +202,7 @@ export const useSessions = (
         closeConversationTabs('agents', result.deletedIds)
         return result
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
         return null
       }
     },
@@ -213,7 +214,7 @@ export const useSessions = (
       try {
         await applyReorderedList(reorderedList as unknown as Array<Record<string, unknown>>)
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
       }
     },
     [applyReorderedList, t]
@@ -228,7 +229,7 @@ export const useSessions = (
         await reorderTrigger({ params: { id }, body: anchor })
         return true
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
         return false
       }
     },
@@ -252,7 +253,7 @@ export const useSessions = (
         }
         return true
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.pin.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.pin.error.failed')))
         return false
       }
     },
@@ -313,11 +314,11 @@ export const useUpdateSession = () => {
         const { id, ...patch } = form
         const result = await updateTrigger({ params: { sessionId: id }, body: patch })
         if (options?.showSuccessToast ?? true) {
-          window.toast.success(t('common.update_success'))
+          toast.success(t('common.update_success'))
         }
         return result
       } catch (error) {
-        window.toast.error({ title: t('agent.session.update.error.failed'), description: getErrorMessage(error) })
+        toast.error({ title: t('agent.session.update.error.failed'), description: getErrorMessage(error) })
         return undefined
       }
     },
@@ -334,7 +335,7 @@ export const useUpdateSession = () => {
       try {
         return await setWorkspaceTrigger({ params: { sessionId: id }, body: workspace })
       } catch (error) {
-        window.toast.error({ title: t('agent.session.update.error.failed'), description: getErrorMessage(error) })
+        toast.error({ title: t('agent.session.update.error.failed'), description: getErrorMessage(error) })
         return undefined
       }
     },

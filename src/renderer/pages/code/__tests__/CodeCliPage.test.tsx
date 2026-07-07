@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
+import { toast } from '@renderer/services/toast'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -204,11 +205,6 @@ beforeEach(() => {
         getAvailableTerminals: vi.fn().mockResolvedValue([]),
         run: testState.codeCliRun
       }
-    },
-    toast: {
-      error: vi.fn(),
-      success: vi.fn(),
-      warning: vi.fn()
     }
   })
 })
@@ -408,7 +404,7 @@ describe('CodeCliPage', () => {
     expect(testState.codeCliRun).toHaveBeenCalledTimes(1)
 
     resolveRun({ success: true })
-    await waitFor(() => expect(window.toast.success).toHaveBeenCalledWith('code.launch.success'))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('code.launch.success'))
   })
 
   it('shows launched state after a successful launch and schedules reset', async () => {
@@ -427,7 +423,7 @@ describe('CodeCliPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'code.launch.label' }))
 
-    await waitFor(() => expect(window.toast.error).toHaveBeenCalledWith('launch failed'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('launch failed'))
     expect(screen.getByRole('button', { name: 'code.launch.label' })).toBeEnabled()
   })
 })

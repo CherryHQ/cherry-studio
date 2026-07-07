@@ -12,6 +12,7 @@ import {
 } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { usePromptMutations, usePromptMutationsById } from '@renderer/hooks/resourceCatalog'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Prompt } from '@shared/data/types/prompt'
 import { Pencil, Plus, Search, Trash2, X } from 'lucide-react'
@@ -88,7 +89,7 @@ export function PromptManagementDialog({ open, onOpenChange }: PromptManagementD
         await refetch()
         setPromptDialog(null)
       } catch (err) {
-        window.toast.error(
+        toast.error(
           formatErrorMessageWithPrefix(
             err,
             t(promptDialogPrompt ? 'settings.prompts.errors.updateFailed' : 'settings.prompts.errors.createFailed')
@@ -111,7 +112,7 @@ export function PromptManagementDialog({ open, onOpenChange }: PromptManagementD
       await refetch()
       setDeleteTarget(null)
     } catch (err) {
-      window.toast.error(formatErrorMessageWithPrefix(err, t('settings.prompts.errors.deleteFailed')))
+      toast.error(formatErrorMessageWithPrefix(err, t('settings.prompts.errors.deleteFailed')))
       throw err
     } finally {
       setDeletingPrompt(false)

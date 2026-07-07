@@ -1,3 +1,4 @@
+import { popup } from '@renderer/services/popup'
 import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import { isEmpty } from 'es-toolkit/compat'
 import i18next from 'i18next'
@@ -22,19 +23,17 @@ export async function checkProviderEnabled(provider: PaintingProviderRuntime): P
   }
 
   if (!provider.isEnabled) {
-    return new Promise((_, reject) => {
-      window.modal.warning({
+    if (
+      await popup.warning({
         content: i18next.t('error.provider_disabled'),
         centered: true,
         closable: true,
-        okText: i18next.t('common.go_to_settings'),
-        onOk: () => {
-          navigateToProviderSettings(provider.id)
-          reject('Provider disabled')
-        },
-        onCancel: () => reject('Provider disabled')
+        okText: i18next.t('common.go_to_settings')
       })
-    })
+    ) {
+      navigateToProviderSettings(provider.id)
+    }
+    throw 'Provider disabled'
   }
 
   const apiKey = await provider.getApiKey()
@@ -42,17 +41,15 @@ export async function checkProviderEnabled(provider: PaintingProviderRuntime): P
     return apiKey
   }
 
-  return new Promise((_, reject) => {
-    window.modal.warning({
+  if (
+    await popup.warning({
       content: i18next.t('error.no_api_key'),
       centered: true,
       closable: true,
-      okText: i18next.t('common.go_to_settings'),
-      onOk: () => {
-        navigateToProviderSettings(provider.id)
-        reject('No API key')
-      },
-      onCancel: () => reject('No API key')
+      okText: i18next.t('common.go_to_settings')
     })
-  })
+  ) {
+    navigateToProviderSettings(provider.id)
+  }
+  throw 'No API key'
 }

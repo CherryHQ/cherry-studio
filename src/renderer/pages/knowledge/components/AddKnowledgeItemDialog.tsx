@@ -1,5 +1,6 @@
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileExtension } from '@renderer/utils/file'
 import { resolveKnowledgeFileData, resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
@@ -129,7 +130,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       }
       const message = t('knowledge.data_source.add_dialog.too_many_sources', { count: KNOWLEDGE_ADD_ITEMS_MAX })
       if (directPick) {
-        window.toast.warning(message)
+        toast.warning(message)
       } else {
         setSubmitErrorMessage(message)
       }
@@ -183,7 +184,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       const supportedFiles = pendingAddFiles.filter((file) => isSupportedKnowledgeFile(file.name))
       const skippedCount = pendingAddFiles.length - supportedFiles.length
       if (skippedCount > 0) {
-        window.toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
+        toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
       }
       const fileData = await Promise.all(supportedFiles.map(resolveFileEntryDataFromFile))
       return fileData.map((data) => ({ type: 'file' as const, data }))
@@ -201,7 +202,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     const supportedFiles = selected.filter((file) => isSupportedKnowledgeFile(file.origin_name || file.name))
     const skippedCount = selected.length - supportedFiles.length
     if (skippedCount > 0) {
-      window.toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
+      toast.warning(t('knowledge.data_source.add_dialog.unsupported_files_skipped', { count: skippedCount }))
     }
     const fileData = await Promise.all(supportedFiles.map(resolveKnowledgeFileMetadataEntryData))
     return fileData.map((data) => ({ type: 'file' as const, data }))
@@ -242,7 +243,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         }
         await submitWithStrategy(items, 'detect')
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
         handleOpenChange(false)
       } finally {
         setIsResolvingSubmit(false)
@@ -275,7 +276,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
           const message = formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error'))
           // Direct-pick sources have no panel to fall back to, so report inline (toast) and close.
           if (directPick) {
-            window.toast.error(message)
+            toast.error(message)
             handleOpenChange(false)
           } else {
             setSubmitErrorMessage(message)

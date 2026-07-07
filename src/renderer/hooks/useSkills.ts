@@ -1,5 +1,6 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import { searchSkills } from '@renderer/utils/skillSearch'
 import type { InstalledSkill, LocalSkill, SkillResult, SkillSearchResult } from '@shared/types/skill'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -18,7 +19,7 @@ function unwrapSkillResult<T>(result: SkillResult<T>): T {
 function reportSkillMutationError(action: string, error: unknown): string {
   const message = skillErrorMessage(error)
   logger.error(`Failed to ${action}`, { error: message })
-  window.toast.error(message)
+  toast.error(message)
   return message
 }
 

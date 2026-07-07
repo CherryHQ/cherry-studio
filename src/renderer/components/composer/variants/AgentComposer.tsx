@@ -35,6 +35,7 @@ import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { isSoulModeEnabled } from '@renderer/utils/agent/agentConfiguration'
@@ -972,7 +973,7 @@ const AgentComposerInner = ({
     isFulfilled: sessionFulfilled,
     markSeen: markSessionSeen,
     onDrain: sendQueuedPayload,
-    onDrainFailed: () => window.toast?.error(t('chat.input.send_failed'))
+    onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
 
   // Edit a queued item = restore the draft (text + files + skills) into the live composer, then drop
@@ -990,11 +991,11 @@ const AgentComposerInner = ({
     (draft: ComposerSerializedDraft) => {
       if (sendDisabled) return
       if (!model) {
-        window.toast?.error(t('code.model_required'))
+        toast.error(t('code.model_required'))
         return
       }
       if (workspaceWarning) {
-        window.toast?.error(workspaceWarning)
+        toast.error(workspaceWarning)
         return
       }
       const payload = buildQueuedPayload(draft)
@@ -1023,7 +1024,7 @@ const AgentComposerInner = ({
           setDraftTokens(previousDraftTokens)
           draftTokensRef.current = previousDraftTokens
           writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
-          window.toast?.error(t('chat.input.send_failed'))
+          toast.error(t('chat.input.send_failed'))
         }
       })
     },
@@ -1122,7 +1123,7 @@ const AgentComposerInner = ({
                 // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
                 const sent = await sendQueuedPayload(item.payload)
                 if (sent) removeFollowup(id)
-                else window.toast?.error(t('chat.input.send_failed'))
+                else toast.error(t('chat.input.send_failed'))
               }}
               onEdit={(id) => {
                 const item = queuedFollowups.find((entry) => entry.id === id)
@@ -1205,7 +1206,7 @@ const MissingAgentHomeComposerInner = ({
     [onAgentChange, text]
   )
   const handleBlockedSend = useCallback(() => {
-    window.toast?.error(selectAgentMessage)
+    toast.error(selectAgentMessage)
   }, [selectAgentMessage])
   const placeholderText = t('agent.input.placeholder', {
     key: getSendMessageShortcutLabel(sendMessageShortcut)
