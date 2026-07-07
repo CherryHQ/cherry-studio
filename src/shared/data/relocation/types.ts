@@ -15,11 +15,11 @@ export const RelocationIpcChannels = {
   GetProgress: 'relocation:get-progress',
   /** Main pushes progress updates to the relocation window. */
   Progress: 'relocation:progress',
-  /** Renderer asks main to relaunch (success "Restart" and failure "Continue on old location" both use this). */
+  /** Renderer asks main to relaunch after a failed relocation. */
   Restart: 'relocation:restart'
 } as const
 
-export type RelocationStage = 'preparing' | 'copying' | 'committing' | 'completed' | 'failed'
+export type RelocationStage = 'preparing' | 'copying' | 'committing' | 'failed'
 
 export interface RelocationProgress {
   stage: RelocationStage

@@ -78,9 +78,9 @@ export class RelocationWindowManager {
         event.preventDefault()
         return
       }
-      // Terminal stage (completed/failed): closing the window is equivalent
-      // to pressing the action button — relaunch and move on.
-      logger.info('Relocation window closed by user at terminal stage; relaunching')
+      // Failure stage: closing the window is equivalent to pressing the
+      // action button — relaunch on the previous userData path and move on.
+      logger.info('Relocation window closed by user after failure; relaunching')
       void this.restartApp()
     })
 
