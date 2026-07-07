@@ -11,16 +11,18 @@
  * the boot-time sweep here is for Windows where they don't.
  *
  * On the apparent duplication — the same tool output also lives in the
- * message history: the DB row (`message.data`) is cherry's permanent
- * record; this temp copy is the model-facing read-back target and is
- * deliberately separate, not incidental. chef's `truncate.storage` is a
- * storage-agnostic `(bytes) → path` adapter — it never sees the DB
- * identity of the bytes it is handed, and a tool result truncated
- * mid-loop may not be persisted yet — so the read-back cannot cheaply
- * point at the existing row without a DB-backed adapter that would store
- * a second copy in a blob table anyway (the exact bloat rejected above).
- * This copy is transient (OS-reclaimed + swept); the permanent copy is
- * the DB one, and trimming *that* is tracked separately in #16786.
+ * message history (`message.data`). This temp copy is NOT the redundant
+ * one: it is content-addressed (chef writes `vfs_<sha256>.txt` and skips
+ * the write when the file already exists), so a large result re-sent
+ * across turns, read back, or duplicated across regenerate/branch
+ * siblings is stored once. The redundant copy is the DB one — per-row
+ * JSON with no content-addressing, so every message carrying that content
+ * is a separate full copy — and trimming *that* (keep a marker, not the
+ * megabytes) is tracked in #16786. chef offloads through a `(bytes) →
+ * path` adapter because, as a middleware, it sees the outgoing prompt and
+ * not cherry's store, so it can't trim the DB itself — that is cherry's
+ * persistence layer's job; this copy is where the model reads it back,
+ * transient (OS-reclaimed + swept).
  *
  * Responsibilities:
  * - Own one shared `FileSystemAdapter` pointed at
