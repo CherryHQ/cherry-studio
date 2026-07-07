@@ -780,7 +780,8 @@ describe('AgentComposer', () => {
       />
     )
 
-    const workspaceButton = screen.getByText('Workspace 1').closest('button')!
+    const workspaceButton = (screen.getByText('Workspace 1').closest('button') ||
+      screen.getByText('Workspace 1').closest('[role="button"]'))!
     const indicator = screen.getByLabelText('agent.right_pane.info.context_usage 42%')
     expect(workspaceButton.compareDocumentPosition(indicator)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(indicator).toBeInTheDocument()
@@ -1886,7 +1887,9 @@ describe('AgentComposer', () => {
 
     expect(screen.getByText('Agent').closest('button')).toHaveClass('h-8', 'rounded-lg')
     expect(screen.getByText('Claude Sonnet 4.5 | Anthropic').closest('button')).toHaveClass('h-8', 'rounded-lg')
-    expect(screen.getByText('Workspace 1').closest('button')).toHaveClass('h-8', 'rounded-lg')
+    const workspaceButton =
+      screen.getByText('Workspace 1').closest('button') || screen.getByText('Workspace 1').closest('[role="button"]')
+    expect(workspaceButton).toHaveClass('h-8', 'rounded-lg')
 
     const belowText = belowControls.textContent ?? ''
     expect(belowText.indexOf('Agent')).toBeLessThan(belowText.indexOf('Claude Sonnet 4.5 | Anthropic'))
