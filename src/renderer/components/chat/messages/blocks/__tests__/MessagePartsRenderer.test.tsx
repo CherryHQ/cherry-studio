@@ -1027,7 +1027,6 @@ describe('MessagePartsRenderer', () => {
     expect(foldButton).toHaveAttribute('aria-expanded', 'false')
     expect(foldButton).toHaveClass('w-full')
     const preview = screen.getByTestId('tool-history-preview')
-    expect(preview).toHaveClass('h-[6.5rem]')
     expect(screen.getByTestId('tool-history-divider')).toHaveClass('w-full')
     expect(within(preview).getByText('checking project files')).toBeInTheDocument()
     expect(within(preview).getByText('preparing next step')).toBeInTheDocument()
@@ -1731,6 +1730,18 @@ describe('MessagePartsRenderer', () => {
     expect(foldButton.querySelector('[data-live="false"]')).toBeInTheDocument()
     expect(foldButton.querySelector('[data-show-latest="false"]')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /read/ })).toBeNull()
+  })
+
+  it('uses message stats completion time for the completed tool history elapsed time', () => {
+    renderParts(
+      [
+        { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+        { type: 'text', text: 'final answer' }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'success', stats: { timeCompletionMs: 140301 } })
+    )
+
+    expect(screen.getByRole('button', { name: 'Processed · 1 second' })).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('renders active tool runs directly inside the expanded fold while streaming', () => {

@@ -962,12 +962,14 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
   )
   const elapsedMs = usePlaceholderElapsedMs(showLiveProgress, message.createdAt, 1000)
   const completedElapsedMs = useMemo(() => {
-    if (showLiveProgress || isProcessing || !message.updatedAt) return undefined
+    if (showLiveProgress || isProcessing) return undefined
+    if (typeof message.stats?.timeCompletionMs === 'number') return message.stats.timeCompletionMs
+    if (!message.updatedAt) return undefined
     const startedAt = Date.parse(message.createdAt)
     const finishedAt = Date.parse(message.updatedAt)
     if (!Number.isFinite(startedAt) || !Number.isFinite(finishedAt) || finishedAt < startedAt) return undefined
     return finishedAt - startedAt
-  }, [isProcessing, message.createdAt, message.updatedAt, showLiveProgress])
+  }, [isProcessing, message.createdAt, message.stats?.timeCompletionMs, message.updatedAt, showLiveProgress])
   const elapsedText = showLiveProgress
     ? formatPlaceholderElapsed(elapsedMs, t)
     : completedElapsedMs !== undefined
@@ -1056,9 +1058,9 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
           <motion.div
             key="tool-history-preview"
             data-testid="tool-history-preview"
-            className="group/preview relative h-[6.5rem] w-full overflow-hidden rounded-lg bg-background-subtle"
+            className="group/preview relative h-[5rem] w-full overflow-hidden rounded-lg bg-background-subtle"
             initial={{ height: 0, opacity: 0 }}
-            animate={{ height: '6.5rem', opacity: 1 }}
+            animate={{ height: '5rem', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}>
             <button
@@ -1075,7 +1077,7 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
               ref={previewRef}
               aria-hidden="true"
               inert
-              className="pointer-events-none flex h-full w-full flex-col gap-0 overflow-y-auto px-2.5 py-1.5 pr-7 [scrollbar-width:thin] [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0! [&_.message-thought-container]:leading-5! [&_.tool-block-group-content]:gap-0! [&_[role='button']]:min-h-6! [&_[role='button']]:py-0! [&_button]:min-h-6! [&_button]:py-0!">
+              className="pointer-events-none flex h-full w-full flex-col gap-0 overflow-y-auto px-2.5 py-0.5 pr-7 [scrollbar-width:thin] [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0! [&_.message-thought-container]:leading-5! [&_.tool-block-group-content]:gap-0! [&_[role='button']]:min-h-6! [&_[role='button']]:py-0! [&_button]:min-h-6! [&_button]:py-0!">
               {previewEntries.map((entry) => renderGroupedEntry(entry, message, false, false))}
             </div>
           </motion.div>
