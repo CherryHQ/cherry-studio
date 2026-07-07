@@ -64,6 +64,22 @@ describe('parseCharts — floating-object cap and chart part memoization', () =>
     expect(charts[0].rect.y).not.toBe(charts[1].rect.y)
   })
 
+  it('stops walking anchors once the budget is filled instead of extracting every repeated anchor', async () => {
+    const zip = await buildChartWorkbookZip('basic')
+    zip.file('xl/drawings/drawing1.xml', repeatedAnchorDrawingXml(MAX_FLOATING_OBJECTS * 4, 'rId1'))
+
+    // Each visited oneCellAnchor resolves its rect through the layout accessor exactly once, so the call count is a
+    // proxy for how many anchors extraction actually walked.
+    const colX = vi.fn((col: number) => (col - 1) * DEFAULT_COL_WIDTH_PX)
+    const rowY = vi.fn((row: number) => (row - 1) * DEFAULT_ROW_HEIGHT_PX)
+    const { charts, warnings } = await parseCharts(zip, 'Data', { colX, rowY }, emptyDataAccessor)
+
+    expect(charts).toHaveLength(MAX_FLOATING_OBJECTS)
+    expect(warnings.some((w) => w.includes('floating-objects-truncated'))).toBe(true)
+    expect(colX).toHaveBeenCalledTimes(MAX_FLOATING_OBJECTS)
+    expect(rowY).toHaveBeenCalledTimes(MAX_FLOATING_OBJECTS)
+  })
+
   it('respects an explicit remaining budget, including zero', async () => {
     const zip = await buildChartWorkbookZip('basic')
 

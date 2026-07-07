@@ -241,17 +241,30 @@ const extractAnchoredChart = (
 
 const ANCHOR_KINDS = ['twoCellAnchor', 'oneCellAnchor', 'absoluteAnchor'] as const
 
-const extractAnchoredCharts = (drawingXml: string, layout: SheetLayoutAccessor): AnchoredChartRef[] => {
+interface ExtractedAnchors {
+  charts: AnchoredChartRef[]
+  /** Anchor nodes left unvisited after the budget filled. Only counted — never walked or rect-computed. */
+  skippedAnchors: number
+}
+
+const extractAnchoredCharts = (drawingXml: string, layout: SheetLayoutAccessor, budget: number): ExtractedAnchors => {
   const doc = xmlParser.parse(drawingXml)
   const root = findChild(doc, 'wsDr')
-  const results: AnchoredChartRef[] = []
+  const charts: AnchoredChartRef[] = []
+  let skippedAnchors = 0
   for (const kind of ANCHOR_KINDS) {
-    for (const anchorNode of findChildren(root, kind)) {
-      const extracted = extractAnchoredChart(anchorNode, kind, layout)
-      if (extracted) results.push(extracted)
+    const anchorNodes = findChildren(root, kind)
+    for (let index = 0; index < anchorNodes.length; index += 1) {
+      // Anchor counts are untrusted, so extraction cost must scale with the budget, not the anchor count.
+      if (charts.length >= budget) {
+        skippedAnchors += anchorNodes.length - index
+        break
+      }
+      const extracted = extractAnchoredChart(anchorNodes[index], kind, layout)
+      if (extracted) charts.push(extracted)
     }
   }
-  return results
+  return { charts, skippedAnchors }
 }
 
 // ---------------------------------------------------------------------------
@@ -514,13 +527,14 @@ export async function parseCharts(
     const drawingRelsXml = await readZipText(zip, `${drawingDir}/_rels/${drawingFileName}.rels`)
     const drawingRels = drawingRelsXml ? parseRelationships(drawingRelsXml) : []
 
-    // Anchor counts are untrusted: a small drawing XML can repeat thousands of anchors, so excess anchors are
-    // dropped up front to bound both worker parsing and the number of chart hosts the renderer creates.
-    let anchoredCharts = extractAnchoredCharts(drawingXml, layout)
+    // Anchor counts are untrusted: a small drawing XML can repeat thousands of anchors, so extraction stops at the
+    // budget to bound both worker parsing and the number of chart hosts the renderer creates.
     const chartBudget = Math.max(0, maxCharts)
-    if (anchoredCharts.length > chartBudget) {
-      warnings.push(`floating-objects-truncated: kept ${chartBudget} of ${anchoredCharts.length} chart anchors`)
-      anchoredCharts = anchoredCharts.slice(0, chartBudget)
+    const { charts: anchoredCharts, skippedAnchors } = extractAnchoredCharts(drawingXml, layout, chartBudget)
+    if (skippedAnchors > 0) {
+      warnings.push(
+        `floating-objects-truncated: kept ${anchoredCharts.length} chart anchors, skipped ${skippedAnchors} drawing anchors`
+      )
     }
 
     // Many anchors may point at the same chart part. The parsed model depends only on the part path (data comes
