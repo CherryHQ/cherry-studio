@@ -91,7 +91,7 @@ const CRON_TOOL: Tool = {
         type: 'array',
         items: { type: 'string' },
         description:
-          'Channel IDs to send task results to. Omit to auto-bind all agent channels. Use an empty array [] to skip channel delivery.'
+          'Channel IDs to send task results to. Omit to use the current source channel when invoked from a channel; otherwise no channel delivery is configured. Use an empty array [] to skip channel delivery.'
       },
       timeout_minutes: {
         type: 'number',
