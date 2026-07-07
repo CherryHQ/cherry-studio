@@ -9,6 +9,7 @@ import { knowledgeRequestSchemas } from './knowledge'
 import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
 import { navigationRequestSchemas } from './navigation'
 import { type OAuthEventSchemas, oauthRequestSchemas } from './oauth'
+import { printRequestSchemas } from './print'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { webSearchRequestSchemas } from './webSearch'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
@@ -31,6 +32,7 @@ export const ipcRequestSchemas = {
   ...localModelRequestSchemas,
   ...navigationRequestSchemas,
   ...oauthRequestSchemas,
+  ...printRequestSchemas,
   ...selectionRequestSchemas,
   ...webSearchRequestSchemas,
   ...windowRequestSchemas
