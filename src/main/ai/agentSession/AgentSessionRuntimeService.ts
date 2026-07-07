@@ -113,6 +113,10 @@ type AgentSessionRuntimeEntry = {
   pendingTurns: AgentSessionMessageEntity[]
   connection?: AgentRuntimeConnection
   connectionLoop?: Promise<void>
+  /** The `headless` mode {@link connection} was built with. `beginTurn` compares it against an incoming
+   *  turn's headless flag to detect a baked-policy mismatch (a headless scheduled/channel run reusing a
+   *  primed non-headless connection whose Claude settings still allow AskUserQuestion) and rebuild. */
+  connectionHeadless?: boolean
   /** In-flight {@link ensureConnection} promise — shared by concurrent callers so only one connect runs. */
   connecting?: Promise<boolean>
   currentTurn?: AgentSessionTurn
@@ -217,24 +221,36 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     if (existing?.status === 'idle') {
-      this.clearIdleTimer(existing)
-      existing.pendingTurns = []
-      existing.topicId = input.topicId
-      existing.sessionTraceId = input.traceId ?? existing.sessionTraceId
-      existing.agentId = input.agentId
-      existing.agentType = input.agentType
-      existing.modelId = input.modelId
-      existing.headless = input.headless === true
-      existing.status = 'active'
-      existing.currentTurn = turn
+      const headless = input.headless === true
+      // The live (or in-flight) connection bakes `headless` into its Claude settings — notably the
+      // AskUserQuestion disallow for responder-less runs. A primed connection is always built
+      // non-headless, so a scheduled/channel run reusing an idle interactive session would inherit the
+      // permissive policy and could stall on AskUserQuestion. When the turn needs a different mode than
+      // the connection was built for, drop it and rebuild (fall through to fresh-entry creation) rather
+      // than reuse; the resume token is re-hydrated on reconnect, so conversation context survives.
+      const builtHeadless = existing.connection ? existing.connectionHeadless === true : existing.headless === true
+      const canReuse = !(existing.connection || existing.connecting) || builtHeadless === headless
 
-      return {
-        listeners: [
-          this.createPersistenceListener(existing, userMessage),
-          new AgentSessionRuntimeTerminalListener(this, input.sessionId),
-          new TraceFlushListener(input.topicId)
-        ],
-        turnId
+      if (canReuse) {
+        this.clearIdleTimer(existing)
+        existing.pendingTurns = []
+        existing.topicId = input.topicId
+        existing.sessionTraceId = input.traceId ?? existing.sessionTraceId
+        existing.agentId = input.agentId
+        existing.agentType = input.agentType
+        existing.modelId = input.modelId
+        existing.headless = headless
+        existing.status = 'active'
+        existing.currentTurn = turn
+
+        return {
+          listeners: [
+            this.createPersistenceListener(existing, userMessage),
+            new AgentSessionRuntimeTerminalListener(this, input.sessionId),
+            new TraceFlushListener(input.topicId)
+          ],
+          turnId
+        }
       }
     }
 
@@ -627,10 +643,14 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     entry.connection = connection
+    entry.connectionHeadless = entry.headless === true
     this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
-      if (entry.connection === connection) entry.connection = undefined
+      if (entry.connection === connection) {
+        entry.connection = undefined
+        entry.connectionHeadless = undefined
+      }
       if (entry.connectionLoop) entry.connectionLoop = undefined
     })
     return true
@@ -1183,6 +1203,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private closeConnection(entry: AgentSessionRuntimeEntry): AgentRuntimeConnection | undefined {
     const connection = entry.connection
     entry.connection = undefined
+    entry.connectionHeadless = undefined
     entry.connectionLoop = undefined
     return connection
   }

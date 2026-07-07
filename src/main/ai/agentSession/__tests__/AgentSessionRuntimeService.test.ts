@@ -328,6 +328,56 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('rebuilds instead of reusing an idle non-headless connection for a headless run', () => {
+    // A primed/interactive connection is built non-headless (AskUserQuestion allowed). Reusing it for a
+    // headless (scheduled/channel) run would leave AskUserQuestion enabled and stall on a prompt no one
+    // answers. beginTurn must drop the stale connection and rebuild with the headless policy.
+    const service = new AgentSessionRuntimeService()
+    const first = service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+    entry.lastResumeToken = 'resume-1'
+    entry.connection = connection
+    entry.connectionHeadless = false
+
+    void terminalListener(first).onDone({ status: 'success', isTopicDone: true })
+    const second = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2'),
+      headless: true
+    })
+
+    expect(second).not.toBe(first)
+    expect(connection.close).toHaveBeenCalledOnce()
+    const rebuilt = getEntry(service)
+    expect(rebuilt.connection).toBeUndefined() // torn down; ensureConnection rebuilds with headless baked in
+    expect(rebuilt.headless).toBe(true)
+  })
+
+  it('reuses an idle headless connection for another headless run', () => {
+    const service = new AgentSessionRuntimeService()
+    const first = service.beginTurn({ ...baseTurnInput, headless: true })
+    const entry = getEntry(service)
+    const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+    entry.lastResumeToken = 'resume-1'
+    entry.connection = connection
+    entry.connectionHeadless = true
+
+    void terminalListener(first).onDone({ status: 'success', isTopicDone: true })
+    const second = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2'),
+      headless: true
+    })
+
+    expect(second).not.toBe(first)
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(getEntry(service).connection).toBe(connection)
+    expect(getEntry(service).headless).toBe(true)
+  })
+
   it('applies tool-policy updates when disabled tools change', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
