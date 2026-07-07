@@ -167,12 +167,14 @@ export function useHomeMessageListProviderValue({
   useEffect(() => {
     const unsubscribes = [
       EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, async (data: Topic) => {
-        void popup.confirm({
+        const confirmed = await popup.confirm({
           title: t('chat.input.clear.title'),
           content: t('chat.input.clear.content'),
-          centered: true,
-          onOk: () => clearTopic(data)
+          centered: true
         })
+        if (!confirmed) return
+
+        void clearTopic(data)
       }),
       EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, () => {
         logger.info('[NEW_CONTEXT] Not yet implemented.')
@@ -521,24 +523,24 @@ export function useHomeMessageListProviderValue({
   )
 
   const deleteMessageGroupWithConfirm = useCallback<NonNullable<MessageListActions['deleteMessageGroupWithConfirm']>>(
-    (parentId) => {
-      void popup.confirm({
+    async (parentId) => {
+      const confirmed = await popup.confirm({
         title: t('message.group.delete.title'),
         content: t('message.group.delete.content'),
         centered: true,
         okButtonProps: {
           danger: true
         },
-        okText: t('common.delete'),
-        onOk: async () => {
-          try {
-            await deleteMessageGroup(parentId)
-          } catch (error) {
-            logger.error('Failed to delete message group:', error as Error)
-            toast.error(formatErrorMessageWithPrefix(error, t('message.delete.failed')))
-          }
-        }
+        okText: t('common.delete')
       })
+      if (!confirmed) return
+
+      try {
+        await deleteMessageGroup(parentId)
+      } catch (error) {
+        logger.error('Failed to delete message group:', error as Error)
+        toast.error(formatErrorMessageWithPrefix(error, t('message.delete.failed')))
+      }
     },
     [deleteMessageGroup, t]
   )

@@ -31,19 +31,21 @@ export function ResourceListActionContextMenu<T extends ResourceListItemBase, TA
   const { getItemId } = useResourceListItemAccessors<T>()
 
   const runAction = useCallback(
-    (action: ResolvedAction<TActionContext>) => {
+    async (action: ResolvedAction<TActionContext>) => {
       if (!action.availability.enabled) return
       const confirm = action.confirm
       if (confirm) {
-        void popup.confirm({
+        const confirmed = await popup.confirm({
           title: confirm.title,
           content: confirm.description ?? confirm.content,
           okText: confirm.confirmText,
           cancelText: confirm.cancelText,
           centered: true,
-          okButtonProps: confirm.destructive ? { danger: true } : undefined,
-          onOk: () => onAction(action)
+          okButtonProps: confirm.destructive ? { danger: true } : undefined
         })
+        if (confirmed) {
+          void onAction(action)
+        }
         return
       }
       // Defer until after the menu has closed so the action's own UI (rename input,

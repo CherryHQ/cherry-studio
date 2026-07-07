@@ -261,18 +261,18 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
     const { modelId } = parseUniqueModelId(model.id)
 
-    void popup.confirm({
+    const confirmed = await popup.confirm({
       title: t('common.delete_confirm'),
       content: t('settings.models.manage.remove_model'),
       okButtonProps: { danger: true },
       okText: t('common.delete'),
-      centered: true,
-      onOk: async () => {
-        await deleteModel(model.providerId ?? providerId, modelId)
-        toast.success(t('common.delete_success'))
-        onClose()
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    await deleteModel(model.providerId ?? providerId, modelId)
+    toast.success(t('common.delete_success'))
+    onClose()
   }, [deleteModel, model, onClose, providerId, t])
 
   if (!provider || !model) {

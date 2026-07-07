@@ -70,29 +70,29 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     }
   }, [providerId, ns, t, updateProvider])
 
-  const handleLogout = useCallback(() => {
-    void popup.confirm({
+  const handleLogout = useCallback(async () => {
+    const confirmed = await popup.confirm({
       title: t('settings.provider.oauth.logout'),
       content: t('settings.provider.oauth.logout_confirm'),
-      centered: true,
-      onOk: async () => {
-        setLoggingOut(true)
-        try {
-          await ipcApi.request('oauth.logout', { providerId })
-          // The main process reset auth to api-key and disabled the provider;
-          // mirror it into the renderer cache (DataApi does not auto-sync).
-          await updateProvider({ authConfig: { type: 'api-key' }, isEnabled: false })
-          setLoggedIn(false)
-          setAccountId(null)
-          toast.success(t('settings.provider.oauth.logout_success'))
-        } catch (error) {
-          logger.error(`${providerId} logout failed`, error as Error)
-          toast.warning(t('settings.provider.oauth.logout_warning'))
-        } finally {
-          setLoggingOut(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setLoggingOut(true)
+    try {
+      await ipcApi.request('oauth.logout', { providerId })
+      // The main process reset auth to api-key and disabled the provider;
+      // mirror it into the renderer cache (DataApi does not auto-sync).
+      await updateProvider({ authConfig: { type: 'api-key' }, isEnabled: false })
+      setLoggedIn(false)
+      setAccountId(null)
+      toast.success(t('settings.provider.oauth.logout_success'))
+    } catch (error) {
+      logger.error(`${providerId} logout failed`, error as Error)
+      toast.warning(t('settings.provider.oauth.logout_warning'))
+    } finally {
+      setLoggingOut(false)
+    }
   }, [providerId, t, updateProvider])
 
   if (loggedIn === null) {

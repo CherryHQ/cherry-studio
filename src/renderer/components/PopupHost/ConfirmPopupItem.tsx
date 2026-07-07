@@ -8,17 +8,12 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
 import type { ConfirmPopupEntry, ConfirmPopupProps, ConfirmPopupType } from '@renderer/services/popup'
 import { popupService } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
-import { formatErrorMessage } from '@renderer/utils/error'
-import { AlertCircle, Info, Loader2, TriangleAlert, XCircle } from 'lucide-react'
+import { AlertCircle, Info, TriangleAlert, XCircle } from 'lucide-react'
 import type React from 'react'
-import { useCallback, useState } from 'react'
-
-const logger = loggerService.withContext('ConfirmPopupItem')
+import { useCallback } from 'react'
 
 function getIcon(type: ConfirmPopupType, icon: React.ReactNode) {
   if (icon === null) return null
@@ -76,38 +71,23 @@ function getCancelText(props: ConfirmPopupProps) {
 
 /**
  * Renders one confirm-family entry from the popup store. Reads `open` from the
- * entry (store-controlled two-phase close) and settles through popupService;
- * `loading` is local UI state so an async onOk can keep the dialog open on failure.
+ * entry (store-controlled two-phase close) and settles through popupService — OK
+ * resolves the promise `true`, cancel/dismiss resolves it `false`.
  */
 export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }) {
   const { props, confirmType: type, instanceId, open } = entry
-  const [loading, setLoading] = useState(false)
 
   const icon = getIcon(type, props.icon)
   const showOkButton = shouldShowOkButton(props)
   const showCancelButton = shouldShowCancelButton(type, props)
 
   const handleCancel = useCallback(() => {
-    void Promise.resolve(props.onCancel?.()).catch((error) => {
-      logger.error('confirm onCancel failed', error as Error)
-    })
     popupService.settle(instanceId, false)
-  }, [instanceId, props])
+  }, [instanceId])
 
-  const handleConfirm = useCallback(async () => {
-    setLoading(true)
-    try {
-      await props.onOk?.()
-      // Reset loading alongside the close so the OK spinner does not linger through
-      // the exit animation (parity with the former AppModalItem close).
-      setLoading(false)
-      popupService.settle(instanceId, true)
-    } catch (error) {
-      logger.error('confirm onOk failed', error as Error)
-      toast.error({ title: i18n.t('common.error'), description: formatErrorMessage(error) })
-      setLoading(false)
-    }
-  }, [instanceId, props])
+  const handleConfirm = useCallback(() => {
+    popupService.settle(instanceId, true)
+  }, [instanceId])
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -168,7 +148,7 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
               <Button
                 variant="outline"
                 onClick={handleCancel}
-                disabled={props.cancelButtonProps?.disabled || loading}
+                disabled={props.cancelButtonProps?.disabled}
                 className={props.cancelButtonProps?.className}
                 style={props.cancelButtonProps?.style}>
                 {getCancelText(props)}
@@ -179,8 +159,6 @@ export default function ConfirmPopupItem({ entry }: { entry: ConfirmPopupEntry }
                 variant={props.okButtonProps?.danger ? 'destructive' : 'default'}
                 onClick={handleConfirm}
                 disabled={props.okButtonProps?.disabled}
-                loading={loading}
-                loadingIcon={<Loader2 className="size-4 animate-spin" />}
                 className={props.okButtonProps?.className}
                 style={props.okButtonProps?.style}>
                 {getOkText(type, props)}

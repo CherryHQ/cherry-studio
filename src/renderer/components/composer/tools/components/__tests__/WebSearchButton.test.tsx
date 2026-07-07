@@ -166,17 +166,16 @@ describe('WebSearchButton', () => {
   })
 
   it('does not restore trigger focus after confirming the missing-provider navigation', async () => {
-    vi.mocked(popup.confirm).mockResolvedValue(false)
+    vi.mocked(popup.confirm).mockResolvedValue(true)
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 
     const button = screen.getByRole('button', { name: 'chat.input.web_search.label' })
     fireEvent.click(button)
 
     const confirmOptions = vi.mocked(popup.confirm).mock.calls[0][0]
-    await confirmOptions.onOk?.()
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/websearch' }))
     confirmOptions.focusOnClose?.()
 
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/websearch' })
     expect(button).not.toHaveFocus()
   })
 

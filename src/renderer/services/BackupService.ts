@@ -183,7 +183,7 @@ export async function restore() {
 }
 
 export async function reset() {
-  void popup.confirm({
+  const confirmed = await popup.confirm({
     title: i18n.t('common.warning'),
     content: i18n.t('message.reset.confirm.content'),
     centered: true,
@@ -191,24 +191,24 @@ export async function reset() {
     cancelText: i18n.t('common.cancel'),
     okButtonProps: {
       danger: true
-    },
-    onOk: async () => {
-      void popup.confirm({
-        title: i18n.t('message.reset.double.confirm.title'),
-        content: i18n.t('message.reset.double.confirm.content'),
-        centered: true,
-        okText: i18n.t('common.confirm'),
-        cancelText: i18n.t('common.cancel'),
-        onOk: async () => {
-          localStorage.clear()
-          await clearDatabase()
-          await window.api.resetData()
-          toast.success(i18n.t('message.reset.success'))
-          setTimeout(() => window.api.application.relaunch(), 1000)
-        }
-      })
     }
   })
+  if (!confirmed) return
+
+  const doubleConfirmed = await popup.confirm({
+    title: i18n.t('message.reset.double.confirm.title'),
+    content: i18n.t('message.reset.double.confirm.content'),
+    centered: true,
+    okText: i18n.t('common.confirm'),
+    cancelText: i18n.t('common.cancel')
+  })
+  if (!doubleConfirmed) return
+
+  localStorage.clear()
+  await clearDatabase()
+  await window.api.resetData()
+  toast.success(i18n.t('message.reset.success'))
+  setTimeout(() => window.api.application.relaunch(), 1000)
 }
 
 // 备份到 webdav

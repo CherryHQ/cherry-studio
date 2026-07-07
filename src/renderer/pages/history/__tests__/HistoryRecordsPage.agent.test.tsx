@@ -908,11 +908,8 @@ describe('HistoryRecordsPage agent mode', () => {
     })
 
     expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete task' }))
-    expect(hookMocks.deleteSession).not.toHaveBeenCalled()
 
-    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 
@@ -934,9 +931,7 @@ describe('HistoryRecordsPage agent mode', () => {
       await flushCommandMenuAction()
     })
 
-    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 
@@ -956,9 +951,7 @@ describe('HistoryRecordsPage agent mode', () => {
       await flushCommandMenuAction()
     })
 
-    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 

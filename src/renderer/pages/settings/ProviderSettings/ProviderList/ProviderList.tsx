@@ -222,17 +222,17 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   )
 
   const handleDeleteProvider = useCallback(
-    (providerId: Provider['id']) => {
-      void popup.confirm({
+    async (providerId: Provider['id']) => {
+      const confirmed = await popup.confirm({
         title: t('settings.provider.delete.title'),
         content: t('settings.provider.delete.content'),
         okButtonProps: { danger: true },
         okText: t('common.delete'),
-        centered: true,
-        onOk: async () => {
-          await deleteProvider(providerId)
-        }
+        centered: true
       })
+      if (!confirmed) return
+
+      await deleteProvider(providerId)
     },
     [deleteProvider, t]
   )

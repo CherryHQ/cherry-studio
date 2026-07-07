@@ -217,19 +217,21 @@ export function HistoryActionContextMenu<TContext = unknown>({
   onAction
 }: HistoryActionContextMenuProps<TContext>) {
   const runAction = useCallback(
-    (action: ResolvedAction<TContext>) => {
+    async (action: ResolvedAction<TContext>) => {
       if (!action.availability.enabled) return
       const confirm = action.confirm
       if (confirm) {
-        void popup.confirm({
+        const confirmed = await popup.confirm({
           title: confirm.title,
           content: confirm.description ?? confirm.content,
           okText: confirm.confirmText,
           cancelText: confirm.cancelText,
           centered: true,
-          okButtonProps: confirm.destructive ? { danger: true } : undefined,
-          onOk: () => onAction(action)
+          okButtonProps: confirm.destructive ? { danger: true } : undefined
         })
+        if (confirmed) {
+          void onAction(action)
+        }
         return
       }
       window.requestAnimationFrame(() => void onAction(action))

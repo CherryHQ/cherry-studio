@@ -66,27 +66,27 @@ export const useActionItems = (
     setIsSearchModalOpen(false)
   }
 
-  const handleDeleteActionItem = (id: string) => {
+  const handleDeleteActionItem = async (id: string) => {
     if (!initialItems) return
-    void popup.confirm({
+    const confirmed = await popup.confirm({
       centered: true,
-      content: t('selection.settings.actions.delete_confirm'),
-      onOk: () => {
-        setActionItems(initialItems.filter((item) => item.id !== id))
-      }
+      content: t('selection.settings.actions.delete_confirm')
     })
+    if (!confirmed) return
+
+    setActionItems(initialItems.filter((item) => item.id !== id))
   }
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (!initialItems) return
-    void popup.confirm({
+    const confirmed = await popup.confirm({
       centered: true,
-      content: t('selection.settings.actions.reset.confirm'),
-      onOk: () => {
-        const userItems = initialItems.filter((item) => !item.isBuiltIn).map((item) => ({ ...item, enabled: false }))
-        setActionItems([...DefaultPreferences.default['feature.selection.action_items'], ...userItems])
-      }
+      content: t('selection.settings.actions.reset.confirm')
     })
+    if (!confirmed) return
+
+    const userItems = initialItems.filter((item) => !item.isBuiltIn).map((item) => ({ ...item, enabled: false }))
+    setActionItems([...DefaultPreferences.default['feature.selection.action_items'], ...userItems])
   }
 
   const onDragEnd = (result: DropResult) => {

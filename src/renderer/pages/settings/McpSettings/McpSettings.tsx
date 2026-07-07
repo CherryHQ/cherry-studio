@@ -487,18 +487,18 @@ const McpSettings: React.FC = () => {
   const onDeleteMcpServer = useCallback(
     async (serverToDelete: McpServer) => {
       try {
-        void popup.confirm({
+        const confirmed = await popup.confirm({
           title: t('settings.mcp.deleteServer'),
           content: t('settings.mcp.deleteServerConfirm'),
           centered: true,
-          okButtonProps: { danger: true },
-          onOk: async () => {
-            await window.api.mcp.removeServer(serverToDelete.id)
-            await deleteMcpServer({})
-            toast.success(t('settings.mcp.deleteSuccess'))
-            void navigate({ to: '/settings/mcp' })
-          }
+          okButtonProps: { danger: true }
         })
+        if (!confirmed) return
+
+        await window.api.mcp.removeServer(serverToDelete.id)
+        await deleteMcpServer({})
+        toast.success(t('settings.mcp.deleteSuccess'))
+        void navigate({ to: '/settings/mcp' })
       } catch (error: any) {
         toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
       }

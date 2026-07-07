@@ -102,18 +102,18 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
     [server, ensureServerTrusted, fetchServerVersion, updateMcpServer, t]
   )
 
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     try {
-      void popup.confirm({
+      const confirmed = await popup.confirm({
         title: t('settings.mcp.deleteServer'),
         content: t('settings.mcp.deleteServerConfirm'),
-        centered: true,
-        onOk: async () => {
-          await window.api.mcp.removeServer(server.id)
-          await deleteMcpServer({})
-          toast.success(t('settings.mcp.deleteSuccess'))
-        }
+        centered: true
       })
+      if (!confirmed) return
+
+      await window.api.mcp.removeServer(server.id)
+      await deleteMcpServer({})
+      toast.success(t('settings.mcp.deleteSuccess'))
     } catch (error: any) {
       toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
     }
@@ -154,7 +154,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
   const handleDeleteClick = useCallback(
     (event: React.MouseEvent) => {
       event.stopPropagation()
-      handleDelete()
+      void handleDelete()
     },
     [handleDelete]
   )

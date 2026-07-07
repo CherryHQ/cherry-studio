@@ -108,21 +108,21 @@ export const useNotesMenu = ({
   }, [])
 
   const handleDeleteNodeWrapper = useCallback(
-    (node: NotesTreeNode) => {
+    async (node: NotesTreeNode) => {
       const confirmText =
         node.type === 'folder'
           ? t('notes.delete_folder_confirm', { name: node.name })
           : t('notes.delete_note_confirm', { name: node.name })
 
-      void popup.confirm({
+      const confirmed = await popup.confirm({
         title: t('notes.delete'),
         content: confirmText,
         centered: true,
-        okButtonProps: { danger: true },
-        onOk: () => {
-          onDeleteNode(node.id)
-        }
+        okButtonProps: { danger: true }
       })
+      if (!confirmed) return
+
+      onDeleteNode(node.id)
     },
     [onDeleteNode, t]
   )

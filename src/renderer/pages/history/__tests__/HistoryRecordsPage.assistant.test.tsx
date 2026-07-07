@@ -1108,11 +1108,8 @@ describe('HistoryRecordsPage assistant mode', () => {
     })
 
     expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Conversations' }))
-    expect(hookMocks.deleteTopic).not.toHaveBeenCalled()
 
-    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 
@@ -1146,9 +1143,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       await flushCommandMenuAction()
     })
 
-    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 
@@ -1210,9 +1205,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       await flushCommandMenuAction()
     })
 
-    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 
@@ -1248,9 +1241,7 @@ describe('HistoryRecordsPage assistant mode', () => {
       await flushCommandMenuAction()
     })
 
-    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 

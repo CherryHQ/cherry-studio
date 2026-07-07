@@ -1,11 +1,11 @@
 import { vi } from 'vitest'
 
 /**
- * Mock of the `services/popup` module. The confirm-family prefabs default to the
- * "user confirmed" outcome — they invoke the passed `onOk` and resolve `true`. Tests
- * that exercise the cancel path override per case (e.g.
- * `vi.mocked(confirm).mockResolvedValueOnce(false)` or a custom implementation).
- * `createPopup(...).show()` resolves `undefined` by default.
+ * Mock of the `services/popup` module. The confirm-family prefabs are promise-only:
+ * they default to the "user confirmed" outcome and resolve `true`. Tests that
+ * exercise the cancel path override per case (e.g.
+ * `vi.mocked(confirm).mockResolvedValueOnce(false)`). `createPopup(...).show()`
+ * resolves `undefined` by default.
  *
  * Globally installed in tests/renderer.setup.ts. Import the prefabs from
  * '@renderer/services/popup' to assert on them; call `resetPopupMocks()` in a
@@ -13,13 +13,7 @@ import { vi } from 'vitest'
  * popup-infra unit tests) opt out with `vi.mock('@renderer/services/popup', async
  * (importOriginal) => await importOriginal())`.
  */
-type ConfirmProps = { onOk?: () => unknown | Promise<unknown>; onCancel?: () => unknown | Promise<unknown> }
-
-const makePrefab = () =>
-  vi.fn(async (props?: ConfirmProps) => {
-    await props?.onOk?.()
-    return true
-  })
+const makePrefab = () => vi.fn(async () => true)
 
 export const mockConfirm = makePrefab()
 export const mockError = makePrefab()
@@ -50,10 +44,7 @@ export const MockPopup = {
 export const resetPopupMocks = () => {
   for (const fn of [mockConfirm, mockError, mockInfo, mockWarning]) {
     fn.mockClear()
-    fn.mockImplementation(async (props?: ConfirmProps) => {
-      await props?.onOk?.()
-      return true
-    })
+    fn.mockImplementation(async () => true)
   }
   mockCreatePopup.mockClear()
   for (const fn of Object.values(mockPopupService)) {

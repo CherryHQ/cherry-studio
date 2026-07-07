@@ -107,29 +107,29 @@ const BasicDataSettings: React.FC = () => {
     void showMigrationConfirmModal(appInfo.appDataPath, newAppDataPath, migrationTitle, migrationClassName)
   }
 
-  const doubleConfirmModalBeforeCopyData = (newPath: string) => {
-    void popup.confirm({
+  const doubleConfirmModalBeforeCopyData = async (newPath: string) => {
+    const confirmed = await popup.confirm({
       title: t('settings.data.app_data.select_not_empty_dir'),
       content: t('settings.data.app_data.select_not_empty_dir_content'),
       centered: true,
       okText: t('common.confirm'),
-      cancelText: t('common.cancel'),
-      onOk: () => {
-        toast.info({
-          title: t('settings.data.app_data.restart_notice'),
-          timeout: 2000
-        })
-        setTimeoutTimer(
-          'doubleConfirmModalBeforeCopyData',
-          () => {
-            void window.api.application.relaunch({
-              args: ['--new-data-path=' + newPath]
-            })
-          },
-          500
-        )
-      }
+      cancelText: t('common.cancel')
     })
+    if (!confirmed) return
+
+    toast.info({
+      title: t('settings.data.app_data.restart_notice'),
+      timeout: 2000
+    })
+    setTimeoutTimer(
+      'doubleConfirmModalBeforeCopyData',
+      () => {
+        void window.api.application.relaunch({
+          args: ['--new-data-path=' + newPath]
+        })
+      },
+      500
+    )
   }
 
   // 显示确认迁移的对话框
@@ -169,7 +169,7 @@ const BasicDataSettings: React.FC = () => {
       </div>
     )
 
-    void popup.confirm({
+    const confirmed = await popup.confirm({
       title,
       className,
       width: 'min(600px, 90vw)',
@@ -191,51 +191,51 @@ const BasicDataSettings: React.FC = () => {
         danger: true
       },
       okText: t('common.confirm'),
-      cancelText: t('common.cancel'),
-      onOk: async () => {
-        try {
-          if (shouldCopyData) {
-            if (await window.api.isNotEmptyDir(newPath)) {
-              doubleConfirmModalBeforeCopyData(newPath)
-              return
-            }
-
-            toast.info({
-              title: t('settings.data.app_data.restart_notice'),
-              timeout: 3000
-            })
-            setTimeoutTimer(
-              'showMigrationConfirmModal_1',
-              () => {
-                void window.api.application.relaunch({
-                  args: ['--new-data-path=' + newPath]
-                })
-              },
-              500
-            )
-            return
-          }
-          await window.api.setAppDataPath(newPath)
-          toast.success(t('settings.data.app_data.path_changed_without_copy'))
-
-          setAppInfo(await window.api.getAppInfo())
-
-          setTimeoutTimer(
-            'showMigrationConfirmModal_2',
-            () => {
-              toast.success(t('settings.data.app_data.select_success'))
-              void window.api.application.relaunch()
-            },
-            500
-          )
-        } catch (error) {
-          toast.error({
-            title: t('settings.data.app_data.path_change_failed') + ': ' + error,
-            timeout: 5000
-          })
-        }
-      }
+      cancelText: t('common.cancel')
     })
+    if (!confirmed) return
+
+    try {
+      if (shouldCopyData) {
+        if (await window.api.isNotEmptyDir(newPath)) {
+          void doubleConfirmModalBeforeCopyData(newPath)
+          return
+        }
+
+        toast.info({
+          title: t('settings.data.app_data.restart_notice'),
+          timeout: 3000
+        })
+        setTimeoutTimer(
+          'showMigrationConfirmModal_1',
+          () => {
+            void window.api.application.relaunch({
+              args: ['--new-data-path=' + newPath]
+            })
+          },
+          500
+        )
+        return
+      }
+      await window.api.setAppDataPath(newPath)
+      toast.success(t('settings.data.app_data.path_changed_without_copy'))
+
+      setAppInfo(await window.api.getAppInfo())
+
+      setTimeoutTimer(
+        'showMigrationConfirmModal_2',
+        () => {
+          toast.success(t('settings.data.app_data.select_success'))
+          void window.api.application.relaunch()
+        },
+        500
+      )
+    } catch (error) {
+      toast.error({
+        title: t('settings.data.app_data.path_change_failed') + ': ' + error,
+        timeout: 5000
+      })
+    }
   }
 
   // 显示进度模态框
@@ -389,26 +389,26 @@ const BasicDataSettings: React.FC = () => {
     }
   }
 
-  const handleClearCache = () => {
-    void popup.confirm({
+  const handleClearCache = async () => {
+    const confirmed = await popup.confirm({
       title: t('settings.data.clear_cache.title'),
       content: t('settings.data.clear_cache.confirm'),
       okText: t('settings.data.clear_cache.button'),
       centered: true,
       okButtonProps: {
         danger: true
-      },
-      onOk: async () => {
-        try {
-          await window.api.clearCache()
-          await window.api.trace.cleanLocalData()
-          await window.api.getCacheSize().then(setCacheSize)
-          toast.success(t('settings.data.clear_cache.success'))
-        } catch (error) {
-          toast.error(t('settings.data.clear_cache.error'))
-        }
       }
     })
+    if (!confirmed) return
+
+    try {
+      await window.api.clearCache()
+      await window.api.trace.cleanLocalData()
+      await window.api.getCacheSize().then(setCacheSize)
+      toast.success(t('settings.data.clear_cache.success'))
+    } catch (error) {
+      toast.error(t('settings.data.clear_cache.error'))
+    }
   }
 
   const onSkipBackupFilesChange = (value: boolean) => {

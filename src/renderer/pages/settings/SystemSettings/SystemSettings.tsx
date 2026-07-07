@@ -83,30 +83,30 @@ const SystemSettings: FC = () => {
     void _setProxyBypassRules(proxyBypassRules)
   }
 
-  const handleHardwareAccelerationChange = (checked: boolean) => {
-    void popup.confirm({
+  const handleHardwareAccelerationChange = async (checked: boolean) => {
+    const confirmed = await popup.confirm({
       title: t('settings.hardware_acceleration.confirm.title'),
       content: t('settings.hardware_acceleration.confirm.content'),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
-      centered: true,
-      async onOk() {
-        try {
-          await setDisableHardwareAcceleration(checked)
-        } catch (error) {
-          toast.error(formatErrorMessage(error))
-          throw error
-        }
-
-        setTimeoutTimer(
-          'handleHardwareAccelerationChange',
-          () => {
-            void window.api.application.relaunch()
-          },
-          500
-        )
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    try {
+      await setDisableHardwareAcceleration(checked)
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+      throw error
+    }
+
+    setTimeoutTimer(
+      'handleHardwareAccelerationChange',
+      () => {
+        void window.api.application.relaunch()
+      },
+      500
+    )
   }
 
   return (

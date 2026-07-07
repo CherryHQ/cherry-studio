@@ -376,22 +376,22 @@ const ShortcutSettings: FC = () => {
     }
   }
 
-  const handleResetAllShortcuts = () => {
-    void popup.confirm({
+  const handleResetAllShortcuts = async () => {
+    const confirmed = await popup.confirm({
       title: t('settings.shortcuts.reset_defaults_confirm'),
-      centered: true,
-      onOk: async () => {
-        const updates: Record<string, PreferenceShortcutType> = getAllShortcutDefaultPreferences()
-
-        try {
-          clearSystemConflict()
-          await preferenceService.setMultiple(updates)
-        } catch (error) {
-          logger.error('Failed to reset all shortcuts to defaults', error as Error)
-          toast.error(t('settings.shortcuts.reset_defaults_failed'))
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    const updates: Record<string, PreferenceShortcutType> = getAllShortcutDefaultPreferences()
+
+    try {
+      clearSystemConflict()
+      await preferenceService.setMultiple(updates)
+    } catch (error) {
+      logger.error('Failed to reset all shortcuts to defaults', error as Error)
+      toast.error(t('settings.shortcuts.reset_defaults_failed'))
+    }
   }
 
   const handleToggleVisibleShortcuts = async (enabled: boolean) => {

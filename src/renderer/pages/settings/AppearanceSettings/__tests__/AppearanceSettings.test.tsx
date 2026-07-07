@@ -207,8 +207,8 @@ describe('AppearanceSettings menu presentation mode', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setMenuPresentationMode.mockResolvedValue(undefined)
-    // Record confirm calls without auto-running onOk (the global mock's default), so
-    // each test drives the confirmation flow explicitly via the captured onOk.
+    // Confirm resolves true so the confirmed branch runs; a test that needs the decline
+    // path overrides with mockResolvedValueOnce(false).
     vi.mocked(popup.confirm).mockImplementation(async () => true)
     originalApi = (window as any).api
     ;(window as any).api = { application: { relaunch } }
@@ -219,7 +219,7 @@ describe('AppearanceSettings menu presentation mode', () => {
   })
 
   it('does nothing when the selected mode is already active', () => {
-    confirmMenuPresentationModeChange({
+    void confirmMenuPresentationModeChange({
       currentMode: 'cherry',
       mode: 'cherry',
       setMenuPresentationMode,
@@ -231,7 +231,7 @@ describe('AppearanceSettings menu presentation mode', () => {
   })
 
   it('saves the selected mode and schedules relaunch after confirmation', async () => {
-    confirmMenuPresentationModeChange({
+    await confirmMenuPresentationModeChange({
       currentMode: 'cherry',
       mode: 'native',
       setMenuPresentationMode,
@@ -249,9 +249,6 @@ describe('AppearanceSettings menu presentation mode', () => {
       })
     )
 
-    const options = vi.mocked(popup.confirm).mock.calls[0][0]
-    await options.onOk!()
-
     expect(setMenuPresentationMode).toHaveBeenCalledWith('native')
     expect(setTimeoutTimer).toHaveBeenCalledWith('handleMenuPresentationModeChange', expect.any(Function), 500)
 
@@ -263,16 +260,15 @@ describe('AppearanceSettings menu presentation mode', () => {
     const error = new Error('save failed')
     setMenuPresentationMode.mockRejectedValue(error)
 
-    confirmMenuPresentationModeChange({
-      currentMode: 'cherry',
-      mode: 'native',
-      setMenuPresentationMode,
-      setTimeoutTimer,
-      t
-    })
-
-    const options = vi.mocked(popup.confirm).mock.calls[0][0]
-    await expect(options.onOk!()).rejects.toThrow('save failed')
+    await expect(
+      confirmMenuPresentationModeChange({
+        currentMode: 'cherry',
+        mode: 'native',
+        setMenuPresentationMode,
+        setTimeoutTimer,
+        t
+      })
+    ).rejects.toThrow('save failed')
 
     expect(toast.error).toHaveBeenCalledWith('save failed')
     expect(setTimeoutTimer).not.toHaveBeenCalled()

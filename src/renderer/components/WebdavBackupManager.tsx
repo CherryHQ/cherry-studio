@@ -138,37 +138,35 @@ export function WebdavBackupManager({
       return
     }
 
-    void popup.confirm({
+    const confirmed = await popup.confirm({
       title: t('settings.data.webdav.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.webdav.backup.manager.delete.confirm.multiple', { count: selectedRowKeys.length }),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
-      centered: true,
-      onOk: async () => {
-        setDeleting(true)
-        try {
-          // 依次删除选中的文件
-          for (const key of selectedRowKeys) {
-            await window.api.backup.deleteWebdavFile(key.toString(), {
-              webdavHost,
-              webdavUser,
-              webdavPass,
-              webdavPath
-            } as WebdavConfig)
-          }
-          toast.success(
-            t('settings.data.webdav.backup.manager.delete.success.multiple', { count: selectedRowKeys.length })
-          )
-          setSelectedRowKeys([])
-          await fetchBackupFiles()
-        } catch (error: any) {
-          toast.error(`${t('settings.data.webdav.backup.manager.delete.error')}: ${error.message}`)
-        } finally {
-          setDeleting(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setDeleting(true)
+    try {
+      // 依次删除选中的文件
+      for (const key of selectedRowKeys) {
+        await window.api.backup.deleteWebdavFile(key.toString(), {
+          webdavHost,
+          webdavUser,
+          webdavPass,
+          webdavPath
+        } as WebdavConfig)
+      }
+      toast.success(t('settings.data.webdav.backup.manager.delete.success.multiple', { count: selectedRowKeys.length }))
+      setSelectedRowKeys([])
+      await fetchBackupFiles()
+    } catch (error: any) {
+      toast.error(`${t('settings.data.webdav.backup.manager.delete.error')}: ${error.message}`)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const handleDeleteSingle = async (fileName: string) => {
@@ -177,31 +175,31 @@ export function WebdavBackupManager({
       return
     }
 
-    void popup.confirm({
+    const confirmed = await popup.confirm({
       title: t('settings.data.webdav.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.webdav.backup.manager.delete.confirm.single', { fileName }),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
-      centered: true,
-      onOk: async () => {
-        setDeleting(true)
-        try {
-          await window.api.backup.deleteWebdavFile(fileName, {
-            webdavHost,
-            webdavUser,
-            webdavPass,
-            webdavPath
-          } as WebdavConfig)
-          toast.success(t('settings.data.webdav.backup.manager.delete.success.single'))
-          await fetchBackupFiles()
-        } catch (error: any) {
-          toast.error(`${t('settings.data.webdav.backup.manager.delete.error')}: ${error.message}`)
-        } finally {
-          setDeleting(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setDeleting(true)
+    try {
+      await window.api.backup.deleteWebdavFile(fileName, {
+        webdavHost,
+        webdavUser,
+        webdavPass,
+        webdavPath
+      } as WebdavConfig)
+      toast.success(t('settings.data.webdav.backup.manager.delete.success.single'))
+      await fetchBackupFiles()
+    } catch (error: any) {
+      toast.error(`${t('settings.data.webdav.backup.manager.delete.error')}: ${error.message}`)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const handleRestore = async (fileName: string) => {
@@ -210,26 +208,26 @@ export function WebdavBackupManager({
       return
     }
 
-    void popup.confirm({
+    const confirmed = await popup.confirm({
       title: customLabels?.restoreConfirmTitle || t('settings.data.webdav.restore.confirm.title'),
       icon: <CircleAlert />,
       content: customLabels?.restoreConfirmContent || t('settings.data.webdav.restore.confirm.content'),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
-      centered: true,
-      onOk: async () => {
-        setRestoring(true)
-        try {
-          await (restoreMethod || restoreFromWebdav)(fileName)
-          toast.success(t('settings.data.webdav.backup.manager.restore.success'))
-          onClose() // 关闭模态框
-        } catch (error: any) {
-          toast.error(`${t('settings.data.webdav.backup.manager.restore.error')}: ${error.message}`)
-        } finally {
-          setRestoring(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setRestoring(true)
+    try {
+      await (restoreMethod || restoreFromWebdav)(fileName)
+      toast.success(t('settings.data.webdav.backup.manager.restore.success'))
+      onClose() // 关闭模态框
+    } catch (error: any) {
+      toast.error(`${t('settings.data.webdav.backup.manager.restore.error')}: ${error.message}`)
+    } finally {
+      setRestoring(false)
+    }
   }
 
   const columns: ColumnDef<BackupFile>[] = [

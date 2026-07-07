@@ -79,7 +79,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const isDisabled = Boolean(disabledReason)
 
   const onClick = useCallback(
-    (restoreFocus?: () => void) => {
+    async (restoreFocus?: () => void) => {
       if (!assistant || !model) {
         toast.error(t('error.model.not_exists'))
         return
@@ -94,7 +94,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
       if (!hasBuiltinWebSearch && !activeProviderId) {
         let navigatedAway = false
 
-        void popup.confirm({
+        const confirmed = await popup.confirm({
           centered: true,
           title: t('settings.tool.websearch.search_provider'),
           content: t('settings.tool.websearch.search_provider_placeholder'),
@@ -107,12 +107,12 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
                   restoreFocus()
                 }
               }
-            : undefined,
-          onOk: () => {
-            navigatedAway = true
-            return navigate({ to: '/settings/websearch' })
-          }
+            : undefined
         })
+        if (!confirmed) return
+
+        navigatedAway = true
+        await navigate({ to: '/settings/websearch' })
         return
       }
 
@@ -172,7 +172,7 @@ const WebSearchButton: FC<Props> = (props) => {
   const handleClick = useCallback<MouseEventHandler<HTMLButtonElement>>(
     (event) => {
       const trigger = event.currentTarget
-      onClick(() => trigger.focus())
+      void onClick(() => trigger.focus())
     },
     [onClick]
   )

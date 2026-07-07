@@ -1,6 +1,6 @@
 import i18n from '@renderer/i18n/resolver'
 import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -117,29 +117,6 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
     await expect(confirmed).resolves.toBe(false)
   })
 
-  it('keeps the dialog open and toasts when onOk rejects', async () => {
-    const user = userEvent.setup()
-    render(<PopupHost />)
-    const onOk = vi.fn().mockRejectedValue(new Error('failed'))
-
-    let confirmed!: Promise<boolean>
-    act(() => {
-      confirmed = popup.confirm({ title: 'Retry action', okText: 'Run', cancelText: 'Cancel', onOk })
-    })
-
-    await user.click(await screen.findByRole('button', { name: 'Run' }))
-
-    await waitFor(() => {
-      expect(onOk).toHaveBeenCalledOnce()
-    })
-    expect(toastError).toHaveBeenCalledOnce()
-    expect(screen.getByText('Retry action')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
-    await act(async () => {})
-    await expect(confirmed).resolves.toBe(false)
-  })
-
   it('renders feedback (error) popups without a cancel button', async () => {
     const user = userEvent.setup()
     render(<PopupHost />)
@@ -173,16 +150,14 @@ describe('ConfirmPopupItem (via PopupHost + confirm presets)', () => {
 
   it('keeps maskClosable=false popups open when the overlay is clicked', async () => {
     render(<PopupHost />)
-    const onCancel = vi.fn()
 
     act(() => {
-      void popup.confirm({ title: 'Migrating data', maskClosable: false, closable: false, onCancel })
+      void popup.confirm({ title: 'Migrating data', maskClosable: false, closable: false })
     })
 
     await screen.findByText('Migrating data')
     fireEvent.click(screen.getByTestId('dialog-overlay'))
 
-    expect(onCancel).not.toHaveBeenCalled()
     expect(screen.getByText('Migrating data')).toBeInTheDocument()
   })
 })

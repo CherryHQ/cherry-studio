@@ -64,10 +64,10 @@ const UpdateButton: FC<UpdateButtonProps> = ({ onUpdateComplete, onUpdatingChang
     void checkUpdate()
   }, [checkUpdate])
 
-  const handleClick = () => {
+  const handleClick = async () => {
     if (isUpdating) return
 
-    void popup.confirm({
+    const confirmed = await popup.confirm({
       title: t('openclaw.update.modal_title'),
       content: t('openclaw.update.available', {
         latest: updateInfo?.latestVersion,
@@ -75,12 +75,12 @@ const UpdateButton: FC<UpdateButtonProps> = ({ onUpdateComplete, onUpdatingChang
       }),
       okText: t('openclaw.update.confirm_button'),
       cancelText: t('common.cancel'),
-      centered: true,
-      onOk: () => {
-        // Start update without waiting, modal closes immediately
-        void performUpdate()
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    // Start update without waiting, modal closes immediately
+    void performUpdate()
   }
 
   // Don't render if no update available and not updating

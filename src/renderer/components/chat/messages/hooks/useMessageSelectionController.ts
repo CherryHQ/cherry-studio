@@ -167,24 +167,24 @@ export function useMessageSelectionController({
         return
       }
 
-      void popup.confirm({
+      const confirmed = await popup.confirm({
         title: t('message.delete.confirm.title'),
         content: t('message.delete.confirm.content', { count: ids.length }),
         okButtonProps: { danger: true },
-        centered: true,
-        onOk: async () => {
-          try {
-            for (const messageId of ids) {
-              await deleteMessage(messageId)
-            }
-            toast.success(t('message.delete.success'))
-            toggleMultiSelectMode(false)
-          } catch (error) {
-            logger.error('Failed to delete selected messages:', error as Error)
-            toast.error(t('message.delete.failed'))
-          }
-        }
+        centered: true
       })
+      if (!confirmed) return
+
+      try {
+        for (const messageId of ids) {
+          await deleteMessage(messageId)
+        }
+        toast.success(t('message.delete.success'))
+        toggleMultiSelectMode(false)
+      } catch (error) {
+        logger.error('Failed to delete selected messages:', error as Error)
+        toast.error(t('message.delete.failed'))
+      }
     },
     [deleteMessage, ensureSelection, t, toggleMultiSelectMode]
   )

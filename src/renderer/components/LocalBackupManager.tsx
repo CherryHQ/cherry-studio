@@ -106,32 +106,30 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       return
     }
 
-    void popup.confirm({
+    const confirmed = await popup.confirm({
       title: t('settings.data.local.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.local.backup.manager.delete.confirm.multiple', { count: selectedRowKeys.length }),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
-      centered: true,
-      onOk: async () => {
-        setDeleting(true)
-        try {
-          // Delete selected files one by one
-          for (const key of selectedRowKeys) {
-            await window.api.backup.deleteLocalBackupFile(key.toString(), localBackupDir)
-          }
-          toast.success(
-            t('settings.data.local.backup.manager.delete.success.multiple', { count: selectedRowKeys.length })
-          )
-          setSelectedRowKeys([])
-          await fetchBackupFiles()
-        } catch (error: any) {
-          toast.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
-        } finally {
-          setDeleting(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setDeleting(true)
+    try {
+      // Delete selected files one by one
+      for (const key of selectedRowKeys) {
+        await window.api.backup.deleteLocalBackupFile(key.toString(), localBackupDir)
+      }
+      toast.success(t('settings.data.local.backup.manager.delete.success.multiple', { count: selectedRowKeys.length }))
+      setSelectedRowKeys([])
+      await fetchBackupFiles()
+    } catch (error: any) {
+      toast.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const handleDeleteSingle = async (fileName: string) => {
@@ -139,26 +137,26 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       return
     }
 
-    void popup.confirm({
+    const confirmed = await popup.confirm({
       title: t('settings.data.local.backup.manager.delete.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.local.backup.manager.delete.confirm.single', { fileName }),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
-      centered: true,
-      onOk: async () => {
-        setDeleting(true)
-        try {
-          await window.api.backup.deleteLocalBackupFile(fileName, localBackupDir)
-          toast.success(t('settings.data.local.backup.manager.delete.success.single'))
-          await fetchBackupFiles()
-        } catch (error: any) {
-          toast.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
-        } finally {
-          setDeleting(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setDeleting(true)
+    try {
+      await window.api.backup.deleteLocalBackupFile(fileName, localBackupDir)
+      toast.success(t('settings.data.local.backup.manager.delete.success.single'))
+      await fetchBackupFiles()
+    } catch (error: any) {
+      toast.error(`${t('settings.data.local.backup.manager.delete.error')}: ${error.message}`)
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const handleRestore = async (fileName: string) => {
@@ -166,26 +164,26 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       return
     }
 
-    void popup.confirm({
+    const confirmed = await popup.confirm({
       title: t('settings.data.local.restore.confirm.title'),
       icon: <CircleAlert />,
       content: t('settings.data.local.restore.confirm.content'),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
-      centered: true,
-      onOk: async () => {
-        setRestoring(true)
-        try {
-          await (restoreMethod || restoreFromLocal)(fileName)
-          toast.success(t('settings.data.local.backup.manager.restore.success'))
-          onClose() // Close the modal
-        } catch (error: any) {
-          toast.error(`${t('settings.data.local.backup.manager.restore.error')}: ${error.message}`)
-        } finally {
-          setRestoring(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setRestoring(true)
+    try {
+      await (restoreMethod || restoreFromLocal)(fileName)
+      toast.success(t('settings.data.local.backup.manager.restore.success'))
+      onClose() // Close the modal
+    } catch (error: any) {
+      toast.error(`${t('settings.data.local.backup.manager.restore.error')}: ${error.message}`)
+    } finally {
+      setRestoring(false)
+    }
   }
 
   const columns: ColumnDef<BackupFile>[] = [

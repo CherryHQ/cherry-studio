@@ -397,10 +397,7 @@ describe('ProviderList', () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
     fireEvent.click(screen.getByTestId('provider-list-delete-openai'))
-    const options = vi.mocked(popup.confirm).mock.calls[0][0]
 
-    await options.onOk?.()
-
-    expect(deleteProviderMock).toHaveBeenCalledWith('openai')
+    await vi.waitFor(() => expect(deleteProviderMock).toHaveBeenCalledWith('openai'))
   })
 })

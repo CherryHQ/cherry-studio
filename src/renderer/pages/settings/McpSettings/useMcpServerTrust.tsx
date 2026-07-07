@@ -23,23 +23,19 @@ export const useMcpServerTrust = (updateServer: (body: UpdateMcpServerDto) => vo
   const requestConfirm = useCallback(
     async (server: McpServer): Promise<boolean> => {
       const commandPreview = getCommandPreview(server)
-      return new Promise<boolean>((resolve) => {
-        void popup.confirm({
-          centered: true,
-          title: t('settings.mcp.protocolInstallWarning.title'),
-          content: (
-            <ProtocolInstallWarningContent
-              message={t('settings.mcp.protocolInstallWarning.message')}
-              commandLabel={t('settings.mcp.protocolInstallWarning.command')}
-              commandPreview={commandPreview}
-            />
-          ),
-          okText: t('settings.mcp.protocolInstallWarning.run'),
-          cancelText: t('common.cancel'),
-          okButtonProps: { danger: true },
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false)
-        })
+      return popup.confirm({
+        centered: true,
+        title: t('settings.mcp.protocolInstallWarning.title'),
+        content: (
+          <ProtocolInstallWarningContent
+            message={t('settings.mcp.protocolInstallWarning.message')}
+            commandLabel={t('settings.mcp.protocolInstallWarning.command')}
+            commandPreview={commandPreview}
+          />
+        ),
+        okText: t('settings.mcp.protocolInstallWarning.run'),
+        cancelText: t('common.cancel'),
+        okButtonProps: { danger: true }
       })
     },
     [t]

@@ -139,20 +139,22 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   const effectiveListRef = listRef ?? fallbackListRef
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const runContextMenuAction = useCallback(
-    (item: T, action: ResolvedAction<TActionContext>) => {
+    async (item: T, action: ResolvedAction<TActionContext>) => {
       if (!action.availability.enabled || !onContextMenuAction) return
 
       const confirm = action.confirm
       if (confirm) {
-        void popup.confirm({
+        const confirmed = await popup.confirm({
           title: confirm.title,
           content: confirm.description ?? confirm.content,
           okText: confirm.confirmText,
           cancelText: confirm.cancelText,
           centered: true,
-          okButtonProps: confirm.destructive ? { danger: true } : undefined,
-          onOk: () => onContextMenuAction(item, action)
+          okButtonProps: confirm.destructive ? { danger: true } : undefined
         })
+        if (confirmed) {
+          void onContextMenuAction(item, action)
+        }
         return
       }
 

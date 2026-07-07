@@ -46,19 +46,22 @@ type ConfirmButtonProps = {
 }
 
 /**
- * The prefab-dialog config for confirm/error/info/warning. Mirrors the antd-era
- * modal surface minus its throwaway parts: no generic `afterClose` hook (the one
+ * The prefab-dialog config for confirm/error/info/warning. These prefabs are
+ * promise-only: the outcome is delivered by the returned `Promise<boolean>` (true =
+ * confirmed/acknowledged, false = cancelled/dismissed), so you react to it with
+ * `await`, not callbacks — there is no `onOk`/`onCancel`. A dialog that needs to own
+ * interactive state (an in-flight spinner, a multi-step flow, a non-boolean answer)
+ * is not a prefab: build it with `createPopup<P, R>` instead.
+ *
+ * Also dropped from the antd-era modal surface: no generic `afterClose` hook (the one
  * real post-close need — returning focus — is served by the narrower `focusOnClose`
- * below), no `destroyAll`/`update`/`destroy` handle (prefabs return a plain
- * `Promise<boolean>`), no `warn`/`success`.
+ * below), no `destroyAll`/`update`/`destroy` handle, no `warn`/`success`.
  */
 export interface ConfirmPopupProps {
   title?: React.ReactNode
   content?: React.ReactNode
   okText?: React.ReactNode
   cancelText?: React.ReactNode
-  onOk?: () => unknown | Promise<unknown>
-  onCancel?: () => unknown | Promise<unknown>
   okButtonProps?: ConfirmButtonProps
   cancelButtonProps?: Omit<ConfirmButtonProps, 'danger'>
   centered?: boolean

@@ -119,39 +119,39 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     }
   }, [addApiKey, fetchData, refreshHasToken, t, updateProvider])
 
-  const handleLogout = useCallback(() => {
-    void popup.confirm({
+  const handleLogout = useCallback(async () => {
+    const confirmed = await popup.confirm({
       title: t('settings.provider.oauth.logout'),
       content: t('settings.provider.oauth.logout_confirm'),
-      centered: true,
-      onOk: async () => {
-        setIsLoggingOut(true)
-
-        try {
-          await ipcApi.request('cherryin.logout', { apiHost: CHERRYIN_OAUTH_SERVER })
-          setOauthTokenOverride(false)
-          setBalanceInfo(null)
-
-          void refreshHasToken()
-
-          const oauthKeys = provider?.apiKeys.filter((key) => key.label === 'OAuth') ?? []
-          const deleteResults = await Promise.allSettled(oauthKeys.map((key) => deleteApiKey(key.id)))
-          const rejectedDeletes = deleteResults.filter((result) => result.status === 'rejected')
-          if (rejectedDeletes.length > 0) {
-            logger.warn(`Failed to delete ${rejectedDeletes.length} CherryIN OAuth key(s) after logout`)
-            toast.warning(t('settings.provider.oauth.logout_warning'))
-            return
-          }
-
-          toast.success(t('settings.provider.oauth.logout_success'))
-        } catch (error) {
-          logger.error('Logout error:', error as Error)
-          toast.warning(t('settings.provider.oauth.logout_warning'))
-        } finally {
-          setIsLoggingOut(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setIsLoggingOut(true)
+
+    try {
+      await ipcApi.request('cherryin.logout', { apiHost: CHERRYIN_OAUTH_SERVER })
+      setOauthTokenOverride(false)
+      setBalanceInfo(null)
+
+      void refreshHasToken()
+
+      const oauthKeys = provider?.apiKeys.filter((key) => key.label === 'OAuth') ?? []
+      const deleteResults = await Promise.allSettled(oauthKeys.map((key) => deleteApiKey(key.id)))
+      const rejectedDeletes = deleteResults.filter((result) => result.status === 'rejected')
+      if (rejectedDeletes.length > 0) {
+        logger.warn(`Failed to delete ${rejectedDeletes.length} CherryIN OAuth key(s) after logout`)
+        toast.warning(t('settings.provider.oauth.logout_warning'))
+        return
+      }
+
+      toast.success(t('settings.provider.oauth.logout_success'))
+    } catch (error) {
+      logger.error('Logout error:', error as Error)
+      toast.warning(t('settings.provider.oauth.logout_warning'))
+    } finally {
+      setIsLoggingOut(false)
+    }
   }, [deleteApiKey, provider?.apiKeys, refreshHasToken, t])
 
   const handleTopup = useCallback(() => {

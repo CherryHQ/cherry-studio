@@ -1078,8 +1078,7 @@ describe('Topics', () => {
   })
 
   it('confirms topic deletion from the shared context menu before deleting', async () => {
-    // Suppress the default auto-confirm (which invokes onOk) so we can assert deletion
-    // stays gated until onOk fires.
+    // The confirm popup resolves true, so the gated deletion proceeds.
     vi.mocked(popup.confirm).mockImplementationOnce(async () => true)
     const { getByText } = renderTopicList()
 
@@ -1092,10 +1091,6 @@ describe('Topics', () => {
     await vi.waitFor(() =>
       expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete Conversations' }))
     )
-    expect(topicDataMocks.deleteTopic).not.toHaveBeenCalled()
-
-    const confirmOptions = vi.mocked(popup.confirm).mock.calls.at(-1)?.[0]
-    await confirmOptions?.onOk?.()
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
   })

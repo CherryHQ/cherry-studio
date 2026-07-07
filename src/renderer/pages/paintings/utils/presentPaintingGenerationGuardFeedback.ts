@@ -10,20 +10,23 @@ function openProviderSettings(providerId: string) {
   openSettingsTab(`/settings/provider?id=${encodeURIComponent(providerId)}`)
 }
 
-export function presentPaintingGenerationGuardFeedback(
+export async function presentPaintingGenerationGuardFeedback(
   reason: PaintingGenerationGuardReason,
   error?: Error,
   providerId?: string
 ) {
   if (reason === 'provider_disabled' || reason === 'no_api_key') {
     if (providerId) {
-      void popup.warning({
-        content: i18n.t(reason === 'provider_disabled' ? 'error.provider_disabled' : 'error.no_api_key'),
-        centered: true,
-        closable: true,
-        okText: i18n.t('common.go_to_settings'),
-        onOk: () => openProviderSettings(providerId)
-      })
+      if (
+        await popup.warning({
+          content: i18n.t(reason === 'provider_disabled' ? 'error.provider_disabled' : 'error.no_api_key'),
+          centered: true,
+          closable: true,
+          okText: i18n.t('common.go_to_settings')
+        })
+      ) {
+        openProviderSettings(providerId)
+      }
       return
     }
     presentPaintingGenerateError(
