@@ -114,11 +114,11 @@ export class BackupService extends BaseService {
   }
 
   private registerIpcHandlers(): void {
-    // TODO(ipc-boundary): migrate to IpcApi (`backup.start_backup` route with a typed
-    // schema + handler) per CLAUDE.md "new non-data command IPC goes through IpcApi".
-    // The legacy ipcHandle is acceptable while IpcApi + legacy coexist, but the
-    // renderer payload currently reaches startBackup without schema validation —
-    // wire an IpcApi route (or add main-side zod validation) in the IPC-boundary slice.
+    // TODO(ipc-boundary): IpcApi routes (backup.start_backup / backup.cancel) are now
+    // wired in src/main/ipc/handlers/backup.ts with zod-validated input. This legacy
+    // ipcHandle stays only until the renderer switches to ipcApi.request — then it and
+    // the BackupV2_* IpcChannel entries are removed. It remains the one un-validated
+    // entry while both coexist.
     // Export entry. Renderer passes { preset, outputPath }; the service fills
     // restoreId / producerAppVersion / schemaMigrationId + runs preflightDisk.
     this.ipcHandle(IpcChannel.BackupV2_StartBackup, async (_e, opts: BackupV2StartOptions) => {
@@ -127,13 +127,22 @@ export class BackupService extends BaseService {
     })
     // Cancel: aborts the active export's AbortController (no-op if backupId mismatches
     // or idle). The orchestrator checks the signal at the next step boundary.
-    this.ipcHandle(IpcChannel.BackupV2_CancelBackup, (_e, { backupId }: { backupId: string }) => {
-      if (this.activeExport?.backupId === backupId) {
-        this.activeExport.abortController.abort()
-        return { cancelled: true }
-      }
-      return { cancelled: false }
-    })
+    this.ipcHandle(IpcChannel.BackupV2_CancelBackup, (_e, { backupId }: { backupId: string }) =>
+      this.cancel(backupId)
+    )
+  }
+
+  /**
+   * Abort the active export whose id matches backupId. No-op if the id mismatches or no
+   * export is running. Public so the IpcApi handler (src/main/ipc/handlers/backup.ts)
+   * delegates here; the orchestrator checks the AbortSignal at the next step boundary.
+   */
+  cancel(backupId: string): { cancelled: boolean } {
+    if (this.activeExport?.backupId === backupId) {
+      this.activeExport.abortController.abort()
+      return { cancelled: true }
+    }
+    return { cancelled: false }
   }
 
   /**
