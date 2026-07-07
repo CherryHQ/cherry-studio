@@ -5967,6 +5967,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "Check for updates",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "No custom tools yet. Add one to get started.",
@@ -6004,7 +6005,6 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "checkUpdates": "Check for updates",
       "update": "Update to latest version",
       "updateCheckFailed": "Failed to check for updates"
     },

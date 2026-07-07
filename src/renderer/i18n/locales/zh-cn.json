@@ -5967,6 +5967,7 @@
     "dependencies": {
       "addTool": "添加工具",
       "addToolDescription": "使用 mise 工具键添加工具（例如 github:sharkdp/fd、uv、bun）。",
+      "checkUpdates": "检查更新",
       "coreDepsMissing": "核心依赖未安装",
       "customTools": "自定义工具",
       "customToolsEmpty": "暂无自定义工具，点击上方添加。",
@@ -6004,7 +6005,6 @@
         "rtk": "CLI 代理工具，通过压缩终端输出来减少 LLM token 消耗。",
         "uv": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
       },
-      "checkUpdates": "检查更新",
       "update": "更新到最新版本",
       "updateCheckFailed": "检查更新失败"
     },
