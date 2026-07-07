@@ -4,16 +4,18 @@ import { memoryTool } from '@main/ai/agents/tools/memoryTools'
 import type { NeutralTool, NeutralToolContent } from '@main/ai/agents/tools/types'
 import { type CherryAgentContext, CherryAutonomyTools } from '@main/ai/mcp/servers/cherryAutonomyTools'
 
-/** Maps Cherry's runtime-neutral and autonomy tools to pi custom tools. */
-
 function joinTextContent(content: readonly { type: string; text?: string }[]): string {
   return content.map((part) => (part.type === 'text' ? (part.text ?? '') : '[image]')).join('\n')
 }
 
+function mcpToolName(server: string, toolName: string): string {
+  return `mcp__${server}__${toolName}`
+}
+
 /** Map one neutral tool (bound to its context) to a pi `ToolDefinition`. */
-export function toPiToolDefinition<Ctx>(tool: NeutralTool<Ctx>, ctx: Ctx): ToolDefinition {
+export function toPiToolDefinition<Ctx>(tool: NeutralTool<Ctx>, ctx: Ctx, name = tool.name): ToolDefinition {
   return {
-    name: tool.name,
+    name,
     label: tool.name,
     description: tool.description,
     parameters: tool.inputSchema as unknown as ToolDefinition['parameters'],
@@ -25,14 +27,14 @@ export function toPiToolDefinition<Ctx>(tool: NeutralTool<Ctx>, ctx: Ctx): ToolD
   }
 }
 
-/** Build the autonomy tools from the same implementation used by the Claude MCP surface. */
+/** Build autonomy tools under the same MCP names exposed by the Claude runtime. */
 export function buildAutonomyToolDefinitions(
   autonomyContext: CherryAgentContext,
   memoryContext: MemoryToolContext
 ): ToolDefinition[] {
   const autonomy = new CherryAutonomyTools(autonomyContext)
   const autonomyTools = autonomy.tools().map<ToolDefinition>((tool) => ({
-    name: tool.name,
+    name: mcpToolName('cherry-tools', tool.name),
     label: tool.name,
     description: tool.description ?? tool.name,
     parameters: tool.inputSchema as unknown as ToolDefinition['parameters'],
@@ -43,8 +45,16 @@ export function buildAutonomyToolDefinitions(
     }
   }))
 
-  return [...autonomyTools, toPiToolDefinition(memoryTool, memoryContext)]
+  return [
+    ...autonomyTools,
+    toPiToolDefinition(memoryTool, memoryContext, mcpToolName('agent-memory', memoryTool.name))
+  ]
 }
 
 /** Auto-approved because scheduled/headless turns have no interactive responder. */
-export const AUTONOMY_TOOL_NAMES: ReadonlySet<string> = new Set(['cron', 'notify', 'config', memoryTool.name])
+export const AUTONOMY_TOOL_NAMES: ReadonlySet<string> = new Set([
+  mcpToolName('cherry-tools', 'cron'),
+  mcpToolName('cherry-tools', 'notify'),
+  mcpToolName('cherry-tools', 'config'),
+  mcpToolName('agent-memory', memoryTool.name)
+])

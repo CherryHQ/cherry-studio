@@ -115,7 +115,10 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       throw new Error(`pi model ${injection.providerName}/${injection.modelId} could not be resolved after injection`)
     }
 
-    const settingsManager = pi.SettingsManager.inMemory({}, { projectTrusted: false })
+    // The workspace is always trusted: the user picked it by hand in Cherry, so there is
+    // no separate "do you trust this project?" prompt. What actually loads from it is
+    // still governed by the explicit `no*` flags below.
+    const settingsManager = pi.SettingsManager.inMemory({}, { projectTrusted: true })
 
     // The agent's ENABLED Cherry-managed skills, resolved to absolute on-disk dirs
     // from the same store the claude driver reads. These are injected explicitly
@@ -130,17 +133,18 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       settingsManager,
       // Provider injection re-applies across reloads (plan D1); the approval/policy
       // gate enforces disabledTools/global-install/rtk/approval per turn (plan D4).
-      // Disk auto-discovery of pi resources stays off for v1: loading workspace
-      // `.pi/*`, `.agents/skills`, AGENTS.md/CLAUDE.md, or user ~/.agents still
-      // requires an explicit Cherry trust/import model first. The one exception is
-      // the agent's enabled Cherry-managed skills, injected explicitly via
-      // `additionalSkillPaths` — those load even under `noSkills` because the paths
-      // are Cherry-owned, not discovered from disk.
+      // The workspace is trusted (user-selected), so its AGENTS.md/CLAUDE.md context
+      // files load — parity with the claude driver's `project` setting source. Other
+      // disk auto-discovery stays off: extensions are arbitrary JS running inside
+      // Cherry's main process (a different trust class than workspace text), and
+      // skills/prompt-templates/themes are Cherry-managed — the agent's enabled
+      // skills are injected explicitly via `additionalSkillPaths`, which loads even
+      // under `noSkills` because the paths are Cherry-owned, not discovered.
       noExtensions: true,
       noSkills: true,
       noPromptTemplates: true,
       noThemes: true,
-      noContextFiles: true,
+      noContextFiles: false,
       additionalSkillPaths,
       extensionFactories: [
         createPiProviderExtension(injection.providerName, injection.providerConfig),

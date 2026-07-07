@@ -72,7 +72,12 @@ vi.mock('@main/ai/agents/prompt', () => ({
 }))
 vi.mock('./piToolAdapter', () => ({
   buildAutonomyToolDefinitions: mocks.buildAutonomyToolDefinitions,
-  AUTONOMY_TOOL_NAMES: new Set(['cron', 'notify', 'config', 'memory'])
+  AUTONOMY_TOOL_NAMES: new Set([
+    'mcp__cherry-tools__cron',
+    'mcp__cherry-tools__notify',
+    'mcp__cherry-tools__config',
+    'mcp__agent-memory__memory'
+  ])
 }))
 // The MCP adapter needs the full MCP service graph; mock it to a wiring seam so this suite asserts
 // only how its output is merged into customTools and how the approval gate treats those names.
@@ -191,10 +196,10 @@ beforeEach(() => {
   mocks.listChannels.mockReturnValue([])
   mocks.buildSystemPrompt.mockResolvedValue('AGENT PROMPT')
   mocks.buildAutonomyToolDefinitions.mockReturnValue([
-    { name: 'cron' },
-    { name: 'notify' },
-    { name: 'config' },
-    { name: 'memory' }
+    { name: 'mcp__cherry-tools__cron' },
+    { name: 'mcp__cherry-tools__notify' },
+    { name: 'mcp__cherry-tools__config' },
+    { name: 'mcp__agent-memory__memory' }
   ])
   mocks.buildMcpToolDefinitions.mockResolvedValue([])
   mocks.skillList.mockResolvedValue([])
@@ -666,15 +671,15 @@ describe('PiRuntimeConnection', () => {
     expect(done).toBe(true)
   })
 
-  it('disables pi project/user resources until Cherry has a trust prompt/import model', async () => {
+  it('trusts the user-selected workspace: context files load, executable/managed discovery stays off', async () => {
     await new PiRuntimeConnection(input).start()
-    expect(mocks.settingsArgs).toEqual([{}, { projectTrusted: false }])
+    expect(mocks.settingsArgs).toEqual([{}, { projectTrusted: true }])
     expect(mocks.loaderOpts).toMatchObject({
       noExtensions: true,
       noSkills: true,
       noPromptTemplates: true,
       noThemes: true,
-      noContextFiles: true
+      noContextFiles: false
     })
     expect(mocks.reload).toHaveBeenCalledWith()
   })
@@ -809,10 +814,10 @@ describe('PiRuntimeConnection', () => {
 
       expect(mocks.buildMcpToolDefinitions).toHaveBeenCalledWith(['srv-1', 'srv-2'])
       expect(mocks.createOpts?.customTools).toEqual([
-        { name: 'cron' },
-        { name: 'notify' },
-        { name: 'config' },
-        { name: 'memory' },
+        { name: 'mcp__cherry-tools__cron' },
+        { name: 'mcp__cherry-tools__notify' },
+        { name: 'mcp__cherry-tools__config' },
+        { name: 'mcp__agent-memory__memory' },
         { name: 'mcp__srv__do', label: 'do' }
       ])
     })
@@ -824,7 +829,10 @@ describe('PiRuntimeConnection', () => {
 
       const handler = gateHandler()
       await expect(
-        handler({ type: 'tool_call', toolName: 'memory', toolCallId: 't-autonomy', input: {} }, { signal: undefined })
+        handler(
+          { type: 'tool_call', toolName: 'mcp__agent-memory__memory', toolCallId: 't-autonomy', input: {} },
+          { signal: undefined }
+        )
       ).resolves.toBeUndefined()
       expect(toolApprovalRegistry.size()).toBe(0)
 
@@ -863,10 +871,10 @@ describe('PiRuntimeConnection', () => {
         { agentId: 'agent-1', workspacePath: WORKSPACE }
       )
       expect(mocks.createOpts?.customTools).toEqual([
-        { name: 'cron' },
-        { name: 'notify' },
-        { name: 'config' },
-        { name: 'memory' }
+        { name: 'mcp__cherry-tools__cron' },
+        { name: 'mcp__cherry-tools__notify' },
+        { name: 'mcp__cherry-tools__config' },
+        { name: 'mcp__agent-memory__memory' }
       ])
     })
 
@@ -897,11 +905,16 @@ describe('PiRuntimeConnection', () => {
     })
 
     it('bakes a disabled autonomy tool into excludeTools and the live gate still blocks it', async () => {
-      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['memory'], configuration: {} })
+      mocks.getAgent.mockReturnValue({
+        id: 'agent-1',
+        model: 'p::m',
+        disabledTools: ['mcp__agent-memory__memory'],
+        configuration: {}
+      })
       mocks.getById.mockReturnValue(agentSession)
       const conn = await new PiRuntimeConnection(input).start()
 
-      expect(mocks.createOpts?.excludeTools).toEqual(['memory'])
+      expect(mocks.createOpts?.excludeTools).toEqual(['mcp__agent-memory__memory'])
 
       const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
       let handler!: (event: unknown, ctx: unknown) => Promise<{ block?: boolean } | undefined>
@@ -911,7 +924,10 @@ describe('PiRuntimeConnection', () => {
         }
       })
       await expect(
-        handler({ type: 'tool_call', toolName: 'memory', toolCallId: 'tc1', input: {} }, { signal: undefined })
+        handler(
+          { type: 'tool_call', toolName: 'mcp__agent-memory__memory', toolCallId: 'tc1', input: {} },
+          { signal: undefined }
+        )
       ).resolves.toMatchObject({ block: true })
       void conn
     })
