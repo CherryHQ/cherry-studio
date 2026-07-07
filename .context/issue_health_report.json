@@ -1,82 +1,126 @@
 {
-  "generated_at": "2026-07-06",
+  "generated_at": "2026-07-07",
+  "reference_date": "2026-07-07",
+  "repo": "CherryHQ/cherry-studio",
+
   "summary": {
-    "total_open": 946,
-    "health_score": "CAUTION",
-    "health_note": "946 open issues (+4 vs yesterday). 96 unlabeled (10.1%). 3 P1s open 60–124 days. Security CVE PR #16748 unmerged. Active bot-close wave visible (59/100 recent issues carry 'inactive'). Positive: 385 closed in 30 days and v1.9.12 shipped yesterday.",
-    "active_30d_estimate": "~500+ (385 closed; high update velocity this week)",
-    "closed_last_30d": 385
+    "total_open_issues": 946,
+    "health_score": 46,
+    "health_grade": "C",
+    "health_label": "Moderate Concern",
+    "description": "Nearly half of open issues are stale or zombie (45.2%). Active triage and bulk-close activity this week is positive but the long tail remains large."
   },
-  "p1_issues": [
-    {
-      "number": 14899,
-      "title": "[Feature]: Unified Notification Center",
-      "labels": ["Planned", "P1", "feature", "UI/UX"],
-      "milestone": "v2.4.0",
-      "age_days": 60,
-      "assignee": null,
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899",
-      "risk": "Planned but unassigned — v2.4.0 milestone has 37 open issues"
+
+  "age_buckets": {
+    "fresh_active": {
+      "count": 291,
+      "pct": 30.8,
+      "definition": "updated within last 14 days",
+      "status": "healthy"
     },
-    {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": ["P1", "Models"],
-      "age_days": 110,
-      "assignee": null,
-      "milestone": "v1.8.1 (closed)",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
-      "risk": "Milestone closed, still open — likely orphaned. 110 days old."
+    "aging": {
+      "count": 228,
+      "pct": 24.1,
+      "definition": "updated 14–30 days ago",
+      "status": "watch"
     },
-    {
-      "number": 13193,
-      "title": "[Bug]: Azure OpenAI defaults to responses API (404 Resource not found)",
-      "labels": ["P1", "Models"],
-      "age_days": 124,
-      "assignee": "DeJeune",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
-      "risk": "4+ months old. Assigned but no recent activity. Breaking for Azure users."
+    "stale": {
+      "count": 276,
+      "pct": 29.2,
+      "definition": "updated 30–90 days ago",
+      "status": "concern"
+    },
+    "zombie": {
+      "count": 151,
+      "pct": 16.0,
+      "definition": "not updated in 90+ days",
+      "status": "critical"
     }
-  ],
-  "security_issues_open": [
-    {
-      "type": "PR",
-      "number": 16748,
-      "title": "fix: upgrade @hono/node-server to 1.19.10 (CVE-2026-29087)",
-      "author": "orbisai0security",
-      "created_at": "2026-07-05",
-      "priority": "HIGH — CVE fix awaiting review/merge"
-    }
-  ],
-  "data_integrity_issues_open": [
-    {
-      "number": 15423,
-      "title": "[CRITICAL/Data Loss]: Total Wipe of All Chat Sessions due to IndexedDB & Full Disk",
-      "labels": ["Data", "inactive"],
-      "note": "Labeled inactive but unresolved data-loss scenario"
-    }
-  ],
-  "inactive_label_analysis": {
-    "count_in_first_100_sample": 59,
-    "note": "59 of the 100 most recently updated issues carry 'inactive' — automated bot-close wave in progress"
   },
+
+  "health_score_methodology": {
+    "formula": "weighted average: (fresh_active × 1.0 + aging × 0.5 + stale × 0.25 + zombie × 0) / total × 100",
+    "calculation": "(291×100 + 228×50 + 276×25 + 151×0) / 946",
+    "result": 46
+  },
+
+  "p1_open_issues": {
+    "count": 3,
+    "issues": [
+      {
+        "number": 14899,
+        "title": "[Feature]: Unified Notification Center",
+        "labels": ["P1", "Planned", "feature", "UI/UX"],
+        "milestone": "v2.4.0",
+        "days_open": 61,
+        "updated_at": "2026-05-07",
+        "severity": "planned-feature"
+      },
+      {
+        "number": 13608,
+        "title": "[Bug]: xiaomi mimo response only displays last line",
+        "labels": ["P1", "Models"],
+        "milestone": "v1.8.1 (closed milestone — needs re-triage)",
+        "days_open": 111,
+        "updated_at": "2026-03-19",
+        "severity": "bug-aging"
+      },
+      {
+        "number": 13193,
+        "title": "[Bug]: Azure OpenAI defaults to Responses API → 404",
+        "labels": ["P1", "Models"],
+        "milestone": null,
+        "days_open": 125,
+        "updated_at": "2026-03-05",
+        "severity": "bug-stale"
+      }
+    ]
+  },
+
   "unlabeled_issues": {
-    "count": 96,
-    "pct": 10.1,
-    "action": "Triage needed. Available labels: BUG, feature, UI/UX, Models, RAG, MCP, Performance, Assistant, Data, Connectivity, needs-repro, help wanted, discussion, Planned, P1, inactive"
+    "count": 94,
+    "pct_of_total": 9.93,
+    "triage_priority": "medium",
+    "note": "94 open issues have no labels — these bypass all label-based triaging and filtering. Recent unlabeled items include legitimate bugs (#16783, #16742) and features (#16810, #16786)."
   },
-  "top_issues_by_engagement": [
-    {"number": 6505,  "title": "划词助手 / Selection Assistant FAQ&反馈", "comments": 364, "updated": "2026-07-03"},
-    {"number": 11101, "title": "[Feature]: Keep Tool Calling Context",      "comments": 13,  "labels": ["feature","MCP","inactive"]},
-    {"number": 13959, "title": "[Bug]: Built-in OpenClaw needs upgrade for Playwright CDP", "comments": 8},
-    {"number": 13953, "title": "[Bug]: Assistant stops after successful search tool use",  "comments": 7},
-    {"number": 14499, "title": "Cherry Claw cannot use Mimo Token Plan",    "comments": 7}
-  ],
+
+  "activity_signals": {
+    "bulk_close_this_week": {
+      "count": 81,
+      "week": "2026-06-29 to 2026-07-05",
+      "primary_label": "inactive",
+      "assessment": "Positive — team is doing active housekeeping"
+    },
+    "zero_comment_closures": {
+      "count": 20,
+      "note": "Some issues were auto-closed without human review"
+    },
+    "high_velocity_pr_merge": {
+      "merged_this_week": 79,
+      "assessment": "Very high — project is moving rapidly"
+    }
+  },
+
   "recommendations": [
-    "URGENT: Review and merge PR #16748 (CVE-2026-29087 @hono/node-server).",
-    "3 P1 issues open 60–124 days: #13193 (Azure API, assigned DeJeune, 124d), #13608 (mimo, 110d), #14899 (Notification Center, 60d, v2.4.0).",
-    "96 unlabeled issues (10.1%) — schedule triage pass.",
-    "New today: #16785 (SiliconFlow image gen broken), #16784 (Fireworks AI config), #16764 (white screen regression) — all need triage.",
-    "Data-loss issue #15423 is labeled inactive but the root cause is unresolved — re-evaluate."
+    {
+      "priority": "high",
+      "action": "Re-triage P1 bugs #13608 and #13193 — both are 100+ days old and in a closed milestone",
+      "issues": [13608, 13193]
+    },
+    {
+      "priority": "high",
+      "action": "Label the 94 unlabeled open issues — 8+ are recent bugs or high-priority features",
+      "count": 94
+    },
+    {
+      "priority": "medium",
+      "action": "Continue zombie sweep — 151 issues not touched in 90+ days need close-or-assign decisions",
+      "count": 151
+    },
+    {
+      "priority": "low",
+      "action": "Review 228 aging issues (14-30 days) before they enter stale territory",
+      "count": 228
+    }
   ]
 }

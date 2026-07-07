@@ -1,90 +1,190 @@
 {
-  "generated_at": "2026-07-06",
-  "data_source": "GitHub MCP API",
-  "v2_branch_status": {
-    "open_prs_targeting_v2": 0,
-    "merged_prs_to_v2_historical": 24,
-    "note": "v2 branch merged into main. Active development on main. v1+v2 code coexist."
+  "generated_at": "2026-07-07",
+  "repo": "CherryHQ/cherry-studio",
+  "v2_status": "active — v2 branch merged into main; main is now the active development branch",
+
+  "summary": {
+    "merged_prs_30d_total": 344,
+    "merged_prs_this_week": 79,
+    "open_prs_total": 280,
+    "open_prs_drafts": 11,
+    "v1_maintenance_prs_open": 4,
+    "velocity": "very high"
   },
-  "active_milestones": {
-    "v2_4_0": {
-      "title": "v2.4.0",
+
+  "milestone_tracking": {
+    "v2.1.0": {
+      "open_issues": 28,
+      "closed_issues": 5,
+      "sample_items": [
+        "AI-Suggested Next Prompt as Ghost Text in Composer (#15674)"
+      ]
+    },
+    "v2.2.0": {
+      "open_issues": 40,
+      "closed_issues": 7,
+      "sample_items": [
+        "Inline-Rendered Generative UI Components (#15671)",
+        "One-Click Error Reporting (#15668)"
+      ]
+    },
+    "v2.4.0": {
       "open_issues": 37,
       "closed_issues": 5,
-      "created_at": "2026-04-30",
-      "last_updated": "2026-07-02",
-      "key_items": [
-        {"number": 14899, "title": "Unified Notification Center", "labels": ["Planned", "P1"], "assigned": false}
+      "sample_items": [
+        "Unified Notification Center [P1] (#14899)",
+        "Skill Suite — Bundle Related Skills (#15672)"
       ]
     }
   },
-  "latest_releases": [
+
+  "recent_significant_merges": [
     {
-      "tag": "v1.9.12",
-      "published": "2026-07-05",
-      "prs": 18,
-      "highlights": [
-        "Claude Fable/Opus 5 capability detection",
-        "DeepSeek V4+ reasoning_effort forwarding",
-        "MiniMax-M3 thinking control fix",
-        "Kimi K2.7 Code support",
-        "hono CVE-2026-29087 fix (bundled in release)"
-      ]
-    },
-    {"tag": "v1.9.11", "published": "2026-06-07", "prs": 12},
-    {"tag": "v1.9.9",  "published": "2026-06-02", "prs": 3}
-  ],
-  "active_main_prs_of_note": [
-    {
-      "number": 15988,
-      "title": "feat(ai-params): context-build — truncate tool results + history compression via context-chef",
-      "author": "MyPrototypeWhat",
-      "age_days": 25,
-      "status": "open, non-draft",
-      "note": "Large architectural PR — context truncation + history compression. Related follow-up: issue #16786"
-    },
-    {
-      "number": 16440,
-      "title": "refactor(dexie): retire the settings table from v2 storage paths",
+      "number": 16401,
+      "title": "feat(provider-registry): generate catalog from src/creators + src/providers, add TokenHub",
       "author": "DeJeune",
-      "note": "v2 cleanup: removing Dexie per CLAUDE.md v2 refactoring plan"
+      "merged_at": "2026-07-03",
+      "comments": 9,
+      "significance": "core v2 provider architecture"
     },
     {
-      "number": 16726,
-      "title": "refactor(agent): remove CherryClaw branding and Soul Mode toggle",
+      "number": 16489,
+      "title": "refactor(settings): remove standalone settings window",
+      "author": "kangfenmao",
+      "merged_at": "2026-07-06",
+      "comments": 7,
+      "significance": "v2 UI simplification"
+    },
+    {
+      "number": 16283,
+      "title": "feat(provider): add login-based providers — Claude Code, OpenAI Codex & Grok CLI",
       "author": "vaayne",
-      "note": "Agent simplification — CherryClaw → Agent rename"
+      "merged_at": "2026-07-03",
+      "comments": 6,
+      "significance": "OAuth provider integration"
     },
     {
-      "number": 16748,
-      "title": "fix: upgrade @hono/node-server to 1.19.10 (CVE-2026-29087)",
-      "author": "orbisai0security",
-      "priority": "HIGH — security CVE, review needed"
+      "number": 16609,
+      "title": "refactor(chat-resources): fold resource library into chat pages",
+      "author": "zhangjiadi225",
+      "merged_at": "2026-07-03",
+      "comments": 6,
+      "significance": "v2 UI layout refactor"
     },
     {
-      "number": 16510,
-      "title": "refactor(settings): data, integration & tool settings pages [D/5]",
-      "author": "SiinXu",
-      "base": "SiinXu/ui-design-system-08-ps-components",
-      "note": "Part of UI design system adoption series"
+      "number": 16681,
+      "title": "feat(notes): add WindowManager-backed print and PDF export",
+      "author": "AtomsH4",
+      "merged_at": "2026-07-07",
+      "comments": 5,
+      "significance": "new notes capability"
+    },
+    {
+      "number": 16603,
+      "title": "fix(ai-sdk-cache): enable Anthropic prompt caching",
+      "author": "vaayne",
+      "merged_at": "2026-07-03",
+      "comments": 5,
+      "significance": "cost/performance optimization"
     }
   ],
-  "v2_refactoring_signals": {
-    "dexie_removal": "PR #16440 — retiring Dexie settings table (v2 data layer cleanup)",
-    "data_layer": "DataApi/Preference/Cache/BootConfig architecture in active adoption",
-    "ui_layer": "@cherrystudio/ui adoption via SiinXu UI design system series",
-    "agent_rename": "PR #16726 removes CherryClaw branding — Agent simplification complete",
-    "context_build": "PR #15988 (25d open) — large AI context truncation/compression feature; follow-up issue #16786 filed today",
-    "popup_refactor": "PR #16782 — replacing TopView god-component with imperative popup/toast tracks"
-  },
-  "security_open": [
+
+  "active_open_prs_notable": [
     {
-      "pr": 16748,
-      "cve": "CVE-2026-29087",
-      "package": "@hono/node-server",
-      "target_version": "1.19.10",
-      "priority": "HIGH",
-      "note": "Open since 2026-07-05 — needs review and merge"
+      "number": 16407,
+      "title": "feat(knowledge): add local embedding and PaddleOCR with on-demand model download",
+      "author": "unknown",
+      "reviewers": 3,
+      "significance": "RAG/knowledge base improvement"
+    },
+    {
+      "number": 16513,
+      "title": "refactor(ui): launchpad, pages re-skin & css-var governance [E/5]",
+      "author": "unknown",
+      "reviewers": 3,
+      "significance": "v2 design system — part 5 of series"
+    },
+    {
+      "number": 16601,
+      "title": "feat(devtools): add main network monitor",
+      "author": "unknown",
+      "reviewers": 4,
+      "significance": "developer tooling"
+    },
+    {
+      "number": 15239,
+      "title": "Feature/expand branch chat v2",
+      "author": "unknown",
+      "reviewers": 4,
+      "significance": "chat branching feature"
     }
+  ],
+
+  "v2_provider_refactor": {
+    "tracking_issue": 14021,
+    "title": "v2 aiCore Provider layer — 226 issues, 29 categories",
+    "author": "DeJeune",
+    "status": "in-progress",
+    "total_tracked_issues": 226,
+    "categories": [
+      {"id": "A", "name": "Thinking/Reasoning cross-provider", "open": 23, "priority": "P0/P1"},
+      {"id": "B", "name": "OpenAI/Azure API routing", "open": 10, "priority": "P0/P1"},
+      {"id": "C", "name": "Tool Calling / MCP robustness", "open": 29, "priority": "P0/P1"},
+      {"id": "D", "name": "File/image/PDF processing", "open": 10, "priority": "P0/P1"},
+      {"id": "E", "name": "Token/Context overflow", "open": 8, "priority": "P0/P1"},
+      {"id": "F", "name": "Audio/Video TTS/STT/Video", "open": 11, "priority": "P0/P1"},
+      {"id": "G", "name": "Google Vertex AI", "open": 7, "priority": "P0/P1"},
+      {"id": "H", "name": "AWS Bedrock", "open": 4, "priority": "P0/P1"},
+      {"id": "I", "name": "Volcengine/Doubao", "open": 4, "priority": "P0/P1"},
+      {"id": "J", "name": "OpenRouter", "open": 11, "priority": "P0/P1"},
+      {"id": "K", "name": "Agent provider hard-binding", "open": 10, "priority": "P0/P1"},
+      {"id": "L", "name": "GitHub Copilot", "open": 4, "priority": "P1/P2"},
+      {"id": "M", "name": "Ollama / local models", "open": 5, "priority": "P0/P1"},
+      {"id": "N", "name": "xAI / Grok", "open": 3, "priority": "P1"},
+      {"id": "O", "name": "Qwen / DashScope", "open": 3, "priority": "P1"},
+      {"id": "P", "name": "Other providers", "open": 11, "priority": "P0/P1"},
+      {"id": "X", "name": "Web Search / built-in search", "open": 6, "priority": "P0/P1"},
+      {"id": "Z", "name": "Stream response / content loss", "open": 3, "priority": "P0/P1"}
+    ],
+    "solution_pillars": {
+      "1_providerOptions_passthrough": "~25 issues covered",
+      "2_model_template_capabilities": "~20 issues covered",
+      "3_explicit_url_template": "~10 issues covered",
+      "4_unified_reasoning_abstraction": "~30 issues covered",
+      "5_agent_provider_decoupling": "~15 issues covered"
+    }
+  },
+
+  "top_contributors_merged_7d": [
+    {"login": "zhangjiadi225", "prs_merged": 20, "focus": "UI/chat"},
+    {"login": "eeee0717", "prs_merged": 18, "focus": "various"},
+    {"login": "AtomsH4", "prs_merged": 14, "focus": "files/agent"},
+    {"login": "ousugo", "prs_merged": 13, "focus": "UI/v1"},
+    {"login": "kangfenmao", "prs_merged": 11, "focus": "core/settings"},
+    {"login": "Pleasurecruise", "prs_merged": 8, "focus": "various"},
+    {"login": "vaayne", "prs_merged": 6, "focus": "providers/agent"}
+  ],
+
+  "v1_branch_status": {
+    "open_prs_targeting_v1": 4,
+    "merged_v1_prs_this_week": 2,
+    "recent_v1_merges": [
+      {"number": 16789, "title": "feat(models): support LongCat 2.0 thinking", "merged_at": "2026-07-07"},
+      {"number": 16787, "title": "chore(gitignore): ignore local agents override file", "merged_at": "2026-07-07"}
+    ]
+  },
+
+  "areas_being_actively_removed": [
+    "Dexie (IndexedDB legacy)",
+    "ElectronStore (legacy settings)",
+    "Standalone settings window (removed via #16489)",
+    "Standalone chat-resources page (removed via #16609)"
+  ],
+
+  "draft_prs_watch": [
+    {"number": 16462, "title": "docs(unified-runtime): AI SDK v7 migration plan", "significance": "major SDK migration planning"},
+    {"number": 16443, "title": "test(e2e): Playwright suite for knowledge/websearch", "significance": "E2E test coverage"},
+    {"number": 16444, "title": "feat(paintings): infinite canvas paint mode with React Flow", "significance": "new creative feature"},
+    {"number": 16402, "title": "feat(bundled-git): ship MinGit on Windows", "significance": "Windows dependency management"}
   ]
 }

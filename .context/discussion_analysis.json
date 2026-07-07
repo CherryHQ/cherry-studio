@@ -1,59 +1,137 @@
 {
-  "generated_at": "2026-07-06",
-  "data_source": "GitHub MCP API — issue proxy + search",
-  "fetch_status": "PARTIAL",
-  "note": "GitHub Discussions GraphQL is not available via the current MCP toolset. Insights derived from issue search and label analysis.",
-  "activity_summary": {
-    "issues_opened_today": 10,
-    "issues_opened_last_7d": 72,
-    "issues_closed_last_30d": 385,
-    "prs_open": 100,
-    "prs_fresh_today": 4,
-    "latest_release": "v1.9.12 (2026-07-05)"
+  "generated_at": "2026-07-07",
+  "repo": "CherryHQ/cherry-studio",
+  "data_source_note": "GitHub Discussions GraphQL endpoint not available in this run. This analysis is inferred from Issues with label 'discussion' and high-engagement unlabeled issues.",
+
+  "issue_discussions": {
+    "issues_with_discussion_label": {
+      "count_sampled": 16,
+      "sample_basis": "first 200 open issues (sorted by updated_at desc)",
+      "extrapolated_total": "~76 open issues carry 'discussion' label"
+    }
   },
-  "trending_topics_today": [
-    "GPT-image2 output parsing and resolution control (#16783, #16779)",
-    "Fireworks AI model configuration and thinking parameters (#16784)",
-    "Agent workspace UX — export, file search freeze (#16772, #16767)",
-    "Tool result DB storage optimization — oversized tool output (#16786)",
-    "WindowManager print surface formalization (#16774)",
-    "Voice broadcast / TTS functionality (#16776)"
-  ],
-  "high_engagement_proxy": [
+
+  "high_engagement_open_issues": {
+    "note": "Issues with 4+ comments from bug label search (50-issue sample)",
+    "top_issues": [
+      {
+        "number": 12268,
+        "title": "[Bug]: Agent Error",
+        "comments": 10,
+        "labels": ["BUG"],
+        "topic": "Agent mode general errors"
+      },
+      {
+        "number": 12890,
+        "title": "[Bug]: Image-based PDF file content cannot be properly read by the model",
+        "comments": 7,
+        "labels": ["BUG"],
+        "topic": "PDF/OCR pipeline"
+      },
+      {
+        "number": 11765,
+        "title": "[Bug]: Provider Support — overwrite User-Agent in Headers",
+        "comments": 6,
+        "labels": ["BUG"],
+        "topic": "Provider HTTP header customization"
+      },
+      {
+        "number": 13082,
+        "title": "[Bug]: Frequent lag during normal operations",
+        "comments": 5,
+        "labels": ["BUG"],
+        "topic": "Performance / UI responsiveness"
+      },
+      {
+        "number": 10241,
+        "title": "[Bug]: Tool calling results are dropped in subsequent conversation",
+        "comments": 5,
+        "labels": ["BUG"],
+        "topic": "Tool calling / MCP context persistence"
+      }
+    ]
+  },
+
+  "high_engagement_closed_issues_30d": {
+    "top_issues": [
+      {
+        "number": 9943,
+        "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
+        "comments": 16,
+        "labels": ["BUG", "MCP", "inactive"],
+        "closed_at": "2026-07-01",
+        "topic": "MCP .dxt file import"
+      },
+      {
+        "number": 15586,
+        "title": "[Bug]: Error invoking remote method 'knowledge-base:search'",
+        "comments": 7,
+        "labels": ["needs-more-info", "RAG", "closed:no-response", "inactive"],
+        "closed_at": "2026-07-06",
+        "topic": "RAG / Knowledge base search"
+      },
+      {
+        "number": 16201,
+        "title": "[Bug]: minimax-m3 thinking.type hardcoded value cannot be changed",
+        "comments": 7,
+        "labels": ["Assistant", "Models"],
+        "closed_at": "2026-07-05",
+        "topic": "Model thinking parameter control"
+      }
+    ]
+  },
+
+  "major_tracking_issues": [
     {
-      "number": 6505,
-      "title": "[FAQ&反馈]: 划词助手 / Selection Assistant",
-      "comments": 364,
-      "updated": "2026-07-03",
-      "note": "Primary Selection Assistant community hub — 364 comments"
-    },
-    {
-      "number": 11101,
-      "title": "[Feature]: Keep Tool Calling Context",
-      "comments": 13,
-      "labels": ["feature", "MCP", "inactive"],
-      "note": "Community demand for persistent MCP tool context"
-    },
-    {
-      "number": 13959,
-      "title": "[Bug]: Built-in OpenClaw version needs upgrade for Playwright CDP",
-      "comments": 8,
-      "labels": ["P3", "discussion", "external", "Agent"]
-    },
-    {
-      "number": 14691,
-      "title": "[Discussion]: MCP service may affect DeepSeek response",
-      "comments": 6,
-      "labels": ["help wanted", "discussion", "MCP", "Models", "inactive"]
+      "number": 14021,
+      "title": "[Feature]: v2 aiCore Provider layer — 226 issues, 29 categories, 5 solution pillars",
+      "author": "DeJeune",
+      "scope": "Comprehensive tracking for v2 provider refactor",
+      "categories": 29,
+      "sub_issues": 226,
+      "solution_pillars": [
+        "providerOptions passthrough layer (~25 issues)",
+        "Model template (capabilities + limits) (~20 issues)",
+        "Explicit URL template system (~10 issues)",
+        "Unified reasoning abstraction layer (~30 issues)",
+        "Agent removes provider hard-binding (~15 issues)"
+      ]
     }
   ],
-  "new_zero_comment_issues_today": [
-    "#16786 — Don't persist oversized tool results in message DB",
-    "#16785 — Text-to-image Invalid JSON (SiliconFlow/Kolors)",
-    "#16784 — Fireworks AI Thinking Parameter Error",
-    "#16783 — Unable to adjust GPT image2 resolution",
-    "#16779 — Support parsing GPT-image2 output",
-    "#16776 — Add voice broadcast functionality",
-    "#16780 — Thinking Toggle for Longcat-2.0"
-  ]
+
+  "topic_clusters": {
+    "MCP_tool_calling": {
+      "open_issues_estimate": 66,
+      "label": "MCP",
+      "hot_areas": ["MCP image results", "Agent tool not found", "HTTP MCP errors", "tool call context persistence"]
+    },
+    "AI_model_providers": {
+      "open_issues_estimate": 208,
+      "label": "Models",
+      "hot_areas": ["Azure OpenAI Responses API routing", "reasoning/thinking cross-provider", "OpenRouter configs", "Vertex AI auth"]
+    },
+    "ui_ux": {
+      "open_issues_estimate": 279,
+      "label": "UI/UX",
+      "hot_areas": ["v2 re-skin in progress", "notification center", "generative UI inline rendering"]
+    },
+    "agent_mode": {
+      "open_issues_estimate": 156,
+      "label": "Assistant",
+      "hot_areas": ["Agent provider restriction", "MCP in agent mode", "skill system"]
+    }
+  },
+
+  "sentiment_signals": {
+    "positive": [
+      "High PR merge velocity (79 merged in last 7 days)",
+      "Active bulk-close sweep clearing 81 stale issues last week",
+      "v2 refactor tracking issues show comprehensive planning"
+    ],
+    "negative": [
+      "P1 bugs #13193 and #13608 unresolved for 100+ days",
+      "151 zombie issues indicate backlog management gap",
+      "20 issues closed with zero community engagement"
+    ]
+  }
 }

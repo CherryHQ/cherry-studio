@@ -1,165 +1,156 @@
 {
-  "generated_at": "2026-07-06",
-  "data_source": "GitHub API via MCP (mcp__github__*); search API for totals; 100-item pages for detail analysis",
-  "repository": "CherryHQ/cherry-studio",
+  "generated_at": "2026-07-07",
+  "data_source": "GitHub MCP API — CherryHQ/cherry-studio",
+  "sampling_note": "Label distribution extrapolated from first 200 open issues (sorted by updated_at desc); age buckets are exact GitHub search counts",
+
   "open_issues": {
     "total": 946,
-    "delta_from_yesterday": 4,
-    "no_label_count": 96,
-    "p1_open_active": 3,
-    "p1_active_list": [
+    "no_label_count": 94,
+    "no_label_pct": 9.93,
+    "label_distribution_sampled_200": {
+      "inactive": 94,
+      "UI/UX": 59,
+      "Models": 44,
+      "Assistant": 33,
+      "internal_team": 25,
+      "feature": 24,
+      "discussion": 16,
+      "help wanted": 14,
+      "MCP": 14,
+      "needs-repro": 13,
+      "RAG": 11,
+      "Data": 6,
+      "Performance": 4,
+      "Connectivity": 4,
+      "P3": 1,
+      "v2": 1,
+      "Docs": 1,
+      "prd": 1
+    },
+    "age_distribution": {
+      "fresh_active": {
+        "count": 291,
+        "pct": 30.8,
+        "description": "updated within last 14 days"
+      },
+      "aging": {
+        "count": 228,
+        "pct": 24.1,
+        "description": "updated 14-30 days ago"
+      },
+      "stale": {
+        "count": 276,
+        "pct": 29.2,
+        "description": "updated 30-90 days ago"
+      },
+      "zombie": {
+        "count": 151,
+        "pct": 16.0,
+        "description": "not updated in 90+ days"
+      }
+    },
+    "p1_issues": [
       {
         "number": 14899,
         "title": "[Feature]: Unified Notification Center",
-        "labels": ["Planned", "P1", "feature", "UI/UX"],
+        "labels": ["P1", "Planned", "feature", "UI/UX"],
         "milestone": "v2.4.0",
-        "age_days": 60
+        "created_at": "2026-05-07",
+        "updated_at": "2026-05-07",
+        "author": "SiinXu",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
       },
       {
         "number": 13608,
         "title": "[Bug]: xiaomi mimo response only displays the last line",
         "labels": ["P1", "Models"],
-        "age_days": 110
+        "milestone": "v1.8.1 (closed)",
+        "created_at": "2026-03-18",
+        "updated_at": "2026-03-19",
+        "author": "lsy08",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
       },
       {
         "number": 13193,
-        "title": "[Bug]: AI_APICallError: Resource not found, default use responses API (Azure OpenAI)",
+        "title": "[Bug]: Azure OpenAI defaults to Responses API causing Resource not found",
         "labels": ["P1", "Models"],
-        "assignee": "DeJeune",
-        "age_days": 124
+        "milestone": null,
+        "created_at": "2026-03-04",
+        "updated_at": "2026-03-05",
+        "author": "simplezhao",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
       }
     ],
-    "high_severity_unlabeled_or_misclassified": [
-      {
-        "number": 16785,
-        "title": "[Bug]: Text-to-image reports Invalid JSON response (SiliconFlow/Kolors)",
-        "labels": ["Models"],
-        "note": "New today — image generation broken for Kolors model"
-      },
-      {
-        "number": 16784,
-        "title": "[Bug]: Fireworks AI Model Thinking Parameter Error and Missing Models",
-        "labels": ["Models"],
-        "note": "New today — Fireworks provider config issues"
-      },
-      {
-        "number": 16767,
-        "title": "[Bug]: Agent workspace composer freezes on zero-hit glob",
-        "labels": ["Performance"],
-        "note": "New today — UI freeze on file search"
-      },
-      {
-        "number": 16764,
-        "title": "[Bug]: Desktop shows white screen after hiding and reopening",
-        "labels": ["needs-repro", "UI/UX"],
-        "note": "New today — white screen regression"
-      },
-      {
-        "number": 15423,
-        "title": "[CRITICAL/Data Loss]: Total Wipe of All Chat Sessions due to Monolithic IndexedDB & Full Disk",
-        "labels": ["Data", "inactive"],
-        "note": "Critical data-loss — labeled inactive but unresolved"
-      }
-    ],
-    "new_last_7d": 72,
-    "new_today": [
-      "#16780 [Feature]: Thinking Toggle for Longcat-2.0",
-      "#16786 [Feature]: Don't persist oversized tool results verbatim in message DB",
-      "#16785 [Bug]: Text-to-image Invalid JSON response (SiliconFlow/Kolors)",
-      "#16784 [Bug]: Fireworks AI Model Thinking Parameter Error and Missing Models",
-      "#16783 [Bug]: Unable to adjust GPT image2 resolution",
-      "#16779 [Feature]: Support parsing GPT-image2 output",
-      "#16776 [Feature]: Add voice broadcast functionality",
-      "#16774 [Feature]: Formalize WindowManager consumer-loaded print surfaces",
-      "#16772 Feature Request: Agent conversation export support",
-      "#16767 [Bug]: Agent workspace composer freezes on zero-hit glob"
+    "top_unlabeled_recent": [
+      {"number": 16810, "title": "[Feature]: pi agent runtime — session fork & export"},
+      {"number": 16786, "title": "[Feature]: Don't persist oversized tool results verbatim in the message DB"},
+      {"number": 16783, "title": "[Bug]: Unable to adjust GPT image2 resolution"},
+      {"number": 16779, "title": "[Feature]: Support parsing GPT-image2 output"},
+      {"number": 16776, "title": "[Feature]: Add voice broadcast functionality"},
+      {"number": 16742, "title": "[Bug]: Error invoking remote method 'backup:backupToWebdav'"},
+      {"number": 16718, "title": "[Feature]: Track PR #16283 OAuth follow-up hardening items"},
+      {"number": 16719, "title": "Windows tool installs fail via bundled mise for gh, hermes-agent, and claude"}
     ]
   },
+
   "open_prs": {
-    "total": 100,
-    "note": "First page of 100; actual total likely higher",
-    "draft_count": 15,
-    "non_draft": 85,
+    "total": 280,
+    "draft_count": 11,
     "targeting_main": 88,
-    "targeting_v1": 5,
-    "targeting_v2": 0,
-    "age_buckets": {
-      "fresh_1d": 15,
-      "active_7d": 34,
-      "aging_30d": 41,
-      "stale_30d_plus": 10
+    "targeting_v1": 4,
+    "age_distribution": {
+      "fresh_active": 100,
+      "note": "First 100 PRs (sorted by updated_at desc) all fell within Active/Fresh; earlier pages not fetched"
     },
-    "top_authors": [
-      {"author": "DeJeune",       "count": 15},
-      {"author": "LWWZH",         "count": 9},
-      {"author": "GeorgeDong32",  "count": 8},
-      {"author": "eeee0717",      "count": 6},
-      {"author": "Pleasurecruise","count": 5},
-      {"author": "SiinXu",        "count": 5},
-      {"author": "kovsu",         "count": 4},
-      {"author": "ousugo",        "count": 4},
-      {"author": "kangfenmao",    "count": 4},
-      {"author": "EurFelux",      "count": 4}
-    ],
-    "new_prs_today": [
-      {"number": 16788, "title": "fix(mini-app): clean up orphaned tab pool state", "author": "kovsu"},
-      {"number": 16787, "title": "chore(gitignore): ignore local agents override file", "author": "ousugo"},
-      {"number": 16782, "title": "refactor(popup): replace TopView god-component with imperative popup/toast tracks", "author": "0xfullex"},
-      {"number": 16781, "title": "fix(agent-edit): stage skill toggles until edit dialog is saved [DRAFT]", "author": "zhangjiadi225"}
-    ],
-    "security_open": {
-      "pr_number": 16748,
-      "title": "fix: upgrade @hono/node-server to 1.19.10 (CVE-2026-29087)",
-      "author": "orbisai0security",
-      "created_at": "2026-07-05",
-      "url": "https://github.com/CherryHQ/cherry-studio/pull/16748",
-      "priority": "HIGH — CVE fix awaiting merge"
+    "notable_drafts": [
+      "#16812 fix(composer): align controls and agent session reuse",
+      "#16443 test(e2e): Playwright suite for knowledge/websearch/fileprocessing",
+      "#16462 docs(unified-runtime): AI SDK v7 migration plan",
+      "#16444 feat(paintings): infinite canvas paint mode with React Flow",
+      "#16402 feat(bundled-git): ship MinGit on Windows"
+    ]
+  },
+
+  "closed_issues_30d": {
+    "total": 365,
+    "weekly_breakdown": {
+      "2026-07-01_to_2026-07-07": 18,
+      "2026-06-24_to_2026-06-30": 81,
+      "2026-06-08_to_2026-06-23": 1
+    },
+    "top_closed_labels": {
+      "inactive": 66,
+      "UI/UX": 28,
+      "Models": 21,
+      "Assistant": 16,
+      "internal_team": 11,
+      "MCP": 9
+    },
+    "closed_with_zero_comments": 20,
+    "type_breakdown": {
+      "Bug": 49,
+      "Feature": 21,
+      "none": 30
     }
   },
-  "v2_branch": {
-    "open_prs": 0,
-    "note": "v2 branch merged into main. v1 and v2 code coexist on main. No open PRs targeting v2 branch."
-  },
-  "closed_issues_30d": {
-    "total": 385,
-    "note": "Issues closed after 2026-06-06"
-  },
-  "latest_release": {
-    "tag": "v1.9.12",
-    "published_at": "2026-07-05",
-    "url": "https://github.com/CherryHQ/cherry-studio/releases/tag/v1.9.12",
-    "prs_in_release": 18,
-    "highlights": [
-      "fix: forward DeepSeek V4+ reasoning_effort for openai-compatible providers",
-      "fix(model): support Claude Fable series and Opus 5 in capability detection",
-      "fix(reasoning): correct MiniMax-M3 thinking control",
-      "feat(models): add Kimi K2.7 Code support",
-      "fix: upgrade @hono/node-server (CVE fix)",
-      "feat(aihubmix): redirect provider links to inferera"
-    ]
-  },
-  "label_distribution_sample": {
-    "source": "100 most-recently-updated open issues (2026-07-06)",
-    "top_labels": [
-      {"label": "inactive",    "count": 59},
-      {"label": "UI/UX",       "count": 23},
-      {"label": "Models",      "count": 22},
-      {"label": "Assistant",   "count": 17},
-      {"label": "discussion",  "count": 9},
-      {"label": "RAG",         "count": 8},
-      {"label": "MCP",         "count": 8},
-      {"label": "help wanted", "count": 8},
-      {"label": "needs-repro", "count": 7},
-      {"label": "Connectivity","count": 3},
-      {"label": "Performance", "count": 2},
-      {"label": "Data",        "count": 2},
-      {"label": "feature",     "count": 1},
-      {"label": "P3",          "count": 1},
-      {"label": "external",    "count": 1},
-      {"label": "Agent",       "count": 1},
-      {"label": "Dev Team",    "count": 1},
-      {"label": "BUG",         "count": 1}
+
+  "merged_prs_30d": {
+    "total": 344,
+    "weekly_breakdown": {
+      "2026-06-30_to_2026-07-07": 79,
+      "2026-06-23_to_2026-06-29": 1,
+      "older": "unsampled"
+    },
+    "top_contributors_this_week": [
+      {"login": "zhangjiadi225", "prs": 20},
+      {"login": "eeee0717", "prs": 18},
+      {"login": "AtomsH4", "prs": 14},
+      {"login": "ousugo", "prs": 13},
+      {"login": "kangfenmao", "prs": 11},
+      {"login": "Pleasurecruise", "prs": 8},
+      {"login": "vaayne", "prs": 6}
     ],
-    "no_label_in_sample": 14
+    "v1_prs_merged": 2,
+    "breaking_changes": 0
   }
 }
