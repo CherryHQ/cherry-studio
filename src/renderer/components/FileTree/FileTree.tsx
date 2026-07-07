@@ -49,6 +49,8 @@ export function FileTree(props: FileTreeProps) {
     searchKeyword = '',
     onSearchKeywordChange,
     searchPlaceholder,
+    searchToolbar,
+    searchClearLabel,
     emptyState
   } = props
 
@@ -114,28 +116,31 @@ export function FileTree(props: FileTreeProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="relative px-2 py-2">
-        <Search
-          size={14}
-          className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-4 text-muted-foreground"
-        />
-        <Input
-          type="text"
-          value={searchKeyword}
-          onChange={(e) => onSearchKeywordChange?.(e.target.value)}
-          placeholder={searchPlaceholder}
-          className="h-8 pr-7 pl-7 text-sm"
-          data-testid="file-tree-search-input"
-        />
-        {searchKeyword && (
-          <button
-            type="button"
-            aria-label="Clear search"
-            onClick={() => onSearchKeywordChange?.('')}
-            className="-translate-y-1/2 absolute top-1/2 right-3 flex size-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground">
-            <X size={13} />
-          </button>
-        )}
+      <div className="flex items-center gap-2 px-2 py-2">
+        <div className="relative min-w-0 flex-1">
+          <Search
+            size={14}
+            className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 text-muted-foreground"
+          />
+          <Input
+            type="text"
+            value={searchKeyword}
+            onChange={(e) => onSearchKeywordChange?.(e.target.value)}
+            placeholder={searchPlaceholder}
+            className="h-8 min-w-0 flex-1 pr-7 pl-7 text-sm"
+            data-testid="file-tree-search-input"
+          />
+          {searchKeyword && (
+            <button
+              type="button"
+              aria-label={searchClearLabel ?? 'Clear search'}
+              onClick={() => onSearchKeywordChange?.('')}
+              className="-translate-y-1/2 absolute top-1/2 right-1 flex size-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground">
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        {searchToolbar}
       </div>
       <div className="min-h-0 flex-1">{tree}</div>
     </div>

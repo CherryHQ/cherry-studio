@@ -105,6 +105,19 @@ describe('Tooltip', () => {
   })
 
   describe('classNames', () => {
+    it('renders a full-width trigger wrapper when fullWidthTrigger is enabled', () => {
+      const { container } = render(
+        <Tooltip content="tip" fullWidthTrigger>
+          <span>Trigger</span>
+        </Tooltip>
+      )
+
+      const wrapper = container.querySelector('[data-state]') as HTMLElement
+      expect(wrapper).toBeInTheDocument()
+      expect(wrapper).toHaveClass('block', 'w-full', 'min-w-0', 'max-w-full')
+      expect(wrapper).not.toHaveClass('inline-block')
+    })
+
     it('applies classNames.placeholder to the trigger wrapper', () => {
       const { container } = render(
         <Tooltip content="tip" classNames={{ placeholder: 'custom-trigger' }}>

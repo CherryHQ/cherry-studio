@@ -70,7 +70,6 @@ const homeMocks = vi.hoisted(() => ({
   activeTopicOverride: undefined as Topic | undefined,
   activeTopicSource: 'query' as 'query' | 'pending' | 'none',
   forceActiveTopicUndefined: false,
-  focusExistingTab: vi.fn(() => false),
   locationState: undefined as { topic: Topic } | undefined,
   persistCacheValues: new Map<string, unknown>(),
   preferenceValues: new Map<string, unknown>(),
@@ -155,15 +154,27 @@ vi.mock('@renderer/components/chat/shell/ConversationPageShell', () => ({
     center,
     pane,
     paneOpen,
-    topBar
+    topBar,
+    onPaneAutoCollapseChange
   }: {
     center?: { content?: ReactNode }
     pane?: ReactNode
     paneOpen?: boolean
     topBar?: ReactNode
+    onPaneAutoCollapseChange?: (collapsed: boolean) => void
   }) => (
     <section data-testid="home-conversation-page-shell">
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      {onPaneAutoCollapseChange && (
+        <>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
+            Auto collapse pane
+          </button>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(false)}>
+            Auto restore pane
+          </button>
+        </>
+      )}
       <div>{topBar}</div>
       <div>{pane}</div>
       <div>{center?.content}</div>
@@ -176,15 +187,27 @@ vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
     topBar,
     pane,
     paneOpen,
-    center
+    center,
+    onPaneAutoCollapseChange
   }: {
     topBar?: ReactNode
     pane?: ReactNode
     paneOpen?: boolean
     center?: ReactNode
+    onPaneAutoCollapseChange?: (collapsed: boolean) => void
   }) => (
     <section>
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      {onPaneAutoCollapseChange && (
+        <>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
+            Auto collapse pane
+          </button>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(false)}>
+            Auto restore pane
+          </button>
+        </>
+      )}
       <div>{topBar}</div>
       <div>{pane}</div>
       <div>{center}</div>
@@ -283,13 +306,6 @@ vi.mock('@renderer/hooks/tab', () => ({
   useCurrentTabId: () => 'chat-tab',
   useIsActiveTab: () => homeMocks.isActiveTab,
   useTabSelfMetadata: vi.fn()
-}))
-
-vi.mock('@renderer/hooks/useConversationNavigation', () => ({
-  useConversationNavigation: () => ({
-    focusExistingTab: homeMocks.focusExistingTab,
-    openConversationTab: vi.fn()
-  })
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -405,7 +421,8 @@ vi.mock('../Chat', () => ({
     onCreateEmptyTopic,
     onNewTopic,
     onLocateMessageHandled,
-    onPaneCollapse
+    onPaneCollapse,
+    onPaneAutoCollapseChange
   }: {
     activeTopic: Topic
     pane?: ReactNode
@@ -417,6 +434,7 @@ vi.mock('../Chat', () => ({
     onNewTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
     onLocateMessageHandled?: () => void
     onPaneCollapse?: () => void
+    onPaneAutoCollapseChange?: (collapsed: boolean) => void
   }) => (
     <section>
       <output data-testid="active-topic">{activeTopic.id}</output>
@@ -458,6 +476,16 @@ vi.mock('../Chat', () => ({
         <button type="button" onClick={onPaneCollapse}>
           Collapse pane
         </button>
+      )}
+      {onPaneAutoCollapseChange && (
+        <>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
+            Auto collapse pane
+          </button>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(false)}>
+            Auto restore pane
+          </button>
+        </>
       )}
       {pane}
     </section>
@@ -637,7 +665,6 @@ describe('HomePage', () => {
     homeMocks.routeTopicLoading = false
     homeMocks.activeTopicOptions = undefined
     homeMocks.persistCacheValues.clear()
-    homeMocks.focusExistingTab.mockReturnValue(false)
     homeMocks.addAssistant.mockResolvedValue({
       id: 'assistant-created',
       name: 'Catalog Preset'
@@ -1042,9 +1069,8 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).toHaveBeenCalledTimes(1)
   })
 
-  it('focuses the existing tab instead of duplicating a reused topic already open elsewhere', async () => {
+  it('selects a reused topic in the current tab even when another tab may already show it', async () => {
     homeMocks.preferenceValues.set('topic.layout', 'classic')
-    homeMocks.focusExistingTab.mockReturnValue(true)
     homeMocks.classicLayoutTopics = [
       {
         id: 'topic-empty-latest',
@@ -1060,13 +1086,8 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
     fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
 
-    // The reused topic is already open in another tab, so we focus it instead of navigating
-    // (and duplicating) the current tab.
-    await waitFor(() =>
-      expect(homeMocks.focusExistingTab).toHaveBeenCalledWith('topic-empty-latest', expect.anything())
-    )
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-empty-latest'))
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
-    expect(screen.queryByTestId('active-topic')?.textContent).not.toBe('topic-empty-latest')
   })
 
   it('toasts and leaves the active topic untouched when classic-layout picker topic creation fails', async () => {
@@ -1141,6 +1162,25 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false))
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+  })
+  it('temporarily hides and restores the topic sidebar for responsive auto-collapse without changing the user preference', async () => {
+    homeMocks.preferenceValues.set('topic.tab.show', true)
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auto collapse pane' }))
+
+    await waitFor(() => expect(screen.getByTestId('pane-open')).toHaveTextContent('false'))
+    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
+    expect(homeMocks.preferenceValues.get('topic.tab.show')).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auto restore pane' }))
+
+    await waitFor(() => expect(screen.getByTestId('pane-open')).toHaveTextContent('true'))
+    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
+    expect(homeMocks.preferenceValues.get('topic.tab.show')).toBe(true)
   })
 
   it('starts a draft assistant selection when history clears the selected topic', async () => {
@@ -1219,7 +1259,7 @@ describe('HomePage', () => {
       | undefined
 
     act(() => {
-      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target' })
+      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target', targetTabId: 'chat-tab' })
     })
 
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-history'))
@@ -1229,9 +1269,8 @@ describe('HomePage', () => {
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
-  it('does not write locate state into the current tab before focusing an already-open topic message', () => {
+  it('writes locate state into the current tab for a global-search topic message', async () => {
     homeMocks.locationState = undefined
-    homeMocks.focusExistingTab.mockReturnValue(true)
 
     render(<HomePage />)
 
@@ -1242,12 +1281,28 @@ describe('HomePage', () => {
       | undefined
 
     act(() => {
-      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target' })
+      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target', targetTabId: 'chat-tab' })
     })
 
-    expect(homeMocks.focusExistingTab).toHaveBeenCalledWith('topic-history', { excludeTabId: 'chat-tab' })
-    expect(screen.getByTestId('draft-composer')).toBeInTheDocument()
-    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-history'))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-target')
+  })
+
+  it('ignores a global-search topic message targeted at another tab', async () => {
+    render(<HomePage />)
+
+    const topicMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target', targetTabId: 'other-chat-tab' })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial'))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
   it('keeps the current topic visible while the active topic is reloading', async () => {

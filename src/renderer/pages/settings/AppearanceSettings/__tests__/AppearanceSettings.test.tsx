@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AppearanceSettings, { confirmMenuPresentationModeChange } from '../AppearanceSettings'
 
+const t = (key: string) => key
+
 const i18nMock = vi.hoisted(() => ({
   language: 'zh-CN',
   resolvedLanguage: 'zh-CN'
@@ -33,20 +35,30 @@ vi.mock('@cherrystudio/ui', async () => {
     Button,
     CodeEditor: ({ value, ...props }: any) =>
       React.createElement('textarea', { ...props, value: value ?? '', readOnly: true }),
-    Combobox: ({ options = [], value, ...props }: any) => {
+    Combobox: ({ options = [], renderOption, value, ...props }: any) => {
       const cleanProps = { ...props }
       delete cleanProps.emptyText
       delete cleanProps.popoverClassName
-      delete cleanProps.renderOption
       delete cleanProps.searchPlacement
       delete cleanProps.triggerStyle
 
       return React.createElement(
-        'select',
-        { ...cleanProps, value: value ?? '', readOnly: true },
-        options.map((option: any) =>
-          React.createElement('option', { key: option.value, value: option.value }, option.label)
-        )
+        'div',
+        null,
+        React.createElement(
+          'select',
+          { ...cleanProps, value: value ?? '', readOnly: true },
+          options.map((option: any) =>
+            React.createElement('option', { key: option.value, value: option.value }, option.label)
+          )
+        ),
+        renderOption
+          ? React.createElement(
+              'div',
+              { 'data-testid': 'combobox-options' },
+              options.map((option: any) => React.createElement('div', { key: option.value }, renderOption(option)))
+            )
+          : null
       )
     },
     CustomTag: passthrough('span'),
@@ -96,13 +108,21 @@ vi.mock('@cherrystudio/ui', async () => {
         onChange: (event: React.ChangeEvent<HTMLInputElement>) => onCheckedChange?.(event.target.checked),
         type: 'checkbox'
       }),
-    Tooltip: ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children)
+    Tooltip: ({ children, className, classNames, content, title }: any) =>
+      React.createElement(
+        'div',
+        {
+          className: [className, classNames?.placeholder].filter(Boolean).join(' ') || undefined,
+          ...(content || title ? { 'data-title': content || title } : {})
+        },
+        children
+      )
   }
 })
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key
+    t
   })
 }))
 
@@ -176,7 +196,6 @@ vi.mock('@renderer/utils/error', () => ({
 }))
 
 describe('AppearanceSettings menu presentation mode', () => {
-  const t = (key: string) => key
   const setMenuPresentationMode = vi.fn<(mode: MenuPresentationMode) => Promise<void>>()
   const setTimeoutTimer = vi.fn<(key: string, callback: () => void, delay: number) => void>()
   const confirm = vi.fn()
