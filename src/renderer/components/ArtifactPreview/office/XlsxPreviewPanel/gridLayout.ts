@@ -10,6 +10,11 @@ export const DEFAULT_ROW_HEIGHT_PX = 20
 /** Hard row/column parse limits. Excess rows/columns are truncated and recorded as warnings. */
 export const MAX_ROWS = 200_000
 export const MAX_COLS = 500
+/**
+ * Per-sheet cap on floating objects (images + charts combined). Anchor counts come from untrusted drawing XML, and
+ * every object becomes a DOM node or an ECharts instance, so excess anchors are dropped and recorded as a warning.
+ */
+export const MAX_FLOATING_OBJECTS = 64
 
 /** Excel character width -> px (Calibri 11, MDW=7). */
 export const charWidthToPx = (width: number): number => Math.round(width * 7) + 5

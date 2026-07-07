@@ -2,7 +2,15 @@ import ExcelJS from 'exceljs'
 import JSZip from 'jszip'
 
 import { assertZipLimits } from '../../zipPreflight'
-import { charWidthToPx, DEFAULT_COL_WIDTH_PX, DEFAULT_ROW_HEIGHT_PX, MAX_COLS, MAX_ROWS, ptToPx } from '../gridLayout'
+import {
+  charWidthToPx,
+  DEFAULT_COL_WIDTH_PX,
+  DEFAULT_ROW_HEIGHT_PX,
+  MAX_COLS,
+  MAX_FLOATING_OBJECTS,
+  MAX_ROWS,
+  ptToPx
+} from '../gridLayout'
 import type {
   BorderEdge,
   CellRenderModel,
@@ -668,6 +676,11 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     const rowY = (row: number): number => axisOffsetPx(row, rowHeightsPx, defaultRowHeightPx)
 
     for (const img of worksheet.getImages()) {
+      // Anchor counts are untrusted; bound the number of <img> nodes the renderer will create.
+      if (floatingImages.length >= MAX_FLOATING_OBJECTS) {
+        warnings.add('floating-objects-truncated')
+        break
+      }
       const excelImageId = Number(img.imageId)
       let renderImageId = imageIdCache.get(excelImageId)
       if (renderImageId === undefined) {
@@ -812,7 +825,14 @@ export async function parseWorkbook(data: ArrayBuffer, fileName: string): Promis
     }
 
     try {
-      const { charts, warnings: chartWarnings } = await parseCharts(zip, worksheet.name, layout, dataAccessor)
+      // Images and charts share the per-sheet floating-object budget.
+      const { charts, warnings: chartWarnings } = await parseCharts(
+        zip,
+        worksheet.name,
+        layout,
+        dataAccessor,
+        MAX_FLOATING_OBJECTS - sheetModel.floatingImages.length
+      )
       sheetModel.charts = charts
       for (const chart of charts) {
         const usedRange = usedRangeForPxRect(

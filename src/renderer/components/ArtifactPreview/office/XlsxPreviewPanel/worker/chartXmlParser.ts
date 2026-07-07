@@ -1,7 +1,7 @@
 import { XMLParser } from 'fast-xml-parser'
 import type JSZip from 'jszip'
 
-import { emuToPx } from '../gridLayout'
+import { emuToPx, MAX_FLOATING_OBJECTS } from '../gridLayout'
 import type { ChartModel, ChartSeries, ChartType, PxRect } from '../renderModel'
 
 /**
@@ -493,7 +493,8 @@ export async function parseCharts(
   zip: JSZip,
   sheetName: string,
   layout: SheetLayoutAccessor,
-  data: SheetDataAccessor
+  data: SheetDataAccessor,
+  maxCharts: number = MAX_FLOATING_OBJECTS
 ): Promise<ParsedCharts> {
   const warnings: string[] = []
   const charts: ChartModel[] = []
@@ -513,26 +514,44 @@ export async function parseCharts(
     const drawingRelsXml = await readZipText(zip, `${drawingDir}/_rels/${drawingFileName}.rels`)
     const drawingRels = drawingRelsXml ? parseRelationships(drawingRelsXml) : []
 
-    const anchoredCharts = extractAnchoredCharts(drawingXml, layout)
+    // Anchor counts are untrusted: a small drawing XML can repeat thousands of anchors, so excess anchors are
+    // dropped up front to bound both worker parsing and the number of chart hosts the renderer creates.
+    let anchoredCharts = extractAnchoredCharts(drawingXml, layout)
+    const chartBudget = Math.max(0, maxCharts)
+    if (anchoredCharts.length > chartBudget) {
+      warnings.push(`floating-objects-truncated: kept ${chartBudget} of ${anchoredCharts.length} chart anchors`)
+      anchoredCharts = anchoredCharts.slice(0, chartBudget)
+    }
+
+    // Many anchors may point at the same chart part. The parsed model depends only on the part path (data comes
+    // from the same sheet accessor), so memo by path — including failures — instead of re-reading and re-parsing.
+    // Cached models are shared read-only between chart entries; only rect differs per anchor.
+    const chartPartCache = new Map<string, Omit<ChartModel, 'rect'> | null>()
 
     for (const anchored of anchoredCharts) {
-      try {
-        const rel = drawingRels.find((r) => r.id === anchored.chartRId)
-        if (!rel) {
-          warnings.push(`chart relationship not found: ${anchored.chartRId}`)
-          continue
-        }
-        const chartPartPath = resolveTarget(drawingDir, rel.target)
-        const chartXml = await readZipText(zip, chartPartPath)
-        if (!chartXml) {
-          warnings.push(`chart part missing: ${chartPartPath}`)
-          continue
-        }
-        const parsed = parseChartXml(chartXml, data, warnings)
-        charts.push({ ...parsed, rect: anchored.rect })
-      } catch (err) {
-        warnings.push(`failed to parse chart: ${(err as Error).message}`)
+      const rel = drawingRels.find((r) => r.id === anchored.chartRId)
+      if (!rel) {
+        warnings.push(`chart relationship not found: ${anchored.chartRId}`)
+        continue
       }
+      const chartPartPath = resolveTarget(drawingDir, rel.target)
+      let parsed = chartPartCache.get(chartPartPath)
+      if (parsed === undefined) {
+        try {
+          const chartXml = await readZipText(zip, chartPartPath)
+          if (!chartXml) {
+            warnings.push(`chart part missing: ${chartPartPath}`)
+            parsed = null
+          } else {
+            parsed = parseChartXml(chartXml, data, warnings)
+          }
+        } catch (err) {
+          warnings.push(`failed to parse chart: ${(err as Error).message}`)
+          parsed = null
+        }
+        chartPartCache.set(chartPartPath, parsed)
+      }
+      if (parsed) charts.push({ ...parsed, rect: anchored.rect })
     }
   } catch (err) {
     warnings.push(`failed to parse charts for sheet "${sheetName}": ${(err as Error).message}`)
