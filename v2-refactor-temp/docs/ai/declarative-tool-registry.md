@@ -3,7 +3,10 @@
 > Design doc. Status: approved, implementation in progress (PR-by-PR).
 >
 > **Update (PR #16726):** soul mode and its tool gating are gone — `soul_enabled`,
-> `SOUL_MODE_DISALLOWED_TOOLS`, and the PR-7 de-gating items below have landed.
+> `SOUL_MODE_DISALLOWED_TOOLS`, and the PR-7 de-gating items below have landed,
+> **except** the `skills` MCP server: it remains defined but unmounted —
+> `buildMcpServers()` injects only `cherry-tools`, `agent-memory`, and assistant
+> tools. Wiring or removing `SkillsServer` is a separate decision.
 > The `claw` server was renamed and merged into `cherry-tools`; the autonomy
 > tools' final names are `mcp__cherry-tools__cron/notify/config`. References to
 > `claw` / soul gating below are historical context, not current state.
@@ -35,7 +38,7 @@ Goal: **one declarative registry** = single source of truth for policy (main), c
    - `Agent` + agent-teams (`SendMessage`/`TeamCreate`/`TeamDelete`) → **internal**. `Workflow` → **user**.
    - `ScheduleWakeup`/`RemoteTrigger`/`Monitor`/`PushNotification` → **disabled** (CLI-oriented).
    - `EnterWorktree`/`ExitWorktree` → **conditional** (`workspace-has-git`), pair-grouped.
-   - claw `cron` → **user**; `agent-memory` `memory` → **user**; `skills` → **internal** (and newly wired); claw `notify` + `config` → **conditional** (`agent-has-channel`).
+   - claw `cron` → **user**; `agent-memory` `memory` → **user**; `skills` → **internal** (defined but not yet wired); claw `notify` + `config` → **conditional** (`agent-has-channel`).
 
 ## Architecture — 3 layers
 
