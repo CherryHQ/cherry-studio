@@ -87,7 +87,7 @@ describe('pi SDK bundling viability (Phase 0 spike)', () => {
     expect(existsSync(join(homedir(), '.pi', 'agent'))).toBe(false)
 
     // Trust probe on a plain workspace resolves locally with no network.
-    const result = await hasTrustRequiringProjectResources(workspace)
+    const result = hasTrustRequiringProjectResources(workspace)
     expect(typeof result).toBe('boolean')
     expect(result).toBe(false)
   })

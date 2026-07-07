@@ -35,7 +35,7 @@ function buildGate(
     autoApprovedTools: new Set(),
     ...overrides
   })
-  factory({
+  void factory({
     on: (evt: string, h: unknown) => {
       if (evt === 'tool_call') handler = h as Handler
     }

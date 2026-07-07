@@ -1,6 +1,9 @@
+import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { mcpServerService } from '@data/services/McpServerService'
 import { PI_BUILTIN_TOOLS } from '@shared/ai/piBuiltinTools'
 import type { Tool } from '@shared/ai/tool'
+import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeConnection, AgentSessionRuntimeDriver } from '../types'
@@ -28,14 +31,29 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
     await assertPiProviderUsable(agent.model)
   }
 
-  async listAvailableTools(_mcpIds: string[]): Promise<Tool[]> {
-    // MCP is deferred for pi v1 (plan capability matrix); mcpIds are ignored.
-    return PI_BUILTIN_TOOLS.map((tool) => ({
+  async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {
+    const builtins: Tool[] = PI_BUILTIN_TOOLS.map((tool) => ({
       id: tool.name,
       name: tool.name,
       origin: 'builtin',
       approval: tool.approval
     }))
+    // Bridged MCP tools, read cache-only from the same catalog the session bridge uses
+    // (piMcpToolAdapter warms it). Third-party, so they prompt in the default mode.
+    const catalog = application.get('McpCatalogService')
+    const mcpTools: Tool[] = mcpIds.flatMap((idOrName) => {
+      const server = mcpServerService.findByIdOrName(idOrName)
+      if (!server) return []
+      return catalog.listTools(server.id, { includeDisabled: false }).map((tool) => ({
+        id: buildFunctionCallToolName(server.name, tool.name),
+        name: tool.name,
+        origin: 'mcp' as const,
+        approval: 'prompt' as const,
+        sourceId: server.id,
+        sourceName: server.name
+      }))
+    })
+    return [...builtins, ...mcpTools]
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
