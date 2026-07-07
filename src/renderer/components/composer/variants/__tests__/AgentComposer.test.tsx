@@ -1350,6 +1350,66 @@ describe('AgentComposer', () => {
     )
   })
 
+  it('sends Windows drive-slash workspace resource file references without internalizing them', async () => {
+    mocks.sessionWorkspacePath = 'C:\\workspace'
+    const workspaceFile = {
+      id: 'workspace-file-1',
+      fileTokenSourceId: 'source-workspace-file-1',
+      name: 'notes.md',
+      origin_name: 'notes.md',
+      path: 'C:/workspace/docs/notes.md'
+    } as FileMetadata
+    mocks.files = [workspaceFile]
+    mocks.draftTokens = [
+      {
+        id: `file:${workspaceFile.fileTokenSourceId}`,
+        kind: 'file',
+        label: workspaceFile.name,
+        payload: workspaceFile,
+        index: 0,
+        textOffset: mocks.draftText.length
+      } as ComposerSerializedToken
+    ]
+    mocks.createInternalEntry.mockRejectedValueOnce(new Error('workspace resources should not be internalized'))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('send'))
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled())
+    expect(mocks.createInternalEntry).not.toHaveBeenCalled()
+    expect(mocks.getMetadata).toHaveBeenCalledWith({ kind: 'path', path: 'C:\\workspace\\docs\\notes.md' })
+    expect(mocks.sendMessage).toHaveBeenCalledWith(
+      { text: 'hello' },
+      {
+        body: {
+          agentId: 'agent-1',
+          sessionId: 'session-1',
+          userMessageParts: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'text',
+              text: 'hello'
+            }),
+            {
+              type: 'file',
+              url: 'file:///C:/workspace/docs/notes.md',
+              mediaType: 'text/markdown',
+              filename: 'notes.md'
+            }
+          ])
+        }
+      }
+    )
+  })
+
   it('bridges file tokens into the existing agent session message text protocol', async () => {
     mocks.files = [file]
     render(

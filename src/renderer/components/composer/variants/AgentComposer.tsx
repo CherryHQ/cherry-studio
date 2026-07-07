@@ -115,8 +115,15 @@ const isPathWithinAccessiblePath = (filePath: string, accessiblePaths: readonly 
   })
 }
 
+const toFilePathHandlePath = (filePath: string): FilePath => {
+  if (/^[A-Za-z]:\//.test(filePath)) {
+    return filePath.replace(/\//g, '\\') as FilePath
+  }
+  return filePath as FilePath
+}
+
 const buildAccessiblePathFilePart = async (attachment: ComposerAttachment): Promise<FileUIPart> => {
-  const filePath = attachment.path as FilePath
+  const filePath = toFilePathHandlePath(attachment.path)
   const metadata = await window.api.file.getMetadata(createFilePathHandle(filePath))
   if (metadata.kind !== 'file') {
     throw new Error(`Agent workspace reference is not a file: ${attachment.path}`)
@@ -124,7 +131,7 @@ const buildAccessiblePathFilePart = async (attachment: ComposerAttachment): Prom
 
   return {
     type: 'file',
-    url: toFileUrl(filePath),
+    url: toFileUrl(attachment.path as FilePath),
     mediaType: metadata.mime,
     filename: attachment.origin_name || attachment.name
   }
