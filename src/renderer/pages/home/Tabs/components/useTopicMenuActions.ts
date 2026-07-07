@@ -16,6 +16,7 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
 import { useCallback, useMemo } from 'react'
 
@@ -41,7 +42,9 @@ export interface TopicMenuActionOptions {
   onOpenInNewTab?: TopicMenuHandler
   onOpenInNewWindow?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
+  onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onStartRename: TopicMenuHandler
+  panePosition?: TopicTabPosition
   t: TFunction
   topic: Topic
   topicsLength: number
@@ -60,7 +63,9 @@ export function createTopicActionContext({
   onOpenInNewTab,
   onOpenInNewWindow,
   onPinTopic,
+  onSetPanePosition,
   onStartRename,
+  panePosition,
   t,
   topic,
   topicsLength
@@ -103,6 +108,7 @@ export function createTopicActionContext({
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    onSetPanePosition,
     onSaveToKnowledge: async (topic) => {
       try {
         const result = await SaveToKnowledgePopup.showForTopic(topic)
@@ -115,6 +121,7 @@ export function createTopicActionContext({
     },
     onSaveToNotes: (topic) => exportTopicToNotes(topic, notesPath),
     onStartRename,
+    panePosition,
     t,
     topic,
     topicsLength
@@ -187,7 +194,9 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    onSetPanePosition,
     onStartRename,
+    panePosition,
     t,
     topic,
     topicsLength
@@ -207,7 +216,9 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onOpenInNewTab,
         onOpenInNewWindow,
         onPinTopic,
+        onSetPanePosition,
         onStartRename,
+        panePosition,
         t,
         topic,
         topicsLength
@@ -225,7 +236,9 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
+      onSetPanePosition,
       onStartRename,
+      panePosition,
       t,
       topic,
       topicsLength

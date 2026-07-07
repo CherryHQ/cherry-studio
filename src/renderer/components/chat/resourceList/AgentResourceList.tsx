@@ -1,6 +1,6 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
@@ -11,14 +11,20 @@ import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { usePins } from '@renderer/hooks/usePins'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { Pin, PinOff, Plus, SquarePen, Trash2 } from 'lucide-react'
+import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
+import { Pin, PinOff, Plus, Smile, SquarePen, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ConversationResourceMenuItem } from './base'
+import {
+  buildResolvedIconTypeMenuAction,
+  buildResolvedResourceEntityMenuAction,
+  type ConversationResourceMenuItem,
+  renderAgentEntityIcon,
+  SessionListOptionsMenu
+} from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
 import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'
@@ -27,6 +33,7 @@ const logger = loggerService.withContext('AgentResourceList')
 
 const AGENT_ENTITY_EDIT_ACTION_ID = 'agent-entity.edit'
 const AGENT_ENTITY_TOGGLE_PIN_ACTION_ID = 'agent-entity.toggle-pin'
+const AGENT_ENTITY_ICON_TYPE_ACTION_ID = 'agent-entity.icon-type'
 const AGENT_ENTITY_DELETE_ACTION_ID = 'agent-entity.delete'
 
 type SessionListItem = AgentSessionEntity & {
@@ -38,6 +45,7 @@ type AgentResourceListProps = {
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
+  onSelectedAgentClick?: () => void | Promise<void>
   onStartDraftAgent: (agentId: string) => void | Promise<void>
   onStartMissingAgentDraft?: () => void | Promise<void>
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
@@ -54,12 +62,17 @@ export function AgentResourceList({
   onAddAgent,
   onOpenHistoryRecords,
   onSelectSession,
+  onSelectedAgentClick,
   onStartDraftAgent,
   onStartMissingAgentDraft,
   resourceMenuItems,
   onActiveAgentDeleted
 }: AgentResourceListProps) {
   const { t } = useTranslation()
+  // Agent rail icon style is stored under its own key so it no longer mutates the assistant's.
+  const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
+  const [defaultModelId] = usePreference('chat.default_model_id')
+  const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
     sessions,
@@ -84,6 +97,9 @@ export function AgentResourceList({
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
+  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
+  const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
+  const manageSkillsMenuItem = resourceMenuItems?.find((item) => item.id === 'skill-resource-view')
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
   const sessionItems = useMemo<SessionListItem[]>(
@@ -93,21 +109,18 @@ export function AgentResourceList({
 
   const entities = useMemo<ResourceEntityRailItem[]>(
     () =>
-      agents.map((agent) => ({
-        id: agent.id,
-        name: agent.name,
-        orderKey: agent.orderKey,
-        pinned: agentPinnedIdSet.has(agent.id),
-        icon: (
-          <EmojiIcon
-            emoji={getAgentAvatarFromConfiguration(agent.configuration)}
-            size={24}
-            fontSize={14}
-            className="mr-0"
-          />
-        )
-      })),
-    [agents, agentPinnedIdSet]
+      agents.map((agent) => {
+        const icon = renderAgentEntityIcon(assistantIconType, agent, defaultModelId)
+
+        return {
+          id: agent.id,
+          name: agent.name,
+          orderKey: agent.orderKey,
+          pinned: agentPinnedIdSet.has(agent.id),
+          icon
+        }
+      }),
+    [agentPinnedIdSet, agents, assistantIconType, defaultModelId]
   )
 
   const sortSessionsForEntity = useCallback(
@@ -208,37 +221,39 @@ export function AgentResourceList({
       const pinned = agentPinnedIdSet.has(item.id)
 
       return [
-        {
+        buildResolvedResourceEntityMenuAction({
           id: AGENT_ENTITY_EDIT_ACTION_ID,
           label: t('agent.edit.title'),
           icon: <SquarePen size={14} />,
-          order: 10,
-          danger: false,
-          availability: { visible: true, enabled: true },
-          children: []
-        },
-        {
+          order: 10
+        }),
+        buildResolvedResourceEntityMenuAction({
           id: AGENT_ENTITY_TOGGLE_PIN_ACTION_ID,
           label: pinned ? t('agent.unpin.title') : t('agent.pin.title'),
           icon: pinned ? <PinOff size={14} /> : <Pin size={14} />,
           order: 20,
-          danger: false,
-          availability: { visible: true, enabled: !isAgentPinActionDisabled },
-          children: []
-        },
-        {
+          availability: { visible: true, enabled: !isAgentPinActionDisabled }
+        }),
+        buildResolvedIconTypeMenuAction(
+          AGENT_ENTITY_ICON_TYPE_ACTION_ID,
+          t('agent.icon.type'),
+          <Smile size={14} />,
+          25,
+          assistantIconType,
+          t
+        ),
+        buildResolvedResourceEntityMenuAction({
           id: AGENT_ENTITY_DELETE_ACTION_ID,
           label: t('agent.delete.title'),
           icon: <Trash2 size={14} className="lucide-custom text-destructive" />,
           group: 'danger',
           order: 30,
           danger: true,
-          availability: { visible: true, enabled: deletingAgentId === null },
-          children: []
-        }
+          availability: { visible: true, enabled: deletingAgentId === null }
+        })
       ]
     },
-    [agentPinnedIdSet, deletingAgentId, isAgentPinActionDisabled, t]
+    [agentPinnedIdSet, assistantIconType, deletingAgentId, isAgentPinActionDisabled, t]
   )
 
   const handleContextMenuAction = useCallback(
@@ -251,11 +266,15 @@ export function AgentResourceList({
         void handleToggleAgentPin(item.id)
         return
       }
+      if (action.id.startsWith(`${AGENT_ENTITY_ICON_TYPE_ACTION_ID}.`)) {
+        void setAssistantIconType(action.id.slice(AGENT_ENTITY_ICON_TYPE_ACTION_ID.length + 1) as AssistantIconType)
+        return
+      }
       if (action.id === AGENT_ENTITY_DELETE_ACTION_ID) {
         void handleDeleteAgent(item.id)
       }
     },
-    [handleDeleteAgent, handleToggleAgentPin, openAgentEditor]
+    [handleDeleteAgent, handleToggleAgentPin, openAgentEditor, setAssistantIconType]
   )
 
   return (
@@ -263,16 +282,28 @@ export function AgentResourceList({
       <ResourceEntityRail
         variant="agent"
         items={items}
-        selectedId={selectedId}
+        selectedId={hasActiveResourceMenuItem ? null : selectedId}
+        selectedClickId={hasActiveResourceMenuItem ? null : activeAgentId}
         status={listStatus}
         ariaLabel={t('agent.sidebar_title')}
         defaultGroupLabel={t('agent.sidebar_title')}
         addIcon={<Plus />}
         addLabel={t('agent.add.title')}
         onAdd={onAddAgent ?? (() => onStartMissingAgentDraft?.())}
-        onOpenHistoryRecords={onOpenHistoryRecords}
-        resourceMenuItems={resourceMenuItems}
+        headerActions={
+          <SessionListOptionsMenu
+            manageAgentsActive={manageAgentsMenuItem?.active}
+            manageSkillsActive={manageSkillsMenuItem?.active}
+            manageSkillsIcon={manageSkillsMenuItem?.icon}
+            mode={sessionDisplayMode}
+            onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
+            onManageAgents={manageAgentsMenuItem?.onSelect}
+            onManageSkills={manageSkillsMenuItem?.onSelect}
+            onOpenHistoryRecords={onOpenHistoryRecords}
+          />
+        }
         onSelect={handleSelect}
+        onSelectedClick={() => void onSelectedAgentClick?.()}
         onReorder={handleReorder}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}

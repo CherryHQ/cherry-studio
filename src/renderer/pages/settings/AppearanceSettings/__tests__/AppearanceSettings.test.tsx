@@ -308,4 +308,16 @@ describe('AppearanceSettings language selector', () => {
     expect(screen.getByRole('combobox', { name: /中文/ })).toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: /English/ })).not.toBeInTheDocument()
   })
+
+  it('does not render manual chat layout switches', async () => {
+    render(<AppearanceSettings />)
+
+    await waitFor(() => {
+      expect(window.api.getSystemFonts).toHaveBeenCalled()
+      expect(window.api.handleZoomFactor).toHaveBeenCalled()
+    })
+
+    expect(screen.queryByText('settings.messages.layout.conversation')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.messages.layout.work')).not.toBeInTheDocument()
+  })
 })

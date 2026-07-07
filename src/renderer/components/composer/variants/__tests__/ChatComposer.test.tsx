@@ -383,7 +383,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
-      'topic.layout': mocks.topicLayout
+      'topic.tab.display_mode': mocks.topicLayout === 'classic' ? 'assistant' : 'time'
     }
     return [values[key]]
   }
@@ -963,6 +963,17 @@ describe('ChatComposer', () => {
     expect(screen.getByText('Model A | Provider')).toBeInTheDocument()
     expect(screen.queryByTestId('resource-edit-dialog-host')).not.toBeInTheDocument()
     expect(mocks.updateTopic).not.toHaveBeenCalled()
+  })
+
+  it('keeps the assistant selector available in classic layout when no assistant is selected', () => {
+    mocks.topicLayout = 'classic'
+    mocks.assistant = undefined
+
+    render(<ChatHomeComposer topic={unlinkedTopic} onSend={vi.fn()} onDraftAssistantChange={vi.fn()} />)
+
+    expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
+    expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-auto-select-on-create', 'true')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('button.select_assistant')
   })
 
   it('keeps the assistant switcher in the toolbar in the modern layout', () => {

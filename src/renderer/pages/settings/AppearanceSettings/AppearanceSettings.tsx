@@ -35,7 +35,7 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import type { ChatLayoutMode, LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
+import type { LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
 import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
@@ -130,8 +130,6 @@ const AppearanceSettings: FC = () => {
   const [menuPresentationMode, setMenuPresentationMode] = usePreference('menu.presentation_mode')
   const [customCss, setCustomCss] = usePreference('ui.custom_css')
   const [fontSize] = usePreference('chat.message.font_size')
-  const [topicLayout, setTopicLayout] = usePreference('topic.layout')
-  const [sessionLayout, setSessionLayout] = usePreference('agent.layout')
   const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
   const [codeExecution, setCodeExecution] = useMultiplePreferences({
     enabled: 'chat.code.execution.enabled',
@@ -238,14 +236,6 @@ const AppearanceSettings: FC = () => {
     () => [
       { value: 'cherry' as const, label: t('settings.general.common.menu.presentation_mode.cherry') },
       { value: 'native' as const, label: t('settings.general.common.menu.presentation_mode.native') }
-    ],
-    [t]
-  )
-
-  const layoutOptions = useMemo(
-    () => [
-      { value: 'classic' as const, label: t('settings.messages.layout.classic') },
-      { value: 'modern' as const, label: t('settings.messages.layout.modern') }
     ],
     [t]
   )
@@ -464,30 +454,6 @@ const AppearanceSettings: FC = () => {
             </SettingRow>
           </>
         )}
-      </SettingGroup>
-
-      <SettingGroup theme={theme} className={appearanceSectionClassName}>
-        <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.messages.layout.conversation')}</SettingRowTitle>
-          <SegmentedControl<ChatLayoutMode>
-            value={topicLayout}
-            onValueChange={setTopicLayout}
-            options={layoutOptions}
-            size="sm"
-          />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.messages.layout.work')}</SettingRowTitle>
-          <SegmentedControl<ChatLayoutMode>
-            value={sessionLayout}
-            onValueChange={setSessionLayout}
-            options={layoutOptions}
-            size="sm"
-          />
-        </SettingRow>
       </SettingGroup>
 
       <SettingGroup theme={theme} className={appearanceSectionClassName}>
