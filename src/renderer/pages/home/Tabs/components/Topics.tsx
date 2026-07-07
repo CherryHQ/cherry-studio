@@ -30,9 +30,10 @@ import {
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
-import { useOptionalTabsContext } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { usePins } from '@renderer/hooks/usePins'
 import {
@@ -63,6 +64,7 @@ import {
   type TopicImageActionRequest,
   type TopicImageActionType
 } from '../../messages/topicImageActionBus'
+import TopicImageCaptureHost from '../../messages/TopicImageCaptureHost'
 import type { AddNewTopicPayload } from '../../types'
 import {
   type AssistantGroupActionContext,
@@ -89,6 +91,8 @@ import {
 import { useTopicMenuActions } from './useTopicMenuActions'
 
 const logger = loggerService.withContext('Topics')
+// Let the context menu close before mounting the heavier offscreen message list.
+const IMAGE_CAPTURE_START_DELAY_MS = 160
 
 const EMPTY_COLLAPSED_TOPIC_STATE: readonly string[] = []
 const DEFAULT_TOPIC_GROUP_VISIBLE_COUNT = 5
@@ -266,6 +270,11 @@ export function Topics({
   const [topicExpansionAssistant, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
+  const { queueTarget: queueImageCaptureTarget, targets: imageCaptureTargets } = useImageCaptureTargets<Topic>({
+    cancelMessage: 'Topic image export was cancelled',
+    delayMs: IMAGE_CAPTURE_START_DELAY_MS,
+    rejectPendingActions: rejectPendingTopicImageActions
+  })
   const [exportMenuOptions] = useMultiplePreferences({
     docx: 'data.export.menus.docx',
     image: 'data.export.menus.image',
@@ -317,6 +326,7 @@ export function Topics({
     error: assistantsError,
     refetch: refreshAssistants
   } = useAssistantsApi({ enabled: isAssistantDisplayMode })
+  const closeConversationTabs = useCloseConversationTabs()
   const { deleteAssistant } = useAssistantMutations()
   const defaultAssistant = useMemo(() => ({ name: t('chat.default.name'), emoji: DEFAULT_ASSISTANT_EMOJI }), [t])
   const listRef = useRef<HTMLDivElement>(null)
@@ -349,23 +359,17 @@ export function Topics({
 
   const handleTopicImageAction = useCallback(
     (type: TopicImageActionType, topic: Topic) => {
-      const request = requestTopicImageAction(type, topic)
+      const request = requestTopicImageAction(type, topic, { emit: false })
       if (type === 'export') {
         showTopicImageExportToast(request)
       } else {
         void request.promise.catch(() => window.toast.error(t('common.copy_failed')))
       }
 
-      if (topic.id !== activeTopic?.id) {
-        setActiveTopic(topic)
-      }
+      queueImageCaptureTarget(request, topic)
     },
-    [activeTopic?.id, setActiveTopic, showTopicImageExportToast]
+    [queueImageCaptureTarget, showTopicImageExportToast, t]
   )
-
-  useEffect(() => {
-    return () => rejectPendingTopicImageActions(undefined, new Error('Topic image export was cancelled'))
-  }, [])
 
   const apiBackedTopics = useMemo(
     () =>
@@ -805,7 +809,8 @@ export function Topics({
         })
         if (!confirmed) return
 
-        await deleteAssistant(assistantId, { deleteTopics: true })
+        const result = await deleteAssistant(assistantId, { deleteTopics: true })
+        closeConversationTabs('assistants', result.deletedTopicIds ?? [])
         if (activeTopic?.assistantId === assistantId) {
           await onActiveAssistantDeleted?.(assistantId)
         }
@@ -822,6 +827,7 @@ export function Topics({
     },
     [
       activeTopic?.assistantId,
+      closeConversationTabs,
       deleteAssistant,
       deletingAssistantId,
       onActiveAssistantDeleted,
@@ -1285,6 +1291,9 @@ export function Topics({
         }}
         onSaved={refreshAssistants}
       />
+      {imageCaptureTargets.map(({ requestId, target: topic }) => (
+        <TopicImageCaptureHost key={requestId} topic={topic} />
+      ))}
     </>
   )
 }
@@ -1560,7 +1569,7 @@ function TopicRow({
   const startInlineRename = useCallback(() => actions.startRename(topic.id), [actions, topic.id])
   const startMenuRename = useCallback(() => setRenameDialogOpen(true), [])
   const submitRenameDialog = useCallback((name: string) => actions.commitRename(topic.id, name), [actions, topic.id])
-  const { menuActions, handleMenuAction } = useTopicMenuActions({
+  const { getMenuActions, handleMenuAction } = useTopicMenuActions({
     exportMenuOptions,
     isActiveInCurrentTab: isActive,
     isRenaming: isRenaming(topic.id),
@@ -1654,7 +1663,7 @@ function TopicRow({
 
   return (
     <>
-      <ResourceListActionContextMenu item={topic} actions={menuActions} onAction={handleMenuAction}>
+      <ResourceListActionContextMenu item={topic} getActions={getMenuActions} onAction={handleMenuAction}>
         {row}
       </ResourceListActionContextMenu>
       <EditNameDialog
