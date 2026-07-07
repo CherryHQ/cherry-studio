@@ -174,8 +174,9 @@ type PartEntry = { part: CherryMessagePart; index: number }
 type GroupedEntry = PartEntry | PartEntry[]
 
 interface RenderGroupedEntryOptions {
-  expandedTextPartIds: ReadonlySet<string>
-  onTextPartExpandedChange: (partId: string, expanded: boolean) => void
+  expandedTextPartIds?: ReadonlySet<string>
+  onTextPartExpandedChange?: (partId: string, expanded: boolean) => void
+  showReasoningTitlePreview?: boolean
 }
 
 function groupPartEntries(entries: readonly PartEntry[]): GroupedEntry[] {
@@ -584,6 +585,7 @@ function renderPart(
           id={partId}
           content={reasoningPart.text || ''}
           isStreaming={reasoningPart.state === 'streaming'}
+          showTitlePreview={options?.showReasoningTitlePreview}
         />
       )
     }
@@ -633,9 +635,11 @@ function renderPart(
           citationReferences={citationReferences}
           role={message.role}
           composer={cherryMeta?.composer}
-          userContentExpanded={message.role === 'user' ? options?.expandedTextPartIds.has(partId) : undefined}
+          userContentExpanded={message.role === 'user' ? options?.expandedTextPartIds?.has(partId) : undefined}
           onUserContentExpandedChange={
-            message.role === 'user' ? (expanded) => options?.onTextPartExpandedChange(partId, expanded) : undefined
+            message.role === 'user' && options?.onTextPartExpandedChange
+              ? (expanded) => options.onTextPartExpandedChange?.(partId, expanded)
+              : undefined
           }
         />
       )
@@ -1078,7 +1082,9 @@ const OuterProcessFold = React.memo(function OuterProcessFold({
               aria-hidden="true"
               inert
               className="pointer-events-none flex h-full w-full flex-col gap-0 overflow-y-auto px-2.5 py-0.5 pr-7 [scrollbar-width:thin] [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0! [&_.message-thought-container]:leading-5! [&_.tool-block-group-content]:gap-0! [&_[role='button']]:min-h-6! [&_[role='button']]:py-0! [&_button]:min-h-6! [&_button]:py-0!">
-              {previewEntries.map((entry) => renderGroupedEntry(entry, message, false, false))}
+              {previewEntries.map((entry) =>
+                renderGroupedEntry(entry, message, false, false, { showReasoningTitlePreview: true })
+              )}
             </div>
           </motion.div>
         )}

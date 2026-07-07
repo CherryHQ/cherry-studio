@@ -77,8 +77,15 @@ describe('ThinkingBlock', () => {
     ...overrides
   })
 
-  const renderThinkingBlock = (block: ThinkingBlockFixture) => {
-    return render(<ThinkingBlock id={block.id} content={block.content} isStreaming={block.status === 'streaming'} />)
+  const renderThinkingBlock = (block: ThinkingBlockFixture, props: { showTitlePreview?: boolean } = {}) => {
+    return render(
+      <ThinkingBlock
+        id={block.id}
+        content={block.content}
+        isStreaming={block.status === 'streaming'}
+        showTitlePreview={props.showTitlePreview}
+      />
+    )
   }
 
   const getThinkingContent = () => screen.queryByText(/markdown:/i)
@@ -132,9 +139,18 @@ describe('ThinkingBlock', () => {
       expect(getCopyButton()).not.toBeInTheDocument()
     })
 
-    it('should show a single-line reasoning preview in the title while collapsed', () => {
+    it('should not show a reasoning preview in the title by default', () => {
       const block = createThinkingBlock({ content: 'First thought\n\nsecond thought\tthird thought' })
       renderThinkingBlock(block)
+
+      expect(screen.queryByText('First thought second thought third thought')).toBeNull()
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
+    })
+
+    it('should show a single-line reasoning preview in the title when enabled', () => {
+      const block = createThinkingBlock({ content: 'First thought\n\nsecond thought\tthird thought' })
+      renderThinkingBlock(block, { showTitlePreview: true })
 
       expect(screen.getByText('First thought second thought third thought')).toBeInTheDocument()
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')

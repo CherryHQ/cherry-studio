@@ -14,9 +14,11 @@ interface Props {
   content: string
   /** Whether this block is currently streaming */
   isStreaming: boolean
+  /** Whether to expose a one-line content preview in the title row */
+  showTitlePreview?: boolean
 }
 
-const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming }) => {
+const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePreview = false }) => {
   const block = useMemo<MarkdownSource>(
     () => ({
       id,
@@ -62,7 +64,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming }) => {
         <ThinkingEffect
           thinkingTimeText={<ThinkingTimeSeconds isThinking={isThinking} />}
           trailing={
-            previewText ? (
+            showTitlePreview && previewText ? (
               <span
                 aria-hidden="true"
                 className="min-w-0 flex-1 truncate whitespace-nowrap text-[13px] text-foreground-muted leading-5">

@@ -158,11 +158,15 @@ vi.mock('../ErrorBlock', () => ({
 
 vi.mock('../ThinkingBlock', () => ({
   __esModule: true,
-  default: function ThinkingBlockMock({ content }: any) {
+  default: function ThinkingBlockMock({ content, showTitlePreview }: any) {
     React.useEffect(() => {
       mockThinkingBlockMounted()
     }, [])
-    return <div data-testid="mock-thinking-block">{content}</div>
+    return (
+      <div data-testid="mock-thinking-block" data-show-title-preview={showTitlePreview ? 'true' : 'false'}>
+        {content}
+      </div>
+    )
   }
 }))
 
@@ -1310,6 +1314,7 @@ describe('MessagePartsRenderer', () => {
     expect(within(preview).getByText('thinking about the next read')).toBeInTheDocument()
     expect(screen.getAllByTestId('mock-markdown').every((node) => preview.contains(node))).toBe(true)
     expect(screen.getAllByTestId('mock-thinking-block').every((node) => preview.contains(node))).toBe(true)
+    expect(within(preview).getByTestId('mock-thinking-block')).toHaveAttribute('data-show-title-preview', 'true')
     expect(
       within(preview)
         .getAllByTestId('mock-message-tools')
@@ -1409,6 +1414,7 @@ describe('MessagePartsRenderer', () => {
     fireEvent.click(foldButton)
 
     expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('deep thought between tools')
+    expect(screen.getByTestId('mock-thinking-block')).toHaveAttribute('data-show-title-preview', 'false')
     expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
       'list',
       'read'
