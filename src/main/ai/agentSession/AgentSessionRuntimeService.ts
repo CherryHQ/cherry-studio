@@ -112,9 +112,12 @@ type AgentSessionRuntimeEntry = {
   status: AgentSessionRuntimeStatus
   pendingTurns: AgentSessionMessageEntity[]
   connection?: AgentRuntimeConnection
+  /** Model the current connection was opened with. A model edit invalidates reuse. */
+  connectionModelId?: UniqueModelId
   connectionLoop?: Promise<void>
   /** In-flight {@link ensureConnection} promise — shared by concurrent callers so only one connect runs. */
   connecting?: Promise<boolean>
+  connectingModelId?: UniqueModelId
   currentTurn?: AgentSessionTurn
   lastResumeToken?: string
   lastTerminalStatus?: AgentSessionRuntimeTerminalStatus
@@ -376,6 +379,10 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
+    if (Object.prototype.hasOwnProperty.call(updates, 'model')) {
+      this.applyAgentModelUpdate(agentId, agent.model)
+    }
+
     // `configuration` is a wholesale column replace, so a partial update that omits `permission_mode`
     // still changes the effective value (it clears it). Resync on ANY configuration change and derive
     // the authoritative value from the post-update agent — never from the update DTO's key presence,
@@ -392,6 +399,26 @@ export class AgentSessionRuntimeService extends BaseService {
       Object.prototype.hasOwnProperty.call(updates, 'mcps')
     ) {
       await this.applyAgentPolicyUpdate(agentId, { type: 'tool-policy', agent })
+    }
+  }
+
+  private applyAgentModelUpdate(agentId: string, modelId: UniqueModelId | null): void {
+    for (const entry of this.entries.values()) {
+      if (entry.agentId !== agentId) continue
+
+      if (!modelId) {
+        this.closeConnectionAsync(entry)
+        continue
+      }
+
+      if (entry.modelId === modelId) continue
+      entry.modelId = modelId
+
+      const turn = entry.currentTurn
+      const hasLiveTurn = turn && !turn.terminalStatus
+      if (!hasLiveTurn) {
+        this.closeConnectionAsync(entry)
+      }
     }
   }
 
@@ -446,7 +473,13 @@ export class AgentSessionRuntimeService extends BaseService {
     // Live turn + a backend that can steer → inject into the running turn (claude's PreToolUse steer
     // hook): the steer is folded into the current turn — no new turn, no queue entry. If the turn
     // ends before it's injected, the connection emits `steer-undelivered` and we queue it below.
-    if (turn && !turn.terminalStatus && entry.connection?.redirect?.({ message, systemReminder: true })) {
+    const canRedirectOnCurrentModel = entry.connectionModelId === entry.modelId
+    if (
+      turn &&
+      !turn.terminalStatus &&
+      canRedirectOnCurrentModel &&
+      entry.connection?.redirect?.({ message, systemReminder: true })
+    ) {
       return
     }
 
@@ -599,20 +632,40 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
-    if (!this.isCurrentEntry(entry)) return false
-    if (entry.connection) return true
-    // Share a single in-flight connect across concurrent callers so two streams opening at once
-    // can't each spin up a connection (the second would leak/clobber the first).
-    if (entry.connecting) return entry.connecting
+    while (this.isCurrentEntry(entry)) {
+      if (entry.connection) {
+        if (entry.connectionModelId === entry.modelId) return true
+        this.closeConnectionAsync(entry)
+        continue
+      }
 
-    const connecting = this.connect(entry).finally(() => {
-      if (entry.connecting === connecting) entry.connecting = undefined
-    })
-    entry.connecting = connecting
-    return connecting
+      // Share a single in-flight connect across concurrent callers so two streams opening at once
+      // can't each spin up a connection (the second would leak/clobber the first). If the agent's
+      // model changed while that connect was in flight, wait for the stale attempt to self-discard,
+      // then loop and open the new model.
+      if (entry.connecting) {
+        if (entry.connectingModelId === entry.modelId) return entry.connecting
+        await entry.connecting.catch(() => false)
+        continue
+      }
+
+      const connectingModelId = entry.modelId
+      const connecting = this.connect(entry, connectingModelId).finally(() => {
+        if (entry.connecting === connecting) {
+          entry.connecting = undefined
+          entry.connectingModelId = undefined
+        }
+      })
+      entry.connecting = connecting
+      entry.connectingModelId = connectingModelId
+      const connected = await connecting
+      if (connected) return true
+    }
+
+    return false
   }
 
-  private async connect(entry: AgentSessionRuntimeEntry): Promise<boolean> {
+  private async connect(entry: AgentSessionRuntimeEntry, modelId: UniqueModelId): Promise<boolean> {
     const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
 
@@ -622,11 +675,11 @@ export class AgentSessionRuntimeService extends BaseService {
     const connection = await driver.connect({
       sessionId: entry.sessionId,
       agentId: entry.agentId,
-      modelId: entry.modelId,
+      modelId,
       resumeToken: entry.lastResumeToken,
-      trace: this.sessionTraceContext(entry)
+      trace: this.sessionTraceContext(entry, modelId)
     })
-    if (!this.isCurrentEntry(entry)) {
+    if (!this.isCurrentEntry(entry) || entry.modelId !== modelId) {
       void Promise.resolve(connection.close()).catch((error) =>
         logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
       )
@@ -634,10 +687,14 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     entry.connection = connection
+    entry.connectionModelId = modelId
     this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
-      if (entry.connection === connection) entry.connection = undefined
+      if (entry.connection === connection) {
+        entry.connection = undefined
+        entry.connectionModelId = undefined
+      }
       if (entry.connectionLoop) entry.connectionLoop = undefined
     })
     return true
@@ -984,10 +1041,11 @@ export class AgentSessionRuntimeService extends BaseService {
    * The steer message is reused only for rename/seed context — U2 is already a persisted row.
    */
   private async startContinuationTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
+    const modelId = entry.currentTurn?.modelId ?? entry.modelId
     const steerMessage = entry.rollSteerInputs?.[0]?.message ?? createSyntheticUserMessage(entry.sessionId)
     entry.rollSteerInputs = undefined
 
-    const rootSpan = this.startRuntimeRootSpan(entry)
+    const rootSpan = this.startRuntimeRootSpan(entry, modelId)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
     try {
       assistantMessage = agentSessionMessageService.saveMessage({
@@ -996,7 +1054,7 @@ export class AgentSessionRuntimeService extends BaseService {
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
-          modelId: entry.modelId
+          modelId
         }
       })
     } catch (error) {
@@ -1016,7 +1074,7 @@ export class AgentSessionRuntimeService extends BaseService {
       turnId,
       assistantMessageId,
       userMessage: steerMessage,
-      modelId: entry.modelId,
+      modelId,
       // Pre-admitted: the steer was already delivered via the hook, so `admitTurn` must NOT re-send it.
       admitted: true,
       abortController: new AbortController(),
@@ -1027,7 +1085,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // Author the turn span's input/identity here (the runtime owns its roll continuation turns).
     if (rootSpan) {
       applyTurnInputAttributes(rootSpan, {
-        modelId: entry.modelId,
+        modelId,
         topicId: entry.topicId,
         operation: 'invoke_agent',
         messages
@@ -1035,7 +1093,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     application.get('AiStreamManager').startRuntimeTurn({
       topicId: entry.topicId,
-      modelId: entry.modelId,
+      modelId,
       rootSpan,
       request: {
         chatId: entry.topicId,
@@ -1066,7 +1124,10 @@ export class AgentSessionRuntimeService extends BaseService {
     for (const chunk of buffered) this.enqueueTurnChunk(turn, chunk)
   }
 
-  private startRuntimeRootSpan(entry: AgentSessionRuntimeEntry): Span | undefined {
+  private startRuntimeRootSpan(
+    entry: AgentSessionRuntimeEntry,
+    modelId: UniqueModelId = entry.modelId
+  ): Span | undefined {
     const traceId = entry.sessionTraceId
     if (!traceId) return undefined
     const turnTrace = startAiChildTurnSpan(
@@ -1075,20 +1136,23 @@ export class AgentSessionRuntimeService extends BaseService {
         attributes: {
           'cs.topic_id': entry.topicId,
           'cs.trigger': 'submit-message',
-          'cs.model_id': entry.modelId,
+          'cs.model_id': modelId,
           'cs.role': 'assistant',
           'cs.agent_id': entry.agentId,
           'cs.session_id': entry.sessionId
         }
       },
-      { topicId: entry.topicId, modelName: parseUniqueModelId(entry.modelId).modelId },
+      { topicId: entry.topicId, modelName: parseUniqueModelId(modelId).modelId },
       traceId
     )
     return turnTrace.rootSpan
   }
 
   /** Container trace passed to the driver as the connection's traceparent. */
-  private sessionTraceContext(entry: AgentSessionRuntimeEntry): AgentRuntimeTraceContext | undefined {
+  private sessionTraceContext(
+    entry: AgentSessionRuntimeEntry,
+    modelId: UniqueModelId = entry.modelId
+  ): AgentRuntimeTraceContext | undefined {
     const traceId = entry.sessionTraceId
     if (!traceId) return undefined
     return {
@@ -1097,7 +1161,7 @@ export class AgentSessionRuntimeService extends BaseService {
       rootSpanId: deriveRootSpanId(traceId),
       sessionId: entry.sessionId,
       turnId: entry.currentTurn?.turnId ?? '',
-      modelName: parseUniqueModelId(entry.modelId).modelId
+      modelName: parseUniqueModelId(modelId).modelId
     }
   }
 
@@ -1109,15 +1173,15 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!currentTurn) {
       throw new Error(`Cannot create persistence listener without an active turn: ${entry.sessionId}`)
     }
-    const { assistantMessageId } = currentTurn
+    const { assistantMessageId, modelId } = currentTurn
     const userText = extractMessageText(userMessage)
     return new PersistenceListener({
       topicId: entry.topicId,
-      modelId: entry.modelId,
+      modelId,
       backend: new AgentSessionMessageBackend({
         sessionId: entry.sessionId,
         assistantMessageId,
-        modelId: entry.modelId,
+        modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
         afterPersist: async (finalMessage) => {
           await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
@@ -1200,8 +1264,16 @@ export class AgentSessionRuntimeService extends BaseService {
   private closeConnection(entry: AgentSessionRuntimeEntry): AgentRuntimeConnection | undefined {
     const connection = entry.connection
     entry.connection = undefined
+    entry.connectionModelId = undefined
     entry.connectionLoop = undefined
     return connection
+  }
+
+  private closeConnectionAsync(entry: AgentSessionRuntimeEntry): void {
+    const connection = this.closeConnection(entry)
+    void Promise.resolve(connection?.close()).catch((error) =>
+      logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
+    )
   }
 }
 

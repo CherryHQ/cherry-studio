@@ -56,6 +56,7 @@ const baseTurnInput = {
   // Container-level session trace id (cached on the entry, drives the connection traceparent).
   traceId: 'a'.repeat(32)
 }
+const switchedModelId = 'claude-code::claude-opus-4-5' as any
 
 function userMessage(id: string) {
   return {
@@ -354,6 +355,70 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('reconnects an idle runtime when the agent model changes before the next turn', async () => {
+    const firstConnection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn()
+    }
+    const secondConnection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn()
+    }
+    const connect = vi.fn().mockResolvedValueOnce(firstConnection).mockResolvedValueOnce(secondConnection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const first = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const firstStream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: first.turnId,
+      signal: new AbortController().signal
+    })
+    const firstReader = firstStream.getReader()
+    await expect(firstReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(firstConnection.send).toHaveBeenCalled())
+
+    void terminalListener(first).onDone({ status: 'success', isTopicDone: true })
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { model: switchedModelId },
+      { id: 'agent-1', model: switchedModelId }
+    )
+
+    const second = service.beginTurn({
+      ...baseTurnInput,
+      modelId: switchedModelId,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2')
+    })
+    const secondStream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: second.turnId,
+      signal: new AbortController().signal
+    })
+    const secondReader = secondStream.getReader()
+
+    await expect(secondReader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() =>
+      expect(secondConnection.send).toHaveBeenCalledWith({ message: userMessage('user-2'), systemReminder: false })
+    )
+
+    expect(firstConnection.close).toHaveBeenCalled()
+    expect(connect).toHaveBeenNthCalledWith(1, expect.objectContaining({ modelId: baseTurnInput.modelId }))
+    expect(connect).toHaveBeenNthCalledWith(2, expect.objectContaining({ modelId: switchedModelId }))
+    expect(firstConnection.send).toHaveBeenCalledTimes(1)
+
+    await firstReader.cancel().catch(() => undefined)
+    await secondReader.cancel().catch(() => undefined)
+  })
+
   it('applies tool-policy updates when disabled tools change', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
@@ -424,6 +489,31 @@ describe('AgentSessionRuntimeService', () => {
       permissionMode: undefined
     })
     expect(connection.close).not.toHaveBeenCalled()
+  })
+
+  it('queues follow-ups instead of redirecting them into a stale-model live connection', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      redirect: vi.fn().mockReturnValue(true)
+    }
+    entry.connection = connection
+    entry.connectionModelId = baseTurnInput.modelId
+
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { model: switchedModelId },
+      { id: 'agent-1', model: switchedModelId }
+    )
+    service.enqueueUserMessage('session-1', userMessage('user-2'))
+
+    expect(connection.redirect).not.toHaveBeenCalled()
+    expect(entry.pendingTurns).toEqual([userMessage('user-2')])
+    expect(entry.steerMessageIds?.has('user-2')).toBe(true)
   })
 
   it('detaches and logs when a live policy update rejects without an open stream', async () => {
@@ -1644,6 +1734,34 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('persists an active turn with the model captured when that turn began', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { model: switchedModelId },
+      { id: 'agent-1', model: switchedModelId }
+    )
+
+    await persistenceListener(handle).onDone({
+      status: 'success',
+      isTopicDone: true,
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] }
+    })
+
+    expect(mocks.saveMessage).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      message: {
+        id: 'assistant-1',
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [] },
+        modelId: 'claude-code::claude-sonnet-4-5'
+      }
+    })
+  })
+
   it('starts queued turns with runtime request metadata and assistant seed', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
@@ -1688,6 +1806,35 @@ describe('AgentSessionRuntimeService', () => {
     expect(request.messageId).toBe(request.messages[1].id)
     // The session trace id is cached on the entry and reused for every turn (container-scoped trace).
     expect(getEntry(service).sessionTraceId).toBe('a'.repeat(32))
+  })
+
+  it('starts queued turns with the latest agent model after a model edit', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.pendingTurns.push(userMessage('user-2'))
+
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { model: switchedModelId },
+      { id: 'agent-1', model: switchedModelId }
+    )
+    await (service as any).startNextTurn(entry)
+
+    expect(mocks.saveMessage).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      message: {
+        role: 'assistant',
+        status: 'pending',
+        data: { parts: [] },
+        modelId: switchedModelId
+      }
+    })
+    expect(mocks.startRuntimeTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: switchedModelId
+      })
+    )
   })
 
   it('surfaces the error and settles the turn when the next-turn placeholder save rejects (R3)', async () => {
