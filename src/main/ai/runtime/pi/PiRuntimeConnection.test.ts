@@ -20,6 +20,10 @@ const mocks = vi.hoisted(() => ({
   getPath: vi.fn(),
   loadPiSdk: vi.fn(),
   readdirSync: vi.fn(),
+  // autonomy collaborators
+  listChannels: vi.fn(),
+  buildSystemPrompt: vi.fn(),
+  buildAutonomyToolDefinitions: vi.fn(),
   // pi fakes / captures
   subscribeCb: undefined as ((event: AgentSessionEvent) => void) | undefined,
   unsubscribe: vi.fn(),
@@ -55,8 +59,19 @@ vi.mock('@logger', () => ({
 vi.mock('@main/core/application', () => ({ application: { getPath: mocks.getPath } }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: { getById: mocks.getById } }))
 vi.mock('@data/services/AgentService', () => ({ agentService: { getAgent: mocks.getAgent } }))
+vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: { listChannels: mocks.listChannels } }))
 vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: { list: mocks.skillList, getSkillDirectory: mocks.getSkillDirectory }
+}))
+// PromptBuilder and tool adapters are exercised in their own suites; this is a wiring test.
+vi.mock('@main/ai/agents/prompt', () => ({
+  PromptBuilder: class {
+    buildSystemPrompt = mocks.buildSystemPrompt
+  }
+}))
+vi.mock('./piToolAdapter', () => ({
+  buildAutonomyToolDefinitions: mocks.buildAutonomyToolDefinitions,
+  AUTONOMY_TOOL_NAMES: new Set(['cron', 'notify', 'config', 'memory'])
 }))
 vi.mock('./modelInjection', () => ({ resolvePiProviderInjection: mocks.resolveInjection }))
 vi.mock('./piSdk', () => ({ loadPiSdk: mocks.loadPiSdk }))
@@ -163,8 +178,20 @@ beforeEach(() => {
   delete process.env.PI_CODING_AGENT_DIR
   delete process.env.PI_CODING_AGENT_SESSION_DIR
 
-  mocks.getById.mockReturnValue({ id: 'sess-1', agentId: 'agent-1', workspace: { path: WORKSPACE } })
+  mocks.getById.mockReturnValue({
+    id: 'sess-1',
+    agentId: 'agent-1',
+    workspace: { path: WORKSPACE, type: 'system' }
+  })
   mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.' })
+  mocks.listChannels.mockReturnValue([])
+  mocks.buildSystemPrompt.mockResolvedValue('AGENT PROMPT')
+  mocks.buildAutonomyToolDefinitions.mockReturnValue([
+    { name: 'cron' },
+    { name: 'notify' },
+    { name: 'config' },
+    { name: 'memory' }
+  ])
   mocks.skillList.mockResolvedValue([])
   mocks.getSkillDirectory.mockImplementation((folderName: string) => `/cherry/skills/${folderName}`)
   mocks.resolveInjection.mockResolvedValue({
@@ -204,7 +231,9 @@ describe('PiRuntimeConnection', () => {
     // agent.instructions become the pi system prompt override; disk SYSTEM.md discovery is suppressed.
     expect(mocks.loaderOpts).toMatchObject({ systemPrompt: '', appendSystemPrompt: [] })
     expect(typeof (mocks.loaderOpts as { systemPromptOverride?: () => string }).systemPromptOverride).toBe('function')
-    expect((mocks.loaderOpts as { systemPromptOverride: () => string }).systemPromptOverride()).toBe('Be helpful.')
+    expect((mocks.loaderOpts as { systemPromptOverride: () => string }).systemPromptOverride()).toBe(
+      'AGENT PROMPT\n\nBe helpful.'
+    )
   })
 
   it('reopens the session file by scanning for the resume session id', async () => {
@@ -754,5 +783,95 @@ describe('PiRuntimeConnection', () => {
     expect(
       conn.applyPolicyUpdate({ type: 'tool-policy', agent: { mcps: [], disabledTools: ['edit'], configuration: {} } })
     ).toBe(true)
+  })
+
+  describe('agent autonomy', () => {
+    const agentSession = {
+      id: 'sess-1',
+      agentId: 'agent-1',
+      workspaceId: 'ws-1',
+      workspace: { path: WORKSPACE, type: 'user' as const }
+    }
+
+    it('uses the PromptBuilder persona and injects the autonomy customTools', async () => {
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: {} })
+      mocks.getById.mockReturnValue(agentSession)
+      await new PiRuntimeConnection(input).start()
+
+      expect(mocks.buildSystemPrompt).toHaveBeenCalledWith(WORKSPACE, {}, false)
+      expect((mocks.loaderOpts as { systemPromptOverride: () => string }).systemPromptOverride()).toBe('AGENT PROMPT')
+      expect(mocks.buildAutonomyToolDefinitions).toHaveBeenCalledWith(
+        {
+          agentId: 'agent-1',
+          workspaceSource: { type: 'user', workspaceId: 'ws-1' },
+          workspacePath: WORKSPACE,
+          sourceChannelId: undefined
+        },
+        { agentId: 'agent-1', workspacePath: WORKSPACE }
+      )
+      expect(mocks.createOpts?.customTools).toEqual([
+        { name: 'cron' },
+        { name: 'notify' },
+        { name: 'config' },
+        { name: 'memory' }
+      ])
+    })
+
+    it('trails plain agent instructions after the persona', async () => {
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be terse.', configuration: {} })
+      mocks.getById.mockReturnValue(agentSession)
+      await new PiRuntimeConnection(input).start()
+
+      expect(mocks.buildSystemPrompt).toHaveBeenCalledWith(WORKSPACE, {}, true)
+      expect((mocks.loaderOpts as { systemPromptOverride: () => string }).systemPromptOverride()).toBe(
+        'AGENT PROMPT\n\nBe terse.'
+      )
+    })
+
+    it('scopes cron/notify default delivery to the channel linked to this session', async () => {
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', configuration: {} })
+      mocks.getById.mockReturnValue(agentSession)
+      mocks.listChannels.mockReturnValue([
+        { id: 'chan-other', sessionId: 'sess-other' },
+        { id: 'chan-1', sessionId: 'sess-1' }
+      ])
+      await new PiRuntimeConnection(input).start()
+
+      expect(mocks.buildAutonomyToolDefinitions).toHaveBeenCalledWith(
+        expect.objectContaining({ sourceChannelId: 'chan-1' }),
+        expect.anything()
+      )
+    })
+
+    it('bakes a disabled autonomy tool into excludeTools and the live gate still blocks it', async () => {
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['memory'], configuration: {} })
+      mocks.getById.mockReturnValue(agentSession)
+      const conn = await new PiRuntimeConnection(input).start()
+
+      expect(mocks.createOpts?.excludeTools).toEqual(['memory'])
+
+      const factories = (mocks.loaderOpts as { extensionFactories: Array<(pi: unknown) => void> }).extensionFactories
+      let handler!: (event: unknown, ctx: unknown) => Promise<{ block?: boolean } | undefined>
+      factories[1]({
+        on: (evt: string, h: unknown) => {
+          if (evt === 'tool_call') handler = h as typeof handler
+        }
+      })
+      await expect(
+        handler({ type: 'tool_call', toolName: 'memory', toolCallId: 'tc1', input: {} }, { signal: undefined })
+      ).resolves.toMatchObject({ block: true })
+      void conn
+    })
+
+    it('uses the always-on persona and autonomy tools for a standard agent', async () => {
+      await new PiRuntimeConnection(input).start()
+
+      expect(mocks.createOpts?.customTools).toHaveLength(4)
+      expect(mocks.buildAutonomyToolDefinitions).toHaveBeenCalledOnce()
+      expect(mocks.buildSystemPrompt).toHaveBeenCalledWith(WORKSPACE, undefined, true)
+      expect((mocks.loaderOpts as { systemPromptOverride: () => string }).systemPromptOverride()).toBe(
+        'AGENT PROMPT\n\nBe helpful.'
+      )
+    })
   })
 })

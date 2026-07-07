@@ -21,6 +21,7 @@ function buildGate(
     workspacePath: string
     getPermissionMode: () => AgentPermissionMode | undefined
     isDisabled: (toolName: string) => boolean
+    autoApprovedTools: ReadonlySet<string>
   }> = {}
 ) {
   const emitted: any[] = []
@@ -31,6 +32,7 @@ function buildGate(
     emit: (chunk) => emitted.push(chunk),
     getPermissionMode: () => 'default',
     isDisabled: () => false,
+    autoApprovedTools: new Set(),
     ...overrides
   })
   factory({
@@ -158,6 +160,42 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     await flush()
     expect(toolApprovalRegistry.abort('s1', 'pi-session-closed')).toBe(1)
     await expect(pending).resolves.toEqual({ block: true, reason: 'pi-session-closed' })
+  })
+
+  describe('soul autonomy tool auto-approval', () => {
+    const SOUL_TOOLS = new Set(['cron', 'notify', 'config', 'memory'])
+
+    it('auto-approves every soul tool in default mode with no approval request', async () => {
+      const { handler, emitted } = buildGate({ autoApprovedTools: SOUL_TOOLS })
+      for (const tool of ['cron', 'notify', 'config', 'memory']) {
+        await expect(handler(toolEvent(tool, {}), extCtx)).resolves.toBeUndefined()
+      }
+      expect(emitted).toHaveLength(0)
+    })
+
+    it('still hard-blocks a soul tool that is disabled (disabled beats auto-allow)', async () => {
+      const { handler, emitted } = buildGate({ autoApprovedTools: SOUL_TOOLS, isDisabled: (n) => n === 'memory' })
+      const result = await handler(toolEvent('memory', {}), extCtx)
+      expect(result?.block).toBe(true)
+      expect(result?.reason).toContain('disabled')
+      expect(emitted).toHaveLength(0)
+    })
+
+    it('does not auto-approve a non-soul tool — bash is still gated', async () => {
+      const { handler, emitted } = buildGate({ autoApprovedTools: SOUL_TOOLS })
+      void handler(toolEvent('bash', { command: 'ls' }), extCtx)
+      await flush()
+      expect(emitted).toHaveLength(1)
+      expect(emitted[0].type).toBe('tool-approval-request')
+    })
+
+    it('gates a soul tool when soul is off (empty auto-approve set)', async () => {
+      const { handler, emitted } = buildGate()
+      void handler(toolEvent('cron', {}), extCtx)
+      await flush()
+      expect(emitted).toHaveLength(1)
+      expect(emitted[0].type).toBe('tool-approval-request')
+    })
   })
 
   describe('workspace path scoping for the auto-approve fast-path', () => {

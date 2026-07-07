@@ -92,7 +92,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     hintKey: 'library.config.agent.field.runtime.pi_hint',
     permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan'),
     modelTiers: false,
-    heartbeat: false,
+    heartbeat: true,
     mcp: false,
     skills: true,
     slashCommands: PI_BUILTIN_COMMANDS,

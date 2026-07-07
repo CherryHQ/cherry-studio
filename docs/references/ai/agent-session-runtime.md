@@ -196,8 +196,17 @@ Allowed in v1:
   id; reopen resolves it by scanning this directory for `*_<id>.jsonl`, so the
   directory can be relocated without invalidating stored tokens.
 - Cherry agent instructions from the agent record, via `systemPromptOverride`.
+  Soul-mode agents override with the assembled CherryClaw persona
+  (`PromptBuilder` — SOUL.md/USER.md/FACT.md + autonomy-tool guidance +
+  bootstrap) instead of the plain instructions, mirroring the claude driver.
 - Inline Cherry-owned extensions required for the integration: provider
   injection and tool approval/policy enforcement.
+- Soul-mode autonomy tools (`cron`/`notify`/`config`/`memory`) as pi
+  `customTools`, built from the runtime-neutral definitions in
+  `ai/agents/tools`. The approval gate auto-approves these Cherry-owned tools
+  in every permission mode (unattended heartbeat turns must not block on a
+  renderer prompt), but `disabledTools` still hard-blocks them. Soul is opt-in
+  for pi (create default off) since pi tools run at main-process privilege.
 - The agent's enabled Cherry-managed skills, passed explicitly as
   `additionalSkillPaths` (their canonical `{dataPath}/Skills/<folderName>` dirs).
   These load even under `noSkills` because the paths are Cherry-owned and

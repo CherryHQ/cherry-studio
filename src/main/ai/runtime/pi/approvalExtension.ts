@@ -60,6 +60,11 @@ export interface PiApprovalContext {
   getPermissionMode: () => AgentPermissionMode | undefined
   /** Live disabled-tool predicate; read at fire-time for the same reason. */
   isDisabled: (toolName: string) => boolean
+  /** Cherry-owned soul/autonomy tools (`cron`/`notify`/`config`/`memory`) auto-approved in every
+   *  permission mode — they drive unattended heartbeat turns, so gating them would deadlock. Fixed
+   *  for the session's lifetime; empty when soul mode is off. The `isDisabled` block still hard-blocks
+   *  them (disabled beats auto-allow). */
+  autoApprovedTools: ReadonlySet<string>
 }
 
 export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFactory {
@@ -95,7 +100,10 @@ export function createPiApprovalExtension(ctx: PiApprovalContext): ExtensionFact
         }
       }
 
-      // (4) approval by permission mode.
+      // (4) approval by permission mode. Cherry-owned soul/autonomy tools are auto-approved in every
+      // mode first (unattended heartbeat turns must not block on a renderer prompt). The disabledTools
+      // block in (1) already ran, so a disabled soul tool stays hard-blocked — disabled beats auto-allow.
+      if (ctx.autoApprovedTools.has(toolName)) return
       const mode = ctx.getPermissionMode() ?? 'default'
       if (!requiresApproval(mode, toolName, input, ctx.workspacePath)) return
 

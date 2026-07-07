@@ -3135,7 +3135,7 @@
               "claude_code": "Claude Code",
               "pi": "pi"
             },
-            "pi_hint": "pi 智能體支援內建工具與技能，暫不支援 MCP 伺服器、計劃模式與 Soul 模式。"
+            "pi_hint": "pi 智能體支援內建工具、技能與 Soul 模式，暫不支援 MCP 伺服器與計劃模式。"
           },
           "small_model": {
             "hint": "輕量級檢查與格式化",
