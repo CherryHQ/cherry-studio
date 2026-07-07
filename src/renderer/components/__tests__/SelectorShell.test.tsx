@@ -321,13 +321,22 @@ describe('SelectorShell', () => {
     vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
       const style = originalGetComputedStyle(element)
       const isContent = element instanceof HTMLElement && element.getAttribute('data-selector-shell-content') === 'true'
-      if (!isContent) return style
+      const isPanel = element instanceof HTMLElement && element.getAttribute('data-selector-shell-panel') === 'true'
+      if (!isContent && !isPanel) return style
 
-      Object.defineProperties(style, {
-        maxHeight: { configurable: true, value: '160px' },
-        paddingTop: { configurable: true, value: '0px' },
-        paddingBottom: { configurable: true, value: '0px' }
-      })
+      if (isContent) {
+        Object.defineProperties(style, {
+          maxHeight: { configurable: true, value: '160px' },
+          paddingTop: { configurable: true, value: '0px' },
+          paddingBottom: { configurable: true, value: '0px' }
+        })
+      }
+      if (isPanel) {
+        Object.defineProperties(style, {
+          paddingTop: { configurable: true, value: '4px' },
+          paddingBottom: { configurable: true, value: '4px' }
+        })
+      }
       vi.spyOn(style, 'getPropertyValue').mockImplementation((property: string) =>
         property === '--radix-popover-content-available-height'
           ? '500px'
@@ -361,7 +370,7 @@ describe('SelectorShell', () => {
       </SelectorShell>
     )
 
-    await waitFor(() => expect(screen.getByTestId('available-height')).toHaveTextContent('140'))
+    await waitFor(() => expect(screen.getByTestId('available-height')).toHaveTextContent('132'))
   })
 
   it('does not force focus into search when search autoFocus is false', async () => {

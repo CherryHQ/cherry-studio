@@ -144,6 +144,15 @@ function toCssSize(value: number | string | undefined) {
   return typeof value === 'number' ? `${value}px` : value
 }
 
+/**
+ * SelectorShell uses a positioning shell plus a visible panel.
+ *
+ * The outer `PopoverContent` owns Radix placement, collision sizing, and viewport
+ * measurement; the inner panel owns the visible surface, padding, clipping, and
+ * enter/exit transform animation. Any new ref setter for elements that affect
+ * `availableListHeight` must keep the corresponding ref in the measurement
+ * calculation and the ResizeObserver element list.
+ */
 export function SelectorShell({
   trigger,
   open,
