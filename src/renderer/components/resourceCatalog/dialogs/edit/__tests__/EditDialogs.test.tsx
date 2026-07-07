@@ -900,7 +900,6 @@ describe('edit dialogs', () => {
   it('queues agent skill toggles until the edit dialog is saved', async () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
-    expandToolsMenu()
     selectTab('Skills')
 
     fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
