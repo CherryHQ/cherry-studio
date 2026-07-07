@@ -1460,6 +1460,7 @@
       "pause": "Pause",
       "placeholder": "Entrez votre message ici...",
       "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
+      "resize_height": "Redimensionner la hauteur d'entrée",
       "resource_panel": {
         "categories": {
           "agents": "Agents",
@@ -1478,6 +1479,7 @@
         },
         "title": "Ressources"
       },
+      "restore": "Restaurer",
       "send": "Envoyer",
       "send_failed": "Échec de l'envoi du message",
       "settings": "Paramètres",
@@ -1486,8 +1488,7 @@
           "clear": "Effacer l'historique de la conversation",
           "compact": "Conversation compacte avec instructions de focalisation optionnelles",
           "context": "Visualiser l'utilisation actuelle du contexte sous forme de grille colorée",
-          "cost": "Afficher les statistiques d'utilisation des jetons (voir le guide de suivi des coûts pour les détails spécifiques à l'abonnement)",
-          "todos": "Lister les éléments actuels de la liste de tâches"
+          "usage": "Afficher le coût de la session, les limites d'utilisation du plan et les statistiques d'activité"
         },
         "description": "Commandes slash de session d'agent",
         "title": "Commandes Slash"
@@ -1585,6 +1586,11 @@
       "new": {
         "branch": {
           "created": "Nouvelle branche créée",
+          "disabled": {
+            "active": "Ce nœud est déjà sélectionné. Continuez à taper pour étendre la branche à partir d'ici.",
+            "latest": "Vous êtes déjà à la fin de cette branche. Continuez à taper pour l'étendre.",
+            "no_follow_up": "Il n'y a pas encore de suite après ce message. Passez à ce nœud et continuez à taper à la place."
+          },
           "label": "Branche"
         },
         "context": "Effacer le contexte"
@@ -1615,6 +1621,13 @@
       "top": "Retour en haut"
     },
     "resend": "Réenvoyer",
+    "resource_view": {
+      "menu": {
+        "agent": "Agents",
+        "assistant": "Assistants",
+        "skill": "Compétences"
+      }
+    },
     "save": {
       "file": {
         "title": "Enregistrer dans un fichier local"
@@ -2061,6 +2074,7 @@
     "generate_random_seed": "Générer une graine aléatoire",
     "get_embedding_dimension": "Obtenir la dimension d'intégration",
     "go_to_settings": "Aller aux paramètres",
+    "help": "Aide",
     "html_preview": "Aperçu HTML",
     "i_know": "J'ai compris",
     "ignore": "Ignorer",
@@ -2785,15 +2799,11 @@
         "chunk_size": "Nombre cible de jetons pour chaque fragment de document. Cela influence la granularité de la récupération et la longueur du contexte.",
         "document_count": "Nombre maximal de fragments de document retournés pour chaque récupération. Des valeurs plus élevées couvrent davantage de contenu mais utilisent plus de contexte.",
         "embedding_model": "Utilisé pour convertir le contenu de la base de connaissances en vecteurs. Changer le modèle nécessite généralement de réindexer le contenu existant.",
-        "hybrid_alpha": "Poids du score vectoriel dans la récupération hybride. Des valeurs plus élevées favorisent la correspondance sémantique.",
         "processor": "Analyseur utilisé lors de l'importation des fichiers pour extraire le corps du texte, les tableaux et le contenu associé.",
         "rerank_model": "Modèle utilisé pour réordonner les résultats initiaux de récupération et améliorer la pertinence finale des segments.",
-        "search_mode": "Choisissez un mode de récupération : recherche vectorielle pour la correspondance sémantique, recherche plein texte pour les mots-clés ou recherche hybride pour les deux.",
         "smart_chunking": "Fractionner automatiquement selon la structure Markdown (titres, blocs de code, paragraphes) et ne jamais fractionner à l’intérieur d’un bloc de code. Désactivez pour fractionner uniquement selon le séparateur.",
-        "threshold": "Seuil de similarité pour filtrer les fragments peu pertinents. Des valeurs plus élevées rendent la récupération plus stricte.",
-        "threshold_disabled": "Ce mode de récupération retourne des résultats ordonnés et n'utilise pas de seuil de similarité."
+        "threshold": "Seuil de similarité pour filtrer les fragments peu pertinents. Des valeurs plus élevées rendent la récupération plus stricte."
       },
-      "hybrid_alpha": "Alpha Hybride",
       "processor": "Fournisseur de traitement",
       "rerank_disabled": "Désactivé",
       "rerank_model": "Modèle de reranking",
@@ -2802,12 +2812,6 @@
       "retrieval": "Paramètres de récupération",
       "save_action": "Enregistrer",
       "saved": "Enregistré",
-      "search_mode": {
-        "bm25": "Recherche en texte intégral",
-        "hybrid": "Recherche hybride (recommandée)",
-        "title": "Mode Recherche",
-        "vector": "Recherche vectorielle"
-      },
       "separator_rule": "Règle de séparateur",
       "smart_chunking": "Découpage intelligent",
       "threshold": "Seuil de similarité",
@@ -2916,7 +2920,8 @@
       "preview_description": "Aperçu",
       "preview_prompt": "Invite",
       "scroll_left": "Faire défiler les catégories vers la gauche",
-      "scroll_right": "Faire défiler les catégories vers la droite"
+      "scroll_right": "Faire défiler les catégories vers la droite",
+      "title": "Bibliothèque d'assistants"
     },
     "badge": {
       "update": "Mise à jour"
@@ -3351,6 +3356,10 @@
       "tags": "Étiquettes",
       "title": "Bibliothèque"
     },
+    "skill_add": {
+      "local_import": "Importation locale",
+      "online_search": "Recherche en ligne"
+    },
     "skill_detail": {
       "created_at": "Créé",
       "delete_description": "Supprimer cette compétence et toute sa configuration. Cette action ne peut pas être annulée.",
@@ -3361,6 +3370,15 @@
       "no_description": "Aucune description",
       "source_files": "Fichiers source",
       "updated_at": "Récemment mis à jour"
+    },
+    "skill_marketplace": {
+      "empty_description": "Recherchez dans les registres en ligne pour trouver des compétences installables.",
+      "empty_title": "Rechercher des compétences",
+      "no_results_description": "Essayez un autre mot-clé ou importez un fichier ZIP local ou un répertoire.",
+      "no_results_title": "Aucune compétence trouvée",
+      "search_failed_description": "La recherche a échoué. Veuillez réessayer plus tard.",
+      "search_placeholder": "Compétences de recherche...",
+      "title": "Recherche de compétences en ligne"
     },
     "sort": {
       "created": "Trier par date de création",
@@ -4689,7 +4707,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilote",
     "dashscope": "AliCloud BaiLian",
     "deepseek": "DeepSeek",
@@ -4702,6 +4720,7 @@
     "github": "GitHub Modèles",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent HunYuan",
@@ -4725,6 +4744,7 @@
     "ollama": "Ollama",
     "open-mineru": "Ouvrir MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
     "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
@@ -6253,7 +6273,7 @@
         "success": "Serveurs MCP récupérés avec succès"
       },
       "filter": {
-        "label": "[to be translated]:Filter"
+        "label": "Filtre"
       },
       "findMore": "Plus de serveurs MCP",
       "headers": "Заголовки запроса",
@@ -6295,7 +6315,7 @@
       "noDescriptionAvailable": "Aucune description disponible pour le moment",
       "noLogs": "Aucun journal pour le moment",
       "noServers": "Aucun serveur configuré",
-      "notInstalled": "[to be translated]:Not installed",
+      "notInstalled": "Non installé",
       "not_support": "Модель не поддерживается",
       "npx_list": {
         "actions": "Actions",
@@ -6325,7 +6345,7 @@
         "title": "Exécuter un MCP externe ?"
       },
       "provider": "Поставщик",
-      "providerNotFound": "[to be translated]:MCP provider not found",
+      "providerNotFound": "Fournisseur MCP non trouvé",
       "providerPlaceholder": "Название поставщика",
       "providerUrl": "Адрес поставщика",
       "providers": "Fournisseurs",
@@ -6806,6 +6826,7 @@
         "reorderFailed": "Échec du réordonnancement des invites",
         "updateFailed": "Échec de la mise à jour de l'invite"
       },
+      "manage": "Gérer les invites",
       "title": "Gestion des prompts",
       "titleLabel": "Titre",
       "titlePlaceholder": "Saisissez le titre du prompt",
@@ -6954,15 +6975,25 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "Le fournisseur Claude Code n'est disponible que pour les Agents — il ne peut pas être utilisé dans les chats ou les assistants.",
+        "description": "Connectez-vous avec votre abonnement Claude",
+        "description_detail": "Ce fournisseur réutilise la connexion CLI Claude Code (Claude Pro/Max) et n'est disponible que pour les Agents. Ouvrez un terminal et exécutez `claude /login` pour vous connecter.",
+        "launch_failed": "Impossible d'ouvrir le terminal. Exécutez `claude /login` manuellement pour vous connecter.",
+        "legal_link": "Juridique et conformité",
+        "logged_in": "Connecté à Claude Code",
+        "logged_in_detail": "Les agents utiliseront vos identifiants d'abonnement Claude Code CLI.",
+        "open_terminal": "Ouvrir le terminal pour se connecter",
+        "recheck": "Revérifier"
+      },
+      "codex": {
+        "account": "Compte : {{accountId}}",
+        "description": "Connectez-vous avec votre abonnement ChatGPT",
+        "description_detail": "Ce fournisseur utilise votre connexion ChatGPT Plus/Pro (OAuth) pour accéder aux modèles OpenAI Codex. Votre navigateur s'ouvrira pour finaliser la connexion.",
+        "logged_in": "Connecté à OpenAI Codex",
+        "sign_in_button": "Se connecter avec ChatGPT",
+        "sign_in_failed": "La connexion a échoué. Veuillez réessayer.",
+        "sign_in_success": "Connecté à OpenAI Codex",
+        "signing_in": "En attente du navigateur…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7038,6 +7069,15 @@
       },
       "filter_agent": "Fournisseurs pris en charge par l'agent de filtrage",
       "get_api_key": "Cliquez ici pour obtenir une clé",
+      "grok_cli": {
+        "description": "Connectez-vous avec votre abonnement SuperGrok",
+        "description_detail": "Ce fournisseur utilise votre connexion xAI SuperGrok (OAuth) pour accéder aux modèles Grok CLI (Grok Build, Composer). Votre navigateur s'ouvrira pour terminer la connexion.",
+        "logged_in": "Connecté à Grok CLI",
+        "sign_in_button": "Se connecter avec xAI",
+        "sign_in_failed": "La connexion a échoué. Veuillez réessayer.",
+        "sign_in_success": "Connecté à Grok CLI",
+        "signing_in": "En attente du navigateur…"
+      },
       "logo_upload_failed": "Échec du traitement de l'image sélectionnée",
       "misc": "autre",
       "more_endpoints": {
@@ -7255,6 +7295,9 @@
     },
     "skills": {
       "author": "Auteur",
+      "batchInstallComplete": "{{count}} compétences installées",
+      "batchInstallPartialFailed": "{{success}}/{{total}} compétences installées, {{failed}} échouées",
+      "batchInstallQueued": "En attente",
       "batchUninstallSuccess": "{{count}} compétences désinstallées",
       "builtin": "Intégré",
       "confirmBatchUninstall": "Êtes-vous sûr de vouloir désinstaller les {{count}} compétences sélectionnées ?",
@@ -7563,7 +7606,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Peintures",
     "settings": "Paramètres",
-    "store": "Bibliothèque d'assistants",
     "translate": "Traduire",
     "work": "Travail"
   },

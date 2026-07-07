@@ -17,7 +17,8 @@ vi.mock('@data/hooks/useDataApi', () => ({
 
 import type { InstalledSkill } from '@shared/types/skill'
 
-import { useAvailableSkills, useInstalledSkills, useSkillInstall } from '../useSkills'
+import { SKILL_SEARCH_FAILED_ERROR } from '../../utils/skillSearch'
+import { useAvailableSkills, useInstalledSkills, useSkillInstall, useSkillSearch } from '../useSkills'
 
 function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
   return {
@@ -213,6 +214,52 @@ describe('useSkillInstall', () => {
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
+  it('tracks multiple remote skill installs independently', async () => {
+    const pendingInstalls = new Map<string, (value: { success: true; data: InstalledSkill }) => void>()
+    installSkillMock.mockImplementation(
+      ({ installSource }: { installSource: string }) =>
+        new Promise((resolve) => {
+          pendingInstalls.set(installSource, resolve)
+        })
+    )
+    const { result } = renderHook(() => useSkillInstall())
+
+    let firstInstall!: ReturnType<typeof result.current.install>
+    let secondInstall!: ReturnType<typeof result.current.install>
+    act(() => {
+      firstInstall = result.current.install('skills.sh:owner/repo/first')
+      secondInstall = result.current.install('skills.sh:owner/repo/second')
+    })
+
+    await waitFor(() => {
+      expect(result.current.isInstalling('skills.sh:owner/repo/first')).toBe(true)
+      expect(result.current.isInstalling('skills.sh:owner/repo/second')).toBe(true)
+      expect(result.current.isInstalling()).toBe(true)
+    })
+
+    await act(async () => {
+      pendingInstalls.get('skills.sh:owner/repo/first')?.({
+        success: true,
+        data: createSkill({ id: 'skill-first' })
+      })
+      await firstInstall
+    })
+
+    expect(result.current.isInstalling('skills.sh:owner/repo/first')).toBe(false)
+    expect(result.current.isInstalling('skills.sh:owner/repo/second')).toBe(true)
+    expect(result.current.isInstalling()).toBe(true)
+
+    await act(async () => {
+      pendingInstalls.get('skills.sh:owner/repo/second')?.({
+        success: true,
+        data: createSkill({ id: 'skill-second' })
+      })
+      await secondInstall
+    })
+
+    expect(result.current.isInstalling()).toBe(false)
+  })
+
   it('returns installed skill when DataApi cache invalidation fails after IPC success', async () => {
     invalidateMock.mockRejectedValueOnce(new Error('refresh failed'))
     const { result } = renderHook(() => useSkillInstall())
@@ -256,5 +303,27 @@ describe('useSkillInstall', () => {
       await expect(result.current.installFromDirectory('/tmp/bad-dir')).rejects.toThrow('directory failed')
     })
     expect(toastErrorMock).toHaveBeenCalledWith('directory failed')
+  })
+})
+
+describe('useSkillSearch', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('surfaces an error when every marketplace registry fails', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('network down'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { result } = renderHook(() => useSkillSearch())
+
+    await act(async () => {
+      await result.current.search('react')
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(result.current.results).toEqual([])
+    expect(result.current.searching).toBe(false)
+    expect(result.current.error).toBe(SKILL_SEARCH_FAILED_ERROR)
   })
 })
