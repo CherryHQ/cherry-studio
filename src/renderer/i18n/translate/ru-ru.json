@@ -1460,6 +1460,7 @@
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
       "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
+      "resize_height": "Изменить высоту ввода",
       "resource_panel": {
         "categories": {
           "agents": "Агенты",
@@ -1478,6 +1479,7 @@
         },
         "title": "Ресурсы"
       },
+      "restore": "Восстановить",
       "send": "Отправить",
       "send_failed": "Не удалось отправить сообщение",
       "settings": "Настройки",
@@ -1486,8 +1488,7 @@
           "clear": "Очистить историю разговора",
           "compact": "Компактный разговор с опциональными инструкциями по фокусировке",
           "context": "Визуализируйте текущее использование контекста в виде цветной сетки",
-          "cost": "Показать статистику использования токенов (см. руководство по отслеживанию затрат для получения подробной информации по подписке)",
-          "todos": "Список текущих задач"
+          "usage": "Показывать стоимость сеанса, лимиты использования плана и статистику активности"
         },
         "description": "Слэш-команды сеанса агента",
         "title": "Слэш-команды"
@@ -1585,6 +1586,11 @@
       "new": {
         "branch": {
           "created": "Новая ветка создана",
+          "disabled": {
+            "active": "Этот узел уже выбран. Продолжайте ввод, чтобы расширить ветвь отсюда.",
+            "latest": "Вы уже находитесь в конце этой ветки. Продолжайте вводить текст, чтобы расширить её.",
+            "no_follow_up": "После этого сообщения пока нет продолжения. Переключитесь на этот узел и продолжайте вводить текст."
+          },
           "label": "Новая ветка"
         },
         "context": "Новый контекст"
@@ -1615,6 +1621,13 @@
       "top": "Вернуться наверх"
     },
     "resend": "Переотправить",
+    "resource_view": {
+      "menu": {
+        "agent": "Агенты",
+        "assistant": "Ассистенты",
+        "skill": "Навыки"
+      }
+    },
     "save": {
       "file": {
         "title": "Сохранить в локальный файл"
@@ -2061,6 +2074,7 @@
     "generate_random_seed": "Сгенерировать случайное зерно",
     "get_embedding_dimension": "Получить размерность вложения",
     "go_to_settings": "Перейти в настройки",
+    "help": "Помощь",
     "html_preview": "Предпросмотр HTML",
     "i_know": "Я понял",
     "ignore": "Игнорировать",
@@ -2785,15 +2799,11 @@
         "chunk_size": "Целевое количество токенов для каждого фрагмента документа. Это влияет на гранулярность извлечения и длину контекста.",
         "document_count": "Максимальное количество фрагментов документа, возвращаемых для каждого поиска. Более высокие значения охватывают больше контента, но используют больше контекста.",
         "embedding_model": "Используется для преобразования содержимого базы знаний в векторы. Смена модели обычно требует переиндексации существующего содержимого.",
-        "hybrid_alpha": "Вес векторной оценки в гибридном поиске. Более высокие значения делают приоритетнее семантическое соответствие.",
         "processor": "Парсер, используемый при импорте файлов для извлечения основного текста, таблиц и связанного контента.",
         "rerank_model": "Модель, используемая для повторного ранжирования первоначальных результатов поиска и повышения релевантности финальных фрагментов.",
-        "search_mode": "Выберите режим поиска: векторный поиск для семантического соответствия, полнотекстовый поиск по ключевым словам или гибридный поиск, объединяющий оба подхода.",
         "smart_chunking": "Автоматически разбивать по структуре Markdown (заголовки, блоки кода, абзацы) и никогда не разбивать внутри блока кода. Отключите, чтобы разбивать исключительно по разделителю.",
-        "threshold": "Порог схожести для фильтрации фрагментов с низкой релевантностью. Более высокие значения делают поиск строже.",
-        "threshold_disabled": "Этот режим извлечения возвращает упорядоченные результаты и не использует порог сходства."
+        "threshold": "Порог схожести для фильтрации фрагментов с низкой релевантностью. Более высокие значения делают поиск строже."
       },
-      "hybrid_alpha": "Гибридный Альфа",
       "processor": "Поставщик обработки",
       "rerank_disabled": "Отключено",
       "rerank_model": "Переупорядочивающая модель",
@@ -2802,12 +2812,6 @@
       "retrieval": "Параметры извлечения",
       "save_action": "Сохранить",
       "saved": "Сохранено",
-      "search_mode": {
-        "bm25": "Полнотекстовый поиск",
-        "hybrid": "Гибридный поиск (рекомендуется)",
-        "title": "Режим поиска",
-        "vector": "Векторный поиск"
-      },
       "separator_rule": "Правило разделителя",
       "smart_chunking": "Умное разбиение на фрагменты",
       "threshold": "Порог сходства",
@@ -2916,7 +2920,8 @@
       "preview_description": "Обзор",
       "preview_prompt": "Промпт",
       "scroll_left": "Прокрутить категории влево",
-      "scroll_right": "Прокрутите категории вправо"
+      "scroll_right": "Прокрутите категории вправо",
+      "title": "Библиотека помощников"
     },
     "badge": {
       "update": "Обновить"
@@ -3351,6 +3356,10 @@
       "tags": "Теги",
       "title": "Библиотека"
     },
+    "skill_add": {
+      "local_import": "Локальный импорт",
+      "online_search": "Онлайн-поиск"
+    },
     "skill_detail": {
       "created_at": "Создано",
       "delete_description": "Удалить этот навык и всю его конфигурацию. Это действие нельзя отменить.",
@@ -3361,6 +3370,15 @@
       "no_description": "Нет описания",
       "source_files": "Исходные файлы",
       "updated_at": "Недавно обновлено"
+    },
+    "skill_marketplace": {
+      "empty_description": "Поищите в онлайн-реестрах навыки, которые можно установить.",
+      "empty_title": "Поиск навыков",
+      "no_results_description": "Попробуйте другое ключевое слово или импортируйте локальный ZIP-архив или папку.",
+      "no_results_title": "Навыки не найдены",
+      "search_failed_description": "Поиск не удался. Пожалуйста, попробуйте позже.",
+      "search_placeholder": "Навыки поиска...",
+      "title": "Поиск навыков онлайн"
     },
     "sort": {
       "created": "Сортировать по дате создания",
@@ -4689,7 +4707,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Код Клода",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -4702,6 +4720,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
@@ -4725,6 +4744,7 @@
     "ollama": "Ollama",
     "open-mineru": "Открыть MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
     "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
@@ -6253,7 +6273,7 @@
         "success": "Успешно получены MCP-серверы"
       },
       "filter": {
-        "label": "[to be translated]:Filter"
+        "label": "Фильтр"
       },
       "findMore": "Найти больше MCP",
       "headers": "Заголовки",
@@ -6295,7 +6315,7 @@
       "noDescriptionAvailable": "Описание отсутствует",
       "noLogs": "Логов пока нет",
       "noServers": "Серверы не настроены",
-      "notInstalled": "[to be translated]:Not installed",
+      "notInstalled": "Не установлено",
       "not_support": "Модель не поддерживается",
       "npx_list": {
         "actions": "Действия",
@@ -6325,7 +6345,7 @@
         "title": "Запускать внешний MCP?"
       },
       "provider": "Провайдер",
-      "providerNotFound": "[to be translated]:MCP provider not found",
+      "providerNotFound": "Провайдер MCP не найден",
       "providerPlaceholder": "Имя провайдера",
       "providerUrl": "URL провайдера",
       "providers": "Поставщики",
@@ -6806,6 +6826,7 @@
         "reorderFailed": "Не удалось изменить порядок подсказок",
         "updateFailed": "Не удалось обновить подсказку"
       },
+      "manage": "Управление подсказками",
       "title": "Управление промптами",
       "titleLabel": "Заголовок",
       "titlePlaceholder": "Введите заголовок промпта",
@@ -6954,15 +6975,25 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "Провайдер Claude Code доступен только для Агентов — его нельзя использовать в чате или ассистентах.",
+        "description": "Войдите с помощью подписки Claude",
+        "description_detail": "Этот провайдер использует авторизацию Claude Code CLI (Claude Pro/Max) и доступен только для агентов. Откройте терминал и выполните `claude /login` для входа.",
+        "launch_failed": "Не удалось открыть терминал. Выполните `claude /login` вручную для входа в систему.",
+        "legal_link": "Правовые вопросы и соответствие требованиям",
+        "logged_in": "Вошли в Claude Code",
+        "logged_in_detail": "Агенты будут использовать учетные данные вашей подписки Claude Code CLI.",
+        "open_terminal": "Откройте терминал для входа в систему",
+        "recheck": "Перепроверить"
+      },
+      "codex": {
+        "account": "Аккаунт: {{accountId}}",
+        "description": "Войдите с помощью подписки ChatGPT",
+        "description_detail": "Этот провайдер использует ваш логин ChatGPT Plus/Pro (OAuth) для доступа к моделям OpenAI Codex. Ваш браузер откроется для завершения входа.",
+        "logged_in": "Вошли в OpenAI Codex",
+        "sign_in_button": "Войти с помощью ChatGPT",
+        "sign_in_failed": "Ошибка входа. Пожалуйста, попробуйте снова.",
+        "sign_in_success": "Выполнен вход в OpenAI Codex",
+        "signing_in": "Ожидание браузера…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7038,6 +7069,15 @@
       },
       "filter_agent": "Поддерживаемые поставщики агента фильтрации",
       "get_api_key": "Получить ключ API",
+      "grok_cli": {
+        "description": "Войдите с помощью вашей подписки SuperGrok",
+        "description_detail": "Этот провайдер использует вашу учетную запись xAI SuperGrok (OAuth) для доступа к моделям Grok CLI (Grok Build, Composer). Ваш браузер откроется для завершения входа.",
+        "logged_in": "Выполнен вход в Grok CLI",
+        "sign_in_button": "Войти с помощью xAI",
+        "sign_in_failed": "Ошибка входа. Пожалуйста, попробуйте снова.",
+        "sign_in_success": "Вход выполнен в Grok CLI",
+        "signing_in": "Ожидание браузера…"
+      },
       "logo_upload_failed": "Не удалось обработать выбранное изображение",
       "misc": "другие",
       "more_endpoints": {
@@ -7255,6 +7295,9 @@
     },
     "skills": {
       "author": "Автор",
+      "batchInstallComplete": "Установлено {{count}} навыков",
+      "batchInstallPartialFailed": "Установлено {{success}}/{{total}} навыков, {{failed}} не удалось",
+      "batchInstallQueued": "В очереди",
       "batchUninstallSuccess": "{{count}} навыков удалено",
       "builtin": "Встроенный",
       "confirmBatchUninstall": "Вы уверены, что хотите удалить выбранные навыки ({{count}})?",
@@ -7563,7 +7606,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Рисунки",
     "settings": "Настройки",
-    "store": "Библиотека помощников",
     "translate": "Перевод",
     "work": "Работа"
   },

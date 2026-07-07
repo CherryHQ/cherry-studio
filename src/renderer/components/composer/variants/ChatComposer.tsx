@@ -13,6 +13,7 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
@@ -725,6 +726,7 @@ const ChatComposerInner = ({
           icon: <MessageSquarePlus size={16} />,
           disabled,
           filterText: label,
+          searchAliases: getQuickPanelSearchAliases(t, 'chat.conversation.new', ['new chat']),
           action: () => {
             handleCreateEmptyTopic()
           }
@@ -740,6 +742,7 @@ const ChatComposerInner = ({
         label,
         icon: <MessageSquarePlus size={16} />,
         filterText: label,
+        searchAliases: getQuickPanelSearchAliases(t, 'chat.conversation.new', ['new chat']),
         action: () => {
           addNewTopic()
         }

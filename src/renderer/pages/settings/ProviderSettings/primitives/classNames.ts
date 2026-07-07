@@ -372,11 +372,8 @@ export const modelSyncClasses = {
     'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-destructive/15 hover:bg-destructive/[0.03] focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-destructive/15 data-[checked=true]:bg-background',
   fetchAvatar:
     'flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted font-medium text-xs leading-none text-foreground-muted',
-  fetchRowTitle: 'truncate text-sm font-medium leading-tight text-foreground',
-  fetchRowTitleStrike:
-    'truncate text-sm font-medium leading-tight text-foreground-muted line-through decoration-foreground-muted',
-  fetchRowId: 'mt-0.5 truncate font-mono text-xs leading-tight text-foreground-muted',
-  fetchRowIdStrike: 'mt-0.5 truncate font-mono text-xs leading-tight text-foreground-muted/70',
+  fetchRowId: 'truncate text-sm leading-tight text-foreground',
+  fetchRowIdStrike: 'truncate text-sm leading-tight text-foreground-muted line-through decoration-foreground-muted',
   fetchContextValue: 'shrink-0 text-xs leading-tight text-foreground-muted tabular-nums',
   /** Trailing capability icons — pull preview panel strip */
   fetchCapabilityStrip: 'flex shrink-0 items-center justify-end gap-[3px]'

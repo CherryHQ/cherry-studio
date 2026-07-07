@@ -21,6 +21,7 @@ export interface ComposerSuggestionItem {
   isMenu?: boolean
   suffix?: ReactNode | string
   query?: string
+  searchAliases?: readonly string[]
   command: (options: { editor: Editor; range: Range; item: ComposerSuggestionItem; query: string }) => void
 }
 

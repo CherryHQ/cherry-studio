@@ -1586,6 +1586,11 @@
       "new": {
         "branch": {
           "created": "新分支已创建",
+          "disabled": {
+            "active": "当前已定位到这个节点，继续输入即可从这里延续。",
+            "latest": "当前已在最新分支末尾，继续输入即可延续这个分支。",
+            "no_follow_up": "这条消息后还没有后续对话，切换到该节点后继续输入即可。"
+          },
           "label": "分支"
         },
         "context": "清除上下文"
@@ -3354,6 +3359,10 @@
       "tags": "标签",
       "title": "资源库"
     },
+    "skill_add": {
+      "local_import": "本地导入",
+      "online_search": "在线搜索"
+    },
     "skill_detail": {
       "created_at": "创建时间",
       "delete_description": "移除此技能及其所有配置,此操作不可恢复",
@@ -3364,6 +3373,15 @@
       "no_description": "暂无描述",
       "source_files": "源文件",
       "updated_at": "最近更新"
+    },
+    "skill_marketplace": {
+      "empty_description": "搜索在线技能源，查找可安装的技能。",
+      "empty_title": "搜索技能",
+      "no_results_description": "请尝试其他关键词,或本地导入 ZIP 文件/目录。",
+      "no_results_title": "未找到技能",
+      "search_failed_description": "搜索失败,请稍后重试。",
+      "search_placeholder": "搜索技能...",
+      "title": "在线搜索技能"
     },
     "sort": {
       "created": "按创建时间",
@@ -7305,6 +7323,9 @@
     },
     "skills": {
       "author": "作者",
+      "batchInstallComplete": "已安装 {{count}} 个技能",
+      "batchInstallPartialFailed": "已安装 {{success}}/{{total}} 个技能，{{failed}} 个失败",
+      "batchInstallQueued": "等待安装",
       "batchUninstallSuccess": "已卸载 {{count}} 个技能",
       "builtin": "内置",
       "confirmBatchUninstall": "确定要卸载选中的 {{count}} 个技能吗？",
