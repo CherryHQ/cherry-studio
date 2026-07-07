@@ -207,6 +207,14 @@ Allowed in v1:
   in every permission mode (unattended heartbeat turns must not block on a
   renderer prompt), but `disabledTools` still hard-blocks them. Soul is opt-in
   for pi (create default off) since pi tools run at main-process privilege.
+- The agent's selected MCP servers (`agent.mcps`) bridged into `customTools` via
+  `piMcpToolAdapter`, proxying each call to `McpRuntimeService` (the same runtime
+  the claude SDK bridge uses). Unlike the soul tools these are third-party and
+  are NOT added to `autoApprovedTools` — the approval gate treats a namespaced
+  `mcp__…` tool like any other (prompts in default/acceptEdits, allowed in
+  bypassPermissions). The catalog is warmed once (`refreshTools`, `allSettled`)
+  so a cold cache after boot is not empty and a dead server neither blocks nor
+  fails session start.
 - The agent's enabled Cherry-managed skills, passed explicitly as
   `additionalSkillPaths` (their canonical `{dataPath}/Skills/<folderName>` dirs).
   These load even under `noSkills` because the paths are Cherry-owned and

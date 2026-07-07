@@ -31,6 +31,7 @@ import type {
 } from '../types'
 import { createPiApprovalExtension } from './approvalExtension'
 import { resolvePiProviderInjection } from './modelInjection'
+import { buildMcpToolDefinitions } from './piMcpToolAdapter'
 import { loadPiSdk } from './piSdk'
 import { PiStreamAdapter } from './piStreamAdapter'
 import { AUTONOMY_TOOL_NAMES, buildAutonomyToolDefinitions } from './piToolAdapter'
@@ -155,8 +156,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
         })
       ],
       // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
-      // override runs; Cherry owns the persona from the agent record (or the soul
-      // prompt) only.
+      // override runs; Cherry owns the agent persona.
       systemPrompt: '',
       appendSystemPrompt: [],
       ...(systemPromptOverride ? { systemPromptOverride: () => systemPromptOverride } : {})
@@ -165,7 +165,11 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     const sessionManager = this.resolveSessionManager(pi, workspacePath, sessionDir)
 
-    const customTools = buildAutonomyToolDefinitions(...buildAutonomyToolContexts(agent.id, session))
+    // Cherry-owned autonomy tools are auto-approved for headless turns; third-party MCP tools
+    // remain approval-gated even though both are presented to pi as custom tools.
+    const autonomyTools = buildAutonomyToolDefinitions(...buildAutonomyToolContexts(agent.id, session))
+    const mcpTools = await buildMcpToolDefinitions(agent.mcps ?? [])
+    const customTools = [...autonomyTools, ...mcpTools]
 
     const { session: piSession } = await pi.createAgentSession({
       cwd: workspacePath,
@@ -180,11 +184,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       // so opt into the full built-in set explicitly.
       tools: [...PI_BUILTIN_TOOL_NAMES],
       customTools,
-      // Bake disabled tools out of the session's tool set (plan capability matrix); the approval gate
-      // also blocks them live so a mid-session disable is enforced. A disabled soul customTool is
-      // excluded here too (pi filters excludeTools out of customTools). No soul-specific builtins are
-      // excluded: claude's SOUL_MODE_DISALLOWED_TOOLS (Cron*/TodoWrite/*PlanMode/Worktree/Notebook)
-      // do not intersect pi's builtin set (read/grep/find/ls/bash/edit/write), so the set is empty.
+      // Bake disabled tools out of built-in and custom tool sets; the approval gate also blocks
+      // them live so a mid-session disable is enforced.
       ...(this.disabledTools.size > 0 ? { excludeTools: [...this.disabledTools] } : {})
     })
 

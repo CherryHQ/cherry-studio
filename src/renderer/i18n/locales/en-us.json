@@ -3135,7 +3135,7 @@
               "claude_code": "Claude Code",
               "pi": "pi"
             },
-            "pi_hint": "pi agents support built-in tools, skills, and Soul mode — MCP servers and plan mode are not available."
+            "pi_hint": "pi agents support built-in tools, skills, MCP servers, and Soul mode — plan mode is not available."
           },
           "small_model": {
             "hint": "Lightweight checks and formatting",

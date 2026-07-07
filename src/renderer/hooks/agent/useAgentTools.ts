@@ -105,11 +105,14 @@ export const useAgentTools = (source: AgentToolSource | null | undefined) => {
   }, [mcpIds, mcpServers, toolsByServer])
 
   const tools = useMemo<Tool[]>(() => {
-    // Claude registry machinery only; future runtime catalog gates live in agentRuntimeCapabilities.
-    if ((source?.type ?? 'claude-code') !== 'claude-code') return []
+    const type = source?.type ?? 'claude-code'
+    // MCP-origin tools are bridged for both claude-code and pi; the Claude built-in registry tools
+    // are claude-only (pi's built-ins come from its runtime descriptor, not this hook). Other
+    // runtimes contribute nothing here.
+    if (type !== 'claude-code' && type !== 'pi') return []
 
     const selectedServers = new Map(mcpServers.map((server) => [server.id, server]))
-    const descriptors: ClaudeToolDescriptor[] = [...claudeRegistrySdkDescriptors()]
+    const descriptors: ClaudeToolDescriptor[] = type === 'claude-code' ? [...claudeRegistrySdkDescriptors()] : []
     for (const id of mcpIds) {
       const server = selectedServers.get(id)
       if (!server) continue

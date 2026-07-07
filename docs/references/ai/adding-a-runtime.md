@@ -122,9 +122,10 @@ known exceptions, only if you need them:
 - Bespoke tool-card rendering: `src/renderer/components/chat/messages/tools/`
   keys card renderers by transport tag; a new runtime's tool parts render
   with the generic card until you add specific ones.
-- `useAgentTools.ts` is Claude-registry machinery (MCP + registry tools) and
-  intentionally returns `[]` for other runtimes; builtin tool catalogs come
-  from the descriptor instead.
+- `useAgentTools.ts` surfaces MCP-origin tools for the runtimes that bridge them
+  (claude-code and pi) plus the Claude built-in registry tools (claude-code
+  only); it returns `[]` for any other runtime. Built-in tool catalogs come from
+  the descriptor instead.
 
 ## Design rules (learned from the pi integration)
 

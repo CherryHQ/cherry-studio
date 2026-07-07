@@ -198,6 +198,22 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     })
   })
 
+  describe('bridged MCP tools (namespaced names)', () => {
+    it('gates a namespaced mcp__ tool in default mode (neither read-only nor edit-class)', async () => {
+      const { handler, emitted } = buildGate()
+      void handler(toolEvent('mcp__github__searchIssues', { q: 'bug' }), extCtx)
+      await flush()
+      expect(emitted).toHaveLength(1)
+      expect(emitted[0].type).toBe('tool-approval-request')
+    })
+
+    it('runs a namespaced mcp__ tool with no approval in bypassPermissions', async () => {
+      const { handler, emitted } = buildGate({ getPermissionMode: () => 'bypassPermissions' })
+      await expect(handler(toolEvent('mcp__github__searchIssues', { q: 'bug' }), extCtx)).resolves.toBeUndefined()
+      expect(emitted).toHaveLength(0)
+    })
+  })
+
   describe('workspace path scoping for the auto-approve fast-path', () => {
     it('still auto-allows a read with a relative in-workspace path', async () => {
       const { handler, emitted } = buildGate()
