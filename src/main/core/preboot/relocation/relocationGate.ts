@@ -15,9 +15,11 @@
  *     service (matches the preboot membership criterion in
  *     core/preboot/README.md).
  *   - Must run before `application.bootstrap()`. When it returns
- *     `'handled'`, the caller (main/index.ts) skips bootstrap entirely —
- *     the process is kept alive by the relocation window until the user
- *     clicks Restart, which relaunches with the freshly-committed path.
+ *     `'handled'`, the caller (main/index.ts) skips bootstrap entirely.
+ *     On success the process relaunches itself immediately after
+ *     committing the new path; on failure it returns `'handled'` and
+ *     stays alive via the relocation window until the user clicks
+ *     Restart.
  *
  * Why the copy happens here (preboot), not while the app is running:
  *   - At this point the previous process has fully exited, so NO file in
@@ -119,10 +121,12 @@ export async function runUserDataRelocationGate(): Promise<RelocationGateResult>
     currentProgress = makeProgress('committing', pending, 0, 0)
     relocationWindowManager.sendProgress(currentProgress)
     commitRelocation(pending.to)
+    logger.info('userData relocation completed; restarting', { from: pending.from, to: pending.to })
 
-    currentProgress = makeProgress('completed', pending, 0, 0)
-    relocationWindowManager.sendProgress(currentProgress)
-    logger.info('userData relocation completed', { from: pending.from, to: pending.to })
+    // Relaunch immediately after commit: a manual launch before exit
+    // would read the new path, grab a different single-instance lock,
+    // and start a full bootstrap — breaking the one-live-process invariant.
+    await relocationWindowManager.restartApp()
   } catch (error) {
     const message = (error as Error).message
     logger.error('userData relocation failed; staying on previous location', {
