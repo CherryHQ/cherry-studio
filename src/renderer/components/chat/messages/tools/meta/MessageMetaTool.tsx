@@ -73,16 +73,16 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
                 </TitleContent>
                 <TitleActions>
                   <ToolStatusIndicator status={getEffectiveStatus(status, false)} hasError={hasError} />
-                  {(isDone || isError) && copyText && (
-                    <CopyButton
-                      className="message-action-button invisible opacity-0 transition-opacity duration-150 focus-visible:visible focus-visible:opacity-100 group-hover/tool:visible group-hover/tool:opacity-100"
-                      onClick={handleCopy}
-                      aria-label={t('common.copy')}>
-                      {copied ? t('common.copied') : t('common.copy')}
-                    </CopyButton>
-                  )}
                 </TitleActions>
               </MessageTitleLabel>
+            ),
+            extra: (isDone || isError) && copyText && (
+              <CopyButton
+                className="message-action-button invisible opacity-0 transition-opacity duration-150 focus-visible:visible focus-visible:opacity-100 group-hover/tool:visible group-hover/tool:opacity-100"
+                onClick={handleCopy}
+                aria-label={t('common.copy')}>
+                {copied ? t('common.copied') : t('common.copy')}
+              </CopyButton>
             ),
             children: <Body toolResponse={toolResponse} toolName={tool.name as MetaToolName} />
           }
@@ -367,23 +367,15 @@ const TitleActions = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) 
   <div className={['flex shrink-0 items-center gap-1.5', className].filter(Boolean).join(' ')} {...props} />
 )
 
-const CopyButton = ({ className, onKeyDown, ...props }: ComponentPropsWithoutRef<'span'>) => (
-  <span
-    role="button"
-    tabIndex={0}
+const CopyButton = ({ className, type = 'button', ...props }: ComponentPropsWithoutRef<'button'>) => (
+  <button
+    type={type}
     className={[
       'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-foreground-secondary opacity-70 transition-all duration-200 hover:bg-(--color-accent) hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-(--color-primary) focus-visible:outline-2 focus-visible:outline-offset-2',
       className
     ]
       .filter(Boolean)
       .join(' ')}
-    onKeyDown={(event) => {
-      onKeyDown?.(event)
-      if (event.defaultPrevented) return
-      if (event.key !== 'Enter' && event.key !== ' ') return
-      event.preventDefault()
-      event.currentTarget.click()
-    }}
     {...props}
   />
 )

@@ -129,22 +129,19 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
                   </span>
                 </Tooltip>
               )}
-              {(isDone || isError) && copyText && (
-                <Tooltip content={t('common.copy')} delay={500}>
-                  <ActionButton
-                    className="message-action-button invisible opacity-0 transition-opacity duration-150 focus-visible:visible focus-visible:opacity-100 group-hover/tool:visible group-hover/tool:opacity-100"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      copyContent(JSON.stringify(result, null, 2), id)
-                    }}
-                    aria-label={t('common.copy')}>
-                    {copiedMap[id] ? t('common.copied') : t('common.copy')}
-                  </ActionButton>
-                </Tooltip>
-              )}
             </TitleActions>
           </TitleContent>
         </MessageTitleLabel>
+      ),
+      extra: (isDone || isError) && copyText && (
+        <Tooltip content={t('common.copy')} delay={500}>
+          <ActionButton
+            className="message-action-button invisible opacity-0 transition-opacity duration-150 focus-visible:visible focus-visible:opacity-100 group-hover/tool:visible group-hover/tool:opacity-100"
+            onClick={() => copyContent(JSON.stringify(result, null, 2), id)}
+            aria-label={t('common.copy')}>
+            {copiedMap[id] ? t('common.copied') : t('common.copy')}
+          </ActionButton>
+        </Tooltip>
       ),
       children: (
         <ToolResponseContainer
@@ -489,23 +486,15 @@ const TitleActions = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) 
   <div className={['flex shrink-0 items-center gap-1.5', className].filter(Boolean).join(' ')} {...props} />
 )
 
-const ActionButton = ({ className, onKeyDown, ...props }: ComponentPropsWithoutRef<'span'>) => (
-  <span
-    role="button"
-    tabIndex={0}
+const ActionButton = ({ className, type = 'button', ...props }: ComponentPropsWithoutRef<'button'>) => (
+  <button
+    type={type}
     className={[
       'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-foreground-secondary opacity-70 transition-all duration-200 hover:bg-(--color-accent) hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-(--color-primary) focus-visible:outline-2 focus-visible:outline-offset-2',
       className
     ]
       .filter(Boolean)
       .join(' ')}
-    onKeyDown={(event) => {
-      onKeyDown?.(event)
-      if (event.defaultPrevented) return
-      if (event.key !== 'Enter' && event.key !== ' ') return
-      event.preventDefault()
-      event.currentTarget.click()
-    }}
     {...props}
   />
 )

@@ -312,6 +312,13 @@ export function useChatRuntimeState({
             (execution) => !finishedBranchExecutionIdsRef.current.has(execution.executionId)
           )
           if (hasRemainingExecutions) {
+            if (!isError && message.parts?.length) {
+              try {
+                await refresh()
+              } catch (err) {
+                logger.warn('failed to refresh messages after branch execution finish', err as Error)
+              }
+            }
             disposeOverlay(message.id)
             setBranchLiveMessages((current) => current.filter((item) => item.id !== message.id))
           } else {
@@ -322,7 +329,7 @@ export function useChatRuntimeState({
         }
       })()
     },
-    [branchActiveExecutions, cache, disposeOverlay, invalidateCache, onBranchLiveStateChange, topic.id]
+    [branchActiveExecutions, cache, disposeOverlay, invalidateCache, onBranchLiveStateChange, refresh, topic.id]
   )
   finishRef.current = handleExecutionFinish
 

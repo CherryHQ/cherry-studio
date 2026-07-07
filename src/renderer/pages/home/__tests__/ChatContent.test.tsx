@@ -1165,6 +1165,7 @@ describe('ChatContent', () => {
       event: { message: CherryUIMessage; isAbort: boolean; isError: boolean }
     ) => void
     const disposeOverlay = mockExecutionOverlay.current.disposeOverlay
+    refresh.mockClear()
 
     act(() => {
       finish('provider::model-a', {
@@ -1175,9 +1176,11 @@ describe('ChatContent', () => {
     })
 
     await waitFor(() => {
+      expect(refresh).toHaveBeenCalledTimes(1)
       expect(disposeOverlay).toHaveBeenCalledWith('reserved-assistant-a')
       expect(onBranchLiveStateChange).not.toHaveBeenLastCalledWith(null)
     })
+    expect(refresh.mock.invocationCallOrder[0]).toBeLessThan(disposeOverlay.mock.invocationCallOrder[0])
 
     act(() => {
       finish('provider::model-b', {

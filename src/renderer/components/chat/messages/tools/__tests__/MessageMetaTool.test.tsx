@@ -44,7 +44,13 @@ describe('MessageMetaTool', () => {
 
     render(<MessageMetaTool toolResponse={createMetaToolResponse()} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.copy' }))
+    const copyButton = screen.getByRole('button', { name: 'common.copy' })
+    const triggerButton = screen.getByRole('button', { name: /tool_search/ })
+
+    expect(copyButton.tagName).toBe('BUTTON')
+    expect(triggerButton).not.toContainElement(copyButton)
+
+    fireEvent.click(copyButton)
 
     await waitFor(() => {
       expect(copyText).toHaveBeenCalledWith(expect.stringContaining('"query": "browser"'), {
