@@ -1460,6 +1460,7 @@
       "pause": "Pause",
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
+      "resize_height": "Eingabehöhe ändern",
       "resource_panel": {
         "categories": {
           "agents": "Agenten",
@@ -1478,6 +1479,7 @@
         },
         "title": "Ressourcen"
       },
+      "restore": "Wiederherstellen",
       "send": "Senden",
       "send_failed": "Nachricht konnte nicht gesendet werden",
       "settings": "Einstellungen",
@@ -1486,8 +1488,7 @@
           "clear": "Konversationsverlauf löschen",
           "compact": "Kompakte Unterhaltung mit optionalen Fokusanweisungen",
           "context": "Visualisieren Sie die aktuelle Kontextnutzung als farbiges Raster",
-          "cost": "Token-Nutzungsstatistiken anzeigen (siehe Leitfaden zur Kostenverfolgung für abonnementspezifische Details)",
-          "todos": "Aktuelle To-do-Einträge auflisten"
+          "usage": "Sitzungskosten, Plannutzungslimits und Aktivitätsstatistiken anzeigen"
         },
         "description": "Agent-Session-Slash-Befehle",
         "title": "Schrägstrich-Befehle"
@@ -1585,6 +1586,11 @@
       "new": {
         "branch": {
           "created": "Neuer Branch erstellt",
+          "disabled": {
+            "active": "Dieser Knoten ist bereits ausgewählt. Tippen Sie weiter, um den Zweig von hier aus zu erweitern.",
+            "latest": "Sie sind bereits am Ende dieses Zweigs. Tippen Sie weiter, um ihn zu erweitern.",
+            "no_follow_up": "Es gibt noch keine Nachfolge nach dieser Nachricht. Wechsle zu diesem Knoten und tippe stattdessen weiter."
+          },
           "label": "Branch"
         },
         "context": "Kontext löschen"
@@ -1615,6 +1621,13 @@
       "top": "Nach oben scrollen"
     },
     "resend": "Erneut senden",
+    "resource_view": {
+      "menu": {
+        "agent": "Agenten",
+        "assistant": "Assistenten",
+        "skill": "Fähigkeiten"
+      }
+    },
     "save": {
       "file": {
         "title": "In lokale Datei speichern"
@@ -2061,6 +2074,7 @@
     "generate_random_seed": "Zufälligen Seed generieren",
     "get_embedding_dimension": "Abruf der Einbettungsdimension",
     "go_to_settings": "Zu Einstellungen",
+    "help": "Hilfe",
     "html_preview": "HTML-Vorschau",
     "i_know": "Verstanden",
     "ignore": "Ignorieren",
@@ -2785,15 +2799,11 @@
         "chunk_size": "Ziel-Token-Anzahl für jedes Dokument-Chunk. Dies beeinflusst die Granularität der Abrufe und die Kontextlänge.",
         "document_count": "Maximale Anzahl der Dokumentblöcke, die für jede Abfrage zurückgegeben werden. Höhere Werte decken mehr Inhalt ab, verbrauchen jedoch mehr Kontext.",
         "embedding_model": "Wird verwendet, um Inhalte der Wissensdatenbank in Vektoren zu konvertieren. Eine Änderung des Modells erfordert in der Regel eine erneute Indizierung der vorhandenen Inhalte.",
-        "hybrid_alpha": "Vektor-Bewertungsgewicht in der hybriden Suche. Höhere Werte bevorzugen semantische Übereinstimmung.",
         "processor": "Parser, der beim Import von Dateien verwendet wird, um Fließtext, Tabellen und verwandte Inhalte zu extrahieren.",
         "rerank_model": "Modell zur Neusortierung der anfänglichen Abrufergebnisse und zur Verbesserung der Relevanz der endgültigen Blöcke.",
-        "search_mode": "Wählen Sie einen Abrufmodus: Vektorsuche für semantisches Matching, Volltextsuche für Schlüsselwörter oder hybride Suche für beides.",
         "smart_chunking": "Automatisch entlang der Markdown-Struktur (Überschriften, Codeblöcke, Absätze) aufteilen und niemals innerhalb eines Codeblocks aufteilen. Ausschalten, um rein nach dem Trennzeichen zu unterteilen.",
-        "threshold": "Ähnlichkeitsschwelle zum Filtern von wenig relevanten Chunks. Höhere Werte machen die Abfrage strenger.",
-        "threshold_disabled": "Dieser Abrufmodus liefert geordnete Ergebnisse und verwendet keinen Ähnlichkeitsschwellenwert."
+        "threshold": "Ähnlichkeitsschwelle zum Filtern von wenig relevanten Chunks. Höhere Werte machen die Abfrage strenger."
       },
-      "hybrid_alpha": "Hybrid Alpha",
       "processor": "Verarbeitungsanbieter",
       "rerank_disabled": "Deaktiviert",
       "rerank_model": "Rerank-Modell",
@@ -2802,12 +2812,6 @@
       "retrieval": "Abrufeinstellungen",
       "save_action": "Speichern",
       "saved": "G",
-      "search_mode": {
-        "bm25": "Volltextsuche",
-        "hybrid": "Hybrid-Suche (empfohlen)",
-        "title": "Suchmodus",
-        "vector": "Vektorsuche"
-      },
       "separator_rule": "Trennregel",
       "smart_chunking": "Intelligentes Chunking",
       "threshold": "Ähnlichkeitsschwelle",
@@ -2916,7 +2920,8 @@
       "preview_description": "Übersicht",
       "preview_prompt": "Aufforderung",
       "scroll_left": "Kategorien nach links scrollen",
-      "scroll_right": "Kategorien nach rechts scrollen"
+      "scroll_right": "Kategorien nach rechts scrollen",
+      "title": "Assistenten-Bibliothek"
     },
     "badge": {
       "update": "Aktualisierung"
@@ -3351,6 +3356,10 @@
       "tags": "Tags",
       "title": "Bibliothek"
     },
+    "skill_add": {
+      "local_import": "Lokaler Import",
+      "online_search": "Online-Suche"
+    },
     "skill_detail": {
       "created_at": "Erstellt",
       "delete_description": "Entferne diese Fähigkeit und ihre gesamte Konfiguration. Diese Aktion kann nicht rückgängig gemacht werden.",
@@ -3361,6 +3370,15 @@
       "no_description": "Keine Beschreibung",
       "source_files": "Quelldateien",
       "updated_at": "Kürzlich aktualisiert"
+    },
+    "skill_marketplace": {
+      "empty_description": "Suchen Sie in Online-Registern nach installierbaren Skills.",
+      "empty_title": "Nach Fähigkeiten suchen",
+      "no_results_description": "Versuchen Sie ein anderes Stichwort oder importieren Sie eine lokale ZIP-Datei oder ein Verzeichnis.",
+      "no_results_title": "Keine Fähigkeiten gefunden",
+      "search_failed_description": "Suche fehlgeschlagen. Bitte versuchen Sie es später erneut.",
+      "search_placeholder": "Suchkompetenzen...",
+      "title": "Online-Skill-Suche"
     },
     "sort": {
       "created": "Nach Erstellungsdatum sortieren",
@@ -4689,7 +4707,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud Bailian",
     "deepseek": "DeepSeek",
@@ -4702,6 +4720,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
@@ -4725,6 +4744,7 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
     "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
@@ -6253,7 +6273,7 @@
         "success": "MCP-Server erfolgreich abgerufen"
       },
       "filter": {
-        "label": "[to be translated]:Filter"
+        "label": "Filter"
       },
       "findMore": "Mehr MCP",
       "headers": "Request-Header",
@@ -6295,7 +6315,7 @@
       "noDescriptionAvailable": "Keine Beschreibung",
       "noLogs": "Noch keine Protokolle",
       "noServers": "Server nicht konfiguriert",
-      "notInstalled": "[to be translated]:Not installed",
+      "notInstalled": "Nicht installiert",
       "not_support": "Modell nicht unterstützt",
       "npx_list": {
         "actions": "Aktionen",
@@ -6325,7 +6345,7 @@
         "title": "Externes MCP ausführen?"
       },
       "provider": "Anbieter",
-      "providerNotFound": "[to be translated]:MCP provider not found",
+      "providerNotFound": "MCP-Anbieter nicht gefunden",
       "providerPlaceholder": "Anbietername",
       "providerUrl": "Anbieter-Website",
       "providers": "Anbieter",
@@ -6806,6 +6826,7 @@
         "reorderFailed": "Fehler beim Neuanordnen der Eingabeaufforderungen",
         "updateFailed": "Fehler beim Aktualisieren der Eingabeaufforderung"
       },
+      "manage": "Prompts verwalten",
       "title": "Prompt-Verwaltung",
       "titleLabel": "Titel",
       "titlePlaceholder": "Geben Sie einen Titel für den Prompt ein",
@@ -6954,15 +6975,25 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "Der Claude Code-Provider ist nur für Agents verfügbar – er kann nicht in Chat oder Assistenten verwendet werden.",
+        "description": "Melden Sie sich mit Ihrem Claude-Abonnement an",
+        "description_detail": "Dieser Anbieter verwendet die Claude Code CLI-Anmeldung (Claude Pro/Max) und ist nur für Agents verfügbar. Öffnen Sie ein Terminal und führen Sie `claude /login` aus, um sich anzumelden.",
+        "launch_failed": "Terminal konnte nicht geöffnet werden. Führen Sie `claude /login` manuell aus, um sich anzumelden.",
+        "legal_link": "Recht & Compliance",
+        "logged_in": "Angemeldet bei Claude Code",
+        "logged_in_detail": "Agents werden Ihre Claude Code CLI-Abonnement-Anmeldedaten verwenden.",
+        "open_terminal": "Terminal öffnen, um sich anzumelden",
+        "recheck": "Nachprüfung"
+      },
+      "codex": {
+        "account": "Konto: {{accountId}}",
+        "description": "Melden Sie sich mit Ihrem ChatGPT-Abonnement an",
+        "description_detail": "Dieser Anbieter verwendet Ihren ChatGPT Plus/Pro-Login (OAuth), um auf OpenAI Codex-Modelle zuzugreifen. Ihr Browser wird geöffnet, um die Anmeldung abzuschließen.",
+        "logged_in": "Bei OpenAI Codex angemeldet",
+        "sign_in_button": "Mit ChatGPT anmelden",
+        "sign_in_failed": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+        "sign_in_success": "Angemeldet bei OpenAI Codex",
+        "signing_in": "Warte auf Browser…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7038,6 +7069,15 @@
       },
       "filter_agent": "Von Filter-Agent unterstützte Anbieter",
       "get_api_key": "Hier klicken um Schlüssel zu erhalten",
+      "grok_cli": {
+        "description": "Melden Sie sich mit Ihrem SuperGrok-Abonnement an",
+        "description_detail": "Dieser Anbieter verwendet Ihren xAI SuperGrok-Login (OAuth), um auf Grok CLI-Modelle (Grok Build, Composer) zuzugreifen. Ihr Browser wird geöffnet, um die Anmeldung abzuschließen.",
+        "logged_in": "Bei Grok CLI angemeldet",
+        "sign_in_button": "Mit xAI anmelden",
+        "sign_in_failed": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+        "sign_in_success": "Bei Grok CLI angemeldet",
+        "signing_in": "Warte auf Browser…"
+      },
       "logo_upload_failed": "Verarbeitung des ausgewählten Bildes fehlgeschlagen",
       "misc": "Sonstige",
       "more_endpoints": {
@@ -7255,6 +7295,9 @@
     },
     "skills": {
       "author": "Autor",
+      "batchInstallComplete": "{{count}} Fähigkeiten installiert",
+      "batchInstallPartialFailed": "{{success}}/{{total}} Fähigkeiten installiert, {{failed}} fehlgeschlagen",
+      "batchInstallQueued": "In Warteschlange",
       "batchUninstallSuccess": "{{count}} Fähigkeiten deinstalliert",
       "builtin": "Integriert",
       "confirmBatchUninstall": "Sind Sie sicher, dass Sie {{count}} ausgewählte Fähigkeiten deinstallieren möchten?",
@@ -7563,7 +7606,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Zeichnen",
     "settings": "Einstellungen",
-    "store": "Assistenten-Bibliothek",
     "translate": "Übersetzen",
     "work": "Arbeit"
   },

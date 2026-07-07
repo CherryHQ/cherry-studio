@@ -36,6 +36,8 @@ import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServer } from '@renderer/hooks/useMcpServer'
 import { useTheme } from '@renderer/hooks/useTheme'
 import McpDescription from '@renderer/pages/settings/McpSettings/McpDescription'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { McpTool } from '@renderer/types/tool'
 import { parseKeyValueString } from '@renderer/utils/env'
 import { formatMcpError } from '@renderer/utils/error'
@@ -417,10 +419,10 @@ const McpSettings: React.FC = () => {
         try {
           await updateMcpServer({ body: { ...mcpServerDto, isActive: true } })
           await window.api.mcp.restartServer(server.id)
-          window.toast.success(t('settings.mcp.updateSuccess'))
+          toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
-          window.modal.error({
+          void popup.error({
             title: t('settings.mcp.updateError'),
             content: error.message,
             centered: true
@@ -428,7 +430,7 @@ const McpSettings: React.FC = () => {
         }
       } else {
         await updateMcpServer({ body: { ...mcpServerDto, isActive: false } })
-        window.toast.success(t('settings.mcp.updateSuccess'))
+        toast.success(t('settings.mcp.updateSuccess'))
         setIsFormChanged(false)
       }
       setLoading(false)
@@ -485,20 +487,20 @@ const McpSettings: React.FC = () => {
   const onDeleteMcpServer = useCallback(
     async (serverToDelete: McpServer) => {
       try {
-        window.modal.confirm({
+        const confirmed = await popup.confirm({
           title: t('settings.mcp.deleteServer'),
           content: t('settings.mcp.deleteServerConfirm'),
           centered: true,
-          okButtonProps: { danger: true },
-          onOk: async () => {
-            await window.api.mcp.removeServer(serverToDelete.id)
-            await deleteMcpServer({})
-            window.toast.success(t('settings.mcp.deleteSuccess'))
-            void navigate({ to: '/settings/mcp' })
-          }
+          okButtonProps: { danger: true }
         })
+        if (!confirmed) return
+
+        await window.api.mcp.removeServer(serverToDelete.id)
+        await deleteMcpServer({})
+        toast.success(t('settings.mcp.deleteSuccess'))
+        void navigate({ to: '/settings/mcp' })
       } catch (error: any) {
-        window.toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
+        toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
       }
     },
 
@@ -543,7 +545,7 @@ const McpSettings: React.FC = () => {
           const version = await window.api.mcp.getServerVersion(serverForUpdate.id)
           setServerVersion(version)
         } catch (error: any) {
-          window.modal.error({
+          void popup.error({
             title: t('settings.mcp.startError'),
             content: formatMcpError(error as McpError),
             centered: true
@@ -555,7 +557,7 @@ const McpSettings: React.FC = () => {
         setServerVersion(null)
       }
     } catch (error: any) {
-      window.modal.error({
+      void popup.error({
         title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
         content: formatMcpError(error as McpError),
         centered: true

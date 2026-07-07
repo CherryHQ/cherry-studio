@@ -12,6 +12,7 @@ import {
 import { loggerService } from '@logger'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
+import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { DEFAULT_TAG_COLOR, getRandomTagColor } from '@renderer/utils/resourceCatalog'
 import { Check, ChevronDown, Copy, Download, Plus, Tag, Trash2 } from 'lucide-react'
@@ -92,7 +93,7 @@ export function ResourceCardMenu({
         // The inline error text only renders while the popup is open. Toast +
         // log so the failure stays visible after menu close and lands in
         // diagnostics either way.
-        window.toast.error(message)
+        toast.error(message)
         logger.error('Failed to sync resource tags', e instanceof Error ? e : new Error(String(e)), {
           resourceId: resource.id,
           type: resource.type

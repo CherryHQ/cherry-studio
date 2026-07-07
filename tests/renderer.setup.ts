@@ -1,7 +1,10 @@
 import '@testing-library/jest-dom/vitest'
 
 import { createRequire } from 'node:module'
-import { beforeAll, expect, vi } from 'vitest'
+import { beforeAll, beforeEach, expect, vi } from 'vitest'
+
+import { resetPopupMocks } from './__mocks__/renderer/popup'
+import { resetToastMocks } from './__mocks__/renderer/toast'
 
 const require = createRequire(import.meta.url)
 const bufferModule = require('buffer')
@@ -103,6 +106,26 @@ vi.mock('@data/hooks/usePreference', async () => {
 vi.mock('@data/hooks/useCache', async () => {
   const { MockUseCache } = await import('./__mocks__/renderer/useCache')
   return MockUseCache
+})
+
+// Mock the toast notification surface globally for renderer tests
+vi.mock('@renderer/services/toast', async () => {
+  const { MockToast } = await import('./__mocks__/renderer/toast')
+  return MockToast
+})
+
+// Mock the popup (dialog) surface globally for renderer tests. Infra unit tests that
+// need the real store opt out with vi.mock('@renderer/services/popup', importOriginal).
+vi.mock('@renderer/services/popup', async () => {
+  const { MockPopup } = await import('./__mocks__/renderer/popup')
+  return MockPopup
+})
+
+// Reset the toast/popup spies (and restore the confirm-family default) before each
+// test so suites don't need to manage that shared mock state themselves.
+beforeEach(() => {
+  resetToastMocks()
+  resetPopupMocks()
 })
 
 // Mock uuid globally for renderer tests

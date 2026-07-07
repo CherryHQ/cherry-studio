@@ -1,5 +1,6 @@
 import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import { ChevronsDown, ChevronsUp, MoreHorizontal, ToggleLeft, ToggleRight } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useMemo, useState } from 'react'
@@ -47,7 +48,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
     setOpenMenu(null)
     void Promise.resolve(modelList.header.onToggleVisibleModels(false)).catch((error) => {
       logger.error('Failed to disable visible provider models', { providerId, error })
-      window.toast.error(t('settings.models.manage.operation_failed'))
+      toast.error(t('settings.models.manage.operation_failed'))
     })
   }, [modelList.header, providerId, t])
 
@@ -55,7 +56,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
     setOpenMenu(null)
     void Promise.resolve(modelList.header.onToggleVisibleModels(true)).catch((error) => {
       logger.error('Failed to enable visible provider models', { providerId, error })
-      window.toast.error(t('settings.models.manage.operation_failed'))
+      toast.error(t('settings.models.manage.operation_failed'))
     })
   }, [modelList.header, providerId, t])
 

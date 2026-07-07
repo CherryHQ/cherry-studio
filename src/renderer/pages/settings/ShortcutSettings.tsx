@@ -27,6 +27,8 @@ import {
   settingsContentHeaderTitleClassName,
   settingsContentScrollClassName
 } from '@renderer/pages/settings/settingsStyles'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { isMac, platform } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
@@ -238,7 +240,7 @@ const ShortcutSettings: FC = () => {
       })
 
       if (hasConflict) {
-        window.toast.error(t('settings.shortcuts.occupied_by_other_application'))
+        toast.error(t('settings.shortcuts.occupied_by_other_application'))
       }
     })
   }, [t])
@@ -270,7 +272,7 @@ const ShortcutSettings: FC = () => {
 
   const handleUpdateFailure = (record: (typeof shortcuts)[number], error: unknown) => {
     logger.error(`Failed to update shortcut preference: ${record.key}`, error as Error)
-    window.toast.error(t('settings.shortcuts.save_failed_with_name', { name: record.label }))
+    toast.error(t('settings.shortcuts.save_failed_with_name', { name: record.label }))
   }
 
   const handleResetShortcut = async (record: (typeof shortcuts)[number]) => {
@@ -320,7 +322,7 @@ const ShortcutSettings: FC = () => {
   }
 
   const showConflictToast = (label: string) => {
-    window.toast.error(t('settings.shortcuts.conflict_with', { name: label }))
+    toast.error(t('settings.shortcuts.conflict_with', { name: label }))
   }
 
   const handleKeyDown = async (event: ReactKeyboardEvent, record: (typeof shortcuts)[number]) => {
@@ -374,22 +376,22 @@ const ShortcutSettings: FC = () => {
     }
   }
 
-  const handleResetAllShortcuts = () => {
-    window.modal.confirm({
+  const handleResetAllShortcuts = async () => {
+    const confirmed = await popup.confirm({
       title: t('settings.shortcuts.reset_defaults_confirm'),
-      centered: true,
-      onOk: async () => {
-        const updates: Record<string, PreferenceShortcutType> = getAllShortcutDefaultPreferences()
-
-        try {
-          clearSystemConflict()
-          await preferenceService.setMultiple(updates)
-        } catch (error) {
-          logger.error('Failed to reset all shortcuts to defaults', error as Error)
-          window.toast.error(t('settings.shortcuts.reset_defaults_failed'))
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    const updates: Record<string, PreferenceShortcutType> = getAllShortcutDefaultPreferences()
+
+    try {
+      clearSystemConflict()
+      await preferenceService.setMultiple(updates)
+    } catch (error) {
+      logger.error('Failed to reset all shortcuts to defaults', error as Error)
+      toast.error(t('settings.shortcuts.reset_defaults_failed'))
+    }
   }
 
   const handleToggleVisibleShortcuts = async (enabled: boolean) => {
@@ -430,7 +432,7 @@ const ShortcutSettings: FC = () => {
       await preferenceService.setMultiple(updates)
     } catch (error) {
       logger.error(`Failed to toggle shortcuts for group ${activeGroup}`, error as Error)
-      window.toast.error(t('settings.shortcuts.save_failed'))
+      toast.error(t('settings.shortcuts.save_failed'))
     }
   }
 

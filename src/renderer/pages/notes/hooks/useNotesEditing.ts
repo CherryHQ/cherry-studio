@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
+import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode } from '@renderer/types/note'
 import { fetchNoteSummary } from '@renderer/utils/aiGeneration'
 import { useCallback, useState } from 'react'
@@ -21,7 +22,7 @@ export const useNotesEditing = ({ onRenameNode }: UseNotesEditingProps) => {
     onSave: (newName: string) => {
       if (editingNodeId && newName) {
         onRenameNode(editingNodeId, newName)
-        window.toast.success(t('common.saved'))
+        toast.success(t('common.saved'))
         logger.debug(`Renamed node ${editingNodeId} to "${newName}"`)
       }
       setEditingNodeId(null)
@@ -47,19 +48,19 @@ export const useNotesEditing = ({ onRenameNode }: UseNotesEditingProps) => {
       try {
         const content = await window.api.file.readExternal(note.externalPath)
         if (!content || content.trim().length === 0) {
-          window.toast.warning(t('notes.auto_rename.empty_note'))
+          toast.warning(t('notes.auto_rename.empty_note'))
           return
         }
 
         const summaryText = await fetchNoteSummary({ content })
         if (summaryText) {
           onRenameNode(note.id, summaryText)
-          window.toast.success(t('notes.auto_rename.success'))
+          toast.success(t('notes.auto_rename.success'))
         } else {
-          window.toast.error(t('notes.auto_rename.failed'))
+          toast.error(t('notes.auto_rename.failed'))
         }
       } catch (error) {
-        window.toast.error(t('notes.auto_rename.failed'))
+        toast.error(t('notes.auto_rename.failed'))
         logger.error(`Failed to auto-rename note: ${error}`)
       } finally {
         setRenamingNodeIds((prev) => {

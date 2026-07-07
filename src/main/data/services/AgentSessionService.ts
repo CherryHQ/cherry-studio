@@ -355,12 +355,14 @@ export class AgentSessionService {
     return { deletedIds }
   }
 
-  deleteWorkspaceCascade(workspaceId: string): void {
-    application.get('DbService').withWriteTx((tx) => {
+  deleteWorkspaceCascade(workspaceId: string): DeleteAgentSessionsResult {
+    const deletedIds = application.get('DbService').withWriteTx((tx) => {
       agentWorkspaceService.getRowByIdTx(tx, workspaceId)
-      this.deleteByWorkspaceTx(tx, workspaceId)
+      const deletedIds = this.deleteByWorkspaceTx(tx, workspaceId)
       agentWorkspaceService.deleteByIdTx(tx, workspaceId)
+      return deletedIds
     })
+    return { deletedIds }
   }
 
   deleteByWorkspaceTx(tx: DbOrTx, workspaceId: string): string[] {

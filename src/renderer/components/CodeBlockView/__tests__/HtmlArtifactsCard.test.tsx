@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -5,13 +6,11 @@ import HtmlArtifactsCard from '../HtmlArtifactsCard'
 
 const mocks = vi.hoisted(() => ({
   createTempFile: vi.fn(),
-  error: vi.fn(),
   HtmlArtifactsPopup: vi.fn(({ open }) => (open ? <div data-testid="html-artifacts-popup" /> : null)),
   loadHtmlArtifactsPopup: vi.fn(),
   loggerError: vi.fn(),
   openPath: vi.fn(),
   save: vi.fn(),
-  success: vi.fn(),
   write: vi.fn()
 }))
 
@@ -77,15 +76,6 @@ describe('HtmlArtifactsCard', () => {
         }
       }
     })
-
-    Object.defineProperty(window, 'toast', {
-      configurable: true,
-      writable: true,
-      value: {
-        error: mocks.error,
-        success: mocks.success
-      }
-    })
   })
 
   it('opens the generated HTML file through the file API', async () => {
@@ -96,7 +86,7 @@ describe('HtmlArtifactsCard', () => {
     await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/artifacts-preview.html'))
     expect(mocks.createTempFile).toHaveBeenCalledWith('artifacts-preview.html')
     expect(mocks.write).toHaveBeenCalledWith('/tmp/artifacts-preview.html', html)
-    expect(mocks.error).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('shows an error when opening the generated HTML file fails', async () => {
@@ -107,7 +97,7 @@ describe('HtmlArtifactsCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'chat.artifacts.button.openExternal' }))
 
     await waitFor(() =>
-      expect(mocks.error).toHaveBeenCalledWith('chat.artifacts.preview.openExternal.error.content: open failed')
+      expect(toast.error).toHaveBeenCalledWith('chat.artifacts.preview.openExternal.error.content: open failed')
     )
     expect(mocks.loggerError).toHaveBeenCalledWith('Failed to open HTML artifact externally', expect.any(Error))
   })
@@ -118,8 +108,8 @@ describe('HtmlArtifactsCard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'code_block.download.label' }))
 
     await waitFor(() => expect(mocks.save).toHaveBeenCalledWith('Sample-Page.html', html))
-    expect(mocks.success).toHaveBeenCalledWith('message.download.success')
-    expect(mocks.error).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('message.download.success')
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('shows an error when downloading the HTML artifact fails', async () => {
@@ -129,8 +119,8 @@ describe('HtmlArtifactsCard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'code_block.download.label' }))
 
-    await waitFor(() => expect(mocks.error).toHaveBeenCalledWith('message.download.failed: save failed'))
-    expect(mocks.success).not.toHaveBeenCalled()
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('message.download.failed: save failed'))
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('loads and mounts the popup only after preview opens', async () => {

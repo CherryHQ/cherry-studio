@@ -1,4 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -173,10 +174,6 @@ vi.mock('react-i18next', () => ({
 describe('TopicBranchPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(window as unknown as { toast: { error: ReturnType<typeof vi.fn>; success: ReturnType<typeof vi.fn> } }).toast = {
-      error: vi.fn(),
-      success: vi.fn()
-    }
     mocks.useQuery.mockReturnValue({
       data: {
         activeNodeId: 'active-1',
@@ -429,7 +426,7 @@ describe('TopicBranchPanel', () => {
     expect(dataApiService.get).not.toHaveBeenCalled()
     expect(mocks.setActiveNode).not.toHaveBeenCalled()
     expect(mocks.refetchTree).not.toHaveBeenCalled()
-    expect(window.toast.success).toHaveBeenCalledWith('chat.message.new.branch.created')
+    expect(toast.success).toHaveBeenCalledWith('chat.message.new.branch.created')
   })
 
   it('cancels a branch draft and locates the anchor when the anchor is clicked', async () => {
@@ -738,6 +735,6 @@ describe('TopicBranchPanel', () => {
         params: { id: 'topic-1' }
       })
     })
-    expect(window.toast.success).toHaveBeenCalledWith('chat.message.flow.copy_topic.created')
+    expect(toast.success).toHaveBeenCalledWith('chat.message.flow.copy_topic.created')
   })
 })
