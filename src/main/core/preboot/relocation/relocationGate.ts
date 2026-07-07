@@ -257,14 +257,28 @@ function isExistingMountRoot(p: string): boolean {
 }
 
 function assertTargetDirectoryIsSafeToReplace(to: string, copy: boolean, overwriteExisting: boolean): void {
-  if (!fs.existsSync(to)) return
+  if (!fs.existsSync(to)) {
+    if (!copy) {
+      throw new Error(`switch target directory does not exist: ${to}`)
+    }
+    return
+  }
 
   const stat = fs.statSync(to)
   if (typeof stat.isDirectory === 'function' && !stat.isDirectory()) {
     throw new Error(`target exists and is not a directory: ${to}`)
   }
 
-  if (!copy || overwriteExisting) return
+  if (!copy) {
+    try {
+      fs.accessSync(to, fs.constants.W_OK)
+    } catch (error) {
+      throw new Error(`switch target directory is not writable: ${to}: ${(error as Error).message}`)
+    }
+    return
+  }
+
+  if (overwriteExisting) return
 
   const entries = fs.readdirSync(to)
   if (entries.length > 0) {

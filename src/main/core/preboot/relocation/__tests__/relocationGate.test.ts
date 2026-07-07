@@ -1,12 +1,16 @@
+import realFsp from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Tests for src/main/core/preboot/relocation/relocationGate.ts
  *
  * Covers the gate's decision logic (skip vs handled) and the success/failure
- * paths. The actual file-copy is exercised against a mocked fs that returns
- * an empty tree, so we validate the orchestration (pre-flight → copy →
- * commit → progress → persisted status) without touching real disk.
+ * paths. Most tests use mocked fs calls to validate orchestration
+ * (pre-flight → copy → commit → progress → persisted status); one focused
+ * test uses a real temporary directory for destructive replacement behavior.
  */
 
 const whenReady = vi.fn().mockResolvedValue(undefined)
@@ -93,6 +97,17 @@ function stubFsAndFsp(
       readlink: vi.fn(async () => '')
     }
   }))
+}
+
+function useRealFsAndFsp() {
+  vi.doMock('node:fs', async () => {
+    const actual = await vi.importActual<typeof import('node:fs')>('node:fs')
+    return { ...actual, default: actual }
+  })
+  vi.doMock('node:fs/promises', async () => {
+    const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
+    return { ...actual, default: actual }
+  })
 }
 
 function stubDeps(options: { installPath?: string; isWin?: boolean } = {}) {
@@ -199,6 +214,61 @@ describe('runUserDataRelocationGate', () => {
       from: '/same',
       to: '/same',
       error: expect.stringMatching(/same path/i)
+    })
+  })
+
+  it('pending + copy=false: rejects a missing switch target before commit', async () => {
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: false })
+    stubFsAndFsp({
+      existsSync: vi.fn((p: string) => p !== '/new/data')
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/switch target directory does not exist/i)
+    })
+  })
+
+  it('pending + copy=false: rejects a switch target that is not a directory before commit', async () => {
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: false })
+    stubFsAndFsp({
+      statSync: vi.fn((p: string) => ({ dev: 1, isDirectory: () => p !== '/new/data' }))
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/not a directory/i)
+    })
+  })
+
+  it('pending + copy=false: rejects an unwritable switch target before commit', async () => {
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: false })
+    stubFsAndFsp({
+      accessSync: vi.fn((p: string) => {
+        if (p === '/new/data') {
+          throw new Error('EACCES')
+        }
+      })
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/not writable.*EACCES/i)
     })
   })
 
@@ -355,6 +425,35 @@ describe('runUserDataRelocationGate', () => {
     expect(result).toBe('handled')
     expect(rm).toHaveBeenCalledWith('/new/data', { recursive: true, force: true })
     expect(commitRelocation).toHaveBeenCalledWith('/new/data')
+  })
+
+  it('copy to non-empty target replaces stale files and preserves symlinks on disk', async () => {
+    const root = await realFsp.mkdtemp(path.join(os.tmpdir(), 'relocation-gate-'))
+    try {
+      const from = path.join(root, 'old-data')
+      const to = path.join(root, 'new-data')
+      await realFsp.mkdir(path.join(from, 'nested'), { recursive: true })
+      await realFsp.writeFile(path.join(from, 'nested', 'fresh.txt'), 'fresh')
+      await realFsp.symlink('nested/fresh.txt', path.join(from, 'fresh-link'))
+      await realFsp.mkdir(to, { recursive: true })
+      await realFsp.writeFile(path.join(to, 'stale.txt'), 'stale')
+
+      stubElectron(true)
+      stubBootConfig({ status: 'pending', from, to, copy: true, overwriteExisting: true })
+      useRealFsAndFsp()
+      stubDeps({ installPath: path.join(root, 'install') })
+      const { runUserDataRelocationGate } = await loadGate()
+      const result = await runUserDataRelocationGate()
+
+      expect(result).toBe('handled')
+      expect(await realFsp.readFile(path.join(to, 'nested', 'fresh.txt'), 'utf8')).toBe('fresh')
+      await expect(realFsp.access(path.join(to, 'stale.txt'))).rejects.toThrow()
+      expect((await realFsp.lstat(path.join(to, 'fresh-link'))).isSymbolicLink()).toBe(true)
+      expect(await realFsp.readlink(path.join(to, 'fresh-link'))).toBe('nested/fresh.txt')
+      expect(commitRelocation).toHaveBeenCalledWith(to)
+    } finally {
+      await realFsp.rm(root, { recursive: true, force: true })
+    }
   })
 
   it('preflight failure (Windows path case differs only): persists failed status and no commit (handled)', async () => {
