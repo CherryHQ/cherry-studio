@@ -4,8 +4,10 @@
  * non-blocking notification track).
  *
  * Which API do I want?
- *  - Await an answer / value from the user      → createPopup(Component) → handle.show(props): Promise<R>
  *  - A standard confirm or strong acknowledge   → popup.confirm / popup.error / popup.info / popup.warning
+ *  - Confirm, then run a fallible async action  → ConfirmActionPopup (components/Popups): OK spinner + retry, Promise<boolean>
+ *  - Show arbitrary content in a modal shell    → ContentPopup (components/Popups): no buttons, void
+ *  - Anything bespoke (own buttons, typed R)    → createPopup(Component) → handle.show(props): Promise<R>
  *  - The open state belongs to a parent         → inline controlled `<Dialog open>` — do NOT route through here
  *  - An anchored overlay (menu/popover/tooltip) → the Radix primitive directly — not a popup
  *
