@@ -101,11 +101,11 @@ function stubFsAndFsp(
 
 function useRealFsAndFsp() {
   vi.doMock('node:fs', async () => {
-    const actual = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const actual = await vi.importActual('node:fs')
     return { ...actual, default: actual }
   })
   vi.doMock('node:fs/promises', async () => {
-    const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
+    const actual = await vi.importActual('node:fs/promises')
     return { ...actual, default: actual }
   })
 }
