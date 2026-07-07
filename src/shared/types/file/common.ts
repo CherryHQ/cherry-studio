@@ -67,6 +67,8 @@ export type FilePath = z.infer<typeof FilePathSchema>
  * `canonicalizeFilePath()` factory, which is the only place that can build both
  * the value and its brand). It is not re-exported here.
  */
+
+// TODO: Add schema for them
 export type Base64String = `data:${string};base64,${string}`
 export type UrlString = `http://${string}` | `https://${string}`
 
