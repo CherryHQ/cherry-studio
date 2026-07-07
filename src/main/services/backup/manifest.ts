@@ -8,6 +8,8 @@
 
 import { readFile, writeFile } from 'node:fs/promises'
 
+import { z } from 'zod'
+
 import type { BackupDomain } from '@main/data/db/backup/domains'
 import { deepFreeze } from '@main/data/db/backup/freeze'
 
@@ -68,6 +70,30 @@ export interface BackupManifest {
   readonly notes: { readonly paths: readonly string[] }
 }
 
+/**
+ * Runtime validation schema for untrusted manifest.json (the restore-side
+ * archive boundary). Mirrors BackupManifest's shape; the restore gate
+ * (backup-architecture §9 step 0) additionally checks version compatibility.
+ * Established here even though the restore track is not yet landed, so the
+ * export-side readManifest (used by manifest.test.ts) carries the contract
+ * from day one and a corrupted/tampered manifest fails loud at parse rather
+ * than as a confusing runtime error deep in restore.
+ */
+const manifestSchema = z.object({
+  backupFormatVersion: z.number(),
+  createdAt: z.string(),
+  preset: z.enum(['full', 'lite']),
+  domains: z.array(z.string()),
+  includeFiles: z.boolean(),
+  includeKnowledgeFiles: z.boolean(),
+  sensitiveData: z.object({ included: z.boolean(), rotated: z.literal(false) }),
+  schemaMigrationId: z.string(),
+  producerAppVersion: z.string(),
+  files: z.object({ ids: z.array(z.string()), total: z.number(), totalBytes: z.number() }),
+  knowledge: z.object({ bases: z.array(z.string()) }),
+  notes: z.object({ paths: z.array(z.string()) })
+})
+
 /** Serialize the manifest as UTF-8 JSON (2-space indent for readability). */
 export async function writeManifest(path: string, manifest: BackupManifest): Promise<void> {
   await writeFile(path, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
@@ -76,5 +102,5 @@ export async function writeManifest(path: string, manifest: BackupManifest): Pro
 /** Read + parse a manifest, returning a deep-frozen value. */
 export async function readManifest(path: string): Promise<BackupManifest> {
   const raw = await readFile(path, 'utf8')
-  return deepFreeze(JSON.parse(raw) as BackupManifest)
+  return deepFreeze(manifestSchema.parse(JSON.parse(raw)) as BackupManifest)
 }
