@@ -15,7 +15,6 @@ const mocks = vi.hoisted(() => ({
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
-  listChannels: vi.fn(),
   applicationGet: vi.fn(),
   applicationGetPath: vi.fn(),
   getShellEnv: vi.fn(),
@@ -55,8 +54,7 @@ vi.mock('@data/services/AgentService', () => ({
 
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
-    findBySessionId: mocks.findBySessionId,
-    listChannels: mocks.listChannels
+    findBySessionId: mocks.findBySessionId
   }
 }))
 
@@ -191,7 +189,6 @@ describe('buildClaudeCodeSessionSettings', () => {
       update: vi.fn(),
       setPermissionMode: vi.fn()
     })
-    mocks.listChannels.mockReturnValue([])
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
@@ -532,25 +529,6 @@ describe('buildClaudeCodeSessionSettings', () => {
         autoAllowRuntimeNameExceptions: exceptions
       })
     )
-  })
-
-  it('warns and falls back to no channels when channel lookup fails during tool-policy build', async () => {
-    const session = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      workspace: { type: 'user', path: '/workspace/project' }
-    }
-    mocks.listChannels.mockImplementationOnce(() => {
-      throw new Error('channel db down')
-    })
-
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-
-    expect(settings.cwd).toBe('/workspace/project')
-    expect(mocks.loggerWarn).toHaveBeenCalledWith('Failed to list channels for tool policy context', {
-      agentId: 'agent-1',
-      error: 'channel db down'
-    })
   })
 
   // Warm-pool correctness: hooks baked at prewarm must resolve session state by id at fire-time, so

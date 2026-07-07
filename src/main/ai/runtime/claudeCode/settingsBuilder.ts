@@ -639,23 +639,11 @@ async function buildToolPermissions(
   const isAssistant = agentConfig?.builtin_role === 'assistant'
   const isHeadless = options.headless === true || Boolean(channelService.findBySessionId(session.id))
 
-  // Raw session context for tool enable-predicates (worktree needs .git; cherry-tools notify needs a
-  // connected channel). Channels are fetched once here so the predicates stay synchronous.
+  // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
   const conditionContext: ClaudeToolContext | undefined = cwd
     ? {
-        cwd,
-        channels: (() => {
-          try {
-            return channelService.listChannels({ agentId: agent.id })
-          } catch (error) {
-            logger.warn('Failed to list channels for tool policy context', {
-              agentId: agent.id,
-              error: error instanceof Error ? error.message : String(error)
-            })
-            return []
-          }
-        })()
+        cwd
       }
     : undefined
 

@@ -83,18 +83,20 @@ describe('resolveDisallowedTools', () => {
     expect(disallowed.has('mcp__cherry-tools__notify')).toBe(false)
   })
 
-  it('disables worktree without .git and cherry-tools notify without channels', () => {
+  it('disables worktree tools without .git but keeps notify available (self-degrades when no channels)', () => {
     existsSync.mockReturnValue(false) // no .git
-    const disallowed = new Set(resolveDisallowedTools({}, { cwd: '/ws', channels: [] }))
+    const disallowed = new Set(resolveDisallowedTools({}, { cwd: '/ws' }))
     expect(disallowed.has('EnterWorktree')).toBe(true)
     expect(disallowed.has('ExitWorktree')).toBe(true)
-    expect(disallowed.has('mcp__cherry-tools__notify')).toBe(true)
+    // notify is no longer channel-gated: it reports "no connected channels" at call time instead of
+    // being hard-disabled, so an agent can add its first channel and notify in the same session.
+    expect(disallowed.has('mcp__cherry-tools__notify')).toBe(false)
     expect(disallowed.has('mcp__cherry-tools__config')).toBe(false)
   })
 
-  it('enables worktree with .git and cherry-tools notify/config with a channel', () => {
+  it('enables worktree tools with .git and keeps notify/config available', () => {
     existsSync.mockReturnValue(true) // .git present
-    const disallowed = new Set(resolveDisallowedTools({}, { cwd: '/ws', channels: [{ id: 'c1' }] }))
+    const disallowed = new Set(resolveDisallowedTools({}, { cwd: '/ws' }))
     expect(disallowed.has('EnterWorktree')).toBe(false)
     expect(disallowed.has('ExitWorktree')).toBe(false)
     expect(disallowed.has('mcp__cherry-tools__notify')).toBe(false)
