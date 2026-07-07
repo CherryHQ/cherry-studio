@@ -142,10 +142,10 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
     description: 'Telegram Bot. Get bot_token from @BotFather.'
   },
   feishu: {
-    required: [],
-    optional: ['app_id', 'app_secret', 'encrypt_key', 'verification_token', 'allowed_chat_ids', 'domain'],
+    required: ['app_id', 'app_secret', 'encrypt_key', 'verification_token', 'domain'],
+    optional: ['allowed_chat_ids'],
     description:
-      'Feishu/Lark bot. If app_id and app_secret are omitted, a QR code is returned for the user to scan with Feishu to auto-create a bot app and obtain credentials. domain defaults to "feishu" (use "lark" for international).'
+      'Feishu/Lark bot. Full credentials are required when adding via this tool. QR-based (re)connection is available via reconnect_channel or the settings UI. domain must be "feishu" or "lark".'
   },
   qq: {
     required: ['app_id', 'client_secret'],
@@ -153,10 +153,10 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
     description: 'QQ official bot via QQ Open Platform.'
   },
   wechat: {
-    required: [],
-    optional: ['token_path', 'allowed_chat_ids'],
+    required: ['token_path'],
+    optional: ['allowed_chat_ids'],
     description:
-      'WeChat via local WeChat desktop client bridge. After adding, a QR code image is returned — display it inline for the user to scan with their phone.'
+      'WeChat via local WeChat desktop client bridge. token_path is required when adding via this tool. QR-based (re)connection is available via reconnect_channel or the settings UI.'
   },
   discord: {
     required: ['bot_token'],
@@ -229,7 +229,8 @@ const CONFIG_TOOL: Tool = {
       },
       enabled: {
         type: 'boolean',
-        description: 'Enable or disable the channel (optional for add/update, defaults to true)'
+        description:
+          'Enable or disable the channel (optional; defaults to true on add, unchanged when omitted on update)'
       }
     },
     required: ['action']
