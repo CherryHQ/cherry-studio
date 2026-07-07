@@ -622,6 +622,14 @@ describe('parseWorkbook — corrupted input', () => {
 })
 
 describe('parseWorkbook — ZIP preflight rejects decompression bombs', () => {
+  it('rejects an entry whose declared uncompressed size exceeds the limit', async () => {
+    const bytes = createZipBytes([
+      { name: 'xl/worksheets/sheet1.xml', uncompressedSize: OFFICE_ZIP_LIMITS.maxEntryUncompressedBytes + 1 }
+    ])
+
+    await expect(parseWorkbook(bytes.buffer, 'bomb-entry.xlsx')).rejects.toThrow(/XLSX preview supports ZIP entries/)
+  })
+
   it('rejects an archive whose declared total uncompressed size exceeds the limit', async () => {
     const entrySize = Math.ceil(OFFICE_ZIP_LIMITS.maxTotalUncompressedBytes / 8)
     const bytes = createZipBytes(

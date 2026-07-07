@@ -249,12 +249,12 @@ describe('WordPreviewPanel', () => {
   })
 
   it('rejects oversized DOCX ZIP entries before rendering', async () => {
-    const oversizedDocxBytes = mocks.createZipBytes(
-      Array.from({ length: 9 }, (_, index) => ({
-        name: `word/media/image-${index}.bin`,
-        uncompressedSize: 32 * 1024 * 1024
-      }))
-    )
+    const oversizedDocxBytes = mocks.createZipBytes([
+      {
+        name: 'word/document.xml',
+        uncompressedSize: 64 * 1024 * 1024 + 1
+      }
+    ])
     mocks.fsRead.mockResolvedValueOnce(oversizedDocxBytes)
 
     render(

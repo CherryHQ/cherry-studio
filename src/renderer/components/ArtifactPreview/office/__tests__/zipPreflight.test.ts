@@ -20,15 +20,27 @@ describe('assertZipLimits', () => {
     expect(() => assertZipLimits(bytes, 'DOCX')).toThrow('up to 4000 entries')
   })
 
-  it('accepts a single large entry within the total limit', () => {
+  it('accepts a single large entry within the per-entry limit', () => {
+    // Real workbooks can carry a single 40+ MiB worksheet XML; the per-entry cap must not reject those.
     const bytes = createZipBytes([
       {
         name: 'xl/worksheets/sheet1.xml',
-        uncompressedSize: OFFICE_ZIP_LIMITS.maxTotalUncompressedBytes
+        uncompressedSize: OFFICE_ZIP_LIMITS.maxEntryUncompressedBytes
       }
     ])
 
     expect(() => assertZipLimits(bytes, 'XLSX')).not.toThrow()
+  })
+
+  it('rejects oversized uncompressed entries', () => {
+    const bytes = createZipBytes([
+      {
+        name: 'word/document.xml',
+        uncompressedSize: OFFICE_ZIP_LIMITS.maxEntryUncompressedBytes + 1
+      }
+    ])
+
+    expect(() => assertZipLimits(bytes, 'DOCX')).toThrow('ZIP entries up to')
   })
 
   it('rejects oversized total uncompressed payloads', () => {
