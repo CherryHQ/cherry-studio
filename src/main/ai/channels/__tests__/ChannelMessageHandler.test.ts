@@ -3,6 +3,8 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { AgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -443,6 +445,70 @@ describe('ChannelMessageHandler', () => {
     expect(helpText).toContain('/compact')
     expect(helpText).toContain('/help')
     expect(helpText).toContain('/whoami')
+  })
+
+  it('handleCommand /help merges the bound session slash commands (control wins on collision)', async () => {
+    const adapter = createMockAdapter()
+    vi.mocked(agentService.getAgent).mockResolvedValueOnce({ name: 'TestAgent', description: '' } as any)
+    vi.mocked(channelService.getChannel).mockReturnValueOnce({
+      id: 'channel-1',
+      sessionId: 'session-xyz',
+      workspace: { type: 'system' }
+    } as any)
+    // The bound session belongs to this agent, so its catalog is allowed to merge.
+    vi.mocked(agentSessionService.getById).mockReturnValue({ id: 'session-xyz', agentId: 'agent-1' } as any)
+    MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-xyz'), [
+      { name: 'deploy', description: 'Deploy the app', argumentHint: '' },
+      // Collides with the control command — control description must win, session dup dropped.
+      { name: 'compact', description: 'session dup', argumentHint: '' }
+    ])
+
+    try {
+      await channelMessageHandler.handleCommand(adapter, {
+        chatId: 'chat-merge',
+        userId: 'user-1',
+        userName: 'User',
+        command: 'help'
+      })
+
+      const helpText = adapter.sendMessage.mock.calls[0][1] as string
+      expect(helpText).toContain('/deploy - Deploy the app')
+      expect(helpText).toContain('/compact - Compact conversation history')
+      expect(helpText).not.toContain('session dup')
+    } finally {
+      MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('session-xyz'), null)
+    }
+  })
+
+  it('handleCommand /help ignores a channel session that belongs to another agent', async () => {
+    const adapter = createMockAdapter()
+    vi.mocked(agentService.getAgent).mockResolvedValueOnce({ name: 'TestAgent', description: '' } as any)
+    vi.mocked(channelService.getChannel).mockReturnValueOnce({
+      id: 'channel-1',
+      sessionId: 'stale-session',
+      workspace: { type: 'system' }
+    } as any)
+    // Channel was reassigned: the persisted session link now points at another agent's session.
+    vi.mocked(agentSessionService.getById).mockReturnValue({ id: 'stale-session', agentId: 'other-agent' } as any)
+    MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('stale-session'), [
+      { name: 'leak', description: 'commands from the wrong agent', argumentHint: '' }
+    ])
+
+    try {
+      await channelMessageHandler.handleCommand(adapter, {
+        chatId: 'chat-stale',
+        userId: 'user-1',
+        userName: 'User',
+        command: 'help'
+      })
+
+      const helpText = adapter.sendMessage.mock.calls[0][1] as string
+      expect(helpText).not.toContain('/leak')
+      // Control commands are still listed — only the foreign session catalog is withheld.
+      expect(helpText).toContain('/new')
+    } finally {
+      MockMainCacheServiceUtils.setSharedCacheValue(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY('stale-session'), null)
+    }
   })
 
   it('handleCommand /whoami sends the current chat ID', async () => {

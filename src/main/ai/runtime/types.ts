@@ -1,5 +1,6 @@
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
@@ -58,6 +59,10 @@ export type AgentRuntimeEvent =
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
   | { type: 'compaction-error'; error: string }
   | { type: 'context-usage'; usage: AgentSessionContextUsage }
+  /** The SDK pushed a fresh slash-command catalog mid-session (`system / commands_changed`) — e.g.
+   *  skills discovered as the agent works in a subdirectory. `supportedCommands()` is captured at
+   *  init and never reflects this, so the host REPLACES its cached list from `commands`. */
+  | { type: 'supported-commands'; commands: AgentSessionSlashCommand[] }
   | { type: 'error'; error: unknown }
 
 export interface AgentRuntimeConnection {
@@ -78,6 +83,13 @@ export interface AgentRuntimeConnection {
    * Optional ⇒ the host treats the runtime as unable to report usage.
    */
   getContextUsage?(): Promise<AgentSessionContextUsage | null>
+  /**
+   * Read this session's available slash command catalog (`query.supportedCommands()`), including
+   * any custom project/user commands the SDK discovered. Returns null when the runtime can't report
+   * it (no query yet, or a driver that doesn't support it). Optional ⇒ the host falls back to the
+   * static builtin list.
+   */
+  getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
   close(): void | Promise<void>
 }
 

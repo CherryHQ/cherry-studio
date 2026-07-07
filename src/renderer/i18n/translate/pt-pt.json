@@ -1223,12 +1223,14 @@
       "add": "Adicionar etiqueta",
       "delete": "Excluir etiqueta",
       "deleteConfirm": "Tem certeza de que deseja excluir esta etiqueta?",
+      "group_by": "Agrupar por tag",
       "manage": "Gerenciar etiquetas",
       "modify": "Modificar etiqueta",
       "none": "Nenhuma etiqueta no momento",
       "settings": {
         "title": "Configuração de Etiquetas"
       },
+      "ungroup": "Desativar agrupamento de tags",
       "untagged": "Não agrupado"
     },
     "title": "Assistente",
@@ -1385,6 +1387,7 @@
       "pause": "Pausar",
       "placeholder": "Digite sua mensagem aqui...",
       "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",
+      "resize_height": "Redimensionar altura da entrada",
       "resource_panel": {
         "categories": {
           "agents": "Agentes",
@@ -1403,6 +1406,7 @@
         },
         "title": "Recursos"
       },
+      "restore": "Restaurar",
       "send": "Enviar",
       "send_failed": "Falha ao enviar mensagem",
       "settings": "Configurações",
@@ -1411,8 +1415,7 @@
           "clear": "Limpar histórico da conversa",
           "compact": "Conversa compacta com instruções opcionais de foco",
           "context": "Visualize o uso atual do contexto como uma grade colorida",
-          "cost": "Mostrar estatísticas de uso de tokens (consulte o guia de acompanhamento de custos para detalhes específicos da assinatura)",
-          "todos": "Listar itens atuais da lista de tarefas"
+          "usage": "Mostrar custo da sessão, limites de uso do plano e estatísticas de atividade"
         },
         "description": "Comandos de barra da sessão do agente",
         "title": "Comandos de Barra"
@@ -1490,8 +1493,8 @@
     },
     "message": {
       "cache_stats": {
-        "inline": "[to be translated]:Cache {{hit_rate}}%",
-        "tooltip": "[to be translated]:Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
+        "inline": "Cache {{hit_rate}}%",
+        "tooltip": "Leitura de cache {{cache_read}} / escrita de cache {{cache_write}} / sem cache {{no_cache}} · {{saved}} tokens de entrada economizados"
       },
       "editing_current": "Esta mensagem está sendo editada no compositor",
       "flow": {
@@ -1510,6 +1513,11 @@
       "new": {
         "branch": {
           "created": "Nova ramificação criada",
+          "disabled": {
+            "active": "Este nó já está selecionado. Continue digitando para estender o ramo a partir daqui.",
+            "latest": "Você já está no final deste ramo. Continue digitando para estendê-lo.",
+            "no_follow_up": "Não há resposta após esta mensagem ainda. Mude para este nó e continue digitando."
+          },
           "label": "Ramificação"
         },
         "context": "Limpar contexto"
@@ -1540,6 +1548,13 @@
       "top": "Voltar ao topo"
     },
     "resend": "Reenviar",
+    "resource_view": {
+      "menu": {
+        "agent": "Agentes",
+        "assistant": "Assistentes",
+        "skill": "Habilidades"
+      }
+    },
     "save": {
       "file": {
         "title": "Salvar em Arquivo Local"
@@ -1986,6 +2001,7 @@
     "generate_random_seed": "Gerar semente aleatória",
     "get_embedding_dimension": "Obter dimensão de incorporação",
     "go_to_settings": "Ir para configurações",
+    "help": "Ajuda",
     "html_preview": "Pré-visualização em HTML",
     "i_know": "Entendi",
     "ignore": "Pular",
@@ -2255,6 +2271,7 @@
       "no_match_description": "Nenhum arquivo corresponde aos filtros atuais",
       "no_match_title": "Nenhum arquivo correspondente encontrado"
     },
+    "empty_trash": "Esvaziar lixeira",
     "error": {
       "delete_failed": "Falha ao excluir arquivos",
       "delete_partial_failed": "Alguns arquivos não puderam ser excluídos",
@@ -2272,6 +2289,7 @@
     "missing": "Ausente",
     "modified_at": "Modificado em",
     "name": "Nome do Arquivo",
+    "no_actions": "Nenhuma ação disponível",
     "open": "Abrir",
     "other": "Outro",
     "permanent_delete": "Excluir permanentemente",
@@ -2285,13 +2303,18 @@
     "remove_from_library": "Remover da biblioteca",
     "rename": "Renomear",
     "restore": "Restaurar",
+    "select_all": "Selecionar arquivos visíveis",
+    "select_all_short": "Selecionar Tudo",
+    "select_file": "Selecionar {{name}}",
     "selected_count": "{{count}} ficheiros selecionados",
+    "selected_missing_hint": "Alguns arquivos selecionados estão faltando. Localize-os ou remova seus registros.",
     "show_in_folder": "Mostrar na pasta",
     "size": "Tamanho",
     "text": "Texto",
     "title": "Arquivo",
     "trash": "Lixo",
     "type": "Tipo",
+    "upload": "Carregar arquivos",
     "video": "Vídeo"
   },
   "globalSearch": {
@@ -2675,7 +2698,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} fontes",
-      "documents_count": "{{count}} documentos",
       "updated_at": "Atualizado {{time}}"
     },
     "name_required": "Nome da base de conhecimento é obrigatório",
@@ -2704,15 +2726,11 @@
         "chunk_size": "Contagem-alvo de tokens para cada fragmento de documento. Isso afeta a granularidade da recuperação e o comprimento do contexto.",
         "document_count": "Número máximo de blocos de documentos retornados para cada recuperação. Valores mais altos cobrem mais conteúdo, mas utilizam mais contexto.",
         "embedding_model": "Usado para converter o conteúdo da base de conhecimento em vetores. Alterar o modelo geralmente exige reindexar o conteúdo existente.",
-        "hybrid_alpha": "Peso da pontuação vetorial na recuperação híbrida. Valores mais altos favorecem o pareamento semântico.",
         "processor": "Analisador utilizado ao importar arquivos para extrair o texto principal, tabelas e conteúdo relacionado.",
         "rerank_model": "Modelo usado para reordenar os resultados iniciais da recuperação e melhorar a relevância final dos chunks.",
-        "search_mode": "Escolha um modo de recuperação: busca vetorial para correspondência semântica, busca de texto completo para palavras-chave ou busca híbrida para ambos.",
         "smart_chunking": "Dividir automaticamente ao longo da estrutura Markdown (títulos, blocos de código, parágrafos) e nunca dividir dentro de um bloco de código. Desative para dividir puramente pelo separador.",
-        "threshold": "Limiar de similaridade para filtrar blocos de baixa relevância. Valores mais altos tornam a recuperação mais estrita.",
-        "threshold_disabled": "Este modo de recuperação retorna resultados ordenados e não utiliza um limiar de similaridade."
+        "threshold": "Limiar de similaridade para filtrar blocos de baixa relevância. Valores mais altos tornam a recuperação mais estrita."
       },
-      "hybrid_alpha": "Alfa Híbrido",
       "processor": "Processador de Provedor",
       "rerank_disabled": "Desativado",
       "rerank_model": "Modelo de Reorganização",
@@ -2721,12 +2739,6 @@
       "retrieval": "Configurações de Recuperação",
       "save_action": "Salvar",
       "saved": "Salvo",
-      "search_mode": {
-        "bm25": "Pesquisa de texto completo",
-        "hybrid": "Busca Híbrida (recomendado)",
-        "title": "Modo de Pesquisa",
-        "vector": "Busca Vetorial"
-      },
       "separator_rule": "Regra Separadora",
       "smart_chunking": "Fragmentação Inteligente",
       "threshold": "Limite de Similaridade",
@@ -2835,7 +2847,8 @@
       "preview_description": "Visão geral",
       "preview_prompt": "Prompt",
       "scroll_left": "Rolar categorias para a esquerda",
-      "scroll_right": "Deslize as categorias para a direita"
+      "scroll_right": "Deslize as categorias para a direita",
+      "title": "Biblioteca de Assistentes"
     },
     "badge": {
       "update": "Atualizar"
@@ -3265,6 +3278,10 @@
       "tags": "Etiquetas",
       "title": "Biblioteca"
     },
+    "skill_add": {
+      "local_import": "Importação local",
+      "online_search": "Pesquisa online"
+    },
     "skill_detail": {
       "created_at": "Criado",
       "delete_description": "Remova esta habilidade e toda a sua configuração. Esta ação não pode ser desfeita.",
@@ -3275,6 +3292,15 @@
       "no_description": "Sem descrição",
       "source_files": "Arquivos de origem",
       "updated_at": "Atualizado recentemente"
+    },
+    "skill_marketplace": {
+      "empty_description": "Pesquise em registros online para encontrar habilidades instaláveis.",
+      "empty_title": "Pesquisar habilidades",
+      "no_results_description": "Experimente outra palavra-chave ou importe um arquivo ZIP local ou um diretório.",
+      "no_results_title": "Nenhuma habilidade encontrada",
+      "search_failed_description": "A pesquisa falhou. Por favor, tente novamente mais tarde.",
+      "search_placeholder": "Procurar habilidades...",
+      "title": "Pesquisa de habilidades online"
     },
     "sort": {
       "created": "Ordenar por criado",
@@ -4603,7 +4629,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copiloto",
     "dashscope": "Área de Atuação AliCloud",
     "deepseek": "Busca Profunda",
@@ -4616,6 +4642,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Compreender",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hún Yuán",
@@ -4639,6 +4666,8 @@
     "ollama": "Ollama",
     "open-mineru": "MinerU Aberto",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV (NPU) OCR",
@@ -5224,6 +5253,9 @@
       "auto_switch_to_topics": "Alternar automaticamente para tópicos",
       "title": "Configurações avançadas"
     },
+    "appearance": {
+      "title": "Aparência"
+    },
     "assistant": {
       "icon": {
         "type": {
@@ -5292,6 +5324,7 @@
         "cloud_storage": "Configurações de Armazenamento em Nuvem",
         "export_settings": "Configurações de Exportação",
         "import_settings": "Importar Configurações",
+        "note_export": "Exportação de Notas",
         "third_party": "Conexões de Terceiros"
       },
       "export_menu": {
@@ -5853,6 +5886,48 @@
         "token_placeholder": "Insira o Token do Yuque"
       }
     },
+    "dependencies": {
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Ainda não há ferramentas personalizadas. Adicione uma para começar.",
+      "description": "Gerencie ferramentas binárias e dependências de runtime necessárias para o aplicativo.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Instalar",
+      "installError": "Failed to install tool",
+      "installing": "Instalando...",
+      "invalidTool": "Nome ou chave de ferramenta inválida",
+      "notInstalled": "Não instalado",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
+      "title": "Dependências do Ambiente",
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
+    },
     "developer": {
       "enable_developer_mode": "Ativar modo de desenvolvedor",
       "help": "Após ativar o modo de programador, será possível utilizar a função de rastreamento de chamadas para visualizar o fluxo de dados durante o processo de chamada do modelo.",
@@ -5913,7 +5988,7 @@
       },
       "title": "Configurações de exibição",
       "topic": {
-        "title": "Configurações de tópico"
+        "title": "Configurações da vista de conversa"
       },
       "zoom": {
         "title": "Configurações de zoom"
@@ -6119,6 +6194,9 @@
         "button": "Buscar Servidores",
         "success": "Servidores MCP obtidos com sucesso"
       },
+      "filter": {
+        "label": "Filtro"
+      },
       "findMore": "Mais servidores MCP",
       "headers": "Cabeçalhos da Requisição",
       "headersTooltip": "Cabeçalhos HTTP personalizados para as requisições",
@@ -6159,6 +6237,7 @@
       "noDescriptionAvailable": "Nenhuma descrição disponível no momento",
       "noLogs": "Ainda sem registos",
       "noServers": "Nenhum servidor configurado",
+      "notInstalled": "Não instalado",
       "not_support": "Modelo Não Suportado",
       "npx_list": {
         "actions": "Ações",
@@ -6188,6 +6267,7 @@
         "title": "Executar MCP externo?"
       },
       "provider": "Fornecedor",
+      "providerNotFound": "Provedor MCP não encontrado",
       "providerPlaceholder": "Nome do Fornecedor",
       "providerUrl": "URL do Fornecedor",
       "providers": "Fornecedores",
@@ -6234,13 +6314,6 @@
         "getToken": "Obter token de API",
         "getTokenDescription": "Obtenha um token de API pessoal da sua conta",
         "noServersAvailable": "Nenhum servidor MCP disponível",
-        "providerDescriptions": {
-          "302ai": "302.Serviço MCP da Plataforma AI",
-          "bailian": "Alibaba Cloud Bailian Plataforma Serviço MCP",
-          "lanyun": "Plataforma Cloud da Lanyun Technology - Serviço MCP",
-          "mcprouter": "Plataforma de Roteamento MCP Serviço MCP",
-          "modelscope": "Serviço MCP da Plataforma ModelScope"
-        },
         "selectProvider": "Selecione o provedor:",
         "setToken": "Digite seu token",
         "success": "Servidor MCP sincronizado com sucesso",
@@ -6297,10 +6370,11 @@
       "user": "Usuário"
     },
     "menuGroups": {
-      "appSettings": "Configurações do Aplicativo",
-      "integrations": "Modelos",
-      "productivity": "Produtividade",
-      "services": "Plugins",
+      "automation": "Automação",
+      "capabilities": "Capacidades e Ferramentas",
+      "models": "Modelos",
+      "personal": "Pessoal",
+      "quickAccess": "Acesso Rápido",
       "system": "Sistema"
     },
     "messages": {
@@ -6617,7 +6691,7 @@
       "assistant": "Mensagem do assistente",
       "backup": "Backup",
       "knowledge_embed": "Base de conhecimento",
-      "title": "Configurações de notificação"
+      "title": "Notificações"
     },
     "openai": {
       "service_tier": {
@@ -6653,48 +6727,6 @@
       }
     },
     "parameter_settings": "Configurações de Parâmetros",
-    "plugins": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Ainda não há ferramentas personalizadas. Adicione uma para começar.",
-      "description": "Gerencie ferramentas binárias e dependências de runtime necessárias para o aplicativo.",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Instalar",
-      "installError": "Failed to install tool",
-      "installing": "Instalando...",
-      "invalidTool": "Nome ou chave de ferramenta inválida",
-      "notInstalled": "Não instalado",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
-      "source": {
-        "bundled": "bundled"
-      },
-      "title": "Dependências do Ambiente",
-      "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
-      },
-      "update": "Update to latest version"
-    },
     "power": {
       "prevent_sleep_when_busy": "Mantenha o sistema ativo enquanto as tarefas estão sendo executadas"
     },
@@ -6716,6 +6748,7 @@
         "reorderFailed": "Falha ao reordenar prompts",
         "updateFailed": "Falha ao atualizar o prompt"
       },
+      "manage": "Gerenciar Prompts",
       "title": "Gestão de Prompts",
       "titleLabel": "Título",
       "titlePlaceholder": "Introduza o título do prompt",
@@ -6864,15 +6897,25 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "O provedor Claude Code está disponível apenas para Agentes — não pode ser usado em chats ou assistentes.",
+        "description": "Entre com sua assinatura do Claude",
+        "description_detail": "Este provedor reutiliza o login do CLI do Claude Code (Claude Pro/Max) e está disponível apenas para Agents. Abra um terminal e execute `claude /login` para fazer login.",
+        "launch_failed": "Falha ao abrir o terminal. Execute `claude /login` manualmente para fazer login.",
+        "legal_link": "Legal & Compliance",
+        "logged_in": "Conectado ao Claude Code",
+        "logged_in_detail": "Os agentes usarão as credenciais de assinatura do seu Claude Code CLI.",
+        "open_terminal": "Abra o terminal para entrar",
+        "recheck": "Reverificar"
+      },
+      "codex": {
+        "account": "Conta: {{accountId}}",
+        "description": "Entre com sua assinatura do ChatGPT",
+        "description_detail": "Este provedor usa seu login do ChatGPT Plus/Pro (OAuth) para acessar os modelos OpenAI Codex. Seu navegador será aberto para completar o login.",
+        "logged_in": "Conectado ao OpenAI Codex",
+        "sign_in_button": "Entrar com ChatGPT",
+        "sign_in_failed": "Falha no login. Por favor, tente novamente.",
+        "sign_in_success": "Conectado ao OpenAI Codex",
+        "signing_in": "Aguardando o navegador…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -6948,6 +6991,15 @@
       },
       "filter_agent": "Agente de Filtro - Provedores Suportados",
       "get_api_key": "Clique aqui para obter a chave",
+      "grok_cli": {
+        "description": "Entre com sua assinatura SuperGrok",
+        "description_detail": "Este provedor utiliza o seu login xAI SuperGrok (OAuth) para acessar os modelos Grok CLI (Grok Build, Composer). O seu navegador será aberto para completar o início de sessão.",
+        "logged_in": "Conectado ao Grok CLI",
+        "sign_in_button": "Entrar com xAI",
+        "sign_in_failed": "Falha no login. Por favor, tente novamente.",
+        "sign_in_success": "Assinado no Grok CLI",
+        "signing_in": "Aguardando o navegador…"
+      },
       "logo_upload_failed": "Falha ao processar a imagem selecionada",
       "misc": "outro",
       "more_endpoints": {
@@ -7112,6 +7164,7 @@
       "all_enable": "Ativar Todos",
       "bind_first_to_enable": "Primeiro, vincule um atalho para alterar o seu estado ativado",
       "categories": {
+        "all": "Todos",
         "assistant": "Ferramentas de Assistente de IA",
         "chat": "Interação de Mensagem",
         "general": "Global e Janela",
@@ -7127,6 +7180,7 @@
       "empty": "Nenhum atalho está disponível neste grupo",
       "enabled": "ativar",
       "exit_fullscreen": "Sair da tela cheia",
+      "filter": "Filtro",
       "label": "Tecla",
       "move_tab_to_first": "Mover Aba para o Primeiro",
       "new_topic": "Novo tópico",
@@ -7163,6 +7217,9 @@
     },
     "skills": {
       "author": "Autor",
+      "batchInstallComplete": "Instaladas {{count}} habilidades",
+      "batchInstallPartialFailed": "Instaladas {{success}}/{{total}} habilidades, {{failed}} falharam",
+      "batchInstallQueued": "Na fila",
       "batchUninstallSuccess": "{{count}} competências desinstaladas",
       "builtin": "Integrado",
       "confirmBatchUninstall": "Tem certeza de que deseja desinstalar {{count}} habilidades selecionadas?",
@@ -7195,6 +7252,9 @@
       "uninstallSuccess": "Habilidade desinstalada: {{name}}",
       "viewSource": "Ver Fonte",
       "zip": "CEP"
+    },
+    "system": {
+      "title": "Sistema"
     },
     "theme": {
       "color_primary": "Cor Temática",
@@ -7468,7 +7528,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Pinturas",
     "settings": "Configurações",
-    "store": "Biblioteca de assistentes",
     "translate": "Traduzir",
     "work": "Trabalho"
   },

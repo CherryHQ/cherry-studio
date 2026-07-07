@@ -27,6 +27,7 @@ type SharedProps = {
   trigger: ReactElement
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  onDialogCloseAutoFocus?: () => void
   autoSelectOnCreate?: boolean
   side?: SelectorShellProps['side']
   align?: SelectorShellProps['align']
@@ -49,7 +50,17 @@ export type AgentSelectorSingleItemProps = SharedProps & {
 export type AgentSelectorProps = AgentSelectorSingleIdProps | AgentSelectorSingleItemProps
 
 export function AgentSelector(props: AgentSelectorProps) {
-  const { trigger, open, onOpenChange, autoSelectOnCreate, side, align, sideOffset, mountStrategy } = props
+  const {
+    trigger,
+    open,
+    onOpenChange,
+    onDialogCloseAutoFocus,
+    autoSelectOnCreate,
+    side,
+    align,
+    sideOffset,
+    mountStrategy
+  } = props
   const { t } = useTranslation()
   const modelFilter = useAgentModelFilter('claude-code')
   const [internalOpen, setInternalOpen] = useState(false)
@@ -116,12 +127,26 @@ export function AgentSelector(props: AgentSelectorProps) {
     [data?.items]
   )
 
-  const handleEditDialogOpenChange = useCallback((nextOpen: boolean) => {
-    setEditDialogOpen(nextOpen)
-    if (!nextOpen) {
-      setEditingAgent(null)
-    }
-  }, [])
+  const handleEditDialogOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setEditDialogOpen(nextOpen)
+      if (!nextOpen) {
+        setEditingAgent(null)
+        onDialogCloseAutoFocus?.()
+      }
+    },
+    [onDialogCloseAutoFocus]
+  )
+
+  const handleCreateDialogOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setCreateDialogOpen(nextOpen)
+      if (!nextOpen) {
+        onDialogCloseAutoFocus?.()
+      }
+    },
+    [onDialogCloseAutoFocus]
+  )
 
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateWizardValues) => {
@@ -149,6 +174,7 @@ export function AgentSelector(props: AgentSelectorProps) {
       }
 
       setCreateDialogOpen(false)
+      onDialogCloseAutoFocus?.()
       try {
         await refetch()
       } catch (error) {
@@ -171,7 +197,7 @@ export function AgentSelector(props: AgentSelectorProps) {
       }
       handleSelectorOpenChange(true)
     },
-    [autoSelectOnCreate, createAgent, handleSelectorOpenChange, props, refetch, t]
+    [autoSelectOnCreate, createAgent, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
   )
 
   const handleEditSaved = useCallback(async () => {
@@ -190,7 +216,7 @@ export function AgentSelector(props: AgentSelectorProps) {
       kind="agent"
       open={createDialogOpen}
       isSubmitting={isCreatingAgent}
-      onOpenChange={setCreateDialogOpen}
+      onOpenChange={handleCreateDialogOpenChange}
       onSubmit={handleSubmitCreate}
       modelFilter={modelFilter}
     />
