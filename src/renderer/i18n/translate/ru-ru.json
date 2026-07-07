@@ -190,6 +190,9 @@
     "home": {
       "welcome_title": "О чём мы поговорим сегодня?"
     },
+    "icon": {
+      "type": "[to be translated]:Agent Icon"
+    },
     "input": {
       "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду"
     },
@@ -197,6 +200,9 @@
       "error": {
         "failed": "Не удалось получить список агентов."
       }
+    },
+    "manage": {
+      "title": "[to be translated]:Manage Agents"
     },
     "pin": {
       "title": "Пин-агент"
@@ -628,6 +634,11 @@
       }
     },
     "sidebar_title": "Агенты",
+    "skill": {
+      "manage": {
+        "title": "[to be translated]:Manage skills"
+      }
+    },
     "tasks": {
       "add": "Добавить задачу",
       "cancel": "Отмена",
@@ -1014,6 +1025,7 @@
     "clear": {
       "content": "Очистка топика удалит все топики и файлы в ассистенте. Вы уверены, что хотите продолжить?",
       "menu_title": "Удалить все разговоры с ассистентом",
+      "success_title": "[to be translated]:Cleared {{count}} topics",
       "title": "Очистить топики"
     },
     "copy": {
@@ -5253,6 +5265,13 @@
       "auto_switch_to_topics": "Автоматически переключаться на топик",
       "title": "Расширенные настройки"
     },
+    "agent": {
+      "position": {
+        "label": "[to be translated]:Session position",
+        "left": "[to be translated]:Left",
+        "right": "[to be translated]:Right"
+      }
+    },
     "appearance": {
       "title": "Внешний вид"
     },
@@ -7518,6 +7537,7 @@
   },
   "title": {
     "apps": "Приложения",
+    "chat": "[to be translated]:Chat",
     "code": "Code",
     "files": "Файлы",
     "home": "Главная",

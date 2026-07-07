@@ -190,6 +190,9 @@
     "home": {
       "welcome_title": "Wovon sollen wir heute sprechen?"
     },
+    "icon": {
+      "type": "[to be translated]:Agent Icon"
+    },
     "input": {
       "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen"
     },
@@ -197,6 +200,9 @@
       "error": {
         "failed": "Agent-Liste abrufen fehlgeschlagen"
       }
+    },
+    "manage": {
+      "title": "[to be translated]:Manage Agents"
     },
     "pin": {
       "title": "Pin-Agent"
@@ -628,6 +634,11 @@
       }
     },
     "sidebar_title": "Agenten",
+    "skill": {
+      "manage": {
+        "title": "[to be translated]:Manage skills"
+      }
+    },
     "tasks": {
       "add": "Aufgabe hinzufügen",
       "cancel": "Abbrechen",
@@ -1014,6 +1025,7 @@
     "clear": {
       "content": "Das Leeren von Themen löscht alle Themen und Dateien unter dem Assistenten. Möchten Sie fortfahren?",
       "menu_title": "Lösche alle Assistenten-Konversationen",
+      "success_title": "[to be translated]:Cleared {{count}} topics",
       "title": "Themen leeren"
     },
     "copy": {
@@ -5253,6 +5265,13 @@
       "auto_switch_to_topics": "Automatisch zu Themenansicht wechseln",
       "title": "Erweiterte Einstellungen"
     },
+    "agent": {
+      "position": {
+        "label": "[to be translated]:Session position",
+        "left": "[to be translated]:Left",
+        "right": "[to be translated]:Right"
+      }
+    },
     "appearance": {
       "title": "Erscheinung"
     },
@@ -7518,6 +7537,7 @@
   },
   "title": {
     "apps": "Mini-Apps",
+    "chat": "[to be translated]:Chat",
     "code": "Code",
     "files": "Datei",
     "home": "Startseite",

@@ -190,6 +190,9 @@
     "home": {
       "welcome_title": "¿De qué hablaremos hoy?"
     },
+    "icon": {
+      "type": "[to be translated]:Agent Icon"
+    },
     "input": {
       "placeholder": "Introduce tu mensaje aquí, envía con {{key}} - @ seleccionar ruta, / seleccionar comando"
     },
@@ -197,6 +200,9 @@
       "error": {
         "failed": "Error al listar agentes."
       }
+    },
+    "manage": {
+      "title": "[to be translated]:Manage Agents"
     },
     "pin": {
       "title": "Agente Pin"
@@ -628,6 +634,11 @@
       }
     },
     "sidebar_title": "Agentes",
+    "skill": {
+      "manage": {
+        "title": "[to be translated]:Manage skills"
+      }
+    },
     "tasks": {
       "add": "Agregar tarea",
       "cancel": "Cancelar",
@@ -1014,6 +1025,7 @@
     "clear": {
       "content": "Vaciar el tema eliminará todos los temas y archivos del asistente. ¿Está seguro de que desea continuar?",
       "menu_title": "Eliminar todas las conversaciones con el asistente",
+      "success_title": "[to be translated]:Cleared {{count}} topics",
       "title": "Vaciar Tema"
     },
     "copy": {
@@ -5253,6 +5265,13 @@
       "auto_switch_to_topics": "Cambiar automáticamente a temas",
       "title": "Configuración avanzada"
     },
+    "agent": {
+      "position": {
+        "label": "[to be translated]:Session position",
+        "left": "[to be translated]:Left",
+        "right": "[to be translated]:Right"
+      }
+    },
     "appearance": {
       "title": "Apariencia"
     },
@@ -7518,6 +7537,7 @@
   },
   "title": {
     "apps": "Aplicaciones",
+    "chat": "[to be translated]:Chat",
     "code": "Código",
     "files": "Archivos",
     "home": "Inicio",

@@ -190,6 +190,9 @@
     "home": {
       "welcome_title": "Τι θα συζητήσουμε σήμερα;"
     },
+    "icon": {
+      "type": "[to be translated]:Agent Icon"
+    },
     "input": {
       "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή"
     },
@@ -197,6 +200,9 @@
       "error": {
         "failed": "Αποτυχία καταχώρησης πρακτόρων."
       }
+    },
+    "manage": {
+      "title": "[to be translated]:Manage Agents"
     },
     "pin": {
       "title": "Προσάρτησε Πράκτορα"
@@ -628,6 +634,11 @@
       }
     },
     "sidebar_title": "Πράκτορες",
+    "skill": {
+      "manage": {
+        "title": "[to be translated]:Manage skills"
+      }
+    },
     "tasks": {
       "add": "Προσθήκη εργασίας",
       "cancel": "Ακύρωση",
@@ -1014,6 +1025,7 @@
     "clear": {
       "content": "Η διαγραφή του θέματος θα διαγράψει όλα τα θέματα και τα αρχεία του βοηθού. Είστε σίγουροι πως θέλετε να συνεχίσετε;",
       "menu_title": "Διαγραφή όλων των συνομιλιών με τον βοηθό",
+      "success_title": "[to be translated]:Cleared {{count}} topics",
       "title": "Διαγραφή θέματος"
     },
     "copy": {
@@ -5253,6 +5265,13 @@
       "auto_switch_to_topics": "Αυτόματη μετάβαση σε θέματα",
       "title": "Ρυθμίσεις Ανώτερου Νiveau"
     },
+    "agent": {
+      "position": {
+        "label": "[to be translated]:Session position",
+        "left": "[to be translated]:Left",
+        "right": "[to be translated]:Right"
+      }
+    },
     "appearance": {
       "title": "Εμφάνιση"
     },
@@ -7518,6 +7537,7 @@
   },
   "title": {
     "apps": "Εφαρμογές",
+    "chat": "[to be translated]:Chat",
     "code": "Κώδικας",
     "files": "Αρχεία",
     "home": "Αρχική Σελίδα",

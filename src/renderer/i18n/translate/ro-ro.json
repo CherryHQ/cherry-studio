@@ -190,6 +190,9 @@
     "home": {
       "welcome_title": "Despre ce să vorbim astăzi?"
     },
+    "icon": {
+      "type": "[to be translated]:Agent Icon"
+    },
     "input": {
       "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda"
     },
@@ -197,6 +200,9 @@
       "error": {
         "failed": "Nu s-a putut afișa lista de agenți."
       }
+    },
+    "manage": {
+      "title": "[to be translated]:Manage Agents"
     },
     "pin": {
       "title": "Agent Pin"
@@ -628,6 +634,11 @@
       }
     },
     "sidebar_title": "Agenți",
+    "skill": {
+      "manage": {
+        "title": "[to be translated]:Manage skills"
+      }
+    },
     "tasks": {
       "add": "Adaugă sarcină",
       "cancel": "Anulează",
@@ -1014,6 +1025,7 @@
     "clear": {
       "content": "Golirea subiectului va șterge toate subiectele și fișierele din asistent. Ești sigur că vrei să continui?",
       "menu_title": "Șterge toate conversațiile cu asistentul",
+      "success_title": "[to be translated]:Cleared {{count}} topics",
       "title": "Șterge subiectele"
     },
     "copy": {
@@ -5253,6 +5265,13 @@
       "auto_switch_to_topics": "Comutare automată la subiect",
       "title": "Setări avansate"
     },
+    "agent": {
+      "position": {
+        "label": "[to be translated]:Session position",
+        "left": "[to be translated]:Left",
+        "right": "[to be translated]:Right"
+      }
+    },
     "appearance": {
       "title": "Aspect"
     },
@@ -7518,6 +7537,7 @@
   },
   "title": {
     "apps": "Aplicații",
+    "chat": "[to be translated]:Chat",
     "code": "Cod",
     "files": "Fișiere",
     "home": "Acasă",

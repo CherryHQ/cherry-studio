@@ -172,17 +172,19 @@ const AgentComposerRoot = ({
   const { agent } = useAgent(agentId)
   const { model: sessionModel } = useModelById((agent?.model ?? '') as UniqueModelId)
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
-  const [sessionLayout] = usePreference('agent.layout')
+  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
+  const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const handleNewSessionShortcut = useCallback(() => {
-    if (sessionLayout === 'classic' && onCreateEmptySession) {
+    if (isClassicSessionLayout && onCreateEmptySession) {
       void onCreateEmptySession()
       return
     }
 
     void onNewSessionDraft?.()
-  }, [onCreateEmptySession, onNewSessionDraft, sessionLayout])
-  const hasNewSessionShortcutAction =
-    sessionLayout === 'classic' ? Boolean(onCreateEmptySession || onNewSessionDraft) : Boolean(onNewSessionDraft)
+  }, [isClassicSessionLayout, onCreateEmptySession, onNewSessionDraft])
+  const hasNewSessionShortcutAction = isClassicSessionLayout
+    ? Boolean(onCreateEmptySession || onNewSessionDraft)
+    : Boolean(onNewSessionDraft)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewSessionShortcut, {
@@ -671,7 +673,8 @@ const AgentComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [sessionLayout] = usePreference('agent.layout')
+  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
+  const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const { t } = useTranslation()
   const modelProviderName = useProviderDisplayName(model?.providerId)
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
@@ -835,7 +838,7 @@ const AgentComposerInner = ({
 
     const label = t('agent.session.new')
 
-    if (sessionLayout === 'classic') {
+    if (isClassicSessionLayout) {
       if (!onCreateEmptySession) return []
 
       return [
@@ -866,7 +869,7 @@ const AgentComposerInner = ({
         }
       }
     ]
-  }, [agentBase, handleCreateEmptySession, onCreateEmptySession, onNewSessionDraft, sessionLayout, t])
+  }, [agentBase, handleCreateEmptySession, isClassicSessionLayout, onCreateEmptySession, onNewSessionDraft, t])
 
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined
@@ -1070,7 +1073,7 @@ const AgentComposerInner = ({
     selectModelLabel: t('button.select_model'),
     agentChanging,
     shouldAutoSelectCreatedAgent: Boolean(onAgentChange),
-    showAgentTrigger: sessionLayout !== 'classic',
+    showAgentTrigger: !isClassicSessionLayout,
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
@@ -1177,7 +1180,8 @@ const MissingAgentHomeComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [sessionLayout] = usePreference('agent.layout')
+  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
+  const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const selectAgentMessage = t('chat.alerts.select_agent')
@@ -1211,7 +1215,7 @@ const MissingAgentHomeComposerInner = ({
     selectModelLabel: t('button.select_model'),
     agentChanging,
     shouldAutoSelectCreatedAgent: true,
-    showAgentTrigger: sessionLayout !== 'classic',
+    showAgentTrigger: !isClassicSessionLayout,
     canChangeModel: false,
     onAgentChange: handleAgentChange,
     onModelSelect: () => undefined

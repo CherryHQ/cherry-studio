@@ -88,9 +88,9 @@ vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
 
 vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
   ARTIFACT_RIGHT_PANE_CACHE_KEY: 'ui.chat.artifact_pane.width',
-  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 460,
+  ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH: 280,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH: 720,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 360,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH: 280,
   RightPaneHost: ({
     children,
     open,
@@ -112,7 +112,7 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
     className?: string
   }>) => (
     <section
-      data-testid="artifact-right-pane"
+      data-testid={cacheKey === 'ui.chat.artifact_pane.width' ? 'artifact-right-pane' : 'session-right-pane'}
       data-open={String(Boolean(open))}
       data-width={String(width)}
       data-resizable={String(Boolean(resizable))}
@@ -642,10 +642,10 @@ describe('AgentChat artifact pane', () => {
     fireEvent.click(shortcut)
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-width', '460')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-width', '280')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-resizable', 'true')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-min-width', '360')
-    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-default-width', '460')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-min-width', '280')
+    expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-default-width', '280')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-max-width', '720')
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-cache-key', 'ui.chat.artifact_pane.width')
     expect(screen.getByTestId('artifact-right-pane').getAttribute('data-class-name')).not.toContain('p-2')

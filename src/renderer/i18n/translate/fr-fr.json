@@ -190,6 +190,9 @@
     "home": {
       "welcome_title": "De quoi allons-nous parler aujourd'hui ?"
     },
+    "icon": {
+      "type": "[to be translated]:Agent Icon"
+    },
     "input": {
       "placeholder": "Entrez votre message ici, envoyez avec {{key}} - @ sélectionner le chemin, / sélectionner la commande"
     },
@@ -197,6 +200,9 @@
       "error": {
         "failed": "Échec de la liste des agents."
       }
+    },
+    "manage": {
+      "title": "[to be translated]:Manage Agents"
     },
     "pin": {
       "title": "Agent Pin"
@@ -628,6 +634,11 @@
       }
     },
     "sidebar_title": "Agents",
+    "skill": {
+      "manage": {
+        "title": "[to be translated]:Manage skills"
+      }
+    },
     "tasks": {
       "add": "Ajouter une tâche",
       "cancel": "Annuler",
@@ -1014,6 +1025,7 @@
     "clear": {
       "content": "Supprimer le sujet supprimera tous les sujets et fichiers de l'aide. Êtes-vous sûr de vouloir continuer ?",
       "menu_title": "Supprimer toutes les conversations avec l'assistant",
+      "success_title": "[to be translated]:Cleared {{count}} topics",
       "title": "Supprimer les sujets"
     },
     "copy": {
@@ -5253,6 +5265,13 @@
       "auto_switch_to_topics": "Basculer automatiquement vers les sujets",
       "title": "Paramètres avancés"
     },
+    "agent": {
+      "position": {
+        "label": "[to be translated]:Session position",
+        "left": "[to be translated]:Left",
+        "right": "[to be translated]:Right"
+      }
+    },
     "appearance": {
       "title": "Apparence"
     },
@@ -7518,6 +7537,7 @@
   },
   "title": {
     "apps": "Mini-programmes",
+    "chat": "[to be translated]:Chat",
     "code": "Code",
     "files": "Fichiers",
     "home": "Page d'accueil",

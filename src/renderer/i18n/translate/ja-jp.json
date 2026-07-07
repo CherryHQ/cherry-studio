@@ -190,6 +190,9 @@
     "home": {
       "welcome_title": "今日は何について話しましょうか？"
     },
+    "icon": {
+      "type": "[to be translated]:Agent Icon"
+    },
     "input": {
       "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択"
     },
@@ -197,6 +200,9 @@
       "error": {
         "failed": "エージェントの一覧取得に失敗しました。"
       }
+    },
+    "manage": {
+      "title": "[to be translated]:Manage Agents"
     },
     "pin": {
       "title": "ピンエージェント"
@@ -628,6 +634,11 @@
       }
     },
     "sidebar_title": "エージェント",
+    "skill": {
+      "manage": {
+        "title": "[to be translated]:Manage skills"
+      }
+    },
     "tasks": {
       "add": "タスクを追加",
       "cancel": "キャンセル",
@@ -1014,6 +1025,7 @@
     "clear": {
       "content": "トピックをクリアすると、アシスタント内のすべてのトピックとファイルが削除されます。続行しますか？",
       "menu_title": "すべてのアシスタントとの会話を削除してください",
+      "success_title": "[to be translated]:Cleared {{count}} topics",
       "title": "トピックをクリア"
     },
     "copy": {
@@ -5253,6 +5265,13 @@
       "auto_switch_to_topics": "トピックに自動的に切り替える",
       "title": "詳細設定"
     },
+    "agent": {
+      "position": {
+        "label": "[to be translated]:Session position",
+        "left": "[to be translated]:Left",
+        "right": "[to be translated]:Right"
+      }
+    },
     "appearance": {
       "title": "外観"
     },
@@ -7518,6 +7537,7 @@
   },
   "title": {
     "apps": "アプリ",
+    "chat": "[to be translated]:Chat",
     "code": "Code",
     "files": "ファイル",
     "home": "ホーム",

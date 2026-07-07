@@ -200,8 +200,8 @@ function AssistantEditDialogContent({
         id: 'tools',
         label: t('library.config.dialogs.edit.tools_tab'),
         children: [
-          { id: 'tools.mcp', label: t('library.config.agent.section.tools.tab.mcp') },
-          { id: 'tools.knowledge', label: t('library.config.dialogs.edit.knowledge_tab') }
+          { id: 'tools.knowledge', label: t('library.config.dialogs.edit.knowledge_tab') },
+          { id: 'tools.mcp', label: t('library.config.agent.section.tools.tab.mcp') }
         ]
       }
     ],
@@ -253,6 +253,7 @@ function AssistantEditDialogContent({
       activeTab={activeTab}
       canSave={canSave}
       form={form}
+      groupPresentation="inline"
       isSubmitting={isSubmitting}
       onActiveTabChange={setActiveTab}
       onOpenChange={onOpenChange}

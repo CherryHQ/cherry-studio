@@ -282,6 +282,7 @@ function AgentEditDialogContent({
       open={open}
       rootError={rootError}
       setDialogContentElement={setDialogContentElement}
+      groupPresentation="inline"
       tabs={tabs}
       title={t('library.config.dialogs.edit.agent_title')}>
       <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">

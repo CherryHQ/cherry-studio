@@ -190,6 +190,9 @@
     "home": {
       "welcome_title": "Hôm nay chúng ta sẽ nói về điều gì?"
     },
+    "icon": {
+      "type": "[to be translated]:Agent Icon"
+    },
     "input": {
       "placeholder": "Nhập tin nhắn của bạn ở đây, gửi bằng {{key}} - @ chọn đường dẫn, / chọn lệnh"
     },
@@ -197,6 +200,9 @@
       "error": {
         "failed": "Không thể liệt kê các tác nhân."
       }
+    },
+    "manage": {
+      "title": "[to be translated]:Manage Agents"
     },
     "pin": {
       "title": "Đại lý Ghim"
@@ -628,6 +634,11 @@
       }
     },
     "sidebar_title": "Đại lý",
+    "skill": {
+      "manage": {
+        "title": "[to be translated]:Manage skills"
+      }
+    },
     "tasks": {
       "add": "Thêm Nhiệm vụ",
       "cancel": "Hủy",
@@ -1014,6 +1025,7 @@
     "clear": {
       "content": "Xóa chủ đề sẽ xóa tất cả các chủ đề và tệp trong trợ lý. Bạn có chắc chắn muốn tiếp tục?",
       "menu_title": "Xóa tất cả các cuộc trò chuyện với trợ lý",
+      "success_title": "[to be translated]:Cleared {{count}} topics",
       "title": "Temas claros"
     },
     "copy": {
@@ -5253,6 +5265,13 @@
       "auto_switch_to_topics": "Tự động chuyển sang chủ đề",
       "title": "Cài đặt nâng cao"
     },
+    "agent": {
+      "position": {
+        "label": "[to be translated]:Session position",
+        "left": "[to be translated]:Left",
+        "right": "[to be translated]:Right"
+      }
+    },
     "appearance": {
       "title": "Vẻ ngoài"
     },
@@ -7518,6 +7537,7 @@
   },
   "title": {
     "apps": "Ứng dụng",
+    "chat": "[to be translated]:Chat",
     "code": "Mã",
     "files": "Tập tin",
     "home": "Trang chủ",
