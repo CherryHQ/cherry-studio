@@ -538,8 +538,9 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
           className="absolute"
           data-testid="xlsx-grid-zoom-layer"
           style={{ top: scaledHeaderHeight, left: scaledHeaderWidth, ...zoomTransform }}>
-          {/* Cell layer with two-axis virtualization. Merged-covered cells are emptied here; the merge layer below owns
-              the master cell content/style and is the only semantic gridcell for that coordinate. */}
+          {/* Cell layer with two-axis virtualization. Cells inside a merge render empty here — the merge layer below
+              paints the visual — but the master keeps the semantic gridcell, with span metadata and an aria-label
+              carrying the cell text so the merge is exposed as one spanning cell in its real row. */}
           <div className="absolute">
             {virtualRows.map((vr) => {
               const row = vr.index + 1
@@ -547,9 +548,11 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
                 <div key={vr.key} role="row" aria-rowindex={row}>
                   {virtualCols.map((vc) => {
                     const col = vc.index + 1
-                    const isCovered = Boolean(findMerge(row, col))
-                    const cell = isCovered ? undefined : getCell(row, col)
-                    const style = isCovered ? undefined : getStyle(cell)
+                    const merge = findMerge(row, col)
+                    const isMaster = merge !== undefined && merge.top === row && merge.left === col
+                    const isCovered = merge !== undefined && !isMaster
+                    const cell = merge ? undefined : getCell(row, col)
+                    const style = merge ? undefined : getStyle(cell)
                     const isSelected = !isCovered && selected?.row === row && selected?.col === col
                     return (
                       <div
@@ -558,7 +561,10 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
                         role={isCovered ? undefined : 'gridcell'}
                         aria-hidden={isCovered || undefined}
                         aria-colindex={isCovered ? undefined : col}
-                        aria-selected={isCovered ? undefined : isSelected}>
+                        aria-selected={isCovered ? undefined : isSelected}
+                        aria-colspan={isMaster ? merge.right - merge.left + 1 : undefined}
+                        aria-rowspan={isMaster ? merge.bottom - merge.top + 1 : undefined}
+                        aria-label={isMaster ? getCell(row, col)?.text || undefined : undefined}>
                         <CellView
                           cell={cell}
                           style={style}
@@ -577,23 +583,18 @@ const XlsxGrid = ({ sheet, styles, imageUrls, zoom, onSelectCell, renderChart }:
             })}
           </div>
 
-          {/* Merge layer independent of cell virtualization. Merges render while their rect intersects the viewport. */}
+          {/* Merge layer independent of cell virtualization. Merges render while their rect intersects the viewport.
+              Presentation-only (aria-hidden): the semantic gridcell for a merge is the master cell in the row layer. */}
           <div className="absolute">
             {mergesVisible.map(({ merge, masterRow, masterCol, rect }) => {
               const cell = getCell(masterRow, masterCol)
               const style = getStyle(cell)
-              const isSelected = selected?.row === masterRow && selected?.col === masterCol
               return (
                 <div
                   key={`merge:${merge.top}:${merge.left}:${merge.bottom}:${merge.right}`}
-                  role="row"
-                  aria-rowindex={masterRow}
+                  aria-hidden
                   onClick={() => selectCell(masterRow, masterCol)}>
-                  <div
-                    role="gridcell"
-                    aria-colindex={masterCol}
-                    aria-selected={isSelected}
-                    data-testid="xlsx-grid-merge-cell">
+                  <div data-testid="xlsx-grid-merge-cell">
                     <CellView
                       cell={cell}
                       style={style}

@@ -257,21 +257,33 @@ describe('XlsxGrid — merged cells', () => {
     expect(mergeCell.firstElementChild).toHaveStyle({ width: '302px', height: '36px' })
   })
 
-  it('exposes exactly one semantic gridcell per merged coordinate and hides covered placeholders', () => {
-    // Merge is rows 1-1, cols 1-4: the merge overlay must be the only gridcell for the master
-    // coordinate; base-layer placeholders (master included) must be hidden from the a11y tree.
+  it('exposes the merge as one spanning gridcell in its real row and keeps the overlay presentational', () => {
+    // Merge is rows 1-1, cols 1-4: the master cell in the base row must be the only semantic gridcell,
+    // exposing span metadata and the cell text; the visual merge overlay must be hidden from the a11y tree.
     showTitleMergeRange()
     const { container } = render(<XlsxGrid sheet={salesSheet} styles={model.styles} imageUrls={{}} zoom={1} />)
     setScrollViewport(container)
 
+    // Exactly one row 1 — the merge overlay no longer duplicates row semantics.
+    const rows = container.querySelectorAll('[role="row"][aria-rowindex="1"]')
+    expect(rows).toHaveLength(1)
+
     const masterCells = container.querySelectorAll('[role="gridcell"][aria-colindex="1"]')
     expect(masterCells).toHaveLength(1)
-    expect(masterCells[0]).toBe(screen.getByTestId('xlsx-grid-merge-cell'))
+    const master = masterCells[0]
+    expect(rows[0].contains(master)).toBe(true)
+    expect(master).toHaveAttribute('aria-colspan', '4')
+    expect(master).toHaveAttribute('aria-rowspan', '1')
+    expect(master).toHaveAttribute('aria-label', '2026 Sales Summary')
 
-    // The 4 covered base-layer placeholders have no gridcell role and are aria-hidden.
-    const baseRow = container.querySelectorAll('[role="row"][aria-rowindex="1"]')[0]
-    expect(baseRow.querySelectorAll('[role="gridcell"]')).toHaveLength(0)
-    expect(baseRow.querySelectorAll('[aria-hidden="true"]')).toHaveLength(4)
+    // The 3 covered base-layer placeholders have no gridcell role and are aria-hidden.
+    expect(rows[0].querySelectorAll('[role="gridcell"]')).toHaveLength(1)
+    expect(rows[0].querySelectorAll('[aria-hidden="true"]')).toHaveLength(3)
+
+    // The merge overlay paints the visual but carries no grid semantics.
+    const overlay = screen.getByTestId('xlsx-grid-merge-cell')
+    expect(overlay.closest('[aria-hidden="true"]')).not.toBeNull()
+    expect(overlay.closest('[role="row"]')).toBeNull()
   })
 
   it('keeps the merge layer visible when the master row has scrolled out of the virtual row range', () => {
