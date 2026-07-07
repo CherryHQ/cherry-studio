@@ -2059,6 +2059,7 @@
     "install_bun": "安裝 Bun",
     "install_error": "安裝失敗",
     "install_success": "安裝成功",
+    "install_tool_first": "請先安裝 {{toolName}} 再選擇服務商",
     "installing": "安裝中…",
     "installing_bun": "安裝中...",
     "latest": "最新",

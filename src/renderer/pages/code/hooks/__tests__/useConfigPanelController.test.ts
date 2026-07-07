@@ -44,6 +44,7 @@ function baseOptions() {
   return {
     selectedCliTool: CodeCli.CLAUDE_CODE,
     toolName: 'Claude Code',
+    isToolInstalled: true,
     currentProviderId: 'p1',
     providerConfigs: {},
     upsertProviderConfig: vi.fn().mockResolvedValue('p1'),
@@ -130,6 +131,44 @@ describe('useConfigPanelController', () => {
         result.current.onToggleCurrent(provider)
       })
       expect(mocks.writeCliConfigDraft).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('install gate', () => {
+    beforeEach(() => {
+      // clearAllMocks() keeps the never-resolving clearCliConfig impl from the in-flight guard tests.
+      mocks.clearCliConfig.mockReset()
+      mocks.clearCliConfig.mockResolvedValue(undefined)
+    })
+
+    it('blocks enabling a provider and nudges to install when the CLI is not installed', async () => {
+      const options = { ...baseOptions(), isToolInstalled: false, currentProviderId: null }
+      const { result } = renderHook(() => useConfigPanelController(options))
+      const provider = { id: 'p2' } as Provider // not current → enabling
+
+      await act(async () => {
+        result.current.onToggleCurrent(provider)
+        await flushMicrotasks()
+      })
+
+      expect(window.toast.error).toHaveBeenCalledWith('code.install_tool_first')
+      expect(options.setCurrentProvider).not.toHaveBeenCalled()
+      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+    })
+
+    it('still allows disabling the current provider when the CLI is not installed', async () => {
+      const options = { ...baseOptions(), isToolInstalled: false, currentProviderId: 'p1' }
+      const { result } = renderHook(() => useConfigPanelController(options))
+      const provider = { id: 'p1' } as Provider // current → disabling
+
+      await act(async () => {
+        result.current.onToggleCurrent(provider)
+        await flushMicrotasks()
+      })
+
+      expect(mocks.clearCliConfig).toHaveBeenCalledWith({ cliTool: CodeCli.CLAUDE_CODE })
+      expect(options.setCurrentProvider).toHaveBeenCalledWith(null)
+      expect(window.toast.error).not.toHaveBeenCalled()
     })
   })
 

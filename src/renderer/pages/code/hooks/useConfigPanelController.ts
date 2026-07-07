@@ -26,6 +26,7 @@ const logger = loggerService.withContext('useConfigPanelController')
 interface UseConfigPanelControllerOptions {
   selectedCliTool: CodeCli
   toolName: string
+  isToolInstalled: boolean
   currentProviderId: string | null
   providerConfigs: Record<string, CliProviderConfig>
   upsertProviderConfig: (
@@ -48,6 +49,7 @@ interface ConfigPanelController {
 export function useConfigPanelController({
   selectedCliTool,
   toolName,
+  isToolInstalled,
   currentProviderId,
   providerConfigs,
   upsertProviderConfig,
@@ -153,10 +155,17 @@ export function useConfigPanelController({
 
   const handleToggleCurrent = useCallback(
     (provider: Provider) => {
+      const isEnabling = currentProviderId !== provider.id
+      // Enabling injects config into the CLI's own files, which is meaningless until the CLI is
+      // installed — nudge the user to install it instead of marking a provider "enabled" that can
+      // never launch. Disabling (scrubbing config) stays allowed regardless.
+      if (isEnabling && !isToolInstalled) {
+        window.toast.error(t('code.install_tool_first', { toolName }))
+        return
+      }
       // Ignore a re-entrant toggle for the same tool while its config write/clear is still running.
       if (inFlightToolsRef.current.has(selectedCliTool)) return
       inFlightToolsRef.current.add(selectedCliTool)
-      const isEnabling = currentProviderId !== provider.id
       void (async () => {
         // Virtual "own login" entry: the CLI falls back to its own stored login. Always scrub the
         // Cherry-managed credentials/model first (this also clears credential-only side files like
@@ -230,6 +239,8 @@ export function useConfigPanelController({
     [
       currentProviderId,
       selectedCliTool,
+      toolName,
+      isToolInstalled,
       providerConfigs,
       upsertProviderConfig,
       setCurrentProvider,

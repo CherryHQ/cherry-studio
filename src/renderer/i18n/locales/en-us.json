@@ -2059,6 +2059,7 @@
     "install_bun": "Install Bun",
     "install_error": "Installation failed",
     "install_success": "Installation successful",
+    "install_tool_first": "Install {{toolName}} first to select a provider",
     "installing": "Installing…",
     "installing_bun": "Installing...",
     "latest": "Latest",
