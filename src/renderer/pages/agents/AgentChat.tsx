@@ -76,6 +76,7 @@ interface AgentChatProps {
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
+  onPaneAutoCollapseChange?: (collapsed: boolean) => void
   draftConversation?: DraftAgentSession | null
   missingAgentDraft?: boolean
   onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
@@ -112,6 +113,7 @@ const AgentChat = ({
   locateMessageId,
   onLocateMessageHandled,
   onPaneCollapse,
+  onPaneAutoCollapseChange,
   draftConversation,
   missingAgentDraft = false,
   onStartDraftSession,
@@ -255,6 +257,7 @@ const AgentChat = ({
           paneOpen={paneOpen}
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
+          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           topRightTool={resourcePaneTopRightTool}
           center={<ConversationCenterState state="loading" />}
           centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
@@ -273,6 +276,7 @@ const AgentChat = ({
           paneOpen={paneOpen}
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
+          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           center={<EmptyState compact className="h-full" title={t('agent.session.get.error.not_found')} />}
         />
       )
@@ -286,6 +290,7 @@ const AgentChat = ({
             paneOpen={paneOpen}
             panePosition={panePosition}
             onPaneCollapse={onPaneCollapse}
+            onPaneAutoCollapseChange={onPaneAutoCollapseChange}
             topBar={
               <AgentChatNavbar
                 activeAgent={activeAgent ?? null}
@@ -338,6 +343,7 @@ const AgentChat = ({
           paneOpen={paneOpen}
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
+          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           topBar={
             <AgentChatNavbar
               activeAgent={activeAgent ?? null}
@@ -390,6 +396,7 @@ const AgentChat = ({
           paneOpen={paneOpen}
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
+          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           topBar={
             <AgentChatNavbar
               activeAgent={null}
@@ -433,6 +440,7 @@ const AgentChat = ({
         paneOpen={paneOpen}
         panePosition={panePosition}
         onPaneCollapse={onPaneCollapse}
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
         center={<ConversationCenterState state="empty" />}
       />
     )
@@ -482,6 +490,7 @@ const AgentChat = ({
       locateMessageId={locateMessageId}
       onLocateMessageHandled={onLocateMessageHandled}
       onPaneCollapse={onPaneCollapse}
+      onPaneAutoCollapseChange={onPaneAutoCollapseChange}
       resourcePane={resourcePane}
       resourcePaneCount={resourcePaneCount}
       resourcePaneRevealRequest={resourcePaneRevealRequest}
@@ -536,6 +545,7 @@ interface AgentChatSessionFrameProps {
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
+  onPaneAutoCollapseChange?: (collapsed: boolean) => void
   onNewSessionDraft?: () => void | Promise<void>
   onCreateEmptySession?: () => void | Promise<void>
   showWorkspaceSelector?: boolean
@@ -571,6 +581,7 @@ const AgentChatSessionFrame = ({
   locateMessageId,
   onLocateMessageHandled,
   onPaneCollapse,
+  onPaneAutoCollapseChange,
   onNewSessionDraft,
   onCreateEmptySession,
   showWorkspaceSelector = false,
@@ -697,6 +708,7 @@ const AgentChatSessionFrame = ({
         paneOpen={paneOpen}
         panePosition={panePosition}
         onPaneCollapse={onPaneCollapse}
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
         topBar={
           <AgentChatNavbar
             className="min-w-0"

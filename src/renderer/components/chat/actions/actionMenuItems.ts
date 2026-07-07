@@ -27,6 +27,7 @@ export function actionsToCommandMenuExtraItems<TContext>(
         id: action.id,
         label: action.label as string,
         icon: action.icon,
+        description: action.availability.reason,
         enabled: action.availability.enabled,
         children: actionsToCommandMenuExtraItems(action.children, runAction)
       })
@@ -38,6 +39,7 @@ export function actionsToCommandMenuExtraItems<TContext>(
       id: action.id,
       label: action.label as string,
       icon: action.icon,
+      description: action.availability.reason,
       enabled: action.availability.enabled,
       destructive: action.danger,
       shortcutLabel: action.shortcut,

@@ -13,6 +13,7 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import { ModelSelector } from '@renderer/components/ModelSelector'
@@ -285,6 +286,7 @@ interface AgentComposerContextControlsProps {
   iconOnly?: boolean
   showAgentTrigger?: boolean
   agentTriggerMode?: 'selector' | 'edit'
+  onDialogCloseAutoFocus?: () => void
   onAgentChange: (agentId: string | null) => void | Promise<void>
 }
 
@@ -319,6 +321,7 @@ const AgentComposerContextControls = ({
   iconOnly = false,
   showAgentTrigger = true,
   agentTriggerMode = 'selector',
+  onDialogCloseAutoFocus,
   onAgentChange
 }: AgentComposerContextControlsProps) => {
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
@@ -369,7 +372,10 @@ const AgentComposerContextControls = ({
               <ResourceEditDialogHost
                 target={agentEditDialogTarget}
                 onOpenChange={(open) => {
-                  if (!open) setAgentEditDialogTarget(null)
+                  if (!open) {
+                    setAgentEditDialogTarget(null)
+                    onDialogCloseAutoFocus?.()
+                  }
                 }}
               />
             </React.Suspense>
@@ -383,6 +389,7 @@ const AgentComposerContextControls = ({
           side={side}
           align="start"
           mountStrategy="lazy-keep"
+          onDialogCloseAutoFocus={onDialogCloseAutoFocus}
           trigger={agentTrigger}
         />
       )}
@@ -558,6 +565,21 @@ type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls'
 }
 type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
 
+type AgentComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
+
+const restoreAgentComposerInputFocus = (inputAdapter: AgentComposerInputAdapter) => {
+  window.requestAnimationFrame(() => inputAdapter?.focus())
+}
+
+const AgentComposerContextControlsWithAutoFocus = ({
+  inputAdapter,
+  ...props
+}: AgentComposerContextControlsProps & { inputAdapter: AgentComposerInputAdapter }) => {
+  const onDialogCloseAutoFocus = useCallback(() => restoreAgentComposerInputFocus(inputAdapter), [inputAdapter])
+
+  return <AgentComposerContextControls {...props} onDialogCloseAutoFocus={onDialogCloseAutoFocus} />
+}
+
 // Active agent sessions are bound to their agent, so the agent trigger opens edit instead of switching.
 const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
   return {
@@ -568,7 +590,13 @@ const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
         toolMenuPlacement="beforeContext"
         renderContextControls={({ side, iconOnly }) => (
           <>
-            <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} agentTriggerMode="edit" />
+            <AgentComposerContextControlsWithAutoFocus
+              {...props}
+              side={side}
+              iconOnly={iconOnly}
+              agentTriggerMode="edit"
+              inputAdapter={inputAdapter}
+            />
             <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
           </>
         )}
@@ -584,11 +612,16 @@ const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
         <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
       </div>
     ),
-    renderBelowControls: () => (
+    renderBelowControls: (inputAdapter) => (
       <ComposerBelowControls
         renderContextControls={({ side, iconOnly }) => (
           <>
-            <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} />
+            <AgentComposerContextControlsWithAutoFocus
+              {...props}
+              side={side}
+              iconOnly={iconOnly}
+              inputAdapter={inputAdapter}
+            />
             <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
           </>
         )}
@@ -812,6 +845,7 @@ const AgentComposerInner = ({
           label,
           icon: <MessageSquarePlus size={16} />,
           filterText: label,
+          searchAliases: getQuickPanelSearchAliases(t, 'agent.session.new'),
           action: () => {
             handleCreateEmptySession()
           }
@@ -827,6 +861,7 @@ const AgentComposerInner = ({
         label,
         icon: <MessageSquarePlus size={16} />,
         filterText: label,
+        searchAliases: getQuickPanelSearchAliases(t, 'agent.session.new'),
         action: () => {
           void onNewSessionDraft()
         }
