@@ -18,9 +18,15 @@ const normalizePercentStacked = (series: ChartSeries[]): (number | null)[][] => 
   return series.map((s) => s.values.map((v, i) => (v === null || totals[i] === 0 ? null : (v / totals[i]) * 100)))
 }
 
+const hasNegativeValue = (series: ChartSeries[]): boolean =>
+  series.some((s) => s.values.some((v) => v !== null && v < 0))
+
 const buildBarLineAreaOption = (chart: ChartModel): EChartsCoreOption => {
   const isHorizontal = chart.type === 'bar' && chart.barDirection === 'bar'
-  const isPercentStacked = chart.stacking === 'percentStacked'
+  // Excel percent-stacks negatives sign-preserved against per-sign totals; the signed-total normalization here
+  // would flip all-negative categories positive and push mixed-sign categories past the fixed 100% axis. Rather
+  // than render wrong percentages, charts containing negatives downgrade to plain stacking of the raw values.
+  const isPercentStacked = chart.stacking === 'percentStacked' && !hasNegativeValue(chart.series)
   const categoryAxis = {
     type: 'category' as const,
     data: buildCategoryAxisData(chart.series)

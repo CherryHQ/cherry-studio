@@ -103,6 +103,44 @@ describe('buildChartOption — bar/line/area (category axis)', () => {
     expect(option.series[1].data).toEqual([100, '-', 75])
   })
 
+  it('downgrades percentStacked with all-negative categories to plain stacking of raw values', () => {
+    // Signed-total normalization would flip -30/-70 into +30%/+70%; the downgrade keeps the raw negative values.
+    const chart: ChartModel = {
+      rect: baseRect,
+      type: 'bar',
+      stacking: 'percentStacked',
+      series: [
+        { name: 'A', categories: ['x'], values: [-30] },
+        { name: 'B', categories: ['x'], values: [-70] }
+      ]
+    }
+    const option = buildChartOption(chart) as any
+
+    expect(option.series[0].data).toEqual([-30])
+    expect(option.series[1].data).toEqual([-70])
+    expect(option.series[0].stack).toBe('total')
+    expect(option.yAxis.max).toBeUndefined()
+    expect(option.yAxis.axisLabel).toBeUndefined()
+  })
+
+  it('downgrades percentStacked with mixed-sign categories instead of exceeding the 100% axis', () => {
+    // 80/-20 normalizes to 133%/-33% against the signed total 60 and clips at max 100; raw values do not.
+    const chart: ChartModel = {
+      rect: baseRect,
+      type: 'bar',
+      stacking: 'percentStacked',
+      series: [
+        { name: 'A', categories: ['x'], values: [80] },
+        { name: 'B', categories: ['x'], values: [-20] }
+      ]
+    }
+    const option = buildChartOption(chart) as any
+
+    expect(option.series[0].data).toEqual([80])
+    expect(option.series[1].data).toEqual([-20])
+    expect(option.yAxis.max).toBeUndefined()
+  })
+
   it('percentStacked puts the percent axis on x for horizontal bars', () => {
     const chart: ChartModel = {
       rect: baseRect,
