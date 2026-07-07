@@ -1,16 +1,16 @@
 // useBackupV2 — renderer hook for the v2 modular backup export pipeline.
 //
-// Wraps window.api.backupV2 (BackupV2_StartBackup / CancelBackup /
-// BackupV2_Progress event) with loading / error / progress / cancel state so a UI
-// surface can bind a single onClick without re-deriving it.
+// Wraps the IpcApi routes (backup.start_backup / backup.cancel) + the backup.progress
+// event with loading / error / progress / cancel state so a UI surface can bind a
+// single onClick without re-deriving it.
 //
 // SLICE SCOPE: the v2 backup settings PAGE (a new V2 surface — intentionally NOT
 // mixed into the legacy v1 LocalBackupSettings, which is throwaway under the v2
-// refactor) lands in a follow-up UX slice. This hook is the consumer-side binding
-// that keeps the preload wrapper from being orphaned (demand-first).
+// refactor) lands in a follow-up UX slice. This hook is the consumer-side binding.
 
 import { useCallback, useState } from 'react'
 
+import { ipcApi } from '@renderer/ipc'
 import type { BackupProgressUpdate } from '@shared/types/backup'
 
 export interface UseBackupV2State {
@@ -43,7 +43,7 @@ const INITIAL: UseBackupV2State = {
  * KNOWLEDGE / PAINTINGS / FILE_STORAGE / TRANSLATE_HISTORY, no blobs — the
  * orchestrator's step 2.5 physically strips their rows from the copy).
  *
- * Subscribes to BackupV2_Progress for the export's lifetime (unsubscribes on
+ * Subscribes to backup.progress for the export's lifetime (unsubscribes on
  * resolve/reject). The first tick carries backupId, which cancelBackup uses to
  * abort the active export.
  */
@@ -54,11 +54,11 @@ export function useBackupV2() {
     async (preset: 'full' | 'lite', outputPath: string): Promise<BackupV2Result> => {
       setState({ ...INITIAL, loading: true })
       // Subscribe for THIS export; the first tick carries backupId (cancel routing).
-      const unsubscribe = window.api.backupV2.onProgress((update) => {
+      const unsubscribe = ipcApi.on('backup.progress', (update) => {
         setState((s) => ({ ...s, backupId: update.backupId, progress: update }))
       })
       try {
-        const result = await window.api.backupV2.startBackup({ preset, outputPath })
+        const result = await ipcApi.request('backup.start_backup', { preset, outputPath })
         setState({ ...INITIAL, backupId: result.backupId, archivePath: result.archivePath })
         return result
       } catch (e) {
@@ -76,7 +76,7 @@ export function useBackupV2() {
   const cancelBackup = useCallback(async (): Promise<void> => {
     // No-op if no active export (backupId is set from the first progress tick).
     if (!state.backupId) return
-    await window.api.backupV2.cancelBackup(state.backupId)
+    await ipcApi.request('backup.cancel', { backupId: state.backupId })
   }, [state.backupId])
 
   return { ...state, startBackup, cancelBackup }
