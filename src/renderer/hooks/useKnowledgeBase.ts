@@ -180,6 +180,76 @@ export const useRestoreKnowledgeBase = () => {
   }
 }
 
+export const useEnableKnowledgeBaseEmbedding = () => {
+  const [isEnabling, setIsEnabling] = useState(false)
+  const [enableError, setEnableError] = useState<Error | undefined>()
+  const invalidateCache = useInvalidateCache()
+
+  const enableEmbedding = useCallback(
+    async (baseId: string, patch: UpdateKnowledgeBaseDto) => {
+      setEnableError(undefined)
+
+      const trimmedBaseId = baseId.trim()
+      const embeddingModelId = patch.embeddingModelId?.trim()
+      const dimensions = patch.dimensions
+
+      if (!trimmedBaseId) {
+        throw new Error('Knowledge base id is required')
+      }
+
+      if (!embeddingModelId) {
+        throw new Error('Knowledge base embedding model is required')
+      }
+
+      if (!Number.isInteger(dimensions) || (dimensions as number) <= 0) {
+        throw new Error(`Knowledge base dimensions must be a positive integer, received "${dimensions}"`)
+      }
+
+      setIsEnabling(true)
+
+      try {
+        const result = await ipcApi.request('knowledge.enable_embedding_model', {
+          baseId: trimmedBaseId,
+          patch: { ...patch, embeddingModelId, dimensions }
+        })
+
+        try {
+          // Also invalidate the item list: enabling embedding flips every existing item back to
+          // processing/embedding server-side, but the item list's own polling already stopped
+          // once they last reached a terminal status (see useKnowledgeItems' hasNonTerminalItem) —
+          // without this, the UI keeps showing the stale "completed" badges from the BM25-only run.
+          await invalidateCache([`/knowledge-bases/${trimmedBaseId}/items`, '/knowledge-bases'])
+        } catch (invalidateError) {
+          logger.error(
+            'Failed to refresh knowledge base list after enabling embedding',
+            normalizeError(invalidateError),
+            { baseId: trimmedBaseId }
+          )
+        }
+
+        setIsEnabling(false)
+        return result
+      } catch (error) {
+        const normalizedError = normalizeError(error)
+        logger.error('Failed to enable knowledge base embedding', normalizedError, {
+          baseId: trimmedBaseId,
+          embeddingModelId
+        })
+        setEnableError(normalizedError)
+        setIsEnabling(false)
+        throw normalizedError
+      }
+    },
+    [invalidateCache]
+  )
+
+  return {
+    enableEmbedding,
+    isEnabling,
+    enableError
+  }
+}
+
 export const useUpdateKnowledgeBase = () => {
   const {
     trigger: updateTrigger,

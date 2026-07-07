@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
-import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
+import { KNOWLEDGE_BASES_MAX_LIMIT, type UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
   getKnowledgeItemDisplayTitle,
@@ -463,6 +463,27 @@ export class KnowledgeService extends BaseService {
     await this.assertSubtreesCanReindex(baseId, rootItemIds)
 
     await this.workflowService.reindexItems(baseId, rootItemIds)
+  }
+
+  /**
+   * Configures an embedding model on a base that has never had one (BM25-only), then
+   * backfills embeddings for its existing items in place — no restore-into-a-new-base
+   * needed, since a BM25-only base has no vectors to invalidate. `knowledgeBaseService.
+   * update` still rejects switching an already-configured model this way; that case
+   * keeps going through `restoreBase` because it does invalidate existing vectors.
+   */
+  async enableEmbeddingModel(baseId: string, patch: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
+    const updatedBase = knowledgeBaseService.update(baseId, patch, { allowEmbeddingModelBackfill: true })
+
+    const rootItems = knowledgeItemService.getRootItemsByBaseId(baseId).filter((item) => item.status !== 'deleting')
+    if (rootItems.length > 0) {
+      await this.reindexItems(
+        baseId,
+        rootItems.map((item) => item.id)
+      )
+    }
+
+    return updatedBase
   }
 
   listBases(): KnowledgeBase[] {

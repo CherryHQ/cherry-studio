@@ -8,10 +8,15 @@ import RagConfigPanel from '../RagConfigPanel'
 
 const mockUseKnowledgeRagConfig = vi.fn()
 const mockSave = vi.fn()
+const mockEnableEmbedding = vi.fn()
 // embedMany goes through ipcApi.request('ai.embed_many', …) now (Main IPC).
 const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }
+}))
+
+vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
+  useEnableKnowledgeBaseEmbedding: () => ({ enableEmbedding: mockEnableEmbedding, isEnabling: false })
 }))
 
 const renderRagConfigPanel = (
@@ -297,6 +302,7 @@ describe('RagConfigPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockEmbedMany.mockResolvedValue({ embeddings: [new Array(2048).fill(0)] })
+    mockEnableEmbedding.mockResolvedValue(createKnowledgeBase())
     Object.assign(window, {
       toast: {
         success: vi.fn(),
@@ -653,7 +659,7 @@ describe('RagConfigPanel', () => {
     expect(window.toast.success).toHaveBeenCalledWith('已保存')
   })
 
-  it('routes the downloaded local embedding model through rebuild when the base has items', () => {
+  it('enables the downloaded local embedding model in place when a BM25-only base already has items', async () => {
     const onRestoreBase = vi.fn()
     mockUseKnowledgeRagConfig.mockReturnValue({
       initialValues: {
@@ -677,9 +683,68 @@ describe('RagConfigPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'download-local-embedding' }))
 
+    await waitFor(() => {
+      expect(mockEnableEmbedding).toHaveBeenCalledWith(
+        'base-1',
+        expect.objectContaining({ embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID, dimensions: 2048 })
+      )
+    })
     expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).not.toHaveBeenCalled()
+    expect(window.toast.success).toHaveBeenCalledWith('已保存')
+  })
+
+  it('enables the embedding model in place instead of rebuilding when a BM25-only base already has items', async () => {
+    const onRestoreBase = vi.fn()
+    mockUseKnowledgeRagConfig.mockReturnValue({
+      initialValues: {
+        fileProcessorId: null,
+        chunkSize: '512',
+        chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
+        embeddingModelId: null,
+        rerankModelId: null,
+        documentCount: 6,
+        threshold: 0
+      },
+      fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
+      save: mockSave,
+      isLoading: false,
+      error: undefined
+    })
+
+    renderRagConfigPanel(onRestoreBase, { embeddingModelId: null, dimensions: null }, 5)
+
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
+
+    expect(screen.queryByRole('button', { name: '重建' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      expect(mockEnableEmbedding).toHaveBeenCalledWith(
+        'base-1',
+        expect.objectContaining({ embeddingModelId: 'openai::text-embedding-3-small', dimensions: 2048 })
+      )
+    })
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).not.toHaveBeenCalled()
+    expect(window.toast.success).toHaveBeenCalledWith('已保存')
+  })
+
+  it('still routes to the rebuild flow when switching an already-configured model on a non-empty base', () => {
+    const onRestoreBase = vi.fn()
+
+    // Default initialValues already has a non-null embeddingModelId; itemCount > 0.
+    renderRagConfigPanel(onRestoreBase, {}, 5)
+
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'voyage::voyage-3-large' } })
+    fireEvent.click(screen.getByRole('button', { name: '重建' }))
+
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(mockEnableEmbedding).not.toHaveBeenCalled()
     expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
-      embeddingModelId: LOCAL_EMBEDDING_UNIQUE_MODEL_ID
+      embeddingModelId: 'voyage::voyage-3-large'
     })
   })
 })
