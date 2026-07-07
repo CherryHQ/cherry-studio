@@ -63,12 +63,12 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async start(): Promise<this> {
-    const session = await agentSessionService.getById(this.input.sessionId)
+    const session = agentSessionService.getById(this.input.sessionId)
     const workspacePath = session?.workspace?.path
     if (!session?.agentId || !workspacePath) {
       throw new Error(`pi agent session ${this.input.sessionId} has no agent or workspace configured`)
     }
-    const agent = await agentService.getAgent(session.agentId)
+    const agent = agentService.getAgent(session.agentId)
     if (!agent?.model) {
       throw new Error(`pi agent ${session.agentId} has no model configured`)
     }

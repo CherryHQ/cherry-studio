@@ -158,8 +158,8 @@ beforeEach(() => {
   delete process.env.PI_CODING_AGENT_DIR
   delete process.env.PI_CODING_AGENT_SESSION_DIR
 
-  mocks.getById.mockResolvedValue({ id: 'sess-1', agentId: 'agent-1', workspace: { path: WORKSPACE } })
-  mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.' })
+  mocks.getById.mockReturnValue({ id: 'sess-1', agentId: 'agent-1', workspace: { path: WORKSPACE } })
+  mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.' })
   mocks.resolveInjection.mockResolvedValue({
     providerName: 'p',
     providerConfig: { name: 'P', baseUrl: 'https://x', apiKey: 'placeholder', api: 'anthropic-messages', models: [] },
@@ -639,7 +639,7 @@ describe('PiRuntimeConnection', () => {
   })
 
   it('wires both the provider and approval extensions and bakes disabledTools into excludeTools', async () => {
-    mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'p::m', disabledTools: ['bash', 'write'] })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['bash', 'write'] })
     await new PiRuntimeConnection(input).start()
 
     const factories = (mocks.loaderOpts as { extensionFactories: unknown[] }).extensionFactories
@@ -649,7 +649,7 @@ describe('PiRuntimeConnection', () => {
   })
 
   it('normalizes Claude-capitalized disabledTools to pi lowercase (bake-out + live gate)', async () => {
-    mocks.getAgent.mockResolvedValue({ id: 'agent-1', model: 'p::m', disabledTools: ['Bash', 'Write'] })
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', disabledTools: ['Bash', 'Write'] })
     const conn = await new PiRuntimeConnection(input).start()
 
     // Baked-out excludeTools use pi's lowercase vocabulary, not the Claude-capitalized ids.

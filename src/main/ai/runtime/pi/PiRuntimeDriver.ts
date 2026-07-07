@@ -19,7 +19,7 @@ export class PiRuntimeDriver implements AgentSessionRuntimeDriver {
     if (!session.agentId) {
       throw new Error(`pi agent session ${session.id} has no agent`)
     }
-    const agent = await agentService.getAgent(session.agentId)
+    const agent = agentService.getAgent(session.agentId)
     if (!agent?.model) {
       throw new Error(`pi agent ${session.agentId} has no model configured`)
     }
