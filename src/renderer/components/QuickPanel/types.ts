@@ -101,10 +101,14 @@ export type QuickPanelListItem = {
   label: React.ReactNode | string
   description?: React.ReactNode | string
   /**
-   * Since title and description can be ReactNode values, provide separate text
-   * for search filtering. This can combine the title and description strings.
+   * Extra searchable text for items whose visible label/description are not
+   * enough or are not plain strings. The default filter treats this as additive
+   * with string labels and descriptions; custom filters may choose narrower
+   * semantics.
    */
   filterText?: string
+  /** Extra searchable aliases that are not rendered in the panel. */
+  searchAliases?: readonly string[]
   icon: React.ReactNode | string
   suffix?: React.ReactNode | string
   isSelected?: boolean
