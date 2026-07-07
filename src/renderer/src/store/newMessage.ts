@@ -50,6 +50,12 @@ interface MessagesReceivedPayload {
   messages: Message[]
 }
 
+// Payload for hydrating a non-active topic without changing currentTopicId.
+interface BranchTopicMessagesHydratedPayload {
+  topicId: string
+  messages: Message[]
+}
+
 // Payload for setting topic loading state
 interface SetTopicLoadingPayload {
   topicId: string
@@ -124,6 +130,12 @@ export const messagesSlice = createSlice({
       messagesAdapter.upsertMany(state, messages)
       state.messageIdsByTopic[topicId] = messages.map((m) => m.id)
       state.currentTopicId = topicId
+    },
+    branchTopicMessagesHydrated(state, action: PayloadAction<BranchTopicMessagesHydratedPayload>) {
+      const { topicId, messages } = action.payload
+      // @ts-ignore ts-2589 false positive
+      messagesAdapter.upsertMany(state, messages)
+      state.messageIdsByTopic[topicId] = messages.map((m) => m.id)
     },
     addMessage(state, action: PayloadAction<{ topicId: string; message: Message }>) {
       const { topicId, message } = action.payload

@@ -6,10 +6,9 @@ import store, { useAppDispatch } from '@renderer/store'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { sendMessage as sendMessageThunk } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
-import { buildBranchSystemPrompt } from '@renderer/utils/branchAnchor/buildBranchSystemPrompt'
+import { prepareBranchTopicForRender } from '@renderer/utils/branchAnchor/prepareBranchTopicForRender'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
-import type { Topic as SharedTopic } from '@shared/data/types/topic'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -54,24 +53,6 @@ function buildCreateBody(anchor: BranchAnchor, assistant: Assistant): CreateTopi
     name: anchor.selectedText.trim().slice(0, NAME_MAX_LENGTH) || NAME_FALLBACK,
     sourceNodeId: anchor.messageId,
     ...assistantIdField
-  }
-}
-
-function toRendererBranchTopic(serverTopic: SharedTopic, assistant: Assistant, systemPrompt: string): Topic {
-  // Renderer-shape topic with `prompt` injected. `messageThunk.ts:855-857`
-  // concatenates `topic.prompt` onto `assistant.prompt` when assembling the
-  // system message — this is the prompt-hiding hook (Mode A). The branch
-  // topic is NOT dispatched into Redux assistant.topics (would pollute the
-  // sidebar); instead, we pass it via `assistant.topics` synthetically when
-  // calling sendMessage below.
-  return {
-    id: serverTopic.id,
-    assistantId: serverTopic.assistantId ?? assistant.id,
-    name: serverTopic.name,
-    createdAt: serverTopic.createdAt,
-    updatedAt: serverTopic.updatedAt,
-    messages: [],
-    prompt: systemPrompt
   }
 }
 
@@ -135,11 +116,12 @@ export function useBranchFork(args: UseBranchForkArgs): UseBranchForkResult {
       try {
         const serverTopic = await createTopic({ body: buildCreateBody(anchor, assistant) })
         const mainGoal = extractMainGoal(topic.id)
-        const systemPrompt = buildBranchSystemPrompt({
-          selectedText: anchor.selectedText,
-          mainGoal
+        branchTopic = prepareBranchTopicForRender({
+          topic: serverTopic,
+          anchor,
+          mainGoal,
+          assistantIdFallback: assistant.id
         })
-        branchTopic = toRendererBranchTopic(serverTopic, assistant, systemPrompt)
       } catch (error) {
         logger.error('POST /topics failed during branch fork', error as Error)
         setStatus('error')
@@ -147,8 +129,8 @@ export function useBranchFork(args: UseBranchForkArgs): UseBranchForkResult {
         return
       }
 
-      // Silent-killer guard: if prompt got dropped somewhere between
-      // toRendererBranchTopic and here, the model will be context-blind. Fail
+      // Silent-killer guard: if prompt got dropped somewhere between branch
+      // topic preparation and here, the model will be context-blind. Fail
       // loud rather than silently.
       if (!branchTopic.prompt || branchTopic.prompt.length === 0) {
         logger.warn('Branch topic created without prompt — model will go blind. Aborting.', {
