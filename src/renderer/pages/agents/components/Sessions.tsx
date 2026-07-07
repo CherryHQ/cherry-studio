@@ -31,6 +31,7 @@ import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/useP
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
+import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -309,6 +310,7 @@ const Sessions = ({
   setActiveSessionId: setControlledActiveSessionId
 }: SessionsProps) => {
   const { t } = useTranslation()
+  const closeConversationTabs = useCloseConversationTabs()
   const isRightPanel = presentation === 'right-panel'
   const conversationNav = useConversationNavigation('agents')
   const [groupNow] = useState(() => new Date())
@@ -1016,7 +1018,8 @@ const Sessions = ({
         })
         if (!confirmed) return
 
-        await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+        const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+        closeConversationTabs('agents', result.deletedSessionIds ?? [])
         if (currentActiveSession?.agentId === agentId) {
           if (onActiveAgentDeleted) {
             await onActiveAgentDeleted(agentId)
@@ -1038,6 +1041,7 @@ const Sessions = ({
       }
     },
     [
+      closeConversationTabs,
       deleteAgent,
       deletingAgentId,
       onActiveAgentDeleted,
@@ -1072,10 +1076,11 @@ const Sessions = ({
       if (!confirmed) return
 
       setDeletingWorkspaceGroupId(group.id)
-      const affectedSessionIds = new Set(sessionIds)
 
       try {
-        await deleteWorkspace({ params: { workspaceId } })
+        const result = await deleteWorkspace({ params: { workspaceId } })
+        closeConversationTabs('agents', result.deletedIds)
+        const affectedSessionIds = new Set(result.deletedIds)
 
         if (activeSessionId && affectedSessionIds.has(activeSessionId)) {
           const remaining = sessionItems.find((session) => !affectedSessionIds.has(session.id))
@@ -1094,6 +1099,7 @@ const Sessions = ({
     },
     [
       activeSessionId,
+      closeConversationTabs,
       deleteWorkspace,
       deletingWorkspaceGroupId,
       refetchWorkspaces,

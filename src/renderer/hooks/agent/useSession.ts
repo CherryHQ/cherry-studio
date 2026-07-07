@@ -15,6 +15,7 @@ import {
   useQuery
 } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
+import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -98,6 +99,7 @@ export const useSessions = (
   options: number | UseSessionsOptions = DEFAULT_SESSION_PAGE_SIZE
 ) => {
   const { t } = useTranslation()
+  const closeConversationTabs = useCloseConversationTabs()
   const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
   const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
   const enabled = typeof options === 'number' ? undefined : options.enabled
@@ -182,25 +184,28 @@ export const useSessions = (
     async (id: string): Promise<boolean> => {
       try {
         await deleteTrigger({ params: { sessionId: id } })
+        closeConversationTabs('agents', [id])
         return true
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
         return false
       }
     },
-    [deleteTrigger, t]
+    [closeConversationTabs, deleteTrigger, t]
   )
 
   const deleteSessions = useCallback(
     async (ids: string[]): Promise<DeleteAgentSessionsResult | null> => {
       try {
-        return await deleteManyTrigger({ query: { ids: ids.join(',') } })
+        const result = await deleteManyTrigger({ query: { ids: ids.join(',') } })
+        closeConversationTabs('agents', result.deletedIds)
+        return result
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
         return null
       }
     },
-    [deleteManyTrigger, t]
+    [closeConversationTabs, deleteManyTrigger, t]
   )
 
   const reorderSessions = useCallback(

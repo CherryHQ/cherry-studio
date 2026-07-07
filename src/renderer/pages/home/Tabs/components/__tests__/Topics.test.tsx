@@ -113,12 +113,14 @@ vi.mock('@renderer/hooks/useImageCaptureTargets', async () => {
 })
 
 const tabsContextMocks = vi.hoisted(() => ({
+  closeConversationTabs: vi.fn(),
   openTab: vi.fn(),
   setActiveTab: vi.fn(),
   tabs: [] as Array<{ id: string; type: string; url: string }>
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
+  useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs,
   useOptionalTabsContext: () => ({
     openTab: tabsContextMocks.openTab,
     setActiveTab: tabsContextMocks.setActiveTab,
@@ -625,7 +627,7 @@ describe('Topics', () => {
     })
     pinMutationMocks.createPin.mockResolvedValue(createTopicPin())
     pinMutationMocks.deletePin.mockResolvedValue(undefined)
-    assistantMutationMocks.deleteAssistant.mockResolvedValue(undefined)
+    assistantMutationMocks.deleteAssistant.mockResolvedValue({ deleted: true, deletedTopicIds: [] })
     topicDataMocks.deleteTopicsByAssistantId.mockResolvedValue({ deletedIds: [], deletedCount: 0 })
     tabsContextMocks.openTab.mockClear()
     tabsContextMocks.setActiveTab.mockClear()
