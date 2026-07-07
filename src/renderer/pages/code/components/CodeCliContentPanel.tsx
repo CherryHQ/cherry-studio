@@ -1,8 +1,8 @@
 import { Button } from '@cherrystudio/ui'
+import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { useNavigate } from '@tanstack/react-router'
 import { CircleAlert, ExternalLink } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -81,7 +81,6 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
   onReorder
 }) => {
   const { t } = useTranslation()
-  const navigate = useNavigate()
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -136,7 +135,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => void navigate({ to: '/settings/provider' })}
+              onClick={() => openSettingsTab('/settings/provider')}
               className="w-full rounded-xl border-border-subtle border-dashed py-2 text-foreground-secondary hover:border-border hover:text-foreground">
               {t(getAddProviderHintKey(selectedCliTool))}
               <ExternalLink size={10} />

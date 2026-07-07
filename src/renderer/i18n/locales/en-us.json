@@ -2096,7 +2096,7 @@
     "no_tools": "No tools available",
     "not_installed": "Not installed",
     "own_login": {
-      "title": "{{toolName}} account login"
+      "title": "{{toolName}} Official"
     },
     "providerless_hint": "This tool authenticates through its own login flow — just pick a working directory and launch it. Run the tool once to sign in.",
     "providers": "Providers",

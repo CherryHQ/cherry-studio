@@ -22,21 +22,23 @@ const provider = {
 function renderCard(options: { isCurrent?: boolean; modelName?: string } = {}) {
   const onConfigure = vi.fn()
   const onToggleCurrent = vi.fn()
+  const isCurrent = options.isCurrent ?? false
   const modelName = 'modelName' in options ? options.modelName : 'claude-sonnet-4-5'
   render(
     <ProviderCard
       provider={provider}
       providerName="Anthropic"
       modelName={modelName}
-      isCurrent={options.isCurrent ?? false}
+      isCurrent={isCurrent}
       onConfigure={onConfigure}
       onToggleCurrent={onToggleCurrent}
     />
   )
 
+  const enableButton = screen.getByRole('button', { name: isCurrent ? 'code.enabled' : 'code.enable' })
   return {
-    card: screen.getByRole('button', { name: /Anthropic/ }),
-    cardShell: screen.getByRole('button', { name: /Anthropic/ }).closest('.rounded-xl') as HTMLElement,
+    enableButton,
+    cardShell: enableButton.closest('.rounded-xl') as HTMLElement,
     configureButton: screen.getByRole('button', { name: 'code.configure' }),
     onConfigure,
     onToggleCurrent
@@ -48,18 +50,18 @@ describe('ProviderCard', () => {
     vi.clearAllMocks()
   })
 
-  it('enables an inactive provider when the card is clicked', () => {
-    const { card, onToggleCurrent } = renderCard()
+  it('enables an inactive provider when the Enable button is clicked', () => {
+    const { enableButton, onToggleCurrent } = renderCard()
 
-    fireEvent.click(card)
+    fireEvent.click(enableButton)
 
     expect(onToggleCurrent).toHaveBeenCalledWith(provider)
   })
 
-  it('toggles off the active provider when the current card is clicked', () => {
-    const { card, onToggleCurrent } = renderCard({ isCurrent: true })
+  it('toggles off the active provider when the Enabled button is clicked', () => {
+    const { enableButton, onToggleCurrent } = renderCard({ isCurrent: true })
 
-    fireEvent.click(card)
+    fireEvent.click(enableButton)
 
     expect(onToggleCurrent).toHaveBeenCalledWith(provider)
   })
@@ -73,12 +75,31 @@ describe('ProviderCard', () => {
     expect(onToggleCurrent).not.toHaveBeenCalled()
   })
 
-  it('removes the enable and disable button text while keeping the active badge', () => {
-    renderCard({ isCurrent: true })
+  it('labels the toggle button Enable when inactive and Enabled when active', () => {
+    const { unmount } = render(
+      <ProviderCard
+        provider={provider}
+        providerName="Anthropic"
+        isCurrent={false}
+        onConfigure={vi.fn()}
+        onToggleCurrent={vi.fn()}
+      />
+    )
+    expect(screen.getByText('code.enable')).toBeInTheDocument()
+    expect(screen.queryByText('code.enabled')).not.toBeInTheDocument()
+    unmount()
 
+    render(
+      <ProviderCard
+        provider={provider}
+        providerName="Anthropic"
+        isCurrent
+        onConfigure={vi.fn()}
+        onToggleCurrent={vi.fn()}
+      />
+    )
     expect(screen.getByText('code.enabled')).toBeInTheDocument()
     expect(screen.queryByText('code.enable')).not.toBeInTheDocument()
-    expect(screen.queryByText('code.disable')).not.toBeInTheDocument()
   })
 
   it('uses the same muted selection background as provider settings', () => {
@@ -119,11 +140,11 @@ describe('ProviderCard', () => {
     expect(screen.queryByText('claude-sonnet-4-5')).not.toBeInTheDocument()
   })
 
-  it('toggles the provider with Enter and Space when the card has focus', async () => {
+  it('toggles the provider with Enter and Space when the Enable button has focus', async () => {
     const user = userEvent.setup()
-    const { card, onToggleCurrent } = renderCard()
+    const { enableButton, onToggleCurrent } = renderCard()
 
-    card.focus()
+    enableButton.focus()
     await user.keyboard('{Enter}')
     await user.keyboard(' ')
 

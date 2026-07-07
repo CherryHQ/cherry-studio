@@ -1,7 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import type { CodeCli } from '@shared/types/codeCli'
-import { GripVertical, Pencil } from 'lucide-react'
-import type { FC, MouseEvent } from 'react'
+import { GripVertical, Pencil, Play } from 'lucide-react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CLIIcon } from './CLIIcon'
@@ -17,9 +17,9 @@ export interface OwnLoginCardProps {
 }
 
 /** Virtual "use your own login" row for login-capable CLI tools. Mirrors
- * `ProviderCard` (draggable, single-select) but drops the model label. Tools
- * whose own-login exposes tool params (`configurable`) also get a Configure
- * button; the rest are a bare toggle. */
+ * `ProviderCard` (draggable, single-select) but drops the model label. The
+ * always-visible Enable button toggles it; tools whose own-login exposes tool
+ * params (`configurable`) also get a hover-revealed Configure button. */
 export const OwnLoginCard: FC<OwnLoginCardProps> = ({
   toolId,
   toolName,
@@ -31,14 +31,9 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
 }) => {
   const { t } = useTranslation()
 
-  const handleConfigure = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    onConfigure?.()
-  }
-
   return (
     <div
-      className={`rounded-xl border p-3.5 transition-colors ${
+      className={`group rounded-xl border p-3.5 transition-colors ${
         dragging
           ? 'border-primary/40 opacity-50'
           : selected
@@ -46,10 +41,9 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
             : 'border-border/40 hover:border-border hover:bg-muted'
       }`}>
       <div className="flex items-center gap-3">
-        <button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <GripVertical
             size={13}
-            onClick={(event) => event.stopPropagation()}
             className="shrink-0 cursor-grab text-muted-foreground/25 hover:text-muted-foreground/55 active:cursor-grabbing"
           />
 
@@ -62,28 +56,32 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
               <span className="min-w-0 truncate text-foreground text-sm">
                 {t('code.own_login.title', { toolName })}
               </span>
-              {selected && (
-                <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
-                  {t('code.enabled')}
-                </span>
-              )}
             </div>
           </div>
-        </button>
+        </div>
 
-        {configurable && onConfigure && (
-          <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+          {configurable && onConfigure && (
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={handleConfigure}
+              onClick={() => onConfigure()}
               className="min-h-0 border-border/50 px-2.5 py-1 text-muted-foreground hover:text-foreground">
               <Pencil size={11} />
               {t('code.configure')}
             </Button>
-          </div>
-        )}
+          )}
+          <Button
+            type="button"
+            variant={selected ? 'secondary' : 'default'}
+            size="sm"
+            onClick={onToggle}
+            className="min-h-0 px-2.5 py-1">
+            <Play size={11} />
+            {selected ? t('code.enabled') : t('code.enable')}
+          </Button>
+        </div>
       </div>
     </div>
   )

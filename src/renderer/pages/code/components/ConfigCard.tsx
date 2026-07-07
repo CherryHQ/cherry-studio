@@ -2,9 +2,8 @@ import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
-import { GripVertical, Pencil } from 'lucide-react'
+import { GripVertical, Pencil, Play } from 'lucide-react'
 import type { FC } from 'react'
-import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface ProviderCardProps {
@@ -17,8 +16,8 @@ export interface ProviderCardProps {
   onToggleCurrent: (provider: Provider) => void
 }
 
-/** A single enabled-provider row for a CLI tool.
- * Single-select: clicking the row toggles this provider. */
+/** A single enabled-provider row for a CLI tool. Single-select: the always-visible
+ * Enable button toggles this provider; Configure is revealed on hover. */
 export const ProviderCard: FC<ProviderCardProps> = ({
   provider,
   providerName,
@@ -31,18 +30,9 @@ export const ProviderCard: FC<ProviderCardProps> = ({
   const { t } = useTranslation()
   const providerIcon = resolveProviderIcon(provider.id)
 
-  const handleToggle = () => {
-    onToggleCurrent(provider)
-  }
-
-  const handleConfigure = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    onConfigure(provider)
-  }
-
   return (
     <div
-      className={`rounded-xl border p-3.5 transition-colors ${
+      className={`group rounded-xl border p-3.5 transition-colors ${
         dragging
           ? 'border-primary/40 opacity-50'
           : isCurrent
@@ -50,10 +40,9 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             : 'border-border/40 hover:border-border hover:bg-muted'
       }`}>
       <div className="flex items-center gap-3">
-        <button type="button" onClick={handleToggle} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <GripVertical
             size={13}
-            onClick={(event) => event.stopPropagation()}
             className="shrink-0 cursor-grab text-muted-foreground/25 hover:text-muted-foreground/55 active:cursor-grabbing"
           />
 
@@ -78,24 +67,28 @@ export const ProviderCard: FC<ProviderCardProps> = ({
                   <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground/50">{modelName}</span>
                 </>
               )}
-              {isCurrent && (
-                <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
-                  {t('code.enabled')}
-                </span>
-              )}
             </div>
           </div>
-        </button>
+        </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={handleConfigure}
+            onClick={() => onConfigure(provider)}
             className="min-h-0 border-border/50 px-2.5 py-1 text-muted-foreground hover:text-foreground">
             <Pencil size={11} />
             {t('code.configure')}
+          </Button>
+          <Button
+            type="button"
+            variant={isCurrent ? 'secondary' : 'default'}
+            size="sm"
+            onClick={() => onToggleCurrent(provider)}
+            className="min-h-0 px-2.5 py-1">
+            <Play size={11} />
+            {isCurrent ? t('code.enabled') : t('code.enable')}
           </Button>
         </div>
       </div>

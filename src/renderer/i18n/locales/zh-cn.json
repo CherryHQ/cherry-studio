@@ -2096,7 +2096,7 @@
     "no_tools": "暂无工具",
     "not_installed": "未安装",
     "own_login": {
-      "title": "{{toolName}} 账号登录"
+      "title": "{{toolName}} 官方"
     },
     "providerless_hint": "该工具通过自带的登录流程进行认证 — 只需选择工作目录即可启动。请先运行一次该工具完成登录。",
     "providers": "服务商",

@@ -25,6 +25,7 @@ const {
   upgradeMock,
   removeMock,
   navigateMock,
+  openSettingsTabMock,
   mockProviders,
   mockProviderConfigs
 } = vi.hoisted(() => ({
@@ -44,6 +45,7 @@ const {
   upgradeMock: vi.fn(),
   removeMock: vi.fn(),
   navigateMock: vi.fn(),
+  openSettingsTabMock: vi.fn(),
   mockProviders: [] as Provider[],
   mockProviderConfigs: {} as Record<string, CliProviderConfig>
 }))
@@ -153,6 +155,10 @@ vi.mock('@renderer/services/LoggerService', () => ({
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock
+}))
+
+vi.mock('@renderer/services/settingsNavigation', () => ({
+  openSettingsTab: (...args: unknown[]) => openSettingsTabMock(...args)
 }))
 
 vi.mock('@shared/data/presets/codeCliTools', () => ({
@@ -486,6 +492,15 @@ describe('CodeCliPage', () => {
     render(<CodeCliPage />)
 
     expect(screen.getByRole('button', { name: /code.add_provider_hint_anthropic_messages/ })).toBeInTheDocument()
+  })
+
+  it('opens the provider settings tab (keeping the code page) from the add-provider hint', () => {
+    render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /code.add_provider_hint_anthropic_messages/ }))
+
+    expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/provider')
+    expect(navigateMock).not.toHaveBeenCalled()
   })
 
   it('shows the OpenAI Responses endpoint hint for Codex provider setup', () => {

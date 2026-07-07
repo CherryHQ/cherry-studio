@@ -2096,7 +2096,7 @@
     "no_tools": "暫無工具",
     "not_installed": "未安裝",
     "own_login": {
-      "title": "{{toolName}} 帳號登入"
+      "title": "{{toolName}} 官方"
     },
     "providerless_hint": "該工具透過自帶的登入流程進行認證 — 只需選擇工作目錄即可啟動。請先執行一次該工具完成登入。",
     "providers": "服務商",
