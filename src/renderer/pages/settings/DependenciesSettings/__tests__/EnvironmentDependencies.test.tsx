@@ -213,6 +213,9 @@ describe('EnvironmentDependencies', () => {
   })
 
   it('clears latest versions when binary state changes', async () => {
+    const { gt } = await import('semver')
+    vi.mocked(gt).mockReturnValue(true)
+
     ipcMocks.getState.mockResolvedValue({ tools: { uv: { version: '1.0.0' } } })
     ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0' })
     render(<EnvironmentDependencies />)
