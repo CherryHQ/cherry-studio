@@ -9,14 +9,12 @@ import { defineRoute } from '../define'
  */
 const codeToolsRunResultSchema = z.object({
   success: z.boolean(),
-  message: z.string(),
-  command: z.string()
+  message: z.string()
 })
 
 const terminalConfigSchema = z.object({
   id: z.string(),
-  name: z.string(),
-  bundleId: z.string().optional()
+  name: z.string()
 })
 
 // ── Request schemas ──
@@ -29,7 +27,6 @@ export const codeCliRequestSchemas = {
       directory: z.string(),
       options: z
         .object({
-          autoUpdateToLatest: z.boolean().optional(),
           terminal: z.string().optional(),
           loginFlow: z.boolean().optional(),
           ownLogin: z.boolean().optional()

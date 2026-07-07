@@ -23,7 +23,7 @@ export const openclawRequestSchemas = {
   }),
   'openclaw.get_status': defineRoute({
     input: z.void(),
-    output: z.object({ status: z.enum(['stopped', 'starting', 'running', 'error']), port: z.number() })
+    output: z.object({ status: z.enum(['stopped', 'starting', 'running', 'error']) })
   }),
   'openclaw.get_dashboard_url': defineRoute({
     input: z.void(),

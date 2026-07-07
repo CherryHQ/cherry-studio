@@ -23,7 +23,7 @@ const ctx = { senderId: 'w1' }
 describe('codeCliHandlers', () => {
   describe('code_cli.run', () => {
     it('delegates to CodeCliService.run and returns the result', async () => {
-      codeCliService.run.mockResolvedValue({ success: true, message: 'ok', command: 'claude' })
+      codeCliService.run.mockResolvedValue({ success: true, message: 'ok' })
       const input = {
         cliTool: 'claude-code',
         model: 'gpt-4',
@@ -33,11 +33,11 @@ describe('codeCliHandlers', () => {
       }
       const result = await codeCliHandlers['code_cli.run'](input, ctx)
       expect(codeCliService.run).toHaveBeenCalledWith('claude-code', 'gpt-4', 'openai', '/tmp', { terminal: 'iTerm2' })
-      expect(result).toEqual({ success: true, message: 'ok', command: 'claude' })
+      expect(result).toEqual({ success: true, message: 'ok' })
     })
 
     it('does not accept renderer-supplied env', async () => {
-      codeCliService.run.mockResolvedValue({ success: true, message: 'ok', command: 'claude' })
+      codeCliService.run.mockResolvedValue({ success: true, message: 'ok' })
       const input = {
         cliTool: 'claude-code',
         model: 'gpt-4',
@@ -52,7 +52,7 @@ describe('codeCliHandlers', () => {
     })
 
     it('allows Claude login flow without provider or model', async () => {
-      codeCliService.run.mockResolvedValue({ success: true, message: 'ok', command: 'claude /login' })
+      codeCliService.run.mockResolvedValue({ success: true, message: 'ok' })
       const input = {
         cliTool: 'claude-code',
         model: '',
@@ -64,17 +64,20 @@ describe('codeCliHandlers', () => {
       const result = await codeCliHandlers['code_cli.run'](input, ctx)
 
       expect(codeCliService.run).toHaveBeenCalledWith('claude-code', '', '', '/tmp', { loginFlow: true })
-      expect(result).toEqual({ success: true, message: 'ok', command: 'claude /login' })
+      expect(result).toEqual({ success: true, message: 'ok' })
     })
   })
 
   describe('code_cli.get_available_terminals', () => {
-    it('delegates to CodeCliService.getAvailableTerminalsForPlatform', async () => {
-      const terminals = [{ id: 'terminal', name: 'Terminal' }]
-      codeCliService.getAvailableTerminalsForPlatform.mockResolvedValue(terminals)
+    it('projects to { id, name }, keeping the internal bundleId off the wire', async () => {
+      // The service's TerminalConfig carries a macOS bundleId for internal mdfind resolution; the
+      // renderer never consumes it, so the handler must strip it (the router does not re-parse output).
+      codeCliService.getAvailableTerminalsForPlatform.mockResolvedValue([
+        { id: 'terminal', name: 'Terminal', bundleId: 'com.apple.Terminal' }
+      ])
       const result = await codeCliHandlers['code_cli.get_available_terminals'](undefined, ctx)
       expect(codeCliService.getAvailableTerminalsForPlatform).toHaveBeenCalledWith()
-      expect(result).toEqual(terminals)
+      expect(result).toEqual([{ id: 'terminal', name: 'Terminal' }])
     })
   })
 })

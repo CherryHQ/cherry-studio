@@ -17,7 +17,10 @@ export const openclawHandlers: IpcHandlersFor<typeof openclawRequestSchemas> = {
   'openclaw.start_gateway': (input) => asOperationResult(() => application.get('OpenClawService').startGateway(input)),
   'openclaw.stop_gateway': () => asOperationResult(() => application.get('OpenClawService').stopGateway()),
   'openclaw.get_status': async () => {
-    return application.get('OpenClawService').getStatus()
+    // The renderer owns the gateway port (via preference) and only consumes status here, so keep
+    // getStatus()'s port off the wire — the router does not re-parse handler output.
+    const { status } = await application.get('OpenClawService').getStatus()
+    return { status }
   },
   'openclaw.get_dashboard_url': async () => {
     return application.get('OpenClawService').getDashboardUrl()

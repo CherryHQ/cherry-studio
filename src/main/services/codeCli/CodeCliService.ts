@@ -1,19 +1,3 @@
-/**
- * TODO(v2): Performance — run() blocks up to ~100s before opening terminal
- *
- * Problem:
- * - regionService.isInChina() makes an HTTP request (5s timeout) on cache miss, called 2-3x per run()
- * - getVersionInfo() blocks on npm registry fetch (15s) + local --version (10s)
- * - updatePackage() blocks on bun install (60s) when autoUpdateToLatest is enabled
- * - All above run serially BEFORE spawn(terminal)
- *
- * Fix:
- * 1. (done) Egress detection is cached in RegionService (TTL + proxy-key invalidation)
- * 2. Extract local-only getInstalledVersion() for qwen-code --auth-type check
- * 3. Move getVersionInfo() + updatePackage() to fire-and-forget background task
- * 4. Cache getNpmRegistryUrl() at instance level
- * 5. Track background update promise in lifecycle (registerDisposable / onStop)
- */
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -22,7 +6,6 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
 import { providerService } from '@main/data/services/ProviderService'
-import { regionService } from '@main/services/RegionService'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
 import { removeEnvProxy } from '@main/utils/processRunner'
@@ -51,12 +34,6 @@ import {
 const execAsync = promisify(require('child_process').exec)
 const logger = loggerService.withContext('CodeCliService')
 
-interface VersionInfo {
-  installed: string | null
-  latest: string | null
-  needsUpdate: boolean
-}
-
 @Injectable('CodeCliService')
 @ServicePhase(Phase.Background)
 export class CodeCliService extends BaseService {
@@ -64,12 +41,10 @@ export class CodeCliService extends BaseService {
   private static pendingBatCleanups = new Set<string>()
   private static exitCleanupRegistered = false
 
-  private versionCache: Map<string, { version: string; timestamp: number }> = new Map()
   private terminalsCache: {
     terminals: TerminalConfig[]
     timestamp: number
   } | null = null
-  private readonly CACHE_DURATION = 1000 * 60 * 30 // 30 minutes cache
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
 
   protected async onInit(): Promise<void> {
@@ -123,7 +98,6 @@ export class CodeCliService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    this.versionCache.clear()
     this.terminalsCache = null
   }
 
@@ -138,11 +112,6 @@ export class CodeCliService extends BaseService {
     } catch (error) {
       logger.warn('Terminal preloading failed:', error as Error)
     }
-  }
-
-  // npm package name used only for version registry lookups (not installation)
-  private async getPackageName(cliTool: string) {
-    return getCodeCliPackageSpec(cliTool).packageName
   }
 
   private getToolInstallSpec(cliTool: string): { name: string; tool: string } {
@@ -339,132 +308,6 @@ export class CodeCliService extends BaseService {
   }
 
   /**
-   * Get version information for a CLI tool
-   */
-  public async getVersionInfo(cliTool: string): Promise<VersionInfo> {
-    logger.info(`Starting version check for ${cliTool}`)
-    const packageName = await this.getPackageName(cliTool)
-    const executableName = await this.getCliExecutableName(cliTool)
-    const isInstalled = await isBinaryExists(executableName)
-
-    let installedVersion: string | null = null
-    let latestVersion: string | null = null
-
-    // Get installed version if package is installed
-    if (isInstalled) {
-      logger.info(`${cliTool} is installed, getting current version`)
-      try {
-        const execPath = await getBinaryPath(executableName)
-        const versionCommand = `"${execPath}"`
-
-        const { stdout } = await execAsync(`${versionCommand} --version`, {
-          env: { ...process.env, ...getBinaryExecutionEnv() },
-          timeout: 10000
-        })
-        // Extract version number from output (format may vary by tool)
-        const versionMatch = stdout.trim().match(/\d+\.\d+\.\d+/)
-        installedVersion = versionMatch ? versionMatch[0] : stdout.trim().split(' ')[0]
-        logger.info(`${cliTool} current installed version: ${installedVersion}`)
-      } catch (error) {
-        logger.warn(`Failed to get installed version for ${cliTool}:`, error as Error)
-      }
-    } else {
-      logger.info(`${cliTool} is not installed`)
-    }
-
-    const spec = this.getToolInstallSpec(cliTool)
-
-    // Get latest version from the backend registry (with cache)
-    const cacheKey = `${packageName}-latest`
-    const cached = this.versionCache.get(cacheKey)
-    const now = Date.now()
-
-    if (cached && now - cached.timestamp < this.CACHE_DURATION) {
-      logger.info(`Using cached latest version for ${packageName}: ${cached.version}`)
-      latestVersion = cached.version
-    } else {
-      logger.info(`Fetching latest version for ${packageName}`)
-      try {
-        latestVersion = await this.fetchLatestVersion(packageName, spec.tool)
-        logger.info(`${packageName} latest version: ${latestVersion}`)
-
-        // Cache the result
-        this.versionCache.set(cacheKey, {
-          version: latestVersion,
-          timestamp: now
-        })
-        logger.debug(`Cached latest version for ${packageName}`)
-      } catch (error) {
-        logger.warn(`Failed to get latest version for ${packageName}:`, error as Error)
-        // If we have a cached version, use it even if expired
-        if (cached) {
-          logger.info(`Using expired cached version for ${packageName}: ${cached.version}`)
-          latestVersion = cached.version
-        }
-      }
-    }
-
-    const needsUpdate = !!(latestVersion && isInstalled && (!installedVersion || installedVersion !== latestVersion))
-    logger.info(
-      `Version check result for ${cliTool}: installed=${installedVersion}, latest=${latestVersion}, needsUpdate=${needsUpdate}`
-    )
-
-    return {
-      installed: installedVersion,
-      latest: latestVersion,
-      needsUpdate
-    }
-  }
-
-  private async fetchLatestVersion(packageName: string, toolSpec: string): Promise<string> {
-    if (toolSpec.startsWith('pipx:')) {
-      const response = await fetch(`https://pypi.org/pypi/${encodeURIComponent(packageName)}/json`, {
-        signal: AbortSignal.timeout(15000)
-      })
-      if (!response.ok) {
-        throw new Error(`Failed to fetch package info: ${response.statusText}`)
-      }
-      const packageInfo = (await response.json()) as { info?: { version?: string } }
-      if (!packageInfo.info?.version) {
-        throw new Error(`Missing PyPI version for ${packageName}`)
-      }
-      return packageInfo.info.version
-    }
-
-    const registryUrl = await this.getNpmRegistryUrl()
-    const response = await fetch(`${registryUrl}/${packageName}/latest`, {
-      signal: AbortSignal.timeout(15000)
-    })
-    if (!response.ok) {
-      throw new Error(`Failed to fetch package info: ${response.statusText}`)
-    }
-    const packageInfo = (await response.json()) as { version?: string }
-    if (!packageInfo.version) {
-      throw new Error(`Missing npm version for ${packageName}`)
-    }
-    return packageInfo.version
-  }
-
-  /**
-   * Get npm registry URL based on user location
-   */
-  private async getNpmRegistryUrl(): Promise<string> {
-    try {
-      const inChina = await regionService.isInChina()
-      if (inChina) {
-        logger.info('User in China, using Taobao npm mirror')
-        return 'https://registry.npmmirror.com'
-      } else {
-        logger.info('User not in China, using default npm mirror')
-        return 'https://registry.npmjs.org'
-      }
-    } catch (error) {
-      logger.warn('Failed to detect user location, using default npm mirror')
-      return 'https://registry.npmjs.org'
-    }
-  }
-
-  /**
    * Get available terminals for the current platform
    */
   public async getAvailableTerminalsForPlatform(): Promise<TerminalConfig[]> {
@@ -475,34 +318,12 @@ export class CodeCliService extends BaseService {
     return []
   }
 
-  /**
-   * Update a CLI tool to the latest version via BinaryManager
-   */
-  public async updatePackage(cliTool: string): Promise<{ success: boolean; message: string }> {
-    logger.info(`Starting update process for ${cliTool}`)
-    try {
-      const spec = this.getToolInstallSpec(cliTool)
-      await application.get('BinaryManager').installTool(spec)
-      // Clear version cache so next check fetches fresh data
-      const packageName = await this.getPackageName(cliTool)
-      this.versionCache.delete(`${packageName}-latest`)
-      const successMessage = `Successfully updated ${cliTool} to the latest version`
-      logger.info(successMessage)
-      return { success: true, message: successMessage }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      const failureMessage = `Failed to update ${cliTool}: ${errorMessage}`
-      logger.error(failureMessage, error as Error)
-      return { success: false, message: failureMessage }
-    }
-  }
-
   async run(
     cliTool: string,
     model: string,
     providerId: string,
     directory: string,
-    options: { autoUpdateToLatest?: boolean; terminal?: string; loginFlow?: boolean; ownLogin?: boolean } = {}
+    options: { terminal?: string; loginFlow?: boolean; ownLogin?: boolean } = {}
   ): Promise<CodeToolsRunResult> {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     const env: Record<string, string> = { ...getBinaryExecutionEnv() }
@@ -511,7 +332,7 @@ export class CodeCliService extends BaseService {
     if (cliTool === CodeCli.OPENCLAW) {
       const message = 'OpenClaw is managed through openclaw.* IPC, not code_cli.run'
       logger.error(message)
-      return { success: false, message, command: '' }
+      return { success: false, message }
     }
 
     const isLoginFlow = cliTool === CodeCli.CLAUDE_CODE && options.loginFlow === true
@@ -523,12 +344,12 @@ export class CodeCliService extends BaseService {
     if (!isProviderlessCli && !isLoginFlow && !isOwnLoginRun && providerId.trim().length === 0) {
       const message = `Provider ID is required for ${cliTool}`
       logger.error(message)
-      return { success: false, message, command: '' }
+      return { success: false, message }
     }
     if (!isProviderlessCli && !isLoginFlow && !isOwnLoginRun && model.trim().length === 0) {
       const message = `Model is required for ${cliTool}`
       logger.error(message)
-      return { success: false, message, command: '' }
+      return { success: false, message }
     }
 
     if (!directory || !fs.existsSync(directory)) {
@@ -536,8 +357,7 @@ export class CodeCliService extends BaseService {
       logger.error(errorMessage)
       return {
         success: false,
-        message: errorMessage,
-        command: ''
+        message: errorMessage
       }
     }
 
@@ -560,7 +380,7 @@ export class CodeCliService extends BaseService {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         logger.error(`Failed to install ${cliTool}:`, error as Error)
-        return { success: false, message: `Failed to install ${cliTool}: ${errorMessage}`, command: '' }
+        return { success: false, message: `Failed to install ${cliTool}: ${errorMessage}` }
       }
     }
 
@@ -571,18 +391,7 @@ export class CodeCliService extends BaseService {
     if (!(await isBinaryExists(executableName))) {
       const message = `${cliTool} is not available after install`
       logger.error(message)
-      return { success: false, message, command: '' }
-    }
-
-    // Optional auto-update
-    try {
-      const versionInfo = await this.getVersionInfo(cliTool)
-      if (options.autoUpdateToLatest && versionInfo.needsUpdate) {
-        logger.info(`Auto-updating ${cliTool} from ${versionInfo.installed} to ${versionInfo.latest}`)
-        await this.updatePackage(cliTool)
-      }
-    } catch (error) {
-      logger.warn(`Failed to check version for ${cliTool}:`, error as Error)
+      return { success: false, message }
     }
 
     // Select different terminal based on operating system
@@ -643,7 +452,7 @@ export class CodeCliService extends BaseService {
       } catch (error) {
         const message = `OpenCode provider not found: ${providerId}`
         logger.error(message, error as Error)
-        return { success: false, message, command: '' }
+        return { success: false, message }
       }
       baseCommand = `${baseCommand} --model cherry-${providerName}/${model}`
       env.OPENCODE_DISABLE_AUTOUPDATE = 'true'
@@ -880,8 +689,7 @@ export class CodeCliService extends BaseService {
 
       return {
         success: true,
-        message: successMessage,
-        command: `${terminalCommand} ${terminalArgs.join(' ')}`
+        message: successMessage
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -889,8 +697,7 @@ export class CodeCliService extends BaseService {
       logger.error(failureMessage, error as Error)
       return {
         success: false,
-        message: failureMessage,
-        command: `${terminalCommand} ${terminalArgs.join(' ')}`
+        message: failureMessage
       }
     }
   }

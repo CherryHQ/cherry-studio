@@ -5,18 +5,17 @@ import { CodeCli } from '@shared/types/codeCli'
  *
  * - `executable`: binary/shim name on PATH — used for the existence probe,
  *   `--version`, and spawn.
- * - `packageName`: npm package queried for the latest published version.
+ * - `packageName`: npm package name used to build the `npm:<packageName>`
+ *   install spec.
  * - `install`: how `BinaryManager` acquires it — a mise registry short-name
  *   (`'registry'`, which is always the `executable`) or an explicit
  *   `npm:<packageName>` spec.
  *
- * Keeping all three in one row per tool is deliberate. They used to be three
- * parallel `switch (cliTool)` blocks with no compiler link, so a scope rename
- * that touched only one silently pointed version checks at the wrong npm package
- * (the Kimi bug: version lookup queried `kimi-code` while the installed package
- * was `@moonshot-ai/kimi-code`). One row makes them agree by construction;
- * `CodeCliService.test.ts` asserts the install spec and version-lookup package
- * stay in sync.
+ * Keeping all three in one row per tool is deliberate. They used to be parallel
+ * `switch (cliTool)` blocks with no compiler link, so a scope rename that touched
+ * only one silently diverged — the Kimi bug, where the install pointed at
+ * `@moonshot-ai/kimi-code` while a sibling switch still named `kimi-code`. One
+ * row makes them agree by construction.
  */
 export interface CodeCliPackageSpec {
   executable: string

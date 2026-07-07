@@ -1,5 +1,5 @@
 import { CodeCli } from '@shared/types/codeCli'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', () => ({
   application: {
@@ -188,25 +188,6 @@ describe('CodeCliService', () => {
     expect(loggerMock.warn).toHaveBeenCalled()
   })
 
-  // Regression: getPackageName (version-registry lookup) and getToolInstallSpec
-  // (what actually gets installed) are two independent switches with no compiler
-  // link. A scope rename that touches only one silently makes version checks query
-  // the wrong npm package — which was the case for Kimi ('kimi-code' vs the
-  // installed '@moonshot-ai/kimi-code'). For every tool installed via an explicit
-  // `npm:` spec, the two must name the same package.
-  it('resolves the version-lookup package name to the installed npm package for every tool', async () => {
-    const { codeCliService } = await loadModules()
-    const svc = codeCliService as unknown as {
-      getPackageName: (cliTool: string) => Promise<string>
-      getToolInstallSpec: (cliTool: string) => { name: string; tool: string }
-    }
-    for (const cliTool of Object.values(CodeCli)) {
-      const installTool = svc.getToolInstallSpec(cliTool).tool
-      if (!installTool.startsWith('npm:')) continue
-      await expect(svc.getPackageName(cliTool)).resolves.toBe(installTool.slice('npm:'.length))
-    }
-  })
-
   // A stale/deleted provider must fail the launch outright — previously the
   // lookup failure was swallowed, launching OpenCode with a default provider
   // name ("Studio") that doesn't match the provider key written into
@@ -217,11 +198,6 @@ describe('CodeCliService', () => {
       vi.mocked(fs.existsSync).mockReturnValue(true)
       const resolver = await import('@main/utils/binaryResolver')
       vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
-      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network disabled in test')))
-    })
-
-    afterEach(() => {
-      vi.unstubAllGlobals()
     })
 
     it('fails the launch instead of defaulting to a wrong provider name', async () => {
@@ -234,8 +210,7 @@ describe('CodeCliService', () => {
 
       expect(result).toEqual({
         success: false,
-        message: expect.stringContaining('OpenCode provider not found: ghost'),
-        command: ''
+        message: expect.stringContaining('OpenCode provider not found: ghost')
       })
     })
   })
@@ -253,7 +228,7 @@ describe('CodeCliService', () => {
 
       const result = await codeCliService.run(CodeCli.CLAUDE_CODE, 'gpt-4', '', '/tmp/project')
 
-      expect(result).toEqual({ success: false, message: 'Provider ID is required for claude-code', command: '' })
+      expect(result).toEqual({ success: false, message: 'Provider ID is required for claude-code' })
     })
 
     it('rejects a normal CLI launch when the model is empty', async () => {
@@ -261,7 +236,7 @@ describe('CodeCliService', () => {
 
       const result = await codeCliService.run(CodeCli.CLAUDE_CODE, '', 'openai', '/tmp/project')
 
-      expect(result).toEqual({ success: false, message: 'Model is required for claude-code', command: '' })
+      expect(result).toEqual({ success: false, message: 'Model is required for claude-code' })
     })
 
     it('exempts the Claude login flow from the provider/model requirement', async () => {
@@ -297,7 +272,7 @@ describe('CodeCliService', () => {
 
       const result = await codeCliService.run(CodeCli.OPEN_CODE, '', '', '/tmp/project', { ownLogin: true })
 
-      expect(result).toEqual({ success: false, message: 'Provider ID is required for opencode', command: '' })
+      expect(result).toEqual({ success: false, message: 'Provider ID is required for opencode' })
     })
   })
 })
