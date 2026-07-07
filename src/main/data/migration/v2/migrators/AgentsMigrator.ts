@@ -41,6 +41,8 @@ type V1ScheduledTaskRow = {
 type V1ChannelTaskSubscription = {
   channel_id: string
   task_id: string
+  channel_agent_id: string | null
+  task_agent_id: string
 }
 
 const HEARTBEAT_INTERVAL_FALLBACK_MS = 60 * 60_000
@@ -507,16 +509,23 @@ export class AgentsMigrator extends BaseMigrator {
 
     const v1Subs = db.all<V1ChannelTaskSubscription>(
       sql.raw(
-        'SELECT channel_id, task_id FROM agents_legacy.channel_task_subscriptions ' +
-          'WHERE channel_id IN (SELECT id FROM agent_channel) ' +
-          'AND task_id IN (SELECT id FROM agents_legacy.scheduled_tasks WHERE agent_id IN (SELECT id FROM agent))'
+        'SELECT s.channel_id, s.task_id, c.agent_id AS channel_agent_id, t.agent_id AS task_agent_id ' +
+          'FROM agents_legacy.channel_task_subscriptions s ' +
+          'JOIN agent_channel c ON c.id = s.channel_id ' +
+          'JOIN agents_legacy.scheduled_tasks t ON t.id = s.task_id ' +
+          'JOIN agent a ON a.id = t.agent_id'
       )
     )
 
     let subCount = 0
+    let skippedCrossAgentSubCount = 0
     for (const sub of v1Subs) {
       const newScheduleId = idMap.get(sub.task_id)
       if (!newScheduleId) continue
+      if (sub.channel_agent_id !== sub.task_agent_id) {
+        skippedCrossAgentSubCount++
+        continue
+      }
       await db
         .insert(agentChannelTaskTable)
         .values({ channelId: sub.channel_id, taskId: newScheduleId })
@@ -527,6 +536,7 @@ export class AgentsMigrator extends BaseMigrator {
     logger.info('Scheduled tasks migrated', {
       schedules: migratedCount,
       channelLinks: subCount,
+      skippedCrossAgentChannelLinks: skippedCrossAgentSubCount,
       sanitizedNames: droppedNameCount
     })
   }
