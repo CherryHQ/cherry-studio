@@ -244,6 +244,14 @@ describe('KnowledgeVectorSourceReader', () => {
         dbPath: path.join(tempRoot, 'KnowledgeBase', 'kb-absent')
       })
 
+      const directoryPath = path.join(tempRoot, 'KnowledgeBase', 'kb-dir')
+      fs.mkdirSync(directoryPath)
+
+      await expect(reader.loadBaseLoaderSources('kb-dir')).resolves.toEqual({
+        status: 'directory',
+        dbPath: directoryPath
+      })
+
       const notEmbedjsPath = path.join(tempRoot, 'KnowledgeBase', 'kb-other')
       const db = new Database(notEmbedjsPath)
       db.exec(`CREATE TABLE something_else (id TEXT PRIMARY KEY)`)
