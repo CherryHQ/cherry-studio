@@ -64,10 +64,10 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       '    is true the entire from→to tree is copied first; when false only',
       '    the userData location is switched (no copy).',
       "  - { status: 'failed', from, to, error, failedAt }: a previous preboot",
-      '    attempted the copy and it failed. The record stays in BootConfig',
-      '    until a renderer recovery flow lets the user retry, abandon, or',
-      '    investigate. The app continues running on the previous userData',
-      '    location until then.',
+      '    attempted the copy and it failed. The failed record is kept for',
+      '    the terminal relocation window state, then cleared on the next',
+      '    normal launch. The app continues running on the previous userData',
+      '    location.',
       '',
       'Note: "userData" here means the Electron OS directory',
       "(app.getPath('userData')), not the colloquial sense of user content.",
@@ -253,7 +253,8 @@ class BootConfigGenerator {
         interfaceCode += '   */\n'
       }
       interfaceCode += `  // ${item.source}/${item.sourceCategory}/${item.originalKey}\n`
-      interfaceCode += `  '${item.targetKey}': ${tsType}\n`
+      const separator = tsType.startsWith('\n') ? ':' : ': '
+      interfaceCode += `  '${item.targetKey}'${separator}${tsType}\n`
     })
     interfaceCode += '}'
 
