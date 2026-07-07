@@ -71,7 +71,7 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
         value={channel.permissionMode ?? INHERIT_PERMISSION_MODE_VALUE}
         onValueChange={(value) =>
           onConfigChange({
-            permissionMode: value === INHERIT_PERMISSION_MODE_VALUE ? undefined : (value as PermissionMode)
+            permissionMode: value === INHERIT_PERMISSION_MODE_VALUE ? null : (value as PermissionMode)
           })
         }>
         <SelectTrigger size="sm" className="w-full">
