@@ -962,7 +962,7 @@ export async function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<strin
   )
 
   if (values.length === 0) return
-  await db.insert(agentMcpServerTable).values(values)
+  await db.insert(agentMcpServerTable).values(values).onConflictDoNothing()
   const dropped = rows.length - values.length
   const summary = { rows: values.length, dropped }
   // A non-zero `dropped` count is FK-mandated data loss (legacy refs to MCP
