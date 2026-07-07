@@ -1,6 +1,8 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
 import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -349,15 +351,6 @@ describe('classic layout entity resource list actions', () => {
     agentDataMocks.deleteAgent.mockClear()
     agentDataMocks.refetchAgents.mockResolvedValue(undefined)
     agentDataMocks.refetchAgents.mockClear()
-
-    window.modal = {
-      confirm: vi.fn().mockResolvedValue(true),
-      success: vi.fn()
-    } as unknown as typeof window.modal
-    window.toast = {
-      error: vi.fn(),
-      success: vi.fn()
-    } as unknown as typeof window.toast
   })
 
   it('uses delete-assistant actions for the classic layout assistant context and more menus', async () => {
@@ -381,7 +374,7 @@ describe('classic layout entity resource list actions', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'assistants.delete.title' })[0])
 
     await waitFor(() =>
-      expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'assistants.delete.title' }))
+      expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'assistants.delete.title' }))
     )
     await waitFor(() =>
       expect(assistantDataMocks.deleteAssistant).toHaveBeenCalledWith('assistant-1', { deleteTopics: true })
@@ -412,7 +405,7 @@ describe('classic layout entity resource list actions', () => {
     )
 
     await waitFor(() =>
-      expect(window.modal.confirm).toHaveBeenCalledWith(
+      expect(popup.confirm).toHaveBeenCalledWith(
         expect.objectContaining({
           content: 'assistants.clear.content',
           title: 'assistants.clear.title'
@@ -423,8 +416,7 @@ describe('classic layout entity resource list actions', () => {
     await waitFor(() => expect(assistantDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
     expect(onCreateTopicAfterClear).toHaveBeenCalledWith('assistant-1')
     expect(onSelectTopic).not.toHaveBeenCalled()
-    expect(window.toast.success).toHaveBeenCalledWith('assistants.clear.success_title:1')
-    expect(window.modal.success).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('assistants.clear.success_title:1')
   })
 
   it('does not clear assistant topics when the list empties while the confirm dialog is open', async () => {
@@ -436,7 +428,7 @@ describe('classic layout entity resource list actions', () => {
     const confirmPromise = new Promise<boolean>((resolve) => {
       resolveConfirm = resolve
     })
-    window.modal.confirm = vi.fn().mockReturnValue(confirmPromise)
+    vi.mocked(popup.confirm).mockReturnValue(confirmPromise)
     const onCreateTopicAfterClear = vi.fn()
 
     const props = {
@@ -452,7 +444,7 @@ describe('classic layout entity resource list actions', () => {
         name: 'assistants.clear.menu_title'
       })
     )
-    await waitFor(() => expect(window.modal.confirm).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(popup.confirm).toHaveBeenCalledTimes(1))
 
     // While the confirm dialog is open the topic list drains (e.g. cleared elsewhere).
     // Re-render so the rail sees the latest topics before the user confirms.
@@ -467,7 +459,7 @@ describe('classic layout entity resource list actions', () => {
     expect(assistantDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
     expect(assistantDataMocks.refreshTopics).not.toHaveBeenCalled()
     expect(onCreateTopicAfterClear).not.toHaveBeenCalled()
-    expect(window.toast.success).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('keeps the default assistant visible in the classic assistant rail', () => {
@@ -513,11 +505,11 @@ describe('classic layout entity resource list actions', () => {
       })
     )
 
-    await waitFor(() => expect(window.modal.confirm).toHaveBeenCalled())
+    await waitFor(() => expect(popup.confirm).toHaveBeenCalled())
     await waitFor(() => expect(assistantDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-2'))
     await waitFor(() => expect(assistantDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
     expect(onCreateTopicAfterClear).toHaveBeenCalledWith('assistant-2')
-    expect(window.toast.error).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('disables classic assistant rail reorder while grouping by tag', () => {
@@ -655,7 +647,7 @@ describe('classic layout entity resource list actions', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'agent.delete.title' })[0])
 
     await waitFor(() =>
-      expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'agent.delete.title' }))
+      expect(popup.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'agent.delete.title' }))
     )
     await waitFor(() =>
       expect(agentDataMocks.deleteAgent).toHaveBeenCalledWith({

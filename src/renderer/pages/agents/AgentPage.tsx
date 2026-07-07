@@ -31,6 +31,7 @@ import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutR
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { findLatestUpdated, isUntouchedSinceCreation } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
@@ -517,7 +518,7 @@ const AgentPage = () => {
         return session
       } catch (err) {
         logger.error('Failed to create empty agent session', err as Error, { agentId })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
         return null
       } finally {
         isCreatingEmptySessionRef.current = false
@@ -627,7 +628,7 @@ const AgentPage = () => {
         }
       } catch (err) {
         logger.error('Failed to create agent session from classic-layout picker', err as Error, { agentId })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
         isCreatingEmptySessionRef.current = false
       }

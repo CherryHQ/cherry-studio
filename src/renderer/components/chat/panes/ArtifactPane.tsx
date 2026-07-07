@@ -13,6 +13,7 @@ import { FinderIcon } from '@renderer/components/icons/SvgIcon'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import { type FileSizeState, useFileSize } from '@renderer/hooks/useFileSize'
 import { type IsTextState, useIsTextFile } from '@renderer/hooks/useIsTextFile'
+import { toast } from '@renderer/services/toast'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { buildEditorUrl } from '@renderer/utils/editor'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -557,7 +558,7 @@ export function ArtifactPaneView({
       try {
         await window.api.file.openPath(path)
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path })))
+        toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path })))
       }
     },
     [t]
@@ -568,7 +569,7 @@ export function ArtifactPaneView({
       try {
         await window.api.file.showInFolder(path)
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path })))
+        toast.error(formatErrorMessageWithPrefix(error, t('files.error.open_path', { path })))
       }
     },
     [t]

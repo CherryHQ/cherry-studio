@@ -1,29 +1,18 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import type { PopupInjectedProps } from '@renderer/services/popup'
 import { Smartphone } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useLanTransfer } from './hook'
 import { LanDeviceCard } from './LanDeviceCard'
-import type { PopupContainerProps } from './types'
+import type { PopupResolveData } from './types'
 
-const CLOSE_ANIMATION_MS = 200
-
-// Module-level callback for external hide access
-let hideCallback: (() => void) | null = null
-export const setHideCallback = (cb: () => void) => {
-  hideCallback = cb
-}
-export const getHideCallback = () => hideCallback
-
-export const PopupContainer: FC<PopupContainerProps> = ({ resolve }) => {
+export const PopupContainer: FC<PopupInjectedProps<PopupResolveData>> = ({ open, resolve }) => {
   const { t } = useTranslation()
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const resolvedRef = useRef(false)
 
   const {
-    state,
     lanDevices,
     isAnyTransferring,
     lastError,
@@ -36,39 +25,15 @@ export const PopupContainer: FC<PopupContainerProps> = ({ resolve }) => {
 
   const contentTitle = useMemo(() => t('settings.data.export_to_phone.lan.title'), [t])
 
-  const resolveAfterClose = useCallback(() => {
-    if (resolvedRef.current) return
-    resolvedRef.current = true
-    closeTimerRef.current = setTimeout(() => {
-      resolve({})
-    }, CLOSE_ANIMATION_MS)
-  }, [resolve])
-
   const onOpenChange = (next: boolean) => {
     if (!next) {
       handleDialogCancel()
+      resolve({})
     }
   }
 
-  // Register hide callback for external access
-  setHideCallback(handleDialogCancel)
-
-  useEffect(() => {
-    if (!state.open) {
-      resolveAfterClose()
-    }
-  }, [resolveAfterClose, state.open])
-
-  useEffect(() => {
-    return () => {
-      if (closeTimerRef.current) {
-        clearTimeout(closeTimerRef.current)
-      }
-    }
-  }, [])
-
   return (
-    <Dialog open={state.open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{contentTitle}</DialogTitle>

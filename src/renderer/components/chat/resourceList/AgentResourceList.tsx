@@ -10,6 +10,8 @@ import { useAgents } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
@@ -143,7 +145,7 @@ export function AgentResourceList({
   const handleReorderError = useCallback(
     (error: unknown) => {
       logger.error('Failed to reorder agent classic-layout rail', { error })
-      window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
+      toast.error(formatErrorMessageWithPrefix(error, t('agent.session.reorder.error.failed')))
     },
     [t]
   )
@@ -176,7 +178,7 @@ export function AgentResourceList({
         await refetchAgents()
       } catch (err) {
         logger.error('Failed to toggle agent pin from classic-layout rail', { agentId, err })
-        window.toast.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]
@@ -188,7 +190,7 @@ export function AgentResourceList({
 
       setDeletingAgentId(agentId)
       try {
-        const confirmed = await window.modal.confirm({
+        const confirmed = await popup.confirm({
           title: t('agent.delete.title'),
           content: t('agent.delete.content'),
           okText: t('common.delete'),
@@ -208,10 +210,10 @@ export function AgentResourceList({
 
         await refetchAgents()
         await reload()
-        window.toast.success(t('common.delete_success'))
+        toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete agent from classic-layout rail', { agentId, err })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
       } finally {
         setDeletingAgentId(null)
       }

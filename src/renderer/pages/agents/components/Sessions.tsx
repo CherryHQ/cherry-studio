@@ -53,6 +53,8 @@ import {
   exportMarkdownToYuque,
   exportMessagesToNotion
 } from '@renderer/services/ExportService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
@@ -696,7 +698,7 @@ const Sessions = ({
         }
       } catch (err) {
         logger.error('Failed to create session after deleting last session', { err, sessionId: id })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
         if (!createdSession) setActiveSessionId(null)
       }
@@ -725,11 +727,11 @@ const Sessions = ({
           { showSuccessToast: false }
         )
         if (updatedSession) {
-          window.toast.success(t('common.saved'))
+          toast.success(t('common.saved'))
         }
       } catch (err) {
         logger.error('Failed to rename session', { err, sessionId: id })
-        window.toast.error(t('agent.session.update.error.failed'))
+        toast.error(t('agent.session.update.error.failed'))
       }
     },
     [sessionItems, t, updateSession]
@@ -750,7 +752,7 @@ const Sessions = ({
             { showSuccessToast: false }
           )
         } else if (summaryError) {
-          window.toast?.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
+          toast.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
         }
       } finally {
         finishTopicRenaming(topicId)
@@ -762,9 +764,9 @@ const Sessions = ({
   const showSessionImageExportToast = useCallback(
     (request: AgentSessionImageActionRequest) => {
       const key = `agent-session-image-export:${request.id}`
-      const loadingPromise = request.promise.finally(() => window.toast.closeToast(key)).catch(() => undefined)
+      const loadingPromise = request.promise.finally(() => toast.closeToast(key)).catch(() => undefined)
 
-      window.toast.loading({
+      toast.loading({
         key,
         title: t('chat.topics.export.image_exporting_keep_page'),
         promise: loadingPromise,
@@ -772,8 +774,8 @@ const Sessions = ({
       })
 
       void request.promise.then(
-        () => window.toast.success(t('chat.topics.export.image_saved')),
-        () => window.toast.error(t('chat.topics.export.failed'))
+        () => toast.success(t('chat.topics.export.image_saved')),
+        () => toast.error(t('chat.topics.export.failed'))
       )
     },
     [t]
@@ -785,7 +787,7 @@ const Sessions = ({
       if (type === 'export') {
         showSessionImageExportToast(request)
       } else {
-        void request.promise.catch(() => window.toast.error(t('common.copy_failed')))
+        void request.promise.catch(() => toast.error(t('common.copy_failed')))
       }
 
       queueImageCaptureTarget(request, session)
@@ -809,11 +811,11 @@ const Sessions = ({
         const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
         const result = await SaveToKnowledgePopup.showForMessages(messages, title)
         if (result?.success) {
-          window.toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
+          toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
         }
       } catch (err) {
         logger.error('Failed to save agent session to knowledge base', { err, sessionId: session.id })
-        window.toast.error(t('chat.save.topic.knowledge.error.save_failed'))
+        toast.error(t('chat.save.topic.knowledge.error.save_failed'))
       }
     },
     [getSessionExportOptions, t]
@@ -971,7 +973,7 @@ const Sessions = ({
         return createdSession ?? null
       } catch (err) {
         logger.error('Failed to create session from session list', { err, agentId: seed.agentId })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
         return null
       } finally {
         setCreatingSession(false)
@@ -1011,7 +1013,7 @@ const Sessions = ({
 
       setDeletingAgentId(agentId)
       try {
-        const confirmed = await window.modal.confirm({
+        const confirmed = await popup.confirm({
           title: t('agent.delete.title'),
           content: t('agent.delete.content'),
           okText: t('common.delete'),
@@ -1037,10 +1039,10 @@ const Sessions = ({
         await refetchAgents()
         await reload()
         await refetchWorkspaces()
-        window.toast.success(t('common.delete_success'))
+        toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete agent from session group', { agentId, err })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.delete.error.failed')))
       } finally {
         setDeletingAgentId(null)
       }
@@ -1068,7 +1070,7 @@ const Sessions = ({
         .map((session) => session.id)
       if (sessionIds.length === 0) return
 
-      const confirmed = await window.modal.confirm({
+      const confirmed = await popup.confirm({
         title: t('agent.session.workdir.delete.title'),
         content: t('agent.session.workdir.delete.content'),
         okText: t('common.delete'),
@@ -1094,10 +1096,10 @@ const Sessions = ({
 
         await reload()
         await refetchWorkspaces()
-        window.toast.success(t('common.delete_success'))
+        toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete workspace group', { err, sessionIds, workspaceId })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.workdir.delete.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.workdir.delete.error.failed')))
       } finally {
         setDeletingWorkspaceGroupId(null)
       }
@@ -1140,10 +1142,10 @@ const Sessions = ({
           body: { name: trimmedName },
           params: { workspaceId: target.workspaceId }
         })
-        window.toast.success(t('common.saved'))
+        toast.success(t('common.saved'))
       } catch (err) {
         logger.error('Failed to rename workspace group', { err, workspaceId: target.workspaceId })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.workdir.rename.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.workdir.rename.error.failed')))
       }
     },
     [renamingWorkspaceGroup, t, updateWorkspace]
@@ -1154,7 +1156,7 @@ const Sessions = ({
       try {
         await window.api.file.openPath(workdirPath)
       } catch (err) {
-        window.toast.error(formatErrorMessageWithPrefix(err, t('files.error.open_path', { path: workdirPath })))
+        toast.error(formatErrorMessageWithPrefix(err, t('files.error.open_path', { path: workdirPath })))
       }
     },
     [t]
@@ -1185,7 +1187,7 @@ const Sessions = ({
         await refetchAgents()
       } catch (err) {
         logger.error('Failed to toggle agent pin from session group', { agentId, err })
-        window.toast.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [isAgentPinActionDisabled, refetchAgents, t, toggleAgentPin]
@@ -1281,7 +1283,7 @@ const Sessions = ({
           } catch (err) {
             setOptimisticAgentOrderIds(null)
             logger.error('Failed to reorder agent session group', { activeAgentId, err, overAgentId })
-            window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
+            toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
 
             try {
               await refetchAgents()
@@ -1324,7 +1326,7 @@ const Sessions = ({
             err,
             overWorkspaceId
           })
-          window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
+          toast.error(formatErrorMessageWithPrefix(err, t('agent.session.reorder.error.failed')))
 
           try {
             await refetchWorkspaces()

@@ -33,6 +33,7 @@ import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutat
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
+import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { findLatestUpdated, isUntouchedSinceCreation } from '@renderer/utils/resourceEntity'
@@ -433,7 +434,7 @@ const HomePage: FC = () => {
         }
       } catch (err) {
         logger.error('Failed to create assistant conversation from classic-layout picker', err as Error)
-        window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       } finally {
         isCreatingTopicRef.current = false
       }
@@ -472,7 +473,7 @@ const HomePage: FC = () => {
         return rendererTopic
       } catch (err) {
         logger.error('Failed to create empty topic', err as Error)
-        window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
         return null
       } finally {
         isCreatingTopicRef.current = false
@@ -503,7 +504,7 @@ const HomePage: FC = () => {
         })
       } catch (err) {
         logger.error('Failed to create fresh topic', err as Error)
-        window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       } finally {
         isCreatingTopicRef.current = false
       }

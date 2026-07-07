@@ -211,6 +211,7 @@ vi.mock('react-i18next', () => ({
 
 import { dataApiService } from '@data/DataApiService'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 
@@ -265,20 +266,6 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearPendingTopicImageActionsForTest()
-    Object.defineProperty(window, 'modal', {
-      configurable: true,
-      writable: true,
-      value: { confirm: vi.fn() }
-    })
-    Object.defineProperty(window, 'toast', {
-      configurable: true,
-      writable: true,
-      value: {
-        error: vi.fn(),
-        info: vi.fn(),
-        success: vi.fn()
-      }
-    })
     Object.defineProperty(window, 'api', {
       configurable: true,
       writable: true,
@@ -431,7 +418,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     )
     expect(chatWriteMock.editMessage).toHaveBeenCalledWith('message-1', [updatedPart])
     expect(dataApiService.patch).not.toHaveBeenCalled()
-    expect(window.toast.success).toHaveBeenCalledWith('code_block.edit.save.success')
+    expect(toast.success).toHaveBeenCalledWith('code_block.edit.save.success')
   })
 
   it('starts message branches through the injected branch draft handler', async () => {
@@ -493,7 +480,7 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
       }
     ])
     expect(dataApiService.patch).not.toHaveBeenCalled()
-    expect(window.toast.error).toHaveBeenCalledWith('code_block.edit.save.failed.label: Error: edit failed')
-    expect(window.toast.success).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('code_block.edit.save.failed.label: Error: edit failed')
+    expect(toast.success).not.toHaveBeenCalled()
   })
 })

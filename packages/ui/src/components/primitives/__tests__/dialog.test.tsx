@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { Dialog, DialogContent, DialogTitle } from '../dialog'
+import { Dialog, DIALOG_CLOSE_DURATION_MS, DialogContent, DialogTitle } from '../dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../select'
 
 beforeAll(() => {
@@ -46,6 +46,23 @@ function DialogWithSelect({ onOpenChange }: { onOpenChange: (open: boolean) => v
 }
 
 describe('Dialog primitive', () => {
+  it('renders the close animation at DIALOG_CLOSE_DURATION_MS so imperative hosts unmount in sync', () => {
+    // Guards the desync the constant exists to prevent: the `duration-*` class and
+    // DIALOG_CLOSE_DURATION_MS must agree, or popups (renderer POPUP_EXIT_MS, derived from
+    // this constant) unmount before the close animation finishes.
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Rename item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    const content = document.querySelector('[data-slot="dialog-content"]')
+    expect(content).not.toBeNull()
+    expect(content?.className).toContain(`duration-${DIALOG_CLOSE_DURATION_MS}`)
+  })
+
   it('stops pointerdown events inside content from reaching React ancestors', () => {
     const handleAncestorPointerDown = vi.fn()
 

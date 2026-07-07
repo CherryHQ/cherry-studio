@@ -44,6 +44,8 @@ import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { updateCodeBlock } from '@renderer/utils/markdown'
@@ -168,7 +170,7 @@ export function useHomeMessageListProviderValue({
         await requireChatWrite('clearTopicMessages').clearTopicMessages()
       } catch (error) {
         logger.error('Failed to clear topic messages:', error as Error)
-        window.toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+        toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
       }
     },
     [requireChatWrite, t, topic.id]
@@ -179,12 +181,14 @@ export function useHomeMessageListProviderValue({
 
     const unsubscribes = [
       EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, async (data: Topic) => {
-        window.modal.confirm({
+        const confirmed = await popup.confirm({
           title: t('chat.input.clear.title'),
           content: t('chat.input.clear.content'),
-          centered: true,
-          onOk: () => clearTopic(data)
+          centered: true
         })
+        if (!confirmed) return
+
+        void clearTopic(data)
       }),
       EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, () => {
         logger.info('[NEW_CONTEXT] Not yet implemented.')
@@ -217,11 +221,11 @@ export function useHomeMessageListProviderValue({
           : navigator.clipboard.writeText(text)
         void Promise.resolve(copyTask)
           .then(() => {
-            if (!richContent) window.toast.success(t('message.copy.success'))
+            if (!richContent) toast.success(t('message.copy.success'))
           })
           .catch((error) => {
             logger.error('Failed to copy last message:', error as Error)
-            window.toast.error(formatErrorMessageWithPrefix(error, t('common.copy_failed')))
+            toast.error(formatErrorMessageWithPrefix(error, t('common.copy_failed')))
           })
       }
     },
@@ -356,17 +360,17 @@ export function useHomeMessageListProviderValue({
             text: updatedText
           } as CherryMessagePart
           await requireChatWrite('saveCodeBlock').editMessage(resolved.messageId, allParts)
-          window.toast.success(t('code_block.edit.save.success'))
+          toast.success(t('code_block.edit.save.success'))
           return
         }
 
         logger.error(
           `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: unable to resolve part`
         )
-        window.toast.error(t('code_block.edit.save.failed.label'))
+        toast.error(t('code_block.edit.save.failed.label'))
       } catch (error) {
         logger.error(`Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`, error as Error)
-        window.toast.error(formatErrorMessageWithPrefix(error, t('code_block.edit.save.failed.label')))
+        toast.error(formatErrorMessageWithPrefix(error, t('code_block.edit.save.failed.label')))
       }
     },
     [requireChatWrite, t]
@@ -464,7 +468,7 @@ export function useHomeMessageListProviderValue({
 
         const translationUpdater = await createTranslationUpdater(messageId, language.langCode)
         if (!translationUpdater) {
-          window.toast.error(t('message.error.unknown'))
+          toast.error(t('message.error.unknown'))
           return
         }
 
@@ -472,7 +476,7 @@ export function useHomeMessageListProviderValue({
       } catch (error) {
         if (!isAbortError(error)) {
           logger.error('Message translation failed', error as Error)
-          window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
+          toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
         }
         // Clean up the empty data-translation part inserted by
         // createTranslationUpdater so BeatLoader doesn't spin forever.
@@ -561,24 +565,24 @@ export function useHomeMessageListProviderValue({
   )
 
   const deleteMessageGroupWithConfirm = useCallback<NonNullable<MessageListActions['deleteMessageGroupWithConfirm']>>(
-    (parentId) => {
-      window.modal.confirm({
+    async (parentId) => {
+      const confirmed = await popup.confirm({
         title: t('message.group.delete.title'),
         content: t('message.group.delete.content'),
         centered: true,
         okButtonProps: {
           danger: true
         },
-        okText: t('common.delete'),
-        onOk: async () => {
-          try {
-            await deleteMessageGroup(parentId)
-          } catch (error) {
-            logger.error('Failed to delete message group:', error as Error)
-            window.toast.error(formatErrorMessageWithPrefix(error, t('message.delete.failed')))
-          }
-        }
+        okText: t('common.delete')
       })
+      if (!confirmed) return
+
+      try {
+        await deleteMessageGroup(parentId)
+      } catch (error) {
+        logger.error('Failed to delete message group:', error as Error)
+        toast.error(formatErrorMessageWithPrefix(error, t('message.delete.failed')))
+      }
     },
     [deleteMessageGroup, t]
   )
@@ -625,7 +629,7 @@ export function useHomeMessageListProviderValue({
           })
         } catch (error) {
           logger.error('Failed to regenerate message using selected model:', error as Error)
-          window.toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
+          toast.error(formatErrorMessageWithPrefix(error, t('message.error.unknown')))
         }
       }
 
