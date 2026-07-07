@@ -79,6 +79,7 @@ interface HomeMessageListParams {
   loadOlder?: () => void
   hasOlder?: boolean
   openCitationsPanel?: MessageListActions['openCitationsPanel']
+  onStartBranchDraft?: MessageListActions['startMessageBranch']
   onComponentUpdate?(): void
   onFirstUpdate?(): void
 }
@@ -92,6 +93,7 @@ export function useHomeMessageListProviderValue({
   loadOlder,
   hasOlder = false,
   openCitationsPanel,
+  onStartBranchDraft,
   onComponentUpdate,
   onFirstUpdate
 }: HomeMessageListParams): MessageListProviderValue {
@@ -506,8 +508,13 @@ export function useHomeMessageListProviderValue({
   )
 
   const startMessageBranch = useCallback<NonNullable<MessageListActions['startMessageBranch']>>(
-    (messageId) => requireChatWrite('startMessageBranch').setActiveNode(messageId),
-    [requireChatWrite]
+    (messageId) => {
+      if (onStartBranchDraft) {
+        return onStartBranchDraft(messageId)
+      }
+      return requireChatWrite('startMessageBranch').setActiveNode(messageId)
+    },
+    [onStartBranchDraft, requireChatWrite]
   )
 
   const setActiveBranch = useCallback<NonNullable<MessageListActions['setActiveBranch']>>(

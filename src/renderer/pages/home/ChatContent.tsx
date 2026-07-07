@@ -33,6 +33,7 @@ interface Props {
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   clearBranchDraft?: () => void
   getBranchDraftAnchorId?: () => string | null
+  onStartBranchDraft?: MessageListActions['startMessageBranch']
 }
 
 /**
@@ -54,7 +55,8 @@ const ChatContent: FC<Props> = ({
   onLocateMessageHandled,
   onBranchLiveStateChange,
   clearBranchDraft,
-  getBranchDraftAnchorId
+  getBranchDraftAnchorId,
+  onStartBranchDraft
 }) => {
   const {
     uiMessages,
@@ -80,6 +82,7 @@ const ChatContent: FC<Props> = ({
       onBranchLiveStateChange={onBranchLiveStateChange}
       clearBranchDraft={clearBranchDraft}
       getBranchDraftAnchorId={getBranchDraftAnchorId}
+      onStartBranchDraft={onStartBranchDraft}
       isHistoryLoading={isHistoryLoading}
       isHistoryStale={isHistoryStale}
       initialMessages={uiMessages}
@@ -126,6 +129,7 @@ const ChatContentInner: FC<InnerProps> = ({
   onBranchLiveStateChange,
   clearBranchDraft,
   getBranchDraftAnchorId,
+  onStartBranchDraft,
   isHistoryLoading,
   isHistoryStale,
   initialMessages,
@@ -196,6 +200,7 @@ const ChatContentInner: FC<InnerProps> = ({
       loadOlder={loadOlder}
       hasOlder={hasOlder}
       openCitationsPanel={onOpenCitationsPanel}
+      onStartBranchDraft={onStartBranchDraft}
     />
   )
   const composer = runtime.shouldRenderHomeComposer ? (
