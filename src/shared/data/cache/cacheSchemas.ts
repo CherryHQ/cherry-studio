@@ -314,8 +314,9 @@ export type RendererPersistCacheSchema = {
   // Sidebar section/group collapse — one fixed key per display mode so toggling a group in one
   // mode never re-writes the others (avoids the whole-blob cross-mode/cross-window clobber).
   // Stores the flat list of collapsed section/group ids; empty = everything expanded.
+  // Null means no user preference has been written yet, so the view may apply its default.
   'ui.topic.expansion.time': string[]
-  'ui.topic.expansion.assistant': string[]
+  'ui.topic.expansion.assistant': string[] | null
   'ui.agent.last_used_session_id': string | null
   'ui.agent.last_used_agent_id': string | null
   'ui.agent.last_used_workspace_id': string | null
@@ -323,8 +324,8 @@ export type RendererPersistCacheSchema = {
   // 'ui.chat.right_pane_open'); kept separate so the assistant and agent surfaces don't bleed.
   'ui.agent.right_pane_open': boolean
   'ui.agent.session.expansion.time': string[]
-  'ui.agent.session.expansion.agent': string[]
-  'ui.agent.session.expansion.workdir': string[]
+  'ui.agent.session.expansion.agent': string[] | null
+  'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.openai.alert.dismissed': boolean
   'feature.mcp.is_uv_installed': boolean
@@ -345,14 +346,14 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.chat.last_used_topic_id': null,
   'ui.chat.right_pane_open': false,
   'ui.topic.expansion.time': [],
-  'ui.topic.expansion.assistant': [],
+  'ui.topic.expansion.assistant': null,
   'ui.agent.last_used_session_id': null,
   'ui.agent.last_used_agent_id': null,
   'ui.agent.last_used_workspace_id': null,
   'ui.agent.right_pane_open': false,
   'ui.agent.session.expansion.time': [],
-  'ui.agent.session.expansion.agent': [],
-  'ui.agent.session.expansion.workdir': [],
+  'ui.agent.session.expansion.agent': null,
+  'ui.agent.session.expansion.workdir': null,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,

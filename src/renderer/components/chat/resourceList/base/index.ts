@@ -2,6 +2,20 @@ export {
   ConversationResourceMenu,
   type ConversationResourceMenuItem
 } from './ConversationResourceMenu'
+export { resolveDefaultCollapsedGroupIds } from './defaultCollapsedGroups'
+export {
+  buildResolvedResourceEntityMenuAction,
+  buildResourceEntityIconTypeActionDescriptor,
+  buildResourceEntityMenuActionDescriptor
+} from './resourceEntityActions'
+export {
+  buildIconTypeActionDescriptors,
+  buildResolvedIconTypeActions,
+  buildResolvedIconTypeMenuAction,
+  renderAgentEntityIcon,
+  renderAssistantEntityIcon,
+  RESOURCE_ICON_TYPE_OPTIONS
+} from './resourceEntityIcon'
 export type {
   ResourceListActionMap,
   ResourceListContextValue,
@@ -55,5 +69,7 @@ export {
   moveResourceListStringGroupAfterDrop,
   withResourceListGroupIdPrefix
 } from './resourceListReorder'
+export { SESSION_DISPLAY_LABEL_KEYS, SessionListOptionsMenu } from './SessionListOptionsMenu'
+export { TopicListOptionsMenu } from './TopicListOptionsMenu'
 export type { UseResourceListPinnedStateOptions, UseResourceListPinnedStateResult } from './useResourceListPinnedState'
 export { useResourceListPinnedState } from './useResourceListPinnedState'

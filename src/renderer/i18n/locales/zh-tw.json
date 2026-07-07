@@ -339,6 +339,9 @@
     "home": {
       "welcome_title": "今天我們該談些什麼？"
     },
+    "icon": {
+      "type": "智能體圖示"
+    },
     "input": {
       "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 搜尋路徑或指令",
       "soul_placeholder": "幫我連接微信"
@@ -347,6 +350,9 @@
       "error": {
         "failed": "無法列出 Agent。"
       }
+    },
+    "manage": {
+      "title": "管理智能體"
     },
     "pin": {
       "title": "圖釘代理"
@@ -784,6 +790,11 @@
       }
     },
     "sidebar_title": "Agents",
+    "skill": {
+      "manage": {
+        "title": "管理技能"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1085,8 +1096,9 @@
   "assistants": {
     "abbr": "助手",
     "clear": {
-      "content": "清空對話會刪除助手下所有對話和檔案，確定要繼續嗎？",
-      "menu_title": "刪除助手下所有對話",
+      "content": "清空話題會刪除助手下所有話題，確定要繼續嗎？",
+      "menu_title": "清空話題",
+      "success_title": "已清空 {{count}} 個話題",
       "title": "清空對話"
     },
     "copy": {
@@ -3049,7 +3061,7 @@
             "skills_coming_soon": "Skill 綁定即將支援",
             "skills_require_save": "儲存後才能啟用技能",
             "tab": {
-              "mcp": "MCP Server",
+              "mcp": "MCP",
               "skills": "Skills",
               "tools": "內建工具"
             },
@@ -5331,6 +5343,13 @@
       "auto_switch_to_topics": "自動切換到對話",
       "title": "進階設定"
     },
+    "agent": {
+      "position": {
+        "label": "會話位置",
+        "left": "左側",
+        "right": "右側"
+      }
+    },
     "appearance": {
       "title": "外觀"
     },
@@ -7598,6 +7617,7 @@
   },
   "title": {
     "apps": "小程式",
+    "chat": "對話",
     "code": "程式碼",
     "files": "檔案",
     "home": "首頁",
