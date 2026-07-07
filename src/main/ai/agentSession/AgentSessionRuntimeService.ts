@@ -139,6 +139,8 @@ type AgentSessionRuntimeEntry = {
   /** The injected steer(s) carried to the continuation turn for its rename/seed context (U2 is already
    *  persisted by the provider — these do NOT create a new user row). */
   rollSteerInputs?: AgentRuntimeUserInput[]
+  /** Whether the post-steer continuation turn should keep responder-less/headless enforcement. */
+  rollHeadless?: boolean
   compacting?: boolean
 }
 
@@ -501,6 +503,7 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.rolling = false
       entry.rollBuffer = undefined
       entry.rollSteerInputs = undefined
+      entry.rollHeadless = undefined
     }
 
     entry.status = 'idle'
@@ -713,6 +716,10 @@ export class AgentSessionRuntimeService extends BaseService {
         entry.rolling = true
         entry.rollBuffer = []
         entry.rollSteerInputs = event.inputs
+        // A responder exists if the pre-steer turn was interactive or any injected steer came from one.
+        entry.rollHeadless =
+          entry.currentTurn?.headless === true &&
+          event.inputs.every((input) => entry.headlessMessageIds?.has(input.message.id) === true)
         for (const input of event.inputs) entry.headlessMessageIds?.delete(input.message.id)
         this.closeCurrentTurn(entry, 'success')
         break
@@ -1018,7 +1025,9 @@ export class AgentSessionRuntimeService extends BaseService {
    */
   private async startContinuationTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
     const steerMessage = entry.rollSteerInputs?.[0]?.message ?? createSyntheticUserMessage(entry.sessionId)
+    const headless = entry.rollHeadless === true
     entry.rollSteerInputs = undefined
+    entry.rollHeadless = undefined
 
     const rootSpan = this.startRuntimeRootSpan(entry)
     let assistantMessage: Awaited<ReturnType<typeof agentSessionMessageService.saveMessage>>
@@ -1038,6 +1047,7 @@ export class AgentSessionRuntimeService extends BaseService {
       rootSpan?.end()
       entry.rolling = false
       entry.rollBuffer = undefined
+      entry.rollHeadless = undefined
       application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, serializeError(error))
       this.markTurnTerminal(entry.sessionId, 'error')
       return
@@ -1053,7 +1063,8 @@ export class AgentSessionRuntimeService extends BaseService {
       // Pre-admitted: the steer was already delivered via the hook, so `admitTurn` must NOT re-send it.
       admitted: true,
       abortController: new AbortController(),
-      activeToolIds: new Set()
+      activeToolIds: new Set(),
+      headless
     }
 
     const messages = createRuntimeSeedMessages(steerMessage, assistantMessageId)
@@ -1197,6 +1208,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.rolling = false
     entry.rollBuffer = undefined
     entry.rollSteerInputs = undefined
+    entry.rollHeadless = undefined
     if (entry.compacting) {
       application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
         status: 'idle'

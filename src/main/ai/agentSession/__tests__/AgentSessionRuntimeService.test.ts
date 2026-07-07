@@ -220,6 +220,52 @@ describe('AgentSessionRuntimeService', () => {
       expect(getEntry(service).currentTurn.headless).toBe(true)
       expect(service.isCurrentTurnHeadless('session-1')).toBe(true)
     })
+
+    async function rollContinuation(initialHeadless: boolean, steerHeadless: boolean) {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1'), headless: initialHeadless })
+      const entry = getEntry(service)
+      if (steerHeadless) (entry.headlessMessageIds ??= new Set()).add('user-2')
+
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'steer-boundary',
+        inputs: [{ message: userMessage('user-2'), systemReminder: true }]
+      })
+      await (service as any).startContinuationTurn(entry)
+
+      return { service, entry }
+    }
+
+    it('keeps a roll continuation headless when the current turn and injected steer are headless', async () => {
+      const { service, entry } = await rollContinuation(true, true)
+
+      expect(entry.currentTurn.userMessage.id).toBe('user-2')
+      expect(entry.currentTurn.headless).toBe(true)
+      expect(entry.rollHeadless).toBeUndefined()
+      expect(service.isCurrentTurnHeadless('session-1')).toBe(true)
+
+      service.closeSession('session-1')
+    })
+
+    it('opens a headless turn plus interactive steer roll continuation as interactive', async () => {
+      const { service, entry } = await rollContinuation(true, false)
+
+      expect(entry.currentTurn.userMessage.id).toBe('user-2')
+      expect(entry.currentTurn.headless).toBe(false)
+      expect(service.isCurrentTurnHeadless('session-1')).toBe(false)
+
+      service.closeSession('session-1')
+    })
+
+    it('opens an interactive turn plus headless steer roll continuation as interactive', async () => {
+      const { service, entry } = await rollContinuation(false, true)
+
+      expect(entry.currentTurn.userMessage.id).toBe('user-2')
+      expect(entry.currentTurn.headless).toBe(false)
+      expect(service.isCurrentTurnHeadless('session-1')).toBe(false)
+
+      service.closeSession('session-1')
+    })
   })
 
   describe('reconcileStalePendingMessages — boot crash recovery', () => {
