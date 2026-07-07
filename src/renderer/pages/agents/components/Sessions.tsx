@@ -45,7 +45,7 @@ import {
   exportAgentSessionAsMarkdown,
   getAgentSessionExportTitle,
   getAgentSessionMessagesForExport
-} from '@renderer/services/AgentSessionExportService'
+} from '@renderer/services/agentSessionExport'
 import {
   exportContentToNotes,
   exportMarkdownToJoplin,

@@ -1,10 +1,7 @@
 import { loggerService } from '@logger'
 import { useMessageImageCaptureMessages } from '@renderer/components/chat/messages/hooks/useMessageImageCaptureMessages'
 import MessageImageCaptureHost from '@renderer/components/chat/messages/MessageImageCaptureHost'
-import {
-  getAgentSessionExportTitle,
-  getAgentSessionMessagesForExport
-} from '@renderer/services/AgentSessionExportService'
+import { getAgentSessionExportTitle, getAgentSessionMessagesForExport } from '@renderer/services/agentSessionExport'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Topic } from '@renderer/types/topic'
 import { TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'

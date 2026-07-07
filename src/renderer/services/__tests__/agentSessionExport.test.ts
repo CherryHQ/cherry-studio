@@ -29,7 +29,7 @@ vi.mock('@renderer/utils/markdown', () => ({
   markdownToPlainText: vi.fn((value: string) => value)
 }))
 
-const { getAgentSessionMessagesForExport } = await import('../AgentSessionExportService')
+const { getAgentSessionMessagesForExport } = await import('../agentSessionExport')
 
 function createSessionMessage(
   overrides: Partial<AgentSessionMessageEntity> & Pick<AgentSessionMessageEntity, 'id' | 'role'>
@@ -53,7 +53,7 @@ function createSessionMessage(
   } as AgentSessionMessageEntity
 }
 
-describe('AgentSessionExportService', () => {
+describe('agentSessionExport', () => {
   beforeEach(() => {
     vi.mocked(dataApiService.get).mockReset()
   })

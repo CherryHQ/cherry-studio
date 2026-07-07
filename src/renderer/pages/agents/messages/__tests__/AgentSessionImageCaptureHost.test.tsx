@@ -35,7 +35,7 @@ vi.mock('@renderer/components/chat/messages/MessageImageCaptureHost', () => ({
   }
 }))
 
-vi.mock('@renderer/services/AgentSessionExportService', () => exportServiceMocks)
+vi.mock('@renderer/services/agentSessionExport', () => exportServiceMocks)
 
 vi.mock('../agentMessageListAdapter', () => ({
   useAgentMessageListProviderValue: messageListProviderMock

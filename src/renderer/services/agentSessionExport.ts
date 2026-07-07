@@ -15,7 +15,7 @@ import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import i18next from 'i18next'
 
-const logger = loggerService.withContext('AgentSessionExportService')
+const logger = loggerService.withContext('agentSessionExport')
 
 export type AgentSessionExportTarget = Pick<AgentSessionEntity, 'agentId' | 'id' | 'name'>
 
