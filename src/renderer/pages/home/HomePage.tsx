@@ -137,7 +137,6 @@ const HomePage: FC = () => {
   const isClassicTopicLayout = topicDisplayMode === 'assistant'
   // Classic-layout right-pane open state, cached on the assistant surface's own key.
   const [topicPaneOpen, setTopicPaneOpen] = useClassicLayoutRightPaneOpen('chat', isClassicTopicLayout)
-  const hasAutoOpenedClassicTopicPaneRef = useRef(false)
   // Classic layout shares this full-topics source with the rail; modern layout leaves it disabled (no fetch).
   // The picker uses it to reuse an empty placeholder topic instead of stacking new ones.
   const {
@@ -149,17 +148,6 @@ const HomePage: FC = () => {
     !isClassicTopicLayout || (!isClassicTopicLayoutLoading && isClassicTopicLayoutFullyLoaded)
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
-
-  useEffect(() => {
-    if (!isClassicTopicLayout || panePosition !== 'right') {
-      hasAutoOpenedClassicTopicPaneRef.current = false
-      return
-    }
-
-    if (hasAutoOpenedClassicTopicPaneRef.current) return
-    hasAutoOpenedClassicTopicPaneRef.current = true
-    setTopicPaneOpen(true)
-  }, [isClassicTopicLayout, panePosition, setTopicPaneOpen])
 
   const location = useLocation()
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
@@ -790,7 +778,7 @@ const HomePage: FC = () => {
         setTopicExpansionAssistant(collapsedAssistantGroupIds)
       }
       await setPanePosition(position)
-      setTopicPaneOpen(position === 'right')
+      setTopicPaneOpen(position === 'right', { force: true })
       setResourceListOpen(true)
     },
     [

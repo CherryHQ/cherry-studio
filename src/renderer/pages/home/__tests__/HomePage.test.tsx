@@ -791,6 +791,7 @@ describe('HomePage', () => {
   it('switches to assistant grouping when changing topic position from the left sidebar', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
     homeMocks.preferenceValues.set('topic.tab.position', 'left')
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open', false)
 
     render(<HomePage />)
 
@@ -798,6 +799,7 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.preferenceValues.get('topic.tab.display_mode')).toBe('assistant'))
     expect(homeMocks.preferenceValues.get('topic.tab.position')).toBe('right')
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open', true)
   })
 
   it('expands only the active topic assistant when changing topic position to the left sidebar', async () => {
@@ -925,16 +927,20 @@ describe('HomePage', () => {
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
   })
 
-  it('auto-opens the classic-layout topic right pane once and records manual close state', async () => {
+  it('respects a manually closed classic-layout topic right pane on re-entry', () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.persistCacheValues.set('ui.chat.right_pane_open', false)
 
     render(<HomePage />)
 
-    await waitFor(() =>
-      expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'true')
-    )
-    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open', true)
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'false')
+    expect(homeMocks.cacheSetPersist).not.toHaveBeenCalledWith('ui.chat.right_pane_open', true)
+  })
+
+  it('records manual close state for the classic-layout topic right pane', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+
+    render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Close topic right pane' }))
 
