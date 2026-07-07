@@ -38,7 +38,7 @@ Goal: **one declarative registry** = single source of truth for policy (main), c
    - `Agent` + agent-teams (`SendMessage`/`TeamCreate`/`TeamDelete`) → **internal**. `Workflow` → **user**.
    - `ScheduleWakeup`/`RemoteTrigger`/`Monitor`/`PushNotification` → **disabled** (CLI-oriented).
    - `EnterWorktree`/`ExitWorktree` → **conditional** (`workspace-has-git`), pair-grouped.
-   - claw `cron` → **user**; `agent-memory` `memory` → **user**; `skills` → **internal** (defined but not yet wired); claw `notify` + `config` → **conditional** (`agent-has-channel`).
+   - claw `cron` → **user**; `agent-memory` `memory` → **user**; `skills` → **internal** (defined but not yet wired); claw `notify` + `config` → **user** (no channel gate; `notify` self-degrades at call time when no channel is connected).
 
 ## Architecture — 3 layers
 
@@ -128,10 +128,10 @@ Approval = `permission_mode` cards + read-only default-safe set. **Round-trip un
 | kb_search | cherry-tools | context | user | |
 | kb_list | cherry-tools | context | internal | |
 | memory | agent-memory | context | user | cross-session FACT.md/JOURNAL |
-| skills | skills | context | internal | newly wired (currently injected nowhere) |
-| cron | claw | orchestration | user | app scheduler (≠ SDK Cron*) |
-| notify | claw | orchestration | **conditional: agent-has-channel** | IM channel push |
-| config | claw | orchestration | **conditional: agent-has-channel** | agent self-config (rename/channels) |
+| skills | skills | context | internal | defined but not yet wired (injected nowhere) |
+| cron | cherry-tools | orchestration | user | app scheduler (≠ SDK Cron*) |
+| notify | cherry-tools | orchestration | user | IM channel push; self-degrades at call time if no channel |
+| config | cherry-tools | orchestration | user | agent self-config (rename/channels) |
 
 Future: media tools (image gen, audio/video) → `category:'media'`; notes → `category:'context'`.
 

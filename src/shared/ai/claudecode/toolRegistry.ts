@@ -319,7 +319,9 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Manages the in-app scheduler',
     mcpServer: 'cherry-tools'
   },
-  // notify is condition-gated (agent has a connected channel) — see toolConditions.ts.
+  // notify is user-exposed and NOT channel-gated: it self-degrades at call time (reports "no connected
+  // channels") when the agent has none — see cherryAutonomyTools.ts sendNotification. Do not re-add a
+  // channel enable-predicate, or an agent can't notify in the same run it uses config to add its first channel.
   CherryNotify: {
     name: 'mcp__cherry-tools__notify',
     category: 'orchestration',
