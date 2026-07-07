@@ -3,18 +3,22 @@ import { loggerService } from '@renderer/services/LoggerService'
 import type { BinaryState } from '@shared/data/preference/preferenceTypes'
 import type { CodeCli } from '@shared/types/codeCli'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { gt as semverGt, valid as semverValid } from 'semver'
 
 import { CLI_BINARY_NAMES } from '../constants/cliTools'
 import type { VersionStatus } from '../types/codeCli'
 
 const logger = loggerService.withContext('useCliVersionStatus')
 
-type RegistryEntry = { name: string; tool: string }
-
-/** Pull a trailing `@1.2.3` off a mise tool spec, if the registry pinned one. */
-const extractVersion = (tool: string): string | undefined => {
-  const match = tool.match(/@([\d.]+)$/)
-  return match ? match[1] : undefined
+const isNewerVersion = (latest?: string, installed?: string): boolean => {
+  const validLatest = latest ? semverValid(latest) : null
+  const validInstalled = installed ? semverValid(installed) : null
+  if (!validLatest || !validInstalled) return false
+  try {
+    return semverGt(validLatest, validInstalled)
+  } catch {
+    return false
+  }
 }
 
 const buildStatus = (state: BinaryState, binaryName: string | undefined, latest?: string): VersionStatus => {
@@ -23,24 +27,17 @@ const buildStatus = (state: BinaryState, binaryName: string | undefined, latest?
     installed: !!installed,
     current: installed?.version,
     latest,
-    canUpgrade: !!installed && !!latest && installed.version !== latest
+    canUpgrade: !!installed && isNewerVersion(latest, installed.version)
   }
 }
 
 /**
  * Install/upgrade status for every CLI tool.
  *
- * Installed state comes from `binary.get_state`; the registry "latest" version
- * is resolved per tool from `binary.search_registry`. Both run in a single
- * parallel batch — they're independent — so the registry lookups add no latency
- * on top of the state fetch. On `binary.state_changed` we recompute from the
- * broadcast without re-querying the registry (cached in `latestRef`).
- *
- * NOTE: `mise registry` entries carry versionless backend specs (e.g.
- * `npm:opencode`), so `extractVersion` typically returns undefined and
- * `canUpgrade` stays false until a real latest-version source (npm/pypi via
- * `CodeCliService.getVersionInfo`) is wired up. The installed/current fields
- * are unaffected and always accurate.
+ * Installed state comes from `binary.get_state`; latest versions come from
+ * BinaryManager's `mise latest` batch. We only run the latest-version batch when
+ * at least one supported CLI is installed, because upgrade badges are the only
+ * consumer on this page.
  */
 export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<string, VersionStatus> => {
   const [statuses, setStatuses] = useState<Record<string, VersionStatus>>({})
@@ -54,29 +51,29 @@ export const useCliVersionStatuses = (toolIds: readonly CodeCli[]): Record<strin
     let cancelled = false
 
     const refresh = async () => {
-      const [state, registry] = await Promise.all([
-        ipcApi.request('binary.get_state').catch((error) => {
-          logger.error('Failed to get binary state', error as Error)
-          return null
-        }),
-        Promise.all(
-          tools.map(async (toolId): Promise<readonly [CodeCli, string | undefined]> => {
-            const binaryName = CLI_BINARY_NAMES[toolId]
-            if (!binaryName) return [toolId, undefined]
-            try {
-              const results = await ipcApi.request('binary.search_registry', binaryName)
-              const match = (results as RegistryEntry[]).find((r) => r.name === binaryName)
-              return [toolId, match ? extractVersion(match.tool) : undefined]
-            } catch (error) {
-              logger.error('Failed to search registry', error as Error)
-              return [toolId, undefined]
-            }
-          })
-        )
-      ])
+      const state = await ipcApi.request('binary.get_state').catch((error) => {
+        logger.error('Failed to get binary state', error as Error)
+        return null
+      })
 
       if (cancelled || !state) return
-      for (const [toolId, version] of registry) latestRef.current[toolId] = version
+
+      const hasInstalledCli = tools.some((toolId) => {
+        const binaryName = CLI_BINARY_NAMES[toolId]
+        return binaryName ? Boolean(state.tools[binaryName]) : false
+      })
+      const latestVersions = hasInstalledCli
+        ? await ipcApi.request('binary.get_latest_versions', true).catch((error) => {
+            logger.error('Failed to get latest binary versions', error as Error)
+            return {}
+          })
+        : {}
+      if (cancelled) return
+
+      for (const toolId of tools) {
+        const binaryName = CLI_BINARY_NAMES[toolId]
+        latestRef.current[toolId] = binaryName ? latestVersions[binaryName] : undefined
+      }
 
       const next: Record<string, VersionStatus> = {}
       for (const toolId of tools) {

@@ -56,6 +56,38 @@ describe('VersionStatusCard', () => {
     expect(screen.getByRole('button', { name: 'code.launching' })).toBeDisabled()
   })
 
+  it('renders the latest-version hint and upgrade action when upgrade is available', () => {
+    const onUpgrade = vi.fn()
+    render(
+      <VersionStatusCard
+        toolId="qwen-code"
+        toolName="Qwen Code"
+        status={{ installed: true, current: '1.0.0', latest: '1.1.0', canUpgrade: true }}
+        onUpgrade={onUpgrade}
+        onLaunch={vi.fn()}
+        canLaunch
+      />
+    )
+
+    expect(screen.getByText('v1.1.0')).toHaveClass('text-warning')
+    fireEvent.click(screen.getByRole('button', { name: 'code.upgrade' }))
+    expect(onUpgrade).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders the upgrade installing state while upgrading', () => {
+    render(
+      <VersionStatusCard
+        toolId="qwen-code"
+        toolName="Qwen Code"
+        status={{ installed: true, current: '1.0.0', latest: '1.1.0', canUpgrade: true }}
+        onUpgrade={vi.fn()}
+        isUpgrading
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'code.installing' })).toBeDisabled()
+  })
+
   it('renders an open-dashboard action when running and triggers it on click', () => {
     const onOpenDashboard = vi.fn()
     render(

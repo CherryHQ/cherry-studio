@@ -185,7 +185,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           currentProviderModelName: currentCliConfigConnection ? t('code.cli_config.unknown_provider') : undefined,
           resolveProviderMeta,
           onInstall: () => void install(selectedCliTool),
-          onUpgrade: () => void upgrade(selectedCliTool),
+          onUpgrade: () => void upgrade(selectedCliTool, versionStatus.latest),
           onRemove: () => removeDialog.requestRemove(selectedCliTool),
           onLaunch: () => (isOpenClawTool ? void openClawGateway.onLaunch() : launchDialog.openLaunchDialog()),
           onStop: () => void openClawGateway.onStop(),

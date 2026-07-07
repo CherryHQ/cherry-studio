@@ -53,23 +53,11 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate font-medium text-foreground text-sm">{toolName}</span>
-            {isInstalled &&
-              (canUpgrade ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={onUpgrade}
-                  disabled={isUpgrading}
-                  className="h-auto min-h-0 shrink-0 gap-1 rounded px-1.5 py-0 text-[10px] text-warning hover:bg-warning/10 hover:text-warning">
-                  <ArrowUpCircle size={10} />
-                  {t('code.upgrade')}
-                </Button>
-              ) : (
-                <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
-                  {t('code.up_to_date')}
-                </span>
-              ))}
+            {isInstalled && !canUpgrade && (
+              <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
+                {t('code.up_to_date')}
+              </span>
+            )}
           </div>
 
           <div className="mt-1 flex items-center gap-1.5 text-muted-foreground/60 text-xs">
@@ -91,6 +79,28 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {isInstalled && canUpgrade && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onUpgrade}
+              disabled={isUpgrading}
+              className="shrink-0 gap-1 text-warning hover:bg-warning/10 hover:text-warning">
+              {isUpgrading ? (
+                <>
+                  <span className="size-3 animate-spin rounded-full border-2 border-warning/30 border-t-warning" />
+                  {t('code.installing')}
+                </>
+              ) : (
+                <>
+                  <ArrowUpCircle size={12} />
+                  {t('code.upgrade')}
+                </>
+              )}
+            </Button>
+          )}
+
           {isInstalled && onRemove && (
             <Button
               variant="ghost"

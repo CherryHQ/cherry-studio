@@ -25,7 +25,8 @@ export function useBinaryActions() {
     async (
       toolId: CodeCli,
       setBusy: Dispatch<SetStateAction<Set<string>>>,
-      messages: { successKey: string; errorKey: string; logLabel: string }
+      messages: { successKey: string; errorKey: string; logLabel: string },
+      version?: string
     ) => {
       try {
         setBusy((prev) => new Set(prev).add(toolId))
@@ -33,7 +34,8 @@ export function useBinaryActions() {
         if (cliPreset) {
           await ipcApi.request('binary.install_tool', {
             name: CLI_BINARY_NAMES[toolId],
-            tool: cliPreset.miseTool
+            tool: cliPreset.miseTool,
+            ...(version ? { version } : {})
           })
           window.toast.success(t(messages.successKey))
         }
@@ -62,12 +64,17 @@ export function useBinaryActions() {
   )
 
   const upgrade = useCallback(
-    (toolId: CodeCli) =>
-      runInstallTool(toolId, setUpgradingTools, {
-        successKey: 'code.upgrade_success',
-        errorKey: 'code.upgrade_error',
-        logLabel: 'Failed to upgrade:'
-      }),
+    (toolId: CodeCli, latestVersion?: string) =>
+      runInstallTool(
+        toolId,
+        setUpgradingTools,
+        {
+          successKey: 'code.upgrade_success',
+          errorKey: 'code.upgrade_error',
+          logLabel: 'Failed to upgrade:'
+        },
+        latestVersion
+      ),
     [runInstallTool]
   )
 

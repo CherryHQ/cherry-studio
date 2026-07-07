@@ -25,7 +25,7 @@ const tools = [
   { value: CodeCli.OPENAI_CODEX, label: 'OpenAI Codex', icon: undefined }
 ] as const
 
-function renderSidebar() {
+function renderSidebar(statuses: CodeCliSidebarProps['statuses'] = {}) {
   render(
     <CodeCliSidebar
       tools={tools as unknown as CodeCliSidebarProps['tools']}
@@ -34,7 +34,8 @@ function renderSidebar() {
       toMeta={(tool) => ({ id: tool.value, label: tool.label, icon: tool.icon })}
       statuses={{
         [CodeCli.CLAUDE_CODE]: { installed: false, canUpgrade: false },
-        [CodeCli.OPENAI_CODEX]: { installed: true, current: '1.2.3', canUpgrade: false }
+        [CodeCli.OPENAI_CODEX]: { installed: true, current: '1.2.3', canUpgrade: false },
+        ...statuses
       }}
       installingTools={new Set()}
       upgradingTools={new Set()}
@@ -67,5 +68,14 @@ describe('CodeCliSidebar', () => {
     renderSidebar()
 
     expect(screen.getByText('v1.2.3')).toHaveClass('text-primary')
+  })
+
+  it('renders the latest version and upgrade icon when an update is available', () => {
+    renderSidebar({
+      [CodeCli.OPENAI_CODEX]: { installed: true, current: '1.2.3', latest: '1.3.0', canUpgrade: true }
+    })
+
+    expect(screen.getByText('v1.3.0')).toBeInTheDocument()
+    expect(screen.getByText('v1.3.0').parentElement?.querySelector('svg')).toHaveClass('text-warning')
   })
 })
