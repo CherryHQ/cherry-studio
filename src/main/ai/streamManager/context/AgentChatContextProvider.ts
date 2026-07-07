@@ -205,7 +205,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
             messageId: assistantMessageId,
             runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId }
           },
-          rootSpan: turnTrace.rootSpan
+          rootSpan: turnTrace.rootSpan,
+          abortController: runtime.abortController
         }
       ],
       userMessageId,

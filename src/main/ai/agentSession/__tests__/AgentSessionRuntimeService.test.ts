@@ -238,6 +238,32 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('aborts the current turn controller before the stream starts', () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn(baseTurnInput)
+
+    expect(service.abortPendingTurn('session-1', 'user-requested')).toBe(true)
+    expect(handle.abortController.signal.aborted).toBe(true)
+    expect(handle.abortController.signal.reason).toBe('user-requested')
+  })
+
+  it('does not reuse an aborted controller for a later turn', () => {
+    const service = new AgentSessionRuntimeService()
+    const first = service.beginTurn(baseTurnInput)
+
+    expect(service.abortPendingTurn('session-1', 'user-requested')).toBe(true)
+    void terminalListener(first).onPaused({ status: 'paused', isTopicDone: true })
+
+    const second = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2')
+    })
+
+    expect(first.abortController.signal.aborted).toBe(true)
+    expect(second.abortController.signal.aborted).toBe(false)
+  })
+
   it('marks the runtime idle when the terminal listener observes done', () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn(baseTurnInput)
@@ -663,6 +689,30 @@ describe('AgentSessionRuntimeService', () => {
       id: 'assistant-1',
       role: 'assistant',
       parts: [{ type: 'text', text: 'hi' }]
+    })
+  })
+
+  it('persists empty paused terminals to the active assistant placeholder', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    getEntry(service).lastResumeToken = 'resume-1'
+
+    await persistenceListener(handle).onPaused({
+      status: 'paused',
+      isTopicDone: true,
+      finalMessage: undefined
+    })
+
+    expect(mocks.saveMessage).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      runtimeResumeToken: 'resume-1',
+      message: {
+        id: 'assistant-1',
+        role: 'assistant',
+        status: 'paused',
+        data: { parts: [] },
+        modelId: 'claude-code::claude-sonnet-4-5'
+      }
     })
   })
 
@@ -1679,6 +1729,7 @@ describe('AgentSessionRuntimeService', () => {
         ],
         runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: expect.any(String) }
       },
+      abortController: expect.any(AbortController),
       listeners: [
         expect.objectContaining({ id: expect.stringContaining('persistence:agents-db:') }),
         expect.objectContaining({ id: 'agent-runtime:session-1' }),
