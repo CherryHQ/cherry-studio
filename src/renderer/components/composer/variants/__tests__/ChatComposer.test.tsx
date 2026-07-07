@@ -43,6 +43,11 @@ const mocks = vi.hoisted(() => ({
   topicPending: false,
   surfaceProps: undefined as ComposerSurfaceProps | undefined,
   derivedToolState: undefined as { couldAddImageFile: boolean; extensions: string[] } | undefined,
+  toolLaunchers: [] as any[],
+  toolLaunchersVersion: 0,
+  dispatchLauncher: vi.fn(),
+  unifiedPanelOpen: vi.fn(),
+  unifiedPanelAvailable: true,
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
   chatWrite: undefined as any,
@@ -125,14 +130,22 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
       insertToken: vi.fn(),
       deleteTriggerRange: vi.fn()
     }
+    const unifiedPanelControl = {
+      available: mocks.unifiedPanelAvailable,
+      open: mocks.unifiedPanelOpen
+    }
 
     mocks.surfaceProps = props
     const sendAccessory =
-      typeof props.sendAccessory === 'function' ? props.sendAccessory(inputAdapter) : props.sendAccessory
+      typeof props.sendAccessory === 'function'
+        ? props.sendAccessory(inputAdapter, unifiedPanelControl)
+        : props.sendAccessory
     return (
       <div>
-        <div data-testid="composer-left-controls">{props.renderLeftControls?.(inputAdapter)}</div>
-        <div data-testid="composer-below-controls">{props.renderBelowControls?.(inputAdapter)}</div>
+        <div data-testid="composer-left-controls">{props.renderLeftControls?.(inputAdapter, unifiedPanelControl)}</div>
+        <div data-testid="composer-below-controls">
+          {props.renderBelowControls?.(inputAdapter, unifiedPanelControl)}
+        </div>
         <div data-testid="composer-send-accessory">{sendAccessory}</div>
       </div>
     )
@@ -214,14 +227,14 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     }
   }),
   useComposerToolLauncherController: () => ({
-    getLaunchers: vi.fn(() => []),
-    dispatchLauncher: vi.fn()
+    getLaunchers: vi.fn(() => mocks.toolLaunchers),
+    dispatchLauncher: mocks.dispatchLauncher
   }),
   useComposerToolLauncherActions: () => ({
-    getLaunchers: vi.fn(() => []),
-    dispatchLauncher: vi.fn()
+    getLaunchers: vi.fn(() => mocks.toolLaunchers),
+    dispatchLauncher: mocks.dispatchLauncher
   }),
-  useComposerToolLauncherVersion: () => 0
+  useComposerToolLauncherVersion: () => mocks.toolLaunchersVersion
 }))
 
 vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
@@ -624,6 +637,11 @@ describe('ChatComposer', () => {
     mocks.topicPending = false
     mocks.surfaceProps = undefined
     mocks.derivedToolState = undefined
+    mocks.toolLaunchers = []
+    mocks.toolLaunchersVersion = 0
+    mocks.dispatchLauncher.mockReset()
+    mocks.unifiedPanelOpen.mockReset()
+    mocks.unifiedPanelAvailable = true
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
     mocks.chatWrite = undefined
@@ -673,6 +691,53 @@ describe('ChatComposer', () => {
       within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
     ).toBeInTheDocument()
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
+  })
+
+  it('keeps reasoning and web search shortcuts in the assistant composer toolbar', () => {
+    const thinkingLauncher = {
+      id: 'thinking',
+      kind: 'group',
+      label: 'assistants.settings.reasoning_effort.label',
+      icon: <span data-testid="thinking-icon" />,
+      sources: ['popover'],
+      active: true
+    }
+    const webSearchLauncher = {
+      id: 'web-search',
+      kind: 'command',
+      label: 'chat.input.web_search.label',
+      icon: <span data-testid="web-search-icon" />,
+      sources: ['popover'],
+      active: false
+    }
+    mocks.toolLaunchers = [thinkingLauncher, webSearchLauncher]
+    mocks.toolLaunchersVersion = 1
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    const leftControls = screen.getByTestId('composer-left-controls')
+    const reasoningButton = within(leftControls).getByRole('button', {
+      name: 'assistants.settings.reasoning_effort.label'
+    })
+    const webSearchButton = within(leftControls).getByRole('button', { name: 'chat.input.web_search.label' })
+
+    expect(reasoningButton).toHaveAttribute('data-active', 'true')
+    expect(webSearchButton).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(reasoningButton)
+    expect(mocks.unifiedPanelOpen).toHaveBeenCalledWith({
+      launcherId: 'thinking',
+      searchText: 'assistants.settings.reasoning_effort.label'
+    })
+
+    fireEvent.click(webSearchButton)
+    expect(mocks.dispatchLauncher).toHaveBeenCalledWith(
+      webSearchLauncher,
+      expect.objectContaining({
+        source: 'popover',
+        inputAdapter: expect.objectContaining({ focus: mocks.inputAdapterFocus })
+      })
+    )
   })
 
   it('keeps the home composer narrow even when chat wide layout is enabled', () => {

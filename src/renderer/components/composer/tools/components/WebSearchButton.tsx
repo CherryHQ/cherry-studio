@@ -149,6 +149,7 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         searchAliases: getQuickPanelSearchAliases(t, 'chat.input.web_search.label', ['search']),
         icon,
         active: enableWebSearch,
+        showInActiveControls: false,
         disabled: isDisabled,
         disabledReason,
         action: ({ inputAdapter }) => onClick(inputAdapter?.focus)
