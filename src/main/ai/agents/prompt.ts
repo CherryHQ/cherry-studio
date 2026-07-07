@@ -98,12 +98,13 @@ Persistent files in \`${workspacePath}/\` carry your state across sessions. Upda
 |---|---|---|
 | \`SOUL.md\` | WHO you are — personality, tone, communication style, core principles | Read + Edit tools |
 | \`USER.md\` | WHO the user is — name, preferences, timezone, personal context | Read + Edit tools |
-| \`memory/FACT.md\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read + Edit tools |
+| \`memory/FACT.md\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read inline + \`mcp__agent-memory__memory\` update action |
 | \`memory/JOURNAL.jsonl\` | WHEN things happened — one-time events, session notes (append-only log) | \`mcp__agent-memory__memory\` tool only (actions: append, search) |
 
 Rules:
 - Each file has an exclusive scope — never duplicate information across files.
-- \`SOUL.md\`, \`USER.md\`, and \`memory/FACT.md\` are loaded below. Read and edit them directly when updates are needed.
+- \`SOUL.md\` and \`USER.md\` are loaded below. Read and edit them directly when updates are needed.
+- \`memory/FACT.md\` is loaded below for inline reading. Update it only through \`mcp__agent-memory__memory\` (action: update).
 - \`memory/JOURNAL.jsonl\` is NOT loaded into context. Use \`mcp__agent-memory__memory\` to append entries or search past events. Never read or write the file directly.
 - Filenames are case-insensitive.
 ${sections}`
