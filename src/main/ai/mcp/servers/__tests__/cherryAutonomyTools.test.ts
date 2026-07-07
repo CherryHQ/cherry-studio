@@ -220,6 +220,39 @@ describe('CherryAutonomyTools', () => {
       expect(result.isError).toBe(true)
       expect(mockCreateTask).not.toHaveBeenCalled()
     })
+
+    it('should subscribe explicit channel_ids owned by this agent', async () => {
+      mockGetChannel.mockReturnValue({ id: 'ch_own', agentId: 'agent_1' })
+      mockCreateTask.mockResolvedValue({ id: 'task_ch' })
+
+      const server = createServer('agent_1')
+      await callTool(server, {
+        action: 'add',
+        name: 'test',
+        message: 'test',
+        cron: '* * * * *',
+        channel_ids: ['ch_own']
+      })
+
+      expect(mockCreateTask).toHaveBeenCalledWith('agent_1', expect.objectContaining({ channelIds: ['ch_own'] }))
+    })
+
+    it('should reject channel_ids owned by another agent without leaking existence', async () => {
+      mockGetChannel.mockReturnValue({ id: 'ch_foreign', agentId: 'agent_2' })
+
+      const server = createServer('agent_1')
+      const result = await callTool(server, {
+        action: 'add',
+        name: 'test',
+        message: 'test',
+        cron: '* * * * *',
+        channel_ids: ['ch_foreign']
+      })
+
+      expect(result.isError).toBe(true)
+      expect(result.content[0].text).toContain('Channel "ch_foreign" not found')
+      expect(mockCreateTask).not.toHaveBeenCalled()
+    })
   })
 
   describe('list action', () => {

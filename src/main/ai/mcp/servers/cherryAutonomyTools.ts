@@ -345,9 +345,17 @@ export class CherryAutonomyTools {
       trigger = { kind: 'once', at: date.getTime() }
     }
 
-    // Resolve channel_ids: explicit array, or default to the current channel
+    // Resolve channel_ids: explicit array, or default to the current channel. Validate that each
+    // explicit id belongs to this agent — cron is auto-approved and injected for every agent, so an
+    // unscoped id would let one agent deliver task output into another agent's channel. Foreign (and
+    // missing) ids get the same "not found" as the config-tool guards to avoid leaking existence.
     let channelIds: string[] | undefined
     if (Array.isArray(rawChannelIds)) {
+      for (const channelId of rawChannelIds) {
+        const channel = channelService.getChannel(channelId)
+        if (!channel || channel.agentId !== this.agentId)
+          throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
+      }
       channelIds = rawChannelIds
     } else if (this.sourceChannelId) {
       channelIds = [this.sourceChannelId]
