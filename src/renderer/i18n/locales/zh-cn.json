@@ -2061,7 +2061,7 @@
     "custom_path_required": "此终端需要设置自定义路径",
     "custom_path_set": "自定义终端路径设置成功",
     "description": "快速启动多个代码 CLI 工具，提高开发效率",
-    "disable": "禁用",
+    "disable": "停用",
     "edit_config": "编辑配置",
     "enable": "启用",
     "enabled": "已启用",

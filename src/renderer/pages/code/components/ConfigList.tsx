@@ -54,6 +54,7 @@ export const ConfigList: FC<ConfigListProps> = ({
       getId={(p) => p.id}
       onReorder={onReorder}
       gap="0.5rem"
+      itemStyle={{ cursor: 'default' }}
       renderItem={(provider, _index, { dragging }) => {
         if (provider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
           return (

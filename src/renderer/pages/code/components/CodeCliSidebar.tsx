@@ -70,7 +70,7 @@ export const CodeCliSidebar: FC<CodeCliSidebarProps> = ({
 
   return (
     <div className="flex h-full min-h-0 w-60 shrink-0 flex-col border-border/15 border-r">
-      <div className="border-border/10 border-b p-2.5">
+      <div className="p-2.5 pb-0">
         <SearchInput
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}

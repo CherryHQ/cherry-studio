@@ -1,7 +1,7 @@
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ConfigList } from '../ConfigList'
@@ -20,10 +20,11 @@ vi.mock('@cherrystudio/ui', () => ({
   ReorderableList: <T,>(props: {
     items: T[]
     gap: string
+    itemStyle?: CSSProperties
     getId: (item: T) => string
     renderItem: (item: T, index: number, state: { dragging: boolean }) => ReactNode
   }) => (
-    <div data-testid="code-config-reorderable-list" data-gap={props.gap}>
+    <div data-testid="code-config-reorderable-list" data-gap={props.gap} style={props.itemStyle}>
       {props.items.map((item, index) => (
         <div key={props.getId(item)}>{props.renderItem(item, index, { dragging: false })}</div>
       ))}
@@ -62,6 +63,24 @@ describe('ConfigList', () => {
     )
 
     expect(screen.getByTestId('code-config-reorderable-list')).toHaveAttribute('data-gap', '0.5rem')
+  })
+
+  it('keeps the provider row cursor neutral', () => {
+    render(
+      <ConfigList
+        selectedCliTool={CodeCli.CLAUDE_CODE}
+        toolName="Claude Code"
+        providers={[provider]}
+        providerConfigs={{}}
+        currentProviderId={null}
+        resolveMeta={() => ({ providerName: 'Anthropic', modelName: 'claude-sonnet-4-5' })}
+        onConfigure={vi.fn()}
+        onToggleCurrent={vi.fn()}
+        onReorder={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('code-config-reorderable-list')).toHaveStyle({ cursor: 'default' })
   })
 
   it('does not pass a placeholder model name when a provider has no configured model', () => {

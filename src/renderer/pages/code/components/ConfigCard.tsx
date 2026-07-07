@@ -2,7 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import type { Provider } from '@shared/data/types/provider'
-import { GripVertical, Pencil, Play, Power } from 'lucide-react'
+import { CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,9 +16,8 @@ export interface ProviderCardProps {
   onToggleCurrent: (provider: Provider) => void
 }
 
-/** A single enabled-provider row for a CLI tool. Single-select: clicking the
- * card body (a full-bleed ghost button behind the content) toggles this
- * provider; Enable + Configure are revealed on hover. */
+/** A single enabled-provider row for a CLI tool. Single-select: Enable + Configure
+ * are revealed on hover. */
 export const ProviderCard: FC<ProviderCardProps> = ({
   provider,
   providerName,
@@ -40,18 +39,11 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             ? 'border-border/40 bg-muted'
             : 'border-border/40 hover:border-border hover:bg-muted'
       }`}>
-      {/* Full-card click target — clicks on the content pass through to it. */}
-      <Button
-        type="button"
-        variant="ghost"
-        tabIndex={-1}
-        onClick={() => onToggleCurrent(provider)}
-        aria-label={providerName}
-        className="absolute inset-0 rounded-xl p-0 hover:bg-transparent"
-      />
-
       <div className="pointer-events-none relative flex items-center gap-3">
-        <GripVertical size={13} className="shrink-0 cursor-grab text-muted-foreground/25 active:cursor-grabbing" />
+        <GripVertical
+          size={13}
+          className="pointer-events-auto shrink-0 cursor-grab text-muted-foreground/25 active:cursor-grabbing"
+        />
 
         <span aria-hidden className="shrink-0">
           <ProviderAvatarPrimitive
@@ -84,7 +76,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             size="sm"
             onClick={() => onConfigure(provider)}
             className="min-h-0 border-border/50 px-2.5 py-1">
-            <Pencil size={11} />
+            <SquarePen size={11} />
             {t('code.configure')}
           </Button>
           <Button
@@ -92,8 +84,10 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             variant={isCurrent ? 'destructive' : 'default'}
             size="sm"
             onClick={() => onToggleCurrent(provider)}
-            className="min-h-0 px-2.5 py-1">
-            {isCurrent ? <Power size={11} /> : <Play size={11} />}
+            className={`min-h-0 px-2.5 py-1 ${
+              isCurrent ? 'bg-destructive/10 text-destructive shadow-none hover:bg-destructive/15' : ''
+            }`}>
+            {isCurrent ? <CircleMinus size={11} /> : <Play size={11} />}
             {isCurrent ? t('code.disable') : t('code.enable')}
           </Button>
         </div>

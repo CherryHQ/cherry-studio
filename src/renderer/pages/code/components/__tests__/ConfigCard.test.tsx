@@ -66,12 +66,12 @@ describe('ProviderCard', () => {
     expect(onToggleCurrent).toHaveBeenCalledWith(provider)
   })
 
-  it('toggles the provider when the card body is clicked', () => {
-    const { onToggleCurrent } = renderCard()
+  it('does not toggle the provider when the card body is clicked', () => {
+    const { cardShell, onToggleCurrent } = renderCard()
 
-    fireEvent.click(screen.getByRole('button', { name: /Anthropic/ }))
+    fireEvent.click(cardShell)
 
-    expect(onToggleCurrent).toHaveBeenCalledWith(provider)
+    expect(onToggleCurrent).not.toHaveBeenCalled()
   })
 
   it('opens configuration without toggling the provider', () => {
@@ -108,6 +108,14 @@ describe('ProviderCard', () => {
     )
     expect(screen.getByText('code.disable')).toBeInTheDocument()
     expect(screen.queryByText('code.enable')).not.toBeInTheDocument()
+  })
+
+  it('renders the disable action as a soft destructive button', () => {
+    const { enableButton } = renderCard({ isCurrent: true })
+
+    expect(enableButton.className).not.toMatch(/\bbg-destructive(?:\s|$)/)
+    expect(enableButton).toHaveClass('bg-destructive/10')
+    expect(enableButton).toHaveClass('text-destructive')
   })
 
   it('uses the same muted selection background as provider settings', () => {

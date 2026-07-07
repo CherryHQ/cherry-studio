@@ -1,6 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import type { CodeCli } from '@shared/types/codeCli'
-import { GripVertical, Pencil, Play, Power } from 'lucide-react'
+import { CircleMinus, GripVertical, Play, SquarePen } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,9 +17,9 @@ export interface OwnLoginCardProps {
 }
 
 /** Virtual "use your own login" row for login-capable CLI tools. Mirrors
- * `ProviderCard` (draggable, single-select) but drops the model label: clicking
- * the card body toggles it, and tools whose own-login exposes tool params
- * (`configurable`) also get a hover-revealed Configure button. */
+ * `ProviderCard` (draggable, single-select) but drops the model label. Tools
+ * whose own-login exposes tool params (`configurable`) also get a hover-revealed
+ * Configure button. */
 export const OwnLoginCard: FC<OwnLoginCardProps> = ({
   toolId,
   toolName,
@@ -41,18 +41,11 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
             ? 'border-border/40 bg-muted'
             : 'border-border/40 hover:border-border hover:bg-muted'
       }`}>
-      {/* Full-card click target — clicks on the content pass through to it. */}
-      <Button
-        type="button"
-        variant="ghost"
-        tabIndex={-1}
-        onClick={onToggle}
-        aria-label={title}
-        className="absolute inset-0 rounded-xl p-0 hover:bg-transparent"
-      />
-
       <div className="pointer-events-none relative flex items-center gap-3">
-        <GripVertical size={13} className="shrink-0 cursor-grab text-muted-foreground/25 active:cursor-grabbing" />
+        <GripVertical
+          size={13}
+          className="pointer-events-auto shrink-0 cursor-grab text-muted-foreground/25 active:cursor-grabbing"
+        />
 
         <span aria-hidden className="shrink-0">
           <CLIIcon id={toolId} size={24} className="size-6 rounded-md border border-border/30" />
@@ -72,7 +65,7 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
               size="sm"
               onClick={() => onConfigure()}
               className="min-h-0 border-border/50 px-2.5 py-1">
-              <Pencil size={11} />
+              <SquarePen size={11} />
               {t('code.configure')}
             </Button>
           )}
@@ -81,8 +74,10 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
             variant={selected ? 'destructive' : 'default'}
             size="sm"
             onClick={onToggle}
-            className="min-h-0 px-2.5 py-1">
-            {selected ? <Power size={11} /> : <Play size={11} />}
+            className={`min-h-0 px-2.5 py-1 ${
+              selected ? 'bg-destructive/10 text-destructive shadow-none hover:bg-destructive/15' : ''
+            }`}>
+            {selected ? <CircleMinus size={11} /> : <Play size={11} />}
             {selected ? t('code.disable') : t('code.enable')}
           </Button>
         </div>
