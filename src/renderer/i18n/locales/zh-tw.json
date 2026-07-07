@@ -1586,6 +1586,11 @@
       "new": {
         "branch": {
           "created": "新分支已建立",
+          "disabled": {
+            "active": "目前已定位到這個節點，繼續輸入即可從這裡延續。",
+            "latest": "目前已在最新分支末端，繼續輸入即可延續這個分支。",
+            "no_follow_up": "這則訊息後還沒有後續對話，切換到該節點後繼續輸入即可。"
+          },
           "label": "分支"
         },
         "context": "新上下文"
@@ -3351,6 +3356,10 @@
       "tags": "標籤",
       "title": "圖書館"
     },
+    "skill_add": {
+      "local_import": "本機匯入",
+      "online_search": "線上搜尋"
+    },
     "skill_detail": {
       "created_at": "建立時間",
       "delete_description": "移除此技能及其所有配置,此操作無法復原",
@@ -3361,6 +3370,15 @@
       "no_description": "暫無描述",
       "source_files": "來源檔案",
       "updated_at": "最近更新"
+    },
+    "skill_marketplace": {
+      "empty_description": "搜尋線上技能來源，尋找可安裝的技能。",
+      "empty_title": "搜尋技能",
+      "no_results_description": "請嘗試其他關鍵字,或本機匯入 ZIP 檔案/目錄。",
+      "no_results_title": "未找到技能",
+      "search_failed_description": "搜尋失敗,請稍後再試。",
+      "search_placeholder": "搜尋技能...",
+      "title": "線上搜尋技能"
     },
     "sort": {
       "created": "依建立時間",
@@ -6960,11 +6978,11 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
+        "agent_only_note": "Claude Code 提供者僅供代理程式使用 — 無法在聊天或助理中使用。",
         "description": "使用 Claude 訂閱登入",
         "description_detail": "此供應商複用 Claude Code CLI 的登入資訊（Claude Pro/Max），僅供 Agent 使用。請開啟終端機執行 `claude` 完成登入。",
         "launch_failed": "開啟終端機失敗，請手動執行 `claude` 登入。",
-        "legal_link": "[to be translated]:Legal & Compliance",
+        "legal_link": "法律與合規",
         "logged_in": "已登入 Claude Code",
         "logged_in_detail": "Agent 將使用你的 Claude Code CLI 訂閱憑證。",
         "open_terminal": "開啟終端機登入",
@@ -7280,6 +7298,9 @@
     },
     "skills": {
       "author": "作者",
+      "batchInstallComplete": "已安裝 {{count}} 個技能",
+      "batchInstallPartialFailed": "已安裝 {{success}}/{{total}} 個技能，{{failed}} 個失敗",
+      "batchInstallQueued": "等待安裝",
       "batchUninstallSuccess": "{{count}} 個技能已解除安裝",
       "builtin": "內建",
       "confirmBatchUninstall": "您確定要解除安裝所選的 {{count}} 項技能嗎？",

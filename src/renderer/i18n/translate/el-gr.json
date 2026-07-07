@@ -1460,6 +1460,7 @@
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
+      "resize_height": "Αλλαγή ύψους εισόδου",
       "resource_panel": {
         "categories": {
           "agents": "Πράκτορες",
@@ -1478,6 +1479,7 @@
         },
         "title": "Πόροι"
       },
+      "restore": "Επαναφορά",
       "send": "Αποστολή",
       "send_failed": "Αποτυχία αποστολής μηνύματος",
       "settings": "Ρυθμίσεις",
@@ -1486,8 +1488,7 @@
           "clear": "Διαγραφή ιστορικού συνομιλίας",
           "compact": "Συνοπτική συνομιλία με προαιρετικές οδηγίες εστίασης",
           "context": "Οπτικοποίηση της τρέχουσας χρήσης πλαισίου ως έγχρωμο πλέγμα",
-          "cost": "Εμφάνιση στατιστικών χρήσης διακριτικών (δες τον οδηγό παρακολούθησης κόστους για λεπτομέρειες ανά συνδρομή)reek",
-          "todos": "Λίστα τρεχόντων στοιχείων προς εκτέλεση"
+          "usage": "Εμφάνιση κόστους συνεδρίας, ορίων χρήσης πλάνου και στατιστικών δραστηριότητας"
         },
         "description": "Εντολές κάθετης γραμμής για συνεδρία πράκτορα",
         "title": "Εντολές Κάθετης Γραμμής"
@@ -1585,6 +1586,11 @@
       "new": {
         "branch": {
           "created": "Νέα διακοπή δημιουργήθηκε",
+          "disabled": {
+            "active": "Αυτός ο κόμβος έχει ήδη επιλεγεί. Συνεχίστε να πληκτρολογείτε για να επεκτείνετε τον κλάδο από εδώ.",
+            "latest": "Ήδη βρίσκεστε στο τέλος αυτού του κλαδιού. Συνεχίστε να πληκτρολογείτε για να το επεκτείνετε.",
+            "no_follow_up": "Δεν υπάρχει ακόμη συνέχεια μετά από αυτό το μήνυμα. Μετάβαση σε αυτόν τον κόμβο και συνέχισε να πληκτρολογείς εκεί."
+          },
           "label": "Διακοπή"
         },
         "context": "Καθαρισμός ενδιάμεσων"
@@ -1615,6 +1621,13 @@
       "top": "Επιστροφή στην κορυφή"
     },
     "resend": "Ξαναστείλε",
+    "resource_view": {
+      "menu": {
+        "agent": "Πράκτορες",
+        "assistant": "Βοηθοί",
+        "skill": "Δεξιότητες"
+      }
+    },
     "save": {
       "file": {
         "title": "Αποθήκευση σε τοπικό αρχείο"
@@ -2061,6 +2074,7 @@
     "generate_random_seed": "Δημιουργία τυχαίου σπόρου",
     "get_embedding_dimension": "Λήψη διάστασης ενσωμάτωσης",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
+    "help": "Βοήθεια",
     "html_preview": "Προεπισκόπηση HTML",
     "i_know": "Το έχω καταλάβει",
     "ignore": "Αγνόησε",
@@ -2785,15 +2799,11 @@
         "chunk_size": "Στόχος αριθμού token για κάθε τμήμα εγγράφου. Αυτό επηρεάζει την κοκκοποίηση ανάκτησης και το μήκος του πλαισίου.",
         "document_count": "Μέγιστος αριθμός τμημάτων εγγράφων που επιστρέφονται για κάθε ανάκτηση. Υψηλότερες τιμές καλύπτουν περισσότερο περιεχόμενο αλλά χρησιμοποιούν περισσότερο πλαίσιο.",
         "embedding_model": "Χρησιμοποιείται για τη μετατροπή του περιεχομένου της βάσης γνώσης σε διανύσματα. Η αλλαγή του μοντέλου συνήθως απαιτεί επανευρετηρίαση του υπάρχοντος περιεχομένου.",
-        "hybrid_alpha": "Βάρος βαθμολογίας διανύσματος στην υβριδική ανάκτηση. Υψηλότερες τιμές ευνοούν τη σημασιολογική αντιστοίχιση.",
         "processor": "Αναλυτής που χρησιμοποιείται κατά την εισαγωγή αρχείων για την εξαγωγή του κυρίως κειμένου, πινάκων και σχετικού περιεχομένου.",
         "rerank_model": "Μοντέλο που χρησιμοποιείται για την ανακατάταξη των αρχικών αποτελεσμάτων ανάκτησης και τη βελτίωση της σχετικότητας των τελικών τμημάτων.",
-        "search_mode": "Επιλέξτε λειτουργία ανάκτησης: αναζήτηση διανυσμάτων για σημασιολογική αντιστοίχιση, πλήρη αναζήτηση κειμένου για λέξεις-κλειδιά ή υβριδική αναζήτηση και για τα δύο.",
         "smart_chunking": "Αυτόματη διαίρεση κατά τη δομή Markdown (επικεφαλίδες, μπλοκ κώδικα, παραγράφους) και ποτέ διαίρεση μέσα σε ένα μπλοκ κώδικα. Απενεργοποιήστε το για διαίρεση αποκλειστικά με βάση το διαχωριστικό.",
-        "threshold": "Κατώφλι ομοιότητας για φιλτράρισμα κομματιών χαμηλής συνάφειας. Υψηλότερες τιμές κάνουν την ανάκτηση αυστηρότερη.",
-        "threshold_disabled": "Αυτή η λειτουργία ανάκτησης επιστρέφει ταξινομημένα αποτελέσματα και δεν χρησιμοποιεί κατώφλι ομοιότητας."
+        "threshold": "Κατώφλι ομοιότητας για φιλτράρισμα κομματιών χαμηλής συνάφειας. Υψηλότερες τιμές κάνουν την ανάκτηση αυστηρότερη."
       },
-      "hybrid_alpha": "Υβριδικό Άλφα",
       "processor": "Πάροχος Επεξεργασίας",
       "rerank_disabled": "Απενεργοποιημένο",
       "rerank_model": "Μοντέλο Ανατάξης",
@@ -2802,12 +2812,6 @@
       "retrieval": "Ρυθμίσεις Ανάκτησης",
       "save_action": "Αποθήκευση",
       "saved": "Αποθηκεύτηκε",
-      "search_mode": {
-        "bm25": "Πλήρης αναζήτηση κειμένου",
-        "hybrid": "Υβριδική Αναζήτηση (συνιστάται)",
-        "title": "Λειτουργία Αναζήτησης",
-        "vector": "Αναζήτηση Διανυσμάτων"
-      },
       "separator_rule": "Κανόνας Διαχωριστικού",
       "smart_chunking": "Έξυπνη Τμηματοποίηση",
       "threshold": "Κατώφλι Ομοιότητας",
@@ -2916,7 +2920,8 @@
       "preview_description": "Επισκόπηση",
       "preview_prompt": "Προτροπή",
       "scroll_left": "Κύλιση κατηγοριών αριστερά",
-      "scroll_right": "Κύλιση κατηγοριών δεξιά"
+      "scroll_right": "Κύλιση κατηγοριών δεξιά",
+      "title": "Βιβλιοθήκη Βοηθού"
     },
     "badge": {
       "update": "Ενημέρωση"
@@ -3351,6 +3356,10 @@
       "tags": "Ετικέτες",
       "title": "Βιβλιοθήκη"
     },
+    "skill_add": {
+      "local_import": "Τοπική εισαγωγή",
+      "online_search": "Διαδικτυακή αναζήτηση"
+    },
     "skill_detail": {
       "created_at": "Δημιουργήθηκε",
       "delete_description": "Κατάργησε αυτή την ικανότητα και ολόκληρη τη διαμόρφωσή της. Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
@@ -3361,6 +3370,15 @@
       "no_description": "Χωρίς περιγραφή",
       "source_files": "Αρχεία πηγής",
       "updated_at": "Πρόσφατα ενημερώθηκε"
+    },
+    "skill_marketplace": {
+      "empty_description": "Αναζητήστε σε διαδικτυακά μητρώα για να βρείτε εγκαταστάσιμες δεξιότητες.",
+      "empty_title": "Αναζήτηση δεξιοτήτων",
+      "no_results_description": "Δοκιμάστε μια άλλη λέξη-κλειδί ή εισαγάγετε ένα τοπικό αρχείο ZIP ή φάκελο.",
+      "no_results_title": "Δεν βρέθηκαν δεξιότητες",
+      "search_failed_description": "Η αναζήτηση απέτυχε. Παρακαλώ δοκιμάστε ξανά αργότερα.",
+      "search_placeholder": "Αναζήτηση δεξιοτήτων...",
+      "title": "Αναζήτηση δεξιοτήτων online"
     },
     "sort": {
       "created": "Ταξινόμηση κατά ημερομηνία δημιουργίας",
@@ -4689,7 +4707,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
-    "claude-code": "[to be translated]:Claude Code",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "AliCloud Bailian",
     "deepseek": "Βαθιά Αναζήτηση",
@@ -4702,6 +4720,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
@@ -4725,6 +4744,7 @@
     "ollama": "Ollama",
     "open-mineru": "Ανοιχτό MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
     "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
@@ -6253,7 +6273,7 @@
         "success": "Επιτυχής ανάκτηση διακομιστών MCP"
       },
       "filter": {
-        "label": "[to be translated]:Filter"
+        "label": "Φίλτρο"
       },
       "findMore": "Περισσότεροι διακομιστές MCP",
       "headers": "Κεφαλίδες",
@@ -6295,7 +6315,7 @@
       "noDescriptionAvailable": "Δεν υπάρχει διαθέσιμη περιγραφή",
       "noLogs": "Δεν υπάρχουν αρχεία καταγραφής ακόμα",
       "noServers": "Δεν έχουν ρυθμιστεί διακομιστές",
-      "notInstalled": "[to be translated]:Not installed",
+      "notInstalled": "Δεν είναι εγκατεστημένο",
       "not_support": "Το μοντέλο δεν υποστηρίζεται",
       "npx_list": {
         "actions": "Ενέργειες",
@@ -6325,7 +6345,7 @@
         "title": "Εκτέλεση εξωτερικού MCP;"
       },
       "provider": "Πάροχος",
-      "providerNotFound": "[to be translated]:MCP provider not found",
+      "providerNotFound": "Δεν βρέθηκε πάροχος MCP",
       "providerPlaceholder": "Όνομα παρόχου",
       "providerUrl": "URL Παρόχου",
       "providers": "Πάροχοι",
@@ -6806,6 +6826,7 @@
         "reorderFailed": "Αποτυχία αναδιάταξης προτροπών",
         "updateFailed": "Αποτυχία ενημέρωσης προτροπής"
       },
+      "manage": "Διαχείριση Προτροπών",
       "title": "Διαχείριση Prompts",
       "titleLabel": "Τίτλος",
       "titlePlaceholder": "Εισαγάγετε τίτλο prompt",
@@ -6954,15 +6975,25 @@
         }
       },
       "claude_code": {
-        "agent_only_note": "[to be translated]:The Claude Code provider is available to Agents only — it can't be used in chat or assistants.",
-        "description": "[to be translated]:Sign in with your Claude subscription",
-        "description_detail": "[to be translated]:This provider reuses the Claude Code CLI login (Claude Pro/Max) and is only available to Agents. Open a terminal and run `claude /login` to sign in.",
-        "launch_failed": "[to be translated]:Failed to open the terminal. Run `claude /login` manually to sign in.",
-        "legal_link": "[to be translated]:Legal & Compliance",
-        "logged_in": "[to be translated]:Signed in to Claude Code",
-        "logged_in_detail": "[to be translated]:Agents will use your Claude Code CLI subscription credentials.",
-        "open_terminal": "[to be translated]:Open terminal to sign in",
-        "recheck": "[to be translated]:Recheck"
+        "agent_only_note": "Ο πάροχος Claude Code είναι διαθέσιμος μόνο για Πράκτορες — δεν μπορεί να χρησιμοποιηθεί σε συνομιλίες ή βοηθούς.",
+        "description": "Συνδεθείτε με τη συνδρομή σας Claude",
+        "description_detail": "Αυτός ο πάροχος επαναχρησιμοποιεί τη σύνδεση του Claude Code CLI (Claude Pro/Max) και είναι διαθέσιμος μόνο στους Agents. Ανοίξτε ένα τερματικό και εκτελέστε `claude /login` για να συνδεθείτε.",
+        "launch_failed": "Αποτυχία ανοίγματος του τερματικού. Εκτελέστε χειροκίνητα το `claude /login` για να συνδεθείτε.",
+        "legal_link": "Νομικά & Συμμόρφωση",
+        "logged_in": "Συνδέθηκε στο Claude Code",
+        "logged_in_detail": "Οι πράκτορες θα χρησιμοποιήσουν τα διαπιστευτήρια της συνδρομής σας στο Claude Code CLI.",
+        "open_terminal": "Άνοιγμα τερματικού για σύνδεση",
+        "recheck": "Επανέλεγχος"
+      },
+      "codex": {
+        "account": "Λογαριασμός: {{accountId}}",
+        "description": "Συνδεθείτε με τη συνδρομή σας στο ChatGPT",
+        "description_detail": "Αυτός ο πάροχος χρησιμοποιεί τη σύνδεσή σας ChatGPT Plus/Pro (OAuth) για να αποκτήσει πρόσβαση στα μοντέλα OpenAI Codex. Το πρόγραμμα περιήγησής σας θα ανοίξει για να ολοκληρώσετε τη σύνδεση.",
+        "logged_in": "Συνδεθήκατε στο OpenAI Codex",
+        "sign_in_button": "Σύνδεση με το ChatGPT",
+        "sign_in_failed": "Η σύνδεση απέτυχε. Παρακαλώ προσπαθήστε ξανά.",
+        "sign_in_success": "Συνδεδεμένος στο OpenAI Codex",
+        "signing_in": "Αναμονή για το πρόγραμμα περιήγησης…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7038,6 +7069,15 @@
       },
       "filter_agent": "Υποστηριζόμενοι Πάροχοι του Φίλτρου Πράκτορα",
       "get_api_key": "Κάντε κλικ εδώ για να πάρετε κλειδί",
+      "grok_cli": {
+        "description": "Συνδεθείτε με τη συνδρομή σας SuperGrok",
+        "description_detail": "Αυτός ο πάροχος χρησιμοποιεί τη σύνδεσή σας xAI SuperGrok (OAuth) για πρόσβαση στα μοντέλα Grok CLI (Grok Build, Composer). Το πρόγραμμα περιήγησής σας θα ανοίξει για να ολοκληρώσετε τη σύνδεση.",
+        "logged_in": "Συνδεδεμένος στο Grok CLI",
+        "sign_in_button": "Σύνδεση με xAI",
+        "sign_in_failed": "Η σύνδεση απέτυχε. Παρακαλώ δοκιμάστε ξανά.",
+        "sign_in_success": "Συνδεδεμένος στο Grok CLI",
+        "signing_in": "Αναμονή για πρόγραμμα περιήγησης…"
+      },
       "logo_upload_failed": "Αποτυχία επεξεργασίας της επιλεγμένης εικόνας",
       "misc": "Άλλο",
       "more_endpoints": {
@@ -7255,6 +7295,9 @@
     },
     "skills": {
       "author": "Συγγραφέας",
+      "batchInstallComplete": "Εγκαταστάθηκαν {{count}} δεξιότητες",
+      "batchInstallPartialFailed": "Εγκαταστάθηκαν {{success}}/{{total}} δεξιότητες, {{failed}} αποτυχίες",
+      "batchInstallQueued": "Σε ουρά",
       "batchUninstallSuccess": "{{count}} δεξιότητες απεγκαταστάθηκαν",
       "builtin": "Ενσωματωμένο",
       "confirmBatchUninstall": "Είστε σίγουροι ότι θέλετε να απεγκαταστήσετε {{count}} επιλεγμένες δεξιότητες;",
@@ -7563,7 +7606,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Ζωγραφική",
     "settings": "Ρυθμίσεις",
-    "store": "Βιβλιοθήκη βοηθών",
     "translate": "Μετάφραση",
     "work": "Εργασία"
   },
