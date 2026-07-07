@@ -71,14 +71,14 @@ export const OwnLoginCard: FC<OwnLoginCardProps> = ({
               variant="outline"
               size="sm"
               onClick={() => onConfigure()}
-              className="min-h-0 border-border/50 px-2.5 py-1 text-muted-foreground hover:text-foreground">
+              className="min-h-0 border-border/50 px-2.5 py-1">
               <Pencil size={11} />
               {t('code.configure')}
             </Button>
           )}
           <Button
             type="button"
-            variant={selected ? 'outline' : 'default'}
+            variant={selected ? 'destructive' : 'default'}
             size="sm"
             onClick={onToggle}
             className="min-h-0 px-2.5 py-1">

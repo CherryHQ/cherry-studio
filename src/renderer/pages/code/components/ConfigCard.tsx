@@ -83,13 +83,13 @@ export const ProviderCard: FC<ProviderCardProps> = ({
             variant="outline"
             size="sm"
             onClick={() => onConfigure(provider)}
-            className="min-h-0 border-border/50 px-2.5 py-1 text-muted-foreground hover:text-foreground">
+            className="min-h-0 border-border/50 px-2.5 py-1">
             <Pencil size={11} />
             {t('code.configure')}
           </Button>
           <Button
             type="button"
-            variant={isCurrent ? 'outline' : 'default'}
+            variant={isCurrent ? 'destructive' : 'default'}
             size="sm"
             onClick={() => onToggleCurrent(provider)}
             className="min-h-0 px-2.5 py-1">
