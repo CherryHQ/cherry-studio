@@ -1,6 +1,8 @@
 import { useCache } from '@data/hooks/useCache'
 import UpdateDialogPopup from '@renderer/components/Popups/UpdateDialogPopup'
 import { notificationService } from '@renderer/services/notification'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { uuid } from '@renderer/utils/uuid'
 import type { CacheAppUpdateState } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -45,6 +47,10 @@ export function useAppUpdateHandler() {
     const removers = [
       ipcRenderer.on(IpcChannel.UpdateNotAvailable, () => {
         updateAppUpdateState({ checking: false, manualCheck: false })
+        // Only surface the "already up to date" result for a user-initiated check.
+        if (manualCheckRef.current) {
+          toast.success(t('settings.about.updateNotAvailable'))
+        }
       }),
       ipcRenderer.on(IpcChannel.UpdateAvailable, (_, releaseInfo: UpdateInfo) => {
         void notificationService.send({
@@ -79,13 +85,22 @@ export function useAppUpdateHandler() {
           void UpdateDialogPopup.show({ releaseInfo })
         }
       }),
-      ipcRenderer.on(IpcChannel.UpdateError, () => {
+      ipcRenderer.on(IpcChannel.UpdateError, (_, error?: Error) => {
         updateAppUpdateState({
           checking: false,
           downloading: false,
           downloadProgress: 0,
           manualCheck: false
         })
+        // AppUpdaterService swallows updater failures after broadcasting UpdateError, so
+        // AboutSettings.onCheckUpdate never sees them — surface it here for manual checks.
+        if (manualCheckRef.current) {
+          void popup.info({
+            title: t('settings.about.updateError'),
+            content: error?.message || t('settings.about.updateError'),
+            icon: null
+          })
+        }
       })
     ]
     return () => removers.forEach((remover) => remover())
