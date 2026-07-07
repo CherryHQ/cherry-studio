@@ -1,8 +1,8 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
-import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
+import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AgentResourceList } from '../AgentResourceList'
@@ -190,15 +190,6 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/resourceViewSources', () => ({
-  useAssistantTopicsSource: () => ({
-    error: null,
-    isFullyLoaded: true,
-    isLoadingAll: false,
-    topics: assistantDataMocks.topics
-  })
-}))
-
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistantMutations: () => ({
     deleteAssistant: assistantDataMocks.deleteAssistant
@@ -281,6 +272,31 @@ function createAgentSessionsSource(): AgentSessionsSource {
   } as unknown as AgentSessionsSource
 }
 
+function createAssistantTopicsSource(): AssistantTopicsSource {
+  return {
+    error: null,
+    hasNext: false,
+    isFullyLoaded: true,
+    isLoading: false,
+    isLoadingAll: false,
+    isRefreshing: false,
+    loadNext: vi.fn(),
+    mutate: vi.fn(),
+    pages: [],
+    refetch: vi.fn(),
+    topics: assistantDataMocks.topics
+  } as unknown as AssistantTopicsSource
+}
+
+function TestAssistantResourceList({
+  assistantTopicsSource = createAssistantTopicsSource(),
+  ...props
+}: Omit<ComponentProps<typeof AssistantResourceList>, 'assistantTopicsSource'> & {
+  assistantTopicsSource?: AssistantTopicsSource
+}) {
+  return <AssistantResourceList assistantTopicsSource={assistantTopicsSource} {...props} />
+}
+
 vi.mock('@renderer/hooks/useTopic', () => ({
   mapApiTopicToRendererTopic: (topic: unknown) => topic,
   useTopicMutations: () => ({
@@ -349,7 +365,7 @@ describe('classic layout entity resource list actions', () => {
     const onActiveAssistantDeleted = vi.fn()
 
     render(
-      <AssistantResourceList
+      <TestAssistantResourceList
         activeAssistantId="assistant-1"
         onSelectTopic={vi.fn()}
         onCreateTopic={onCreateTopic}
@@ -381,7 +397,7 @@ describe('classic layout entity resource list actions', () => {
     const onCreateTopicAfterClear = vi.fn()
 
     render(
-      <AssistantResourceList
+      <TestAssistantResourceList
         activeAssistantId="assistant-1"
         onSelectTopic={onSelectTopic}
         onCreateTopicAfterClear={onCreateTopicAfterClear}
@@ -429,7 +445,7 @@ describe('classic layout entity resource list actions', () => {
       onCreateTopicAfterClear,
       onCreateTopic: vi.fn()
     }
-    const { rerender } = render(<AssistantResourceList {...props} />)
+    const { rerender } = render(<TestAssistantResourceList {...props} />)
 
     fireEvent.click(
       within(screen.getByTestId('assistant-1-context-menu')).getByRole('button', {
@@ -441,7 +457,7 @@ describe('classic layout entity resource list actions', () => {
     // While the confirm dialog is open the topic list drains (e.g. cleared elsewhere).
     // Re-render so the rail sees the latest topics before the user confirms.
     assistantDataMocks.topics = [{ id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }]
-    rerender(<AssistantResourceList {...props} />)
+    rerender(<TestAssistantResourceList {...props} />)
 
     await act(async () => {
       resolveConfirm(true)
@@ -460,7 +476,7 @@ describe('classic layout entity resource list actions', () => {
       { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }
     ]
 
-    render(<AssistantResourceList activeAssistantId={null} onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />)
+    render(<TestAssistantResourceList activeAssistantId={null} onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />)
 
     const defaultAssistantRegion = screen.getByRole('region', { name: 'chat.default.name' })
     const assistantRegion = screen.getByRole('region', { name: 'Assistant 1' })
@@ -483,7 +499,7 @@ describe('classic layout entity resource list actions', () => {
     const onCreateTopicAfterClear = vi.fn()
 
     render(
-      <AssistantResourceList
+      <TestAssistantResourceList
         activeAssistantId="assistant-2"
         onSelectTopic={vi.fn()}
         onCreateTopicAfterClear={onCreateTopicAfterClear}
@@ -508,7 +524,7 @@ describe('classic layout entity resource list actions', () => {
     const props = { activeAssistantId: 'assistant-1', onSelectTopic: vi.fn(), onCreateTopic: vi.fn() }
 
     preferenceMocks.sortType = 'list'
-    const { rerender } = render(<AssistantResourceList {...props} />)
+    const { rerender } = render(<TestAssistantResourceList {...props} />)
     const railInList = screen.getByTestId('resource-entity-rail')
     expect(railInList).toHaveAttribute('data-group-by-tag', 'false')
     expect(railInList).toHaveAttribute('data-reorder', 'enabled')
@@ -516,14 +532,16 @@ describe('classic layout entity resource list actions', () => {
     // Reorder persists the global assistant orderKey, so it must be disabled under tag
     // grouping to avoid moving assistants across unrelated tags in the global order.
     preferenceMocks.sortType = 'tags'
-    rerender(<AssistantResourceList {...props} />)
+    rerender(<TestAssistantResourceList {...props} />)
     const railInTags = screen.getByTestId('resource-entity-rail')
     expect(railInTags).toHaveAttribute('data-group-by-tag', 'true')
     expect(railInTags).toHaveAttribute('data-reorder', 'disabled')
   })
 
   it('toggles assistant tag grouping from the context menu (list → tags)', () => {
-    render(<AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />)
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
 
     // sort_type === 'list' → the menu offers "group by tag".
     const menu = screen.getByTestId('assistant-1-context-menu')
@@ -535,7 +553,9 @@ describe('classic layout entity resource list actions', () => {
   })
 
   it('lets the classic assistant rail switch icon display mode from the context menu', () => {
-    render(<AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />)
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
 
     expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.icon.type')
 
@@ -547,7 +567,9 @@ describe('classic layout entity resource list actions', () => {
   it('offers turning tag grouping off when already grouping (tags → list)', () => {
     preferenceMocks.sortType = 'tags'
 
-    render(<AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />)
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
 
     expect(screen.getByTestId('assistant-1-context-menu')).toHaveTextContent('assistants.tags.ungroup')
 
@@ -556,7 +578,9 @@ describe('classic layout entity resource list actions', () => {
   })
 
   it('lets the classic assistant rail switch back to the time topic view', async () => {
-    render(<AssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />)
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'chat.topics.display.time' }))
 
@@ -569,7 +593,7 @@ describe('classic layout entity resource list actions', () => {
     const onOpenHistoryRecords = vi.fn()
 
     render(
-      <AssistantResourceList
+      <TestAssistantResourceList
         activeAssistantId="assistant-1"
         onOpenHistoryRecords={onOpenHistoryRecords}
         onSelectTopic={vi.fn()}
@@ -586,7 +610,7 @@ describe('classic layout entity resource list actions', () => {
     const onManageAssistants = vi.fn()
 
     render(
-      <AssistantResourceList
+      <TestAssistantResourceList
         activeAssistantId="assistant-1"
         resourceMenuItems={[
           {

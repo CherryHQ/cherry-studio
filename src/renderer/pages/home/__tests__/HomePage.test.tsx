@@ -68,7 +68,11 @@ const homeMocks = vi.hoisted(() => ({
   activeTopicLoading: false,
   activeTopicOverride: undefined as Topic | undefined,
   activeTopicSource: 'query' as 'query' | 'pending' | 'none',
+  assistantResourceListTopicsSource: undefined as unknown,
+  assistantTopicsSourceOptions: [] as Array<{ enabled?: boolean } | undefined>,
+  createdAssistantTopicsSource: undefined as unknown,
   forceActiveTopicUndefined: false,
+  homeTabsTopicsSource: undefined as unknown,
   locationState: undefined as { topic: Topic } | undefined,
   persistCacheValues: new Map<string, unknown>(),
   preferenceValues: new Map<string, unknown>(),
@@ -77,6 +81,7 @@ const homeMocks = vi.hoisted(() => ({
   routeTopic: undefined as Topic | undefined,
   routeTopicLoading: false,
   setShowSidebar: vi.fn(),
+  topicPanelTopicsSource: undefined as unknown,
   isActiveTab: false
 }))
 
@@ -262,14 +267,27 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/resourceViewSources', () => ({
-  // Match the real useTopics shape: isLoadingAll/isFullyLoaded are always present.
-  useAssistantTopicsSource: ({ enabled }: { enabled?: boolean } = {}) => ({
-    topics: enabled === false ? [] : homeMocks.classicLayoutTopics,
-    isLoadingAll: false,
-    isFullyLoaded: true
-  })
-}))
+vi.mock('@renderer/hooks/resourceViewSources', async () => {
+  const React = await import('react')
+
+  return {
+    // Match the real useTopics shape: isLoadingAll/isFullyLoaded are always present.
+    useAssistantTopicsSource: (options: { enabled?: boolean } = {}) => {
+      const source = React.useMemo(
+        () => ({
+          topics: options.enabled === false ? [] : homeMocks.classicLayoutTopics,
+          isLoadingAll: false,
+          isFullyLoaded: true,
+          error: undefined
+        }),
+        [options.enabled]
+      )
+      homeMocks.assistantTopicsSourceOptions.push(options)
+      homeMocks.createdAssistantTopicsSource = source
+      return source
+    }
+  }
+})
 
 vi.mock('@renderer/hooks/useTopic', async () => {
   const React = await import('react')
@@ -441,50 +459,73 @@ vi.mock('../components/ChatNavbar', () => ({
 }))
 
 vi.mock('../Tabs/HomeTabs', () => ({
-  default: ({ onOpenHistoryRecords, onSetPanePosition, resourceMenuItems, revealRequest, setActiveTopic }: any) => (
-    <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs">
-      <button
-        type="button"
-        onClick={() => {
-          setActiveTopic?.({
-            id: 'topic-next',
-            assistantId: 'assistant-default',
-            name: 'Topic Next',
-            messages: [],
-            createdAt: '2026-01-02T00:00:00.000Z',
-            updatedAt: '2026-01-02T00:00:00.000Z'
-          })
-        }}>
-        Select topic next
-      </button>
-      <button type="button" onClick={() => onOpenHistoryRecords?.()}>
-        Open history records
-      </button>
-      <button type="button" onClick={() => void onSetPanePosition?.('right')}>
-        Move topics right
-      </button>
-      <button type="button" onClick={() => void onSetPanePosition?.('left')}>
-        Move topics left
-      </button>
-      {resourceMenuItems
-        ?.filter((item: { id: string }) => item.id === 'assistant-resource-view')
-        .map((item: { id: string; onSelect: () => void | Promise<void> }) => (
-          <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-            assistants.presets.manage.title
-          </button>
-        ))}
-    </div>
-  )
+  default: ({
+    assistantTopicsSource,
+    onOpenHistoryRecords,
+    onSetPanePosition,
+    resourceMenuItems,
+    revealRequest,
+    setActiveTopic
+  }: any) => {
+    homeMocks.homeTabsTopicsSource = assistantTopicsSource
+
+    return (
+      <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTopic?.({
+              id: 'topic-next',
+              assistantId: 'assistant-default',
+              name: 'Topic Next',
+              messages: [],
+              createdAt: '2026-01-02T00:00:00.000Z',
+              updatedAt: '2026-01-02T00:00:00.000Z'
+            })
+          }}>
+          Select topic next
+        </button>
+        <button type="button" onClick={() => onOpenHistoryRecords?.()}>
+          Open history records
+        </button>
+        <button type="button" onClick={() => void onSetPanePosition?.('right')}>
+          Move topics right
+        </button>
+        <button type="button" onClick={() => void onSetPanePosition?.('left')}>
+          Move topics left
+        </button>
+        {resourceMenuItems
+          ?.filter((item: { id: string }) => item.id === 'assistant-resource-view')
+          .map((item: { id: string; onSelect: () => void | Promise<void> }) => (
+            <button key={item.id} type="button" onClick={() => void item.onSelect()}>
+              assistants.presets.manage.title
+            </button>
+          ))}
+      </div>
+    )
+  }
 }))
 
 vi.mock('../Tabs/components/Topics', () => ({
-  Topics: ({ assistantIdFilter, presentation }: { assistantIdFilter?: string | null; presentation?: string }) => (
-    <div
-      data-assistant-id={assistantIdFilter ?? ''}
-      data-presentation={presentation ?? ''}
-      data-testid="topic-resource-panel"
-    />
-  )
+  Topics: ({
+    assistantIdFilter,
+    assistantTopicsSource,
+    presentation
+  }: {
+    assistantIdFilter?: string | null
+    assistantTopicsSource?: unknown
+    presentation?: string
+  }) => {
+    homeMocks.topicPanelTopicsSource = assistantTopicsSource
+
+    return (
+      <div
+        data-assistant-id={assistantIdFilter ?? ''}
+        data-presentation={presentation ?? ''}
+        data-testid="topic-resource-panel"
+      />
+    )
+  }
 }))
 
 vi.mock('../components/TopicRightPane', () => {
@@ -527,36 +568,42 @@ vi.mock('../components/TopicRightPane', () => {
 vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
   AssistantResourceList: ({
     activeAssistantId,
+    assistantTopicsSource,
     onAddAssistant,
     onActiveAssistantDeleted,
     onSelectedAssistantClick,
     resourceMenuItems
   }: {
     activeAssistantId?: string | null
+    assistantTopicsSource?: unknown
     onAddAssistant?: () => void | Promise<void>
     onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
     onSelectedAssistantClick?: () => void | Promise<void>
     resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
-  }) => (
-    <div data-active-assistant-id={activeAssistantId ?? ''} data-testid="assistant-resource-list">
-      <button type="button" onClick={() => void onAddAssistant?.()}>
-        Open assistant picker
-      </button>
-      <button type="button" onClick={() => void onActiveAssistantDeleted?.(activeAssistantId ?? '')}>
-        Delete active assistant
-      </button>
-      <button type="button" onClick={() => void onSelectedAssistantClick?.()}>
-        Toggle selected assistant pane
-      </button>
-      {resourceMenuItems
-        ?.filter((item) => item.id === 'assistant-resource-view')
-        .map((item) => (
-          <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-            assistants.presets.manage.title
-          </button>
-        ))}
-    </div>
-  )
+  }) => {
+    homeMocks.assistantResourceListTopicsSource = assistantTopicsSource
+
+    return (
+      <div data-active-assistant-id={activeAssistantId ?? ''} data-testid="assistant-resource-list">
+        <button type="button" onClick={() => void onAddAssistant?.()}>
+          Open assistant picker
+        </button>
+        <button type="button" onClick={() => void onActiveAssistantDeleted?.(activeAssistantId ?? '')}>
+          Delete active assistant
+        </button>
+        <button type="button" onClick={() => void onSelectedAssistantClick?.()}>
+          Toggle selected assistant pane
+        </button>
+        {resourceMenuItems
+          ?.filter((item) => item.id === 'assistant-resource-view')
+          .map((item) => (
+            <button key={item.id} type="button" onClick={() => void item.onSelect()}>
+              assistants.presets.manage.title
+            </button>
+          ))}
+      </div>
+    )
+  }
 }))
 
 vi.mock('../components/AssistantConversationPickerDialog', () => ({
@@ -629,6 +676,11 @@ describe('HomePage', () => {
     homeMocks.routeTopic = undefined
     homeMocks.routeTopicLoading = false
     homeMocks.activeTopicOptions = undefined
+    homeMocks.assistantResourceListTopicsSource = undefined
+    homeMocks.assistantTopicsSourceOptions = []
+    homeMocks.createdAssistantTopicsSource = undefined
+    homeMocks.homeTabsTopicsSource = undefined
+    homeMocks.topicPanelTopicsSource = undefined
     homeMocks.persistCacheValues.clear()
     homeMocks.addAssistant.mockResolvedValue({
       id: 'assistant-created',
@@ -668,6 +720,17 @@ describe('HomePage', () => {
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-assistant-id', 'assistant-1')
     expect(screen.getByTestId('topic-resource-panel')).toHaveAttribute('data-presentation', 'right-panel')
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
+  })
+
+  it('passes the same assistant topic source to the classic rail and right panel', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+
+    render(<HomePage />)
+
+    expect(homeMocks.assistantTopicsSourceOptions.length).toBeGreaterThan(0)
+    expect(homeMocks.assistantTopicsSourceOptions.every((options) => options?.enabled === true)).toBe(true)
+    expect(homeMocks.assistantResourceListTopicsSource).toBe(homeMocks.createdAssistantTopicsSource)
+    expect(homeMocks.topicPanelTopicsSource).toBe(homeMocks.createdAssistantTopicsSource)
   })
 
   it('does not render the topic resource pane when the classic topic position is left', () => {
@@ -715,6 +778,17 @@ describe('HomePage', () => {
     expect(screen.queryByTestId('assistant-resource-list')).not.toBeInTheDocument()
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-tab', 'branch')
     expect(screen.getByTestId('pane-position')).toHaveTextContent('left')
+    expect(homeMocks.homeTabsTopicsSource).toBe(homeMocks.createdAssistantTopicsSource)
+  })
+
+  it('disables the assistant topic source in message-only view', () => {
+    homeMocks.locationState = undefined
+    homeMocks.routeSearch = { topicId: 'topic-missing', view: 'message' }
+
+    render(<HomePage />)
+
+    expect(homeMocks.assistantTopicsSourceOptions.length).toBeGreaterThan(0)
+    expect(homeMocks.assistantTopicsSourceOptions.every((options) => options?.enabled === false)).toBe(true)
   })
 
   it('switches to assistant grouping when changing topic position from the left sidebar', async () => {
@@ -902,7 +976,6 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-latest'))
-    expect(screen.queryByTestId('draft-composer')).not.toBeInTheDocument()
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
@@ -924,7 +997,6 @@ describe('HomePage', () => {
     // Classic layout settles on the latest topic of a remaining assistant, never the draft compose.
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-b-new'))
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-b')
-    expect(screen.queryByTestId('draft-composer')).not.toBeInTheDocument()
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
@@ -1489,6 +1561,26 @@ describe('HomePage', () => {
     )
   })
 
+  it('reuses a first-launch empty topic from the shared topic source', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
+    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-2')
+    homeMocks.classicLayoutTopics = [
+      {
+        id: 'topic-empty-first-launch',
+        assistantId: 'assistant-2',
+        name: '',
+        createdAt: '2026-01-04T00:00:00.000Z',
+        updatedAt: '2026-01-04T00:00:00.000Z'
+      }
+    ]
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-empty-first-launch'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
   it('creates a new topic from the selected assistant payload', async () => {
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
@@ -1629,7 +1721,6 @@ describe('HomePage', () => {
         instanceKey: 'topic-from-metadata'
       })
     )
-    expect(screen.queryByTestId('draft-composer')).not.toBeInTheDocument()
   })
 
   it('keeps same-tab topic changes local instead of writing the URL', async () => {

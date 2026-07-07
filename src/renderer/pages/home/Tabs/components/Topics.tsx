@@ -29,7 +29,7 @@ import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
-import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
+import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
@@ -98,6 +98,7 @@ const TOPIC_ASSISTANT_UNTAGGED_SECTION_ID = `${TOPIC_ASSISTANT_TAG_SECTION_PREFI
 
 interface Props {
   activeTopic?: Topic
+  assistantTopicsSource: AssistantTopicsSource
   assistantIdFilter?: string | null
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
@@ -227,6 +228,7 @@ function AssistantGroupMoreMenu({
 
 export function Topics({
   activeTopic,
+  assistantTopicsSource,
   assistantIdFilter,
   onActiveAssistantDeleted,
   onAddAssistant,
@@ -308,7 +310,7 @@ export function Topics({
   } = usePins('assistant', { enabled: isAssistantDisplayMode })
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
-  const { topics: apiTopics, isLoadingAll, isFullyLoaded, error } = useAssistantTopicsSource()
+  const { topics: apiTopics, isLoadingAll, isFullyLoaded, error } = assistantTopicsSource
   const {
     assistants,
     isLoading: isAssistantsLoading,

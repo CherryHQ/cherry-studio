@@ -1,3 +1,4 @@
+import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
@@ -459,8 +460,45 @@ function createAssistant(overrides: Record<string, unknown> = {}) {
 
 type OnNewTopicMock = Mock<(payload?: { assistantId?: string | null }) => void>
 
+function createAssistantTopicsSource(topics?: readonly ApiTopic[]): AssistantTopicsSource {
+  const source =
+    topics !== undefined
+      ? {
+          pages: [{ items: topics }],
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          hasNext: false,
+          loadNext: vi.fn(),
+          refresh: vi.fn(),
+          reset: vi.fn(),
+          mutate: vi.fn()
+        }
+      : mockUseInfiniteQuery('/topics', { limit: 200 })
+  const items = source.pages.flatMap((page) => page.items)
+
+  if (source.hasNext && !source.isLoading && !source.isRefreshing) {
+    source.loadNext()
+  }
+
+  return {
+    error: source.error,
+    hasNext: source.hasNext,
+    isFullyLoaded: true,
+    isLoading: source.isLoading,
+    isLoadingAll: source.isLoading || source.hasNext,
+    isRefreshing: source.isRefreshing,
+    loadNext: source.loadNext,
+    mutate: source.mutate,
+    pages: source.pages,
+    refetch: source.refresh,
+    topics: items
+  } as unknown as AssistantTopicsSource
+}
+
 function renderTopicList({
   activeTopic = createRendererTopic(),
+  assistantTopicsSource,
   assistantIdFilter,
   onActiveAssistantDeleted,
   onAddAssistant = vi.fn(),
@@ -474,6 +512,7 @@ function renderTopicList({
   resourceMenuItems
 }: {
   activeTopic?: Topic
+  assistantTopicsSource?: AssistantTopicsSource
   assistantIdFilter?: string | null
   onActiveAssistantDeleted?: ComponentProps<typeof Topics>['onActiveAssistantDeleted']
   onAddAssistant?: ComponentProps<typeof Topics>['onAddAssistant']
@@ -490,6 +529,7 @@ function renderTopicList({
   const renderNode = (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) => (
     <Topics
       activeTopic={nextActiveTopic}
+      assistantTopicsSource={assistantTopicsSource ?? createAssistantTopicsSource()}
       assistantIdFilter={assistantIdFilter}
       onActiveAssistantDeleted={onActiveAssistantDeleted}
       onAddAssistant={onAddAssistant}

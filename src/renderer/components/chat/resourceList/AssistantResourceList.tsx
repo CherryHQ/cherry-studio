@@ -6,7 +6,7 @@ import {
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
-import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
+import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { usePins } from '@renderer/hooks/usePins'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
@@ -41,6 +41,7 @@ const DEFAULT_ASSISTANT_ENTITY_ID = 'assistant-entity:default'
 
 type AssistantResourceListProps = {
   activeAssistantId?: string | null
+  assistantTopicsSource: AssistantTopicsSource
   onAddAssistant?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSelectTopic: (topic: Topic) => void | boolean
@@ -58,6 +59,7 @@ type AssistantResourceListProps = {
 
 export function AssistantResourceList({
   activeAssistantId,
+  assistantTopicsSource,
   onAddAssistant,
   onOpenHistoryRecords,
   onSelectTopic,
@@ -86,7 +88,7 @@ export function AssistantResourceList({
     isLoadingAll: isTopicsLoadingAll,
     isFullyLoaded: isTopicsFullyLoaded,
     error: topicsError
-  } = useAssistantTopicsSource()
+  } = assistantTopicsSource
   const { isLoading: isTopicPinsLoading, pinnedIds: topicPinnedIds } = usePins('topic')
   const {
     isLoading: isAssistantPinsLoading,

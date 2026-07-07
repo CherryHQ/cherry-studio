@@ -163,7 +163,7 @@ describe('useResourceEntityRail', () => {
     expect(result.current.items.map((item) => item.id)).toEqual(['assistant-b', 'assistant-a', 'assistant-c'])
   })
 
-  it('falls back to a blank draft when the entity has no resources yet', () => {
+  it('falls back to a blank resource when the entity has no resources yet', () => {
     const onCreateResource = vi.fn()
     const { result } = renderRail({ onCreateResource })
 

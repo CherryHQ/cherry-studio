@@ -138,11 +138,12 @@ const HomePage: FC = () => {
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   // Shared full-topics source for classic history selection and persisted empty-topic reuse.
   // Modern layout also creates real empty topics now, so it needs the same candidates.
+  const assistantTopicsSource = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
   const {
     topics: allTopics,
     isLoadingAll: isAllTopicsLoading,
     isFullyLoaded: isAllTopicsFullyLoaded
-  } = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
+  } = assistantTopicsSource
   const isTopicHistoryReady = isMessageOnlyView || (!isAllTopicsLoading && isAllTopicsFullyLoaded)
   // Detached windows are single-topic: no topic list, so no sidebar at all.
   const isWindowFrame = useWindowFrame().mode === 'window'
@@ -743,6 +744,7 @@ const HomePage: FC = () => {
     isClassicTopicLayout && topicListPosition === 'right' ? (
       <AssistantResourceList
         activeAssistantId={visibleAssistantId ?? null}
+        assistantTopicsSource={assistantTopicsSource}
         onAddAssistant={() => {
           setAssistantPickerOpen(true)
         }}
@@ -757,6 +759,7 @@ const HomePage: FC = () => {
     ) : (
       <HomeTabs
         activeTopic={visibleTopic}
+        assistantTopicsSource={assistantTopicsSource}
         onActiveAssistantDeleted={handleActiveAssistantDeleted}
         onAddAssistant={() => {
           setAssistantPickerOpen(true)
@@ -780,6 +783,7 @@ const HomePage: FC = () => {
           label: t('chat.topics.title'),
           node: (
             <Topics
+              assistantTopicsSource={assistantTopicsSource}
               presentation="right-panel"
               activeTopic={visibleTopic}
               assistantIdFilter={visibleAssistantId ?? null}
