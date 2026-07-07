@@ -158,6 +158,7 @@ export interface UseTopicMessagesResult {
    */
   siblingsMap: Record<string, SharedMessage[]>
   isLoading: boolean
+  isStale: boolean
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
   /** The topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
@@ -253,10 +254,13 @@ export function useTopicMessages(
     return projectPagesToUI(allItems, projectionCacheRef.current)
   }, [mutate, enabled])
 
+  const isStale = enabled && (readyTopicId !== topicId || !pagesBelongToTopic)
+
   return {
     uiMessages,
     siblingsMap,
-    isLoading: enabled && (isLoading || readyTopicId !== topicId || !pagesBelongToTopic),
+    isLoading: enabled && (isLoading || isStale),
+    isStale,
     refresh,
     activeNodeId,
     rootId,
