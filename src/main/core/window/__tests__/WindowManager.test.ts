@@ -249,14 +249,13 @@ vi.mock('../windowRegistry', () => {
       htmlPath: 'windows/default/index.html',
       windowOptions: {}
     },
-    // Consumer-loaded: empty htmlPath -> WM skips loadWindowContent; the domain
+    // Consumer-loaded: empty htmlPath → WM skips loadWindowContent; the domain
     // service loads content itself after open() (see "content loading" tests).
-    domainLoaded: {
-      type: 'domainLoaded',
+    consumerLoaded: {
+      type: 'consumerLoaded',
       lifecycle: 'default',
-      htmlPath: '',
-      preload: '',
       showMode: 'manual',
+      htmlPath: '',
       windowOptions: {}
     },
     singleton: {
@@ -424,7 +423,7 @@ describe('WindowManager', () => {
     })
 
     it('skips content loading when htmlPath is empty (consumer-loaded window)', () => {
-      const id = wm.open('domainLoaded' as never)
+      const id = wm.open('consumerLoaded' as never)
       const win = wm.getWindow(id) as unknown as MockBrowserWindow
 
       // Empty htmlPath = domain service owns loading; WM must not loadFile/loadURL.
