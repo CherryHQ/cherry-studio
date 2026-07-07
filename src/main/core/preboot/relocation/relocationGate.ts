@@ -188,6 +188,9 @@ function preflight(from: string, to: string): void {
   if (getPathDepth(toAbs) <= 1) {
     throw new Error(`target must not be a root or top-level path: ${toAbs}`)
   }
+  if (isExistingMountRoot(to)) {
+    throw new Error(`target must not be a mounted volume root: ${toAbs}`)
+  }
   // Target inside source would make the recursive copy recurse into its
   // own output. The path relation helper avoids false positives when `from`
   // is a prefix of an unrelated sibling directory (e.g. /a vs /ab).
@@ -227,6 +230,21 @@ function getPathDepth(p: string): number {
   const ops = isWin ? path.win32 : path
   const parsed = ops.parse(p)
   return p.slice(parsed.root.length).split(ops.sep).filter(Boolean).length
+}
+
+function isExistingMountRoot(p: string): boolean {
+  const ops = isWin ? path.win32 : path
+  const target = ops.resolve(p)
+  const parent = ops.dirname(target)
+  if (parent === target) return true
+
+  try {
+    const targetStat = fs.statSync(target)
+    const parentStat = fs.statSync(parent)
+    return targetStat.dev !== parentStat.dev
+  } catch {
+    return false
+  }
 }
 
 async function ensureAvailableSpace(to: string, requiredBytes: number): Promise<void> {

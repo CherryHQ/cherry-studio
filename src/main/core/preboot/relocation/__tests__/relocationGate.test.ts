@@ -54,12 +54,15 @@ function stubBootConfig(relocation: Relocation | null) {
 }
 
 function stubFsAndFsp(
-  overrides: Partial<Record<'readdir' | 'stat' | 'statfs' | 'mkdir' | 'copyFile' | 'rm', ReturnType<typeof vi.fn>>> = {}
+  overrides: Partial<
+    Record<'existsSync' | 'accessSync' | 'statSync' | 'readdir' | 'stat' | 'statfs' | 'mkdir' | 'copyFile' | 'rm', ReturnType<typeof vi.fn>>
+  > = {}
 ) {
   vi.doMock('node:fs', () => {
     const m = {
-      existsSync: vi.fn(() => true),
-      accessSync: vi.fn(() => undefined),
+      existsSync: overrides.existsSync ?? vi.fn(() => true),
+      accessSync: overrides.accessSync ?? vi.fn(() => undefined),
+      statSync: overrides.statSync ?? vi.fn(() => ({ dev: 1 })),
       constants: { W_OK: 2 }
     }
     return { ...m, default: m }
@@ -249,6 +252,23 @@ describe('runUserDataRelocationGate', () => {
     expect(store['temp.user_data_relocation']).toMatchObject({
       status: 'failed',
       error: expect.stringMatching(/root or top-level path/i)
+    })
+  })
+
+  it('preflight failure (target is mounted volume root): persists failed status and no commit (handled)', async () => {
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/Volumes/ExternalDrive', copy: true })
+    stubFsAndFsp({
+      statSync: vi.fn((p: string) => ({ dev: p === '/Volumes/ExternalDrive' ? 2 : 1 }))
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/mounted volume root/i)
     })
   })
 
