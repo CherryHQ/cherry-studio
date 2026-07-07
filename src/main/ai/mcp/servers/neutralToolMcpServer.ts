@@ -45,7 +45,7 @@ export function createNeutralToolMcpServer<Ctx>(
 
   server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const toolName = request.params.name
-    const args = (request.params.arguments ?? {}) as Record<string, unknown>
+    const args = request.params.arguments ?? {}
 
     try {
       const tool = byName.get(toolName)

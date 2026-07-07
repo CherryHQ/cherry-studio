@@ -28,13 +28,14 @@ describe('buildAgentCreateBody', () => {
     expect(body.configuration?.permission_mode).toBe('bypassPermissions')
   })
 
-  it('omits Claude-only defaults and ignored skills for pi and starts gated (D8)', () => {
+  it('omits Claude-only defaults for pi, keeps skills, and starts gated (D8)', () => {
     const body = buildAgentCreateBody(values({ agentType: 'pi', skillIds: ['skill-1'] }))
 
     expect(body.type).toBe('pi')
     expect(body.planModel).toBeUndefined()
     expect(body.smallModel).toBeUndefined()
-    expect(body.skillIds).toBeUndefined()
+    // pi loads managed skills now; soul stays opt-in (soulEnabled create default is false).
+    expect(body.skillIds).toEqual(['skill-1'])
     expect(body.configuration?.soul_enabled).toBeUndefined()
     expect(body.configuration?.permission_mode).toBe('default')
     expect(body.model).toBe('openai::gpt-4o')
