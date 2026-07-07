@@ -69,7 +69,7 @@ describe('appHandlers', () => {
     const result = await appHandlers['app.set_user_data_path']({ path: targetPath, copyData: false }, ctx)
 
     expect(result).toBeUndefined()
-    expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, false)
+    expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, false, false)
   })
 
   it('set_user_data_path copyData=true requests copy relocation persistence', async () => {
@@ -78,6 +78,18 @@ describe('appHandlers', () => {
     const result = await appHandlers['app.set_user_data_path']({ path: targetPath, copyData: true }, ctx)
 
     expect(result).toBeUndefined()
-    expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, true)
+    expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, true, false)
+  })
+
+  it('set_user_data_path preserves explicit overwrite confirmation for copy relocation', async () => {
+    const targetPath = '/new/user/data-copy'
+
+    const result = await appHandlers['app.set_user_data_path'](
+      { path: targetPath, copyData: true, overwriteExisting: true },
+      ctx
+    )
+
+    expect(result).toBeUndefined()
+    expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, true, true)
   })
 })

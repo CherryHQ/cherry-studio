@@ -41,7 +41,7 @@ interface FsStubOptions {
 type BootConfigStore = {
   'app.user_data_path'?: Record<string, string>
   'temp.user_data_relocation'?:
-    | { status: 'pending'; from: string; to: string; copy: boolean }
+    | { status: 'pending'; from: string; to: string; copy: boolean; overwriteExisting?: boolean }
     | {
         status: 'failed'
         from: string
@@ -208,7 +208,8 @@ describe('requestRelocation', () => {
       status: 'pending',
       from: '/old/data',
       to: '/new/data',
-      copy: true
+      copy: true,
+      overwriteExisting: false
     })
     expect(bootConfigFlushMock).toHaveBeenCalled()
     // requestRelocation never mutates the live path — relocation runs in
@@ -223,7 +224,17 @@ describe('requestRelocation', () => {
     stubFs()
     const { requestRelocation } = await loadModule()
     requestRelocation('/old/data', '/new/data', false)
-    expect(store['temp.user_data_relocation']).toMatchObject({ copy: false })
+    expect(store['temp.user_data_relocation']).toMatchObject({ copy: false, overwriteExisting: false })
+  })
+
+  it('records explicit overwrite confirmation for non-empty copy targets', async () => {
+    stubConstants({ isLinux: false, isWin: false, isPortable: false })
+    stubElectron({ exePath: '/mock/exe' })
+    const store = stubBootConfig({})
+    stubFs()
+    const { requestRelocation } = await loadModule()
+    requestRelocation('/old/data', '/new/data', true, true)
+    expect(store['temp.user_data_relocation']).toMatchObject({ copy: true, overwriteExisting: true })
   })
 })
 

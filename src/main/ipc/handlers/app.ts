@@ -21,7 +21,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.updater.quit_and_install': async () => {
     application.get('AppUpdaterService').quitAndInstall()
   },
-  'app.set_user_data_path': async ({ path, copyData = false }) => {
-    requestRelocation(application.getPath('app.userdata'), path, copyData)
+  'app.set_user_data_path': async ({ path, copyData = false, overwriteExisting = false }) => {
+    requestRelocation(application.getPath('app.userdata'), path, copyData, overwriteExisting)
   }
 }

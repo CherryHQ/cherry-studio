@@ -5401,6 +5401,7 @@
         "select_error_in_app_path": "New path is the same as the application installation path, please select another path",
         "select_error_root_path": "New path cannot be the root path",
         "select_error_same_path": "New path is the same as the old path, please select another path",
+        "select_error_system_path": "New path cannot be a system root directory (e.g. /System, C:\\), please select another path",
         "select_error_write_permission": "New path does not have write permission",
         "select_not_empty_dir": "New path is not empty",
         "select_not_empty_dir_content": "New path is not empty, it will overwrite the data in the new path, there is a risk of data loss and copy failure, continue?",

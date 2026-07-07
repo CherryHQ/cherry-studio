@@ -42,6 +42,7 @@ import { commitRelocation } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
 import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
 import { RelocationIpcChannels, type RelocationProgress } from '@shared/data/relocation/types'
+import { isProtectedSystemPath } from '@shared/utils/file'
 import { app, ipcMain } from 'electron'
 
 const logger = loggerService.withContext('RelocationGate')
@@ -98,7 +99,7 @@ export async function runUserDataRelocationGate(): Promise<RelocationGateResult>
   relocationWindowManager.sendProgress(currentProgress)
 
   try {
-    preflight(pending.from, pending.to)
+    preflight(pending.from, pending.to, pending.copy, pending.overwriteExisting ?? false)
 
     if (pending.copy) {
       const total = await calcTotalBytes(pending.from)
@@ -183,7 +184,7 @@ function makeProgress(
  * defense, but BootConfig can also be edited by hand, so preboot re-checks
  * here before either switching or copying.
  */
-function preflight(from: string, to: string): void {
+function preflight(from: string, to: string, copy: boolean, overwriteExisting: boolean): void {
   const fromAbs = resolveForPathCompare(from)
   const toAbs = resolveForPathCompare(to)
   if (fromAbs === toAbs) {
@@ -191,6 +192,9 @@ function preflight(from: string, to: string): void {
   }
   if (getPathDepth(toAbs) <= 1) {
     throw new Error(`target must not be a root or top-level path: ${toAbs}`)
+  }
+  if (isProtectedSystemPath(toAbs)) {
+    throw new Error(`target must not be a protected system path: ${toAbs}`)
   }
   if (isExistingMountRoot(to)) {
     throw new Error(`target must not be a mounted volume root: ${toAbs}`)
@@ -216,6 +220,7 @@ function preflight(from: string, to: string): void {
     throw new Error(`target parent directory does not exist: ${toParent}`)
   }
   fs.accessSync(toParent, fs.constants.W_OK)
+  assertTargetDirectoryIsSafeToReplace(to, copy, overwriteExisting)
 }
 
 function resolveForPathCompare(p: string): string {
@@ -248,6 +253,22 @@ function isExistingMountRoot(p: string): boolean {
     return targetStat.dev !== parentStat.dev
   } catch {
     return false
+  }
+}
+
+function assertTargetDirectoryIsSafeToReplace(to: string, copy: boolean, overwriteExisting: boolean): void {
+  if (!fs.existsSync(to)) return
+
+  const stat = fs.statSync(to)
+  if (typeof stat.isDirectory === 'function' && !stat.isDirectory()) {
+    throw new Error(`target exists and is not a directory: ${to}`)
+  }
+
+  if (!copy || overwriteExisting) return
+
+  const entries = fs.readdirSync(to)
+  if (entries.length > 0) {
+    throw new Error(`target directory is not empty and overwrite was not confirmed: ${to}`)
   }
 }
 
@@ -323,10 +344,15 @@ async function copyTreeWithProgress(
     await copyDir(from, to, total, onTick, acc)
   } catch (error) {
     await fsp.rm(to, { recursive: true, force: true }).catch((cleanupError) => {
-      logger.warn('Failed to remove partial relocation target', {
+      logger.error('Failed to remove partial relocation target', {
         to,
         error: (cleanupError as Error).message
       })
+      throw new Error(
+        `copy failed: ${(error as Error).message}; partial target cleanup failed, manual cleanup required at ${to}: ${
+          (cleanupError as Error).message
+        }`
+      )
     })
     throw error
   }

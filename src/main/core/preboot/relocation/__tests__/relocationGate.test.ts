@@ -27,7 +27,7 @@ const bootConfigFlush = vi.fn()
 const applicationGetPath = vi.fn()
 
 type Relocation = NonNullable<
-  | { status: 'pending'; from: string; to: string; copy: boolean }
+  | { status: 'pending'; from: string; to: string; copy: boolean; overwriteExisting?: boolean }
   | { status: 'failed'; from: string; to: string; error: string; failedAt: string }
   | null
 >
@@ -56,7 +56,16 @@ function stubBootConfig(relocation: Relocation | null) {
 function stubFsAndFsp(
   overrides: Partial<
     Record<
-      'existsSync' | 'accessSync' | 'statSync' | 'readdir' | 'stat' | 'statfs' | 'mkdir' | 'copyFile' | 'rm',
+      | 'existsSync'
+      | 'accessSync'
+      | 'statSync'
+      | 'readdirSync'
+      | 'readdir'
+      | 'stat'
+      | 'statfs'
+      | 'mkdir'
+      | 'copyFile'
+      | 'rm',
       ReturnType<typeof vi.fn>
     >
   > = {}
@@ -65,7 +74,8 @@ function stubFsAndFsp(
     const m = {
       existsSync: overrides.existsSync ?? vi.fn(() => true),
       accessSync: overrides.accessSync ?? vi.fn(() => undefined),
-      statSync: overrides.statSync ?? vi.fn(() => ({ dev: 1 })),
+      statSync: overrides.statSync ?? vi.fn(() => ({ dev: 1, isDirectory: () => true })),
+      readdirSync: overrides.readdirSync ?? vi.fn(() => []),
       constants: { W_OK: 2 }
     }
     return { ...m, default: m }
@@ -280,11 +290,11 @@ describe('runUserDataRelocationGate', () => {
     const store = stubBootConfig({
       status: 'pending',
       from: '/old',
-      to: '/Applications/Cherry Studio.app/Contents/MacOS/Data',
+      to: '/opt/Cherry Studio/Data',
       copy: true
     })
     stubFsAndFsp()
-    stubDeps({ installPath: '/Applications/Cherry Studio.app/Contents/MacOS' })
+    stubDeps({ installPath: '/opt/Cherry Studio' })
     const { runUserDataRelocationGate } = await loadGate()
     const result = await runUserDataRelocationGate()
     expect(result).toBe('handled')
@@ -294,6 +304,57 @@ describe('runUserDataRelocationGate', () => {
       status: 'failed',
       error: expect.stringMatching(/app install path/i)
     })
+  })
+
+  it('preflight failure (target is a v1 protected system root): persists failed status and no commit (handled)', async () => {
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/System', copy: true })
+    stubFsAndFsp()
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/root or top-level path|protected system path/i)
+    })
+  })
+
+  it('preflight failure (copy to non-empty target without overwrite confirmation): no target removal and no commit', async () => {
+    const rm = vi.fn(async () => undefined)
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true })
+    stubFsAndFsp({
+      readdirSync: vi.fn((p: string) => (p === '/new/data' ? ['foreign-file'] : [])),
+      rm
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(rm).not.toHaveBeenCalled()
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/not empty.*overwrite was not confirmed/i)
+    })
+  })
+
+  it('copy to non-empty target is allowed after explicit overwrite confirmation', async () => {
+    const rm = vi.fn(async () => undefined)
+    stubElectron(true)
+    stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true, overwriteExisting: true })
+    stubFsAndFsp({
+      readdirSync: vi.fn((p: string) => (p === '/new/data' ? ['foreign-file'] : [])),
+      rm
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(rm).toHaveBeenCalledWith('/new/data', { recursive: true, force: true })
+    expect(commitRelocation).toHaveBeenCalledWith('/new/data')
   })
 
   it('preflight failure (Windows path case differs only): persists failed status and no commit (handled)', async () => {
@@ -371,6 +432,39 @@ describe('runUserDataRelocationGate', () => {
     expect(commitRelocation).not.toHaveBeenCalled()
     expect(rm).toHaveBeenCalledWith('/new/data', { recursive: true, force: true })
     expect(rm).toHaveBeenCalledTimes(2)
+  })
+
+  it('copy failure reports manual cleanup when partial target removal also fails', async () => {
+    const fileEntry = {
+      name: 'db.sqlite',
+      isSymbolicLink: () => false,
+      isDirectory: () => false,
+      isFile: () => true
+    }
+    const rm = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('permission denied'))
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true })
+    stubFsAndFsp({
+      readdir: vi.fn(async () => [fileEntry]),
+      stat: vi.fn(async () => ({ size: 10 })),
+      rm,
+      copyFile: vi.fn(async () => {
+        throw new Error('copy failed')
+      })
+    })
+    stubDeps()
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(rm).toHaveBeenCalledTimes(2)
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/manual cleanup required.*permission denied/i)
+    })
+    expect(wm.sendProgress).toHaveBeenCalledWith(
+      expect.objectContaining({ stage: 'failed', error: expect.stringMatching(/manual cleanup required/i) })
+    )
   })
 
   it('copy=true: fails before copying when target volume has insufficient free space', async () => {

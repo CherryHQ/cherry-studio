@@ -58,8 +58,8 @@ export function getNormalizedExecutablePath(): string {
 /**
  * Record a userData relocation request in BootConfig and flush.
  *
- * Writes `temp.user_data_relocation = { status: 'pending', from, to, copy }`
- * so the next launch's preboot relocation gate (see
+ * Writes `temp.user_data_relocation = { status: 'pending', from, to, copy,
+ * overwriteExisting }` so the next launch's preboot relocation gate (see
  * `core/preboot/relocation/relocationGate.ts`) picks it up, performs the
  * copy (when `copy` is true), commits the new location to
  * `app.user_data_path`, and relaunches.
@@ -69,10 +69,10 @@ export function getNormalizedExecutablePath(): string {
  * the actual relocation happens exclusively in preboot on the next launch,
  * after the previous process has fully exited and no file is locked.
  */
-export function requestRelocation(from: string, to: string, copy: boolean): void {
-  bootConfigService.set('temp.user_data_relocation', { status: 'pending', from, to, copy })
+export function requestRelocation(from: string, to: string, copy: boolean, overwriteExisting = false): void {
+  bootConfigService.set('temp.user_data_relocation', { status: 'pending', from, to, copy, overwriteExisting })
   bootConfigService.flush()
-  logger.info('userData relocation requested; relaunch required', { from, to, copy })
+  logger.info('userData relocation requested; relaunch required', { from, to, copy, overwriteExisting })
 }
 
 /**

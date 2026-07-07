@@ -18,6 +18,22 @@ export const zhCN = {
   }
 }
 
+export const zhTW = {
+  relocation: {
+    title: '遷移資料目錄',
+    preparing: '正在準備遷移…',
+    copying: '正在複製資料…',
+    committing: '正在切換資料目錄…',
+    failed: {
+      title: '遷移失敗',
+      description: '資料遷移未能完成，應用程式將保留在目前目錄。'
+    },
+    from: '原目錄',
+    to: '新目錄',
+    restart_failure: '留在目前目錄並重新啟動'
+  }
+}
+
 export const enUS = {
   relocation: {
     title: 'Relocate Data Directory',

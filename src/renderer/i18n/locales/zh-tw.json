@@ -5401,6 +5401,7 @@
         "select_error_in_app_path": "新路徑與應用安裝路徑相同，請選擇其他路徑",
         "select_error_root_path": "新路徑不能是根路徑",
         "select_error_same_path": "新路徑與舊路徑相同，請選擇其他路徑",
+        "select_error_system_path": "新路徑不能是系統根目錄（如 /System、C:\\），請選擇其他路徑",
         "select_error_write_permission": "新路徑沒有寫入權限",
         "select_not_empty_dir": "新路徑不為空",
         "select_not_empty_dir_content": "新路徑不為空，若選擇複製將覆寫新路徑中的資料，可能導致資料遺失或複製失敗。是否繼續？",
