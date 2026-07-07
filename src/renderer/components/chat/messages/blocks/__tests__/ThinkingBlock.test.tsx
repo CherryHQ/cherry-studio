@@ -131,6 +131,15 @@ describe('ThinkingBlock', () => {
 
       expect(getCopyButton()).not.toBeInTheDocument()
     })
+
+    it('should show a single-line reasoning preview in the title while collapsed', () => {
+      const block = createThinkingBlock({ content: 'First thought\n\nsecond thought\tthird thought' })
+      renderThinkingBlock(block)
+
+      expect(screen.getByText('First thought second thought third thought')).toBeInTheDocument()
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
+    })
   })
 
   describe('thinking status display', () => {

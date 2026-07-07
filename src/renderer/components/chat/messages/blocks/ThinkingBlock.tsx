@@ -31,6 +31,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming }) => {
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
   const isThinking = isStreaming
+  const previewText = useMemo(() => (content ?? '').replace(/\s+/g, ' ').trim(), [content])
 
   useEffect(() => {
     if (thoughtAutoCollapse) {
@@ -58,7 +59,18 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming }) => {
             withScrollAnchor(() => setIsExpanded((expanded) => !expanded))
           }
         }}>
-        <ThinkingEffect thinkingTimeText={<ThinkingTimeSeconds isThinking={isThinking} />} />
+        <ThinkingEffect
+          thinkingTimeText={<ThinkingTimeSeconds isThinking={isThinking} />}
+          trailing={
+            previewText ? (
+              <span
+                aria-hidden="true"
+                className="min-w-0 flex-1 truncate whitespace-nowrap text-[13px] text-foreground-muted leading-5">
+                {previewText}
+              </span>
+            ) : null
+          }
+        />
       </div>
       <div
         id={contentId}
