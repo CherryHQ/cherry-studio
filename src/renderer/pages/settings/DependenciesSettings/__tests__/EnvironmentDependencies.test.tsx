@@ -380,11 +380,9 @@ describe('EnvironmentDependencies', () => {
       const token = screen.getByPlaceholderText('ghp_…')
       expect(token).toHaveAttribute('type', 'password')
 
-      // Reveal toggles the local show-token state, so flush it inside act().
-      act(() => {
-        fireEvent.click(screen.getByLabelText(placeholderOf('githubToken.show')))
-      })
-      expect(screen.getByPlaceholderText('ghp_…')).toHaveAttribute('type', 'text')
+      // Reveal toggles the local show-token state; waitFor flushes the update inside act().
+      fireEvent.click(screen.getByLabelText(placeholderOf('githubToken.show')))
+      await waitFor(() => expect(screen.getByPlaceholderText('ghp_…')).toHaveAttribute('type', 'text'))
     })
 
     it('writes the boolean when the verify-signatures switch is toggled off', async () => {
