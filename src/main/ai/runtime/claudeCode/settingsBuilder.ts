@@ -53,6 +53,7 @@ import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathStatus, type PathStatus } from '@main/utils/file'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv } from '@main/utils/shellEnv'
+import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { CHANNEL_SECURITY_PROMPT, REPORT_ARTIFACTS_PROMPT } from '@shared/ai/claudecode/constants'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
@@ -75,6 +76,14 @@ import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolAppro
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const require_ = createRequire(import.meta.url)
 const promptBuilder = new PromptBuilder()
+const HEADLESS_INTERACTIVE_TOOLS = ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree'] as const
+const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
+  'rename',
+  'add_channel',
+  'update_channel',
+  'remove_channel',
+  'reconnect_channel'
+])
 
 const toolApprovalEmitters = new Map<string, ToolApprovalEmitterHolder>()
 
@@ -168,15 +177,16 @@ function extractSteerText(input: AgentRuntimeUserInput): string {
 }
 
 export function redactProxyUrlForAssistantContext(proxyUrl: string): string {
+  const stripUserinfo = (value: string) => value.replace(/^(([a-z][a-z\d+.-]*:\/\/)?)[^/@\s]+@/i, '$1')
   try {
     const url = new URL(proxyUrl)
-    if (!url.username && !url.password) return proxyUrl
+    if (!url.username && !url.password) return stripUserinfo(proxyUrl)
     // Drop proxy userinfo before this value enters the assistant system prompt.
     url.username = ''
     url.password = ''
     return url.toString()
   } catch {
-    return proxyUrl.replace(/^([a-z][a-z\d+.-]*:\/\/)[^/@\s]+@/i, '$1')
+    return stripUserinfo(proxyUrl)
   }
 }
 
@@ -292,9 +302,7 @@ export async function buildClaudeCodeSessionSettings(
   const steerHolder = getSteerHolder(session.id)
   // The hooks resolve the approval emitter / steer holder by session id at fire-time, so they are
   // not passed in; the holders above are created here only to expose them on `settings`.
-  const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(session, agent, {
-    headless: options?.headless === true
-  })
+  const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(session, agent)
 
   // 5. System prompt
   const systemPrompt = await buildSystemPrompt(session, agent, cwd)
@@ -640,8 +648,7 @@ async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginC
 
 async function buildToolPermissions(
   session: AgentSessionEntity,
-  agent: AgentEntity,
-  options: { headless?: boolean } = {}
+  agent: AgentEntity
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -650,7 +657,6 @@ async function buildToolPermissions(
 }> {
   const agentConfig = agent.configuration
   const isAssistant = agentConfig?.builtin_role === 'assistant'
-  const isHeadless = options.headless === true
 
   // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
@@ -661,21 +667,18 @@ async function buildToolPermissions(
     : undefined
 
   const toolPolicySnapshot = await ensureToolPolicySnapshot(session.id, agent, {
-    autoAllowRuntimeNamePrefixes: [
-      // cherry-tools is injected for every session. Auto-allowing it (no per-call approval) is a
-      // deliberate decision (matches feat/chat-page): its READ tools have no side effects in the
-      // main process — web_search/web_fetch read the network, kb_search/kb_read/kb_list read the
-      // user's knowledge bases, report_artifacts only records a declaration. The
-      // untrusted-channel exposure this creates (approval-free reads + web_fetch URL egress for
-      // channel-linked sessions) is bounded by the system-level channel security policy
-      // (CHANNEL_SECURITY_PROMPT). The autonomy tools (cron/notify/config) it also hosts stay
-      // auto-approved — they were blanket-allowed as the standalone `cherry` server before the
-      // merge. The MUTATING kb_manage tool is carved out below — it modifies the
-      // user's knowledge bases, so it must go through per-call approval rather than this prefix.
-      'mcp__cherry-tools__',
-      ...(isAssistant ? ['mcp__assistant__'] : [])
-    ],
-    // Mutating cherry-tools (kb_manage) match the prefix above but must still prompt for approval.
+    // cherry-tools is injected for every session. Auto-allowing these explicit tools (no per-call
+    // approval) is a deliberate decision (matches feat/chat-page): the READ tools have no side
+    // effects in the main process — web_search/web_fetch read the network,
+    // kb_search/kb_read/kb_list read the user's knowledge bases, report_artifacts only records a
+    // declaration. The untrusted-channel exposure this creates (approval-free reads + web_fetch URL
+    // egress for channel-linked sessions) is bounded by the system-level channel security policy
+    // (CHANNEL_SECURITY_PROMPT). The autonomy tools (cron/notify/config) also stay auto-approved —
+    // they were blanket-allowed as the standalone `cherry` server before the merge. Keep this an
+    // explicit allowlist so a future cherry-tools addition does not become auto-approved by prefix.
+    autoAllowRuntimeNames: CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
+    autoAllowRuntimeNamePrefixes: isAssistant ? ['mcp__assistant__'] : [],
+    // Mutating cherry-tools (kb_manage) must still prompt for approval.
     autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
     conditionContext
   })
@@ -686,9 +689,9 @@ async function buildToolPermissions(
     }
 
     // Busy-session enqueue/steer cannot rebuild a connection's baked policy, so enforce per-turn
-    // headless AskUserQuestion denial at fire time.
+    // headless interactive-tool denial at fire time.
     if (
-      toolName === 'AskUserQuestion' &&
+      HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) &&
       application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)
     ) {
       return {
@@ -774,6 +777,24 @@ async function buildToolPermissions(
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
 
+  const headlessConfigMutationHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (toolName !== toCherryBuiltinRuntimeName(CONFIG_TOOL_NAME)) return {}
+    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const action = typeof toolInput?.action === 'string' ? toolInput.action : ''
+    if (!HEADLESS_CONFIG_MUTATION_ACTIONS.has(action)) return {}
+    if (!application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) return {}
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason:
+          'Headless channel or scheduled turns cannot mutate agent configuration. Ask the user to make this change in Cherry Studio.'
+      }
+    }
+  }
+
   // disabledTools enforcement runs as a PreToolUse hook, not in `canUseTool`: the SDK skips
   // `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits / default safe-tools), but
   // PreToolUse hooks fire on every tool call regardless of permission mode. The snapshot's disabled
@@ -829,13 +850,17 @@ async function buildToolPermissions(
 
   return {
     canUseTool,
-    hooks: { PreToolUse: [{ hooks: [disabledToolHook, dependencyIsolationHook, rtkRewriteHook, steerHook] }] },
+    hooks: {
+      PreToolUse: [
+        { hooks: [headlessConfigMutationHook, disabledToolHook, dependencyIsolationHook, rtkRewriteHook, steerHook] }
+      ]
+    },
     // `disabled`-exposure tools (incl. WebSearch/WebFetch) come from the declarative
     // registry; agent/assistant overlays stay until they migrate to per-tool exposure (PR-7).
     disallowedTools: [
       ...new Set([
         ...resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext),
-        ...(isAssistant || isHeadless ? ['AskUserQuestion'] : [])
+        ...(isAssistant ? HEADLESS_INTERACTIVE_TOOLS : [])
       ])
     ],
     toolPolicySnapshot

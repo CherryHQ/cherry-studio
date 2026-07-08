@@ -131,6 +131,7 @@ describe('buildMcpServers', () => {
   it('injects the agent-memory server for every agent (REGRESSION agents-jobs-3)', async () => {
     const result = buildMcpServers(session, agent, false)
     expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory']))
+    expect(Object.keys(result ?? {})).not.toContain('skills')
   })
 
   it('injects cherry-tools for every session; the standalone cherry server and exa are gone', async () => {

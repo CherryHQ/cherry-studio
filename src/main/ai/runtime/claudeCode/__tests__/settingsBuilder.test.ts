@@ -60,7 +60,7 @@ vi.mock('@data/services/AgentChannelService', () => ({
 
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: {
-    list: vi.fn(async () => ({ items: [] })),
+    list: vi.fn(() => ({ items: [] })),
     findByIdOrName: vi.fn()
   }
 }))
@@ -70,7 +70,7 @@ vi.mock('@data/services/ModelService', () => ({
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
-  providerService: { list: vi.fn(async () => []) }
+  providerService: { list: vi.fn(() => []) }
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
@@ -169,6 +169,10 @@ describe('redactProxyUrlForAssistantContext', () => {
 
   it('leaves plain proxy URLs unchanged', () => {
     expect(redactProxyUrlForAssistantContext('http://proxy.example:8080')).toBe('http://proxy.example:8080')
+  })
+
+  it('redacts scheme-less proxy credentials', () => {
+    expect(redactProxyUrlForAssistantContext('user:pass@proxy.example:8080')).toBe('proxy.example:8080')
   })
 })
 
@@ -425,7 +429,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(new Set(disallowed).size).toBe(disallowed.length)
   })
 
-  it('adds AskUserQuestion to disallowedTools for explicitly headless sessions', async () => {
+  it('does not bake headless-only interactive denials into disallowedTools', async () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -434,10 +438,15 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never, { headless: true })
 
-    expect(settings.disallowedTools ?? []).toContain('AskUserQuestion')
+    // Busy interactive follow-ups may reuse a headless-created connection. Keep these denials in
+    // the per-turn canUseTool gate so the next interactive turn can recover without reconnecting.
+    expect(settings.disallowedTools ?? []).not.toEqual(
+      expect.arrayContaining(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode'])
+    )
+    expect(settings.disallowedTools ?? []).not.toContain('mcp__cherry-tools__notify')
   })
 
-  it('denies AskUserQuestion at tool fire time for the current headless turn', async () => {
+  it('denies interactive no-responder tools at tool fire time for the current headless turn', async () => {
     const isCurrentTurnHeadless = vi.fn(() => true)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
@@ -452,17 +461,53 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    const result = await settings.canUseTool?.('AskUserQuestion', {}, {
-      signal: { aborted: false },
-      toolUseID: 'tool-use-1'
-    } as never)
+    for (const toolName of ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree']) {
+      const result = await settings.canUseTool?.(toolName, {}, {
+        signal: { aborted: false },
+        toolUseID: 'tool-use-1'
+      } as never)
 
+      expect(result).toEqual({
+        behavior: 'deny',
+        message:
+          'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+      })
+    }
     expect(isCurrentTurnHeadless).toHaveBeenCalledWith('session-1')
-    expect(result).toEqual({
-      behavior: 'deny',
-      message:
-        'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+  })
+
+  it('denies mutating config actions via PreToolUse for the current headless turn', async () => {
+    const isCurrentTurnHeadless = vi.fn(() => true)
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+      if (name === 'AgentSessionRuntimeService') return { isCurrentTurnHeadless }
+      throw new Error(`Unexpected application.get(${name})`)
     })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const results = await Promise.all(
+      (settings.hooks?.PreToolUse?.[0]?.hooks ?? []).map((hook) =>
+        hook(
+          {
+            hook_event_name: 'PreToolUse',
+            tool_name: 'mcp__cherry-tools__config',
+            tool_input: { action: 'add_channel' }
+          } as never,
+          'tool-use-1',
+          {} as never
+        )
+      )
+    )
+
+    expect(results).toContainEqual(
+      expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
+    )
   })
 
   it('does not deny AskUserQuestion at tool fire time for the current interactive turn', async () => {
@@ -508,7 +553,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.disallowedTools ?? []).not.toContain('AskUserQuestion')
   })
 
-  it('assistant role adds AskUserQuestion to disallowedTools', async () => {
+  it('assistant role adds interactive no-responder tools to disallowedTools', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
       type: 'claude-code',
@@ -525,7 +570,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
-    expect(settings.disallowedTools ?? []).toContain('AskUserQuestion')
+    expect(settings.disallowedTools ?? []).toEqual(
+      expect.arrayContaining(['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree'])
+    )
   })
 
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
@@ -542,9 +589,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    expect(preToolUse).toHaveLength(4) // disabledToolHook + dependencyIsolationHook + rtkRewriteHook + steerHook
+    expect(preToolUse).toHaveLength(5) // headlessConfigMutationHook + disabledToolHook + dependencyIsolationHook + rtkRewriteHook + steerHook
 
-    const steerHook = preToolUse![3] as unknown as (input: {
+    const steerHook = preToolUse![4] as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
 
@@ -576,7 +623,7 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    const steerHook = preToolUse![3] as unknown as (input: {
+    const steerHook = preToolUse![4] as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
     const onInjected = vi.fn()
@@ -607,10 +654,42 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.createToolPolicySnapshot).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
-        autoAllowRuntimeNamePrefixes: expect.arrayContaining(['mcp__cherry-tools__']),
+        autoAllowRuntimeNames: expect.arrayContaining(['mcp__cherry-tools__notify']),
+        autoAllowRuntimeNamePrefixes: [],
         autoAllowRuntimeNameExceptions: exceptions
       })
     )
+  })
+
+  it('redacts proxy credentials in the assembled assistant context', async () => {
+    const preferenceGet = vi.fn((key: string) => {
+      if (key === 'app.proxy.url') return 'user:pass@proxy.example:8080'
+      return undefined
+    })
+    mocks.applicationGet.mockImplementation((name: string) => {
+      if (name === 'PreferenceService') return { get: preferenceGet }
+      if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.systemPrompt).toContain('- Proxy: proxy.example:8080')
+    expect(settings.systemPrompt).not.toContain('pass')
   })
 
   // Warm-pool correctness: hooks baked at prewarm must resolve session state by id at fire-time, so

@@ -193,7 +193,8 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
   // these fail the moment the real gate stops carving the mutating tools out.
   const PREFIX = `mcp__${CHERRY_BUILTIN_MCP_SERVER}__`
   const productionOptions = {
-    autoAllowRuntimeNamePrefixes: [PREFIX],
+    autoAllowRuntimeNames: CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
+    autoAllowRuntimeNamePrefixes: [],
     autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
   }
 
@@ -209,7 +210,7 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     expect(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)).toBe(`${PREFIX}${KB_MANAGE_TOOL_NAME}`)
   })
 
-  it('prompts for every approval-required tool and auto-approves every read tool under the real wiring', async () => {
+  it('prompts for every approval-required tool and auto-approves every allowlisted tool under the real wiring', async () => {
     const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), productionOptions)
 
     for (const name of CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES) {
@@ -218,5 +219,11 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     for (const name of CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES) {
       expect(snapshot.resolve(toCherryBuiltinRuntimeName(name))).toMatchObject({ approval: 'auto' })
     }
+  })
+
+  it('does not auto-approve future cherry-tools by prefix under the real wiring', async () => {
+    const snapshot = await createClaudeAgentToolPolicySnapshot(makeAgent(), productionOptions)
+
+    expect(snapshot.resolve('mcp__cherry-tools__future_mutator')).toBeUndefined()
   })
 })
