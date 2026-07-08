@@ -131,6 +131,8 @@ Presets for the URL fields (a short, opt-in, cheaply-updatable list — Cherry n
 2. Add a description translation key under `settings.plugins.tools.<name>` in `src/renderer/i18n/locales/en-us.json`, then run `pnpm i18n:sync`.
 3. No code change in BinaryManager — the renderer picks it up via the preset list.
 
+   For a **coding agent**, also set `isAgent: true` (groups it under "Coding Agents" in the dependencies UI) and, when the agent is launchable from the Code Tools page, `codeCli: CodeCli.<ID>` — that wires an "Open in Code Tools" button on the card once the agent is available.
+
 **Custom (user-added from the settings UI):**
 
 1. User clicks "Add Tool" and selects a registry result.

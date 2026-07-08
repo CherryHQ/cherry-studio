@@ -22,6 +22,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
+import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -34,6 +35,7 @@ import {
   PIP_INDEX_PRESETS
 } from '@shared/data/presets/binaryInstallPresets'
 import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binaryTools'
+import type { CodeCli } from '@shared/types/codeCli'
 import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowBigUp,
@@ -78,6 +80,12 @@ const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }
 
 type ToolSource = 'managed' | 'bundled' | 'system' | 'none'
 
+// Split the preset catalog into the two UI groups. Coding agents get their own
+// section (and an "open in Code Tools" affordance once installed); everything
+// else stays under the general tools group.
+const AGENT_TOOLS = PRESETS_BINARY_TOOLS.filter((tool) => tool.isAgent)
+const GENERAL_TOOLS = PRESETS_BINARY_TOOLS.filter((tool) => !tool.isAgent)
+
 interface EnvironmentDependenciesProps {
   mini?: boolean
 }
@@ -99,6 +107,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   if (deleteTarget) deleteNameRef.current = deleteTarget
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const { setCliTool } = useCodeCli()
   const mountedRef = useRef(true)
   const latestRequestIdRef = useRef(0)
 
@@ -236,6 +245,45 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     void ipcApi.request('binary.get_tool_dir', toolName).then((dir) => window.api.openPath(dir))
   }
 
+  // Pre-select the agent in the Code Tools launcher, then jump there — closes the
+  // "installed it but don't know how to run it" gap.
+  const openInCodeTools = async (codeCli: CodeCli) => {
+    await setCliTool(codeCli)
+    navigate({ to: '/app/code' })
+  }
+
+  const renderPresetCard = (tool: BinaryToolPreset) => {
+    const installed = binaryState?.tools[tool.name]
+    const bundledVersion = bundled[tool.name]
+    const source: ToolSource = installed
+      ? 'managed'
+      : tool.name in bundled
+        ? 'bundled'
+        : tool.name in systemTools
+          ? 'system'
+          : 'none'
+    const installedVersion = installed?.version ?? bundledVersion ?? undefined
+    const latestVersion = latestVersions?.[tool.name]
+    const hasUpdate = !!installed && isNewerVersion(latestVersion, installedVersion)
+    const codeCli = tool.codeCli
+    return (
+      <BinaryToolPresetCard
+        key={tool.name}
+        tool={tool}
+        source={source}
+        systemPath={systemTools[tool.name]}
+        installedVersion={installedVersion}
+        latestVersion={hasUpdate ? latestVersion : undefined}
+        installing={installingTools.has(tool.name)}
+        onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
+        onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
+        onOpenPath={() => openToolDir(tool.name)}
+        onRemove={() => setDeleteTarget(tool.name)}
+        onOpen={codeCli && source !== 'none' ? () => void openInCodeTools(codeCli) : undefined}
+      />
+    )
+  }
+
   const totalCount = PRESETS_BINARY_TOOLS.length + customTools.length
 
   if (mini) {
@@ -290,36 +338,22 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.dependencies.description')}</p>
       </div>
 
-      <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {PRESETS_BINARY_TOOLS.map((tool) => {
-          const installed = binaryState?.tools[tool.name]
-          const bundledVersion = bundled[tool.name]
-          const source: ToolSource = installed
-            ? 'managed'
-            : tool.name in bundled
-              ? 'bundled'
-              : tool.name in systemTools
-                ? 'system'
-                : 'none'
-          const installedVersion = installed?.version ?? bundledVersion ?? undefined
-          const latestVersion = latestVersions?.[tool.name]
-          const hasUpdate = !!installed && isNewerVersion(latestVersion, installedVersion)
-          return (
-            <BinaryToolPresetCard
-              key={tool.name}
-              tool={tool}
-              source={source}
-              systemPath={systemTools[tool.name]}
-              installedVersion={installedVersion}
-              latestVersion={hasUpdate ? latestVersion : undefined}
-              installing={installingTools.has(tool.name)}
-              onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
-              onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
-              onOpenPath={() => openToolDir(tool.name)}
-              onRemove={() => setDeleteTarget(tool.name)}
-            />
-          )
-        })}
+      <div className="min-w-0">
+        <h2 className="mb-3 font-semibold text-[15px] text-foreground leading-6">
+          {t('settings.dependencies.codingAgents')}
+        </h2>
+        <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {AGENT_TOOLS.map(renderPresetCard)}
+        </div>
+      </div>
+
+      <div className="min-w-0">
+        <h2 className="mb-3 font-semibold text-[15px] text-foreground leading-6">
+          {t('settings.dependencies.toolsGroup')}
+        </h2>
+        <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {GENERAL_TOOLS.map(renderPresetCard)}
+        </div>
       </div>
 
       <div className="min-w-0">
@@ -392,6 +426,7 @@ const BinaryToolPresetCard: FC<{
   onUpdate: () => void
   onOpenPath: () => void
   onRemove: () => void
+  onOpen?: () => void
 }> = ({
   tool,
   source,
@@ -402,7 +437,8 @@ const BinaryToolPresetCard: FC<{
   onInstall,
   onUpdate,
   onOpenPath,
-  onRemove
+  onRemove,
+  onOpen
 }) => {
   const { t } = useTranslation()
   const description = t(`settings.dependencies.tools.${tool.name}`)
@@ -521,34 +557,41 @@ const BinaryToolPresetCard: FC<{
         )}
       </div>
 
-      {source === 'none' && (
-        <div className="mt-3 border-border border-t pt-3">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 w-full gap-1 font-medium text-xs"
-            onClick={onInstall}
-            disabled={installing}
-            loading={installing}>
-            {!installing && <Download className="size-3.5" />}
-            {installing ? t('settings.dependencies.installing') : t('settings.dependencies.install')}
-          </Button>
-        </div>
-      )}
-      {/* Available already (bundled or system): mise install is an optional
-          Cherry-managed/pinned copy, not a prerequisite — keep it low-key. */}
-      {(isBundled || isSystem) && (
-        <div className="mt-3 border-border border-t pt-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 gap-1 px-2 text-muted-foreground text-xs hover:text-foreground"
-            onClick={onInstall}
-            disabled={installing}
-            loading={installing}>
-            {!installing && <Download className="size-3.5" />}
-            {installing ? t('settings.dependencies.installing') : t('settings.dependencies.installViaMise')}
-          </Button>
+      {(source === 'none' || isBundled || isSystem || onOpen) && (
+        <div className="mt-3 flex items-center gap-2 border-border border-t pt-3">
+          {/* Available coding agent → guide the user to actually run it. */}
+          {onOpen && (
+            <Button variant="default" size="sm" className="h-7 flex-1 gap-1 font-medium text-xs" onClick={onOpen}>
+              <Terminal className="size-3.5" />
+              {t('settings.dependencies.openInCodeTools')}
+            </Button>
+          )}
+          {source === 'none' && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 flex-1 gap-1 font-medium text-xs"
+              onClick={onInstall}
+              disabled={installing}
+              loading={installing}>
+              {!installing && <Download className="size-3.5" />}
+              {installing ? t('settings.dependencies.installing') : t('settings.dependencies.install')}
+            </Button>
+          )}
+          {/* Available already (bundled or system): mise install is an optional
+              Cherry-managed/pinned copy, not a prerequisite — keep it low-key. */}
+          {(isBundled || isSystem) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 px-2 text-muted-foreground text-xs hover:text-foreground"
+              onClick={onInstall}
+              disabled={installing}
+              loading={installing}>
+              {!installing && <Download className="size-3.5" />}
+              {installing ? t('settings.dependencies.installing') : t('settings.dependencies.installViaMise')}
+            </Button>
+          )}
         </div>
       )}
     </div>

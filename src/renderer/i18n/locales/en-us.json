@@ -5997,6 +5997,7 @@
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "checkUpdates": "Check for updates",
+      "codingAgents": "Coding Agents",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "No custom tools yet. Add one to get started.",
@@ -6041,6 +6042,7 @@
       "invalidTool": "Invalid tool name or key",
       "notInstalled": "Not installed",
       "openBinariesDir": "Open binaries directory",
+      "openInCodeTools": "Open in Code Tools",
       "remove": "Remove tool",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
@@ -6067,6 +6069,7 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
+      "toolsGroup": "Tools",
       "update": "Update to latest version",
       "updateCheckFailed": "Failed to check for updates"
     },

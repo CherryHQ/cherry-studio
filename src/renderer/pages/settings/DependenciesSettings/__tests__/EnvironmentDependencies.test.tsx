@@ -11,6 +11,8 @@ const installSettingsRef = vi.hoisted(() => ({
   value: { githubMirror: '', githubToken: '', npmRegistry: '', pipIndexUrl: '', verifySignatures: true }
 }))
 const setInstallSettingsMock = vi.hoisted(() => vi.fn())
+const navigateMock = vi.hoisted(() => vi.fn())
+const setCliToolMock = vi.hoisted(() => vi.fn())
 
 const ipcMocks = vi.hoisted(() => ({
   getState: vi.fn(),
@@ -58,7 +60,11 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  useNavigate: () => vi.fn()
+  useNavigate: () => navigateMock
+}))
+
+vi.mock('@renderer/hooks/useCodeCli', () => ({
+  useCodeCli: () => ({ setCliTool: setCliToolMock })
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -234,6 +240,27 @@ describe('EnvironmentDependencies', () => {
     expect(within(uvCard).getByText('settings.dependencies.installViaMise')).toBeInTheDocument()
     // The already-available uv card must not show the prominent "install".
     expect(within(uvCard).queryByText('settings.dependencies.install')).not.toBeInTheDocument()
+  })
+
+  it('opens an installed coding agent in the Code Tools launcher', async () => {
+    // claude is mise-managed → the coding-agents card offers "Open in Code Tools",
+    // which pre-selects the matching launcher id and navigates to /app/code.
+    ipcMocks.getState.mockResolvedValue({ tools: { claude: { version: '1.0.0' } } })
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    fireEvent.click(await screen.findByText('settings.dependencies.openInCodeTools'))
+
+    await waitFor(() => expect(setCliToolMock).toHaveBeenCalledWith('claude-code'))
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: '/app/code' }))
+  })
+
+  it('does not offer Open for a coding agent that is not installed', async () => {
+    // Nothing installed → no agent card shows the open affordance.
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+    expect(screen.queryByText('settings.dependencies.openInCodeTools')).not.toBeInTheDocument()
   })
 
   it('renders nothing in mini mode once core deps are available', async () => {

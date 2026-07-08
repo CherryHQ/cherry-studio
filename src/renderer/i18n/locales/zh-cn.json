@@ -5997,6 +5997,7 @@
       "addTool": "添加工具",
       "addToolDescription": "使用 mise 工具键添加工具（例如 github:sharkdp/fd、uv、bun）。",
       "checkUpdates": "检查更新",
+      "codingAgents": "编程 Agent",
       "coreDepsMissing": "核心依赖未安装",
       "customTools": "自定义工具",
       "customToolsEmpty": "暂无自定义工具，点击上方添加。",
@@ -6041,6 +6042,7 @@
       "invalidTool": "工具名称或标识无效",
       "notInstalled": "未安装",
       "openBinariesDir": "打开二进制文件目录",
+      "openInCodeTools": "在 Code Tools 中打开",
       "remove": "移除工具",
       "removeConfirmMessage": "确定要移除 \"{{name}}\" 吗？二进制文件将被删除。",
       "removeConfirmTitle": "移除工具",
@@ -6067,6 +6069,7 @@
         "rtk": "CLI 代理工具，通过压缩终端输出来减少 LLM token 消耗。",
         "uv": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
       },
+      "toolsGroup": "工具",
       "update": "更新到最新版本",
       "updateCheckFailed": "检查更新失败"
     },

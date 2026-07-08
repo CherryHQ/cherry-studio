@@ -1,3 +1,4 @@
+import { CodeCli } from '../../types/codeCli'
 import type { ManagedBinary } from '../preference/preferenceTypes'
 
 // Tool identity validators, shared so the renderer can reject malformed custom
@@ -23,6 +24,10 @@ export interface BinaryToolPreset extends ManagedBinary {
   icon?: string
   repoUrl: string
   homepage?: string
+  /** Groups the tool under "Coding Agents" in the dependencies UI. */
+  isAgent?: boolean
+  /** Launcher id, when this agent can be opened in the Code Tools page. */
+  codeCli?: CodeCli
 }
 
 export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
@@ -90,41 +95,50 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     tool: 'claude',
     icon: 'simple-icons:claude',
     repoUrl: 'https://github.com/anthropics/claude-code',
-    homepage: 'https://docs.anthropic.com/en/docs/claude-code'
+    homepage: 'https://docs.anthropic.com/en/docs/claude-code',
+    isAgent: true,
+    codeCli: CodeCli.CLAUDE_CODE
   },
   {
     name: 'codex',
     displayName: 'Codex',
     tool: 'codex',
     icon: 'simple-icons:openai',
-    repoUrl: 'https://github.com/openai/codex'
+    repoUrl: 'https://github.com/openai/codex',
+    isAgent: true,
+    codeCli: CodeCli.OPENAI_CODEX
   },
   {
     name: 'pi',
     displayName: 'Pi',
     tool: 'pi',
     repoUrl: 'https://github.com/earendil-works/pi',
-    homepage: 'https://pi.dev'
+    homepage: 'https://pi.dev',
+    isAgent: true
   },
   {
     name: 'opencode',
     displayName: 'OpenCode',
     tool: 'opencode',
     repoUrl: 'https://github.com/anomalyco/opencode',
-    homepage: 'https://opencode.ai'
+    homepage: 'https://opencode.ai',
+    isAgent: true,
+    codeCli: CodeCli.OPEN_CODE
   },
   {
     name: 'hermes',
     displayName: 'Hermes Agent',
     tool: 'pipx:hermes-agent',
     repoUrl: 'https://github.com/NousResearch/hermes-agent',
-    homepage: 'https://hermes-agent.nousresearch.com'
+    homepage: 'https://hermes-agent.nousresearch.com',
+    isAgent: true
   },
   {
     name: 'openclaw',
     displayName: 'OpenClaw',
     tool: 'npm:openclaw',
     repoUrl: 'https://github.com/openclaw/openclaw',
-    homepage: 'https://docs.openclaw.ai'
+    homepage: 'https://docs.openclaw.ai',
+    isAgent: true
   }
 ]
