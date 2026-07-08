@@ -20,10 +20,10 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
-import { useToasts } from '@renderer/components/TopView/toast'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
+import { toast } from '@renderer/services/toast'
 import { fetchGenerate } from '@renderer/utils/aiGeneration'
 import { getRandomTagColor, MCP_MODE_OPTIONS } from '@renderer/utils/resourceCatalog'
 import {
@@ -403,7 +403,6 @@ function AssistantPromptField({
   portalContainer: HTMLElement | null
 }) {
   const { t } = useTranslation()
-  const toast = useToasts()
   const [generating, setGenerating] = useState(false)
   const [showUndoButton, setShowUndoButton] = useState(false)
   const [originalPrompt, setOriginalPrompt] = useState('')

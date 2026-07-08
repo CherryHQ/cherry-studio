@@ -1,5 +1,7 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as ImageCaptureTargetsHook from '@renderer/hooks/useImageCaptureTargets'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
@@ -761,13 +763,6 @@ describe('Sessions', () => {
         file: {
           openPath: vi.fn().mockResolvedValue(undefined)
         }
-      },
-      modal: {
-        confirm: vi.fn().mockResolvedValue(true)
-      },
-      toast: {
-        error: vi.fn(),
-        success: vi.fn()
       }
     })
     cacheMocks.state.activeSessionId = 'session-a'
@@ -2049,7 +2044,7 @@ describe('Sessions', () => {
     await vi.waitFor(() => expect(onStartDraftSession).toHaveBeenCalled())
     // The rejection must be surfaced and the active id cleared in `finally` so the view never
     // stays pointed at the just-deleted session.
-    await vi.waitFor(() => expect(window.toast.error).toHaveBeenCalled())
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalled())
     await vi.waitFor(() => expect(setActiveSessionId).toHaveBeenCalledWith(null, null))
   })
 
@@ -2399,7 +2394,7 @@ describe('Sessions', () => {
       '/agent-workspaces',
       '/agent-sessions'
     ])
-    expect(window.toast.success).toHaveBeenCalledWith('Saved')
+    expect(toast.success).toHaveBeenCalledWith('Saved')
   })
 
   it('deletes a workspace group through the workspace delete endpoint', async () => {
@@ -2459,7 +2454,7 @@ describe('Sessions', () => {
         params: { workspaceId: 'ws-a' }
       })
     )
-    expect(window.modal.confirm).toHaveBeenCalledWith(
+    expect(popup.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
         content: 'Deleting this work directory also deletes tasks under it. The actual folder is not deleted.'
       })
@@ -2635,7 +2630,7 @@ describe('Sessions', () => {
         query: { deleteSessions: true }
       })
     )
-    expect(window.modal.confirm).toHaveBeenCalledWith(
+    expect(popup.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
         content: 'Delete this agent and its tasks?',
         title: 'Delete Agent'
@@ -2654,7 +2649,7 @@ describe('Sessions', () => {
     expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-a')
     await vi.waitFor(() => expect(dataApiMocks.refetchAgents).toHaveBeenCalled())
     await vi.waitFor(() => expect(sessionDataMocks.reload).toHaveBeenCalled())
-    expect(window.toast.success).toHaveBeenCalledWith('Deleted successfully')
+    expect(toast.success).toHaveBeenCalledWith('Deleted successfully')
   })
 
   it('collapses agent groups from the display options menu', async () => {

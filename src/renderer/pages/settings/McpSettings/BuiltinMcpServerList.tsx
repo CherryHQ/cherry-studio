@@ -4,6 +4,7 @@ import { SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
 import { builtinMcpServers } from '@renderer/pages/settings/McpSettings/builtinMcpServers'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { Check, Plus } from 'lucide-react'
 import type { FC } from 'react'
@@ -134,9 +135,9 @@ const BuiltinMcpServerList: FC = () => {
                     onClick={async () => {
                       try {
                         await addMcpServer(toCreateMcpServerDto(server))
-                        window.toast.success(t('settings.mcp.addSuccess'))
+                        toast.success(t('settings.mcp.addSuccess'))
                       } catch {
-                        window.toast.error(t('settings.mcp.addError'))
+                        toast.error(t('settings.mcp.addError'))
                       }
                     }}>
                     <Plus size={13} />

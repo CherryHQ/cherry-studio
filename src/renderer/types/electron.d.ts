@@ -6,4 +6,5 @@ interface ObsidianAPI {
 
 interface Window {
   obsidian: ObsidianAPI
+  root: HTMLElement
 }

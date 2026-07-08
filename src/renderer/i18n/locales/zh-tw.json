@@ -1453,7 +1453,7 @@
         "pause": "暫停自動傳送",
         "remove": "移除",
         "resume": "恢復自動傳送",
-        "steer": "插入目前回合",
+        "steer": "插入訊息",
         "title": "排隊中 ({{count}})"
       },
       "generate_image": "產生圖片",
@@ -3149,6 +3149,7 @@
           "avatar_aria": "選擇頭像",
           "back": "上一步",
           "capability": {
+            "builtin_badge": "預設啟用",
             "import": "匯入技能",
             "no_skills": "未安裝技能",
             "search": "搜尋技能"

@@ -612,6 +612,7 @@ vi.mock('../../history/HistoryRecordsPage', () => ({
 
 import { useTabSelfMetadata } from '@renderer/hooks/tab'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 
 import AgentPage from '../AgentPage'
 
@@ -1338,15 +1339,13 @@ describe('AgentPage', () => {
     activeSessionMocks.sessionSource = 'query'
     agentPageMocks.classicLayoutSessions = []
     agentPageMocks.dataApiPost.mockRejectedValue(new Error('create failed'))
-    const toastError = vi.fn()
-    Object.assign(window, { toast: { error: toastError } })
 
     render(<AgentPage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Create empty session from composer' }))
 
     await waitFor(() => expect(agentPageMocks.dataApiPost).toHaveBeenCalled())
-    await waitFor(() => expect(toastError).toHaveBeenCalled())
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
     // The active session is unchanged — no new session was activated.
     expect(agentPageMocks.activeSessionOptions?.activeSessionId).not.toBe('session-composer-empty')
   })

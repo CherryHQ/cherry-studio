@@ -42,6 +42,7 @@ import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
+import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -403,7 +404,7 @@ const HomePage: FC = () => {
         logger.warn('Failed to refresh topics after draft topic create', err as Error)
       })
       if (ack.mode === 'blocked') {
-        window.toast?.error(ack.message)
+        toast.error(ack.message)
       }
     },
     [createTopic, refreshTopics, setActiveTopic, setDraftAssistantSelectionState]
@@ -586,7 +587,7 @@ const HomePage: FC = () => {
         }
       } catch (err) {
         logger.error('Failed to create assistant conversation from classic-layout picker', err as Error)
-        window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       } finally {
         isCreatingTopicRef.current = false
       }
@@ -616,7 +617,7 @@ const HomePage: FC = () => {
         }
       } catch (err) {
         logger.error('Failed to create empty topic from classic-layout composer', err as Error)
-        window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       } finally {
         isCreatingTopicRef.current = false
       }
@@ -639,7 +640,7 @@ const HomePage: FC = () => {
         })
       } catch (err) {
         logger.error('Failed to create fresh topic', err as Error)
-        window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       } finally {
         isCreatingTopicRef.current = false
       }

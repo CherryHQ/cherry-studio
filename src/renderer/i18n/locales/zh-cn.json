@@ -1453,7 +1453,7 @@
         "pause": "暂停自动发送",
         "remove": "移除",
         "resume": "恢复自动发送",
-        "steer": "插入当前回合",
+        "steer": "插入消息",
         "title": "排队中 ({{count}})"
       },
       "generate_image": "生成图片",
@@ -3149,6 +3149,7 @@
           "avatar_aria": "选择头像",
           "back": "上一步",
           "capability": {
+            "builtin_badge": "默认启用",
             "import": "导入技能",
             "no_skills": "未安装技能",
             "search": "搜索技能"
