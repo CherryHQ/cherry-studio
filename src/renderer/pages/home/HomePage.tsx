@@ -140,12 +140,11 @@ const HomePage: FC = () => {
   // Shared full-topics source for classic history selection and persisted empty-topic reuse.
   // Modern layout also creates real empty topics now, so it needs the same candidates.
   const assistantTopicsSource = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
-  const {
-    topics: allTopics,
-    isLoadingAll: isAllTopicsLoading,
-    isFullyLoaded: isAllTopicsFullyLoaded
-  } = assistantTopicsSource
-  const isTopicHistoryReady = isMessageOnlyView || (!isAllTopicsLoading && isAllTopicsFullyLoaded)
+  const { topics: allTopics, isLoading: isTopicsFirstPageLoading } = assistantTopicsSource
+  // First-entry selection only needs the most-recently-updated topic, which arrives on the first
+  // page (the server orders topics by `updatedAt DESC`). Gate on the first page landing, not on the
+  // full history finishing pagination, so a large topic history never blocks the initial paint.
+  const isTopicListFirstPageReady = isMessageOnlyView || !isTopicsFirstPageLoading
   // Detached windows are single-topic: no topic list, so no sidebar at all.
   const isWindowFrame = useWindowFrame().mode === 'window'
   const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar && !autoCollapsedResourceList
@@ -530,11 +529,14 @@ const HomePage: FC = () => {
     if (!shouldAutoCreateTopic || initialTopicStartStateRef.current.firstLaunchStarted || state?.topic) return
     if (activeTopic || isActiveTopicLoading) return
     if (!isAssistantListResolved) return
-    if (!isTopicHistoryReady) return
+    if (!isTopicListFirstPageReady) return
 
     initialTopicStartStateRef.current.firstLaunchStarted = true
 
-    if (isClassicTopicLayout && !routeAssistantId) {
+    // Both layouts resume the most-recently-updated topic on entry; only a genuinely empty library
+    // falls through to creating a blank. A deep link that pins an assistant (`routeAssistantId`)
+    // skips resume and opens a fresh topic for that assistant instead.
+    if (!routeAssistantId) {
       const latestTopic = findLatestUpdated(allTopics)
       if (latestTopic) {
         setActiveTopic(mapApiTopicToRendererTopic(latestTopic))
@@ -551,8 +553,7 @@ const HomePage: FC = () => {
     createAndActivateEmptyTopic,
     isActiveTopicLoading,
     isAssistantListResolved,
-    isClassicTopicLayout,
-    isTopicHistoryReady,
+    isTopicListFirstPageReady,
     routeAssistantId,
     setActiveTopic,
     shouldAutoCreateTopic,

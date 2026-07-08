@@ -172,13 +172,11 @@ const AgentPage = () => {
   // Shared full-list source for the session UI and the composer reuse path. Reuse must read this
   // upper-layer data instead of issuing a second ad-hoc full pagination request.
   const agentSessionsSource = useAgentSessionsSource({ enabled: !isMessageOnlyView })
-  const {
-    sessions: agentSessions,
-    isLoadingAll: isAgentSessionsLoading = false,
-    isFullyLoaded: isAgentSessionsFullyLoaded = true
-  } = agentSessionsSource
-  const isAgentSessionsReady = !isAgentSessionsLoading && isAgentSessionsFullyLoaded
-  const isClassicSessionLayoutHistoryReady = !isClassicSessionLayout || isAgentSessionsReady
+  const { sessions: agentSessions, isLoading: isAgentSessionsFirstPageLoading = false } = agentSessionsSource
+  // First-entry selection only needs the most-recently-updated session, which lands on the first
+  // page (the server orders sessions by `updatedAt DESC`). Gate on the first page arriving, not on
+  // the full history finishing pagination, so a large session history never blocks the first paint.
+  const isAgentSessionsFirstPageReady = !isAgentSessionsFirstPageLoading
   const isWindowFrame = useWindowFrame().mode === 'window'
   // Detached windows are single-conversation: no session list, so no sidebar at all.
   const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar && !autoCollapsedResourceList
@@ -732,21 +730,22 @@ const AgentPage = () => {
       return
     }
 
-    if (isClassicSessionLayout) {
-      if (!isClassicSessionLayoutHistoryReady) return
+    // Resume the most-recently-updated session as soon as the first page is in — both layouts, so
+    // switching layout never changes what you land on. Only a genuinely empty list falls through.
+    if (!isAgentSessionsFirstPageReady) return
 
-      const latestSession = findLatestUpdated(agentSessions)
-      if (latestSession) {
-        initialEmptySessionEvaluatedRef.current = true
-        setPendingLocateMessageId(undefined)
-        pendingSelectedSessionRef.current = latestSession
-        setMissingAgentSelection(false)
-        setActiveSessionId(latestSession.id)
-        return
-      }
+    const latestSession = findLatestUpdated(agentSessions)
+    if (latestSession) {
+      initialEmptySessionEvaluatedRef.current = true
+      setPendingLocateMessageId(undefined)
+      pendingSelectedSessionRef.current = latestSession
+      setMissingAgentSelection(false)
+      setActiveSessionId(latestSession.id)
+      return
     }
 
-    if (isAgentsLoading || !isAgentSessionsReady) return
+    // No sessions yet: the agent list must be resolved before deciding create-vs-missing.
+    if (isAgentsLoading) return
 
     if (!agents.length) {
       initialEmptySessionEvaluatedRef.current = true
@@ -765,10 +764,8 @@ const AgentPage = () => {
     agents,
     createDefaultEmptySession,
     isAgentsLoading,
-    isAgentSessionsReady,
+    isAgentSessionsFirstPageReady,
     isMessageOnlyView,
-    isClassicSessionLayout,
-    isClassicSessionLayoutHistoryReady,
     missingAgentSelection,
     setActiveSessionId
   ])

@@ -514,23 +514,19 @@ export function Topics({
 
       if (topic.id !== activeTopic?.id) return
 
-      // The classic-layout right panel is scoped to a single assistant, so select that assistant's
-      // neighbouring topic instead of the global next one (which could belong to another assistant).
-      const selectionList = isRightPanel
-        ? topics.filter((candidate) => matchesAssistantFilter(candidate, assistantIdFilter))
-        : topics
-      const next = pickNeighbourAfterRemoval(selectionList, topic.id)
+      // Deleting the active topic selects a neighbour within the *same assistant* (both layouts), so
+      // we never jump to an unrelated conversation. When that assistant has no other topic left, open
+      // a fresh empty one for it instead of leaving the view stranded.
+      const assistantTopics = topics.filter((candidate) => candidate.assistantId === topic.assistantId)
+      const next = pickNeighbourAfterRemoval(assistantTopics, topic.id)
       if (next) {
         setActiveTopic(next)
         return
       }
 
-      // No neighbour left: only the classic panel auto-creates a fresh topic for the scoped assistant.
-      if (isRightPanel && selectionList.length <= 1) {
-        await onNewTopic?.({ assistantId: assistantIdFilter ?? topic.assistantId ?? null })
-      }
+      await onNewTopic?.({ assistantId: topic.assistantId ?? null })
     },
-    [activeTopic?.id, assistantIdFilter, isRightPanel, onNewTopic, removeTopic, setActiveTopic, t, topics]
+    [activeTopic?.id, onNewTopic, removeTopic, setActiveTopic, t, topics]
   )
 
   const handleDeleteTopicClick = useCallback((topicId: string, event: MouseEvent) => {
@@ -550,14 +546,8 @@ export function Topics({
   const handleConfirmDeleteTopic = useCallback(
     async (topic: Topic, event?: MouseEvent) => {
       event?.stopPropagation()
-      if (topics.length <= 1) {
-        if (deleteTimerRef.current) {
-          clearTimeout(deleteTimerRef.current)
-          deleteTimerRef.current = null
-        }
-        setDeletingTopicId(null)
-        return
-      }
+      // Deleting the last remaining topic is allowed: handleDeleteTopicFromMenu opens a fresh empty
+      // one for the assistant afterwards, so we never strand the view on an empty list.
       if (deleteTimerRef.current) {
         clearTimeout(deleteTimerRef.current)
         deleteTimerRef.current = null
@@ -565,7 +555,7 @@ export function Topics({
       setDeletingTopicId(null)
       await handleDeleteTopicFromMenu(topic)
     },
-    [handleDeleteTopicFromMenu, topics.length]
+    [handleDeleteTopicFromMenu]
   )
 
   useEffect(
@@ -1551,7 +1541,7 @@ function TopicRow({
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned
   const isConfirmingDeletion = deletingTopicId === topic.id
-  const canDeleteTopic = topicsLength > 1 && !topic.pinned
+  const canDeleteTopic = !topic.pinned
   const showDetachedStreamIndicator = isRightPanel && hasTopicStreamIndicator
   const showInlineStreamIndicator = hasTopicStreamIndicator && !showDetachedStreamIndicator
   const showDeleteOrStreamAction = showInlineStreamIndicator || canDeleteTopic

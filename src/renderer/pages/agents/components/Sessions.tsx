@@ -654,28 +654,27 @@ const Sessions = ({
   )
   const handleDeleteSession = useCallback(
     async (id: string) => {
+      // Capture the deleted session before removal so selection can be scoped to its agent even
+      // after the list refetches.
+      const deletedSession =
+        filteredGroupedSessions.find((session) => session.id === id) ??
+        sessionItemsRef.current.find((session) => session.id === id)
+
       const success = await deleteSession(id)
       if (!success || activeSessionId !== id) return
 
-      // Select the neighbouring session in the visible display order. Classic layout is agent-scoped
-      // via filteredGroupedSessions; modern uses the full grouped list (filteredGroupedSessions ===
-      // groupedSessions there). This keeps agent-session deletion consistent with topic deletion
-      // instead of falling back to the raw API/orderKey head.
-      const next = pickNeighbourAfterRemoval(filteredGroupedSessions, id)
+      // Deleting the active session selects a neighbour within the *same agent* (both layouts), so we
+      // never jump to an unrelated agent's session. When that agent has no other session left, open a
+      // fresh empty one for it instead of stranding the view.
+      const agentScopedSessions = deletedSession
+        ? filteredGroupedSessions.filter((session) => session.agentId === deletedSession.agentId)
+        : filteredGroupedSessions
+      const next = pickNeighbourAfterRemoval(agentScopedSessions, id)
       if (next) {
         setActiveSessionId(next.id)
         return
       }
 
-      if (!isRightPanel) {
-        setActiveSessionId(null)
-        return
-      }
-
-      // Classic layout scoped to a single agent and now empty: create a fresh empty session for it.
-      const deletedSession =
-        filteredGroupedSessions.find((session) => session.id === id) ??
-        sessionItemsRef.current.find((session) => session.id === id)
       const seed = deletedSession
         ? buildCreateSessionSeed({
             agentId: agentIdFilter ?? deletedSession.agentId,
@@ -703,16 +702,7 @@ const Sessions = ({
         if (!createdSession) setActiveSessionId(null)
       }
     },
-    [
-      activeSessionId,
-      agentIdFilter,
-      deleteSession,
-      filteredGroupedSessions,
-      isRightPanel,
-      onCreateSession,
-      setActiveSessionId,
-      t
-    ]
+    [activeSessionId, agentIdFilter, deleteSession, filteredGroupedSessions, onCreateSession, setActiveSessionId, t]
   )
 
   const handleRenameSession = useCallback(

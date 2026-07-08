@@ -60,6 +60,9 @@ const homeMocks = vi.hoisted(() => ({
     updatedAt: string
   }>,
   currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
+  isTopicsFirstPageLoading: false,
+  isTopicsLoadingAll: false,
+  isTopicsFullyLoaded: true,
   assistants: [{ id: 'assistant-default' }] as Array<{ id: string; name?: string }>,
   assistantsError: undefined as Error | undefined,
   assistantsLoaded: true,
@@ -271,13 +274,14 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
   const React = await import('react')
 
   return {
-    // Match the real useTopics shape: isLoadingAll/isFullyLoaded are always present.
+    // Match the real useTopics shape: isLoading (first page) / isLoadingAll / isFullyLoaded present.
     useAssistantTopicsSource: (options: { enabled?: boolean } = {}) => {
       const source = React.useMemo(
         () => ({
           topics: options.enabled === false ? [] : homeMocks.classicLayoutTopics,
-          isLoadingAll: false,
-          isFullyLoaded: true,
+          isLoading: homeMocks.isTopicsFirstPageLoading,
+          isLoadingAll: homeMocks.isTopicsLoadingAll,
+          isFullyLoaded: homeMocks.isTopicsFullyLoaded,
           error: undefined
         }),
         [options.enabled]
@@ -674,6 +678,9 @@ describe('HomePage', () => {
     homeMocks.currentTab = undefined
     homeMocks.assistants = [{ id: 'assistant-default' }]
     homeMocks.classicLayoutTopics = []
+    homeMocks.isTopicsFirstPageLoading = false
+    homeMocks.isTopicsLoadingAll = false
+    homeMocks.isTopicsFullyLoaded = true
     homeMocks.assistantsError = undefined
     homeMocks.assistantsLoaded = true
     homeMocks.assistantsLoading = false
@@ -995,6 +1002,62 @@ describe('HomePage', () => {
     render(<HomePage />)
 
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-latest'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('selects the latest historical topic by default when entering modern layout without a route topic', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.classicLayoutTopics = [
+      { ...historyTopic, id: 'topic-older', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { ...historyTopic, id: 'topic-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
+    ]
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-latest'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('resumes the latest topic in modern layout as soon as the first page lands, without waiting for full history', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    // First page is in, but the full history is still paginating in the background.
+    homeMocks.isTopicsFirstPageLoading = false
+    homeMocks.isTopicsLoadingAll = true
+    homeMocks.isTopicsFullyLoaded = false
+    homeMocks.classicLayoutTopics = [
+      { ...historyTopic, id: 'topic-older', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { ...historyTopic, id: 'topic-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
+    ]
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-latest'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('creates an empty topic on modern first entry only when the topic library is empty', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.classicLayoutTopics = []
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledTimes(1))
+  })
+
+  it('does not create a topic on modern first entry while the first page is still loading', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.isTopicsFirstPageLoading = true
+    homeMocks.isTopicsLoadingAll = true
+    homeMocks.isTopicsFullyLoaded = false
+    homeMocks.classicLayoutTopics = []
+
+    render(<HomePage />)
+
+    await Promise.resolve()
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 

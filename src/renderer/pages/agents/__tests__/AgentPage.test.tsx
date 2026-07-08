@@ -87,6 +87,9 @@ const agentPageMocks = vi.hoisted(() => ({
     workspaceId?: string
     workspace?: { type?: string }
   }>,
+  sessionsFirstPageLoading: false,
+  sessionsLoadingAll: false,
+  sessionsFullyLoaded: true,
   sessionExpansionAgent: [] as string[]
 }))
 
@@ -108,9 +111,9 @@ vi.mock('@renderer/hooks/resourceViewSources', () => ({
   useAgentSessionsSource: (options?: { enabled?: boolean }) => {
     const source = {
       sessions: options?.enabled === false ? [] : agentPageMocks.classicLayoutSessions,
-      isFullyLoaded: true,
-      isLoadingAll: false,
-      isLoading: false,
+      isFullyLoaded: agentPageMocks.sessionsFullyLoaded,
+      isLoadingAll: agentPageMocks.sessionsLoadingAll,
+      isLoading: agentPageMocks.sessionsFirstPageLoading,
       hasMore: false
     }
     agentPageMocks.agentSessionsSourceOptions.push(options)
@@ -616,6 +619,9 @@ describe('AgentPage', () => {
     agentPageMocks.routeSearch = { sessionId: 'session-initial' }
     agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
     agentPageMocks.classicLayoutSessions = []
+    agentPageMocks.sessionsFirstPageLoading = false
+    agentPageMocks.sessionsLoadingAll = false
+    agentPageMocks.sessionsFullyLoaded = true
     agentPageMocks.agentResourceListSessionsSource = undefined
     agentPageMocks.agentSessionsSourceOptions = []
     agentPageMocks.agentSidePanelSessionsSource = undefined
@@ -1000,6 +1006,59 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('active-session')).toHaveTextContent('session-latest')
     expect(screen.getByTestId('missing-agent-selection')).toHaveTextContent('false')
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it('selects the latest historical session by default when entering modern layout without a route session', async () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.classicLayoutSessions = [
+      { ...agentPageMocks.persistedSession, id: 'session-older', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { ...agentPageMocks.persistedSession, id: 'session-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
+    ]
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-latest'))
+    expect(screen.getByTestId('active-session')).toHaveTextContent('session-latest')
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it('resumes the latest session in modern layout as soon as the first page lands, without waiting for full history', async () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+    agentPageMocks.routeSearch = {}
+    // First page is in, but the full history is still paginating in the background.
+    agentPageMocks.sessionsFirstPageLoading = false
+    agentPageMocks.sessionsLoadingAll = true
+    agentPageMocks.sessionsFullyLoaded = false
+    agentPageMocks.classicLayoutSessions = [
+      { ...agentPageMocks.persistedSession, id: 'session-older', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { ...agentPageMocks.persistedSession, id: 'session-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
+    ]
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-latest'))
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it('creates an empty session on modern first entry only when there are no sessions', async () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.classicLayoutSessions = []
+    agentPageMocks.dataApiPost.mockResolvedValue({
+      ...agentPageMocks.persistedSession,
+      id: 'session-new',
+      agentId: 'agent-a'
+    })
+
+    render(<AgentPage />)
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith(
+        '/agent-sessions',
+        expect.objectContaining({ body: expect.objectContaining({ agentId: 'agent-a' }) })
+      )
+    )
   })
 
   it('selects the latest remaining session after deleting the active agent in classic layout', async () => {

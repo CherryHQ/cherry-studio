@@ -1954,6 +1954,102 @@ describe('Sessions', () => {
     expect(setActiveSessionId).not.toHaveBeenCalledWith('session-a', expect.anything())
   })
 
+  it('selects the same-agent neighbour, not a cross-agent one, after deleting the active session in the modern sidebar', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a1-first', name: 'A1 First session', agentId: 'agent-a', orderKey: 'a' }),
+        createSession({ id: 'session-a1-second', name: 'A1 Second session', agentId: 'agent-a', orderKey: 'b' }),
+        createSession({ id: 'session-a2-first', name: 'A2 First session', agentId: 'agent-b', orderKey: 'c' })
+      ]
+    })
+    const setActiveSessionId = vi.fn()
+
+    // Modern sidebar (default presentation): deleting the active session must stay inside its agent.
+    render(<SessionsForTest activeSessionId="session-a1-second" setActiveSessionId={setActiveSessionId} />)
+
+    const sessionRow = screen.getByText('A1 Second session').closest('[role="option"]')
+    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a1-second'))
+    await vi.waitFor(() =>
+      expect(setActiveSessionId).toHaveBeenCalledWith(
+        'session-a1-first',
+        expect.objectContaining({ id: 'session-a1-first' })
+      )
+    )
+    expect(setActiveSessionId).not.toHaveBeenCalledWith('session-a2-first', expect.anything())
+  })
+
+  it('creates an agent-scoped session, not a cross-agent jump, after deleting an agent last session in the modern sidebar', async () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    agentDataMocks.useAgents.mockReturnValue({
+      agents: [
+        { id: 'agent-a', model: 'model-a', name: 'Alpha agent', configuration: { avatar: 'A' } },
+        { id: 'agent-b', model: 'model-b', name: 'Beta agent', configuration: { avatar: 'B' } }
+      ],
+      isLoading: false,
+      error: undefined
+    })
+    setupSessions({
+      sessions: [
+        createSession({
+          id: 'session-a-only',
+          name: 'A Only session',
+          agentId: 'agent-a',
+          orderKey: 'a',
+          updatedAt: '2026-01-03T01:00:00.000Z'
+        }),
+        createSession({
+          id: 'session-b-first',
+          name: 'B First session',
+          agentId: 'agent-b',
+          orderKey: 'b',
+          updatedAt: '2026-01-02T01:00:00.000Z'
+        })
+      ]
+    })
+    const onCreateSession = vi.fn()
+    const setActiveSessionId = vi.fn()
+
+    render(
+      <SessionsForTest
+        activeSessionId="session-a-only"
+        onCreateSession={onCreateSession}
+        setActiveSessionId={setActiveSessionId}
+      />
+    )
+
+    const sessionRow = screen.getByText('A Only session').closest('[role="option"]')
+    const deleteButton = within(sessionRow as HTMLElement).getByLabelText('Delete')
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+    act(() => {
+      fireEvent.click(deleteButton)
+    })
+
+    await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a-only'))
+    await vi.waitFor(() =>
+      expect(onCreateSession).toHaveBeenCalledWith(expect.objectContaining({ agentId: 'agent-a' }))
+    )
+    expect(setActiveSessionId).not.toHaveBeenCalledWith('session-b-first', expect.anything())
+  })
+
   it('creates an agent-scoped session after deleting the active agent last session in the right panel', async () => {
     agentDataMocks.useAgents.mockReturnValue({
       agents: [
