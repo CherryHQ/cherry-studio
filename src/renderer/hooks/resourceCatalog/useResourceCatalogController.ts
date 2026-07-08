@@ -1,4 +1,5 @@
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
+import { toast } from '@renderer/services/toast'
 import type { AgentDetail, ResourceItem, ResourceType, TagItem } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
 import { DEFAULT_TAG_COLOR, getRandomTagColor } from '@renderer/utils/resourceTags'
@@ -76,6 +77,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
   const [assistantImportOpen, setAssistantImportOpen] = useState(false)
   const [assistantLibraryOpen, setAssistantLibraryOpen] = useState(false)
   const [skillImportOpen, setSkillImportOpen] = useState(false)
+  const [skillMarketplaceOpen, setSkillMarketplaceOpen] = useState(false)
 
   const isAssistantLibrary = resourceType === 'assistant'
 
@@ -144,7 +146,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
           await duplicateAssistant(resource.raw)
           refetch()
         } catch (error) {
-          window.toast.error(error instanceof Error ? error.message : t('library.duplicate_assistant_failed'))
+          toast.error(error instanceof Error ? error.message : t('library.duplicate_assistant_failed'))
         }
       }
     },
@@ -163,7 +165,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
           filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
         })
       } catch (error) {
-        window.toast.error(error instanceof Error ? error.message : t('library.export_assistant_failed'))
+        toast.error(error instanceof Error ? error.message : t('library.export_assistant_failed'))
       }
     },
     [t]
@@ -258,6 +260,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       onCreate: handleCreate,
       onImportAssistant: () => setAssistantImportOpen(true),
       onOpenAssistantLibrary: isAssistantLibrary ? () => setAssistantLibraryOpen(true) : undefined,
+      onOpenSkillMarketplace: () => setSkillMarketplaceOpen(true),
       tags: scopedTags,
       activeTag,
       onTagFilter: setActiveTag,
@@ -278,11 +281,13 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
       editDialogOpen,
       selectedSkill,
       skillImportOpen,
+      skillMarketplaceOpen,
       setAssistantImportOpen,
       setAssistantLibraryOpen,
       setDeleteConfirm,
       setSelectedSkill,
       setSkillImportOpen,
+      setSkillMarketplaceOpen,
       handleCreateDialogOpenChange,
       handleEditDialogOpenChange,
       handleEditSaved,

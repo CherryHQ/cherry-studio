@@ -1,4 +1,5 @@
 import ApiHost from '@renderer/pages/settings/ProviderSettings/ConnectionSettings/ApiHost'
+import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -98,10 +99,6 @@ describe('ApiHost', () => {
       configurable: true,
       value: { writeText: vi.fn().mockResolvedValue(undefined) }
     })
-    window.toast = {
-      success: vi.fn(),
-      error: vi.fn()
-    } as unknown as typeof window.toast
     useProviderMock.mockReturnValue({ provider })
     useProviderMutationsMock.mockReturnValue({ updateProvider: updateProviderMock })
     useProviderEndpointsMock.mockReturnValue(endpointState)
@@ -135,7 +132,7 @@ describe('ApiHost', () => {
 
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://api.example.com')
-      expect(window.toast.success).toHaveBeenCalled()
+      expect(toast.success).toHaveBeenCalled()
     })
   })
 

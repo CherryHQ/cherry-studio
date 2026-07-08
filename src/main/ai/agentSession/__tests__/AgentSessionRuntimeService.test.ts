@@ -13,7 +13,18 @@ const mocks = vi.hoisted(() => ({
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
   cacheSetShared: vi.fn(),
-  cacheDeleteShared: vi.fn()
+  cacheDeleteShared: vi.fn(),
+  getSessionById: vi.fn(),
+  getAgent: vi.fn(),
+  ensureTraceId: vi.fn()
+}))
+
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { getById: mocks.getSessionById, ensureTraceId: mocks.ensureTraceId }
+}))
+
+vi.mock('@data/services/AgentService', () => ({
+  agentService: { getAgent: mocks.getAgent, onAgentUpdated: () => () => {} }
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -121,6 +132,7 @@ describe('AgentSessionRuntimeService', () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
     mocks.findPendingAssistantMessageIds.mockReturnValue([])
     mocks.markMessagesError.mockReturnValue(undefined)
+    mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
         return {
@@ -224,6 +236,32 @@ describe('AgentSessionRuntimeService', () => {
       lastTerminalStatus: undefined,
       activeToolCount: 0
     })
+  })
+
+  it('aborts the current turn controller before the stream starts', () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn(baseTurnInput)
+
+    expect(service.abortPendingTurn('session-1', 'user-requested')).toBe(true)
+    expect(handle.abortController.signal.aborted).toBe(true)
+    expect(handle.abortController.signal.reason).toBe('user-requested')
+  })
+
+  it('does not reuse an aborted controller for a later turn', () => {
+    const service = new AgentSessionRuntimeService()
+    const first = service.beginTurn(baseTurnInput)
+
+    expect(service.abortPendingTurn('session-1', 'user-requested')).toBe(true)
+    void terminalListener(first).onPaused({ status: 'paused', isTopicDone: true })
+
+    const second = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2')
+    })
+
+    expect(first.abortController.signal.aborted).toBe(true)
+    expect(second.abortController.signal.aborted).toBe(false)
   })
 
   it('marks the runtime idle when the terminal listener observes done', () => {
@@ -604,6 +642,30 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('persists empty paused terminals to the active assistant placeholder', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    getEntry(service).lastResumeToken = 'resume-1'
+
+    await persistenceListener(handle).onPaused({
+      status: 'paused',
+      isTopicDone: true,
+      finalMessage: undefined
+    })
+
+    expect(mocks.saveMessage).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      runtimeResumeToken: 'resume-1',
+      message: {
+        id: 'assistant-1',
+        role: 'assistant',
+        status: 'paused',
+        data: { parts: [] },
+        modelId: 'claude-code::claude-sonnet-4-5'
+      }
+    })
+  })
+
   it('routes runtime events from the selected driver into the active turn', async () => {
     const events = createAsyncQueue<any>()
     const connection = {
@@ -695,6 +757,117 @@ describe('AgentSessionRuntimeService', () => {
     events.push({ type: 'turn-complete' })
     await expect(reader.read()).resolves.toMatchObject({ done: true })
     await vi.waitFor(() => expect(connection.getContextUsage).toHaveBeenCalledTimes(2))
+  })
+
+  describe('primeConnection — eager command load on session open', () => {
+    it('opens the connection without a turn and caches the slash-command catalog', async () => {
+      const commands = [{ name: 'clear', description: 'Clear conversation' }]
+      const connection = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        getSupportedCommands: vi.fn().mockResolvedValue(commands)
+      }
+      const connect = vi.fn().mockResolvedValue(connection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+
+      expect(connect).toHaveBeenCalledTimes(1)
+      // The primed connection carries the session's trace context (resolved via ensureTraceId) so its
+      // subprocess spans join the session trace tree — not a trace-less connection reused by turn 1.
+      expect(connect).toHaveBeenCalledWith(
+        expect.objectContaining({ trace: expect.objectContaining({ traceId: 'b'.repeat(32) }) })
+      )
+      await vi.waitFor(() =>
+        expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', commands)
+      )
+      // No turn was admitted — the entry sits idle and the stream manager was never asked to start one.
+      expect(service.inspect('session-1')?.status).toBe('idle')
+      expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    })
+
+    it('is a no-op for a session whose agent was deleted', async () => {
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: null })
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+      expect(service.inspect('session-1')).toBeUndefined()
+    })
+
+    it('re-priming a live session republishes the catalog without rebuilding the connection', async () => {
+      const commands = [{ name: 'clear', description: 'Clear conversation' }]
+      const connection = {
+        events: createAsyncQueue<any>().iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        getSupportedCommands: vi.fn().mockResolvedValue(commands)
+      }
+      const connect = vi.fn().mockResolvedValue(connection)
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
+
+      const service = new AgentSessionRuntimeService()
+      await service.primeConnection('session-1')
+      await vi.waitFor(() =>
+        expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', commands)
+      )
+
+      mocks.cacheSetShared.mockClear()
+      connection.getSupportedCommands.mockClear()
+
+      // Second prime hits the existing-entry branch — it must re-read and republish (so a window
+      // mounting late still gets the catalog), not early-return on the live connection.
+      await service.primeConnection('session-1')
+      await vi.waitFor(() => {
+        expect(connection.getSupportedCommands).toHaveBeenCalled()
+        expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', commands)
+      })
+      // The existing connection is reused — no second connect.
+      expect(connect).toHaveBeenCalledTimes(1)
+    })
+
+    it('replaces the cached catalog when the runtime pushes a commands_changed event', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const updated = [
+        { name: 'clear', description: 'Clear conversation' },
+        { name: 'deploy', description: 'Custom project command discovered mid-session' }
+      ]
+
+      ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'supported-commands', commands: updated })
+
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', updated)
+    })
+
+    it('releaseIdleConnection closes an idle session but leaves a busy one running', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+
+      // Mid-turn: a backgrounded stream must keep running, so release is a no-op.
+      service.releaseIdleConnection('session-1')
+      expect(service.inspect('session-1')).toBeDefined()
+
+      // Turn settled → idle: leaving the view tears the connection down now, not at the idle TTL.
+      service.markTurnTerminal('session-1', 'success')
+      service.releaseIdleConnection('session-1')
+      expect(service.inspect('session-1')).toBeUndefined()
+    })
   })
 
   it('publishes compaction state through shared cache and treats compaction as busy', () => {
@@ -1504,6 +1677,7 @@ describe('AgentSessionRuntimeService', () => {
         ],
         runtime: { kind: 'agent-session', sessionId: 'session-1', turnId: expect.any(String) }
       },
+      abortController: expect.any(AbortController),
       listeners: [
         expect.objectContaining({ id: expect.stringContaining('persistence:agents-db:') }),
         expect.objectContaining({ id: 'agent-runtime:session-1' }),

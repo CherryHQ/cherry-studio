@@ -1,11 +1,11 @@
 import { Button, ReorderableList, Tooltip } from '@cherrystudio/ui'
-import { ComposerToken } from '@renderer/components/composer/tokenView/ComposerToken'
 import {
   CHAT_INPUT_TOKEN_KINDS,
   type ChatInputTokenKind,
   type ChatTokenView
-} from '@renderer/components/composer/tokenView/tokenView'
-import { GripVertical, Pause, Pencil, Play, X, Zap } from 'lucide-react'
+} from '@renderer/components/composer/chatTokenView'
+import { ComposerToken } from '@renderer/components/composer/tokenView'
+import { ArrowUp, GripVertical, Pause, Pencil, Play, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { FollowupQueueItem } from './useFollowupQueue'
@@ -82,7 +82,7 @@ function QueuedFollowupRow({
             className="size-7 shadow-none"
             aria-label={t('chat.input.followup_queue.steer')}
             onClick={() => onSteer(item.id)}>
-            <Zap className="size-4" />
+            <ArrowUp className="size-4" />
           </Button>
         </Tooltip>
         <Tooltip placement="top" content={t('chat.input.followup_queue.edit')}>

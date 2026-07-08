@@ -6,6 +6,7 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
+import { openSettingsTab } from '@renderer/services/settingsNavigation'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
@@ -169,8 +170,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     [activeTab, updateTab, openTab, defaultPaintingProvider]
   )
   const handleOpenSettingsTab = useCallback(() => {
-    openTab('/settings/provider', { title: t('settings.title') })
-  }, [openTab, t])
+    openSettingsTab('/settings/provider')
+  }, [])
 
   const handleOpenMiniAppTab = useCallback(
     (appId: string) => {

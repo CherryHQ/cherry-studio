@@ -1,4 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { toast } from '@renderer/services/toast'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
   getOrderedVisibleSidebarFavoriteItems,
@@ -37,7 +38,7 @@ export function useSidebarFavorites() {
   const persist = useCallback(
     (next: SidebarFavoriteItem[]) => {
       void setFavorites(next).catch(() => {
-        window.toast?.error(t('common.error'))
+        toast.error(t('common.error'))
       })
     },
     [setFavorites, t]

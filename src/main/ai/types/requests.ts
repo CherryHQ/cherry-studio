@@ -42,6 +42,12 @@ export interface AiBaseRequest {
   /** "providerId::modelId" */
   uniqueModelId?: UniqueModelId
   mcpToolIds?: string[]
+  /**
+   * Knowledge bases selected for this turn. Scope is resolved by `resolveKnowledgeBaseIds`: the
+   * assistant's own bound bases take precedence when non-empty (these ids are then ignored); only
+   * when the assistant has none does this selection define the scope.
+   */
+  knowledgeBaseIds?: string[]
   requestOptions?: AiTransportOptions
   /** Per-request overrides (in-process only; assistant-less callers like the API gateway). */
   callOverrides?: CallOverrides

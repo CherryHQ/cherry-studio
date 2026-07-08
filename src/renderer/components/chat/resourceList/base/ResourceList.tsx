@@ -1,7 +1,7 @@
 import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
 import { CommandHint } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
-import type { CommandId } from '@shared/utils/command/definitions'
+import type { CommandId } from '@shared/utils/command'
 import { SearchIcon, SquareMinus } from 'lucide-react'
 import type { ComponentProps, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
@@ -119,7 +119,7 @@ type HeaderProps = ComponentProps<'div'> & {
 
 function Header({ actions, children, className, count, icon, ref, title, ...props }: HeaderProps) {
   return (
-    <div ref={ref} className={cn('flex shrink-0 flex-col gap-2.5 pb-1', className)} {...props}>
+    <div ref={ref} className={cn('flex shrink-0 flex-col gap-2.5', className)} {...props}>
       {(title || actions) && (
         <div className="flex h-5 items-center gap-1.5">
           {icon && (

@@ -9,10 +9,7 @@ import { type InsertUserModelRow, userModelTable } from '@data/db/schemas/userMo
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
-import {
-  needsProcessedArtifactReservation,
-  reserveImportedFileRelativePath
-} from '@main/features/knowledge/utils/storage/pathStorage'
+import { needsProcessedArtifactReservation, reserveImportedFileRelativePath } from '@main/features/knowledge'
 import { copy, ensureDir } from '@main/utils/file'
 import { sanitizeFilename } from '@main/utils/legacyFile'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
@@ -335,13 +332,15 @@ export class KnowledgeMigrator extends BaseMigrator {
 
   /**
    * Read the legacy vector DB's `uniqueLoaderId → source` map (via the shared
-   * {@link KnowledgeVectorSourceReader}, so directory expansion and vector migration consume
-   * the exact same load + path resolution) so a `directory` item can be expanded into per-file
-   * children (each file's loader id resolves to its source path). The discriminated `kind`
-   * distinguishes a (recoverable) read failure from a successful read — a thrown read is
-   * `read_error` (so the caller can warn precisely); a missing DB / directory / non-embedjs /
-   * zero rows is a `loaded` read with an empty `sources` map. Both keep the directory tombstone.
-   * Best-effort: failures are caught, never thrown.
+   * {@link KnowledgeVectorSourceReader}'s column-projected `loadBaseLoaderSources`, so directory
+   * expansion and vector migration share the exact same path resolution + loader set without
+   * this map-building pass having to read and float32-decode the whole base's vectors — that
+   * synchronous decode froze the migration UI and risked OOM on large folders) so a `directory`
+   * item can be expanded into per-file children (each file's loader id resolves to its source
+   * path). The discriminated `kind` distinguishes a (recoverable) read failure from a successful
+   * read — a thrown read is `read_error` (so the caller can warn precisely); a missing DB /
+   * directory / non-embedjs / zero rows is a `loaded` read with an empty `sources` map. Both keep
+   * the directory tombstone. Best-effort: failures are caught, never thrown.
    */
   private async loadLoaderSourceMap(
     baseId: string,
@@ -349,7 +348,7 @@ export class KnowledgeMigrator extends BaseMigrator {
   ): Promise<LoaderSourceMapResult> {
     const sources = new Map<string, string>()
     try {
-      const result = await vectorSource.loadBase(baseId)
+      const result = await vectorSource.loadBaseLoaderSources(baseId)
       if (result.status !== 'ok') {
         return { kind: 'loaded', sources }
       }

@@ -118,7 +118,6 @@ function createBase(id = 'kb-1'): KnowledgeBase {
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
     chunkStrategy: 'structured',
     chunkSeparator: '\\n\\n',
-    searchMode: 'hybrid',
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
@@ -153,7 +152,13 @@ describe('KnowledgeVectorStoreService', () => {
     hasAnyMaterialMock.mockReturnValue(true)
     getItemsByBaseIdMock.mockReturnValue([])
     deleteDirMock.mockResolvedValue(undefined)
-    indexStoreCtorMock.mockImplementation(() => ({ close: vi.fn().mockResolvedValue(undefined) }))
+    indexStoreCtorMock.mockImplementation(() => ({
+      close: vi.fn().mockResolvedValue(undefined),
+      // The real store's hasAnyMaterial() delegates to the free indexMeta probe; mirror that here so
+      // the invisible-contents diagnostic (now run via the factory's afterOpen hook, on the store
+      // rather than the raw driver) reads through the same hasAnyMaterialMock.
+      hasAnyMaterial: hasAnyMaterialMock
+    }))
   })
 
   it('opens an index store on first request and caches it per base', async () => {
@@ -501,7 +506,10 @@ describe('KnowledgeVectorStoreService', () => {
     // lookup's NOT_FOUND is what makes that loud instead of caching an empty store).
     await expect(service.getIndexStore(base)).rejects.toThrow('app database unavailable')
 
+    // The factory builds the store, then runs the diagnostic through its afterOpen hook — so the
+    // store IS constructed before the probe throws. The throw is caught inside the factory's
+    // close-on-throw region, which closes the driver so the index.sqlite handle is not leaked.
+    expect(indexStoreCtorMock).toHaveBeenCalledTimes(1)
     expect(openedDriver?.close).toHaveBeenCalledTimes(1)
-    expect(indexStoreCtorMock).not.toHaveBeenCalled()
   })
 })

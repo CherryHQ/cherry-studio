@@ -2,8 +2,9 @@ import { Button, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
-import db from '@renderer/databases'
+import db from '@renderer/databases/db'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { Check, Plus, SquareArrowOutUpRight } from 'lucide-react'
@@ -87,7 +88,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
 
   const handleFetch = useCallback(async () => {
     if (!token.trim()) {
-      window.toast.error(t('settings.mcp.sync.tokenRequired', 'API Token is required'))
+      toast.error(t('settings.mcp.sync.tokenRequired', 'API Token is required'))
       return
     }
 
@@ -105,13 +106,13 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
         const dbKey = `mcp:provider:${provider.key}:servers`
         await db.settings.put({ id: dbKey, value: servers })
 
-        window.toast.success(t('settings.mcp.fetch.success', 'Successfully fetched MCP servers'))
+        toast.success(t('settings.mcp.fetch.success', 'Successfully fetched MCP servers'))
       } else {
-        window.toast.error(result.message)
+        toast.error(result.message)
       }
     } catch (error: any) {
       logger.error('Failed to fetch MCP servers', error)
-      window.toast.error(`${t('settings.mcp.sync.error')}: ${error.message}`)
+      toast.error(`${t('settings.mcp.sync.error')}: ${error.message}`)
     } finally {
       setIsFetching(false)
     }
@@ -137,13 +138,13 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                 </Button>
               )}
             </div>
-            <ProviderDescription>{t(provider.descriptionKey)}</ProviderDescription>
           </div>
         </div>
         <Button
           onClick={handleFetch}
           disabled={isFetching || isFetchDisabled}
-          className="h-8 shrink-0 rounded-lg px-3 text-xs shadow-none">
+          size="sm"
+          className="h-7 shrink-0 rounded-lg px-2 text-xs shadow-none">
           {t('settings.mcp.fetch.button', 'Fetch Servers')}
         </Button>
       </ProviderHeader>
@@ -210,9 +211,9 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                         if (!isAlreadyAdded) {
                           try {
                             await addMcpServer(toCreateMcpServerDto(server))
-                            window.toast.success(t('settings.mcp.addSuccess'))
+                            toast.success(t('settings.mcp.addSuccess'))
                           } catch {
-                            window.toast.error(t('settings.mcp.addError'))
+                            toast.error(t('settings.mcp.addError'))
                           }
                         }
                       }}>
@@ -234,15 +235,14 @@ const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef
 )
 
 const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-center justify-between gap-3 border-border/70 border-b pb-2', className)} {...props} />
+  <div
+    className={cn('flex items-center justify-between gap-3 border-border/70 border-b pb-1.5', className)}
+    {...props}
+  />
 )
 
 const ProviderName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('min-w-0 truncate font-semibold text-base leading-6', className)} {...props} />
-)
-
-const ProviderDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-0.5 text-muted-foreground text-xs leading-5', className)} {...props} />
+  <span className={cn('min-w-0 truncate font-semibold text-[15px] leading-5', className)} {...props} />
 )
 
 const SettingsPanel = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

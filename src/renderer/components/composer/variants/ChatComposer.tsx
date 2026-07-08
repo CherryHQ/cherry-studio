@@ -13,6 +13,7 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
@@ -29,6 +30,7 @@ import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvide
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildFilePartsForAttachments } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
@@ -129,6 +131,7 @@ interface ChatComposerContextControlsProps {
   side: 'top' | 'bottom'
   iconOnly?: boolean
   showAssistantTrigger?: boolean
+  onDialogCloseAutoFocus?: () => void
   onAssistantChange: (assistantId: string | null) => void | Promise<void>
   onModelSelect: (model: Model | undefined) => void
   onMentionedModelsSelect: (models: Model[]) => void
@@ -154,6 +157,7 @@ const ChatComposerContextControls = ({
   side,
   iconOnly = false,
   showAssistantTrigger = true,
+  onDialogCloseAutoFocus,
   onAssistantChange,
   onModelSelect,
   onMentionedModelsSelect,
@@ -213,6 +217,7 @@ const ChatComposerContextControls = ({
           side={side}
           align="start"
           mountStrategy="lazy-keep"
+          onDialogCloseAutoFocus={onDialogCloseAutoFocus}
           trigger={assistantTrigger}
         />
       ) : null}
@@ -283,8 +288,22 @@ const ChatComposerContextControls = ({
 type ChatComposerControlProps = Omit<ChatComposerContextControlsProps, 'side'>
 
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
+type ComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
 type ChatComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
 type ChatComposerControlsRenderer = (props: ChatComposerControlProps) => ChatComposerControlSlots
+
+const restoreComposerInputFocus = (inputAdapter: ComposerInputAdapter) => {
+  window.requestAnimationFrame(() => inputAdapter?.focus())
+}
+
+const ChatComposerContextControlsWithAutoFocus = ({
+  inputAdapter,
+  ...props
+}: ChatComposerControlProps & { side: 'top' | 'bottom'; iconOnly?: boolean; inputAdapter: ComposerInputAdapter }) => {
+  const onDialogCloseAutoFocus = useCallback(() => restoreComposerInputFocus(inputAdapter), [inputAdapter])
+
+  return <ChatComposerContextControls {...props} onDialogCloseAutoFocus={onDialogCloseAutoFocus} />
+}
 
 const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
   renderLeftControls: (inputAdapter, unifiedPanelControl) => (
@@ -293,7 +312,12 @@ const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
       unifiedPanelControl={unifiedPanelControl}
       toolMenuPlacement="beforeContext"
       renderContextControls={({ side, iconOnly }) => (
-        <ChatComposerContextControls {...props} side={side} iconOnly={iconOnly} />
+        <ChatComposerContextControlsWithAutoFocus
+          {...props}
+          side={side}
+          iconOnly={iconOnly}
+          inputAdapter={inputAdapter}
+        />
       )}
     />
   )
@@ -305,11 +329,17 @@ const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
       <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
     </div>
   ),
-  renderBelowControls: () => (
+  renderBelowControls: (inputAdapter) => (
     <ComposerBelowControls
       renderContextControls={({ side, iconOnly }) => (
         // Draft/home always picks the assistant via the switcher, regardless of view mode.
-        <ChatComposerContextControls {...props} side={side} useMentionedModelSelector iconOnly={iconOnly} />
+        <ChatComposerContextControlsWithAutoFocus
+          {...props}
+          side={side}
+          useMentionedModelSelector
+          iconOnly={iconOnly}
+          inputAdapter={inputAdapter}
+        />
       )}
     />
   )
@@ -439,8 +469,9 @@ const ChatComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
-  // Classic layout has a left assistant rail, so the toolbar trigger edits the assistant instead of switching.
-  const [topicLayout] = usePreference('topic.layout')
+  // Assistant grouping uses the classic two-pane conversation layout.
+  const [topicDisplayMode] = usePreference('topic.tab.display_mode')
+  const isClassicTopicLayout = topicDisplayMode === 'assistant'
   const [searching, setSearching] = useCache('chat.web_search.searching')
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const { t } = useTranslation()
@@ -667,7 +698,7 @@ const ChatComposerInner = ({
   }, [onCreateEmptyTopic, selectedAssistantId])
 
   const handleNewTopicShortcut = useCallback(() => {
-    if (topicLayout === 'classic' && onCreateEmptyTopic) {
+    if (isClassicTopicLayout && onCreateEmptyTopic) {
       if (isAssistantLoading || hasMissingPersistedAssistant) return
       handleCreateEmptyTopic()
       return
@@ -676,7 +707,7 @@ const ChatComposerInner = ({
     addNewTopic()
   }, [
     addNewTopic,
-    topicLayout,
+    isClassicTopicLayout,
     handleCreateEmptyTopic,
     hasMissingPersistedAssistant,
     isAssistantLoading,
@@ -686,7 +717,7 @@ const ChatComposerInner = ({
   const rootPanelLeadingItems = useMemo<QuickPanelListItem[]>(() => {
     const label = t('chat.conversation.new')
 
-    if (topicLayout === 'classic') {
+    if (isClassicTopicLayout) {
       if (!onCreateEmptyTopic) return []
 
       const disabled = isAssistantLoading || hasMissingPersistedAssistant
@@ -697,6 +728,7 @@ const ChatComposerInner = ({
           icon: <MessageSquarePlus size={16} />,
           disabled,
           filterText: label,
+          searchAliases: getQuickPanelSearchAliases(t, 'chat.conversation.new', ['new chat']),
           action: () => {
             handleCreateEmptyTopic()
           }
@@ -712,6 +744,7 @@ const ChatComposerInner = ({
         label,
         icon: <MessageSquarePlus size={16} />,
         filterText: label,
+        searchAliases: getQuickPanelSearchAliases(t, 'chat.conversation.new', ['new chat']),
         action: () => {
           addNewTopic()
         }
@@ -725,7 +758,7 @@ const ChatComposerInner = ({
     onCreateEmptyTopic,
     onNewTopic,
     t,
-    topicLayout
+    isClassicTopicLayout
   ])
 
   const handleSurfaceActionsChange = useCallback(
@@ -818,7 +851,7 @@ const ChatComposerInner = ({
     isFulfilled,
     markSeen,
     onDrain: sendQueuedPayload,
-    onDrainFailed: () => window.toast?.error(t('chat.input.send_failed'))
+    onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
 
   // Edit a queued item = restore the whole draft (text + tokens + files + knowledge bases) into the
@@ -876,7 +909,7 @@ const ChatComposerInner = ({
 
       if (editingMessageForCurrentTopic) {
         if (!chatWrite?.forkAndResend) {
-          window.toast?.error(t('message.error.operation_unavailable'))
+          toast.error(t('message.error.operation_unavailable'))
           return
         }
 
@@ -889,23 +922,23 @@ const ChatComposerInner = ({
           stopEditing()
         } catch (error) {
           logger.warn('edited message fork and resend failed', { error })
-          window.toast?.error(t('message.error.operation_unavailable'))
+          toast.error(t('message.error.operation_unavailable'))
         }
         return
       }
 
       if (missingAssistantMessage) {
-        window.toast?.error(selectAssistantMessage)
+        toast.error(selectAssistantMessage)
         return
       }
 
       if (!runtimeModel && !selectedModelForMissingAssistantDefault) {
-        window.toast?.error(t('code.model_required'))
+        toast.error(t('code.model_required'))
         return
       }
 
       if (missingSelectedModelMessage) {
-        window.toast?.error(missingSelectedModelMessage)
+        toast.error(missingSelectedModelMessage)
         return
       }
 
@@ -943,7 +976,7 @@ const ChatComposerInner = ({
         setText(previousText)
         setFiles(previousFiles)
         setSelectedKnowledgeBases(previousKnowledgeBases)
-        window.toast?.error(t('chat.input.send_failed'))
+        toast.error(t('chat.input.send_failed'))
       }
     },
     [
@@ -994,7 +1027,7 @@ const ChatComposerInner = ({
     useMentionedModelSelector,
     shouldAutoSelectCreatedAssistant: Boolean(onDraftAssistantChange),
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
-    showAssistantTrigger: topicLayout !== 'classic',
+    showAssistantTrigger: !isClassicTopicLayout || !selectedAssistantId,
     onAssistantChange: handleAssistantChange,
     onModelSelect: handleModelSelect,
     onMentionedModelsSelect: handleMentionedModelsSelect,
@@ -1060,7 +1093,7 @@ const ChatComposerInner = ({
                 // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
                 const sent = await sendQueuedPayload(item.payload)
                 if (sent) removeFollowup(id)
-                else window.toast?.error(t('chat.input.send_failed'))
+                else toast.error(t('chat.input.send_failed'))
               }}
               onEdit={(id) => {
                 const item = queuedFollowups.find((entry) => entry.id === id)

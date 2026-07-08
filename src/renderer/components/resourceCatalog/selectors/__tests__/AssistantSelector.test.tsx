@@ -131,6 +131,7 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '@renderer/components/SelectorShell'
+import { toast } from '@renderer/services/toast'
 
 import { AssistantSelector } from '../AssistantSelector'
 
@@ -221,8 +222,6 @@ const ASSISTANTS_RESPONSE = {
   page: 1
 } as const
 
-const toastErrorMock = vi.fn()
-
 beforeAll(() => {
   globalThis.ResizeObserver = class {
     observe() {}
@@ -239,7 +238,6 @@ beforeAll(() => {
     HTMLElement.prototype.setPointerCapture = () => {}
   }
   HTMLElement.prototype.scrollIntoView = () => {}
-  window.toast = { error: toastErrorMock } as unknown as typeof window.toast
 })
 
 beforeEach(() => {
@@ -367,6 +365,24 @@ describe('AssistantSelector', () => {
     expect(screen.getByPlaceholderText('Describe this resource')).toBeInTheDocument()
   })
 
+  it('calls the dialog-close autofocus callback when the create dialog closes', async () => {
+    const onDialogCloseAutoFocus = vi.fn()
+    render(
+      <AssistantSelector
+        trigger={<button type="button">Open</button>}
+        multi={false}
+        value={null}
+        onChange={vi.fn()}
+        onDialogCloseAutoFocus={onDialogCloseAutoFocus}
+      />
+    )
+    await openCreateDialog()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
+  })
+
   it('creates an assistant, refreshes, reopens the selector, and does not auto-select by default', async () => {
     const onChange = vi.fn()
     render(
@@ -439,6 +455,48 @@ describe('AssistantSelector', () => {
     expect(screen.queryByPlaceholderText('Search assistants')).not.toBeInTheDocument()
   })
 
+  it('calls the dialog-close autofocus callback when the edit dialog closes', async () => {
+    const onDialogCloseAutoFocus = vi.fn()
+    render(
+      <AssistantSelector
+        trigger={<button type="button">Open</button>}
+        multi={false}
+        value={null}
+        onChange={vi.fn()}
+        onDialogCloseAutoFocus={onDialogCloseAutoFocus}
+      />
+    )
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit assistant' })[0])
+    expect(await screen.findByRole('heading', { name: 'Edit Assistant' }, { timeout: 5000 })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
+  })
+  it('calls the dialog-close autofocus callback once when saving the edit dialog', async () => {
+    const onDialogCloseAutoFocus = vi.fn()
+    render(
+      <AssistantSelector
+        trigger={<button type="button">Open</button>}
+        multi={false}
+        value={null}
+        onChange={vi.fn()}
+        onDialogCloseAutoFocus={onDialogCloseAutoFocus}
+      />
+    )
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit assistant' })[0])
+    expect(await screen.findByRole('heading', { name: 'Edit Assistant' }, { timeout: 5000 })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Saved Assistant' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
+    await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
+    expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
+  })
+
   it('notifies when created assistant cannot be refreshed into the selector', async () => {
     refetchAssistantsMock.mockRejectedValueOnce(new Error('Refresh failed'))
     renderSelector()
@@ -452,7 +510,7 @@ describe('AssistantSelector', () => {
 
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
 
-    expect(toastErrorMock).toHaveBeenCalledWith('Created, but refresh failed')
+    expect(toast.error).toHaveBeenCalledWith('Created, but refresh failed')
     await waitFor(() => expect(screen.getByPlaceholderText('Search assistants')).toBeInTheDocument())
   })
 })

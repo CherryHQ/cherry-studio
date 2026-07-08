@@ -17,10 +17,11 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 
 - Per-base 7-table index store at the migrated base's runtime path:
   `{knowledgeBaseDir}/{migratedBaseId}/.cherry/index.sqlite`
-- Built through the exact runtime open sequence — `openBetterSqlite3IndexDriver` →
-  `createKnowledgeIndexSchema` → `ensureIndexMeta` → `KnowledgeIndexStore.rebuildMaterial` —
-  so the migrated store is byte-for-byte one the runtime would produce. One `material`
-  per migrated item; its legacy chunks become that material's `search_unit`s.
+- Built through `createKnowledgeIndexStoreAtPath` — the same factory the runtime
+  (`KnowledgeVectorStoreService`) opens its stores with (driver → schema → `ensureIndexMeta` →
+  `KnowledgeIndexStore`) — then `KnowledgeIndexStore.rebuildMaterial` per item, so the migrated
+  store is byte-for-byte one the runtime would produce. One `material` per migrated item; its
+  legacy chunks become that material's `search_unit`s.
 
 ## Key Transformations
 

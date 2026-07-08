@@ -6,7 +6,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import type { CommandId } from '@shared/utils/command/definitions'
+import type { CommandId } from '@shared/utils/command'
 import { Maximize2, Minimize2, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import type { ComponentProps, MouseEvent, ReactNode } from 'react'
@@ -35,9 +35,10 @@ export interface ShellState {
   pdfLayoutRefreshKey: number
 }
 
-interface ShellActions {
+export interface ShellActions {
   close: (afterClose?: () => void) => void
   finishClose: () => void
+  minimize: () => void
   openTab: (tab: string) => void
   toggleMaximized: () => void
   refreshPdfLayout: () => void
@@ -62,6 +63,10 @@ export function useShellActions(): ShellActions {
   const actions = use(ShellActionsContext)
   if (!actions) throw new Error('useShellActions must be used within <Shell>')
   return actions
+}
+
+export function useOptionalShellActions(): ShellActions | undefined {
+  return use(ShellActionsContext) ?? undefined
 }
 
 export function useShellState(): ShellState {
@@ -113,6 +118,22 @@ function ShellProvider({
     closeCallbacksRef.current = []
     for (const callback of callbacks) callback()
   }, [])
+
+  useEffect(() => {
+    if (openRef.current === defaultOpen) return
+
+    openRef.current = defaultOpen
+    setOpen(defaultOpen)
+    if (defaultOpen) {
+      setActiveTab(defaultTab)
+      setPdfLayoutPending(true)
+    } else {
+      setMaximized(false)
+      setPdfLayoutPending(false)
+      finishClose()
+    }
+  }, [defaultOpen, defaultTab, finishClose])
+
   const close = useCallback((afterClose?: () => void) => {
     if (!openRef.current) {
       afterClose?.()
@@ -136,6 +157,10 @@ function ShellProvider({
     })
     onOpenChangeRef.current?.(true)
   }, [])
+  const minimize = useCallback(() => {
+    setPdfLayoutPending(false)
+    setMaximized(false)
+  }, [])
   const toggleMaximized = useCallback(() => {
     setPdfLayoutPending(false)
     setMaximized((currentMaximized) => !currentMaximized)
@@ -150,8 +175,8 @@ function ShellProvider({
     [activeTab, maximized, open, pdfLayoutPending, pdfLayoutRefreshKey]
   )
   const actions = useMemo<ShellActions>(
-    () => ({ close, finishClose, openTab, toggleMaximized, refreshPdfLayout }),
-    [close, finishClose, openTab, refreshPdfLayout, toggleMaximized]
+    () => ({ close, finishClose, minimize, openTab, toggleMaximized, refreshPdfLayout }),
+    [close, finishClose, minimize, openTab, refreshPdfLayout, toggleMaximized]
   )
 
   return (
@@ -352,7 +377,7 @@ function ShellTabs({ children }: { children: ReactNode }) {
       value={state.activeTab}
       onValueChange={actions.openTab}
       variant="line"
-      className="h-full gap-0 overflow-hidden bg-card text-card-foreground">
+      className="h-full gap-0 overflow-hidden text-card-foreground">
       {children}
     </Tabs>
   )

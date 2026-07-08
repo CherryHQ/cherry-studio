@@ -1,4 +1,5 @@
 import { cacheService } from '@data/CacheService'
+import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -8,6 +9,7 @@ import { type ReactNode, useEffect } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { installSyncRafMock } from '../../../../../../tests/__mocks__/requestAnimationFrame'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import type { ComposerSerializedToken } from '../../tokens'
 import AgentComposer, { AgentHomeComposer, MissingAgentHomeComposer } from '../AgentComposer'
@@ -19,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   modelLookupId: undefined as UniqueModelId | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
-  toastError: vi.fn(),
   isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   createInternalEntry: vi.fn(),
@@ -31,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
+  inputAdapterFocus: vi.fn(),
   reconcileTokens: vi.fn(),
   insertToken: vi.fn(),
   availableSkills: [] as LocalSkill[],
@@ -52,7 +54,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
-
+let restoreRequestAnimationFrame: (() => void) | undefined
 interface ResizeObserverMockInstance {
   callback: ResizeObserverCallback
   target?: Element
@@ -104,7 +106,11 @@ const pdfSkillToken = {
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     getCasual: vi.fn(() => ''),
-    setCasual: vi.fn()
+    setCasual: vi.fn(),
+    // useAgentSessionSlashCommands subscribes to the shared slash-command catalog; no catalog here
+    // means the composer falls back to the builtin list.
+    getShared: vi.fn(() => undefined),
+    subscribe: vi.fn(() => () => {})
   }
 }))
 
@@ -125,10 +131,17 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
     }, [props])
 
     mocks.surfaceProps = props
+    const inputAdapter = {
+      focus: mocks.inputAdapterFocus,
+      getText: () => props.text,
+      insertText: vi.fn(),
+      insertToken: mocks.insertToken,
+      deleteTriggerRange: vi.fn()
+    }
     return (
       <div>
-        <div data-testid="composer-left-controls">{props.renderLeftControls?.(undefined)}</div>
-        <div data-testid="composer-below-controls">{props.renderBelowControls?.(undefined)}</div>
+        <div data-testid="composer-left-controls">{props.renderLeftControls?.(inputAdapter)}</div>
+        <div data-testid="composer-below-controls">{props.renderBelowControls?.(inputAdapter)}</div>
         <div data-testid="composer-send-accessory">{props.sendAccessory}</div>
         <button
           type="button"
@@ -387,7 +400,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
       'chat.message.font_size': 14,
       'chat.narrow_mode': false,
       'chat.input.send_message_shortcut': 'Enter',
-      'agent.layout': mocks.sessionLayout
+      'agent.session.display_mode': mocks.sessionLayout === 'classic' ? 'agent' : 'workdir'
     }
     return [values[key]]
   }
@@ -437,8 +450,6 @@ describe('AgentComposer', () => {
     mocks.sendMessage.mockResolvedValue(undefined)
     mocks.stop.mockReset()
     mocks.stop.mockResolvedValue(undefined)
-    mocks.toastError.mockReset()
-    window.toast = { ...window.toast, error: mocks.toastError }
     mocks.isDirectory.mockReset()
     mocks.isDirectory.mockImplementation(() => new Promise(() => undefined))
     mocks.listDirectory.mockReset()
@@ -476,6 +487,7 @@ describe('AgentComposer', () => {
     mocks.updateModel.mockReset()
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
+    mocks.inputAdapterFocus.mockReset()
     mocks.insertToken.mockReset()
     mocks.availableSkills = []
     mocks.availableSkillsRefresh.mockReset()
@@ -504,10 +516,13 @@ describe('AgentComposer', () => {
         }
       }
     })
+    restoreRequestAnimationFrame = installSyncRafMock()
   })
 
   afterEach(() => {
     globalThis.ResizeObserver = originalResizeObserver
+    restoreRequestAnimationFrame?.()
+    restoreRequestAnimationFrame = undefined
   })
 
   it('resolves the agent model through the v2 UniqueModelId', () => {
@@ -1509,7 +1524,7 @@ describe('AgentComposer', () => {
     )
     expect(mocks.clearTimeoutTimer).toHaveBeenCalledWith('agentComposerSendMessage')
     expect(mocks.timeoutCallbacks.has('agentComposerSendMessage')).toBe(false)
-    expect(mocks.toastError).toHaveBeenCalledWith('chat.input.send_failed')
+    expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
   })
 
   it('inserts quoted selected text as a quote token from the main-window quote IPC', async () => {
@@ -1566,6 +1581,25 @@ describe('AgentComposer', () => {
     expect(dialog).toHaveAttribute('data-kind', 'agent')
     expect(dialog).toHaveAttribute('data-id', 'agent-1')
     expect(mocks.updateSession).not.toHaveBeenCalled()
+  })
+
+  it('restores composer focus after closing the active session agent edit dialog', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    fireEvent.click(screen.getByText('Agent').closest('button')!)
+    await screen.findByTestId('resource-edit-dialog-host')
+
+    fireEvent.click(screen.getByText('close edit dialog'))
+
+    expect(mocks.inputAdapterFocus).toHaveBeenCalledTimes(1)
   })
 
   it('hides the active session agent trigger from the toolbar in classic layout', () => {

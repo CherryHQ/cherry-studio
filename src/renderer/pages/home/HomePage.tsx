@@ -21,6 +21,11 @@ import {
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
 import {
+  type GlobalSearchTopicMessageSelectionPayload,
+  type GlobalSearchTopicSelectionPayload,
+  isGlobalSearchSelectionForTab
+} from '@renderer/components/GlobalSearch/globalSearchSelectionEvents'
+import {
   ConversationResourceView,
   type ConversationResourceViewDefinition,
   useConversationResourceView
@@ -32,12 +37,12 @@ import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } fr
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
-import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
+import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -64,6 +69,7 @@ import ChatNavbar from './components/ChatNavbar'
 import { TopicRightPane } from './components/TopicRightPane'
 import { parseChatRouteSearch } from './routeSearch'
 import { Topics } from './Tabs/components/Topics'
+import { getTopicAssistantDisplayGroupId } from './Tabs/components/topicsHelpers'
 import HomeTabs from './Tabs/HomeTabs'
 import type { AddNewTopicPayload } from './types'
 
@@ -79,6 +85,9 @@ type DraftAssistantStartState = {
 
 type DraftAssistantSelection = {
   assistantId?: string
+}
+type DraftAssistantTargetOptions = {
+  excludedAssistantIds?: readonly string[]
 }
 
 // Reuse the assistant's latest *empty* placeholder topic instead of stacking a new one. The empty
@@ -119,11 +128,14 @@ const HomePage: FC = () => {
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const [, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
-  const [topicLayout] = usePreference('topic.layout')
-  const isClassicTopicLayout = topicLayout === 'classic'
+  const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
+  const [panePosition, setPanePosition] = usePreference('topic.tab.position')
+  const [autoCollapsedResourceList, setAutoCollapsedResourceList] = useState(false)
+  const isClassicTopicLayout = topicDisplayMode === 'assistant'
   // Classic-layout right-pane open state, cached on the assistant surface's own key.
   const [topicPaneOpen, setTopicPaneOpen] = useClassicLayoutRightPaneOpen('chat', isClassicTopicLayout)
   // Classic layout shares this full-topics source with the rail; modern layout leaves it disabled (no fetch).
@@ -148,7 +160,7 @@ const HomePage: FC = () => {
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   // Detached windows are single-topic: no topic list, so no sidebar at all.
   const isWindowFrame = useWindowFrame().mode === 'window'
-  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar
+  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar && !autoCollapsedResourceList
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
     isMessageOnlyView ? routeTopicId : undefined
   )
@@ -175,25 +187,32 @@ const HomePage: FC = () => {
   const assistantIdSet = useMemo(() => new Set(assistants.map((assistant) => assistant.id)), [assistants])
   const validLastUsedAssistantId =
     lastUsedAssistantId && assistantIdSet.has(lastUsedAssistantId) ? lastUsedAssistantId : undefined
-  const fallbackAssistantId = assistants[0]?.id
   const isAssistantListResolved = hasAssistantsLoaded && !isAssistantsLoading && !isAssistantsRefreshing
   const resolveDraftAssistantTarget = useCallback(
-    (explicitAssistantId?: string | null): ResolvedDraftAssistantSelection => {
+    (
+      explicitAssistantId?: string | null,
+      options: DraftAssistantTargetOptions = {}
+    ): ResolvedDraftAssistantSelection => {
+      const excludedAssistantIds = new Set(options.excludedAssistantIds ?? [])
+      const isAvailableAssistantId = (assistantId: string | null | undefined): assistantId is string =>
+        !!assistantId && assistantIdSet.has(assistantId) && !excludedAssistantIds.has(assistantId)
+
       if (explicitAssistantId === null) {
         return { source: 'explicit' }
       }
-      if (explicitAssistantId && assistantIdSet.has(explicitAssistantId)) {
+      if (isAvailableAssistantId(explicitAssistantId)) {
         return { assistantId: explicitAssistantId, source: 'explicit' }
       }
-      if (validLastUsedAssistantId) {
+      if (isAvailableAssistantId(validLastUsedAssistantId)) {
         return { assistantId: validLastUsedAssistantId, source: 'last-used' }
       }
+      const fallbackAssistantId = assistants.find((assistant) => !excludedAssistantIds.has(assistant.id))?.id
       if (fallbackAssistantId) {
         return { assistantId: fallbackAssistantId, source: 'first-assistant' }
       }
       return { source: 'runtime-fallback' }
     },
-    [assistantIdSet, fallbackAssistantId, validLastUsedAssistantId]
+    [assistantIdSet, assistants, validLastUsedAssistantId]
   )
 
   const initialTopic = useMemo<Topic | undefined>(() => {
@@ -273,10 +292,9 @@ const HomePage: FC = () => {
   }, [activeTopic, setLastUsedAssistantId])
 
   // All non-dormant tabs mount at once (Activity keep-alive), so each chat tab runs its
-  // own HomePage. `currentTabId` is *this* tab; the conversation-nav boundary uses it to
-  // exclude self when deduping. `useIsActiveTab` answers "am I the globally-focused tab".
+  // own HomePage. `currentTabId` is *this* tab; `useIsActiveTab` answers "am I the
+  // globally-focused tab".
   const currentTabId = useCurrentTabId()
-  const conversationNav = useConversationNavigation('assistants')
   const isActiveTab = useIsActiveTab()
 
   const clearTopicRevealRequestAfterPaint = useCallback((requestId: number) => {
@@ -331,13 +349,13 @@ const HomePage: FC = () => {
   const visibleAssistantId = visibleTopic?.assistantId ?? draftAssistantSelectionSnapshot?.assistantId
   const { assistant: visibleAssistant } = useAssistantApiById(visibleAssistantId ?? undefined)
   const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
-    if (!isClassicTopicLayout || !visibleAssistantId) return undefined
+    if (!isClassicTopicLayout || panePosition !== 'right' || !visibleAssistantId) return undefined
 
     return {
       label: t('chat.topics.title'),
       count: classicLayoutTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
     }
-  }, [isClassicTopicLayout, classicLayoutTopics, t, visibleAssistantId])
+  }, [isClassicTopicLayout, panePosition, classicLayoutTopics, t, visibleAssistantId])
   const isDraftView = !isMessageOnlyView && !!draftAssistantSelectionSnapshot
   const tabInstanceTopicId =
     !isMessageOnlyView && !isDraftView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
@@ -376,7 +394,8 @@ const HomePage: FC = () => {
         trigger: 'submit-message',
         topicId: topic.id,
         userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
-        mentionedModelIds: options?.mentionedModels
+        mentionedModelIds: options?.mentionedModels,
+        knowledgeBaseIds: options?.knowledgeBaseIds
       })
       const rendererTopic = mapApiTopicToRendererTopic(topic)
       setDraftAssistantSelectionState(undefined)
@@ -385,17 +404,21 @@ const HomePage: FC = () => {
         logger.warn('Failed to refresh topics after draft topic create', err as Error)
       })
       if (ack.mode === 'blocked') {
-        window.toast?.error(ack.message)
+        toast.error(ack.message)
       }
     },
     [createTopic, refreshTopics, setActiveTopic, setDraftAssistantSelectionState]
   )
   const setResourceListOpen = useCallback(
     (open: boolean) => {
+      setAutoCollapsedResourceList(false)
       void setShowSidebar(open)
     },
     [setShowSidebar]
   )
+  const handleResourceListAutoCollapseChange = useCallback((collapsed: boolean) => {
+    setAutoCollapsedResourceList(collapsed)
+  }, [])
   const toggleResourceListOpen = useCallback(() => {
     if (isMessageOnlyView || isWindowFrame) return
 
@@ -419,10 +442,10 @@ const HomePage: FC = () => {
   }, [isMessageOnlyView, setActiveTopic, setDraftAssistantSelectionState, state?.topic])
 
   const startDraftAssistantSelection = useCallback(
-    (payload?: AddNewTopicPayload) => {
+    (payload?: AddNewTopicPayload, options?: DraftAssistantTargetOptions) => {
       try {
         closeResourceView()
-        const selection = resolveDraftAssistantTarget(payload?.assistantId)
+        const selection = resolveDraftAssistantTarget(payload?.assistantId, options)
         const targetAssistantId = selection.assistantId
         const current = draftAssistantSelectionRef.current
 
@@ -488,18 +511,13 @@ const HomePage: FC = () => {
   const setActiveTopicAndDiscardDraft = useCallback(
     (topic: Topic) => {
       closeResourceView()
-      // One tab per topic: if this topic is already open in another tab, focus
-      // that tab instead of navigating the current one (which would duplicate
-      // it in the tab bar). The current tab keeps its own topic untouched.
-      if (conversationNav.focusExistingTab(topic.id, { excludeTabId: currentTabId ?? undefined })) return false
-
       if (draftAssistantSelectionRef.current) {
         setDraftAssistantSelectionState(undefined)
       }
       setActiveTopic(topic)
       return true
     },
-    [closeResourceView, conversationNav, currentTabId, setActiveTopic, setDraftAssistantSelectionState]
+    [closeResourceView, setActiveTopic, setDraftAssistantSelectionState]
   )
   // Classic-layout reset after deleting the active assistant: select the latest
   // remaining topic (across other assistants). Filter by the deleted id so this
@@ -510,15 +528,24 @@ const HomePage: FC = () => {
       const nextTopic = findLatestUpdated(
         classicLayoutTopics.filter((topic) => topic.assistantId !== deletedAssistantId)
       )
+      if (lastUsedAssistantId === deletedAssistantId) {
+        setLastUsedAssistantId(null)
+      }
       // setActiveTopicAndDiscardDraft returns false when the next topic is already open in another
       // tab (it focuses that tab). In that case the current tab would otherwise keep pointing at the
       // just-deleted topic, so fall through to a draft instead of leaving a ghost.
       if (nextTopic && setActiveTopicAndDiscardDraft(mapApiTopicToRendererTopic(nextTopic))) {
         return
       }
-      startDraftAssistantSelection()
+      startDraftAssistantSelection(undefined, { excludedAssistantIds: [deletedAssistantId] })
     },
-    [classicLayoutTopics, setActiveTopicAndDiscardDraft, startDraftAssistantSelection]
+    [
+      classicLayoutTopics,
+      lastUsedAssistantId,
+      setActiveTopicAndDiscardDraft,
+      setLastUsedAssistantId,
+      startDraftAssistantSelection
+    ]
   )
 
   const resolveAssistantIdForSelection = useCallback(
@@ -552,8 +579,6 @@ const HomePage: FC = () => {
         const topic = reusableTopic ?? (await createTopic({ assistantId }))
         const rendererTopic = mapApiTopicToRendererTopic(topic)
 
-        // One tab per topic: a reused topic already open in another tab focuses that tab instead of
-        // duplicating it here; this also discards any pending draft selection.
         setActiveTopicAndDiscardDraft(rendererTopic)
         if (!reusableTopic) {
           void refreshTopics().catch((err) => {
@@ -562,7 +587,7 @@ const HomePage: FC = () => {
         }
       } catch (err) {
         logger.error('Failed to create assistant conversation from classic-layout picker', err as Error)
-        window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       } finally {
         isCreatingTopicRef.current = false
       }
@@ -584,8 +609,6 @@ const HomePage: FC = () => {
           }))
         const rendererTopic = mapApiTopicToRendererTopic(topic)
 
-        // One tab per topic: a reused topic already open in another tab focuses that tab instead of
-        // duplicating it here; this also discards any pending draft selection.
         setActiveTopicAndDiscardDraft(rendererTopic)
         if (!reusableTopic) {
           void refreshTopics().catch((err) => {
@@ -594,12 +617,35 @@ const HomePage: FC = () => {
         }
       } catch (err) {
         logger.error('Failed to create empty topic from classic-layout composer', err as Error)
-        window.toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
       } finally {
         isCreatingTopicRef.current = false
       }
     },
     [createTopic, classicLayoutTopics, refreshTopics, resolveDraftAssistantTarget, setActiveTopicAndDiscardDraft, t]
+  )
+
+  const createAndActivateFreshTopic = useCallback(
+    async (payload: AddNewTopicPayload) => {
+      if (isCreatingTopicRef.current) return
+      isCreatingTopicRef.current = true
+      try {
+        const selection = resolveDraftAssistantTarget(payload.assistantId)
+        const topic = await createTopic({
+          ...(selection.assistantId ? { assistantId: selection.assistantId } : {})
+        })
+        setActiveTopicAndDiscardDraft(mapApiTopicToRendererTopic(topic))
+        void refreshTopics().catch((err) => {
+          logger.warn('Failed to refresh topics after fresh topic create', err as Error)
+        })
+      } catch (err) {
+        logger.error('Failed to create fresh topic', err as Error)
+        toast.error(formatErrorMessageWithPrefix(err, t('common.error')))
+      } finally {
+        isCreatingTopicRef.current = false
+      }
+    },
+    [createTopic, refreshTopics, resolveDraftAssistantTarget, setActiveTopicAndDiscardDraft, t]
   )
 
   // "去对话" from the assistant library (after adding a preset). The legacy navigate-to-chat no longer
@@ -664,14 +710,17 @@ const HomePage: FC = () => {
   })
 
   useEffect(() => {
-    const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, (topic) => {
-      handleGlobalSearchTopicSelect(topic as Topic)
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, (payload) => {
+      const selection = payload as GlobalSearchTopicSelectionPayload
+      if (!selection.topic || !isGlobalSearchSelectionForTab(selection, currentTabId)) return
+
+      handleGlobalSearchTopicSelect(selection.topic)
     })
     const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, (payload) => {
-      const { messageId, topic } = payload as { messageId?: string; topic?: Topic }
-      if (!topic || !messageId) return
+      const selection = payload as GlobalSearchTopicMessageSelectionPayload
+      if (!selection.topic || !selection.messageId || !isGlobalSearchSelectionForTab(selection, currentTabId)) return
 
-      handleGlobalSearchTopicSelect(topic, messageId)
+      handleGlobalSearchTopicSelect(selection.topic, selection.messageId)
     })
 
     return () => {
@@ -679,7 +728,7 @@ const HomePage: FC = () => {
       unsubscribeMessage()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/topic state without resubscribing.
-  }, [])
+  }, [currentTabId])
 
   const handleLocateMessageHandled = useCallback(() => {
     setPendingLocateMessageId(undefined)
@@ -715,6 +764,36 @@ const HomePage: FC = () => {
       toggleResourceListOpen
     ]
   )
+  const setTopicListPosition = useCallback(
+    async (position: ChatPanePosition) => {
+      await setTopicDisplayMode('assistant')
+      if (position === 'left') {
+        const activeAssistantGroupId = visibleTopic ? getTopicAssistantDisplayGroupId(visibleTopic) : undefined
+        const collapsedAssistantGroupIds = Array.from(
+          new Set(
+            classicLayoutTopics
+              .map(getTopicAssistantDisplayGroupId)
+              .filter((groupId) => groupId !== activeAssistantGroupId)
+          )
+        )
+        setTopicExpansionAssistant(collapsedAssistantGroupIds)
+      }
+      await setPanePosition(position)
+      setTopicPaneOpen(position === 'right', { force: true })
+      setResourceListOpen(true)
+    },
+    [
+      classicLayoutTopics,
+      setPanePosition,
+      setResourceListOpen,
+      setTopicDisplayMode,
+      setTopicExpansionAssistant,
+      setTopicPaneOpen,
+      visibleTopic
+    ]
+  )
+  const topicListPosition: ChatPanePosition = isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
+  const shellPanePosition: ChatPanePosition = 'left'
 
   if (!visibleTopic && !draftAssistantSelectionSnapshot && !resourceCenter) {
     if (isMessageOnlyView) {
@@ -735,47 +814,60 @@ const HomePage: FC = () => {
   }
 
   // Classic layout = entity rail + right topic panel; modern layout = the single sidebar (HomeTabs).
-  const panePosition: ChatPanePosition = 'left'
-  const pane = isClassicTopicLayout ? (
-    <AssistantResourceList
-      activeAssistantId={visibleAssistantId ?? null}
-      onAddAssistant={() => {
-        setAssistantPickerOpen(true)
-      }}
-      onOpenHistoryRecords={openHistoryRecords}
-      onSelectTopic={setActiveTopicAndDiscardDraft}
-      onStartDraftAssistant={(assistantId) => startDraftAssistantSelection({ assistantId })}
-      resourceMenuItems={resourceMenuItems}
-      onActiveAssistantDeleted={handleActiveAssistantDeleted}
-    />
-  ) : (
-    <HomeTabs
-      activeTopic={visibleTopic}
-      setActiveTopic={setActiveTopicAndDiscardDraft}
-      onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
-      onOpenHistoryRecords={openHistoryRecords}
-      revealRequest={topicRevealRequest}
-      resourceMenuItems={resourceMenuItems}
-    />
-  )
+  const pane =
+    isClassicTopicLayout && topicListPosition === 'right' ? (
+      <AssistantResourceList
+        activeAssistantId={visibleAssistantId ?? null}
+        onAddAssistant={() => {
+          setAssistantPickerOpen(true)
+        }}
+        onOpenHistoryRecords={openHistoryRecords}
+        onSelectTopic={setActiveTopicAndDiscardDraft}
+        onCreateTopicAfterClear={(assistantId) => createAndActivateFreshTopic({ assistantId })}
+        onSelectedAssistantClick={() => setTopicPaneOpen(!topicPaneOpen)}
+        onStartDraftAssistant={(assistantId) => startDraftAssistantSelection({ assistantId })}
+        resourceMenuItems={resourceMenuItems}
+        onActiveAssistantDeleted={handleActiveAssistantDeleted}
+      />
+    ) : (
+      <HomeTabs
+        activeTopic={visibleTopic}
+        onActiveAssistantDeleted={handleActiveAssistantDeleted}
+        onAddAssistant={() => {
+          setAssistantPickerOpen(true)
+        }}
+        setActiveTopic={setActiveTopicAndDiscardDraft}
+        onCreateTopicAfterClear={isMessageOnlyView ? undefined : createAndActivateFreshTopic}
+        onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
+        onOpenHistoryRecords={openHistoryRecords}
+        revealRequest={topicRevealRequest}
+        resourceMenuItems={resourceMenuItems}
+        onSetPanePosition={setTopicListPosition}
+        panePosition="left"
+      />
+    )
   // In classic layout the topic list moves into the chat's right pane as a tab; the single page-level
   // provider owns the Shell for both views so the rail and the right panel share its open/maximize
   // state. New (sidebar) view passes a null config, leaving the pane as branch/trace only.
-  const resourcePane: ResourcePaneConfig | null = isClassicTopicLayout
-    ? {
-        label: t('chat.topics.title'),
-        node: (
-          <Topics
-            presentation="right-panel"
-            activeTopic={visibleTopic}
-            assistantIdFilter={visibleAssistantId ?? null}
-            setActiveTopic={setActiveTopicAndDiscardDraft}
-            onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
-            revealRequest={topicRevealRequest}
-          />
-        )
-      }
-    : null
+  const resourcePane: ResourcePaneConfig | null =
+    isClassicTopicLayout && topicListPosition === 'right'
+      ? {
+          label: t('chat.topics.title'),
+          node: (
+            <Topics
+              presentation="right-panel"
+              activeTopic={visibleTopic}
+              assistantIdFilter={visibleAssistantId ?? null}
+              setActiveTopic={setActiveTopicAndDiscardDraft}
+              onCreateTopicAfterClear={isMessageOnlyView ? undefined : createAndActivateFreshTopic}
+              onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
+              onSetPanePosition={setTopicListPosition}
+              panePosition="right"
+              revealRequest={topicRevealRequest}
+            />
+          )
+        }
+      : null
   const renderWithRightPane = (content: ReactNode) => (
     <TopicRightPane
       resourcePane={resourcePane}
@@ -813,8 +905,9 @@ const HomePage: FC = () => {
             center={resourceCenter}
             pane={pane}
             paneOpen={effectiveShowSidebar}
-            panePosition={panePosition}
+            panePosition={shellPanePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
+            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
           />
         </ContentContainer>
         {assistantPickerDialog}
@@ -832,8 +925,9 @@ const HomePage: FC = () => {
             scopeKey={draftScopeKey}
             pane={pane}
             paneOpen={effectiveShowSidebar}
-            panePosition={panePosition}
+            panePosition={shellPanePosition}
             onPaneCollapse={() => setResourceListOpen(false)}
+            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
             onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
             onCreateEmptyTopic={isClassicTopicLayout && !isMessageOnlyView ? createAndActivateEmptyTopic : undefined}
             onDraftAssistantChange={updateDraftAssistantSelection}
@@ -861,8 +955,9 @@ const HomePage: FC = () => {
           activeTopic={chatTopic}
           pane={pane}
           paneOpen={effectiveShowSidebar}
-          panePosition={panePosition}
+          panePosition={shellPanePosition}
           onPaneCollapse={() => setResourceListOpen(false)}
+          onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
           onNewTopic={isMessageOnlyView ? undefined : startDraftAssistantSelection}
           onCreateEmptyTopic={isClassicTopicLayout && !isMessageOnlyView ? createAndActivateEmptyTopic : undefined}
           showResourceListControls={!isMessageOnlyView && !isWindowFrame}
@@ -886,6 +981,7 @@ type DraftWelcomeChatProps = {
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   onPaneCollapse?: () => void
+  onPaneAutoCollapseChange?: (collapsed: boolean) => void
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
@@ -904,6 +1000,7 @@ function DraftWelcomeChat({
   paneOpen,
   panePosition,
   onPaneCollapse,
+  onPaneAutoCollapseChange,
   onNewTopic,
   onCreateEmptyTopic,
   onDraftAssistantChange,
@@ -936,6 +1033,7 @@ function DraftWelcomeChat({
       paneOpen={paneOpen}
       panePosition={panePosition}
       onPaneCollapse={onPaneCollapse}
+      onPaneAutoCollapseChange={onPaneAutoCollapseChange}
       topBar={
         <ChatNavbar
           showSidebarControls={showResourceListControls}
