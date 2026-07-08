@@ -31,7 +31,7 @@ import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/useP
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useCloseConversationTabs, useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useImageCaptureTargets } from '@renderer/hooks/useImageCaptureTargets'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -313,6 +313,7 @@ const Sessions = ({
 }: SessionsProps) => {
   const { t } = useTranslation()
   const closeConversationTabs = useCloseConversationTabs()
+  const tabs = useOptionalTabsContext()
   const isRightPanel = presentation === 'right-panel'
   const conversationNav = useConversationNavigation('agents')
   const [groupNow] = useState(() => new Date())
@@ -650,6 +651,18 @@ const Sessions = ({
   )
   const handleDeleteSession = useCallback(
     async (id: string) => {
+      // When the active session is being deleted, open its neighbour (or a fresh
+      // agents tab) *before* the delete so the tab bar never empties out — an empty
+      // tab bar would otherwise trigger the launchpad fallback tab.
+      if (activeSessionId === id) {
+        const next = pickNeighbourAfterRemoval(filteredGroupedSessions, id)
+        if (next) {
+          conversationNav.openConversationTab(next.id, next.name)
+        } else if (tabs) {
+          tabs.openTab('/app/agents')
+        }
+      }
+
       const success = await deleteSession(id)
       if (!success || activeSessionId !== id) return
 
@@ -701,12 +714,14 @@ const Sessions = ({
     [
       activeSessionId,
       agentIdFilter,
+      conversationNav,
       deleteSession,
       filteredGroupedSessions,
       isRightPanel,
       onStartDraftSession,
       setActiveSessionId,
-      t
+      t,
+      tabs
     ]
   )
 

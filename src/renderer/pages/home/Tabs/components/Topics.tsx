@@ -501,6 +501,21 @@ export function Topics({
 
   const handleDeleteTopicFromMenu = useCallback(
     async (topic: Topic) => {
+      // When the active topic is being deleted, open its neighbour (or a fresh
+      // chat tab) *before* the delete so the tab bar never empties out — an empty
+      // tab bar would otherwise trigger the launchpad fallback tab.
+      if (topic.id === activeTopic?.id) {
+        const selectionList = isRightPanel
+          ? topics.filter((candidate) => matchesAssistantFilter(candidate, assistantIdFilter))
+          : topics
+        const next = pickNeighbourAfterRemoval(selectionList, topic.id)
+        if (next) {
+          conversationNav.openConversationTab(next.id, next.name)
+        } else if (tabs) {
+          tabs.openTab('/app/chat')
+        }
+      }
+
       try {
         await removeTopic(topic)
       } catch (err) {
@@ -519,6 +534,7 @@ export function Topics({
         : topics
       const next = pickNeighbourAfterRemoval(selectionList, topic.id)
       if (next) {
+        // The neighbour tab was already opened above; just update the sidebar selection.
         setActiveTopic(next)
         return
       }
@@ -528,7 +544,18 @@ export function Topics({
         await onNewTopic?.({ assistantId: assistantIdFilter ?? topic.assistantId ?? null })
       }
     },
-    [activeTopic?.id, assistantIdFilter, isRightPanel, onNewTopic, removeTopic, setActiveTopic, t, topics]
+    [
+      activeTopic?.id,
+      assistantIdFilter,
+      conversationNav,
+      isRightPanel,
+      onNewTopic,
+      removeTopic,
+      setActiveTopic,
+      t,
+      tabs,
+      topics
+    ]
   )
 
   const handleDeleteTopicClick = useCallback((topicId: string, event: MouseEvent) => {
