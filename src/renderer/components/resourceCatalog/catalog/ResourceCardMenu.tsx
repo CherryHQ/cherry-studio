@@ -26,7 +26,7 @@ interface ResourceCardMenuProps {
   triggerClassName?: string
 }
 
-export function useResourceCardMenuItems({
+function useResourceCardMenuItems({
   resource,
   onClose,
   onDuplicate,
