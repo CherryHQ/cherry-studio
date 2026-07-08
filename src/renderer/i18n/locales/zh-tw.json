@@ -5413,7 +5413,8 @@
       },
       "backup": {
         "skip_file_data_help": "備份時跳過圖片、知識庫等資料檔案，只備份聊天記錄與設定。可減少空間佔用並加快備份速度",
-        "skip_file_data_title": "精簡備份"
+        "skip_file_data_title": "精簡備份",
+        "v2_unavailable": "V2 備份還原尚未上線，敬請期待"
       },
       "clear_cache": {
         "button": "清除快取",
