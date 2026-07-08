@@ -6,6 +6,7 @@ import { CodeEditor, type CodeEditorHandles } from '@renderer/components/CodeEdi
 import RichEditor from '@renderer/components/RichEditor/RichEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
@@ -30,6 +31,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
   ({ activeNodeId, currentContent, contentLoadError, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
+    const { activeCmTheme } = useCodeStyle()
     const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
     const currentViewMode = useMemo(() => {
       if (settings.defaultViewMode === 'edit') {
@@ -94,6 +96,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 onChange={onMarkdownChange}
                 className="h-full"
                 expanded={false}
+                height="100%"
+                theme={activeCmTheme}
                 fontSize={settings.fontSize}
                 style={{
                   height: '100%'
