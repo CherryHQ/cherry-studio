@@ -179,7 +179,18 @@ describe('configureChromiumFlags', () => {
 
   describe('unconditional feature flags', () => {
     const UNCONDITIONAL_FEATURES =
-      'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync'
+      'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,PageAllocatorRetryOnCommitFailure'
+
+    it('always appends the V8 old-space limit flag', async () => {
+      stubConstants({ isLinux: false, isWin: false })
+      stubElectron()
+      stubBootConfig()
+
+      const { configureChromiumFlags } = await loadModule()
+      configureChromiumFlags()
+
+      expect(appendSwitchMock).toHaveBeenCalledWith('js-flags', '--max-old-space-size=8192')
+    })
 
     it('always appends the unconditional enable-features flag on macOS', async () => {
       stubConstants({ isLinux: false, isWin: false })
@@ -226,11 +237,12 @@ describe('configureChromiumFlags', () => {
       configureChromiumFlags()
 
       expect(disableHardwareAccelerationMock).not.toHaveBeenCalled()
-      // Only the unconditional enable-features call: 1 total.
-      expect(appendSwitchMock).toHaveBeenCalledTimes(1)
+      // Only the unconditional js-flags and enable-features calls: 2 total.
+      expect(appendSwitchMock).toHaveBeenCalledTimes(2)
+      expect(appendSwitchMock).toHaveBeenCalledWith('js-flags', '--max-old-space-size=8192')
       expect(appendSwitchMock).toHaveBeenCalledWith(
         'enable-features',
-        'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync'
+        'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,PageAllocatorRetryOnCommitFailure'
       )
     })
   })
