@@ -38,8 +38,16 @@ export const MINIAPPS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // mini_app JSON columns hold config/region data — no embedded fileId/entityId
     // soft refs. Declared so finalize #12 exhaustiveness passes.
     exemptJsonCols: [
-      { table: table('mini_app'), column: column('supportedRegions'), reason: 'no soft refs — holds list of supported region codes' },
-      { table: table('mini_app'), column: column('configuration'), reason: 'no soft refs — holds miniapp runtime configuration' }
+      {
+        table: table('mini_app'),
+        column: column('supportedRegions'),
+        reason: 'no soft refs — holds list of supported region codes'
+      },
+      {
+        table: table('mini_app'),
+        column: column('configuration'),
+        reason: 'no soft refs — holds miniapp runtime configuration'
+      }
     ]
   },
   backupPolicy: {},

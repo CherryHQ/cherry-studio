@@ -45,13 +45,11 @@ describe('FILE_STORAGE collectFileResources (collectFileEntryIds)', () => {
   const dbh = setupTestDatabase()
 
   it('returns ids of non-deleted file_entry rows, excluding soft-deleted', async () => {
-    await dbh.db
-      .insert(fileEntryTable)
-      .values([
-        { id: 'f1', origin: 'internal', name: 'a', size: 10 },
-        { id: 'f2', origin: 'internal', name: 'b', size: 20 },
-        { id: 'f3', origin: 'internal', name: 'c', size: 0, deletedAt: Date.now() }
-      ])
+    await dbh.db.insert(fileEntryTable).values([
+      { id: 'f1', origin: 'internal', name: 'a', size: 10 },
+      { id: 'f2', origin: 'internal', name: 'b', size: 20 },
+      { id: 'f3', origin: 'internal', name: 'c', size: 0, deletedAt: Date.now() }
+    ])
     const ids = await collectFileEntryIds(new BackupReadonlyDb(dbh.db))
     expect(ids).toEqual(new Set(['f1', 'f2']))
   })

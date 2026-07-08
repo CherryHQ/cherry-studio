@@ -2,9 +2,8 @@
 // mirroring the other 12 contributor test files per contributor-testing.md
 // "contributor 单元测试（每域 __tests__/）".
 import { table } from '@main/data/db/backup/dbSchemaRefs'
-import { describe, expect, it } from 'vitest'
-
 import { TRANSLATE_HISTORY_CONTRIBUTOR } from '@main/services/translate/backupContributor'
+import { describe, expect, it } from 'vitest'
 
 describe('TRANSLATE_HISTORY contributor', () => {
   it('owns translate_language + translate_history', () => {
@@ -20,9 +19,7 @@ describe('TRANSLATE_HISTORY contributor', () => {
     const language = TRANSLATE_HISTORY_CONTRIBUTOR.schema.aggregates.find(
       (a) => a.root === table('translate_language')
     )!
-    const history = TRANSLATE_HISTORY_CONTRIBUTOR.schema.aggregates.find(
-      (a) => a.root === table('translate_history')
-    )!
+    const history = TRANSLATE_HISTORY_CONTRIBUTOR.schema.aggregates.find((a) => a.root === table('translate_history'))!
     expect(language.members).toEqual([])
     expect(history.members).toEqual([])
     expect(language.renamable).toBe(false)
@@ -41,9 +38,7 @@ describe('TRANSLATE_HISTORY contributor', () => {
   })
 
   it('translate_history aggregate: identityKey=id, no members, non-renamable', () => {
-    const history = TRANSLATE_HISTORY_CONTRIBUTOR.schema.aggregates.find(
-      (a) => a.root === table('translate_history')
-    )!
+    const history = TRANSLATE_HISTORY_CONTRIBUTOR.schema.aggregates.find((a) => a.root === table('translate_history'))!
     expect(history.identityKey).toEqual(['id'])
     expect(history.members).toEqual([])
     expect(history.renamable).toBe(false)

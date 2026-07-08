@@ -46,11 +46,7 @@ export interface ArchiveInputs {
  * backup that already lives there. Throws on any archiver error OR warning (every
  * entry in a backup archive is required).
  */
-export async function assembleArchive(
-  outPath: string,
-  inputs: ArchiveInputs,
-  signal?: AbortSignal
-): Promise<void> {
+export async function assembleArchive(outPath: string, inputs: ArchiveInputs, signal?: AbortSignal): Promise<void> {
   // Pre-stat the required DB copy so a missing/unreadable payload fails BEFORE
   // archiving. Without this, archiver would emit a 'warning' (not 'error') for the
   // missing file and finalize successfully — producing a .cbu without backup.sqlite.

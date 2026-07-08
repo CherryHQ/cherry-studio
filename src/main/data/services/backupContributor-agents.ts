@@ -167,9 +167,7 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       {
         root: table('agent_session'),
         identityKey: columns(['id']),
-        members: [
-          { table: table('agent_session_message'), viaColumn: column('sessionId'), cascade: 'include' }
-        ],
+        members: [{ table: table('agent_session_message'), viaColumn: column('sessionId'), cascade: 'include' }],
         renamable: false
       },
       // agent_workspace: natural-key (path UNIQUE), FIELD_MERGE, non-renamable.
@@ -280,21 +278,57 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // job_schedule.jobInputTemplate) are the only JSON columns carrying soft refs.
     exemptJsonCols: [
       // ── agent ──────────────────────────────────────────────────────────────
-      { table: table('agent'), column: column('disabledTools'), reason: 'no soft refs — holds list of disabled tool-name strings' },
-      { table: table('agent'), column: column('configuration'), reason: 'no soft refs — holds agent runtime configuration knobs' },
+      {
+        table: table('agent'),
+        column: column('disabledTools'),
+        reason: 'no soft refs — holds list of disabled tool-name strings'
+      },
+      {
+        table: table('agent'),
+        column: column('configuration'),
+        reason: 'no soft refs — holds agent runtime configuration knobs'
+      },
       // ── agent_channel ──────────────────────────────────────────────────────
       // (workspace IS a jsonSoftReference — NOT exempt; see jsonSoftReferences above.)
-      { table: table('agent_channel'), column: column('config'), reason: 'no soft refs — holds channel UI/runtime config' },
-      { table: table('agent_channel'), column: column('activeChatIds'), reason: 'no soft refs — holds list of active chat id strings (transient UI state)' },
+      {
+        table: table('agent_channel'),
+        column: column('config'),
+        reason: 'no soft refs — holds channel UI/runtime config'
+      },
+      {
+        table: table('agent_channel'),
+        column: column('activeChatIds'),
+        reason: 'no soft refs — holds list of active chat id strings (transient UI state)'
+      },
       // ── agent_session_message ──────────────────────────────────────────────
       // (data IS a jsonSoftReference — NOT exempt.)
-      { table: table('agent_session_message'), column: column('modelSnapshot'), reason: 'no soft refs — holds a frozen snapshot of the model config at send time' },
-      { table: table('agent_session_message'), column: column('stats'), reason: 'no soft refs — holds token/usage statistics' },
+      {
+        table: table('agent_session_message'),
+        column: column('modelSnapshot'),
+        reason: 'no soft refs — holds a frozen snapshot of the model config at send time'
+      },
+      {
+        table: table('agent_session_message'),
+        column: column('stats'),
+        reason: 'no soft refs — holds token/usage statistics'
+      },
       // ── job_schedule ────────────────────────────────────────────────────────
       // (jobInputTemplate IS a jsonSoftReference — NOT exempt.)
-      { table: table('job_schedule'), column: column('trigger'), reason: 'no soft refs — holds the schedule trigger spec (cron/event)' },
-      { table: table('job_schedule'), column: column('catchUpPolicy'), reason: 'no soft refs — holds missed-run catch-up policy' },
-      { table: table('job_schedule'), column: column('metadata'), reason: 'no soft refs — holds opaque schedule metadata' }
+      {
+        table: table('job_schedule'),
+        column: column('trigger'),
+        reason: 'no soft refs — holds the schedule trigger spec (cron/event)'
+      },
+      {
+        table: table('job_schedule'),
+        column: column('catchUpPolicy'),
+        reason: 'no soft refs — holds missed-run catch-up policy'
+      },
+      {
+        table: table('job_schedule'),
+        column: column('metadata'),
+        reason: 'no soft refs — holds opaque schedule metadata'
+      }
     ]
   },
   backupPolicy: {},

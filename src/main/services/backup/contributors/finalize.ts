@@ -24,7 +24,11 @@ import {
   type DbTableName
 } from '@main/data/db/backup/dbSchemaRefs'
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
-import { ALWAYS_STRIP_TABLES, INFRASTRUCTURE_TABLES, RUNTIME_EXCLUDED_FILE_REF_SOURCES } from '@main/data/db/backup/exclusions'
+import {
+  ALWAYS_STRIP_TABLES,
+  INFRASTRUCTURE_TABLES,
+  RUNTIME_EXCLUDED_FILE_REF_SOURCES
+} from '@main/data/db/backup/exclusions'
 import { allSourceTypes, type FileRefSourceType } from '@shared/data/types/file'
 
 import { ContributorFinalizeError, type ContributorFinalizePayload } from './ContributorFinalizeError'
@@ -220,9 +224,7 @@ export function finalize(
     //     jsonSoftReference OR explicitly exempt (exemptJsonCols, with reason).
     //     No opt-in gate: a future contributor owning a JSON table but declaring
     //     neither would fail loudly right here (the whole point of #12).
-    const declaredJson = new Set(
-      c.schema.jsonSoftReferences.map((j) => `${j.table}::${j.column}`)
-    )
+    const declaredJson = new Set(c.schema.jsonSoftReferences.map((j) => `${j.table}::${j.column}`))
     const exemptJson = new Set((c.schema.exemptJsonCols ?? []).map((e) => `${e.table}::${e.column}`))
     for (const table of c.schema.tables) {
       if (ALWAYS_STRIP_TABLES.has(table) || INFRASTRUCTURE_TABLES.has(table)) continue

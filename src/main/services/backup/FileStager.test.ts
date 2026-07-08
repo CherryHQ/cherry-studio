@@ -119,11 +119,7 @@ describe('SqliteFileStager', () => {
       // note3.md is collected but the source file is missing on disk → missing.
 
       const stager = new SqliteFileStager(new BackupReadonlyDb(dbh.db), '/unused', '/unused')
-      const r = await stager.stageNotes(
-        notesRoot,
-        new Set(['note1.md', 'sub/deep/note2.md', 'note3.md']),
-        dest
-      )
+      const r = await stager.stageNotes(notesRoot, new Set(['note1.md', 'sub/deep/note2.md', 'note3.md']), dest)
 
       // Assert — staged relpaths in input order minus missing; bodies preserved.
       expect(r.paths).toEqual(['note1.md', 'sub/deep/note2.md'])

@@ -490,9 +490,7 @@ describe('finalize invariants', () => {
     const list = patchSchema(buildFixture(), 'KNOWLEDGE', {
       tables: ['knowledge_base', 'knowledge_item'],
       primaryKeys: [ownedPk('knowledge_base'), ownedPk('knowledge_item')],
-      references: [
-        { table: 'knowledge_item', column: 'baseId', referencedDomain: 'KNOWLEDGE', kind: 'optional' }
-      ]
+      references: [{ table: 'knowledge_item', column: 'baseId', referencedDomain: 'KNOWLEDGE', kind: 'optional' }]
     })
     expectInvariant(list, 19)
   })

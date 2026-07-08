@@ -60,21 +60,71 @@ export const PROVIDERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       // ── user_provider ──────────────────────────────────────────────────────
       // Credentials — merged via fieldMergePolicies (remote-fills-local-empty),
       // NOT jsonSoftReferences: they hold secrets, not entity links.
-      { table: table('user_provider'), column: column('apiKeys'), reason: 'holds encrypted API key credentials, merged via fieldMergePolicies (remote-fills-local-empty), not a soft ref' },
-      { table: table('user_provider'), column: column('authConfig'), reason: 'holds OAuth/credential config, merged via fieldMergePolicies (remote-fills-local-empty), not a soft ref' },
+      {
+        table: table('user_provider'),
+        column: column('apiKeys'),
+        reason:
+          'holds encrypted API key credentials, merged via fieldMergePolicies (remote-fills-local-empty), not a soft ref'
+      },
+      {
+        table: table('user_provider'),
+        column: column('authConfig'),
+        reason:
+          'holds OAuth/credential config, merged via fieldMergePolicies (remote-fills-local-empty), not a soft ref'
+      },
       // Structural provider config — no embedded entity/file ids.
-      { table: table('user_provider'), column: column('endpointConfigs'), reason: 'no soft refs — holds per-endpoint base URL / route config' },
-      { table: table('user_provider'), column: column('apiFeatures'), reason: 'no soft refs — holds provider capability feature flags' },
-      { table: table('user_provider'), column: column('providerSettings'), reason: 'no soft refs — holds miscellaneous provider settings' },
+      {
+        table: table('user_provider'),
+        column: column('endpointConfigs'),
+        reason: 'no soft refs — holds per-endpoint base URL / route config'
+      },
+      {
+        table: table('user_provider'),
+        column: column('apiFeatures'),
+        reason: 'no soft refs — holds provider capability feature flags'
+      },
+      {
+        table: table('user_provider'),
+        column: column('providerSettings'),
+        reason: 'no soft refs — holds miscellaneous provider settings'
+      },
       // ── user_model ─────────────────────────────────────────────────────────
-      { table: table('user_model'), column: column('capabilities'), reason: 'no soft refs — holds model capability flags (vision/tools/etc.)' },
-      { table: table('user_model'), column: column('inputModalities'), reason: 'no soft refs — holds accepted input modality list' },
-      { table: table('user_model'), column: column('outputModalities'), reason: 'no soft refs — holds produced output modality list' },
-      { table: table('user_model'), column: column('endpointTypes'), reason: 'no soft refs — holds supported endpoint type list' },
-      { table: table('user_model'), column: column('reasoning'), reason: 'no soft refs — holds reasoning-effort config' },
-      { table: table('user_model'), column: column('parameters'), reason: 'no soft refs — holds default sampling parameters' },
+      {
+        table: table('user_model'),
+        column: column('capabilities'),
+        reason: 'no soft refs — holds model capability flags (vision/tools/etc.)'
+      },
+      {
+        table: table('user_model'),
+        column: column('inputModalities'),
+        reason: 'no soft refs — holds accepted input modality list'
+      },
+      {
+        table: table('user_model'),
+        column: column('outputModalities'),
+        reason: 'no soft refs — holds produced output modality list'
+      },
+      {
+        table: table('user_model'),
+        column: column('endpointTypes'),
+        reason: 'no soft refs — holds supported endpoint type list'
+      },
+      {
+        table: table('user_model'),
+        column: column('reasoning'),
+        reason: 'no soft refs — holds reasoning-effort config'
+      },
+      {
+        table: table('user_model'),
+        column: column('parameters'),
+        reason: 'no soft refs — holds default sampling parameters'
+      },
       { table: table('user_model'), column: column('pricing'), reason: 'no soft refs — holds per-token pricing tiers' },
-      { table: table('user_model'), column: column('userOverrides'), reason: 'no soft refs — holds user overrides on top of preset model config' }
+      {
+        table: table('user_model'),
+        column: column('userOverrides'),
+        reason: 'no soft refs — holds user overrides on top of preset model config'
+      }
     ]
   },
   backupPolicy: {

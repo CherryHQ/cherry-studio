@@ -15,12 +15,7 @@ export type BackupPreset = 'full' | 'lite'
  * archive big without being essential to "continue using the app elsewhere"
  * (domains.ts L14-17). Kept in lockstep with the BACKUP_DOMAINS tuple.
  */
-export const LITE_EXCLUDED: readonly BackupDomain[] = [
-  'KNOWLEDGE',
-  'PAINTINGS',
-  'FILE_STORAGE',
-  'TRANSLATE_HISTORY'
-]
+export const LITE_EXCLUDED: readonly BackupDomain[] = ['KNOWLEDGE', 'PAINTINGS', 'FILE_STORAGE', 'TRANSLATE_HISTORY']
 
 const LITE_EXCLUDED_SET: ReadonlySet<BackupDomain> = new Set(LITE_EXCLUDED)
 

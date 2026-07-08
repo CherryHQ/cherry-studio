@@ -8,10 +8,9 @@
 
 import { readFile, writeFile } from 'node:fs/promises'
 
-import { z } from 'zod'
-
-import type { BackupDomain } from '@main/data/db/backup/domains'
+import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
 import { deepFreeze } from '@main/data/db/backup/freeze'
+import * as z from 'zod'
 
 import type { BackupPreset } from './presets'
 
@@ -83,7 +82,7 @@ const manifestSchema = z.object({
   backupFormatVersion: z.number(),
   createdAt: z.string(),
   preset: z.enum(['full', 'lite']),
-  domains: z.array(z.string()),
+  domains: z.array(z.enum(BACKUP_DOMAINS)),
   includeFiles: z.boolean(),
   includeKnowledgeFiles: z.boolean(),
   sensitiveData: z.object({ included: z.boolean(), rotated: z.literal(false) }),

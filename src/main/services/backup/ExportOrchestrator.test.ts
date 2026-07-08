@@ -452,10 +452,35 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       await dbh.db.insert(topicTable).values([{ id: 'tpc1', name: 'T', isNameManuallyEdited: false, orderKey: 'a' }])
       await dbh.db
         .insert(messageTable)
-        .values([{ id: 'msg1', topicId: 'tpc1', role: 'root', parentId: null, data: { parts: [] }, searchableText: '', status: 'success', siblingsGroupId: 0 }])
-      await dbh.db.insert(assistantTable).values([{ id: 'ast1', name: 'A', prompt: '', emoji: '🤖', description: '', settings: ASSISTANT_SETTINGS, orderKey: 'a' }])
+        .values([
+          {
+            id: 'msg1',
+            topicId: 'tpc1',
+            role: 'root',
+            parentId: null,
+            data: { parts: [] },
+            searchableText: '',
+            status: 'success',
+            siblingsGroupId: 0
+          }
+        ])
+      await dbh.db
+        .insert(assistantTable)
+        .values([
+          {
+            id: 'ast1',
+            name: 'A',
+            prompt: '',
+            emoji: '🤖',
+            description: '',
+            settings: ASSISTANT_SETTINGS,
+            orderKey: 'a'
+          }
+        ])
       await dbh.db.insert(fileEntryTable).values([{ id: 'f1', origin: 'internal', name: 'test', ext: 'txt', size: 5 }])
-      await dbh.db.insert(chatMessageFileRefTable).values([{ id: 'cmfr1', fileEntryId: 'f1', sourceId: 'msg1', role: 'attachment' }])
+      await dbh.db
+        .insert(chatMessageFileRefTable)
+        .values([{ id: 'cmfr1', fileEntryId: 'f1', sourceId: 'msg1', role: 'attachment' }])
       await dbh.db
         .insert(knowledgeBaseTable)
         .values([{ id: 'kb1', name: 'KB', status: 'completed', chunkSize: 500, chunkOverlap: 50 }])
@@ -494,7 +519,9 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       expect(manifest.preset).toBe('lite')
       expect(manifest.domains).toHaveLength(10)
       expect(new Set(manifest.domains)).toEqual(
-        new Set(BACKUP_DOMAINS.filter((d) => !['KNOWLEDGE', 'PAINTINGS', 'FILE_STORAGE', 'TRANSLATE_HISTORY'].includes(d)))
+        new Set(
+          BACKUP_DOMAINS.filter((d) => !['KNOWLEDGE', 'PAINTINGS', 'FILE_STORAGE', 'TRANSLATE_HISTORY'].includes(d))
+        )
       )
       expect(manifest.includeFiles).toBe(false)
       expect(manifest.includeKnowledgeFiles).toBe(false)
@@ -518,7 +545,15 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         const d = new Database(extracted, { readonly: true })
         try {
           const count = (t: string) => (d.prepare(`SELECT COUNT(*) AS c FROM "${t}"`).get() as { c: number }).c
-          for (const t of ['file_entry', 'knowledge_base', 'knowledge_item', 'painting', 'painting_file_ref', 'translate_language', 'translate_history']) {
+          for (const t of [
+            'file_entry',
+            'knowledge_base',
+            'knowledge_item',
+            'painting',
+            'painting_file_ref',
+            'translate_language',
+            'translate_history'
+          ]) {
             expect(count(t), `${t} should be empty`).toBe(0)
           }
           // cross-domain junction referrers cascade-pruned (schema CASCADE under foreign_keys=ON)

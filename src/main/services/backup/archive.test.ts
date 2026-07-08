@@ -135,9 +135,7 @@ describe('assembleArchive', () => {
       // (ENOENT) → reject → temp unlinked → outPath never created. Proves a write
       // failure can't leave a partial/corrupt archive at the user-visible path.
       const out = join(dir, 'nonexistent-subdir', 'a.cbu')
-      await expect(
-        assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: dbCopy })
-      ).rejects.toThrow()
+      await expect(assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: dbCopy })).rejects.toThrow()
       expect(existsSync(out)).toBe(false)
     } finally {
       await rm(dir, { recursive: true, force: true })

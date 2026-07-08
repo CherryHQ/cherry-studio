@@ -2,7 +2,13 @@
 import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
 import { describe, expect, it } from 'vitest'
 
-import { type BackupPreset, LITE_EXCLUDED, presetIncludesFiles, presetIncludesKnowledge, resolvePreset } from './presets'
+import {
+  type BackupPreset,
+  LITE_EXCLUDED,
+  presetIncludesFiles,
+  presetIncludesKnowledge,
+  resolvePreset
+} from './presets'
 
 const ALL = new Set<BackupDomain>(BACKUP_DOMAINS)
 const LITE_EXCLUDED_SET = new Set<BackupDomain>(LITE_EXCLUDED)
