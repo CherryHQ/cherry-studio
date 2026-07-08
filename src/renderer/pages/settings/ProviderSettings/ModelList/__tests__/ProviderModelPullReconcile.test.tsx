@@ -5,13 +5,18 @@ import ProviderModelPullReconcile from '../ProviderModelPullReconcile'
 
 const pullReconcileState = vi.hoisted(() => ({
   value: {
-    applyPullReconcile: vi.fn(),
+    addModels: vi.fn(),
+    allModels: [],
     closePullReconcile: vi.fn(),
     isApplyingPullReconcile: false,
     isBusy: false,
+    isLoadingModels: false,
+    localModels: [],
     openPullReconcile: vi.fn(),
-    preview: null,
-    pullReconcileDrawerOpen: false
+    provider: { id: 'openai', name: 'OpenAI' },
+    pullReconcileDrawerOpen: false,
+    reloadModels: vi.fn(),
+    removeModels: vi.fn()
   }
 }))
 

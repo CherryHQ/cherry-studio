@@ -6684,7 +6684,7 @@
         "add_custom_model": "添加自定义模型",
         "add_listed": {
           "confirm": "确定要添加所有模型到列表吗？",
-          "label": "添加列表中的模型"
+          "label": "添加全部模型"
         },
         "add_whole_group": "添加整个分组",
         "drawer_title": "模型管理",
@@ -6708,8 +6708,9 @@
         "operation_failed": "模型操作失败。",
         "refetch_list": "重新拉取模型",
         "reload_catalog": "刷新列表",
-        "remove_listed": "移除列表中的模型",
+        "remove_listed": "移除全部模型",
         "remove_model": "删除模型",
+        "remove_skipped_default_in_use": "已跳过 {{count}} 个默认模型",
         "remove_whole_group": "删除分组",
         "search_models_placeholder": "搜索模型…",
         "select_none": "取消全选",

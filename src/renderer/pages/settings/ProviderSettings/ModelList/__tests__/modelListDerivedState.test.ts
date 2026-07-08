@@ -58,7 +58,7 @@ describe('modelListDerivedState', () => {
   it('groups filtered models into sorted enabled and disabled sections', () => {
     const sections = calculateModelSections(models as any, '', 'all')
 
-    expect(Object.keys(sections.enabled)).toEqual(['__ungrouped__', 'chat'])
+    expect(Object.keys(sections.enabled)).toEqual(['chat', 'openai'])
     expect(Object.keys(sections.disabled)).toEqual(['embedding', 'rerank'])
     expect(countModelsInGroups(sections.enabled)).toBe(3)
     expect(countModelsInGroups(sections.disabled)).toBe(2)

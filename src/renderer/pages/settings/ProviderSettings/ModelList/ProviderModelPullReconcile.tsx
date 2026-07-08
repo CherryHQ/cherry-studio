@@ -33,9 +33,13 @@ const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({
       </Button>
       <ModelListSyncDrawer
         open={pullReconcile.pullReconcileDrawerOpen}
-        preview={pullReconcile.preview}
+        provider={pullReconcile.provider}
+        allModels={[...pullReconcile.allModels]}
+        localModels={[...pullReconcile.localModels]}
+        isLoading={pullReconcile.isLoadingModels}
         isApplying={pullReconcile.isApplyingPullReconcile}
-        onApply={pullReconcile.applyPullReconcile}
+        onAddModels={pullReconcile.addModels}
+        onRemoveModels={pullReconcile.removeModels}
         onClose={pullReconcile.closePullReconcile}
       />
     </>

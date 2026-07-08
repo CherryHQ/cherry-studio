@@ -125,3 +125,8 @@ export async function fetchResolvedProviderModels(providerId: string): Promise<M
     throw error
   }
 }
+
+export async function fetchProviderCatalogModels(providerId: string): Promise<Model[]> {
+  const resolveModelsPath: ProviderResolveModelsPath = `/providers/${providerId}/models:resolve`
+  return (await dataApiService.get(resolveModelsPath)) as Model[]
+}

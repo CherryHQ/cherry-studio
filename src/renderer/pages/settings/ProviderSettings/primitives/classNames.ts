@@ -37,7 +37,7 @@ export const providerDetailColumnClasses = {
   scrollStrip: 'min-h-0 flex-1 overflow-x-hidden px-6 pt-6 pb-4',
   contentMaxWidth: 'mx-auto w-full max-w-3xl',
   /** Header inner wrapper: same max-width as body content + bottom divider aligned to content edges. */
-  headerContentMaxWidth: 'mx-auto w-full max-w-3xl border-b border-border pb-2',
+  headerContentMaxWidth: 'mx-auto w-full max-w-3xl border-b border-border-subtle pb-2',
   sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-5'
 } as const
 
@@ -181,6 +181,9 @@ export const modelListClasses = {
   titleWrap: 'flex w-full min-w-0 items-center gap-3',
   titleActions: 'flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2',
   toolbarDesignIcon: 'size-4 shrink-0',
+  subsectionIconButton:
+    'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
+  subsectionIcon: 'size-4',
   /** Connected top-row model list actions; uses shared ButtonGroup + Button outline primitives. */
   toolbarButtonGroup: 'max-w-full shrink-0',
   /** Model-list section title: same size, line-height, and color; semibold emphasis. */
@@ -221,7 +224,7 @@ export const modelListClasses = {
   searchClear:
     'flex h-[18px] w-[18px] items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/65',
   fetchActionButton:
-    'h-8 min-h-0 gap-1.5 rounded-[length:var(--cs-radius-md)] border-border-muted bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'h-8 min-h-0 gap-1.5 rounded-[length:var(--cs-radius-md)] border-border-muted border-r-[1.5px] border-r-border bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addModelIconButton:
     'size-8 min-h-0 rounded-[length:var(--cs-radius-md)] border-border-muted bg-background p-0 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addIconButton:
@@ -365,7 +368,42 @@ export const modelSyncClasses = {
   fetchRowIdStrike: 'truncate text-sm leading-tight text-foreground-muted line-through decoration-foreground-muted',
   fetchContextValue: 'shrink-0 text-xs leading-tight text-foreground-muted tabular-nums',
   /** Trailing capability icons — pull preview panel strip */
-  fetchCapabilityStrip: 'flex shrink-0 items-center justify-end gap-[3px]'
+  fetchCapabilityStrip: 'flex shrink-0 items-center justify-end gap-[3px]',
+  manageTitle: 'inline-flex min-w-0 items-center gap-2',
+  manageTitleText: 'min-w-0 truncate',
+  manageTitleCountBadge: 'h-5 rounded-md px-1.5 py-0 text-xs leading-5 tabular-nums',
+  manageTitleActionButton:
+    'h-8 rounded-lg px-2.5 text-xs text-muted-foreground/80 shadow-none hover:bg-accent/40 hover:text-foreground [&_svg]:size-3.5',
+  manageStickyHeader: 'sticky top-0 z-10 shrink-0 bg-card pt-1 pb-3',
+  manageToolbar: 'mb-2.5 flex items-center gap-2',
+  manageSearchIcon: 'pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/60',
+  manageSearchInput: 'h-9 rounded-lg bg-muted/30 pr-7 pl-8 text-sm shadow-none',
+  manageSearchClear:
+    'absolute right-2 top-1/2 flex h-[18px] w-[18px] -translate-y-1/2 items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/65',
+  manageIconButton: 'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
+  manageTabs: 'w-full gap-0',
+  manageTabsList: 'h-auto w-full max-w-full justify-stretch gap-1 rounded-lg bg-muted/40 p-1',
+  manageTabsTrigger: 'h-7 min-w-0 flex-1 rounded-md px-2 text-center text-xs',
+  manageScrollArea: 'min-h-0 flex-1 pr-1 [scrollbar-gutter:stable]',
+  manageLoading: 'flex min-h-52 items-center justify-center text-muted-foreground',
+  manageList: 'pb-1',
+  manageGroup: 'contents',
+  manageVirtualGroupRow: 'bg-card pb-1',
+  manageVirtualModelRow: 'bg-card pb-1',
+  manageGroupHeader: 'sticky top-0 z-30 mt-2.5 first:mt-0',
+  manageGroupHeaderSurface:
+    'flex min-h-9 items-center gap-2 border-b border-border-subtle bg-card py-0 text-left transition-colors',
+  manageGroupHeaderSurfaceCollapsed: '',
+  manageGroupToggle: 'flex min-w-0 flex-1 items-center gap-2 text-left',
+  manageGroupChevron: 'size-4 shrink-0 text-muted-foreground transition-transform',
+  manageGroupTitle: 'min-w-0 truncate text-sm font-semibold leading-5 text-foreground',
+  manageGroupBadge: 'h-4 rounded-md px-1.5 py-0 text-[10px] leading-4',
+  manageGroupBody: 'space-y-1 overflow-hidden bg-card py-1.5',
+  manageRow:
+    'flex min-h-10 items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-accent/30 data-[added=true]:bg-success/5',
+  manageRowTitle: 'truncate text-sm leading-5 text-foreground select-text',
+  manageRowDescription: 'mt-0.5 line-clamp-1 text-xs leading-4 text-muted-foreground',
+  manageRowAction: 'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground'
 } as const
 
 export const apiKeyListClasses = {

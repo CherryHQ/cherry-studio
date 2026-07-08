@@ -1,5 +1,6 @@
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import type { Model } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import {
   isEmbeddingModel,
   isFreeModel,
@@ -58,9 +59,15 @@ type CalculateModelListDerivedStateInput = {
   modelStatuses: ModelWithStatus[]
 }
 
+function getFallbackGroupName(model: Model): string {
+  const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+  const parts = modelId.split('/')
+  return parts.length > 1 ? parts[0] : model.providerId
+}
+
 export const groupModels = (models: Model[], preserveGroupOrder = false): ModelGroups => {
   const grouped = models.reduce<ModelGroups>((acc, model) => {
-    const groupName = normalizeModelGroupName(model.group)
+    const groupName = normalizeModelGroupName(model.group, getFallbackGroupName(model))
     if (!acc[groupName]) {
       acc[groupName] = []
     }

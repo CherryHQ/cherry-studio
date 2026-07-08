@@ -1,109 +1,159 @@
-import { Search, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Badge, Button, Input, Tabs, TabsList, TabsTrigger, Tooltip } from '@cherrystudio/ui'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { ListMinus, ListPlus, Search, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
-import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
-import type { ModelSyncPreviewResponse } from '../types/modelSyncPreviewTypes'
-import ModelSyncPreviewPanel, { ModelSyncPreviewFooter } from './ModelSyncPreviewPanel'
-import { type ModelPullApplyPayload, useModelListSyncSelections } from './useModelListSyncSelections'
-import { filterProviderSettingModelsByKeywords } from './utils'
+import { modelSyncClasses } from '../primitives/ProviderSettingsPrimitives'
+import type { ModelListCapabilityFilter } from './modelListDerivedState'
+import { applyModelFilters, groupModels, MODEL_LIST_CAPABILITY_FILTERS } from './modelListDerivedState'
+import ModelSyncPreviewPanel from './ModelSyncPreviewPanel'
 
 interface ModelListSyncDrawerProps {
   open: boolean
-  preview: ModelSyncPreviewResponse | null
+  provider?: Provider
+  allModels: Model[]
+  localModels: Model[]
+  isLoading: boolean
   isApplying: boolean
-  onApply: (payload: ModelPullApplyPayload) => void | Promise<void>
+  onAddModels: (models: Model[]) => void | Promise<void>
+  onRemoveModels: (modelIds: UniqueModelId[]) => void | Promise<void>
   onClose: () => void
 }
 
-export default function ModelListSyncDrawer({ open, preview, isApplying, onApply, onClose }: ModelListSyncDrawerProps) {
+export default function ModelListSyncDrawer({
+  open,
+  provider,
+  allModels = [],
+  localModels = [],
+  isLoading,
+  isApplying,
+  onAddModels,
+  onRemoveModels,
+  onClose
+}: ModelListSyncDrawerProps) {
   const { t } = useTranslation()
   const [searchText, setSearchText] = useState('')
-  const selections = useModelListSyncSelections(preview)
-  const searchActive = Boolean(searchText.trim())
-  const hasModels = !!preview && (preview.added.length > 0 || preview.missing.length > 0)
+  const [actualFilter, setActualFilter] = useState<ModelListCapabilityFilter>('all')
+  const [optimisticFilter, setOptimisticFilter] = useState<ModelListCapabilityFilter>('all')
+  const [, startFilterTransition] = useTransition()
 
   useEffect(() => {
     setSearchText('')
-  }, [open, preview])
+    setActualFilter('all')
+    setOptimisticFilter('all')
+  }, [open])
 
-  const filteredPreview = useMemo<ModelSyncPreviewResponse | null>(() => {
-    if (!preview || !searchActive) {
-      return preview
-    }
+  const localModelIds = useMemo(() => new Set(localModels.map((model) => model.id)), [localModels])
+  const filteredModels = useMemo(
+    () => applyModelFilters(allModels, searchText, actualFilter),
+    [actualFilter, allModels, searchText]
+  )
+  const filteredGroups = useMemo(
+    () => groupModels(filteredModels, Boolean(searchText.trim())),
+    [filteredModels, searchText]
+  )
+  const isAllFilteredInProvider =
+    filteredModels.length > 0 && filteredModels.every((model) => localModelIds.has(model.id))
+  const busy = isLoading || isApplying
+  const drawerTitle = provider?.name
+    ? `${provider.name} ${t('common.models')}`
+    : t('settings.models.manage.drawer_title')
+  const bulkActionLabel = isAllFilteredInProvider
+    ? t('settings.models.manage.remove_listed')
+    : t('settings.models.manage.add_listed.label')
 
-    const added = filterProviderSettingModelsByKeywords(searchText, preview.added)
-    const visibleMissingModels = filterProviderSettingModelsByKeywords(
-      searchText,
-      preview.missing.map((item) => item.model)
-    )
-    const visibleMissingIds = new Set(visibleMissingModels.map((model) => model.id))
-
-    return {
-      added,
-      missing: preview.missing.filter((item) => visibleMissingIds.has(item.model.id))
-    }
-  }, [preview, searchActive, searchText])
-
-  const handleApply = useCallback(() => {
-    const payload = selections.getApplyPayload()
-    if (!payload) {
+  const handleBulkAction = useCallback(() => {
+    if (isAllFilteredInProvider) {
+      void onRemoveModels(filteredModels.map((model) => model.id))
       return
     }
-    void onApply(payload)
-  }, [selections, onApply])
+
+    void onAddModels(filteredModels.filter((model) => !localModelIds.has(model.id)))
+  }, [filteredModels, isAllFilteredInProvider, localModelIds, onAddModels, onRemoveModels])
 
   return (
     <ProviderSettingsDrawer
       open={open}
       onClose={onClose}
-      title={t('settings.models.manage.fetch_result_title')}
-      bodyClassName="pt-0"
-      contentClassName="w-[min(calc(100vw-24px),520px)]"
-      footer={
-        preview ? (
-          <ModelSyncPreviewFooter
-            preview={preview}
-            selections={selections}
-            isApplying={isApplying}
-            onApply={handleApply}
-            onCancel={onClose}
-          />
-        ) : undefined
-      }>
-      {filteredPreview ? (
-        <>
-          {hasModels ? (
-            <div className={modelListClasses.searchWrap}>
-              <Search className={modelListClasses.searchIcon} />
-              <input
-                type="text"
-                value={searchText}
-                placeholder={t('models.search.placeholder')}
-                disabled={isApplying}
-                onChange={(event) => setSearchText(event.target.value)}
-                className={modelListClasses.searchInput}
-              />
-              {searchText ? (
-                <button
-                  type="button"
-                  onClick={() => setSearchText('')}
-                  className={modelListClasses.searchClear}
-                  aria-label={t('common.clear')}>
-                  <X size={9} />
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-          <ModelSyncPreviewPanel
-            preview={filteredPreview}
-            selections={selections}
-            isApplying={isApplying}
-            searchActive={searchActive}
-          />
-        </>
-      ) : null}
+      title={
+        <span className={modelSyncClasses.manageTitle}>
+          <span className={modelSyncClasses.manageTitleText}>{drawerTitle}</span>
+          <Badge variant="secondary" className={modelSyncClasses.manageTitleCountBadge}>
+            {allModels.length}
+          </Badge>
+        </span>
+      }
+      titleActions={
+        <Tooltip content={bulkActionLabel} placement="top">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label={bulkActionLabel}
+            disabled={busy || filteredModels.length === 0}
+            className={modelSyncClasses.manageTitleActionButton}
+            onClick={handleBulkAction}>
+            {isAllFilteredInProvider ? <ListMinus className="size-4" /> : <ListPlus className="size-4" />}
+            <span>{bulkActionLabel}</span>
+          </Button>
+        </Tooltip>
+      }
+      bodyClassName="flex flex-col space-y-0 overflow-hidden pt-0"
+      contentClassName="w-[min(calc(100vw-24px),620px)]">
+      <div className={modelSyncClasses.manageStickyHeader}>
+        <div className={modelSyncClasses.manageToolbar}>
+          <div className="relative min-w-0 flex-1">
+            <Search className={modelSyncClasses.manageSearchIcon} />
+            <Input
+              type="text"
+              value={searchText}
+              placeholder={t('settings.models.manage.search_models_placeholder')}
+              disabled={isLoading}
+              onChange={(event) => setSearchText(event.target.value)}
+              className={modelSyncClasses.manageSearchInput}
+            />
+            {searchText ? (
+              <button
+                type="button"
+                onClick={() => setSearchText('')}
+                className={modelSyncClasses.manageSearchClear}
+                aria-label={t('common.clear')}>
+                <X size={9} />
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <Tabs
+          value={optimisticFilter}
+          onValueChange={(value) => {
+            const next = value as ModelListCapabilityFilter
+            setOptimisticFilter(next)
+            startFilterTransition(() => setActualFilter(next))
+          }}
+          className={modelSyncClasses.manageTabs}>
+          <TabsList className={modelSyncClasses.manageTabsList}>
+            {MODEL_LIST_CAPABILITY_FILTERS.map((filter) => (
+              <TabsTrigger key={filter} value={filter} className={modelSyncClasses.manageTabsTrigger}>
+                {filter === 'all' ? t('models.all') : t(`models.type.${filter}`)}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </div>
+
+      <ModelSyncPreviewPanel
+        modelGroups={filteredGroups}
+        localModelIds={localModelIds}
+        isLoading={isLoading}
+        isApplying={isApplying}
+        searchActive={Boolean(searchText.trim())}
+        onAddModels={onAddModels}
+        onRemoveModels={onRemoveModels}
+      />
     </ProviderSettingsDrawer>
   )
 }
