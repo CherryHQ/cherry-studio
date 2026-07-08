@@ -1,6 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { ExternalLink, Search, X } from 'lucide-react'
+import { FileText, Search, X } from 'lucide-react'
 import type React from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -25,9 +26,18 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
 }) => {
   const { t } = useTranslation()
   const docsLink = modelsWebsite || docsWebsite
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const isSearchExpanded = searchOpen || Boolean(searchText)
+
+  useEffect(() => {
+    if (isSearchExpanded) {
+      searchInputRef.current?.focus()
+    }
+  }, [isSearchExpanded])
 
   return (
-    <div className={modelListClasses.headerToolStack}>
+    <div className={modelListClasses.headerInlineRow}>
       <div className={modelListClasses.sectionTitleLine}>
         <h2 className={modelListClasses.sectionTitle}>{t('settings.models.list_title')}</h2>
         {docsLink ? (
@@ -38,38 +48,57 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
                 rel="noreferrer"
                 href={docsLink}
                 aria-label={t('settings.models.docs')}
-                className={modelListClasses.titleHelpIconLink}>
-                <ExternalLink className={modelListClasses.titleHelpIcon} aria-hidden />
+                className={modelListClasses.searchIconButton}>
+                <FileText className={modelListClasses.toolbarHeaderIcon} aria-hidden />
               </a>
             </Tooltip>
           </div>
         ) : null}
-      </div>
-      <div className={modelListClasses.titleRow}>
-        <div className="flex min-w-0 flex-1">
-          <div className={modelListClasses.titleWrap}>
-            <div className={modelListClasses.searchWrap}>
-              <Search className={modelListClasses.searchIcon} />
-              <input
-                type="text"
-                value={searchText}
-                placeholder={t('models.search.placeholder')}
-                disabled={isBusy}
-                onChange={(event) => setSearchText(event.target.value)}
-                className={modelListClasses.searchInput}
-              />
-              {searchText ? (
-                <button
-                  type="button"
-                  onClick={() => setSearchText('')}
-                  className={modelListClasses.searchClear}
-                  aria-label={t('common.clear')}>
-                  <X size={9} />
-                </button>
-              ) : null}
-            </div>
+        {isSearchExpanded ? (
+          <div className={modelListClasses.searchCompactWrap}>
+            <Search className={modelListClasses.searchIcon} />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchText}
+              placeholder={t('models.search.placeholder')}
+              disabled={isBusy}
+              onChange={(event) => setSearchText(event.target.value)}
+              onFocus={() => setSearchOpen(true)}
+              onBlur={() => {
+                if (!searchText) {
+                  setSearchOpen(false)
+                }
+              }}
+              className={modelListClasses.searchInput}
+            />
+            {searchText ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchText('')
+                  setSearchOpen(false)
+                }}
+                className={modelListClasses.searchClear}
+                aria-label={t('common.clear')}>
+                <X size={9} />
+              </button>
+            ) : null}
           </div>
-        </div>
+        ) : (
+          <Tooltip content={t('common.search')}>
+            <button
+              type="button"
+              className={modelListClasses.searchIconButton}
+              aria-label={t('common.search')}
+              disabled={isBusy}
+              onClick={() => setSearchOpen(true)}>
+              <Search className={modelListClasses.toolbarHeaderIcon} />
+            </button>
+          </Tooltip>
+        )}
+      </div>
+      <div className={modelListClasses.headerInlineActions}>
         <div className={modelListClasses.titleActions}>{actions}</div>
       </div>
     </div>

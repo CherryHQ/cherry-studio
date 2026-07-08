@@ -174,6 +174,8 @@ export const modelListClasses = {
   section: 'flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-2.5',
   headerBlock: 'flex min-h-0 min-w-0 w-full flex-1 flex-col gap-3',
   titleRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-2.5',
+  headerInlineRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-2',
+  headerInlineActions: 'flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2',
   /** Model list header stack — matches model list block. */
   headerToolStack: 'flex min-w-0 w-full flex-col gap-2',
   titleWrap: 'flex w-full min-w-0 items-center gap-3',
@@ -182,9 +184,9 @@ export const modelListClasses = {
   /** Connected top-row model list actions; uses shared ButtonGroup + Button outline primitives. */
   toolbarButtonGroup: 'max-w-full shrink-0',
   /** Model-list section title: same size, line-height, and color; semibold emphasis. */
-  sectionTitleLine: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
+  sectionTitleLine: 'flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1',
   sectionTitle: cn(sectionHeadingBase, 'shrink-0 whitespace-nowrap font-semibold'),
-  titleHelpRow: 'flex min-w-0 flex-wrap items-center gap-x-1.5 self-center text-foreground-muted',
+  titleHelpRow: 'ml-1 flex min-w-0 flex-wrap items-center gap-x-1.5 self-center text-foreground-muted',
   titleHelpText: 'shrink-0 opacity-60',
   titleHelpLink:
     'mx-0 inline-flex shrink-0 items-center leading-[1.3] !text-foreground-muted/70 transition-colors hover:!text-primary hover:no-underline',
@@ -207,6 +209,10 @@ export const modelListClasses = {
   searchActions: 'flex max-w-full shrink-0 flex-wrap items-center gap-2',
   searchWrap:
     'flex h-8 min-w-0 flex-1 items-center gap-1 rounded-[10px] border border-border-muted bg-background px-2.5 py-1',
+  searchCompactWrap:
+    'flex h-8 w-[min(38vw,220px)] min-w-36 items-center gap-1 rounded-[10px] border border-border-muted bg-background px-2.5 py-1',
+  searchIconButton:
+    'inline-flex size-6 shrink-0 items-center justify-center rounded-[length:var(--cs-radius-md)] bg-transparent text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground disabled:opacity-40',
   searchIcon: 'size-3 shrink-0 text-muted-foreground/65',
   searchInput:
     'min-w-0 flex-1 border-none bg-transparent text-sm leading-5 text-foreground/80 outline-none placeholder:text-muted-foreground/75 disabled:cursor-not-allowed disabled:opacity-60',
@@ -218,23 +224,6 @@ export const modelListClasses = {
     'size-8 min-h-0 rounded-[length:var(--cs-radius-md)] border-border-muted bg-background p-0 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addIconButton:
     'size-8 rounded-lg border-border-muted bg-transparent text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
-  subsectionRow: 'flex min-w-0 items-center gap-2 px-1',
-  subsectionTitleWrap: 'flex min-w-0 items-center gap-2',
-  subsectionActions: 'ml-1 flex shrink-0 items-center gap-2',
-  subsectionIconButton:
-    'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40',
-  subsectionIcon: 'size-4 shrink-0',
-  listActionTriggerButton:
-    'inline-flex size-6 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/55 shadow-none hover:bg-accent/40 hover:text-foreground/80 disabled:opacity-40',
-  listActionTriggerIcon: 'size-4 shrink-0',
-  listActionMenu: 'w-fit min-w-40 rounded-xl p-1.5',
-  listActionMenuItem: 'h-9 rounded-lg px-3 text-sm',
-  listActionMenuIcon: 'size-3.5 text-muted-foreground/70',
-  subsectionTooltipTrigger: 'inline-flex size-5 min-h-0 shrink-0 items-center justify-center leading-none',
-  subsectionTitleEnabled: 'text-sm leading-5 text-foreground font-semibold',
-  subsectionCountEnabled: 'text-sm leading-5 text-foreground-muted tabular-nums font-medium',
-  subsectionTitleDisabled: 'text-sm leading-5 text-foreground font-semibold',
-  subsectionCountDisabled: 'text-sm leading-5 text-foreground-muted tabular-nums font-medium',
   emptyState:
     'flex min-h-40 items-center justify-center rounded-2xl border border-border border-dashed bg-muted/30 px-4 text-center text-sm leading-5 text-foreground-muted',
   listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden pr-1',

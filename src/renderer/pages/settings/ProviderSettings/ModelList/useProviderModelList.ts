@@ -28,7 +28,6 @@ export interface ProviderModelListHeaderSurface {
   hasNoModels: boolean
   searchText: string
   setSearchText: (text: string) => void
-  onToggleVisibleModels: (enabled: boolean) => Promise<void>
 }
 
 export interface ProviderModelListSectionsSurface {
@@ -375,13 +374,6 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     [optimisticEnabledByModelId, updateModels]
   )
 
-  const onToggleVisibleModels = useCallback(
-    async (enabled: boolean) => {
-      await onToggleModels(derivedState.filteredModels, enabled)
-    },
-    [derivedState.filteredModels, onToggleModels]
-  )
-
   const enabledSections = useMemo(() => toGroupSections(displayState.sections.enabled), [displayState.sections.enabled])
   const disabledSections = useMemo(
     () => toGroupSections(displayState.sections.disabled),
@@ -396,8 +388,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     allEnabled: derivedState.allEnabled,
     hasNoModels: derivedState.hasNoModels,
     searchText: searchInputText,
-    setSearchText: setSearchInputText,
-    onToggleVisibleModels
+    setSearchText: setSearchInputText
   }
 
   const sections: ProviderModelListSectionsSurface = {

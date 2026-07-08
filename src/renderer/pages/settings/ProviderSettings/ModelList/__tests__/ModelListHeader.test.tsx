@@ -38,11 +38,12 @@ describe('ModelListHeader', () => {
     }
   })
 
-  it('renders the model list title, persistent search, and external action slot', () => {
+  it('renders the model list title, collapsed search action, and external action slot', () => {
     render(<ModelListHeader {...baseProps} actions={<button type="button">external-action</button>} />)
 
     expect(screen.getByText('settings.models.list_title')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('models.search.placeholder')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.search' })).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('models.search.placeholder')).not.toBeInTheDocument()
     expect(screen.getByText('external-action')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'settings.models.bulk_enable' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'settings.models.bulk_disable' })).not.toBeInTheDocument()
@@ -60,7 +61,7 @@ describe('ModelListHeader', () => {
     const docsLink = screen.getByRole('link', { name: 'settings.models.docs' })
 
     expect(docsLink).toHaveAttribute('href', 'https://github.com/marketplace/models')
-    expect(docsLink).toHaveClass('h-[1.3em]', 'w-[1.3em]', 'text-foreground-muted/70', 'hover:text-primary')
+    expect(docsLink).toHaveClass('size-6', 'bg-transparent')
     expect(docsLink).not.toHaveClass('hover:underline')
     expect(screen.queryByText('settings.models.docs')).not.toBeInTheDocument()
     expect(screen.getAllByRole('link')).toHaveLength(1)
@@ -68,14 +69,33 @@ describe('ModelListHeader', () => {
     expect(screen.queryByText('settings.provider.docs_more_details')).not.toBeInTheDocument()
   })
 
-  it('updates and clears the persistent search input', () => {
-    render(<ModelListHeader {...baseProps} searchText="GPT" />)
+  it('expands, updates, and clears the search input', () => {
+    const { rerender } = render(<ModelListHeader {...baseProps} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.search' }))
 
     fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'Claude' } })
     expect(baseProps.setSearchText).toHaveBeenCalledWith('Claude')
 
+    rerender(<ModelListHeader {...baseProps} searchText="GPT" />)
+
     fireEvent.click(screen.getByRole('button', { name: 'common.clear' }))
     expect(baseProps.setSearchText).toHaveBeenCalledWith('')
+  })
+
+  it('collapses the search input on blur only when there is no search text', () => {
+    const { rerender } = render(<ModelListHeader {...baseProps} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.search' }))
+    fireEvent.blur(screen.getByPlaceholderText('models.search.placeholder'))
+
+    expect(screen.queryByPlaceholderText('models.search.placeholder')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.search' })).toBeInTheDocument()
+
+    rerender(<ModelListHeader {...baseProps} searchText="GPT" />)
+    fireEvent.blur(screen.getByPlaceholderText('models.search.placeholder'))
+
+    expect(screen.getByPlaceholderText('models.search.placeholder')).toBeInTheDocument()
   })
 
   it('does not render the capability filter button', () => {

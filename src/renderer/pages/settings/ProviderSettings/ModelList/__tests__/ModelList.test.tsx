@@ -61,27 +61,6 @@ describe('useProviderModelList', () => {
     expect(result.current.editDrawer.model?.name).toBe('Alpha')
   })
 
-  it('bulk-enables only the currently visible filtered models', async () => {
-    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
-
-    act(() => {
-      result.current.header.setSearchText('Beta')
-    })
-
-    await waitFor(() => {
-      expect(result.current.header.modelCount).toBe(1)
-    })
-
-    await act(async () => {
-      void result.current.header.onToggleVisibleModels(true)
-      await Promise.resolve()
-    })
-
-    expect(updateModelsMock).toHaveBeenCalledTimes(1)
-    expect(updateModelsMock).toHaveBeenCalledWith([{ uniqueModelId: 'openai::model-beta', patch: { isEnabled: true } }])
-    expect(updateModelMock).not.toHaveBeenCalled()
-  })
-
   it('does not surface local search filtering as a loading state for larger model sets', async () => {
     const largeModelSet = Array.from({ length: 12 }, (_, index) => ({
       id: `openai::model-${index}`,
@@ -411,7 +390,7 @@ describe('useProviderModelList', () => {
     ).toEqual(['openai::chat-alpha', 'openai::chat-beta'])
   })
 
-  it('moves bulk-disabled visible models into the disabled section immediately', async () => {
+  it('moves bulk-disabled models into the disabled section immediately', async () => {
     let serverModels = [
       {
         id: 'openai::reasoning-alpha',
@@ -440,9 +419,12 @@ describe('useProviderModelList', () => {
 
     const { result, rerender } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 
+    const modelsToDisable = result.current.sections.enabledSections.flatMap((section) =>
+      section.items.map((item) => item.model)
+    )
+
     await act(async () => {
-      void result.current.header.onToggleVisibleModels(false)
-      await Promise.resolve()
+      await result.current.sections.onToggleModels(modelsToDisable, false)
     })
 
     expect(updateModelsMock).toHaveBeenCalledTimes(1)
