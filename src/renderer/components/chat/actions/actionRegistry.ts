@@ -157,7 +157,8 @@ export class ActionRegistry<TContext> {
     actionId: string
   ): ActionDescriptor<TContext> | undefined {
     if (action.id === actionId) return action
-    for (const child of action.children ?? []) {
+    const children = Array.isArray(action.children) ? action.children : []
+    for (const child of children) {
       const found = this.findActionInTree(child, actionId)
       if (found) return found
     }
@@ -178,8 +179,9 @@ export class ActionRegistry<TContext> {
     const availability = combineAvailability(actionAvailability, commandAvailability)
     if (!availability.visible) return undefined
 
+    const actionChildren = typeof action.children === 'function' ? action.children(context) : (action.children ?? [])
     const children = sortResolvedActions(
-      (action.children ?? [])
+      actionChildren
         .map((child) => this.resolveAction(child, context, surface))
         .filter((child): child is ResolvedAction<TContext> => !!child)
     )

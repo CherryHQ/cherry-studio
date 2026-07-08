@@ -135,4 +135,25 @@ describe('ActionRegistry', () => {
     await expect(registry.execute('position-left', { run })).resolves.toBe(true)
     expect(run).toHaveBeenCalledWith('left')
   })
+
+  it('resolves dynamic nested actions from context', () => {
+    const registry = createActionRegistry<TestContext & { targets: string[] }>()
+    const run = vi.fn()
+
+    registry.registerAction({
+      id: 'move',
+      label: 'Move',
+      children: ({ targets }) =>
+        targets.map((target, index) => ({
+          id: `move-${target}`,
+          label: target,
+          order: index
+        }))
+    })
+
+    expect(registry.resolve({ run, targets: ['Beta', 'Gamma'] })[0]?.children).toMatchObject([
+      { id: 'move-Beta', label: 'Beta' },
+      { id: 'move-Gamma', label: 'Gamma' }
+    ])
+  })
 })

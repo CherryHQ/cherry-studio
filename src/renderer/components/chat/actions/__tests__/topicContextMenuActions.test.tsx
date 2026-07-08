@@ -1,7 +1,7 @@
 import type { Topic } from '@renderer/types/topic'
 import { describe, expect, it, vi } from 'vitest'
 
-import { resolveTopicMenuActions, type TopicActionContext } from '../topicContextMenuActions'
+import { executeTopicMenuAction, resolveTopicMenuActions, type TopicActionContext } from '../topicContextMenuActions'
 
 const t = ((key: string) => key) as TopicActionContext['t']
 
@@ -32,6 +32,7 @@ const topic: Topic = {
 
 function createTopicActionFixture(overrides: Partial<TopicActionContext> = {}): TopicActionContext {
   return {
+    assistantMoveTargets: [],
     exportMenuOptions,
     isActiveInCurrentTab: false,
     isRenaming: false,
@@ -81,5 +82,23 @@ describe('topic context menu actions', () => {
 
     const exportAction = actions.find((action) => action.id === 'topic.export')
     expect(exportAction?.children.map((action) => action.id)).not.toContain('topic.export.image')
+  })
+
+  it('runs a move-to-assistant submenu action', async () => {
+    const onMoveToAssistant = vi.fn()
+    const context = createTopicActionFixture({
+      assistantMoveTargets: [{ id: 'assistant-b', name: 'Assistant B' }],
+      onMoveToAssistant
+    })
+
+    const actions = resolveTopicMenuActions(context)
+    const moveAction = actions.find((action) => action.id === 'topic.move-to-assistant')
+
+    expect(moveAction?.label).toBe('chat.topics.move_to')
+    expect(moveAction?.children.map((action) => action.label)).toEqual(['Assistant B'])
+
+    await executeTopicMenuAction(moveAction!.children[0], context)
+
+    expect(onMoveToAssistant).toHaveBeenCalledWith(topic, 'assistant-b')
   })
 })
