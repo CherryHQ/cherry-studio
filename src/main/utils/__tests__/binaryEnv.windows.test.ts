@@ -25,7 +25,7 @@ vi.mock('@application', () => ({
 
 vi.mock('path')
 
-import { mergeBinaryExecutionEnv } from '../binaryEnv'
+import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv } from '../binaryEnv'
 
 describe('mergeBinaryExecutionEnv (Windows)', () => {
   beforeEach(async () => {
@@ -81,5 +81,15 @@ describe('mergeBinaryExecutionEnv (Windows)', () => {
     })
 
     expect(Path.split(';')).toEqual([shims, 'C:/Windows'])
+  })
+
+  it('relocates LOCALAPPDATA/APPDATA into the isolated data dir on Windows', () => {
+    // aqua/Sigstore/TUF resolves its cache/config from %LOCALAPPDATA%/%APPDATA%;
+    // the install subprocess strips the user's real values, so the isolated home
+    // must supply them or verification fails with "Could not determine cache
+    // directory" (#16719). Only set on Windows.
+    const env = getBinaryIsolatedHomeEnv()
+    expect(env['LOCALAPPDATA']).toBe('C:\\data\\binary-manager\\localappdata')
+    expect(env['APPDATA']).toBe('C:\\data\\binary-manager\\appdata')
   })
 })

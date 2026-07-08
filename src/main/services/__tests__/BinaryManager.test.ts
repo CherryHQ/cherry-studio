@@ -795,6 +795,14 @@ describe('BinaryManager', () => {
       expect(env['XDG_CACHE_HOME']).toBe('/mock/feature.binary.data/xdg/cache')
       expect(env['XDG_STATE_HOME']).toBe('/mock/feature.binary.data/xdg/state')
     })
+
+    it('sets MISE_PIPX_UVX so pipx: tools install via the bundled uv, not a missing pipx (#16719)', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      const env = await (service as any).buildIsolatedEnv()
+
+      expect(env['MISE_PIPX_UVX']).toBe('1')
+    })
   })
 
   describe('installWithMise', () => {
@@ -943,6 +951,24 @@ describe('BinaryManager', () => {
       const service = new BinaryManager()
 
       await expect((service as any).runMise(['which', 'fd'])).rejects.toThrow('mise binary not available')
+    })
+
+    it('folds mise stderr into the thrown error so the diagnostic is not lost (#16719)', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = { MISE_DATA_DIR: '/isolated' }
+
+      // execFileAsync rejects with a generic "Command failed" message; the real
+      // reason is on err.stderr. runMise must surface it, not swallow it.
+      mockExecFileAsync.mockRejectedValueOnce(
+        Object.assign(new Error('Command failed: mise use -g pipx:foo'), {
+          stderr: 'mise ERROR pipx install failed: program not found'
+        })
+      )
+
+      await expect((service as any).runMise(['use', '-g', 'pipx:foo'])).rejects.toThrow(
+        'mise ERROR pipx install failed: program not found'
+      )
     })
   })
 

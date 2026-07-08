@@ -294,6 +294,13 @@ export class BinaryManager extends BaseService {
       env['GITHUB_TOKEN'] = cherryGhToken
     }
 
+    // Install `pipx:` tools via the bundled uv/uvx instead of a `pipx` binary the
+    // user may not have. mise's default is already true, but only "if uv is on
+    // PATH" — set it explicitly so the bundled uv is used deterministically and a
+    // missing `pipx` can't fail the install (#16719). Install-only: this must not
+    // leak into the shared execution env that runs the launched CLIs.
+    env['MISE_PIPX_UVX'] = '1'
+
     const inChina = await regionService.isInChina().catch(() => false)
     if (inChina) {
       if (!env['NPM_CONFIG_REGISTRY']) {
@@ -309,22 +316,24 @@ export class BinaryManager extends BaseService {
     // relocated *after* the merge — this isolation is scoped to the install
     // subprocess only; the shared execution env keeps the user's real HOME.
     const merged = mergeBinaryExecutionEnv(env, this.miseBin ? [path.dirname(this.miseBin)] : [])
-    Object.assign(merged, getBinaryIsolatedHomeEnv())
+    const isolatedHome = getBinaryIsolatedHomeEnv()
+    Object.assign(merged, isolatedHome)
 
     if (isWin) {
       merged['USERPROFILE'] = merged['HOME']
     }
 
+    // Create every relocated dir so mise (and its verifiers) can write. The home
+    // keys are derived from getBinaryIsolatedHomeEnv() rather than hardcoded, so
+    // platform-conditional additions (Windows LOCALAPPDATA/APPDATA) are covered
+    // without drifting from that function.
     for (const key of [
       'MISE_DATA_DIR',
       'MISE_CONFIG_DIR',
       'MISE_CACHE_DIR',
       'MISE_STATE_DIR',
       'MISE_SHIMS_DIR',
-      'HOME',
-      'XDG_CONFIG_HOME',
-      'XDG_CACHE_HOME',
-      'XDG_STATE_HOME'
+      ...Object.keys(isolatedHome)
     ]) {
       fs.mkdirSync(merged[key], { recursive: true })
     }
@@ -372,7 +381,20 @@ export class BinaryManager extends BaseService {
     const env = await this.getIsolatedEnv()
     // cwd is always a throwaway tmp dir so mise never picks up a project-local
     // mise.toml from the main process's working directory.
-    return execFileAsync(this.miseBin, args, { cwd: os.tmpdir(), env, timeout: 120_000 })
+    try {
+      return await execFileAsync(this.miseBin, args, { cwd: os.tmpdir(), env, timeout: 120_000 })
+    } catch (err) {
+      // execFileAsync rejects with a generic "Command failed" message; mise's
+      // actionable diagnostic lives on err.stderr. Fold it into the message so it
+      // reaches the logger and the renderer toast (via installTool/reconcile)
+      // instead of a bare exit-code line (#16719). No token vars appear in mise
+      // stderr, so this can't leak the GitHub token.
+      const stderr = (err as { stderr?: unknown }).stderr
+      if (err instanceof Error && typeof stderr === 'string' && stderr.trim()) {
+        err.message = `${err.message}\n${stderr.trim()}`
+      }
+      throw err
+    }
   }
 
   private async isManagedBinaryReady(toolName: string): Promise<boolean> {

@@ -94,12 +94,22 @@ export function getBinaryExecutionEnv(): Record<string, string> {
  */
 export function getBinaryIsolatedHomeEnv(): Record<string, string> {
   const dataDir = binaryDataDir()
-  return {
+  const env: Record<string, string> = {
     HOME: path.join(dataDir, 'home'),
     XDG_CONFIG_HOME: path.join(dataDir, 'xdg', 'config'),
     XDG_CACHE_HOME: path.join(dataDir, 'xdg', 'cache'),
     XDG_STATE_HOME: path.join(dataDir, 'xdg', 'state')
   }
+  // On Windows, mise's aqua backend runs Sigstore/TUF verification, which resolves
+  // its cache/config dirs from %LOCALAPPDATA%/%APPDATA%. The install subprocess
+  // strips the user's real values (they aren't in MISE_PASSTHROUGH_ENV), so without
+  // these the verify step fails with "Could not determine cache directory" (#16719).
+  // Point them into the isolated data dir alongside HOME/XDG.
+  if (isWin) {
+    env.LOCALAPPDATA = path.join(dataDir, 'localappdata')
+    env.APPDATA = path.join(dataDir, 'appdata')
+  }
+  return env
 }
 
 // `extraPathPrefixes` are prepended after the mise shims dir but before the
