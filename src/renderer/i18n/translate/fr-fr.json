@@ -6036,6 +6036,7 @@
           "label": "[to be translated]:Verify tool signatures"
         }
       },
+      "installViaMise": "[to be translated]:Install via mise",
       "installing": "Installation en cours...",
       "invalidTool": "Nom d'outil ou clé invalide",
       "notInstalled": "Non installé",
@@ -6046,7 +6047,8 @@
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "bundled",
+        "system": "[to be translated]:System"
       },
       "title": "Dépendances de l'environnement",
       "tools": {

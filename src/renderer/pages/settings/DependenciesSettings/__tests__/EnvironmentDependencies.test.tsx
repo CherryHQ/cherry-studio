@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,6 +15,7 @@ const setInstallSettingsMock = vi.hoisted(() => vi.fn())
 const ipcMocks = vi.hoisted(() => ({
   getState: vi.fn(),
   probeBundled: vi.fn(),
+  probeSystem: vi.fn(),
   latestVersions: vi.fn(),
   installTool: vi.fn(),
   removeTool: vi.fn(),
@@ -31,6 +32,8 @@ vi.mock('@renderer/ipc', () => ({
           return ipcMocks.getState()
         case 'binary.probe_bundled':
           return ipcMocks.probeBundled()
+        case 'binary.probe_system':
+          return ipcMocks.probeSystem(input)
         case 'binary.install_tool':
           return ipcMocks.installTool(input)
         case 'binary.remove_tool':
@@ -175,6 +178,7 @@ describe('EnvironmentDependencies', () => {
     }
     ipcMocks.getState.mockResolvedValue({ tools: {} })
     ipcMocks.probeBundled.mockResolvedValue({})
+    ipcMocks.probeSystem.mockResolvedValue({})
     ipcMocks.latestVersions.mockResolvedValue({})
     ipcMocks.installTool.mockResolvedValue(undefined)
     ipcMocks.removeTool.mockResolvedValue(undefined)
@@ -216,6 +220,20 @@ describe('EnvironmentDependencies', () => {
 
     await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
     expect(screen.queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
+  })
+
+  it('marks a system-PATH preset tool as available and offers only the mise install', async () => {
+    // uv found on the user's PATH (source 'system') → "System" badge, and the
+    // install action is the low-key "install via mise", not the prominent "install".
+    ipcMocks.probeSystem.mockResolvedValue({ uv: '/usr/local/bin/uv' })
+    render(<EnvironmentDependencies />)
+
+    await waitFor(() => expect(ipcMocks.probeSystem).toHaveBeenCalled())
+    const uvCard = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
+    expect(within(uvCard).getByText('settings.dependencies.source.system')).toBeInTheDocument()
+    expect(within(uvCard).getByText('settings.dependencies.installViaMise')).toBeInTheDocument()
+    // The already-available uv card must not show the prominent "install".
+    expect(within(uvCard).queryByText('settings.dependencies.install')).not.toBeInTheDocument()
   })
 
   it('renders nothing in mini mode once core deps are available', async () => {

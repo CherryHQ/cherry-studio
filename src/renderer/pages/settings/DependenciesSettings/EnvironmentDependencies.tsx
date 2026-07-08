@@ -76,7 +76,7 @@ const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }
   return <Terminal className={cn('size-5', className)} />
 }
 
-type ToolSource = 'managed' | 'bundled' | 'none'
+type ToolSource = 'managed' | 'bundled' | 'system' | 'none'
 
 interface EnvironmentDependenciesProps {
   mini?: boolean
@@ -86,6 +86,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [binaryState, setBinaryState] = useState<BinaryState | null>(null)
   const [binaryStateReady, setBinaryStateReady] = useState(false)
   const [bundled, setBundled] = useState<Record<string, string | null>>({})
+  const [systemTools, setSystemTools] = useState<Record<string, string>>({})
   const [latestVersions, setLatestVersions] = useState<Record<string, string> | null>(null)
   const [checkingUpdates, setCheckingUpdates] = useState(false)
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
@@ -110,18 +111,21 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   const refreshState = useCallback(async () => {
     try {
-      const [state, bundledMap] = await Promise.all([
+      const names = [...PRESETS_BINARY_TOOLS.map((tool) => tool.name), ...customTools.map((tool) => tool.name)]
+      const [state, bundledMap, systemMap] = await Promise.all([
         ipcApi.request('binary.get_state'),
-        ipcApi.request('binary.probe_bundled')
+        ipcApi.request('binary.probe_bundled'),
+        ipcApi.request('binary.probe_system', names)
       ])
       if (!mountedRef.current) return
       setBinaryState(state)
       setBundled(bundledMap)
+      setSystemTools(systemMap)
       setBinaryStateReady(true)
     } catch (error) {
       logger.error('Failed to refresh binary state', error as Error)
     }
-  }, [])
+  }, [customTools])
 
   const fetchLatestVersions = useCallback(
     async (force = false): Promise<Record<string, string> | null> => {
@@ -162,10 +166,15 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     // previously fetched latest-version hints are stale. Next explicit refresh
     // (header button or per-tool Update) will repopulate per-tool results.
     setLatestVersions(null)
-    // mise install may shadow a bundled binary; re-probe so the source label stays accurate.
-    void ipcApi.request('binary.probe_bundled').then((b) => {
-      if (mountedRef.current) setBundled(b)
-    })
+    // mise install may shadow a bundled/system binary; re-probe so the source label stays accurate.
+    const names = [...PRESETS_BINARY_TOOLS.map((tool) => tool.name), ...customTools.map((tool) => tool.name)]
+    void Promise.all([ipcApi.request('binary.probe_bundled'), ipcApi.request('binary.probe_system', names)]).then(
+      ([b, s]) => {
+        if (!mountedRef.current) return
+        setBundled(b)
+        setSystemTools(s)
+      }
+    )
   })
   useIpcOn('binary.reconcile_failed', (names) => {
     toast.error(`${t('settings.dependencies.installError')}: ${names}`)
@@ -285,7 +294,13 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         {PRESETS_BINARY_TOOLS.map((tool) => {
           const installed = binaryState?.tools[tool.name]
           const bundledVersion = bundled[tool.name]
-          const source: ToolSource = installed ? 'managed' : tool.name in bundled ? 'bundled' : 'none'
+          const source: ToolSource = installed
+            ? 'managed'
+            : tool.name in bundled
+              ? 'bundled'
+              : tool.name in systemTools
+                ? 'system'
+                : 'none'
           const installedVersion = installed?.version ?? bundledVersion ?? undefined
           const latestVersion = latestVersions?.[tool.name]
           const hasUpdate = !!installed && isNewerVersion(latestVersion, installedVersion)
@@ -294,6 +309,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               key={tool.name}
               tool={tool}
               source={source}
+              systemPath={systemTools[tool.name]}
               installedVersion={installedVersion}
               latestVersion={hasUpdate ? latestVersion : undefined}
               installing={installingTools.has(tool.name)}
@@ -368,6 +384,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 const BinaryToolPresetCard: FC<{
   tool: BinaryToolPreset
   source: ToolSource
+  systemPath?: string
   installedVersion?: string
   latestVersion?: string
   installing: boolean
@@ -375,11 +392,23 @@ const BinaryToolPresetCard: FC<{
   onUpdate: () => void
   onOpenPath: () => void
   onRemove: () => void
-}> = ({ tool, source, installedVersion, latestVersion, installing, onInstall, onUpdate, onOpenPath, onRemove }) => {
+}> = ({
+  tool,
+  source,
+  systemPath,
+  installedVersion,
+  latestVersion,
+  installing,
+  onInstall,
+  onUpdate,
+  onOpenPath,
+  onRemove
+}) => {
   const { t } = useTranslation()
   const description = t(`settings.dependencies.tools.${tool.name}`)
   const present = source !== 'none'
   const isBundled = source === 'bundled'
+  const isSystem = source === 'system'
 
   return (
     <div
@@ -418,6 +447,11 @@ const BinaryToolPresetCard: FC<{
                 {isBundled && (
                   <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
                     {t('settings.dependencies.source.bundled')}
+                  </Badge>
+                )}
+                {isSystem && (
+                  <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4" title={systemPath}>
+                    {t('settings.dependencies.source.system')}
                   </Badge>
                 )}
               </div>
@@ -487,7 +521,7 @@ const BinaryToolPresetCard: FC<{
         )}
       </div>
 
-      {source !== 'managed' && (
+      {source === 'none' && (
         <div className="mt-3 border-border border-t pt-3">
           <Button
             variant="outline"
@@ -497,11 +531,23 @@ const BinaryToolPresetCard: FC<{
             disabled={installing}
             loading={installing}>
             {!installing && <Download className="size-3.5" />}
-            {installing
-              ? t('settings.dependencies.installing')
-              : isBundled
-                ? t('settings.dependencies.install')
-                : t('settings.mcp.install')}
+            {installing ? t('settings.dependencies.installing') : t('settings.dependencies.install')}
+          </Button>
+        </div>
+      )}
+      {/* Available already (bundled or system): mise install is an optional
+          Cherry-managed/pinned copy, not a prerequisite — keep it low-key. */}
+      {(isBundled || isSystem) && (
+        <div className="mt-3 border-border border-t pt-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 px-2 text-muted-foreground text-xs hover:text-foreground"
+            onClick={onInstall}
+            disabled={installing}
+            loading={installing}>
+            {!installing && <Download className="size-3.5" />}
+            {installing ? t('settings.dependencies.installing') : t('settings.dependencies.installViaMise')}
           </Button>
         </div>
       )}

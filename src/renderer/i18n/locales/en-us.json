@@ -6036,6 +6036,7 @@
           "label": "Verify tool signatures"
         }
       },
+      "installViaMise": "Install via mise",
       "installing": "Installing...",
       "invalidTool": "Invalid tool name or key",
       "notInstalled": "Not installed",
@@ -6046,7 +6047,8 @@
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "bundled",
+        "system": "System"
       },
       "title": "Dependencies",
       "tools": {

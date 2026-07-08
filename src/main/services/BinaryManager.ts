@@ -12,6 +12,8 @@ import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
 import { getBinaryIsolatedHomeEnv, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryName, getBinaryPath } from '@main/utils/binaryResolver'
+import { findCommandInShellEnv } from '@main/utils/commandResolver'
+import { getShellEnv } from '@main/utils/shellEnv'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
 import { PRESETS_BINARY_TOOLS, TOOL_KEY_RE, validateManagedBinary } from '@shared/data/presets/binaryTools'
 import { Mutex } from 'async-mutex'
@@ -202,6 +204,31 @@ export class BinaryManager extends BaseService {
       result[tool.name] = this.readVersionMarker(path.join(binDir, tool.versionFile))
     }
     return result
+  }
+
+  /**
+   * Probe which of the given tool names the user already has on their login-shell
+   * PATH (installed outside Cherry — Homebrew, a global npm, a manual download).
+   *
+   * Uses the captured login-shell env so it sees the same PATH a terminal would,
+   * not the truncated GUI-launch PATH. Paths that resolve into Cherry's own
+   * managed/bundled dirs are dropped so those keep their more specific "managed"
+   * / "bundled" source in the UI instead of masquerading as a system install.
+   *
+   * Returns a map of tool name → resolved absolute path; absent names aren't on PATH.
+   */
+  public async probeSystem(names: string[]): Promise<Record<string, string>> {
+    const shellEnv = await getShellEnv()
+    const cherryDirs = [application.getPath('cherry.bin'), application.getPath('feature.binary.data')]
+    const entries = await Promise.all(
+      names.map(async (name): Promise<[string, string] | null> => {
+        const resolved = await findCommandInShellEnv(name, shellEnv)
+        if (!resolved) return null
+        if (cherryDirs.some((dir) => resolved.startsWith(dir))) return null
+        return [name, resolved]
+      })
+    )
+    return Object.fromEntries(entries.filter((e): e is [string, string] => e !== null))
   }
 
   private async extractBundledBinaries(): Promise<void> {

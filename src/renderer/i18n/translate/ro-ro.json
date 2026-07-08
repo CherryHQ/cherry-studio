@@ -6036,6 +6036,7 @@
           "label": "[to be translated]:Verify tool signatures"
         }
       },
+      "installViaMise": "[to be translated]:Install via mise",
       "installing": "Se instalează...",
       "invalidTool": "Nume de instrument sau cheie invalid",
       "notInstalled": "Neinstalat",
@@ -6046,7 +6047,8 @@
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "bundled",
+        "system": "[to be translated]:System"
       },
       "title": "Dependențe de mediu",
       "tools": {

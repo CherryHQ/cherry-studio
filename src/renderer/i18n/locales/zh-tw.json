@@ -6036,6 +6036,7 @@
           "label": "[to be translated]:Verify tool signatures"
         }
       },
+      "installViaMise": "[to be translated]:Install via mise",
       "installing": "安裝中...",
       "invalidTool": "工具名稱或識別碼無效",
       "notInstalled": "未安裝",
@@ -6046,7 +6047,8 @@
       "searchFailed": "搜尋失敗，請查看日誌",
       "searchRegistry": "搜尋 mise 工具倉庫...",
       "source": {
-        "bundled": "內建"
+        "bundled": "內建",
+        "system": "[to be translated]:System"
       },
       "title": "環境依賴",
       "tools": {

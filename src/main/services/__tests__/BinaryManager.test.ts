@@ -84,12 +84,21 @@ vi.mock('@main/services/RegionService', () => ({
   regionService: { isInChina: vi.fn().mockResolvedValue(false) }
 }))
 
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: vi.fn(async () => ({ PATH: '/usr/local/bin:/usr/bin' }))
+}))
+
+vi.mock('@main/utils/commandResolver', () => ({
+  findCommandInShellEnv: vi.fn(async () => null)
+}))
+
 vi.mock('node:util', async (importOriginal) => {
   const actual = await importOriginal()
   return { ...(actual as object), promisify: () => mockExecFileAsync }
 })
 
 const { BinaryManager, validateManagedBinary } = await import('../BinaryManager')
+const { findCommandInShellEnv } = await import('@main/utils/commandResolver')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
 const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
 
@@ -1247,6 +1256,30 @@ describe('BinaryManager', () => {
       await (service as any).extractBundledBinaries()
 
       expect(mockFsp.copyFile).toHaveBeenCalled()
+    })
+  })
+
+  describe('probeSystem', () => {
+    it('returns tools resolved on the login-shell PATH, omitting the rest', async () => {
+      const service = new BinaryManager()
+      vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) =>
+        name === 'uv' ? '/usr/local/bin/uv' : null
+      )
+
+      const result = await service.probeSystem(['uv', 'bun'])
+
+      expect(result).toEqual({ uv: '/usr/local/bin/uv' })
+    })
+
+    it('drops resolutions inside Cherry-managed dirs so bundled/managed source wins', async () => {
+      const service = new BinaryManager()
+      vi.mocked(findCommandInShellEnv).mockImplementation(async (name: string) =>
+        name === 'uv' ? '/mock/cherry.bin/uv' : name === 'rg' ? '/mock/feature.binary.data/shims/rg' : null
+      )
+
+      const result = await service.probeSystem(['uv', 'rg'])
+
+      expect(result).toEqual({})
     })
   })
 

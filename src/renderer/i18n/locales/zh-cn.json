@@ -6036,6 +6036,7 @@
           "label": "校验工具签名"
         }
       },
+      "installViaMise": "通过 mise 安装",
       "installing": "安装中...",
       "invalidTool": "工具名称或标识无效",
       "notInstalled": "未安装",
@@ -6046,7 +6047,8 @@
       "searchFailed": "搜索失败，请查看日志",
       "searchRegistry": "搜索 mise 工具仓库...",
       "source": {
-        "bundled": "内置"
+        "bundled": "内置",
+        "system": "系统"
       },
       "title": "环境依赖",
       "tools": {

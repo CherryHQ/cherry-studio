@@ -6036,6 +6036,7 @@
           "label": "[to be translated]:Verify tool signatures"
         }
       },
+      "installViaMise": "[to be translated]:Install via mise",
       "installing": "Εγκατάσταση...",
       "invalidTool": "Μη έγκυρο όνομα ή κλειδί εργαλείου",
       "notInstalled": "Δεν έχει εγκατασταθεί",
@@ -6046,7 +6047,8 @@
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "bundled",
+        "system": "[to be translated]:System"
       },
       "title": "Εξαρτήσεις Περιβάλλοντος",
       "tools": {
