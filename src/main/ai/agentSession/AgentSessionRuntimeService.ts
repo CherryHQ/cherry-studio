@@ -383,6 +383,12 @@ export class AgentSessionRuntimeService extends BaseService {
       this.applyAgentModelUpdate(agentId, agent.model)
     }
 
+    // WARNING: only the primary `model` invalidates the connection here — `planModel`/`smallModel` edits
+    // are NOT reconciled against a live or warm connection. The sonnet/haiku route is rebuilt from the
+    // current agent in `buildClaudeCodeQueryRequestForAgentSession`, so a sub-model change takes effect on
+    // the NEXT reconnect (next fresh turn on a cold entry, or after the idle TTL), not on an already-open
+    // connection. Editing only plan/small while a connection is warm won't retarget it until it rebuilds.
+
     // `configuration` is a wholesale column replace, so a partial update that omits `permission_mode`
     // still changes the effective value (it clears it). Resync on ANY configuration change and derive
     // the authoritative value from the post-update agent — never from the update DTO's key presence,
