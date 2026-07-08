@@ -30,6 +30,28 @@ export const MockCherrystudioUI = {
       }}
     />
   ),
+  Combobox: ({ options, value, onChange, placeholder, searchPlaceholder, emptyText, ...props }: any) => {
+    void searchPlaceholder
+    void emptyText
+    const selected = options.find((option: { value: string }) => option.value === value)
+    return (
+      <div {...props}>
+        <button type="button" aria-label={placeholder}>
+          {selected ? selected.label : placeholder}
+        </button>
+        {options.map((option: { value: string; label: ReactNode; icon?: ReactNode }) => (
+          <button
+            type="button"
+            key={option.value}
+            aria-pressed={option.value === value}
+            onClick={() => onChange(option.value)}>
+            {option.icon}
+            {option.label}
+          </button>
+        ))}
+      </div>
+    )
+  },
   ConfirmDialog: ({
     cancelText,
     confirmText,
@@ -115,5 +137,25 @@ export const MockCherrystudioUI = {
       </div>
     )
   },
+  SearchInput: ({ value, onChange, onClear, clearLabel, ...props }: any) => (
+    <div>
+      <input type="search" value={value} onChange={onChange} {...props} />
+      {onClear && clearLabel && value ? <button type="button" aria-label={clearLabel} onClick={onClear} /> : null}
+    </div>
+  ),
+  SegmentedControl: ({ options, value, onValueChange, ...props }: any) => (
+    <div role="radiogroup" {...props}>
+      {options.map((option: { value: string; label: ReactNode }) => (
+        <button
+          type="button"
+          role="radio"
+          aria-checked={option.value === value}
+          key={option.value}
+          onClick={() => onValueChange(option.value)}>
+          {option.label}
+        </button>
+      ))}
+    </div>
+  ),
   Skeleton: (props: Record<string, unknown>) => <div {...props} />
 }

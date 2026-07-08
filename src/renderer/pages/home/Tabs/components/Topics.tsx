@@ -6,6 +6,8 @@ import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference
 import { loggerService } from '@logger'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
+import type { TopicExportMenuOptions } from '@renderer/components/chat/actions/topicContextMenuActions'
+import { useTopicMenuActions } from '@renderer/components/chat/actions/useTopicMenuActions'
 import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
 import {
   type ConversationResourceMenuItem,
@@ -23,6 +25,22 @@ import {
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
+import {
+  applyOptimisticTopicDisplayMove,
+  buildAssistantGroupDropAnchor,
+  buildTopicDropAnchor,
+  createTopicDisplayGroupResolver,
+  getAssistantIdFromTopicGroupId,
+  getTopicAssistantDisplayGroupId,
+  moveAssistantGroupAfterDrop,
+  normalizeTopicDropPayload,
+  sortTopicsForDisplayGroups,
+  TOPIC_ASSISTANT_SECTION_ID,
+  TOPIC_PINNED_GROUP_ID,
+  TOPIC_PINNED_SECTION_ID,
+  TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
+  type TopicDisplayMode
+} from '@renderer/components/chat/resourceList/topicsHelpers'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import {
@@ -73,24 +91,6 @@ import {
   executeAssistantGroupAction,
   resolveAssistantGroupActions
 } from './assistantGroupActions'
-import type { TopicExportMenuOptions } from './topicContextMenuActions'
-import {
-  applyOptimisticTopicDisplayMove,
-  buildAssistantGroupDropAnchor,
-  buildTopicDropAnchor,
-  createTopicDisplayGroupResolver,
-  getAssistantIdFromTopicGroupId,
-  getTopicAssistantDisplayGroupId,
-  moveAssistantGroupAfterDrop,
-  normalizeTopicDropPayload,
-  sortTopicsForDisplayGroups,
-  TOPIC_ASSISTANT_SECTION_ID,
-  TOPIC_PINNED_GROUP_ID,
-  TOPIC_PINNED_SECTION_ID,
-  TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
-  type TopicDisplayMode
-} from './topicsHelpers'
-import { useTopicMenuActions } from './useTopicMenuActions'
 
 const logger = loggerService.withContext('Topics')
 // Let the context menu close before mounting the heavier offscreen message list.
@@ -105,6 +105,7 @@ const TOPIC_ASSISTANT_UNTAGGED_SECTION_ID = `${TOPIC_ASSISTANT_TAG_SECTION_PREFI
 interface Props {
   activeTopic?: Topic
   assistantIdFilter?: string | null
+  historyRecordsActive?: boolean
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
   onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
@@ -234,6 +235,7 @@ function AssistantGroupMoreMenu({
 export function Topics({
   activeTopic,
   assistantIdFilter,
+  historyRecordsActive,
   onActiveAssistantDeleted,
   onAddAssistant,
   onCreateTopicAfterClear,
@@ -716,6 +718,7 @@ export function Topics({
   const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
+  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
   const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
@@ -1186,7 +1189,7 @@ export function Topics({
         className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
         items={visibleFilteredTopics}
         status={listStatus}
-        selectedId={hasActiveResourceMenuItem ? null : activeTopic?.id}
+        selectedId={hasActiveCenterSurface ? null : activeTopic?.id}
         groupBy={topicGroupBy}
         sectionBy={topicSectionBy}
         collapsedState={collapsedTopicState}
@@ -1234,6 +1237,7 @@ export function Topics({
                 actions={
                   <>
                     <TopicListOptionsMenu
+                      historyRecordsActive={historyRecordsActive}
                       manageAssistantsActive={manageAssistantsMenuItem?.active}
                       mode={displayMode}
                       onChange={handleTopicDisplayModeChange}
@@ -1247,6 +1251,7 @@ export function Topics({
             </>
           ) : (
             <TopicListOptionsMenu
+              historyRecordsActive={historyRecordsActive}
               manageAssistantsActive={manageAssistantsMenuItem?.active}
               mode={displayMode}
               onChange={handleTopicDisplayModeChange}

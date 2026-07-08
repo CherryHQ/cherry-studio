@@ -44,6 +44,7 @@ const DEFAULT_ASSISTANT_ENTITY_ID = 'assistant-entity:default'
 
 type AssistantResourceListProps = {
   activeAssistantId?: string | null
+  historyRecordsActive?: boolean
   onAddAssistant?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSelectTopic: (topic: Topic) => void | boolean
@@ -61,6 +62,7 @@ type AssistantResourceListProps = {
 
 export function AssistantResourceList({
   activeAssistantId,
+  historyRecordsActive = false,
   onAddAssistant,
   onOpenHistoryRecords,
   onSelectTopic,
@@ -458,9 +460,11 @@ export function AssistantResourceList({
         groupByTag={isTagGrouping}
         addIcon={<Plus />}
         addLabel={t('chat.add.assistant.title')}
+        historyRecordsActive={historyRecordsActive}
         onAdd={onAddAssistant ?? (() => onStartDraftAssistant(null))}
         headerActions={
           <TopicListOptionsMenu
+            historyRecordsActive={historyRecordsActive}
             manageAssistantsActive={manageAssistantsMenuItem?.active}
             mode={topicDisplayMode}
             onChange={(nextMode) => void setTopicDisplayMode(nextMode)}

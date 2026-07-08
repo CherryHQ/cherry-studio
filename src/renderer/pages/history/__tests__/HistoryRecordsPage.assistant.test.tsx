@@ -253,9 +253,14 @@ vi.mock('react-i18next', () => ({
         'history.records.empty.title': 'No conversations',
         'history.records.resultCount': '{{count}} results',
         'history.records.searchTopic': 'Search conversations...',
+        'history.records.selectedCount': '{{count}} selected',
         'history.records.shortTitle': 'History',
-        'history.records.sidebar.searchAssistant': 'Search assistants...',
-        'history.records.sidebar.unknownAssistant': 'Unlinked assistant',
+        'history.records.clearSearch': 'Clear search',
+        'history.records.filter.sourceEmpty': 'No matches',
+        'history.records.filter.sourcePlaceholder': 'Select source',
+        'history.records.filter.sourceSearchPlaceholder': 'Search assistants...',
+        'history.records.filter.statusLabel': 'Status',
+        'history.records.filter.unlinkedAssistant': 'Unlinked assistant',
         'history.records.table.actions': 'Actions',
         'history.records.table.emptyValue': '-',
         'history.records.table.time': 'Time',
@@ -773,19 +778,21 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(betaCheckbox).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('renders the overlay shell without transition animation', () => {
+  it('renders the embedded shell without transition animation', () => {
     hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
     render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
-    const overlay = screen.getByTestId('history-records-page')
-    expect(overlay).toHaveClass('z-40')
-    expect(overlay).toHaveClass('bg-card')
-    expect(overlay).not.toHaveStyle({ willChange: 'clip-path' })
+    const page = screen.getByTestId('history-records-page')
+    expect(page).toHaveClass('flex')
+    expect(page).toHaveClass('flex-1')
+    expect(page).toHaveClass('bg-card')
+    expect(page).not.toHaveClass('absolute')
+    expect(page).not.toHaveStyle({ willChange: 'clip-path' })
   })
 
-  it('renders the overlay inside the owning container instead of the first home page element', () => {
+  it('renders inside the owning container instead of the first home page element', () => {
     hookMocks.useTopics.mockReturnValue({ topics: [createTopic()], error: undefined, isLoading: false })
     hookMocks.useAssistants.mockReturnValue({ assistants: [createAssistant()] })
 
@@ -1280,10 +1287,16 @@ describe('HistoryRecordsPage locale resources', () => {
       'bulkMoveTopics.success',
       'bulkMoveTopics.target',
       'bulkMoveTopics.title',
+      'clearSearch',
       'empty.description',
       'empty.sessionsDescription',
       'empty.sessionsTitle',
       'empty.title',
+      'filter.sourceEmpty',
+      'filter.sourcePlaceholder',
+      'filter.sourceSearchPlaceholder',
+      'filter.statusLabel',
+      'filter.unlinkedAssistant',
       'loading.description',
       'loading.sessionsDescription',
       'loading.sessionsTitle',
@@ -1291,15 +1304,12 @@ describe('HistoryRecordsPage locale resources', () => {
       'resultCount',
       'searchSession',
       'searchTopic',
+      'selectedCount',
       'shortTitle',
-      'sidebar.searchAssistant',
-      'sidebar.status',
-      'sidebar.unknownAssistant',
       'status.completed',
       'status.failed',
       'status.running',
       'table.emptyValue',
-      'table.messages',
       'table.actions',
       'table.session',
       'table.time',

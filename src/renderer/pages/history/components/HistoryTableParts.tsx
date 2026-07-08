@@ -12,16 +12,27 @@ import type { ReactElement, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const historyTableClassName = 'min-w-[760px] rounded-none border-0 bg-card shadow-none'
-export const historyTableGridClassName = 'grid min-w-[760px] grid-cols-[44px_minmax(284px,1fr)_160px_96px_76px]'
+export const historyTableGridClassName =
+  'grid min-w-[760px] grid-cols-[44px_minmax(280px,2.5fr)_minmax(180px,1fr)_100px_84px]'
 const historyHeaderClassName =
-  'sticky top-0 z-10 border-border-muted border-b bg-card text-muted-foreground text-xs leading-4'
-const historyHeaderCellClassName = 'flex h-10 min-w-0 items-center px-3 py-2 font-semibold'
+  'sticky top-0 z-10 border-border-muted border-b bg-card text-foreground-secondary text-xs leading-4'
+const historyHeaderCellClassName = 'flex h-8 min-w-0 items-center px-3 py-1.5 font-semibold'
+// The row itself paints no hover/selection fill: each cell paints its own `muted` layer instead. This keeps
+// the fixed action column's fill from stacking on top of a row-level fill (which, with alpha `muted`, read
+// darker), and lets every cell — action column included — animate the same transitionable `background-color`
+// in lockstep. The `group` marker drives the per-cell `group-hover` / `group-data-[state=selected]` variants.
 export const historyBodyRowClassName =
-  'border-border-subtle border-b bg-card text-foreground-secondary text-sm leading-5 transition-colors hover:bg-muted data-[state=selected]:bg-muted'
-export const historyBodyCellClassName = 'flex min-w-0 items-center px-3 py-2.5'
+  'group border-border-subtle border-b bg-card text-foreground-secondary text-sm leading-5'
+export const historyBodyCellClassName =
+  'flex min-w-0 items-center px-3 py-1.5 transition-colors group-hover:bg-muted group-data-[state=selected]:bg-muted'
+// Opaque `bg-card` base keeps horizontally-scrolled cells from bleeding through the pinned column; the shared
+// body-cell class above supplies the matching `muted` hover/selection fill.
 export const historyFixedActionCellClassName =
-  'sticky right-0 z-2 justify-center bg-inherit px-2 [border-left:0.5px_solid_var(--color-border-subtle)]'
+  'sticky right-0 z-2 justify-center bg-card px-2 [border-left:0.5px_solid_var(--color-border-subtle)]'
 export const historyFixedActionShadowClassName = '[box-shadow:-8px_0_12px_-12px_var(--color-border-active)]'
+// DESIGN.md §82 sanctions this token-backed 0.5px hairline written as an arbitrary property (a real
+// `border-b` renders 1px). Shared by the header / filter bar / toolbar so the value stays in one place.
+export const HISTORY_HAIRLINE_BOTTOM = '[border-bottom:0.5px_solid_var(--color-border-subtle)]'
 
 interface HistoryVirtualTableProps<TItem> {
   emptyContent: ReactNode
@@ -406,6 +417,102 @@ const PinActionButton = ({ isPinned, pinLabel, unpinLabel, onClick }: PinActionB
     </Button>
   )
 }
+
+interface HistoryRecordRowProps {
+  actions: readonly ResolvedAction[]
+  avatar: ReactNode
+  deleteLabel: string
+  description?: string
+  isPinned: boolean
+  isSelected: boolean
+  minHeight: number
+  pinLabel: string
+  selectLabel: string
+  showFixedActionShadow: boolean
+  sourceLabel: string
+  timeLabel: string
+  title: string
+  unpinLabel: string
+  onAction: (action: ResolvedAction) => void | Promise<void>
+  onOpen?: () => void
+  onSelectedChange: (checked: boolean) => void
+  onTogglePin?: () => void | Promise<void>
+}
+
+/** One record row shared by both modes; the optional description line renders only when present. */
+export const HistoryRecordRow = ({
+  actions,
+  avatar,
+  deleteLabel,
+  description,
+  isPinned,
+  isSelected,
+  minHeight,
+  pinLabel,
+  selectLabel,
+  showFixedActionShadow,
+  sourceLabel,
+  timeLabel,
+  title,
+  unpinLabel,
+  onAction,
+  onOpen,
+  onSelectedChange,
+  onTogglePin
+}: HistoryRecordRowProps) => (
+  <div
+    className={cn(historyTableGridClassName, historyBodyRowClassName)}
+    style={{ minHeight }}
+    data-state={isSelected ? 'selected' : undefined}
+    role="row">
+    <HistorySelectionCell
+      checked={isSelected}
+      disabled={isPinned}
+      label={selectLabel}
+      onCheckedChange={onSelectedChange}
+    />
+    <div className={historyBodyCellClassName} role="cell">
+      <RowFlex className="min-w-0 flex-1 items-center">
+        <div className="min-w-0 flex-1" data-testid="history-record-rename-field">
+          <RowFlex className="min-w-0 flex-1 items-center gap-1.5">
+            <HistoryTitleButton title={title} onOpen={onOpen} />
+          </RowFlex>
+          {description && (
+            <span className="mt-0.5 block truncate text-foreground-muted text-xs leading-4">{description}</span>
+          )}
+        </div>
+      </RowFlex>
+    </div>
+    <div className={historyBodyCellClassName} role="cell">
+      <RowFlex className="min-w-0 items-center gap-2">
+        <span className="flex size-5 shrink-0 items-center justify-center text-foreground text-sm leading-none">
+          {avatar}
+        </span>
+        <span className="truncate text-foreground text-xs">{sourceLabel}</span>
+      </RowFlex>
+    </div>
+    <div className={historyBodyCellClassName} role="cell">
+      <div className="text-foreground-secondary text-xs tabular-nums">{timeLabel}</div>
+    </div>
+    <div
+      className={cn(
+        historyBodyCellClassName,
+        historyFixedActionCellClassName,
+        showFixedActionShadow && historyFixedActionShadowClassName
+      )}
+      role="cell">
+      <HistoryActionsCell
+        actions={actions}
+        deleteLabel={deleteLabel}
+        isPinned={isPinned}
+        pinLabel={pinLabel}
+        unpinLabel={unpinLabel}
+        onAction={onAction}
+        onTogglePin={onTogglePin}
+      />
+    </div>
+  </div>
+)
 
 export function formatHistoryTime(value: string, t: TFunction) {
   const date = dayjs(value)

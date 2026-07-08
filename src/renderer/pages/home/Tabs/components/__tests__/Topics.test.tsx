@@ -373,6 +373,13 @@ vi.mock('react-i18next', () => ({
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import {
+  applyOptimisticTopicDisplayMove,
+  TOPIC_ASSISTANT_SECTION_ID,
+  TOPIC_PINNED_GROUP_ID,
+  TOPIC_PINNED_SECTION_ID,
+  TOPIC_UNLINKED_ASSISTANT_GROUP_ID
+} from '@renderer/components/chat/resourceList/topicsHelpers'
 import type * as TopicDataApiModule from '@renderer/hooks/useTopic'
 import type { Topic } from '@renderer/types/topic'
 import type { Pin } from '@shared/data/types/pin'
@@ -387,13 +394,6 @@ import {
   settleTopicImageActionRequest
 } from '../../../messages/topicImageActionBus'
 import { Topics } from '../Topics'
-import {
-  applyOptimisticTopicDisplayMove,
-  TOPIC_ASSISTANT_SECTION_ID,
-  TOPIC_PINNED_GROUP_ID,
-  TOPIC_PINNED_SECTION_ID,
-  TOPIC_UNLINKED_ASSISTANT_GROUP_ID
-} from '../topicsHelpers'
 
 const TOPIC_EXPANSION_TIME_KEY = 'ui.topic.expansion.time'
 const TOPIC_EXPANSION_ASSISTANT_KEY = 'ui.topic.expansion.assistant'

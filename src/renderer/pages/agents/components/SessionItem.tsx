@@ -1,5 +1,10 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
+import type {
+  SessionActionContext,
+  SessionExportMenuOptions
+} from '@renderer/components/chat/actions/sessionItemActions'
+import { useSessionMenuActions } from '@renderer/components/chat/actions/useSessionMenuActions'
 import { useOptionalShellActions, useOptionalShellState } from '@renderer/components/chat/panes/Shell'
 import {
   ResourceList,
@@ -17,9 +22,6 @@ import { PinIcon, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import type { SessionActionContext, SessionExportMenuOptions } from './sessionItemActions'
-import { useSessionMenuActions } from './useSessionMenuActions'
 
 const DELETE_CONFIRMATION_TIMEOUT = 2000
 

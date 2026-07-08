@@ -164,6 +164,23 @@ describe('ResourceEntityRail', () => {
     expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
   })
 
+  it('marks the history button as current while history records are active', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        historyRecordsActive
+        items={ITEMS}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onOpenHistoryRecords={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'history.records.shortTitle' })).toHaveAttribute('aria-current', 'page')
+  })
+
   it('omits the history button when onOpenHistoryRecords is not provided', () => {
     render(
       <ResourceEntityRail

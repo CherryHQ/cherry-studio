@@ -204,8 +204,13 @@ vi.mock('react-i18next', () => ({
         'history.records.loading.sessionsTitle': 'Loading tasks',
         'history.records.resultCount': '{{count}} results',
         'history.records.searchSession': 'Search tasks...',
+        'history.records.selectedCount': '{{count}} selected',
         'history.records.shortTitle': 'History',
-        'history.records.sidebar.status': 'Status',
+        'history.records.clearSearch': 'Clear search',
+        'history.records.filter.sourceEmpty': 'No matches',
+        'history.records.filter.sourcePlaceholder': 'Select source',
+        'history.records.filter.sourceSearchPlaceholder': 'Search agents...',
+        'history.records.filter.statusLabel': 'Status',
         'history.records.status.completed': 'Completed',
         'history.records.status.failed': 'Failed',
         'history.records.status.running': 'Running',
@@ -393,8 +398,9 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(screen.queryByText('Messages')).not.toBeInTheDocument()
     expect(screen.queryByText('消息')).not.toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
-    expect(screen.getByText('Planning notes')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Agent' })).toBeInTheDocument()
+    // Rows are single-line: the session description is searchable but not rendered.
+    expect(screen.queryByText('Planning notes')).not.toBeInTheDocument()
+    expect(screen.getAllByText('Agent').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('Alpha agent').length).toBeGreaterThanOrEqual(1)
     const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
     const alphaCells = within(alphaRow).getAllByRole('cell')
@@ -481,11 +487,11 @@ describe('HistoryRecordsPage agent mode', () => {
     setupAgentHistory()
 
     expect(screen.getByText('Status')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Running 1/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Completed 1/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Failed 0/ })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Running 1/ })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Completed 1/ })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Failed 0/ })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Running 1/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /Running 1/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
@@ -498,16 +504,16 @@ describe('HistoryRecordsPage agent mode', () => {
 
     setupAgentHistory()
 
-    expect(screen.getByRole('button', { name: /Running 0/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Completed 1/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Failed 1/ })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Running 0/ })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Completed 1/ })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /Failed 1/ })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Failed 1/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /Failed 1/ }))
 
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.getByText('Beta session')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Completed 1/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /Completed 1/ }))
 
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()

@@ -10,6 +10,7 @@ import type { DraftAgentSessionDefaults } from './types'
 
 interface AgentSidePanelProps {
   activeSessionId: string | null
+  historyRecordsActive?: boolean
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
@@ -24,6 +25,7 @@ interface AgentSidePanelProps {
 
 const AgentSidePanel = ({
   activeSessionId,
+  historyRecordsActive,
   onActiveAgentDeleted,
   onAddAgent,
   onOpenHistoryRecords,
@@ -45,6 +47,7 @@ const AgentSidePanel = ({
       <div className="flex flex-1 flex-col overflow-hidden">
         <Sessions
           activeSessionId={activeSessionId}
+          historyRecordsActive={historyRecordsActive}
           setActiveSessionId={setActiveSessionId}
           onActiveAgentDeleted={onActiveAgentDeleted}
           onAddAgent={onAddAgent}

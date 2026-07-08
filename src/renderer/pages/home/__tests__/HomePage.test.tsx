@@ -511,8 +511,18 @@ vi.mock('../components/ChatNavbar', () => ({
 }))
 
 vi.mock('../Tabs/HomeTabs', () => ({
-  default: ({ onOpenHistoryRecords, onSetPanePosition, resourceMenuItems, revealRequest, setActiveTopic }: any) => (
-    <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs">
+  default: ({
+    historyRecordsActive,
+    onOpenHistoryRecords,
+    onSetPanePosition,
+    resourceMenuItems,
+    revealRequest,
+    setActiveTopic
+  }: any) => (
+    <div
+      data-history-active={String(Boolean(historyRecordsActive))}
+      data-reveal-request={JSON.stringify(revealRequest ?? null)}
+      data-testid="home-tabs">
       <button
         type="button"
         onClick={() => {
@@ -659,9 +669,11 @@ vi.mock('../components/AssistantConversationPickerDialog', () => ({
 vi.mock('../../history/HistoryRecordsPage', () => ({
   default: ({ open, onRecordSelect }: { open?: boolean; onRecordSelect?: (topic: Topic | null) => void }) =>
     open ? (
-      <button type="button" onClick={() => onRecordSelect?.(null)}>
-        Clear history selection
-      </button>
+      <div data-testid="history-records-page">
+        <button type="button" onClick={() => onRecordSelect?.(null)}>
+          Clear history selection
+        </button>
+      </div>
     ) : null
 }))
 
@@ -832,6 +844,34 @@ describe('HomePage', () => {
 
     expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
     expect(screen.getByTestId('home-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+  })
+
+  it('renders history records in the chat center and toggles them from the sidebar', () => {
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+
+    expect(screen.getByTestId('history-records-page')).toBeInTheDocument()
+    expect(screen.getByTestId('home-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('home-tabs')).toHaveAttribute('data-history-active', 'true')
+    expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+
+    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
+    expect(screen.getByTestId('active-topic')).toBeInTheDocument()
+    expect(screen.getByTestId('home-tabs')).toHaveAttribute('data-history-active', 'false')
+  })
+
+  it('replaces the history center surface when opening assistant management', () => {
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
+
+    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
+    expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
     expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument()
   })
 

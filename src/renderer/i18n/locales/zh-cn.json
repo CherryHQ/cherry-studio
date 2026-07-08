@@ -2459,11 +2459,22 @@
         "target": "目标助手",
         "title": "移动选中的对话"
       },
+      "clearSearch": "清除搜索",
       "empty": {
         "description": "当前筛选下没有可展示的对话。",
         "sessionsDescription": "当前筛选下没有可展示的任务。",
         "sessionsTitle": "暂无任务",
         "title": "暂无对话"
+      },
+      "filter": {
+        "selectAgent": "请选择智能体",
+        "selectAssistant": "请选择助手",
+        "sourceEmpty": "无匹配项",
+        "sourcePlaceholder": "选择来源",
+        "sourceSearchPlaceholder": "搜索...",
+        "statusLabel": "状态",
+        "statusPlaceholder": "请选择状态",
+        "unlinkedAssistant": "未关联助手"
       },
       "loading": {
         "description": "正在读取对话列表。",
@@ -2474,12 +2485,8 @@
       "resultCount": "{{count}} 条结果",
       "searchSession": "搜索任务...",
       "searchTopic": "搜索对话...",
+      "selectedCount": "已选 {{count}} 项",
       "shortTitle": "历史记录",
-      "sidebar": {
-        "searchAssistant": "搜索助手...",
-        "status": "状态",
-        "unknownAssistant": "未关联助手"
-      },
       "status": {
         "completed": "已完成",
         "failed": "失败",
@@ -2488,7 +2495,6 @@
       "table": {
         "actions": "操作",
         "emptyValue": "—",
-        "messages": "消息",
         "session": "任务",
         "time": "时间",
         "title": "标题"

@@ -1,6 +1,6 @@
+import type { SessionListItem } from '@renderer/components/chat/resourceList/sessionListHelpers'
 import { describe, expect, it } from 'vitest'
 
-import type { SessionListItem } from '../sessionListHelpers'
 import { buildCreateSessionSeed, findLatestCreateSessionSeed } from '../Sessions'
 
 const workspace = (path: string) => ({

@@ -482,6 +482,7 @@ vi.mock('../components/AgentChatNavbar', () => ({
 vi.mock('../AgentSidePanel', () => ({
   default: ({
     activeSessionId,
+    historyRecordsActive,
     onAddAgent,
     onOpenHistoryRecords,
     onSetPanePosition,
@@ -494,6 +495,7 @@ vi.mock('../AgentSidePanel', () => ({
     return (
       <div
         data-active-session-id={activeSessionId ?? ''}
+        data-history-active={String(Boolean(historyRecordsActive))}
         data-reveal-request={JSON.stringify(revealRequest ?? null)}
         data-testid="agent-side-panel">
         <button
@@ -604,9 +606,11 @@ vi.mock('../components/Sessions', () => ({
 vi.mock('../../history/HistoryRecordsPage', () => ({
   default: ({ open, onRecordSelect }: { open?: boolean; onRecordSelect?: (sessionId: string | null) => void }) =>
     open ? (
-      <button type="button" onClick={() => onRecordSelect?.(null)}>
-        Clear history session
-      </button>
+      <div data-testid="history-records-page">
+        <button type="button" onClick={() => onRecordSelect?.(null)}>
+          Clear history session
+        </button>
+      </div>
     ) : null
 }))
 
@@ -783,6 +787,40 @@ describe('AgentPage', () => {
 
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
     expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+  })
+
+  it('renders history records outside AgentChat runtime and toggles them from the sidebar', () => {
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+
+    expect(screen.getByTestId('history-records-page')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-history-active', 'true')
+    expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+
+    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-side-panel')).toHaveAttribute('data-history-active', 'false')
+  })
+
+  it('replaces the history center surface when opening agent management', () => {
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open history records' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
+
+    expect(screen.queryByTestId('history-records-page')).not.toBeInTheDocument()
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
     expect(screen.queryByTestId('agent-chat')).not.toBeInTheDocument()
   })
 

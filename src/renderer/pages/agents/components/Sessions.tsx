@@ -16,6 +16,32 @@ import {
   SESSION_DISPLAY_LABEL_KEYS,
   SessionListOptionsMenu
 } from '@renderer/components/chat/resourceList/base'
+import {
+  type AgentSessionDisplayMode,
+  applyOptimisticSessionDisplayMove,
+  buildSessionAgentGroupDropAnchor,
+  buildSessionDropAnchor,
+  buildSessionWorkdirGroupDropAnchor,
+  canDropSessionItemInDisplayGroup,
+  createSessionDisplayGroupResolver,
+  createSessionWorkdirDisplayMaps,
+  getAgentIdFromSessionGroupId,
+  getWorkdirPathFromSessionGroupId,
+  isSystemWorkspaceSession,
+  moveSessionAgentGroupAfterDrop,
+  moveSessionWorkdirGroupAfterDrop,
+  normalizeSessionDropPayload,
+  SESSION_AGENT_SECTION_ID,
+  SESSION_NO_PROJECT_GROUP_ID,
+  SESSION_NO_PROJECT_SECTION_ID,
+  SESSION_NO_WORKDIR_GROUP_ID,
+  SESSION_PINNED_GROUP_ID,
+  SESSION_PINNED_SECTION_ID,
+  SESSION_UNKNOWN_AGENT_GROUP_ID,
+  SESSION_WORKDIR_SECTION_ID,
+  type SessionListItem,
+  sortSessionsForDisplayGroups
+} from '@renderer/components/chat/resourceList/sessionListHelpers'
 import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
@@ -84,32 +110,6 @@ import type { DraftAgentSessionDefaults } from '../types'
 import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
 import SessionItem, { type SessionItemMenuActions } from './SessionItem'
 import {
-  type AgentSessionDisplayMode,
-  applyOptimisticSessionDisplayMove,
-  buildSessionAgentGroupDropAnchor,
-  buildSessionDropAnchor,
-  buildSessionWorkdirGroupDropAnchor,
-  canDropSessionItemInDisplayGroup,
-  createSessionDisplayGroupResolver,
-  createSessionWorkdirDisplayMaps,
-  getAgentIdFromSessionGroupId,
-  getWorkdirPathFromSessionGroupId,
-  isSystemWorkspaceSession,
-  moveSessionAgentGroupAfterDrop,
-  moveSessionWorkdirGroupAfterDrop,
-  normalizeSessionDropPayload,
-  SESSION_AGENT_SECTION_ID,
-  SESSION_NO_PROJECT_GROUP_ID,
-  SESSION_NO_PROJECT_SECTION_ID,
-  SESSION_NO_WORKDIR_GROUP_ID,
-  SESSION_PINNED_GROUP_ID,
-  SESSION_PINNED_SECTION_ID,
-  SESSION_UNKNOWN_AGENT_GROUP_ID,
-  SESSION_WORKDIR_SECTION_ID,
-  type SessionListItem,
-  sortSessionsForDisplayGroups
-} from './sessionListHelpers'
-import {
   executeWorkdirGroupAction,
   resolveWorkdirGroupActions,
   type WorkdirGroupActionContext
@@ -117,6 +117,7 @@ import {
 
 type SessionsBaseProps = {
   agentIdFilter?: string | null
+  historyRecordsActive?: boolean
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
@@ -299,6 +300,7 @@ export function findLatestCreateSessionSeed(
 const Sessions = ({
   activeSessionId,
   agentIdFilter,
+  historyRecordsActive,
   onActiveAgentDeleted,
   onAddAgent,
   onOpenHistoryRecords,
@@ -1675,6 +1677,7 @@ const Sessions = ({
         ? 'empty'
         : 'idle'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
+  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
   const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
   const manageSkillsMenuItem = resourceMenuItems?.find((item) => item.id === 'skill-resource-view')
   const headerCreateLabel = displayMode === 'agent' ? t('agent.add.title') : t('agent.session.new')
@@ -1689,7 +1692,7 @@ const Sessions = ({
       className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
       items={visibleGroupedSessions}
       status={listStatus}
-      selectedId={hasActiveResourceMenuItem ? null : activeSessionId}
+      selectedId={hasActiveCenterSurface ? null : activeSessionId}
       groupBy={sessionGroupBy}
       sectionBy={sessionSectionBy}
       collapsedState={collapsedSessionState}
@@ -1739,6 +1742,7 @@ const Sessions = ({
               onClick={handleHeaderCreate}
               actions={
                 <SessionListOptionsMenu
+                  historyRecordsActive={historyRecordsActive}
                   manageAgentsActive={manageAgentsMenuItem?.active}
                   manageSkillsActive={manageSkillsMenuItem?.active}
                   manageSkillsIcon={manageSkillsMenuItem?.icon}

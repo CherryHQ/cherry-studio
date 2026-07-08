@@ -8,7 +8,7 @@ import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import type { TFunction } from 'i18next'
 import { Bot } from 'lucide-react'
 
-import type { HistorySourceItem, HistorySourceStatus, HistoryStatusItem } from './components/HistorySourceSidebar'
+import type { HistorySourceOption, HistorySourceStatus, HistoryStatusOption } from './historyRecordsTypes'
 
 export const ALL_SOURCE_ID = 'all'
 const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
@@ -65,7 +65,7 @@ export function buildAgentStatusItems(
   sessions: readonly AgentSessionEntity[],
   streamStatusBySessionId: ReadonlyMap<string, AgentSessionStreamState>,
   t: TFunction
-): HistoryStatusItem[] {
+): HistoryStatusOption[] {
   const counts: Record<AgentHistorySessionStatus, number> = {
     running: 0,
     completed: 0,
@@ -109,7 +109,7 @@ export function buildAssistantSources(
   assistantRankById: ReadonlyMap<string, number>,
   unlinkedAssistantLabel: string,
   t: TFunction
-): HistorySourceItem[] {
+): HistorySourceOption[] {
   const counts = new Map<string, number>()
 
   for (const topic of topics) {
@@ -154,7 +154,7 @@ export function buildAgentSources(
   agentRankById: ReadonlyMap<string, number>,
   unknownAgentLabel: string,
   t: TFunction
-): HistorySourceItem[] {
+): HistorySourceOption[] {
   const counts = new Map<string, number>()
 
   for (const session of sessions) {

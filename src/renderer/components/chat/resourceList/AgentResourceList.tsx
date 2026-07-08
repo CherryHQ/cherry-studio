@@ -43,6 +43,7 @@ type SessionListItem = AgentSessionEntity & {
 
 type AgentResourceListProps = {
   activeAgentId?: string | null
+  historyRecordsActive?: boolean
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
@@ -60,6 +61,7 @@ type AgentResourceListProps = {
 
 export function AgentResourceList({
   activeAgentId,
+  historyRecordsActive = false,
   onAddAgent,
   onOpenHistoryRecords,
   onSelectSession,
@@ -292,9 +294,11 @@ export function AgentResourceList({
         defaultGroupLabel={t('agent.sidebar_title')}
         addIcon={<Plus />}
         addLabel={t('agent.add.title')}
+        historyRecordsActive={historyRecordsActive}
         onAdd={onAddAgent ?? (() => onStartMissingAgentDraft?.())}
         headerActions={
           <SessionListOptionsMenu
+            historyRecordsActive={historyRecordsActive}
             manageAgentsActive={manageAgentsMenuItem?.active}
             manageSkillsActive={manageSkillsMenuItem?.active}
             manageSkillsIcon={manageSkillsMenuItem?.icon}

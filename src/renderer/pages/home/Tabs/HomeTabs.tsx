@@ -12,6 +12,7 @@ import { Topics } from './components/Topics'
 
 interface Props {
   activeTopic?: Topic
+  historyRecordsActive?: boolean
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
   onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
@@ -27,6 +28,7 @@ interface Props {
 
 const HomeTabs: FC<Props> = ({
   activeTopic,
+  historyRecordsActive,
   onActiveAssistantDeleted,
   onAddAssistant,
   onCreateTopicAfterClear,
@@ -44,6 +46,7 @@ const HomeTabs: FC<Props> = ({
       <TabContent className="home-tabs-content">
         <Topics
           activeTopic={activeTopic}
+          historyRecordsActive={historyRecordsActive}
           onActiveAssistantDeleted={onActiveAssistantDeleted}
           onAddAssistant={onAddAssistant}
           setActiveTopic={setActiveTopic}

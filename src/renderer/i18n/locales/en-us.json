@@ -2459,11 +2459,22 @@
         "target": "Target assistant",
         "title": "Move selected conversations"
       },
+      "clearSearch": "Clear search",
       "empty": {
         "description": "No conversations for the current filters.",
         "sessionsDescription": "No tasks for the current filters.",
         "sessionsTitle": "No tasks",
         "title": "No conversations"
+      },
+      "filter": {
+        "selectAgent": "Select an agent",
+        "selectAssistant": "Select an assistant",
+        "sourceEmpty": "No matches",
+        "sourcePlaceholder": "Select source",
+        "sourceSearchPlaceholder": "Search...",
+        "statusLabel": "Status",
+        "statusPlaceholder": "Select status",
+        "unlinkedAssistant": "Unlinked assistant"
       },
       "loading": {
         "description": "Loading conversation list.",
@@ -2474,12 +2485,8 @@
       "resultCount": "{{count}} results",
       "searchSession": "Search tasks...",
       "searchTopic": "Search conversations...",
+      "selectedCount": "{{count}} selected",
       "shortTitle": "History",
-      "sidebar": {
-        "searchAssistant": "Search assistants...",
-        "status": "Status",
-        "unknownAssistant": "Unlinked assistant"
-      },
       "status": {
         "completed": "Completed",
         "failed": "Failed",
@@ -2488,7 +2495,6 @@
       "table": {
         "actions": "Actions",
         "emptyValue": "—",
-        "messages": "Messages",
         "session": "Task",
         "time": "Time",
         "title": "Title"
