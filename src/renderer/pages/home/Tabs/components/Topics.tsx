@@ -443,6 +443,9 @@ export function Topics({
 
     return ordered
   }, [assistants, optimisticAssistantOrderIds])
+  // Move destinations intentionally include only persisted assistants. The
+  // unlinked "Default Assistant" group is a display fallback for orphaned data,
+  // not a user-selectable target that clears topic ownership.
   const assistantMoveTargets = useMemo<TopicMoveAssistantTarget[]>(() => {
     const targets = orderedAssistants.map((assistant) => ({
       id: assistant.id,
