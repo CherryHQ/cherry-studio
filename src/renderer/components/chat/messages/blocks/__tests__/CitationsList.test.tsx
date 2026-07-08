@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   openCitationsPanel: vi.fn(),
   copyText: vi.fn(),
   notifyError: vi.fn(),
+  visibleVirtualRows: 4,
   messageListActions: undefined as
     | {
         openCitationsPanel?: ReturnType<typeof vi.fn>
@@ -36,6 +37,28 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: ipcMocks.request
   }
+}))
+
+vi.mock('@renderer/components/VirtualList', () => ({
+  DynamicVirtualList: <T,>({
+    children,
+    className,
+    getItemKey,
+    list
+  }: {
+    children: (item: T, index: number) => React.ReactNode
+    className?: string
+    getItemKey?: (index: number) => string | number | bigint
+    list: T[]
+  }) => (
+    <div data-testid="citations-virtual-list" className={className}>
+      {list.slice(0, mocks.visibleVirtualRows).map((item, index) => (
+        <div data-testid={`virtual-row-${index}`} data-virtual-key={String(getItemKey?.(index) ?? index)} key={index}>
+          {children(item, index)}
+        </div>
+      ))}
+    </div>
+  )
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -89,6 +112,7 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 describe('CitationsList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.visibleVirtualRows = 4
     fetchMocks.isXPostUrl.mockReturnValue(false)
     fetchMocks.fetchXOEmbed.mockResolvedValue(null)
     ipcMocks.request.mockResolvedValue({
@@ -130,7 +154,7 @@ describe('CitationsList', () => {
 
     render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, { wrapper })
 
-    expect(screen.getByTestId('citations-scrollbar')).toHaveClass('min-h-0', 'flex-1')
+    expect(screen.getByTestId('citations-virtual-list')).toHaveClass('min-h-0', 'flex-1')
     await waitFor(() => expect(ipcMocks.request).toHaveBeenCalled())
   })
 
@@ -194,9 +218,48 @@ describe('CitationsList', () => {
     expect(screen.queryByRole('button', { name: 'common.collapse' })).not.toBeInTheDocument()
 
     await waitFor(() =>
-      expect(ipcMocks.request).toHaveBeenCalledWith('web_search.fetch_urls', { urls: ['https://example.com'] })
+      expect(ipcMocks.request).toHaveBeenCalledWith('web_search.fetch_urls', {
+        providerId: 'fetch',
+        urls: ['https://example.com']
+      })
     )
     expect(await screen.findByText('web preview content')).toBeInTheDocument()
+  })
+
+  it('falls back to the fetched preview when inline content cleans to empty', async () => {
+    const citations: Citation[] = [
+      {
+        number: 1,
+        url: 'https://example.com',
+        title: 'Example',
+        content: 'https://example.com',
+        type: 'websearch'
+      }
+    ]
+
+    render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, { wrapper })
+
+    expect(await screen.findByText('web preview content')).toBeInTheDocument()
+  })
+
+  it('only starts preview fetches for virtualized citation rows mounted on panel open', async () => {
+    fetchMocks.isXPostUrl.mockImplementation((url: string) => url.includes('x.com'))
+    fetchMocks.fetchXOEmbed.mockResolvedValue({ author: 'Cherry', text: 'visible x content' })
+    const citations: Citation[] = [
+      { number: 1, url: 'https://example.com/1', title: 'Visible 1', type: 'websearch' },
+      { number: 2, url: 'https://example.com/2', title: 'Visible 2', type: 'websearch' },
+      { number: 3, url: 'https://example.com/3', title: 'Visible 3', type: 'websearch' },
+      { number: 4, url: 'https://x.com/cherry/status/4', title: 'Visible X', type: 'websearch' },
+      { number: 5, url: 'https://x.com/cherry/status/5', title: 'Hidden X', type: 'websearch' },
+      { number: 6, url: 'https://example.com/6', title: 'Hidden 6', type: 'websearch' }
+    ]
+
+    render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, { wrapper })
+
+    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalledTimes(3))
+    expect(fetchMocks.fetchXOEmbed).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('link', { name: 'Hidden X' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Hidden 6' })).not.toBeInTheDocument()
   })
 
   it('hides the preview snippet when web-content fetch degrades to noContent', async () => {
@@ -291,6 +354,18 @@ describe('CitationsList', () => {
       ]
     })
     expect(await screen.findAllByText('duplicate preview')).toHaveLength(2)
+  })
+
+  it('keeps virtual row keys unique when citations share the same URL', () => {
+    const citations: Citation[] = [
+      { number: 1, url: 'https://dup.com', title: 'A', content: 'first', type: 'websearch' },
+      { number: 2, url: 'https://dup.com', title: 'B', content: 'second', type: 'websearch' }
+    ]
+
+    render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, { wrapper })
+
+    const rowKeys = screen.getAllByTestId(/virtual-row-/).map((row) => row.getAttribute('data-virtual-key'))
+    expect(new Set(rowKeys).size).toBe(rowKeys.length)
   })
 
   it('dedupes X post oEmbed fetches between title and preview content', async () => {

@@ -1,6 +1,7 @@
-import { Button, Scrollbar, Skeleton } from '@cherrystudio/ui'
+import { Button, Skeleton } from '@cherrystudio/ui'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { ipcApi } from '@renderer/ipc'
 import type { Citation } from '@renderer/types/message'
@@ -39,6 +40,9 @@ const truncateText = (text: string, maxLength = 100) => {
   return text.length > maxLength ? text.slice(0, maxLength) + '...' : text
 }
 
+const CITATION_ROW_ESTIMATED_HEIGHT = 76
+const CITATION_ROW_OVERSCAN = 2
+
 const getCitationHostname = (citation: Citation) => {
   if (!citation.url) return undefined
   try {
@@ -46,6 +50,12 @@ const getCitationHostname = (citation: Citation) => {
   } catch {
     return undefined
   }
+}
+
+const getCitationVirtualKey = (citations: Citation[], index: number) => {
+  const citation = citations[index]
+  if (!citation) return index
+  return `${citation.number}-${citation.url || citation.title || index}`
 }
 
 const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
@@ -90,29 +100,43 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
 
 export const CitationsPanelContent: React.FC<CitationsPanelContentProps> = ({ citations, actions }) => {
   return (
-    <Scrollbar className="min-h-0 flex-1">
-      {citations.map((citation) => (
-        <div
-          key={citation.url || citation.number || citation.title}
-          className="border-border border-b-[0.5px] last:border-b-0">
-          {citation.type === 'websearch' && (
-            <div className="max-w-[min(400px,60vw)] px-3">
-              <WebSearchCitation citation={citation} actions={actions} />
-            </div>
-          )}
-          {citation.type === 'memory' && (
-            <div className="max-w-150 px-3">
-              <KnowledgeCitation citation={{ ...citation }} actions={actions} />
-            </div>
-          )}
-          {citation.type === 'knowledge' && (
-            <div className="max-w-150 px-3">
-              <KnowledgeCitation citation={{ ...citation }} actions={actions} />
-            </div>
-          )}
+    <DynamicVirtualList
+      className="min-h-0 flex-1"
+      list={citations}
+      estimateSize={() => CITATION_ROW_ESTIMATED_HEIGHT}
+      getItemKey={(index) => getCitationVirtualKey(citations, index)}
+      initialRect={{ width: 400, height: 480 }}
+      overscan={CITATION_ROW_OVERSCAN}>
+      {(citation, index) => (
+        <CitationPanelRow citation={citation} actions={actions} isLast={index === citations.length - 1} />
+      )}
+    </DynamicVirtualList>
+  )
+}
+
+const CitationPanelRow: React.FC<{ citation: Citation; actions?: CitationPanelActions; isLast: boolean }> = ({
+  citation,
+  actions,
+  isLast
+}) => {
+  return (
+    <div className={`border-border border-b-[0.5px] ${isLast ? 'border-b-0' : ''}`}>
+      {citation.type === 'websearch' && (
+        <div className="max-w-[min(400px,60vw)] px-3">
+          <WebSearchCitation citation={citation} actions={actions} />
         </div>
-      ))}
-    </Scrollbar>
+      )}
+      {citation.type === 'memory' && (
+        <div className="max-w-150 px-3">
+          <KnowledgeCitation citation={{ ...citation }} actions={actions} />
+        </div>
+      )}
+      {citation.type === 'knowledge' && (
+        <div className="max-w-150 px-3">
+          <KnowledgeCitation citation={{ ...citation }} actions={actions} />
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -172,7 +196,7 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
   const previewUrl = citation.url || ''
   const inlineContent = useMemo(() => {
     if (!citation.content || citation.content === noContent) return undefined
-    return cleanMarkdownContent(citation.content)
+    return cleanMarkdownContent(citation.content) || undefined
   }, [citation.content])
   const providerActions = useOptionalMessageListActions()
   const linkActions = {
@@ -190,7 +214,7 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
   const { data: rawContent, isLoading } = useSWRImmutable(
     shouldFetchPreview ? `webContent/${previewUrl}` : null,
     async () => {
-      const res = await ipcApi.request('web_search.fetch_urls', { urls: [previewUrl] })
+      const res = await ipcApi.request('web_search.fetch_urls', { providerId: 'fetch', urls: [previewUrl] })
       const content = res.results[0]?.content ?? ''
       // Graceful degrade: the fetch pipeline swallows failures into `noContent`, so
       // suppress it to render no snippet rather than placeholder text.
