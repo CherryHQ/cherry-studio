@@ -172,7 +172,7 @@ const HistoryTopBar = ({
           <span>{t('history.records.bulkDelete')}</span>
         </Button>
 
-        <div className="w-[220px] max-w-[38vw]">
+        <div className="w-[220px] max-w-[38vw] [&_[data-slot=input-group-control]]:h-8 [&_[data-slot=input-group]]:h-8">
           <SearchInput
             value={searchText}
             placeholder={searchPlaceholder}

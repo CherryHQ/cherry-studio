@@ -149,7 +149,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
           void handleDeleteSession(session.id)
         },
         onTogglePin: () => {
-          void handleToggleSessionPin(session.id)
+          handleToggleSessionPin(session.id)
         },
         pinned: isSessionPinned(session.id),
         sessionName: session.name ?? session.id,
