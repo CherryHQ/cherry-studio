@@ -70,6 +70,8 @@ export default function ApiHost({ providerId }: ApiHostProps) {
             isChineseUser={meta.isChineseUser}
             isVertexAI={provider.id === 'vertexai'}
             isApiHostResettable={hostPreview.isApiHostResettable}
+            onApiHostChange={setApiHost}
+            onApiHostCommit={() => void endpointActions.commitApiHost()}
             onResetApiHost={endpointActions.resetApiHost}
             onOpenRequestConfig={() => setCustomHeaderOpen(true)}
           />
@@ -77,6 +79,8 @@ export default function ApiHost({ providerId }: ApiHostProps) {
           <AnthropicApiHostField
             anthropicApiHost={anthropicApiHost}
             anthropicHostPreview={hostPreview.anthropicHostPreview}
+            onAnthropicApiHostChange={setAnthropicApiHost}
+            onAnthropicApiHostCommit={() => void endpointActions.commitAnthropicApiHost()}
             onOpenRequestConfig={() => setCustomHeaderOpen(true)}
           />
         )}

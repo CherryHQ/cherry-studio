@@ -8,6 +8,38 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { PageSidePanel, PageSidePanelItem, PageSidePanelSection } from '../index'
 
+const motionSnapshots = vi.hoisted(() => ({
+  propsBySlot: new Map<string, Record<string, unknown>>()
+}))
+
+vi.mock('motion/react', async () => {
+  const React = await vi.importActual<typeof import('react')>('react')
+  const motionPropNames = new Set(['initial', 'animate', 'exit', 'transition'])
+  const createMotionComponent =
+    (tag: 'div' | 'aside') =>
+    ({
+      ref,
+      children,
+      ...props
+    }: Record<string, unknown> & { children?: React.ReactNode } & { ref?: React.RefObject<HTMLElement | null> }) => {
+      if (typeof props['data-slot'] === 'string') {
+        motionSnapshots.propsBySlot.set(props['data-slot'], props)
+      }
+
+      const domProps = Object.fromEntries(Object.entries(props).filter(([key]) => !motionPropNames.has(key)))
+      return React.createElement(tag, { ...domProps, ref }, children)
+    }
+
+  return {
+    AnimatePresence: ({ children }: { children: React.ReactNode }) =>
+      React.createElement(React.Fragment, null, children),
+    motion: {
+      aside: createMotionComponent('aside'),
+      div: createMotionComponent('div')
+    }
+  }
+})
+
 beforeAll(() => {
   globalThis.ResizeObserver = class {
     observe() {}
@@ -18,6 +50,7 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup()
+  motionSnapshots.propsBySlot.clear()
 })
 
 describe('PageSidePanel', () => {
@@ -44,6 +77,13 @@ describe('PageSidePanel', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} />)
       const backdrop = document.querySelector('[data-slot="page-side-panel-backdrop"]')!
       expect(backdrop).toHaveClass('bg-black/50')
+    })
+
+    it('uses a non-spring panel transition to avoid close rebound', () => {
+      render(<PageSidePanel open={true} onClose={vi.fn()} />)
+      const panelProps = motionSnapshots.propsBySlot.get('page-side-panel')
+      expect(panelProps?.transition).toEqual({ duration: 0.18, ease: [0.16, 1, 0.3, 1] })
+      expect(panelProps?.transition).not.toMatchObject({ type: 'spring' })
     })
 
     it('calls onClose when close button is clicked', () => {

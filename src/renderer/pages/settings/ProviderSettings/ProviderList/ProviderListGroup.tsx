@@ -84,11 +84,6 @@ export default function ProviderListGroup({
           </div>
         </div>
         <div className={providerListClasses.groupTrailing}>
-          <span
-            data-testid={`provider-list-group-count-${presetProviderId}`}
-            className={providerListClasses.groupCount}>
-            {members.length}
-          </span>
           <ChevronRight
             size={12}
             data-testid={`provider-list-group-chevron-${presetProviderId}`}

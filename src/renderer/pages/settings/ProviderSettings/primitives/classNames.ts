@@ -90,12 +90,11 @@ export const providerListClasses = {
   itemTrailingSlotIndicatorOnly: 'size-2',
   itemMenuContent: 'w-fit min-w-32 rounded-xl p-1.5',
   itemMenuEntry: 'h-8 rounded-lg px-2.5 text-sm',
-  groupHeader: cn(providerListItemFrame, 'group/row pr-1.5 hover:bg-muted'),
+  groupHeader: cn(providerListItemFrame, 'group/row pr-2.5 hover:bg-muted'),
   groupHeaderHasSelected: 'bg-muted',
-  groupTrailing: 'ml-2 flex shrink-0 items-center gap-3',
+  groupTrailing: 'ml-2 flex shrink-0 items-center gap-1.5',
   groupChevron: 'shrink-0 text-muted-foreground/60 transition-transform duration-150',
   groupChevronOpen: 'rotate-90',
-  groupCount: 'shrink-0 text-xs leading-none text-muted-foreground/60 tabular-nums',
   groupBody: 'mt-1 flex flex-col gap-2 pl-3.5',
   itemMoreActions:
     'absolute top-1/2 right-0 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-accent/40 hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100',
@@ -476,6 +475,6 @@ export const fieldClasses = {
   /** Inline show/hide control kept inside the field without adding another border. */
   apiKeyVisibilityToggle:
     'flex size-5 shrink-0 items-center justify-center text-muted-foreground/70 transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
-  titleWithHelp: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
+  titleWithHelp: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-semibold',
   titleHelpLink: 'mx-0 inline-flex shrink-0 items-center leading-5 text-primary hover:underline'
 } as const

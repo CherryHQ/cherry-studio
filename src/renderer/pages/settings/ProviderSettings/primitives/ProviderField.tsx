@@ -22,7 +22,7 @@ export default function ProviderField({
   return (
     <div className={cn('space-y-2', className)}>
       <div className="flex items-center justify-between gap-3">
-        <div className={cn('font-medium text-foreground-secondary text-sm leading-5', titleClassName)}>{title}</div>
+        <div className={cn('font-semibold text-foreground-secondary text-sm leading-5', titleClassName)}>{title}</div>
         {action}
       </div>
       {children}

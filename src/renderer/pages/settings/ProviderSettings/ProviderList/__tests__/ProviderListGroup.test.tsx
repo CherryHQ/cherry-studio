@@ -106,7 +106,7 @@ describe('ProviderListGroup', () => {
     expect(screen.getByTestId('provider-list-group-drag-handle-zhipu')).toBeInTheDocument()
   })
 
-  it('places the group count before the chevron', () => {
+  it('renders only the chevron in the group trailing area', () => {
     render(
       <ProviderListGroup
         presetProviderId="zhipu"
@@ -121,10 +121,8 @@ describe('ProviderListGroup', () => {
       />
     )
 
-    const count = screen.getByTestId('provider-list-group-count-zhipu')
-    const chevron = screen.getByTestId('provider-list-group-chevron-zhipu')
-
-    expect(count.compareDocumentPosition(chevron) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByTestId('provider-list-group-count-zhipu')).not.toBeInTheDocument()
+    expect(screen.getByTestId('provider-list-group-chevron-zhipu')).toBeInTheDocument()
   })
 
   it('stops pointer/key events in the expanded body from reaching the outer drag surface', () => {
