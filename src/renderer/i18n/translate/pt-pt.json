@@ -339,6 +339,9 @@
     "home": {
       "welcome_title": "Sobre o que vamos falar hoje?"
     },
+    "icon": {
+      "type": "[to be translated]:Agent Icon"
+    },
     "input": {
       "placeholder": "Digite sua mensagem aqui, envie com {{key}} - @ selecionar caminho, / selecionar comando",
       "soul_placeholder": "Ajude-me a conectar ao Telegram"
@@ -347,6 +350,9 @@
       "error": {
         "failed": "Falha ao listar agentes."
       }
+    },
+    "manage": {
+      "title": "[to be translated]:Manage Agents"
     },
     "pin": {
       "title": "Agente Pin"
@@ -499,6 +505,7 @@
         "label": "Ferramentas pré-aprovadas",
         "placeholder": "Selecionar ferramentas pré-aprovadas"
       },
+      "auto_rename": "[to be translated]:Generate task name",
       "create": {
         "error": {
           "failed": "Falha ao adicionar uma sessão"
@@ -784,6 +791,11 @@
       }
     },
     "sidebar_title": "Agentes",
+    "skill": {
+      "manage": {
+        "title": "[to be translated]:Manage skills"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1087,6 +1099,7 @@
     "clear": {
       "content": "Limpar o tópico removerá todos os tópicos e arquivos do assistente. Tem certeza de que deseja continuar?",
       "menu_title": "Apagar todas as conversas com o assistente",
+      "success_title": "[to be translated]:Cleared {{count}} topics",
       "title": "Limpar Tópico"
     },
     "copy": {
@@ -1712,6 +1725,7 @@
               "tip": "O tópico será guardado na base de conhecimento com o contexto completo da conversa."
             }
           },
+          "source_fallback": "[to be translated]:Conversation",
           "success": "O tópico foi guardado com sucesso na base de conhecimento ({{count}} itens de conteúdo)",
           "title": "Guardar tópico na base de conhecimento"
         }
@@ -3135,6 +3149,7 @@
           "avatar_aria": "Escolher avatar",
           "back": "Voltar",
           "capability": {
+            "builtin_badge": "[to be translated]:Enabled by default",
             "import": "Importar habilidade",
             "no_skills": "Nenhuma habilidade instalada",
             "search": "Habilidades de pesquisa"
@@ -3753,6 +3768,7 @@
       "approvalRequired": "Ferramenta \"{{tool}}\" requer aprovação",
       "autoApproveEnabled": "Esta ferramenta tem aprovação automática ativada",
       "cancelled": "Cancelado",
+      "collapse": "[to be translated]:Collapse",
       "completed": "Completo",
       "error": "Ocorreu um erro",
       "groupHeader": "{{count}} chamadas de ferramenta",
@@ -3797,6 +3813,7 @@
         "usingTools": "Trabalhando na tarefa"
       },
       "preview": "Pré-visualização",
+      "processed": "[to be translated]:Processed",
       "raw": "Bruto",
       "runningCount": "{{count}} ferramentas em execução",
       "runningHeader": "Trabalhando…",
@@ -4048,10 +4065,13 @@
     "drop_markdown_hint": "Arraste e solte arquivos ou pastas .md aqui para importar",
     "empty": "Ainda não existem notas",
     "expand": "expandir",
+    "exportToPDF": "[to be translated]:Export to PDF",
     "exportToWord": "Exportar para Word",
     "export_failed": "Falha ao exportar para a base de conhecimento",
     "export_knowledge": "exportar anotações para a base de conhecimento",
     "export_success": "exportado com sucesso para a base de conhecimento",
+    "export_to_pdf_failed": "[to be translated]:Failed to export to PDF",
+    "export_to_pdf_success": "[to be translated]:Exported to PDF",
     "export_to_word_failed": "Falha ao exportar para Word",
     "folder": "pasta",
     "load_failed": "Falha ao carregar a nota",
@@ -4068,6 +4088,8 @@
     "no_valid_files": "Nenhum arquivo válido foi carregado",
     "open_folder": "Abrir pasta externa",
     "open_outside": "Abrir externamente",
+    "print": "[to be translated]:Print",
+    "print_failed": "[to be translated]:Failed to print note",
     "rename": "renomear",
     "rename_changed": "Devido às políticas de segurança, o nome do arquivo foi alterado de {{original}} para {{final}}",
     "rename_failed": "Falha ao renomear a nota",
@@ -5331,6 +5353,13 @@
       "auto_switch_to_topics": "Alternar automaticamente para tópicos",
       "title": "Configurações avançadas"
     },
+    "agent": {
+      "position": {
+        "label": "[to be translated]:Session position",
+        "left": "[to be translated]:Left",
+        "right": "[to be translated]:Right"
+      }
+    },
     "appearance": {
       "title": "Aparência"
     },
@@ -5967,6 +5996,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "[to be translated]:Check for updates",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Ainda não há ferramentas personalizadas. Adicione uma para começar.",
@@ -5975,6 +6005,36 @@
       "fieldVersion": "Version (optional, defaults to latest)",
       "install": "Instalar",
       "installError": "Failed to install tool",
+      "installSettings": {
+        "githubMirror": {
+          "help": "[to be translated]:Proxy prefix for GitHub downloads and the GitHub API (e.g. https://ghfast.top). Leave empty for direct access.",
+          "label": "[to be translated]:GitHub mirror",
+          "placeholder": "[to be translated]:https://ghfast.top (direct if empty)"
+        },
+        "githubToken": {
+          "help": "[to be translated]:Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
+          "hide": "[to be translated]:Hide token",
+          "label": "[to be translated]:GitHub token",
+          "show": "[to be translated]:Show token"
+        },
+        "invalidUrl": "[to be translated]:Enter a valid URL including https://",
+        "npmRegistry": {
+          "help": "[to be translated]:Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:npm registry",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "pipIndexUrl": {
+          "help": "[to be translated]:Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:pip index URL",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "presets": "[to be translated]:Presets",
+        "title": "[to be translated]:Advanced install settings",
+        "verifySignatures": {
+          "help": "[to be translated]:Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
+          "label": "[to be translated]:Verify tool signatures"
+        }
+      },
       "installing": "Instalando...",
       "invalidTool": "Nome ou chave de ferramenta inválida",
       "notInstalled": "Não instalado",
@@ -6004,7 +6064,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "[to be translated]:Failed to check for updates"
     },
     "developer": {
       "enable_developer_mode": "Ativar modo de desenvolvedor",
@@ -7266,6 +7327,7 @@
       "open_tab_in_new_window": "Abrir aba em nova janela",
       "pin_tab": "Alternar Fixação de Aba",
       "press_shortcut": "Pressionar atalho",
+      "print": "[to be translated]:Print",
       "quick_assistant": "Atalho de assistente",
       "rename_topic": "Renomear tópico",
       "reset": "Redefinir",
@@ -7596,6 +7658,7 @@
   },
   "title": {
     "apps": "Miniaplicativos",
+    "chat": "[to be translated]:Chat",
     "code": "Código",
     "files": "Arquivos",
     "home": "Página Inicial",

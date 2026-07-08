@@ -6005,6 +6005,36 @@
       "fieldVersion": "Version (optional, defaults to latest)",
       "install": "Install",
       "installError": "Failed to install tool",
+      "installSettings": {
+        "githubMirror": {
+          "help": "Proxy prefix for GitHub downloads and the GitHub API (e.g. https://ghfast.top). Leave empty for direct access.",
+          "label": "GitHub mirror",
+          "placeholder": "https://ghfast.top (direct if empty)"
+        },
+        "githubToken": {
+          "help": "Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
+          "hide": "Hide token",
+          "label": "GitHub token",
+          "show": "Show token"
+        },
+        "invalidUrl": "Enter a valid URL including https://",
+        "npmRegistry": {
+          "help": "Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "npm registry",
+          "placeholder": "Auto (China mirror) if empty"
+        },
+        "pipIndexUrl": {
+          "help": "Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "pip index URL",
+          "placeholder": "Auto (China mirror) if empty"
+        },
+        "presets": "Presets",
+        "title": "Advanced install settings",
+        "verifySignatures": {
+          "help": "Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
+          "label": "Verify tool signatures"
+        }
+      },
       "installing": "Installing...",
       "invalidTool": "Invalid tool name or key",
       "notInstalled": "Not installed",

@@ -81,20 +81,34 @@ The bundled set is currently `bun`, `uv`, `rg`. mise itself is also bundled but 
 
 mise's `github:` backend (used by `github:larksuite/cli`, `github:sharkdp/fd`, etc.) hits the GitHub releases API to resolve versions. The unauthenticated limit is 60 req/hour per IP — easily exhausted behind shared NAT (offices, mainland-China ISPs, Codespaces, CI).
 
-`BinaryManager.buildIsolatedEnv()` does **not** forward the ambient `GITHUB_TOKEN` / `GH_TOKEN` from the user's shell, to avoid leaking a general-purpose dev token into mise's process env without consent. Users who hit the rate limit can opt in by setting `CHERRY_GITHUB_TOKEN` in their shell before launching Cherry; it is forwarded to mise as `GITHUB_TOKEN`, raising the limit to 5000 req/hour.
+`BinaryManager.buildIsolatedEnv()` does **not** forward the ambient `GITHUB_TOKEN` / `GH_TOKEN` from the user's shell, to avoid leaking a general-purpose dev token into mise's process env without consent. Users who hit the rate limit can set a token in **Settings → Dependencies → Advanced install settings** (see below), which is forwarded to mise as `GITHUB_TOKEN`, raising the limit to 5000 req/hour. When that field is empty, a `CHERRY_GITHUB_TOKEN` shell env var is used as a fallback:
 
 ```bash
-export CHERRY_GITHUB_TOKEN=ghp_xxx   # optional, only needed if installs fail with HTTP 403
+export CHERRY_GITHUB_TOKEN=ghp_xxx   # optional fallback if the settings token is empty
 ```
 
 ## China mirror behavior
 
-`BinaryManager.buildIsolatedEnv()` calls `isUserInChina()` and, when true, injects mirror URLs into the mise subprocess env:
+`BinaryManager.buildIsolatedEnv()` calls `isUserInChina()` and, when true (and no explicit registry override is configured — see below), injects mirror URLs into the mise subprocess env:
 
 - `NPM_CONFIG_REGISTRY=https://registry.npmmirror.com`
 - `PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple`
 
 These are passthrough — if the user already has either var in their shell env, the user value wins. Mirror selection happens once per app launch and applies to all `npm:` / `pipx:` backends without per-tool configuration.
+
+## Advanced install settings (UI)
+
+**Settings → Dependencies → Advanced install settings** (collapsed by default) exposes the install knobs as the `feature.binary.install_settings` preference, consumed only by `buildIsolatedEnv()` (the install subprocess) — never the shared execution env that runs installed CLIs, so a token or mirror can't leak into launched agents. All fields default empty (verification on), i.e. the behavior above is unchanged until a user opts in. `BinaryManager` invalidates its memoized isolated env when this preference or the proxy prefs change.
+
+| Field              | Effect                                                                                                                                                    |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `githubMirror`     | Proxy-prefix mirror (e.g. `https://ghfast.top`). Sets `MISE_URL_REPLACEMENTS` to rewrite **both** `https://github.com` and `https://api.github.com` (the latter is what `mise latest` resolves against). Empty = direct. |
+| `npmRegistry`      | Overrides `NPM_CONFIG_REGISTRY`. Beats the China auto-mirror; empty keeps the auto behavior above.                                                        |
+| `pipIndexUrl`      | Overrides `PIP_INDEX_URL`. Same auto-vs-explicit rule as npm.                                                                                             |
+| `githubToken`      | Sets `GITHUB_TOKEN` (supersedes the `CHERRY_GITHUB_TOKEN` env). Stored as plaintext preference JSON — password-masked in the UI, never logged.            |
+| `verifySignatures` | Default on. When off, sets `MISE_AQUA_COSIGN/SLSA/MINISIGN=false` — an escape hatch when aqua's Sigstore/SLSA verification can't complete.                 |
+
+Presets for the URL fields (a short, opt-in, cheaply-updatable list — Cherry never routes downloads through a mirror unless picked) live in `src/shared/data/presets/binaryInstallPresets.ts`.
 
 ## Adding a new managed binary
 

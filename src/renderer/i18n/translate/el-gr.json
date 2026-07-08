@@ -339,6 +339,9 @@
     "home": {
       "welcome_title": "Τι θα συζητήσουμε σήμερα;"
     },
+    "icon": {
+      "type": "[to be translated]:Agent Icon"
+    },
     "input": {
       "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή",
       "soul_placeholder": "Βοηθήστε με να συνδεθώ στο Telegram"
@@ -347,6 +350,9 @@
       "error": {
         "failed": "Αποτυχία καταχώρησης πρακτόρων."
       }
+    },
+    "manage": {
+      "title": "[to be translated]:Manage Agents"
     },
     "pin": {
       "title": "Προσάρτησε Πράκτορα"
@@ -499,6 +505,7 @@
         "label": "Προεγκεκριμένα εργαλεία",
         "placeholder": "Επιλέξτε προεγκεκριμένα εργαλεία"
       },
+      "auto_rename": "[to be translated]:Generate task name",
       "create": {
         "error": {
           "failed": "Αποτυχία προσθήκης συνεδρίας"
@@ -784,6 +791,11 @@
       }
     },
     "sidebar_title": "Πράκτορες",
+    "skill": {
+      "manage": {
+        "title": "[to be translated]:Manage skills"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1087,6 +1099,7 @@
     "clear": {
       "content": "Η διαγραφή του θέματος θα διαγράψει όλα τα θέματα και τα αρχεία του βοηθού. Είστε σίγουροι πως θέλετε να συνεχίσετε;",
       "menu_title": "Διαγραφή όλων των συνομιλιών με τον βοηθό",
+      "success_title": "[to be translated]:Cleared {{count}} topics",
       "title": "Διαγραφή θέματος"
     },
     "copy": {
@@ -1712,6 +1725,7 @@
               "tip": "Τα θέματα θα αποθηκευτούν στη βάση γνώσεων σε μορφή που περιλαμβάνει το πλήρες συμφραζόμενο της συνομιλίας"
             }
           },
+          "source_fallback": "[to be translated]:Conversation",
           "success": "Το θέμα αποθηκεύτηκε με επιτυχία στη βάση γνώσεων ({{count}} στοιχεία περιεχομένου)",
           "title": "Αποθήκευση θέματος στη βάση γνώσεων"
         }
@@ -3135,6 +3149,7 @@
           "avatar_aria": "Επιλέξτε άβαταρ",
           "back": "Πίσω",
           "capability": {
+            "builtin_badge": "[to be translated]:Enabled by default",
             "import": "Εισαγωγή δεξιοτήτων",
             "no_skills": "Δεν έχουν εγκατασταθεί δεξιότητες",
             "search": "Δεξιότητες αναζήτησης"
@@ -3753,6 +3768,7 @@
       "approvalRequired": "Το εργαλείο \"{{tool}}\" απαιτεί έγκριση",
       "autoApproveEnabled": "Αυτό το εργαλείο έχει ενεργοποιημένη την αυτόματη έγκριση",
       "cancelled": "Ακυρώθηκε",
+      "collapse": "[to be translated]:Collapse",
       "completed": "Ολοκληρώθηκε",
       "error": "Προέκυψε σφάλμα",
       "groupHeader": "{{count}} κλήσεις εργαλείων",
@@ -3797,6 +3813,7 @@
         "usingTools": "Δουλεύω πάνω στην εργασία"
       },
       "preview": "Προεπισκόπηση",
+      "processed": "[to be translated]:Processed",
       "raw": "Ακατέργαστο",
       "runningCount": "{{count}} εργαλεία εκτελούνται",
       "runningHeader": "Εργάζεται…",
@@ -4048,10 +4065,13 @@
     "drop_markdown_hint": "Σύρετε και αποθέστε αρχεία ή φακέλους .md εδώ για εισαγωγή",
     "empty": "δεν υπάρχει σημείωση για τώρα",
     "expand": "να ανοίξει",
+    "exportToPDF": "[to be translated]:Export to PDF",
     "exportToWord": "Εξαγωγή σε Word",
     "export_failed": "Εξαγωγή στη βάση γνώσης απέτυχε",
     "export_knowledge": "εξαγωγή σημειώσεων στη βάση γνώσης",
     "export_success": "Επιτυχής εξαγωγή στην βάση γνώσης",
+    "export_to_pdf_failed": "[to be translated]:Failed to export to PDF",
+    "export_to_pdf_success": "[to be translated]:Exported to PDF",
     "export_to_word_failed": "Αποτυχία εξαγωγής στο Word",
     "folder": "φάκελος",
     "load_failed": "Αποτυχία φόρτωσης σημείωσης",
@@ -4068,6 +4088,8 @@
     "no_valid_files": "Δεν ανέβηκε έγκυρο αρχείο",
     "open_folder": "Άνοιγμα εξωτερικού φακέλου",
     "open_outside": "Από το εξωτερικό",
+    "print": "[to be translated]:Print",
+    "print_failed": "[to be translated]:Failed to print note",
     "rename": "μετονομασία",
     "rename_changed": "Λόγω πολιτικής ασφάλειας, το όνομα του αρχείου έχει αλλάξει από {{original}} σε {{final}}",
     "rename_failed": "Αποτυχία μετονομασίας σημείωσης",
@@ -5331,6 +5353,13 @@
       "auto_switch_to_topics": "Αυτόματη μετάβαση σε θέματα",
       "title": "Ρυθμίσεις Ανώτερου Νiveau"
     },
+    "agent": {
+      "position": {
+        "label": "[to be translated]:Session position",
+        "left": "[to be translated]:Left",
+        "right": "[to be translated]:Right"
+      }
+    },
     "appearance": {
       "title": "Εμφάνιση"
     },
@@ -5967,6 +5996,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "[to be translated]:Check for updates",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Δεν υπάρχουν ακόμα προσαρμοσμένα εργαλεία. Προσθέστε ένα για να ξεκινήσετε.",
@@ -5975,6 +6005,36 @@
       "fieldVersion": "Version (optional, defaults to latest)",
       "install": "Εγκατάσταση",
       "installError": "Failed to install tool",
+      "installSettings": {
+        "githubMirror": {
+          "help": "[to be translated]:Proxy prefix for GitHub downloads and the GitHub API (e.g. https://ghfast.top). Leave empty for direct access.",
+          "label": "[to be translated]:GitHub mirror",
+          "placeholder": "[to be translated]:https://ghfast.top (direct if empty)"
+        },
+        "githubToken": {
+          "help": "[to be translated]:Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
+          "hide": "[to be translated]:Hide token",
+          "label": "[to be translated]:GitHub token",
+          "show": "[to be translated]:Show token"
+        },
+        "invalidUrl": "[to be translated]:Enter a valid URL including https://",
+        "npmRegistry": {
+          "help": "[to be translated]:Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:npm registry",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "pipIndexUrl": {
+          "help": "[to be translated]:Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:pip index URL",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "presets": "[to be translated]:Presets",
+        "title": "[to be translated]:Advanced install settings",
+        "verifySignatures": {
+          "help": "[to be translated]:Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
+          "label": "[to be translated]:Verify tool signatures"
+        }
+      },
       "installing": "Εγκατάσταση...",
       "invalidTool": "Μη έγκυρο όνομα ή κλειδί εργαλείου",
       "notInstalled": "Δεν έχει εγκατασταθεί",
@@ -6004,7 +6064,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "[to be translated]:Failed to check for updates"
     },
     "developer": {
       "enable_developer_mode": "Ενεργοποίηση λειτουργίας προγραμματιστή",
@@ -7266,6 +7327,7 @@
       "open_tab_in_new_window": "Άνοιγμα καρτέλας σε νέο παράθυρο",
       "pin_tab": "Εναλλαγή Καρφίτσωμα Καρτέλας",
       "press_shortcut": "Πάτησε το συντομού πλήκτρου",
+      "print": "[to be translated]:Print",
       "quick_assistant": "Συντομεύστε επιχειρηματικά",
       "rename_topic": "Μετονομασία θέματος",
       "reset": "Επαναφορά",
@@ -7596,6 +7658,7 @@
   },
   "title": {
     "apps": "Εφαρμογές",
+    "chat": "[to be translated]:Chat",
     "code": "Κώδικας",
     "files": "Αρχεία",
     "home": "Αρχική Σελίδα",

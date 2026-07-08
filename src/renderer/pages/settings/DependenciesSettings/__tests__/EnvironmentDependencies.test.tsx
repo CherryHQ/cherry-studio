@@ -7,6 +7,11 @@ import EnvironmentDependencies from '../EnvironmentDependencies'
 const customToolsRef = vi.hoisted(() => ({ value: [] as Array<{ name: string; tool: string; version?: string }> }))
 const setCustomToolsMock = vi.hoisted(() => vi.fn())
 
+const installSettingsRef = vi.hoisted(() => ({
+  value: { githubMirror: '', githubToken: '', npmRegistry: '', pipIndexUrl: '', verifySignatures: true }
+}))
+const setInstallSettingsMock = vi.hoisted(() => vi.fn())
+
 const ipcMocks = vi.hoisted(() => ({
   getState: vi.fn(),
   probeBundled: vi.fn(),
@@ -54,7 +59,10 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: () => [customToolsRef.value, setCustomToolsMock]
+  usePreference: (key: string) =>
+    key === 'feature.binary.install_settings'
+      ? [installSettingsRef.value, setInstallSettingsMock]
+      : [customToolsRef.value, setCustomToolsMock]
 }))
 
 vi.mock('semver', () => ({
@@ -96,7 +104,64 @@ vi.mock('@cherrystudio/ui', () => {
     DialogFooter: passthrough('div'),
     DialogHeader: passthrough('div'),
     DialogTitle: passthrough('div'),
-    Input: passthrough('input')
+    Input: passthrough('input'),
+    // Install-settings section primitives. Accordion/Field wrappers just render
+    // children (collapse is a visual concern verified manually); the interactive
+    // stubs preserve the props the tests drive.
+    Accordion: childrenOnly,
+    AccordionItem: childrenOnly,
+    AccordionTrigger: childrenOnly,
+    AccordionContent: passthrough('div'),
+    Field: passthrough('div'),
+    FieldLabel: passthrough('label'),
+    FieldDescription: passthrough('div'),
+    InputGroup: passthrough('div'),
+    InputGroupAddon: passthrough('div'),
+    InputGroupInput: passthrough('input'),
+    InputGroupButton: ({
+      children,
+      onClick,
+      'aria-label': ariaLabel
+    }: {
+      children?: React.ReactNode
+      onClick?: () => void
+      'aria-label'?: string
+    }) => React.createElement('button', { type: 'button', onClick, 'aria-label': ariaLabel }, children),
+    DescriptionSwitch: ({
+      label,
+      checked,
+      onCheckedChange
+    }: {
+      label: string
+      checked?: boolean
+      onCheckedChange?: (checked: boolean) => void
+    }) =>
+      React.createElement('label', null, [
+        label,
+        React.createElement('input', {
+          key: 'switch',
+          type: 'checkbox',
+          checked: !!checked,
+          onChange: (e: React.ChangeEvent<HTMLInputElement>) => onCheckedChange?.(e.target.checked)
+        })
+      ]),
+    // Renders each preset as a button so a click drives onSelect(url) — exercises
+    // "pick a preset fills the field" without the real popover.
+    SelectDropdown: ({
+      items,
+      onSelect,
+      placeholder
+    }: {
+      items: Array<{ id: string; label: string }>
+      onSelect: (id: string) => void
+      placeholder?: string
+    }) =>
+      React.createElement('div', null, [
+        React.createElement('span', { key: 'placeholder' }, placeholder),
+        ...items.map((it) =>
+          React.createElement('button', { key: it.id, type: 'button', onClick: () => onSelect(it.id) }, it.label)
+        )
+      ])
   }
 })
 
@@ -105,6 +170,13 @@ describe('EnvironmentDependencies', () => {
     vi.clearAllMocks()
     ipcEventHandlers.clear()
     customToolsRef.value = []
+    installSettingsRef.value = {
+      githubMirror: '',
+      githubToken: '',
+      npmRegistry: '',
+      pipIndexUrl: '',
+      verifySignatures: true
+    }
     ipcMocks.getState.mockResolvedValue({ tools: {} })
     ipcMocks.probeBundled.mockResolvedValue({})
     ipcMocks.latestVersions.mockResolvedValue({})
@@ -272,5 +344,57 @@ describe('EnvironmentDependencies', () => {
 
     await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
     expect(container).toBeEmptyDOMElement()
+  })
+
+  describe('install settings section', () => {
+    const placeholderOf = (key: string) => `settings.dependencies.installSettings.${key}`
+
+    it('persists a typed value into the install-settings preference', async () => {
+      render(<EnvironmentDependencies />)
+      await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+
+      const mirror = screen.getByPlaceholderText(placeholderOf('githubMirror.placeholder'))
+      fireEvent.change(mirror, { target: { value: 'https://my.mirror' } })
+
+      expect(setInstallSettingsMock).toHaveBeenCalledWith(
+        expect.objectContaining({ githubMirror: 'https://my.mirror' })
+      )
+    })
+
+    it('fills the field with the chosen preset URL, not its label', async () => {
+      render(<EnvironmentDependencies />)
+      await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+
+      // The mirror field's preset dropdown renders each preset as a button.
+      fireEvent.click(screen.getByText('ghfast.top'))
+
+      expect(setInstallSettingsMock).toHaveBeenCalledWith(
+        expect.objectContaining({ githubMirror: 'https://ghfast.top' })
+      )
+    })
+
+    it('masks the GitHub token by default and reveals it on toggle', async () => {
+      render(<EnvironmentDependencies />)
+      await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+
+      const token = screen.getByPlaceholderText('ghp_…')
+      expect(token).toHaveAttribute('type', 'password')
+
+      // Reveal toggles the local show-token state, so flush it inside act().
+      act(() => {
+        fireEvent.click(screen.getByLabelText(placeholderOf('githubToken.show')))
+      })
+      expect(screen.getByPlaceholderText('ghp_…')).toHaveAttribute('type', 'text')
+    })
+
+    it('writes the boolean when the verify-signatures switch is toggled off', async () => {
+      render(<EnvironmentDependencies />)
+      await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
+
+      // Default on → toggling emits verifySignatures:false.
+      fireEvent.click(screen.getByRole('checkbox'))
+
+      expect(setInstallSettingsMock).toHaveBeenCalledWith(expect.objectContaining({ verifySignatures: false }))
+    })
   })
 })

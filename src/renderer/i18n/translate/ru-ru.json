@@ -339,6 +339,9 @@
     "home": {
       "welcome_title": "О чём мы поговорим сегодня?"
     },
+    "icon": {
+      "type": "[to be translated]:Agent Icon"
+    },
     "input": {
       "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду",
       "soul_placeholder": "Помогите мне подключиться к Telegram"
@@ -347,6 +350,9 @@
       "error": {
         "failed": "Не удалось получить список агентов."
       }
+    },
+    "manage": {
+      "title": "[to be translated]:Manage Agents"
     },
     "pin": {
       "title": "Пин-агент"
@@ -499,6 +505,7 @@
         "label": "Предварительно одобренные инструменты",
         "placeholder": "Выберите предварительно одобренные инструменты"
       },
+      "auto_rename": "[to be translated]:Generate task name",
       "create": {
         "error": {
           "failed": "Не удалось добавить сеанс"
@@ -784,6 +791,11 @@
       }
     },
     "sidebar_title": "Агенты",
+    "skill": {
+      "manage": {
+        "title": "[to be translated]:Manage skills"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1087,6 +1099,7 @@
     "clear": {
       "content": "Очистка топика удалит все топики и файлы в ассистенте. Вы уверены, что хотите продолжить?",
       "menu_title": "Удалить все разговоры с ассистентом",
+      "success_title": "[to be translated]:Cleared {{count}} topics",
       "title": "Очистить топики"
     },
     "copy": {
@@ -1712,6 +1725,7 @@
               "tip": "Тема будет сохранена в базе знаний с полным контекстом диалога"
             }
           },
+          "source_fallback": "[to be translated]:Conversation",
           "success": "Тема успешно сохранена в базе знаний ({{count}} элементов)",
           "title": "Сохранить тему в базу знаний"
         }
@@ -3135,6 +3149,7 @@
           "avatar_aria": "Выберите аватар",
           "back": "Назад",
           "capability": {
+            "builtin_badge": "[to be translated]:Enabled by default",
             "import": "Импортировать навык",
             "no_skills": "Навыки не установлены",
             "search": "Навыки поиска"
@@ -3753,6 +3768,7 @@
       "approvalRequired": "Инструмент \"{{tool}}\" требует одобрения",
       "autoApproveEnabled": "Для этого инструмента включен автоматический одобрен",
       "cancelled": "Отменено",
+      "collapse": "[to be translated]:Collapse",
       "completed": "Завершено",
       "error": "Произошла ошибка",
       "groupHeader": "{{count}} вызовов инструментов",
@@ -3797,6 +3813,7 @@
         "usingTools": "Работа над задачей"
       },
       "preview": "Предпросмотр",
+      "processed": "[to be translated]:Processed",
       "raw": "Исходный",
       "runningCount": "{{count}} инструментов запущено",
       "runningHeader": "Работаю…",
@@ -4048,10 +4065,13 @@
     "drop_markdown_hint": "Перетащите сюда файлы или папки .md для импорта",
     "empty": "заметок пока нет",
     "expand": "развернуть",
+    "exportToPDF": "[to be translated]:Export to PDF",
     "exportToWord": "Экспорт в Word",
     "export_failed": "Экспорт в базу знаний не выполнен",
     "export_knowledge": "Экспортировать заметки в базу знаний",
     "export_success": "Успешно экспортировано в базу знаний",
+    "export_to_pdf_failed": "[to be translated]:Failed to export to PDF",
+    "export_to_pdf_success": "[to be translated]:Exported to PDF",
     "export_to_word_failed": "Не удалось экспортировать в Word",
     "folder": "папка",
     "load_failed": "Не удалось загрузить заметку",
@@ -4068,6 +4088,8 @@
     "no_valid_files": "Не загружен действительный файл",
     "open_folder": "Откройте внешнюю папку",
     "open_outside": "открыть снаружи",
+    "print": "[to be translated]:Print",
+    "print_failed": "[to be translated]:Failed to print note",
     "rename": "переименовать",
     "rename_changed": "В связи с политикой безопасности имя файла было изменено с {{Original}} на {{final}}",
     "rename_failed": "Не удалось переименовать заметку",
@@ -5331,6 +5353,13 @@
       "auto_switch_to_topics": "Автоматически переключаться на топик",
       "title": "Расширенные настройки"
     },
+    "agent": {
+      "position": {
+        "label": "[to be translated]:Session position",
+        "left": "[to be translated]:Left",
+        "right": "[to be translated]:Right"
+      }
+    },
     "appearance": {
       "title": "Внешний вид"
     },
@@ -5967,6 +5996,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "[to be translated]:Check for updates",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Пользовательских инструментов пока нет. Добавьте один, чтобы начать.",
@@ -5975,6 +6005,36 @@
       "fieldVersion": "Version (optional, defaults to latest)",
       "install": "Установить",
       "installError": "Failed to install tool",
+      "installSettings": {
+        "githubMirror": {
+          "help": "[to be translated]:Proxy prefix for GitHub downloads and the GitHub API (e.g. https://ghfast.top). Leave empty for direct access.",
+          "label": "[to be translated]:GitHub mirror",
+          "placeholder": "[to be translated]:https://ghfast.top (direct if empty)"
+        },
+        "githubToken": {
+          "help": "[to be translated]:Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
+          "hide": "[to be translated]:Hide token",
+          "label": "[to be translated]:GitHub token",
+          "show": "[to be translated]:Show token"
+        },
+        "invalidUrl": "[to be translated]:Enter a valid URL including https://",
+        "npmRegistry": {
+          "help": "[to be translated]:Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:npm registry",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "pipIndexUrl": {
+          "help": "[to be translated]:Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:pip index URL",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "presets": "[to be translated]:Presets",
+        "title": "[to be translated]:Advanced install settings",
+        "verifySignatures": {
+          "help": "[to be translated]:Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
+          "label": "[to be translated]:Verify tool signatures"
+        }
+      },
       "installing": "Установка...",
       "invalidTool": "Неверное имя или ключ инструмента",
       "notInstalled": "Не установлено",
@@ -6004,7 +6064,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "[to be translated]:Failed to check for updates"
     },
     "developer": {
       "enable_developer_mode": "Включить разработчик",
@@ -7266,6 +7327,7 @@
       "open_tab_in_new_window": "Открыть вкладку в новом окне",
       "pin_tab": "Закрепить вкладку",
       "press_shortcut": "Нажмите сочетание клавиш",
+      "print": "[to be translated]:Print",
       "quick_assistant": "Быстрый помощник",
       "rename_topic": "Переименовать топик",
       "reset": "Сброс",
@@ -7596,6 +7658,7 @@
   },
   "title": {
     "apps": "Приложения",
+    "chat": "[to be translated]:Chat",
     "code": "Code",
     "files": "Файлы",
     "home": "Главная",

@@ -1,14 +1,27 @@
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Badge,
   Button,
   ConfirmDialog,
+  DescriptionSwitch,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  SelectDropdown
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
@@ -17,13 +30,21 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
-import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
+import type { BinaryInstallSettings, BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
+import {
+  GITHUB_MIRROR_PRESETS,
+  type InstallSettingPreset,
+  NPM_REGISTRY_PRESETS,
+  PIP_INDEX_PRESETS
+} from '@shared/data/presets/binaryInstallPresets'
 import { type BinaryToolPreset, PRESETS_BINARY_TOOLS, validateManagedBinary } from '@shared/data/presets/binaryTools'
 import { useNavigate } from '@tanstack/react-router'
 import {
   ArrowBigUp,
   Download,
   ExternalLink,
+  Eye,
+  EyeOff,
   FolderOpen,
   Loader2,
   Plus,
@@ -253,6 +274,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         </div>
         <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.dependencies.description')}</p>
       </div>
+
+      <InstallSettingsSection />
 
       <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PRESETS_BINARY_TOOLS.map((tool) => {
@@ -727,6 +750,147 @@ function AddToolDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+const isValidUrl = (value: string): boolean => {
+  try {
+    return Boolean(new URL(value))
+  } catch {
+    return false
+  }
+}
+
+// Free-text URL field with a preset picker beside it. The Input is the source of
+// truth (accepts any value); the dropdown just fills it on pick. The dropdown
+// shows the matching preset's label when the current value is one, else the
+// "presets" placeholder.
+const UrlPresetField: FC<{
+  label: string
+  description: string
+  invalidHint: string
+  placeholder: string
+  presetLabel: string
+  value: string
+  presets: InstallSettingPreset[]
+  onChange: (value: string) => void
+}> = ({ label, description, invalidHint, placeholder, presetLabel, value, presets, onChange }) => {
+  const invalid = value.trim() !== '' && !isValidUrl(value.trim())
+  const items = presets.map((p) => ({ id: p.url, label: p.label }))
+  const selectedId = items.some((i) => i.id === value) ? value : null
+
+  return (
+    <Field>
+      <FieldLabel>{label}</FieldLabel>
+      <div className="flex items-center gap-2">
+        <Input
+          value={value}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          className={cn('flex-1', invalid && 'border-destructive')}
+        />
+        <SelectDropdown
+          items={items}
+          selectedId={selectedId}
+          onSelect={onChange}
+          placeholder={presetLabel}
+          renderSelected={(item) => <span className="truncate">{item.label}</span>}
+          renderItem={(item) => <span>{item.label}</span>}
+        />
+      </div>
+      <FieldDescription className={cn(invalid && 'text-destructive')}>
+        {invalid ? invalidHint : description}
+      </FieldDescription>
+    </Field>
+  )
+}
+
+// Advanced, collapsed-by-default knobs for the mise install path. Writes each
+// field straight to the feature.binary.install_settings preference; the main
+// process rebuilds its isolated install env on change (see BinaryManager).
+const InstallSettingsSection: FC = () => {
+  const { t } = useTranslation()
+  const [settings, setSettings] = usePreference('feature.binary.install_settings')
+  const [showToken, setShowToken] = useState(false)
+
+  const update = <K extends keyof BinaryInstallSettings>(key: K, val: BinaryInstallSettings[K]) => {
+    void setSettings({ ...settings, [key]: val })
+  }
+
+  return (
+    <Accordion type="single" collapsible className="rounded-xl border border-border bg-card px-4">
+      <AccordionItem value="install-settings" className="border-0">
+        <AccordionTrigger className="py-3 font-medium text-foreground text-sm hover:no-underline">
+          {t('settings.dependencies.installSettings.title')}
+        </AccordionTrigger>
+        <AccordionContent className="pt-0 pb-4">
+          <div className="flex flex-col gap-4">
+            <UrlPresetField
+              label={t('settings.dependencies.installSettings.githubMirror.label')}
+              description={t('settings.dependencies.installSettings.githubMirror.help')}
+              invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
+              placeholder={t('settings.dependencies.installSettings.githubMirror.placeholder')}
+              presetLabel={t('settings.dependencies.installSettings.presets')}
+              value={settings.githubMirror}
+              presets={GITHUB_MIRROR_PRESETS}
+              onChange={(v) => update('githubMirror', v)}
+            />
+            <UrlPresetField
+              label={t('settings.dependencies.installSettings.npmRegistry.label')}
+              description={t('settings.dependencies.installSettings.npmRegistry.help')}
+              invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
+              placeholder={t('settings.dependencies.installSettings.npmRegistry.placeholder')}
+              presetLabel={t('settings.dependencies.installSettings.presets')}
+              value={settings.npmRegistry}
+              presets={NPM_REGISTRY_PRESETS}
+              onChange={(v) => update('npmRegistry', v)}
+            />
+            <UrlPresetField
+              label={t('settings.dependencies.installSettings.pipIndexUrl.label')}
+              description={t('settings.dependencies.installSettings.pipIndexUrl.help')}
+              invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
+              placeholder={t('settings.dependencies.installSettings.pipIndexUrl.placeholder')}
+              presetLabel={t('settings.dependencies.installSettings.presets')}
+              value={settings.pipIndexUrl}
+              presets={PIP_INDEX_PRESETS}
+              onChange={(v) => update('pipIndexUrl', v)}
+            />
+            <Field>
+              <FieldLabel>{t('settings.dependencies.installSettings.githubToken.label')}</FieldLabel>
+              <InputGroup>
+                <InputGroupInput
+                  type={showToken ? 'text' : 'password'}
+                  autoComplete="off"
+                  placeholder="ghp_…"
+                  value={settings.githubToken}
+                  onChange={(e) => update('githubToken', e.target.value)}
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    size="icon-xs"
+                    onClick={() => setShowToken((s) => !s)}
+                    aria-label={t(
+                      showToken
+                        ? 'settings.dependencies.installSettings.githubToken.hide'
+                        : 'settings.dependencies.installSettings.githubToken.show'
+                    )}>
+                    {showToken ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
+              <FieldDescription>{t('settings.dependencies.installSettings.githubToken.help')}</FieldDescription>
+            </Field>
+            <DescriptionSwitch
+              size="sm"
+              label={t('settings.dependencies.installSettings.verifySignatures.label')}
+              description={t('settings.dependencies.installSettings.verifySignatures.help')}
+              checked={settings.verifySignatures}
+              onCheckedChange={(checked) => update('verifySignatures', checked)}
+            />
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   )
 }
 
