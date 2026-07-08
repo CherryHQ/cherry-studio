@@ -3526,6 +3526,27 @@ describe('ComposerSurface', () => {
     expect(onSendDraft).not.toHaveBeenCalled()
   })
 
+  it('uses the latest send-message shortcut from preference updates', async () => {
+    const onSendDraft = vi.fn()
+    const { rerender } = render(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    mocks.preferences['chat.input.send_message_shortcut'] = 'Ctrl+Enter'
+    rerender(<ComposerSurface {...baseProps} onSendDraft={onSendDraft} />)
+    await act(async () => {})
+
+    expect(mocks.editorOptions.editorProps.handleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter' }))).toBe(
+      false
+    )
+    expect(onSendDraft).not.toHaveBeenCalled()
+
+    expect(
+      mocks.editorOptions.editorProps.handleKeyDown(null, new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true }))
+    ).toBe(true)
+    expect(onSendDraft).toHaveBeenCalledWith({ text: '', tokens: [] })
+  })
+
   it('lets the visible QuickPanel handle Tab before prompt-variable navigation', async () => {
     mocks.quickPanelIsVisible = true
     mocks.quickPanelDispatchKeyDown.mockReturnValue(true)

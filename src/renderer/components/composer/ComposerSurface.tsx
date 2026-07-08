@@ -24,7 +24,8 @@ import {
 } from '@renderer/utils/message/composerClipboard'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import type { ComposerMessageToken } from '@shared/data/types/uiParts'
-import type { EditorOptions, JSONContent } from '@tiptap/core'
+import type { JSONContent } from '@tiptap/core'
+import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, type NodeViewProps } from '@tiptap/react'
 import { CirclePause, LocateFixed, Maximize2, Minimize2, X } from 'lucide-react'
@@ -83,7 +84,6 @@ const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
   { char: ComposerPanelSymbol.Root, pluginKey: 'composer-root-suggestion' },
   { char: '、', pluginKey: 'composer-root-ideographic-comma-suggestion' }
 ] as const
-type ComposerTextInputView = Parameters<NonNullable<NonNullable<EditorOptions['editorProps']>['handleTextInput']>>[0]
 interface ComposerClipboardCopyView {
   state: {
     selection: {
@@ -337,7 +337,7 @@ function getComposerInputTextWithinLimit(currentText: string, nextText: string, 
   return nextText.slice(0, remainingLength)
 }
 
-function getComposerReplacementText(view: ComposerTextInputView | null, from: number, to: number) {
+function getComposerReplacementText(view: EditorView | null, from: number, to: number) {
   if (!view || from >= to) return ''
   return view.state.doc.textBetween(from, to, '\n', getComposerInputLeafText)
 }
@@ -524,6 +524,7 @@ export default function ComposerSurface({
   const tokenByIdRef = useRef(new Map<string, ComposerDraftToken>())
   const sendDisabledRef = useRef(sendDisabled)
   const sendBlockedReasonRef = useRef(sendBlockedReason)
+  const sendMessageShortcutRef = useRef(sendMessageShortcut)
   const onSendDraftRef = useRef(onSendDraft)
   const promptVariableEditRef = useRef<{ tokenId: string; started: boolean } | null>(null)
   const promptVariableCompositionRef = useRef<{ tokenId: string; text: string } | null>(null)
@@ -552,6 +553,10 @@ export default function ComposerSurface({
   useEffect(() => {
     sendBlockedReasonRef.current = sendBlockedReason
   }, [sendBlockedReason])
+
+  useEffect(() => {
+    sendMessageShortcutRef.current = sendMessageShortcut
+  }, [sendMessageShortcut])
 
   useEffect(() => {
     onSendDraftRef.current = onSendDraft
@@ -1186,7 +1191,7 @@ export default function ComposerSurface({
         ),
         style: editorStyle
       },
-      handleKeyDown: (_view: any, event: KeyboardEvent) => {
+      handleKeyDown: (_view: EditorView, event: KeyboardEvent) => {
         if (
           ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter', 'Escape'].includes(event.key)
         ) {
@@ -1225,7 +1230,7 @@ export default function ComposerSurface({
         }
 
         const isEnterPressed = event.key === 'Enter' && !event.isComposing
-        if (isEnterPressed && isComposerSendKeyPressed(event, sendMessageShortcut)) {
+        if (isEnterPressed && isComposerSendKeyPressed(event, sendMessageShortcutRef.current)) {
           if (!sendDisabledRef.current && editorRef.current) {
             const draft = serializeComposerDocument(editorRef.current)
             void Promise.resolve(onSendDraftRef.current(draft)).finally(focusEditor)
@@ -1352,7 +1357,7 @@ export default function ComposerSurface({
   )
 
   const memoizedHandlePaste = useCallback(
-    (_view: any, event: ClipboardEvent) => {
+    (_view: EditorView, event: ClipboardEvent) => {
       const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
       const pastedHtml = event.clipboardData?.getData('text/html') || ''
       const editor = editorRef.current
