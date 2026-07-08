@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -13,8 +14,14 @@ vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }
 }))
 
-const renderRagConfigPanel = (onRestoreBase = vi.fn(), baseOverrides: Partial<KnowledgeBase> = {}) => {
-  return render(<RagConfigPanel base={createKnowledgeBase(baseOverrides)} onRestoreBase={onRestoreBase} />)
+const renderRagConfigPanel = (
+  onRestoreBase = vi.fn(),
+  baseOverrides: Partial<KnowledgeBase> = {},
+  itemCount?: number
+) => {
+  return render(
+    <RagConfigPanel base={createKnowledgeBase(baseOverrides)} itemCount={itemCount} onRestoreBase={onRestoreBase} />
+  )
 }
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -22,6 +29,12 @@ vi.mock('@cherrystudio/ui', async () => {
   const SelectContext = React.createContext<{ onValueChange?: (value: string) => void }>({})
 
   return {
+    // The accordion is mocked to always render its content so field-level
+    // assertions stay independent of the collapsed/expanded state.
+    Accordion: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    AccordionItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    AccordionTrigger: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
+    AccordionContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     Alert: ({
       action,
       description,
@@ -146,8 +159,11 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('../../../hooks', () => ({
-  useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base),
+vi.mock('../../../hooks/useKnowledgeRagConfig', () => ({
+  useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base)
+}))
+
+vi.mock('../../../hooks/useEmbeddingDimensions', () => ({
   useEmbeddingDimensions: () => ({
     fetchDimensions: async (uniqueModelId: string) => {
       const { embeddings } = await mockEmbedMany({
@@ -190,6 +206,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       (
         ({
+          'common.advanced_settings': '高级设置',
           'knowledge.error.failed_base_unknown': '该知识库迁移失败，请重建知识库并选择新的嵌入模型。',
           'knowledge.error.failed_to_edit': '保存失败',
           'knowledge.error.missing_embedding_model':
@@ -205,7 +222,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.status.failed': '失败',
           'knowledge.dimensions_error_invalid': '无效的嵌入维度',
           'knowledge.rag.dimensions': '向量维度',
-          'knowledge.rag.document_count': '请求文档片段数 (Top K)',
+          'knowledge.rag.document_count': 'Top K',
           'knowledge.rag.embedding_model': '嵌入模型',
           'knowledge.rag.embedding_model_select': '模型选择',
           'knowledge.rag.file_processing': '文档处理',
@@ -217,17 +234,10 @@ vi.mock('react-i18next', () => ({
           'knowledge.rag.chunk_size_change_warning': '分段大小和重叠大小修改只针对新添加的内容有效',
           'knowledge.rag.chunking': 'Chunking',
           'knowledge.rag.retrieval': 'Retrieval',
-          'knowledge.rag.threshold': '相似度阈值',
           'knowledge.rag.tokens_unit': 'tokens',
-          'knowledge.rag.search_mode.title': '检索模式',
-          'knowledge.rag.search_mode.default': '向量检索',
-          'knowledge.rag.search_mode.bm25': '全文检索',
-          'knowledge.rag.search_mode.hybrid': '混合检索（推荐）',
-          'knowledge.rag.hybrid_alpha': 'Hybrid Alpha',
-          'knowledge.rag.hybrid_alpha_hint': '仅在 Hybrid 检索模式下可配置',
           'knowledge.rag.refresh_dimensions': '刷新向量维度',
           'knowledge.rag.rerank_disabled': '不使用',
-          'knowledge.rag.rerank_model': '重排模型 (Rerank)',
+          'knowledge.rag.rerank_model': '重排模型',
           'knowledge.rag.reset_action': '恢复默认',
           'knowledge.rag.save_action': '保存',
           'knowledge.rag.saved': '已保存',
@@ -237,14 +247,12 @@ vi.mock('react-i18next', () => ({
           'knowledge.rag.hints.chunk_size': '单个文档片段的目标 token 数。',
           'knowledge.rag.hints.chunk_overlap': '相邻文档片段之间保留的重叠 token 数。',
           'knowledge.rag.hints.document_count': '每次召回返回的最大文档片段数。',
-          'knowledge.rag.hints.threshold': '过滤低相关片段的相似度阈值。',
-          'knowledge.rag.hints.threshold_disabled': '该检索模式按排序返回结果，不使用相似度阈值。',
-          'knowledge.rag.hints.search_mode': '选择召回方式。',
-          'knowledge.rag.hints.hybrid_alpha': '混合检索中向量得分的权重。',
           'knowledge.rag.hints.rerank_model': '对初步召回结果重新排序的模型。',
+          'knowledge.rag.hints.threshold': '用于过滤低相关性重排片段的相似度阈值。',
           'knowledge.rag.chunk_size_invalid': '分块大小必须大于 0',
           'knowledge.rag.chunk_overlap_invalid': '分块重叠必须大于等于 0',
-          'knowledge.rag.chunk_overlap_must_be_smaller': '分块重叠必须小于分块大小'
+          'knowledge.rag.chunk_overlap_must_be_smaller': '分块重叠必须小于分块大小',
+          'knowledge.rag.threshold': '相似度阈值'
         }) as Record<string, string>
       )[key] ?? key
   })
@@ -262,12 +270,10 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   chunkOverlap: 200,
   chunkStrategy: 'structured',
   chunkSeparator: '\\n\\n',
-  threshold: 0.1,
+  threshold: undefined,
   documentCount: 6,
   status: 'completed',
   error: null,
-  searchMode: 'vector',
-  hybridAlpha: undefined,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -277,12 +283,6 @@ describe('RagConfigPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockEmbedMany.mockResolvedValue({ embeddings: [new Array(2048).fill(0)] })
-    Object.assign(window, {
-      toast: {
-        success: vi.fn(),
-        error: vi.fn()
-      }
-    })
 
     mockUseKnowledgeRagConfig.mockReturnValue({
       initialValues: {
@@ -294,16 +294,9 @@ describe('RagConfigPanel', () => {
         embeddingModelId: 'openai::text-embedding-3-small',
         rerankModelId: null,
         documentCount: 6,
-        threshold: 0.1,
-        searchMode: 'vector',
-        hybridAlpha: null
+        threshold: 0
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      searchModeOptions: [
-        { value: 'hybrid', label: '混合检索（推荐）' },
-        { value: 'vector', label: '向量检索' },
-        { value: 'bm25', label: '全文检索' }
-      ],
       save: mockSave,
       isLoading: false,
       error: undefined
@@ -329,7 +322,7 @@ describe('RagConfigPanel', () => {
     expect(screen.queryByText('文档处理')).not.toBeInTheDocument()
     expect(screen.queryByText('分块大小')).not.toBeInTheDocument()
     expect(screen.queryByText('嵌入模型')).not.toBeInTheDocument()
-    expect(screen.queryByText('请求文档片段数 (Top K)')).not.toBeInTheDocument()
+    expect(screen.queryByText('Top K')).not.toBeInTheDocument()
     expect(mockUseKnowledgeRagConfig).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: '重建知识库' }))
@@ -337,19 +330,18 @@ describe('RagConfigPanel', () => {
     expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1', status: 'failed' }))
   })
 
-  it('renders current chunk values, hides hybrid alpha outside hybrid mode, and saves through the phase3 hook', async () => {
+  it('renders current chunk values and saves through the phase3 hook', async () => {
     renderRagConfigPanel()
 
     expect(screen.queryByText('separatorRule')).not.toBeInTheDocument()
     expect(screen.queryByText('分隔符规则')).not.toBeInTheDocument()
     expect(screen.getByText('文档处理')).toBeInTheDocument()
-    expect(screen.getByText('请求文档片段数 (Top K)')).toBeInTheDocument()
-    expect(screen.getByText('重排模型 (Rerank)')).toBeInTheDocument()
+    expect(screen.getByText('Top K')).toBeInTheDocument()
+    expect(screen.getByText('重排模型')).toBeInTheDocument()
     expect(screen.getByText('不使用')).toBeInTheDocument()
     expect(screen.getByLabelText('嵌入模型')).toHaveValue('openai::text-embedding-3-small')
     expect(screen.getByDisplayValue('512')).toBeInTheDocument()
     expect(screen.getByDisplayValue('64')).toBeInTheDocument()
-    expect(screen.queryByText('Hybrid Alpha')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByDisplayValue('512'), { target: { value: '1024' } })
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
@@ -362,7 +354,32 @@ describe('RagConfigPanel', () => {
         })
       )
     })
-    expect(window.toast.success).toHaveBeenCalledWith('已保存')
+    expect(toast.success).toHaveBeenCalledWith('已保存')
+  })
+
+  it('shows and saves the threshold slider only after a rerank model is selected', async () => {
+    renderRagConfigPanel()
+
+    expect(screen.queryByRole('slider', { name: '相似度阈值' })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('重排模型'), {
+      target: { value: 'jina::jina-reranker-v2-base-multilingual' }
+    })
+
+    const thresholdSlider = screen.getByRole('slider', { name: '相似度阈值' })
+    expect(thresholdSlider).toHaveValue('0')
+
+    fireEvent.change(thresholdSlider, { target: { value: '0.7' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
+          threshold: 0.7
+        })
+      )
+    })
   })
 
   it('shows save failure toast with the original error', async () => {
@@ -374,8 +391,21 @@ describe('RagConfigPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('保存失败: save failed')
+      expect(toast.error).toHaveBeenCalledWith('保存失败: save failed')
     })
+  })
+
+  it('collapses only chunking under an advanced section, keeping the essentials on top', () => {
+    renderRagConfigPanel()
+
+    // Advanced section houses the set-and-forget chunking knobs.
+    expect(screen.getByRole('button', { name: '高级设置' })).toBeInTheDocument()
+    // The advanced fields still render (accordion mock keeps content mounted).
+    expect(screen.getByText('分块大小')).toBeInTheDocument()
+    // Essentials — including file processing — stay outside the advanced section.
+    expect(screen.getByText('文档处理')).toBeInTheDocument()
+    expect(screen.getByText('嵌入模型')).toBeInTheDocument()
+    expect(screen.getByText('Top K')).toBeInTheDocument()
   })
 
   it('uses the mini-apps style flat field layout', () => {
@@ -385,7 +415,7 @@ describe('RagConfigPanel', () => {
     expect(screen.getByText('文档处理')).toHaveClass('font-medium', 'text-sm')
     expect(screen.getByText('分块大小')).toHaveClass('font-medium', 'text-sm')
     expect(screen.getByText('嵌入模型')).toHaveClass('font-medium', 'text-sm')
-    expect(screen.getByText('请求文档片段数 (Top K)')).toHaveClass('font-medium', 'text-sm')
+    expect(screen.getByText('Top K')).toHaveClass('font-medium', 'text-sm')
     // Section-level small-caps headings are gone — no Chunking / Embedding / Retrieval section title in the DOM.
     expect(screen.queryByText('Chunking')).not.toBeInTheDocument()
     expect(screen.queryByText('Embedding')).not.toBeInTheDocument()
@@ -396,7 +426,7 @@ describe('RagConfigPanel', () => {
       'text-foreground-muted',
       'text-xs'
     )
-    expect(screen.getByRole('slider', { name: '请求文档片段数 (Top K)' })).toHaveClass('w-full')
+    expect(screen.getByRole('slider', { name: 'Top K' })).toHaveClass('w-full')
     expect(screen.getByText('6')).toHaveClass('text-foreground-secondary', 'text-xs')
   })
 
@@ -433,7 +463,7 @@ describe('RagConfigPanel', () => {
     expect(mockSave).not.toHaveBeenCalled()
   })
 
-  it('opens the rebuild flow when the embedding model changes', () => {
+  it('opens the rebuild flow when the embedding model changes (itemCount omitted defaults to "not empty")', () => {
     const onRestoreBase = vi.fn()
 
     renderRagConfigPanel(onRestoreBase)
@@ -448,55 +478,31 @@ describe('RagConfigPanel', () => {
     })
   })
 
-  it('renders hover hint tooltip content for RAG field labels', () => {
-    renderRagConfigPanel()
+  it('keeps the rebuild flow submittable despite invalid chunk fields, since restore ignores the dirty draft', () => {
+    const onRestoreBase = vi.fn()
 
-    expect(screen.getByRole('tooltip', { name: '用于将知识库内容转换为向量。' })).toBeInTheDocument()
-    expect(screen.getByRole('tooltip', { name: '每次召回返回的最大文档片段数。' })).toBeInTheDocument()
-    expect(screen.getByRole('tooltip', { name: '过滤低相关片段的相似度阈值。' })).toBeInTheDocument()
-    expect(screen.getByRole('tooltip', { name: '选择召回方式。' })).toBeInTheDocument()
-    expect(screen.getByRole('tooltip', { name: '对初步召回结果重新排序的模型。' })).toBeInTheDocument()
-    expect(screen.queryByRole('tooltip', { name: '混合检索中向量得分的权重。' })).not.toBeInTheDocument()
-  })
+    renderRagConfigPanel(onRestoreBase)
 
-  it('hides threshold for hybrid search mode without rerank', () => {
-    mockUseKnowledgeRagConfig.mockReturnValueOnce({
-      initialValues: {
-        fileProcessorId: null,
-        chunkSize: '512',
-        chunkOverlap: '64',
-        chunkStrategy: 'structured',
-        chunkSeparator: '\\n\\n',
-        embeddingModelId: 'openai::text-embedding-3-small',
-        rerankModelId: null,
-        documentCount: 6,
-        threshold: 0.1,
-        searchMode: 'hybrid',
-        hybridAlpha: 0.6
-      },
-      fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      searchModeOptions: [
-        { value: 'hybrid', label: '混合检索（推荐）' },
-        { value: 'vector', label: '向量检索' },
-        { value: 'bm25', label: '全文检索' }
-      ],
-      save: mockSave,
-      isLoading: false,
-      error: undefined
+    // Invalidate chunk config first (overlap === size) — the rebuild path must stay
+    // submittable through this, since restore only ever reads embeddingModelId off
+    // the base and never sends the locally-edited chunk draft.
+    fireEvent.change(screen.getByDisplayValue('64'), { target: { value: '512' } })
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'voyage::voyage-3-large' } })
+
+    const rebuildButton = screen.getByRole('button', { name: '重建' })
+    expect(rebuildButton).not.toBeDisabled()
+
+    fireEvent.click(rebuildButton)
+
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
+      embeddingModelId: 'voyage::voyage-3-large'
     })
-
-    render(
-      <RagConfigPanel base={createKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.6 })} onRestoreBase={vi.fn()} />
-    )
-
-    expect(screen.getByText('Hybrid Alpha')).toBeInTheDocument()
-    expect(screen.queryByRole('slider', { name: '相似度阈值' })).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('tooltip', { name: '该检索模式按排序返回结果，不使用相似度阈值。' })
-    ).not.toBeInTheDocument()
   })
 
-  it('shows threshold for hybrid search mode when rerank is configured', async () => {
+  it('opens the rebuild flow when a BM25-only base gains an embedding model', () => {
+    const onRestoreBase = vi.fn()
+
     mockUseKnowledgeRagConfig.mockReturnValue({
       initialValues: {
         fileProcessorId: null,
@@ -504,41 +510,92 @@ describe('RagConfigPanel', () => {
         chunkOverlap: '64',
         chunkStrategy: 'structured',
         chunkSeparator: '\\n\\n',
-        embeddingModelId: 'openai::text-embedding-3-small',
-        rerankModelId: 'jina::rerank',
+        embeddingModelId: null,
+        rerankModelId: null,
         documentCount: 6,
-        threshold: 0.1,
-        searchMode: 'hybrid',
-        hybridAlpha: 0.6
+        threshold: 0
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      searchModeOptions: [
-        { value: 'hybrid', label: '混合检索（推荐）' },
-        { value: 'vector', label: '向量检索' },
-        { value: 'bm25', label: '全文检索' }
-      ],
       save: mockSave,
       isLoading: false,
       error: undefined
     })
 
-    render(
-      <RagConfigPanel
-        base={createKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.6, rerankModelId: 'jina::rerank' })}
-        onRestoreBase={vi.fn()}
-      />
-    )
+    renderRagConfigPanel(onRestoreBase, { embeddingModelId: null, dimensions: null })
 
-    fireEvent.change(screen.getByRole('slider', { name: '相似度阈值' }), { target: { value: '0.7' } })
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
+
+    expect(screen.getByRole('button', { name: '重建' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '重建' }))
+
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
+      embeddingModelId: 'openai::text-embedding-3-small'
+    })
+  })
+
+  it('saves the embedding model directly instead of rebuilding when the base has no items', async () => {
+    const onRestoreBase = vi.fn()
+
+    renderRagConfigPanel(onRestoreBase, {}, 0)
+
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'voyage::voyage-3-large' } })
+    expect(screen.getByRole('button', { name: '保存' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '重建' })).not.toBeInTheDocument()
+
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
-      expect(mockSave).toHaveBeenCalledWith(
-        expect.objectContaining({
-          rerankModelId: 'jina::rerank',
-          threshold: 0.7
-        })
-      )
+      expect(mockSave).toHaveBeenCalledWith(expect.objectContaining({ embeddingModelId: 'voyage::voyage-3-large' }), {
+        embeddingModelId: 'voyage::voyage-3-large',
+        dimensions: 2048
+      })
     })
+    expect(onRestoreBase).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('已保存')
+  })
+
+  it('shows a dimension-fetch failure toast and does not save when saving the embedding model directly fails', async () => {
+    mockEmbedMany.mockRejectedValueOnce(new Error('probe failed'))
+    const onRestoreBase = vi.fn()
+
+    renderRagConfigPanel(onRestoreBase, {}, 0)
+
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'voyage::voyage-3-large' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('获取嵌入维度失败: probe failed')
+    })
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).not.toHaveBeenCalled()
+  })
+
+  it('keeps the direct-save button disabled when chunk fields are invalid, even after changing the embedding model', () => {
+    const onRestoreBase = vi.fn()
+
+    renderRagConfigPanel(onRestoreBase, {}, 0)
+
+    // Invalidate chunk config first (overlap === size), then change the embedding
+    // model on the same empty base. Direct save re-submits the whole dirty form
+    // (unlike the restore flow, which only ever reads embeddingModelId), so it
+    // must stay gated by the same chunk validation as a plain save.
+    fireEvent.change(screen.getByDisplayValue('64'), { target: { value: '512' } })
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'voyage::voyage-3-large' } })
+
+    const saveButton = screen.getByRole('button', { name: '保存' })
+    expect(saveButton).toBeDisabled()
+
+    fireEvent.click(saveButton)
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).not.toHaveBeenCalled()
+  })
+
+  it('renders hover hint tooltip content for RAG field labels', () => {
+    renderRagConfigPanel()
+
+    expect(screen.getByRole('tooltip', { name: '用于将知识库内容转换为向量。' })).toBeInTheDocument()
+    expect(screen.getByRole('tooltip', { name: '每次召回返回的最大文档片段数。' })).toBeInTheDocument()
+    expect(screen.getByRole('tooltip', { name: '对初步召回结果重新排序的模型。' })).toBeInTheDocument()
   })
 })

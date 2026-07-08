@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogDescription, FieldError, Input, Label } from '@cherrystudio/ui'
 import type { RestoreKnowledgeBaseInput } from '@renderer/hooks/useKnowledgeBase'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
 import type { FormEvent } from 'react'
@@ -100,7 +101,7 @@ const RestoreKnowledgeBaseDialog = ({
     // Restore drops root items whose source is gone (a v1-migrated directory child's virtual path,
     // a deleted file). Tell the user instead of silently restoring fewer items than expected.
     if (result.skippedMissingSourceCount > 0) {
-      window.toast.warning(t('knowledge.restore.skipped_missing_sources', { count: result.skippedMissingSourceCount }))
+      toast.warning(t('knowledge.restore.skipped_missing_sources', { count: result.skippedMissingSourceCount }))
     }
 
     onRestored(result.base)
@@ -109,7 +110,7 @@ const RestoreKnowledgeBaseDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg">
+      <DialogContent closeOnOverlayClick={false} size="lg">
         <CreateKnowledgeBaseDialog.Header title={t('knowledge.restore.title')} />
 
         <CreateKnowledgeBaseDialog.Form onSubmit={handleSubmit}>

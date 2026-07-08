@@ -1,8 +1,9 @@
 import { application } from '@application'
 import { BaseService, Conditional, Injectable, onPlatform, Phase, ServicePhase } from '@main/core/lifecycle'
+import { getI18n } from '@main/i18n'
 import type { NativeCommandMenuItem, NativeMenuItem } from '@main/services/menu/adapters/nativeMenuAdapter'
 import { toElectronMenuTemplate } from '@main/services/menu/adapters/nativeMenuAdapter'
-import { getAppLanguage, locales } from '@main/utils/language'
+import { openSettingsInMainWindow } from '@main/services/settingsNavigation'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { SupportedPlatform } from '@shared/types/command'
 import {
@@ -60,7 +61,7 @@ export class AppMenuService extends BaseService {
   }
 
   private setupApplicationMenu(): void {
-    const locale = locales[getAppLanguage()]
+    const locale = getI18n()
     const { appMenu } = locale.translation
 
     const commandItems = this.resolveAppMenuCommandItems({
@@ -86,7 +87,7 @@ export class AppMenuService extends BaseService {
             type: 'custom',
             label: appMenu.about + ' ' + app.name,
             click: () => {
-              application.get('SettingsWindowService').open('/settings/about')
+              openSettingsInMainWindow('/settings/about')
             }
           },
           getCommandItem('app.settings.open'),

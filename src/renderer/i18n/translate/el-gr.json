@@ -224,7 +224,12 @@
           "runFailed": "Αποτυχία εκτέλεσης εργασίας",
           "updateFailed": "Αποτυχία ενημέρωσης εργασίας"
         },
-        "intervalPlaceholder": "Διάστημα σε λεπτά",
+        "frequency": {
+          "everyPrefix": "Κάθε",
+          "everySuffix": "λεπτά",
+          "label": "Συχνότητα εκτέλεσης"
+        },
+        "intervalPlaceholder": "Τουλάχιστον 1",
         "intervalUnit": "λεπτά",
         "lastRun": "Τελευταία εκτέλεση",
         "logs": {
@@ -262,10 +267,8 @@
         "scheduleType": {
           "cron": "Cron",
           "interval": "Διάστημα",
-          "label": "Τύπος χρονοδιαγράμματος",
           "once": "Μία φορά"
         },
-        "scheduleValue": "Τιμή χρονοδιαγράμματος",
         "status": {
           "active": "Ενεργή",
           "completed": "Ολοκληρώθηκε",
@@ -277,7 +280,7 @@
           "minutesAgo": "{{count}}μ πριν"
         },
         "timeout": {
-          "label": "Λήξη χρόνου",
+          "label": "Μέγιστος χρόνος εκτέλεσης",
           "placeholder": "Χωρίς όριο"
         },
         "title": "Προγραμματισμένες εργασίες"
@@ -553,6 +556,7 @@
       "list": {
         "title": "Εργασίες"
       },
+      "new": "Νέα εργασία",
       "pin": {
         "title": "Καρφίτσωμα εργασίας"
       },
@@ -562,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Αναζήτηση εργασιών"
+        "placeholder": "Αναζήτηση εργασιών",
+        "title": "Αναζήτηση εργασιών"
       },
       "unpin": {
         "title": "Ξεκαρφίτσωσε την εργασία"
@@ -599,9 +604,7 @@
         "select_failed": "Αποτυχία επιλογής φακέλου."
       },
       "workspace_status": {
-        "inaccessible": "Η διαδρομή του χώρου εργασίας δεν είναι προσβάσιμη: {{path}}",
-        "missing": "Η διαδρομή του χώρου εργασίας δεν υπάρχει: {{path}}",
-        "not_directory": "Η διαδρομή του χώρου εργασίας δεν είναι κατάλογος: {{path}}"
+        "inaccessible": "Η διαδρομή του χώρου εργασίας δεν είναι προσβάσιμη: {{path}}"
       }
     },
     "settings": {
@@ -932,6 +935,10 @@
           "description": "Εκτελεί εντολές κελύφους στο περιβάλλον σας",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "Προσθέτει, διαγράφει ή ανανεώνει έγγραφα στις βάσεις γνώσης σας",
+          "label": "Διαχείριση Γνώσης"
+        },
         "CherryKbSearch": {
           "description": "Αναζητά τις βάσεις γνώσης σας",
           "label": "Αναζήτηση Γνώσης"
@@ -1074,41 +1081,6 @@
       "stopped": "Σταματημένος"
     },
     "title": "Διακομιστής API"
-  },
-  "appMenu": {
-    "about": "Σχετικά",
-    "close": "Κλείσιμο Παραθύρου",
-    "copy": "Αντιγραφή",
-    "cut": "Κόψε",
-    "delete": "Διαγραφή",
-    "documentation": "Τεκμηρίωση",
-    "edit": "Επεξεργασία",
-    "feedback": "Σχόλια",
-    "file": "Αρχείο",
-    "forceReload": "Εξαναγκασμένη επαναφόρτωση",
-    "front": "Μεταφορά Όλων Μπροστά",
-    "help": "Βοήθεια",
-    "hide": "Κρύψε",
-    "hideOthers": "Απόκρυψη Άλλων",
-    "minimize": "Ελαχιστοποίηση",
-    "paste": "Επικόλληση",
-    "quit": "Παραιτήσου",
-    "redo": "Ξανακάνε",
-    "releases": "Κυκλοφορίες",
-    "reload": "Επαναφόρτωση",
-    "resetZoom": "Πραγματικό Μέγεθος",
-    "selectAll": "Επιλογή Όλων",
-    "services": "Υπηρεσίες",
-    "toggleDevTools": "Εναλλαγή Εργαλείων Προγραμματιστή",
-    "toggleFullscreen": "Εναλλαγή πλήρους οθόνης",
-    "undo": "Αναίρεση",
-    "unhide": "Εμφάνιση Όλων",
-    "view": "Προβολή",
-    "website": "Ιστοσελίδα",
-    "window": "Παράθυρο",
-    "zoom": "Ζουμ",
-    "zoomIn": "Μεγέθυνση",
-    "zoomOut": "Σμίκρυνση"
   },
   "assistants": {
     "abbr": "Βοηθός",
@@ -1324,12 +1296,14 @@
       "add": "Προσθήκη ετικέτας",
       "delete": "Διαγραφή ετικέτας",
       "deleteConfirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε αυτήν την ετικέτα;",
+      "group_by": "Ομαδοποίηση κατά ετικέτα",
       "manage": "Διαχείριση ετικετών",
       "modify": "Επεξεργασία ετικέτας",
       "none": "Δεν υπάρχουν προς το παρόν ετικέτες",
       "settings": {
         "title": "Ρυθμίσεις Ετικέτας"
       },
+      "ungroup": "Απενεργοποίηση ομαδοποίησης ετικετών",
       "untagged": "Αχαρακτήριστο"
     },
     "title": "Βοηθός",
@@ -1486,6 +1460,7 @@
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
+      "resize_height": "Αλλαγή ύψους εισόδου",
       "resource_panel": {
         "categories": {
           "agents": "Πράκτορες",
@@ -1504,6 +1479,7 @@
         },
         "title": "Πόροι"
       },
+      "restore": "Επαναφορά",
       "send": "Αποστολή",
       "send_failed": "Αποτυχία αποστολής μηνύματος",
       "settings": "Ρυθμίσεις",
@@ -1512,8 +1488,7 @@
           "clear": "Διαγραφή ιστορικού συνομιλίας",
           "compact": "Συνοπτική συνομιλία με προαιρετικές οδηγίες εστίασης",
           "context": "Οπτικοποίηση της τρέχουσας χρήσης πλαισίου ως έγχρωμο πλέγμα",
-          "cost": "Εμφάνιση στατιστικών χρήσης διακριτικών (δες τον οδηγό παρακολούθησης κόστους για λεπτομέρειες ανά συνδρομή)reek",
-          "todos": "Λίστα τρεχόντων στοιχείων προς εκτέλεση"
+          "usage": "Εμφάνιση κόστους συνεδρίας, ορίων χρήσης πλάνου και στατιστικών δραστηριότητας"
         },
         "description": "Εντολές κάθετης γραμμής για συνεδρία πράκτορα",
         "title": "Εντολές Κάθετης Γραμμής"
@@ -1590,6 +1565,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "Cache {{hit_rate}}%",
+        "tooltip": "Ανάγνωση cache {{cache_read}} / εγγραφή {{cache_write}} / χωρίς cache {{no_cache}} · εξοικονομήθηκαν {{saved}} tokens εισόδου"
+      },
       "editing_current": "Αυτό το μήνυμα επεξεργάζεται στον συνθέτη",
       "flow": {
         "branches": "κλαδιά",
@@ -1607,6 +1586,11 @@
       "new": {
         "branch": {
           "created": "Νέα διακοπή δημιουργήθηκε",
+          "disabled": {
+            "active": "Αυτός ο κόμβος έχει ήδη επιλεγεί. Συνεχίστε να πληκτρολογείτε για να επεκτείνετε τον κλάδο από εδώ.",
+            "latest": "Ήδη βρίσκεστε στο τέλος αυτού του κλαδιού. Συνεχίστε να πληκτρολογείτε για να το επεκτείνετε.",
+            "no_follow_up": "Δεν υπάρχει ακόμη συνέχεια μετά από αυτό το μήνυμα. Μετάβαση σε αυτόν τον κόμβο και συνέχισε να πληκτρολογείς εκεί."
+          },
           "label": "Διακοπή"
         },
         "context": "Καθαρισμός ενδιάμεσων"
@@ -1637,6 +1621,13 @@
       "top": "Επιστροφή στην κορυφή"
     },
     "resend": "Ξαναστείλε",
+    "resource_view": {
+      "menu": {
+        "agent": "Πράκτορες",
+        "assistant": "Βοηθοί",
+        "skill": "Δεξιότητες"
+      }
+    },
     "save": {
       "file": {
         "title": "Αποθήκευση σε τοπικό αρχείο"
@@ -2052,7 +2043,6 @@
     "copy_failed": "Αποτυχία αντιγραφής",
     "create_success": "Δημιουργήθηκε με επιτυχία",
     "current": "Τρέχων",
-    "cut": "Κοπή",
     "default": "Προεπιλογή",
     "delete": "Διαγραφή",
     "delete_confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε;",
@@ -2084,13 +2074,13 @@
     "generate_random_seed": "Δημιουργία τυχαίου σπόρου",
     "get_embedding_dimension": "Λήψη διάστασης ενσωμάτωσης",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
+    "help": "Βοήθεια",
     "html_preview": "Προεπισκόπηση HTML",
     "i_know": "Το έχω καταλάβει",
     "ignore": "Αγνόησε",
     "image_preview": "Προεπισκόπηση εικόνας",
     "image_url": "Διεύθυνση URL εικόνας",
     "image_url_or_upload": "Εισαγάγετε διεύθυνση URL εικόνας ή ανεβάστε αρχείο",
-    "inspect": "Επιθεώρηση",
     "invalid_value": "Μη έγκυρη τιμή",
     "knowledge_base": "Βάση Γνώσεων",
     "language": "Γλώσσα",
@@ -2111,7 +2101,6 @@
     "open_in": "Άνοιγμα στο {{name}}",
     "open_in_new_tab": "Άνοιγμα σε νέα καρτέλα",
     "open_sidebar": "Άνοιγμα πλαϊνής γραμμής",
-    "paste": "Επικόλληση",
     "placeholders": {
       "select": {
         "model": "Επιλέξτε μοντέλο"
@@ -2166,18 +2155,6 @@
     "warning": "Προσοχή",
     "yesterday": "Χθες",
     "you": "Εσείς"
-  },
-  "dialog": {
-    "all_files": "Όλα τα Αρχεία",
-    "html_files": "Αρχεία HTML",
-    "open_file": "Άνοιγμα Αρχείου",
-    "pdf_files": "Αρχεία PDF",
-    "png_image": "Εικόνα PNG",
-    "save_as_html": "Αποθήκευση ως HTML",
-    "save_as_pdf": "Αποθήκευση ως PDF",
-    "save_file": "Αποθήκευση Αρχείου",
-    "select_folder": "Επιλέξτε φάκελο",
-    "word_document": "Έγγραφο Word"
   },
   "docs": {
     "title": "Βοήθεια"
@@ -2367,6 +2344,7 @@
       "no_match_description": "Κανένα αρχείο δεν ταιριάζει με τα τρέχοντα φίλτρα",
       "no_match_title": "Δεν βρέθηκαν αρχεία που να ταιριάζουν"
     },
+    "empty_trash": "Άδειασμα κάδου απορριμμάτων",
     "error": {
       "delete_failed": "Αποτυχία διαγραφής αρχείων",
       "delete_partial_failed": "Μερικά αρχεία δεν μπόρεσαν να διαγραφούν",
@@ -2384,6 +2362,7 @@
     "missing": "Αγνοούμενος",
     "modified_at": "Τροποποιήθηκε στις",
     "name": "Όνομα αρχείου",
+    "no_actions": "Δεν υπάρχουν διαθέσιμες ενέργειες",
     "open": "Άνοιγμα",
     "other": "Άλλο",
     "permanent_delete": "Διαγραφή οριστικά",
@@ -2397,13 +2376,18 @@
     "remove_from_library": "Αφαίρεση από τη βιβλιοθήκη",
     "rename": "Μετονομασία",
     "restore": "Επαναφορά",
+    "select_all": "Επιλογή ορατών αρχείων",
+    "select_all_short": "Επιλογή Όλων",
+    "select_file": "Επιλέξτε {{name}}",
     "selected_count": "{{count}} αρχεία επιλέχθηκαν",
+    "selected_missing_hint": "Κάποια επιλεγμένα αρχεία λείπουν. Εντοπίστε τα ή αφαιρέστε τις εγγραφές τους.",
     "show_in_folder": "Εμφάνιση στο φάκελο",
     "size": "Μέγεθος",
     "text": "Κείμενο",
     "title": "Αρχεία",
     "trash": "Σκουπίδια",
     "type": "Τύπος",
+    "upload": "Μεταφόρτωση αρχείων",
     "video": "Βίντεο"
   },
   "globalSearch": {
@@ -2787,7 +2771,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} πηγές",
-      "documents_count": "{{count}} έγγραφα",
       "updated_at": "Ενημερώθηκε {{time}}"
     },
     "name_required": "Απαιτείται το όνομα της βάσης γνώσεων",
@@ -2816,15 +2799,11 @@
         "chunk_size": "Στόχος αριθμού token για κάθε τμήμα εγγράφου. Αυτό επηρεάζει την κοκκοποίηση ανάκτησης και το μήκος του πλαισίου.",
         "document_count": "Μέγιστος αριθμός τμημάτων εγγράφων που επιστρέφονται για κάθε ανάκτηση. Υψηλότερες τιμές καλύπτουν περισσότερο περιεχόμενο αλλά χρησιμοποιούν περισσότερο πλαίσιο.",
         "embedding_model": "Χρησιμοποιείται για τη μετατροπή του περιεχομένου της βάσης γνώσης σε διανύσματα. Η αλλαγή του μοντέλου συνήθως απαιτεί επανευρετηρίαση του υπάρχοντος περιεχομένου.",
-        "hybrid_alpha": "Βάρος βαθμολογίας διανύσματος στην υβριδική ανάκτηση. Υψηλότερες τιμές ευνοούν τη σημασιολογική αντιστοίχιση.",
         "processor": "Αναλυτής που χρησιμοποιείται κατά την εισαγωγή αρχείων για την εξαγωγή του κυρίως κειμένου, πινάκων και σχετικού περιεχομένου.",
         "rerank_model": "Μοντέλο που χρησιμοποιείται για την ανακατάταξη των αρχικών αποτελεσμάτων ανάκτησης και τη βελτίωση της σχετικότητας των τελικών τμημάτων.",
-        "search_mode": "Επιλέξτε λειτουργία ανάκτησης: αναζήτηση διανυσμάτων για σημασιολογική αντιστοίχιση, πλήρη αναζήτηση κειμένου για λέξεις-κλειδιά ή υβριδική αναζήτηση και για τα δύο.",
         "smart_chunking": "Αυτόματη διαίρεση κατά τη δομή Markdown (επικεφαλίδες, μπλοκ κώδικα, παραγράφους) και ποτέ διαίρεση μέσα σε ένα μπλοκ κώδικα. Απενεργοποιήστε το για διαίρεση αποκλειστικά με βάση το διαχωριστικό.",
-        "threshold": "Κατώφλι ομοιότητας για φιλτράρισμα κομματιών χαμηλής συνάφειας. Υψηλότερες τιμές κάνουν την ανάκτηση αυστηρότερη.",
-        "threshold_disabled": "Αυτή η λειτουργία ανάκτησης επιστρέφει ταξινομημένα αποτελέσματα και δεν χρησιμοποιεί κατώφλι ομοιότητας."
+        "threshold": "Κατώφλι ομοιότητας για φιλτράρισμα κομματιών χαμηλής συνάφειας. Υψηλότερες τιμές κάνουν την ανάκτηση αυστηρότερη."
       },
-      "hybrid_alpha": "Υβριδικό Άλφα",
       "processor": "Πάροχος Επεξεργασίας",
       "rerank_disabled": "Απενεργοποιημένο",
       "rerank_model": "Μοντέλο Ανατάξης",
@@ -2833,12 +2812,6 @@
       "retrieval": "Ρυθμίσεις Ανάκτησης",
       "save_action": "Αποθήκευση",
       "saved": "Αποθηκεύτηκε",
-      "search_mode": {
-        "bm25": "Πλήρης αναζήτηση κειμένου",
-        "hybrid": "Υβριδική Αναζήτηση (συνιστάται)",
-        "title": "Λειτουργία Αναζήτησης",
-        "vector": "Αναζήτηση Διανυσμάτων"
-      },
       "separator_rule": "Κανόνας Διαχωριστικού",
       "smart_chunking": "Έξυπνη Τμηματοποίηση",
       "threshold": "Κατώφλι Ομοιότητας",
@@ -2947,7 +2920,8 @@
       "preview_description": "Επισκόπηση",
       "preview_prompt": "Προτροπή",
       "scroll_left": "Κύλιση κατηγοριών αριστερά",
-      "scroll_right": "Κύλιση κατηγοριών δεξιά"
+      "scroll_right": "Κύλιση κατηγοριών δεξιά",
+      "title": "Βιβλιοθήκη Βοηθού"
     },
     "badge": {
       "update": "Ενημέρωση"
@@ -3159,12 +3133,22 @@
           "agent_title": "Νέος Πράκτορας",
           "assistant_title": "Νέος Βοηθός",
           "avatar_aria": "Επιλέξτε άβαταρ",
+          "back": "Πίσω",
+          "capability": {
+            "import": "Εισαγωγή δεξιοτήτων",
+            "no_skills": "Δεν έχουν εγκατασταθεί δεξιότητες",
+            "search": "Δεξιότητες αναζήτησης"
+          },
           "description_placeholder": "Περιγράψτε για τι χρησιμεύει...",
-          "dialog_description": "Δημιούργησε έναν ελαφρύ βοηθό ή πράκτορα.",
-          "model_placeholder": "Επιλέξτε ένα μοντέλο",
-          "model_required": "Παρακαλώ επιλέξτε ένα μοντέλο",
+          "guided_progress": "Οδηγός ρύθμισης · Βήμα {{current}} από {{total}}",
           "name_placeholder": "Εισάγετε ένα όνομα",
-          "name_required": "Παρακαλώ εισάγετε ένα όνομα",
+          "next": "Επόμενο",
+          "step": {
+            "basic": "Βασικές πληροφορίες",
+            "capability": "Δεξιότητες",
+            "knowledge": "Γνώση",
+            "persona": "Πρόσωπο"
+          },
           "submit": "Δημιουργία",
           "submit_failed": "Η δημιουργία απέτυχε"
         },
@@ -3372,6 +3356,10 @@
       "tags": "Ετικέτες",
       "title": "Βιβλιοθήκη"
     },
+    "skill_add": {
+      "local_import": "Τοπική εισαγωγή",
+      "online_search": "Διαδικτυακή αναζήτηση"
+    },
     "skill_detail": {
       "created_at": "Δημιουργήθηκε",
       "delete_description": "Κατάργησε αυτή την ικανότητα και ολόκληρη τη διαμόρφωσή της. Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
@@ -3382,6 +3370,15 @@
       "no_description": "Χωρίς περιγραφή",
       "source_files": "Αρχεία πηγής",
       "updated_at": "Πρόσφατα ενημερώθηκε"
+    },
+    "skill_marketplace": {
+      "empty_description": "Αναζητήστε σε διαδικτυακά μητρώα για να βρείτε εγκαταστάσιμες δεξιότητες.",
+      "empty_title": "Αναζήτηση δεξιοτήτων",
+      "no_results_description": "Δοκιμάστε μια άλλη λέξη-κλειδί ή εισαγάγετε ένα τοπικό αρχείο ZIP ή φάκελο.",
+      "no_results_title": "Δεν βρέθηκαν δεξιότητες",
+      "search_failed_description": "Η αναζήτηση απέτυχε. Παρακαλώ δοκιμάστε ξανά αργότερα.",
+      "search_placeholder": "Αναζήτηση δεξιοτήτων...",
+      "title": "Αναζήτηση δεξιοτήτων online"
     },
     "sort": {
       "created": "Ταξινόμηση κατά ημερομηνία δημιουργίας",
@@ -3873,64 +3870,6 @@
       "partial_failure": "{{count}} αποτελέσματα αναζήτησης, ορισμένες αναζητήσεις απέτυχαν"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Προσθήκη στο Launchpad",
-    "add_to_sidebar": "Προσθήκη στην πλαϊνή μπάρα",
-    "popup": {
-      "close": "Κλείσιμο MinApp",
-      "devtools": "Εργαλεία Προγραμματιστών",
-      "goBack": "Πίσω",
-      "goForward": "Προχώρα",
-      "minimize": "Ελαχιστοποίηση MinApp",
-      "openExternal": "Άνοιγμα στον περιηγητή",
-      "open_link_external_off": "Τρέχον: Άνοιγμα συνδέσμων στο προεπιλεγμένο παράθυρο",
-      "open_link_external_on": "Τρέχον: Άνοιγμα συνδέσμων στον περιηγητή",
-      "refresh": "Ανανέωση",
-      "rightclick_copyurl": "Κάντε δεξί κλικ για να αντιγράψετε τη διεύθυνση URL"
-    },
-    "remove_from_launchpad": "Αφαίρεση από το Launchpad",
-    "remove_from_sidebar": "Αφαίρεση από την πλαϊνή μπάρα",
-    "sidebar": {
-      "close": {
-        "title": "Κλείσιμο"
-      },
-      "closeall": {
-        "title": "Κλείσιμο Όλων"
-      },
-      "hide": {
-        "title": "Κρύψε"
-      },
-      "remove_custom": {
-        "title": "Διαγραφή Προσαρμοσμένης Εφαρμογής"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Μυρμηγκίδα",
-    "baichuan": "Μπάιτσουαν",
-    "baidu-ai-search": "Baidu AI Αναζήτηση",
-    "chatglm": "ChatGLM",
-    "dangbei": "Ντάγκμπεϊ",
-    "doubao": "Ντάουμπαο",
-    "hailuo": "Χαίλουο",
-    "ima": "εικόνα",
-    "metaso": "Μέτασο",
-    "minimax-agent": "Υπολογιστής Minimax CN",
-    "minimax-global": "Πράκτορας Minimax",
-    "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Αναζήτηση",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Γιουάνμπαο",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Γουάνζι",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Ξιαογι",
-    "zhihu": "Ζίχου"
-  },
   "miniApp": {
     "add_to_launchpad": "Προσθήκη στο Launchpad",
     "add_to_sidebar": "Προσθήκη στην πλευρική μπάρα",
@@ -3941,15 +3880,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Αποτυχία καρφιτσώματος μίνι εφαρμογής",
     "popup": {
-      "close": "Κλείσιμο της εφαρμογής",
       "devtools": "Εργαλεία προγραμματιστή",
       "goBack": "Πίσω",
       "goForward": "Μπροστά",
       "openExternal": "Άνοιγμα στον περιηγητή",
       "open_link_external_off": "Τρέχον: Άνοιγμα συνδέσμου χρησιμοποιώντας το προεπιλεγμένο παράθυρο",
       "open_link_external_on": "Τρέχον: Άνοιγμα συνδέσμου στον περιηγητή",
-      "refresh": "Ανανέωση",
-      "rightclick_copyurl": "Αντιγραφή URL με δεξί κλικ"
+      "refresh": "Ανανέωση"
     },
     "remove_from_launchpad": "Κατάργηση από το Launchpad",
     "remove_from_sidebar": "Κατάργηση από την πλευρική μπάρα",
@@ -3961,17 +3898,8 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Κλείσιμο"
-      },
-      "closeall": {
-        "title": "Κλείσιμο όλων"
-      },
       "hide": {
         "title": "Απόκρυψη"
-      },
-      "remove_custom": {
-        "title": "Διαγραφή προσαρμοσμένης εφαρμογής"
       }
     },
     "title": "Μικρόπρογραμμα",
@@ -3991,7 +3919,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -4777,10 +4704,10 @@
     "baichuan": "Παράκειμαι",
     "baidu-cloud": "Baidu Cloud Qianfan",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "AliCloud Bailian",
     "deepseek": "Βαθιά Αναζήτηση",
@@ -4793,6 +4720,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
@@ -4816,6 +4744,8 @@
     "ollama": "Ollama",
     "open-mineru": "Ανοιχτό MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -4833,7 +4763,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Τέσσερακς",
     "together": "Together",
-    "tokenflux": "TokenFlux",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "China Telecom Xiran",
@@ -5325,6 +5255,7 @@
     "assistant": {
       "create_new": "Νέος Βοηθός",
       "empty_text": "Κανένας βοηθός ακόμα",
+      "filter": "Φίλτρο βοηθών",
       "multi_hint": "(αμοιβαία αποκλειόμενο με πολλαπλά μοντέλα)",
       "multi_label": "Παράλληλος πολλαπλών βοηθών",
       "search_placeholder": "Αναζήτηση βοηθών…"
@@ -5400,6 +5331,9 @@
       "auto_switch_to_topics": "Αυτόματη μετάβαση σε θέματα",
       "title": "Ρυθμίσεις Ανώτερου Νiveau"
     },
+    "appearance": {
+      "title": "Εμφάνιση"
+    },
     "assistant": {
       "icon": {
         "type": {
@@ -5468,6 +5402,7 @@
         "cloud_storage": "Ρυθμίσεις αποθήκευσης στο νέφος",
         "export_settings": "Ρυθμίσεις εξαγωγής",
         "import_settings": "Εισαγωγή Ρυθμίσεων",
+        "note_export": "Εξαγωγή Σημείωσης",
         "third_party": "Σύνδεση τρίτων"
       },
       "export_menu": {
@@ -6029,6 +5964,48 @@
         "token_placeholder": "Παρακαλούμε εισάγετε το Token του Yusi"
       }
     },
+    "dependencies": {
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Δεν υπάρχουν ακόμα προσαρμοσμένα εργαλεία. Προσθέστε ένα για να ξεκινήσετε.",
+      "description": "Διαχειριστείτε τα δυαδικά εργαλεία και τις εξαρτήσεις χρόνου εκτέλεσης που απαιτούνται από την εφαρμογή.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Εγκατάσταση",
+      "installError": "Failed to install tool",
+      "installing": "Εγκατάσταση...",
+      "invalidTool": "Μη έγκυρο όνομα ή κλειδί εργαλείου",
+      "notInstalled": "Δεν έχει εγκατασταθεί",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
+      "title": "Εξαρτήσεις Περιβάλλοντος",
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
+    },
     "developer": {
       "enable_developer_mode": "Ενεργοποίηση λειτουργίας προγραμματιστή",
       "help": "Μετά την ενεργοποίηση της λειτουργίας προγραμματιστή, θα μπορείτε να χρησιμοποιήσετε τη λειτουργία αλυσίδας κλήσης για να δείτε τη ροή δεδομένων της διαδικασίας κλήσης του μοντέλου.",
@@ -6089,7 +6066,7 @@
       },
       "title": "Ρυθμίσεις εμφάνισης",
       "topic": {
-        "title": "Ρυθμίσεις Θεμάτων"
+        "title": "Ρυθμίσεις προβολής συνομιλίας"
       },
       "zoom": {
         "title": "Ρυθμίσεις κλίμακας"
@@ -6295,6 +6272,9 @@
         "button": "Λήψη Διακομιστών",
         "success": "Επιτυχής ανάκτηση διακομιστών MCP"
       },
+      "filter": {
+        "label": "Φίλτρο"
+      },
       "findMore": "Περισσότεροι διακομιστές MCP",
       "headers": "Κεφαλίδες",
       "headersTooltip": "Προσαρμοσμένες κεφαλίδες HTTP αιτήσεων",
@@ -6335,6 +6315,7 @@
       "noDescriptionAvailable": "Δεν υπάρχει διαθέσιμη περιγραφή",
       "noLogs": "Δεν υπάρχουν αρχεία καταγραφής ακόμα",
       "noServers": "Δεν έχουν ρυθμιστεί διακομιστές",
+      "notInstalled": "Δεν είναι εγκατεστημένο",
       "not_support": "Το μοντέλο δεν υποστηρίζεται",
       "npx_list": {
         "actions": "Ενέργειες",
@@ -6348,12 +6329,6 @@
         "search_error": "Η αναζήτηση απέτυχε",
         "usage": "Χρήση",
         "version": "Έκδοση"
-      },
-      "oauth": {
-        "callback": {
-          "message": "Μπορείτε να κλείσετε αυτήν τη σελίδα και να επιστρέψετε στο Cherry Studio",
-          "title": "Επιτυχής Ταυτοποίηση"
-        }
       },
       "prompts": {
         "arguments": "Ορίσματα",
@@ -6370,6 +6345,7 @@
         "title": "Εκτέλεση εξωτερικού MCP;"
       },
       "provider": "Πάροχος",
+      "providerNotFound": "Δεν βρέθηκε πάροχος MCP",
       "providerPlaceholder": "Όνομα παρόχου",
       "providerUrl": "URL Παρόχου",
       "providers": "Πάροχοι",
@@ -6416,13 +6392,6 @@
         "getToken": "Λήψη API Τοκεν",
         "getTokenDescription": "Λήψη ενός προσωπικού API τοκεν από τον λογαριασμό σας",
         "noServersAvailable": "Δεν υπάρχουν διαθέσιμοι MCP διακομιστές",
-        "providerDescriptions": {
-          "302ai": "302.Υπηρεσία MCP Πλατφόρμας AI",
-          "bailian": "Υπηρεσία MCP Πλατφόρμας Bailian της Alibaba Cloud",
-          "lanyun": "Υπηρεσία MCP της Πλατφόρμας Cloud Τεχνολογίας Lanyun",
-          "mcprouter": "Πλατφόρμα Δρομολογητή MCP Υπηρεσία MCP",
-          "modelscope": "Υπηρεσία MCP Πλατφόρμας ModelScope"
-        },
         "selectProvider": "Επιλέξτε Πάροχο:",
         "setToken": "Εισαγάγετε το τοκεν σας",
         "success": "Ο συγχρονισμός MCP διακομιστή ολοκληρώθηκε επιτυχώς",
@@ -6479,10 +6448,11 @@
       "user": "Χρήστης"
     },
     "menuGroups": {
-      "appSettings": "Ρυθμίσεις Εφαρμογής",
-      "integrations": "Μοντέλα",
-      "productivity": "Παραγωγικότητα",
-      "services": "Πρόσθετα",
+      "automation": "Αυτοματοποίηση",
+      "capabilities": "Δυνατότητες & Εργαλεία",
+      "models": "Μοντέλα",
+      "personal": "Προσωπικό",
+      "quickAccess": "Γρήγορη Πρόσβαση",
       "system": "Σύστημα"
     },
     "messages": {
@@ -6504,6 +6474,12 @@
         "show_estimated_tokens": "Εμφάνιση εκτιμώμενου αριθμού token",
         "title": "Ρυθμίσεις εισαγωγής"
       },
+      "layout": {
+        "classic": "Κλασικός",
+        "conversation": "Προβολή συνομιλίας",
+        "modern": "Σύγχρονος",
+        "work": "Προβολή εργασίας"
+      },
       "markdown_rendering_input_message": "Markdown Rendering Input Message",
       "metrics": "Χρόνος πρώτου χαρακτήρα {{time_first_token_millsec}}ms | {{token_speed}} tokens ανά δευτερόλεπτο",
       "model": {
@@ -6523,37 +6499,24 @@
     "miniApps": {
       "cache_change_notice": "Η αλλαγή θα τεθεί σε ισχύ αφού το πλήθος των ανοιχτών μικροπρογραμμάτων φτάσει τη ρυθμισμένη τιμή",
       "cache_description": "Ορίστε τον μέγιστο αριθμό των μικροπρογραμμάτων που μπορούν να είναι ενεργά ταυτόχρονα",
-      "cache_settings": "Ρυθμίσεις Προσωρινής Μνήμης",
       "cache_title": "Ποσότητα Προσωρινής Μνήμης Μικροπρογράμματος",
       "custom": {
-        "conflicting_ids": "Υπάρχει σύγκρουση με τα προεπιλεγμένα ID της εφαρμογής: {{ids}}",
-        "duplicate_ids": "Εντοπίστηκαν διπλότυπα ID: {{ids}}",
-        "edit_description": "Επεξεργαστείτε τη διαμόρφωση της προσαρμοσμένης σας εφαρμογής εδώ. Κάθε εφαρμογή πρέπει να περιλαμβάνει τα πεδία id, name, url και logo.",
+        "create_title": "Δημιουργία προσαρμοσμένης μικροεφαρμογής",
         "edit_title": "Επεξεργασία Προσαρμοσμένης Εφαρμογής",
-        "id": "ID",
-        "id_error": "Το ID είναι υποχρεωτικό πεδίο.",
-        "id_placeholder": "Παρακαλώ εισάγετε το ID",
-        "logo": "Logo",
         "logo_file": "Μεταφόρτωση Logo Αρχείου",
-        "logo_upload_button": "Μεταφόρτωση",
         "logo_upload_error": "Αποτυχία μεταφόρτωσης του Logo.",
         "logo_upload_label": "Μεταφόρτωση Logo",
-        "logo_upload_success": "Το Logo μεταφορτώθηκε επιτυχώς.",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "Παρακαλώ εισάγετε το Logo URL",
         "name": "Όνομα",
-        "name_error": "Το Όνομα είναι υποχρεωτικό πεδίο.",
         "name_placeholder": "Παρακαλώ εισάγετε το όνομα",
-        "placeholder": "Παρακαλώ εισάγετε τη διαμόρφωση της προσαρμοσμένης εφαρμογής (Μορφή JSON)",
+        "remove_confirm_description": "Διαγραφή προσαρμοσμένης μίνι εφαρμογής \"{{name}}\"; Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
+        "remove_confirm_title": "Διαγραφή προσαρμοσμένης μίνι εφαρμογής;",
         "remove_error": "Αποτυχία διαγραφής της προσαρμοσμένης εφαρμογής.",
         "remove_success": "Η προσαρμοσμένη εφαρμογή διαγράφηκε επιτυχώς.",
-        "save": "Αποθήκευση",
         "save_error": "Αποτυχία αποθήκευσης της προσαρμοσμένης εφαρμογής.",
         "save_success": "Η προσαρμοσμένη εφαρμογή αποθηκεύτηκε επιτυχώς.",
         "title": "Προσαρμοσμένη Εφαρμογή",
         "url": "URL",
-        "url_error": "Το URL είναι υποχρεωτικό πεδίο.",
+        "url_invalid": "Εισαγάγετε μια έγκυρη διεύθυνση URL http, https ή file.",
         "url_placeholder": "Παρακαλώ εισάγετε το URL"
       },
       "disabled": "Απόκρυψη μικροπρογράμματος",
@@ -6575,65 +6538,8 @@
         "title": "Φίλτραρισμα περιοχής για μικρές εφαρμογές"
       },
       "reset_tooltip": "Επαναφορά στις προεπιλεγμένες τιμές",
-      "title": "Ρυθμίσεις Μικροπρογράμματος",
-      "visible": "Εμφανιζόμενα μικροπρογράμματα"
-    },
-    "miniapps": {
-      "cache_change_notice": "Οι αλλαγές θα τεθούν σε ισχύ όταν ο αριθμός των ανοιχτών μίνι εφαρμογών φτάσει την ορισμένη τιμή",
-      "cache_description": "Ορίστε τον μέγιστο αριθμό ενεργών μίνι εφαρμογών που θα διατηρούνται στη μνήμη",
-      "cache_settings": "Ρυθμίσεις Cache",
-      "cache_title": "Όριο Κρυφής Μνήμης Mini App",
-      "custom": {
-        "conflicting_ids": "Αντιφατικά αναγνωριστικά με τις προεπιλεγμένες εφαρμογές: {{ids}}",
-        "duplicate_ids": "Βρέθηκαν διπλότυπα αναγνωριστικά: {{ids}}",
-        "edit_description": "Επεξεργαστείτε εδώ τη ρύθμιση προσαρμοσμένου mini app. Κάθε εφαρμογή πρέπει να περιλαμβάνει τα πεδία id, name, url και logo.",
-        "edit_title": "Επεξεργασία Προσαρμοσμένης Mini Εφαρμογής",
-        "id": "Ταυτότητα",
-        "id_error": "Απαιτείται ταυτότητα.",
-        "id_placeholder": "Εισαγωγή ID",
-        "logo": "Λογότυπο",
-        "logo_file": "Ανέβασμα Αρχείου Λογότυπου",
-        "logo_upload_button": "Μεταφόρτωση",
-        "logo_upload_error": "Αποτυχία μεταφόρτωσης λογότυπου.",
-        "logo_upload_label": "Ανέβασμα Λογότυπου",
-        "logo_upload_success": "Το λογότυπο μεταφορτώθηκε με επιτυχία.",
-        "logo_url": "Διεύθυνση URL λογότυπου",
-        "logo_url_label": "Διεύθυνση URL λογότυπου",
-        "logo_url_placeholder": "Εισάγετε τη διεύθυνση URL του λογότυπου",
-        "name": "Όνομα",
-        "name_error": "Το όνομα είναι υποχρεωτικό.",
-        "name_placeholder": "Εισαγωγή ονόματος",
-        "placeholder": "Εισαγωγή προσαρμοσμένης διαμόρφωσης mini εφαρμογής (μορφή JSON)",
-        "remove_error": "Αποτυχία αφαίρεσης προσαρμοσμένης μικρής εφαρμογής.",
-        "remove_success": "Η προσαρμοσμένη μίνι εφαρμογή αφαιρέθηκε με επιτυχία.",
-        "save": "Αποθήκευση",
-        "save_error": "Αποτυχία αποθήκευσης προσαρμοσμένης μίνι εφαρμογής.",
-        "save_success": "Η προσαρμοσμένη μίνι εφαρμογή αποθηκεύτηκε με επιτυχία.",
-        "title": "Προσαρμοσμένο",
-        "url": "URL",
-        "url_error": "Απαιτείται URL.",
-        "url_placeholder": "Εισαγάγετε URL"
-      },
-      "disabled": "Κρυμμένα Μίνι Εφαρμογές",
-      "display_title": "Ρυθμίσεις Εμφάνισης Mini App",
-      "empty": "Κάντε κλικ στο εικονίδιο απόκρυψης σε μια εφαρμογή στα αριστερά και θα μετακινηθεί εδώ",
-      "hide_app": "Απόκρυψη {{name}}",
-      "open_link_external": {
-        "title": "Άνοιγμα συνδέσμων νέου παραθύρου στον περιηγητή"
-      },
-      "region": {
-        "auto": "Αυτόματη ανίχνευση",
-        "cn": "Κίνα",
-        "description": "Φιλτράρισμα μη υποστηριζόμενων μίνι προγραμμάτων με βάση την περιοχή",
-        "global": "Παγκόσμιος",
-        "title": "Φίλτρο Mini Program"
-      },
-      "reset_tooltip": "Επαναφορά στις προεπιλογές",
-      "show_app": "Εμφάνιση {{name}}",
-      "sidebar_description": "Εμφάνιση ενεργών μίνι εφαρμογών στην πλαϊνή στήλη",
-      "sidebar_title": "Εμφάνιση Ενεργών Mini Εφαρμογών στην Πλαϊνή Στήλη",
       "title": "Ρυθμίσεις Mini Apps",
-      "visible": "Ορατές Μικρές Εφαρμογές"
+      "visible": "Εμφανιζόμενα μικροπρογράμματα"
     },
     "model": "Πρόεδρος Υπηρεσίας",
     "models": {
@@ -6784,6 +6690,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Κάποια μοντέλα χρησιμοποιούνται ως προεπιλεγμένα και δεν μπορούν να αφαιρεθούν.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6862,7 +6769,7 @@
       "assistant": "Μήνυμα βοηθού",
       "backup": "Δημιουργία αντιγράφου ασφαλείας",
       "knowledge_embed": "Βάση γνώσης",
-      "title": "Ρυθμίσεις ειδοποιήσεων"
+      "title": "Ειδοποιήσεις"
     },
     "openai": {
       "service_tier": {
@@ -6898,48 +6805,6 @@
       }
     },
     "parameter_settings": "Ρυθμίσεις Παραμέτρων",
-    "plugins": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Δεν υπάρχουν ακόμα προσαρμοσμένα εργαλεία. Προσθέστε ένα για να ξεκινήσετε.",
-      "description": "Διαχειριστείτε τα δυαδικά εργαλεία και τις εξαρτήσεις χρόνου εκτέλεσης που απαιτούνται από την εφαρμογή.",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Εγκατάσταση",
-      "installError": "Failed to install tool",
-      "installing": "Εγκατάσταση...",
-      "invalidTool": "Μη έγκυρο όνομα ή κλειδί εργαλείου",
-      "notInstalled": "Δεν έχει εγκατασταθεί",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
-      "source": {
-        "bundled": "bundled"
-      },
-      "title": "Εξαρτήσεις Περιβάλλοντος",
-      "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
-      },
-      "update": "Update to latest version"
-    },
     "power": {
       "prevent_sleep_when_busy": "Διατήρησε το σύστημα σε εγρήγορση ενώ εκτελούνται εργασίες"
     },
@@ -6961,6 +6826,7 @@
         "reorderFailed": "Αποτυχία αναδιάταξης προτροπών",
         "updateFailed": "Αποτυχία ενημέρωσης προτροπής"
       },
+      "manage": "Διαχείριση Προτροπών",
       "title": "Διαχείριση Prompts",
       "titleLabel": "Τίτλος",
       "titlePlaceholder": "Εισαγάγετε τίτλο prompt",
@@ -7105,9 +6971,29 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Τομέας επιτάχυνσης",
-          "backup": "Τομέας αντιγράφων ασφαλείας",
           "international": "Διεθνής τομέας"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "Ο πάροχος Claude Code είναι διαθέσιμος μόνο για Πράκτορες — δεν μπορεί να χρησιμοποιηθεί σε συνομιλίες ή βοηθούς.",
+        "description": "Συνδεθείτε με τη συνδρομή σας Claude",
+        "description_detail": "Αυτός ο πάροχος επαναχρησιμοποιεί τη σύνδεση του Claude Code CLI (Claude Pro/Max) και είναι διαθέσιμος μόνο στους Agents. Ανοίξτε ένα τερματικό και εκτελέστε `claude /login` για να συνδεθείτε.",
+        "launch_failed": "Αποτυχία ανοίγματος του τερματικού. Εκτελέστε χειροκίνητα το `claude /login` για να συνδεθείτε.",
+        "legal_link": "Νομικά & Συμμόρφωση",
+        "logged_in": "Συνδέθηκε στο Claude Code",
+        "logged_in_detail": "Οι πράκτορες θα χρησιμοποιήσουν τα διαπιστευτήρια της συνδρομής σας στο Claude Code CLI.",
+        "open_terminal": "Άνοιγμα τερματικού για σύνδεση",
+        "recheck": "Επανέλεγχος"
+      },
+      "codex": {
+        "account": "Λογαριασμός: {{accountId}}",
+        "description": "Συνδεθείτε με τη συνδρομή σας στο ChatGPT",
+        "description_detail": "Αυτός ο πάροχος χρησιμοποιεί τη σύνδεσή σας ChatGPT Plus/Pro (OAuth) για να αποκτήσει πρόσβαση στα μοντέλα OpenAI Codex. Το πρόγραμμα περιήγησής σας θα ανοίξει για να ολοκληρώσετε τη σύνδεση.",
+        "logged_in": "Συνδεθήκατε στο OpenAI Codex",
+        "sign_in_button": "Σύνδεση με το ChatGPT",
+        "sign_in_failed": "Η σύνδεση απέτυχε. Παρακαλώ προσπαθήστε ξανά.",
+        "sign_in_success": "Συνδεδεμένος στο OpenAI Codex",
+        "signing_in": "Αναμονή για το πρόγραμμα περιήγησης…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7183,6 +7069,15 @@
       },
       "filter_agent": "Υποστηριζόμενοι Πάροχοι του Φίλτρου Πράκτορα",
       "get_api_key": "Κάντε κλικ εδώ για να πάρετε κλειδί",
+      "grok_cli": {
+        "description": "Συνδεθείτε με τη συνδρομή σας SuperGrok",
+        "description_detail": "Αυτός ο πάροχος χρησιμοποιεί τη σύνδεσή σας xAI SuperGrok (OAuth) για πρόσβαση στα μοντέλα Grok CLI (Grok Build, Composer). Το πρόγραμμα περιήγησής σας θα ανοίξει για να ολοκληρώσετε τη σύνδεση.",
+        "logged_in": "Συνδεδεμένος στο Grok CLI",
+        "sign_in_button": "Σύνδεση με xAI",
+        "sign_in_failed": "Η σύνδεση απέτυχε. Παρακαλώ δοκιμάστε ξανά.",
+        "sign_in_success": "Συνδεδεμένος στο Grok CLI",
+        "signing_in": "Αναμονή για πρόγραμμα περιήγησης…"
+      },
       "logo_upload_failed": "Αποτυχία επεξεργασίας της επιλεγμένης εικόνας",
       "misc": "Άλλο",
       "more_endpoints": {
@@ -7347,6 +7242,7 @@
       "all_enable": "Ενεργοποίηση Όλων",
       "bind_first_to_enable": "Δέστε πρώτα μια συντόμευση για να αλλάξετε την κατάσταση ενεργοποίησής της",
       "categories": {
+        "all": "Όλα",
         "assistant": "Εργαλεία Βοηθού Τεχνητής Νοημοσύνης",
         "chat": "Αλληλεπίδραση Μηνυμάτων",
         "general": "Καθολικό και Παράθυρο",
@@ -7362,6 +7258,7 @@
       "empty": "Δεν υπάρχουν διαθέσιμες συντομεύσεις σε αυτήν την ομάδα",
       "enabled": "ενεργοποίηση",
       "exit_fullscreen": "Έξοδος από πλήρη οθόνη",
+      "filter": "Φίλτρο",
       "label": "Πλήκτρο",
       "move_tab_to_first": "Μετακίνηση Καρτέλας στην Αρχή",
       "new_topic": "Νέο θέμα",
@@ -7398,6 +7295,9 @@
     },
     "skills": {
       "author": "Συγγραφέας",
+      "batchInstallComplete": "Εγκαταστάθηκαν {{count}} δεξιότητες",
+      "batchInstallPartialFailed": "Εγκαταστάθηκαν {{success}}/{{total}} δεξιότητες, {{failed}} αποτυχίες",
+      "batchInstallQueued": "Σε ουρά",
       "batchUninstallSuccess": "{{count}} δεξιότητες απεγκαταστάθηκαν",
       "builtin": "Ενσωματωμένο",
       "confirmBatchUninstall": "Είστε σίγουροι ότι θέλετε να απεγκαταστήσετε {{count}} επιλεγμένες δεξιότητες;",
@@ -7430,6 +7330,9 @@
       "uninstallSuccess": "Δεξιότητα απεγκαταστάθηκε: {{name}}",
       "viewSource": "Προβολή Πηγής",
       "zip": "Τ.Κ."
+    },
+    "system": {
+      "title": "Σύστημα"
     },
     "theme": {
       "color_primary": "Κύριο Χρώμα Θέματος",
@@ -7578,6 +7481,7 @@
           "exa": "API νευρωνικής αναζήτησης για εφαρμογές τεχνητής νοημοσύνης, βελτιστοποιημένο για σημασιολογική ανάκτηση από τον ιστό.",
           "exa_mcp": "Κάντε διαθέσιμη την αναζήτηση Exa στους πράκτορες μέσω του διακομιστή Exa MCP.",
           "fetch": "Ενσωματωμένος πάροχος λήψης URL. Ανακτά περιεχόμενο ιστοσελίδων από ένα URL για την εμπλουτισμό των αποτελεσμάτων αναζήτησης.",
+          "firecrawl": "Υπηρεσία ανίχνευσης και αναζήτησης Firecrawl, βελτιστοποιημένη για τη μετατροπή ιστότοπων σε Markdown.",
           "jina": "APIs αναζήτησης και ανάγνωσης Jina Reader για την ανάκτηση καθαρού περιεχομένου από τον ιστό.",
           "querit": "Υπηρεσία αναζήτησης για εφαρμογές AI με αποτελέσματα ανάκτησης από τον ιστό.",
           "searxng": "Αυτο-φιλοξενούμενη δωρεάν μηχανή μετα-αναζήτησης στο διαδίκτυο σε πολλές πηγές.",
@@ -7702,7 +7606,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Ζωγραφική",
     "settings": "Ρυθμίσεις",
-    "store": "Βιβλιοθήκη βοηθών",
     "translate": "Μετάφραση",
     "work": "Εργασία"
   },
@@ -7897,11 +7800,6 @@
     "tooltip": {
       "newline": "Αλλαγή γραμμής"
     }
-  },
-  "tray": {
-    "quit": "Έξοδος",
-    "show_quick_assistant": "Σύντομη βοήθεια",
-    "show_window": "Εμφάνιση παραθύρου"
   },
   "update": {
     "install": "Εγκατάσταση",

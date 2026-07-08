@@ -19,8 +19,9 @@ import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { toast } from '@renderer/services/toast'
 import { safeValidateMcpConfig } from '@renderer/types/mcp'
 import { formatZodError } from '@renderer/utils/error'
 import { parseJSON } from '@renderer/utils/json'
@@ -172,7 +173,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         const isMcpbImport = importMethod === 'mcpb'
 
         if (!packageFile) {
-          window.toast.error(
+          toast.error(
             t(
               isMcpbImport
                 ? 'settings.mcp.addServer.importFrom.noMcpbFile'
@@ -191,7 +192,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             : await window.api.mcp.uploadDxt(packageFile)
 
           if (!result.success) {
-            window.toast.error(
+            toast.error(
               result.error ||
                 t(
                   isMcpbImport
@@ -207,7 +208,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
 
           // Check for duplicate names
           if (existingServers && existingServers.some((server) => server.name === manifest.name)) {
-            window.toast.error(t('settings.mcp.addServer.importFrom.nameExists', { name: manifest.name }))
+            toast.error(t('settings.mcp.addServer.importFrom.nameExists', { name: manifest.name }))
             setLoading(false)
             return
           }
@@ -280,7 +281,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           ) // Delay to ensure server is properly added to store
         } catch (error) {
           logger.error(`${isMcpbImport ? 'MCPB' : 'DXT'} processing error:`, error as Error)
-          window.toast.error(
+          toast.error(
             t(
               isMcpbImport
                 ? 'settings.mcp.addServer.importFrom.mcpbProcessFailed'
@@ -340,7 +341,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           })
           .catch((connError: any) => {
             logger.error(`Connectivity check failed for ${createdServer.name}:`, connError)
-            window.toast.error(createdServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'))
+            toast.error(createdServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'))
           })
       }
     } finally {
@@ -357,7 +358,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
 
   return (
     <Dialog open={visible} onOpenChange={(next) => !next && handleClose()}>
-      <DialogContent className="sm:max-w-150">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-150">
         <DialogHeader>
           <DialogTitle>
             {importMethod === 'mcpb'

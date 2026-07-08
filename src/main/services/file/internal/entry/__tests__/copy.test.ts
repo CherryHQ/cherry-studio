@@ -16,7 +16,6 @@ vi.mock('@application', async () => {
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { createDefaultOrphanCheckerRegistry } = await import('@main/services/file/orphanCheckerRegistry')
 const { copy } = await import('../copy')
 const { createInternal, ensureExternal } = await import('../create')
 
@@ -53,8 +52,7 @@ describe('internal/entry/copy', () => {
         onDanglingStateChanged: vi.fn(() => ({ dispose: () => {} })),
         clear: vi.fn()
       },
-      versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() },
-      orphanRegistry: createDefaultOrphanCheckerRegistry()
+      versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() }
     }
   })
 

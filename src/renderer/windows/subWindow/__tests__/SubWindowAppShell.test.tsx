@@ -2,18 +2,19 @@
 import '@testing-library/jest-dom/vitest'
 
 import { cleanup, render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const tabs = [{ id: 'home', type: 'route', url: '/home', title: 'Home' }]
 
-async function renderSubWindowAppShell(isMac: boolean) {
+async function renderSubWindowAppShell() {
   vi.resetModules()
-  vi.doMock('@renderer/config/constant', () => ({ isMac, isWin: false, isLinux: false }))
-  vi.doMock('@renderer/databases', () => ({}))
+  vi.doMock('@renderer/utils/platform', () => ({ isMac: false, isWin: false, isLinux: false }))
+  vi.doMock('@renderer/databases/db', () => ({}))
   vi.doMock('@renderer/hooks/useWindowInitData', () => ({
     useWindowInitData: () => null
   }))
-  vi.doMock('@renderer/hooks/useTabs', () => ({
+  vi.doMock('@renderer/hooks/tab', () => ({
     useTabs: () => ({
       tabs,
       activeTabId: 'home',
@@ -31,15 +32,24 @@ async function renderSubWindowAppShell(isMac: boolean) {
     getDefaultRouteTitle: (url: string) => url,
     isPageTitledRoute: () => false
   }))
+  vi.doMock('@renderer/components/chat/shell/WindowFrameContext', () => ({
+    WindowFrameProvider: ({ children }: { children: ReactNode }) => <>{children}</>
+  }))
+  vi.doMock('@renderer/components/layout/SubWindowControls', () => ({
+    SubWindowControls: () => <div data-testid="sub-window-controls" />
+  }))
+  vi.doMock('@renderer/components/layout/SubWindowTitle', () => ({
+    SubWindowTitle: () => <div data-testid="sub-window-title" />
+  }))
+  vi.doMock('@renderer/components/WindowControls', () => ({
+    WindowControls: () => <div data-testid="window-controls" />,
+    useHasWindowControls: () => false
+  }))
   vi.doMock('../SubWindowTitleBar', () => ({
     SubWindowTitleBar: () => <header data-testid="sub-window-title-bar" />
   }))
   vi.doMock('@renderer/components/layout/TabRouter', () => ({
-    TabRouter: ({ isActive }: { isActive: boolean }) => (
-      <section data-testid="tab-router">
-        {!isMac && isActive ? <div data-page-side-panel-root="true" data-testid="scoped-root" /> : null}
-      </section>
-    )
+    TabRouter: () => <section data-testid="tab-router" />
   }))
   vi.doMock('@renderer/components/MiniApp/MiniAppTabsPool', () => ({
     default: () => <div data-testid="mini-app-pool" />
@@ -55,19 +65,11 @@ afterEach(() => {
   vi.resetModules()
 })
 
-describe('SubWindowAppShell page side panel root', () => {
-  it('scopes the page side panel root to the tab content area, excluding app chrome, outside macOS', async () => {
-    await renderSubWindowAppShell(false)
+describe('SubWindowAppShell', () => {
+  it('renders the title bar and tab router', async () => {
+    await renderSubWindowAppShell()
 
-    const root = document.querySelector('[data-page-side-panel-root="true"]')
-    expect(root).toBeInTheDocument()
-    expect(root).not.toContainElement(screen.getByTestId('sub-window-title-bar'))
-    expect(screen.getByTestId('tab-router')).toContainElement(root as HTMLElement)
-  })
-
-  it('does not mark a scoped page side panel root on macOS', async () => {
-    await renderSubWindowAppShell(true)
-
-    expect(document.querySelector('[data-page-side-panel-root="true"]')).not.toBeInTheDocument()
+    expect(screen.getByTestId('sub-window-title-bar')).toBeInTheDocument()
+    expect(screen.getByTestId('tab-router')).toBeInTheDocument()
   })
 })

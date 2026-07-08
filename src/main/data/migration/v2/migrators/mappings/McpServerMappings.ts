@@ -11,8 +11,30 @@ function toNullable<T>(value: unknown): T | null {
   return (value ?? null) as T | null
 }
 
+const VALID_MCP_SERVER_TYPES = new Set(['stdio', 'sse', 'streamableHttp', 'inMemory'])
+
+/**
+ * Legacy Redux state was never re-validated against the current type enum after
+ * being written (e.g. v1 briefly allowed literal 'http' / 'streamable_http', and
+ * arbitrary strings could slip in via unvalidated code paths). The `type` column
+ * has a CHECK constraint restricting it to the current enum, so passing through
+ * anything else aborts the whole insert batch. Mirror v1's own normalization
+ * (any "http"-containing string collapses to streamableHttp) and drop anything
+ * else to null rather than fail the migration.
+ */
+function toMcpServerType(value: unknown): InsertMcpServerRow['type'] {
+  if (typeof value !== 'string') return null
+  if (VALID_MCP_SERVER_TYPES.has(value)) return value as InsertMcpServerRow['type']
+  if (value.includes('http')) return 'streamableHttp'
+  return null
+}
+
 function toRequired<T>(value: unknown, fallback: T): T {
   return (value ?? fallback) as T
+}
+
+function toRequiredString(value: unknown, fallback: string): string {
+  return typeof value === 'string' && value.trim().length > 0 ? value : fallback
 }
 
 export interface McpServerTransformResult {
@@ -28,8 +50,8 @@ export function transformMcpServer(source: Record<string, unknown>, index: numbe
     oldId,
     row: {
       id: newId,
-      name: toRequired<string>(source.name, ''),
-      type: toNullable(source.type),
+      name: toRequiredString(source.name, newId),
+      type: toMcpServerType(source.type),
       description: toNullable(source.description),
       baseUrl: toNullable(source.baseUrl ?? source.url),
       command: toNullable(source.command),

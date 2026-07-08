@@ -1,11 +1,11 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useOptionalTabsContext } from '@renderer/context/TabsContext'
+import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { clearWebviewState } from '@renderer/utils/webviewStateManager'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
-import { fileUrlToPath } from '@shared/utils/file/urlUtil'
+import { fileUrlToPath } from '@shared/utils/file'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useMiniAppPopup')
@@ -138,7 +138,7 @@ export const useMiniAppPopup = () => {
   // Pinned AppShell tabs are exempt from keep-alive eviction. The user pins a
   // tab to say "keep this state alive across switches"; honoring that here
   // prevents the cap from quietly throwing away webviews behind a pinned tab.
-  // Detached settings windows can open mini-app content without AppShell tabs;
+  // Isolated renderer surfaces can open mini-app content without AppShell tabs;
   // in that case skip eviction because pin state is not observable there.
   const tabsContext = useOptionalTabsContext()
   const tabs = tabsContext?.tabs ?? []

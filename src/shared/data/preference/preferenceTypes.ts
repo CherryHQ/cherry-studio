@@ -84,23 +84,42 @@ export type AssistantTabSortType = 'tags' | 'list'
 
 export type TopicDisplayMode = 'time' | 'assistant'
 
+export type TopicTabPosition = 'left' | 'right'
+
 export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
 
-export type SidebarFavorite =
-  | 'assistants'
-  | 'agents'
-  | 'store'
-  | 'paintings'
-  | 'translate'
-  | 'mini_app'
-  | 'knowledge'
-  | 'files'
-  | 'code_tools'
-  | 'notes'
-  | 'openclaw'
+export const SIDEBAR_FAVORITES = [
+  'assistants',
+  'agents',
+  'paintings',
+  'translate',
+  'mini_app',
+  'knowledge',
+  'files',
+  'code_tools',
+  'notes',
+  'openclaw'
+] as const
 
-/** @deprecated Legacy v1 Redux naming. Use SidebarFavorite for v2 sidebar preferences. */
-export type SidebarIcon = SidebarFavorite
+export type SidebarFavorite = (typeof SIDEBAR_FAVORITES)[number]
+
+/**
+ * Group-ready sidebar storage contract.
+ *
+ * Leaf items are stored as tagged objects, not bare ids. Keep the `type` values,
+ * id semantics, and one ordered heterogeneous top-level array stable: a future
+ * `group` variant can then be added as another top-level item without migrating
+ * existing flat `SidebarFavoriteItem[]` values.
+ */
+export type SidebarFavoriteItem =
+  | {
+      type: 'app'
+      id: SidebarFavorite
+    }
+  | {
+      type: 'mini_app'
+      id: string
+    }
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
@@ -182,7 +201,8 @@ export const WEB_SEARCH_PROVIDER_IDS = [
   'bocha',
   'querit',
   'fetch',
-  'jina'
+  'jina',
+  'firecrawl'
 ] as const
 
 export type WebSearchProviderId = (typeof WEB_SEARCH_PROVIDER_IDS)[number]
@@ -240,9 +260,9 @@ export interface WebSearchProvider {
 // CodeCLI Types
 // ============================================================================
 
-import { codeCLI } from '@shared/types/codeCli'
+import { CodeCli } from '@shared/types/codeCli'
 
-export const CODE_CLI_IDS = Object.values(codeCLI) as unknown as readonly [
+export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
   'qwen-code',
   'claude-code',
   'gemini-cli',
@@ -259,7 +279,7 @@ export type CodeCliOverride = {
   enabled?: boolean
   modelId?: string | null
   envVars?: string
-  /** Terminal app name — should match `terminalApps` enum values */
+  /** Terminal app name — should match `TerminalApp` enum values */
   terminal?: string
   currentDirectory?: string
   directories?: string[]

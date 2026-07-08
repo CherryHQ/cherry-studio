@@ -1,48 +1,109 @@
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import type { ResourceListRevealRequest } from '@renderer/components/chat/resources'
-import type { ResourceListRevealPayload } from '@renderer/components/chat/resources/resourceListRevealEvents'
-import { useWindowFrame } from '@renderer/components/chat/shell/WindowFrameContext'
+import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
+import { AgentResourceList } from '@renderer/components/chat/resourceList/AgentResourceList'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import ConversationPageShell from '@renderer/components/chat/shell/ConversationPageShell'
+import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import {
   createRecentSessionEntryFromSession,
   upsertGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
-import { getTabInstanceKey } from '@renderer/config/tabInstanceMetadata'
-import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/context/TabIdContext'
+import {
+  type GlobalSearchAgentSessionMessageSelectionPayload,
+  type GlobalSearchAgentSessionSelectionPayload,
+  isGlobalSearchSelectionForTab
+} from '@renderer/components/GlobalSearch/globalSearchSelectionEvents'
+import {
+  ConversationResourceView,
+  type ConversationResourceViewDefinition,
+  useConversationResourceView
+} from '@renderer/components/resourceCatalog/conversation'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
-import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
-import { useActiveSession, useSession } from '@renderer/hooks/agents/useSession'
+import { useAgent, useAgents } from '@renderer/hooks/agent/useAgent'
+import { useActiveSession, useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
-import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
+import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
+import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
+import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
+import { toast } from '@renderer/services/toast'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { findLatestUpdated, isUntouchedSinceCreation } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
+import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
+import { buildFirstUserMessageTitle } from '@shared/utils/conversationTitle'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useSearch } from '@tanstack/react-router'
+import { Bot, Zap } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import HistoryRecordsPage from '../history/HistoryRecordsPage'
 import AgentChat from './AgentChat'
 import AgentSidePanel from './AgentSidePanel'
+import { AgentConversationPickerDialog } from './components/AgentConversationPickerDialog'
+import Sessions from './components/Sessions'
 import { parseAgentRouteSearch } from './routeSearch'
 import type { DraftAgentSession, DraftAgentSessionDefaults, PersistentAgentSessionConversation } from './types'
 
 const logger = loggerService.withContext('AgentPage')
+type AgentConversationResourceKind = 'agent' | 'skill'
 
 function isUserWorkspaceSession(session: AgentSessionEntity | null | undefined): boolean {
   return !!session?.workspaceId && session.workspace?.type !== 'system'
 }
 
+function sessionMatchesWorkspaceSource(
+  session: AgentSessionEntity,
+  workspaceSource: AgentSessionWorkspaceSource
+): boolean {
+  if (workspaceSource.type === AGENT_WORKSPACE_TYPE.USER) {
+    return isUserWorkspaceSession(session) && session.workspaceId === workspaceSource.workspaceId
+  }
+
+  return session.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM
+}
+
+// Reuse the agent's latest *empty* placeholder session (matched by `isMatch`) instead of stacking a
+// new one. The empty session only exists to surface the agent in the classic-layout rail, so on repeated
+// adds we reopen the existing placeholder rather than pile up blanks.
+//
+// Emptiness is detected via `isUntouchedSinceCreation` (updatedAt === createdAt), not a blank name:
+// with auto-naming off a chatted-in session keeps a blank name forever, so a name test would reopen it
+// instead of starting a new conversation. See isUntouchedSinceCreation for the full rationale.
+function findReusableEmptySession<T extends { createdAt?: string; updatedAt?: string }>(
+  sessions: readonly T[],
+  isMatch: (session: T) => boolean
+): T | undefined {
+  return findLatestUpdated(sessions.filter((session) => isUntouchedSinceCreation(session) && isMatch(session)))
+}
+
 const AgentPage = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
+  const [panePosition, setPanePosition] = usePreference('agent.session.position')
+  const [autoCollapsedResourceList, setAutoCollapsedResourceList] = useState(false)
+  const isClassicSessionLayout = sessionDisplayMode === 'agent'
+  // Classic layout shares this full-sessions source with the rail; modern layout leaves it disabled (no fetch).
+  // The picker uses it to reuse an empty placeholder session instead of stacking new ones.
+  const {
+    sessions: classicLayoutSessions,
+    isLoadingAll: isClassicSessionLayoutLoading = false,
+    isFullyLoaded: isClassicSessionLayoutFullyLoaded = true
+  } = useAgentSessionsSource({ enabled: isClassicSessionLayout })
+  const isClassicSessionLayoutHistoryReady =
+    !isClassicSessionLayout || (!isClassicSessionLayoutLoading && isClassicSessionLayoutFullyLoaded)
   const routeSearch = parseAgentRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
   const currentTab = useCurrentTab()
   const routeSessionId = routeSearch.sessionId
@@ -50,7 +111,7 @@ const AgentPage = () => {
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
   const isWindowFrame = useWindowFrame().mode === 'window'
   // Detached windows are single-conversation: no session list, so no sidebar at all.
-  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar
+  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar && !autoCollapsedResourceList
   const { session: routeSession, isLoading: isRouteSessionLoading } = useSession(
     isMessageOnlyView ? routeSessionId : null
   )
@@ -61,6 +122,11 @@ const AgentPage = () => {
   const draftSessionRef = useRef<DraftAgentSession | null>(null)
   const [draftSession, setDraftSession] = useState<DraftAgentSession | null>(null)
   const [historyRecordsOpen, setHistoryRecordsOpen] = useState(false)
+  // Classic-layout (rail) session-pane open state, cached on the agent surface's own key so it
+  // survives AgentChat draft→persistent remounts (each branch mounts its own Shell) and app/page
+  // re-entry, without bleeding into the assistant surface.
+  const [sessionPaneOpen, setSessionPaneOpen] = useClassicLayoutRightPaneOpen('agent', isClassicSessionLayout)
+  const isCreatingClassicEmptySessionRef = useRef(false)
 
   useEffect(() => {
     pendingSelectedSessionRef.current = null
@@ -76,7 +142,8 @@ const AgentPage = () => {
   const [, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
-  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const [, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
   const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
@@ -84,9 +151,12 @@ const AgentPage = () => {
   const initialDraftSessionEvaluatedRef = useRef(false)
   const [replacingDraftAgent, setReplacingDraftAgent] = useState(false)
   const [replacingDraftWorkspace, setReplacingDraftWorkspace] = useState(false)
+  const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
   const [missingAgentDraft, setMissingAgentDraft] = useState(false)
+  const [agentPickerOpen, setAgentPickerOpen] = useState(false)
   const { t } = useTranslation()
   const invalidateCache = useInvalidateCache()
+  const { setSessionWorkspace } = useUpdateSession()
   const pendingSelectedSession =
     pendingSelectedSessionRef.current?.id === activeSessionId ? pendingSelectedSessionRef.current : null
   const {
@@ -103,6 +173,45 @@ const AgentPage = () => {
     ? routeSession
     : (activeSession ?? (isActiveSessionLoading ? lastVisibleSessionRef.current : null))
   const visibleDraftSession = !isMessageOnlyView && !activeSessionId ? draftSession : null
+  const resourceConversationKey = useMemo(() => {
+    if (visibleSession?.id) return `session:${visibleSession.id}`
+    if (visibleDraftSession) {
+      const workspaceKey =
+        visibleDraftSession.workspaceSource.type === AGENT_WORKSPACE_TYPE.USER
+          ? `workspace:${visibleDraftSession.workspaceSource.workspaceId}`
+          : 'system'
+
+      return `draft:${visibleDraftSession.agentId}:${workspaceKey}`
+    }
+    if (missingAgentDraft) return 'missing-agent-draft'
+    return 'empty'
+  }, [missingAgentDraft, visibleDraftSession, visibleSession?.id])
+  const resourceViewDefinitions = useMemo<readonly ConversationResourceViewDefinition<AgentConversationResourceKind>[]>(
+    () => [
+      {
+        icon: <Bot />,
+        id: 'agent-resource-view',
+        kind: 'agent',
+        label: t('chat.resource_view.menu.agent')
+      },
+      {
+        icon: <Zap />,
+        id: 'skill-resource-view',
+        kind: 'skill',
+        label: t('chat.resource_view.menu.skill')
+      }
+    ],
+    [t]
+  )
+  const {
+    activeKind: activeResourceViewKind,
+    close: closeResourceView,
+    menuItems: resourceMenuItems
+  } = useConversationResourceView<AgentConversationResourceKind>({
+    conversationKey: resourceConversationKey,
+    definitions: resourceViewDefinitions,
+    disabled: isMessageOnlyView || isWindowFrame
+  })
   const setDraftSessionState = useCallback((nextDraft: DraftAgentSession | null) => {
     draftSessionRef.current = nextDraft
     setDraftSession(nextDraft)
@@ -112,7 +221,6 @@ const AgentPage = () => {
   // own AgentPage. `useIsActiveTab` answers "am I the globally-focused tab" (gates last_used).
   const isActiveTab = useIsActiveTab()
   const currentTabId = useCurrentTabId()
-  const conversationNav = useConversationNavigation('agents')
 
   const clearSessionRevealRequestAfterPaint = useCallback((requestId: number) => {
     const clear = () => {
@@ -164,10 +272,14 @@ const AgentPage = () => {
 
   const setResourceListOpen = useCallback(
     (open: boolean) => {
+      setAutoCollapsedResourceList(false)
       void setShowSidebar(open)
     },
     [setShowSidebar]
   )
+  const handleResourceListAutoCollapseChange = useCallback((collapsed: boolean) => {
+    setAutoCollapsedResourceList(collapsed)
+  }, [])
   const toggleResourceListOpen = useCallback(() => {
     setResourceListOpen(!effectiveShowSidebar)
   }, [effectiveShowSidebar, setResourceListOpen])
@@ -188,16 +300,11 @@ const AgentPage = () => {
     const signature = `${activeSession.id}:${activeSession.name}`
     if (lastRecordedRecentSessionRef.current === signature) return
 
-    const currentRecentItems = recentItems ?? []
-    const nextItems = upsertGlobalSearchRecentEntry(
-      currentRecentItems,
-      createRecentSessionEntryFromSession(activeSession)
-    )
     lastRecordedRecentSessionRef.current = signature
-    if (nextItems !== currentRecentItems) {
-      setRecentItems(nextItems)
-    }
-  }, [activeSession, isMessageOnlyView, recentItems, setRecentItems])
+    setRecentItems((prev) =>
+      upsertGlobalSearchRecentEntry(prev ?? [], createRecentSessionEntryFromSession(activeSession))
+    )
+  }, [activeSession, isMessageOnlyView, setRecentItems])
 
   useEffect(() => {
     if (activeSession) lastVisibleSessionRef.current = activeSession
@@ -253,8 +360,8 @@ const AgentPage = () => {
     [t]
   )
 
-  const startDraftSession = useCallback(
-    async (defaults: DraftAgentSessionDefaults) => {
+  const resolveDraftWorkspaceSource = useCallback(
+    (defaults: DraftAgentSessionDefaults) => {
       const isSystemWorkspaceMode =
         defaults.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM || defaults.workspaceMode === 'system'
       const rememberedWorkspaceId =
@@ -268,6 +375,55 @@ const AgentPage = () => {
         : rememberedWorkspaceId
           ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: rememberedWorkspaceId }
           : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+
+      return { rememberedWorkspaceId, workspaceSource }
+    },
+    [lastUsedWorkspaceId]
+  )
+
+  const buildDraftSessionWithFallback = useCallback(
+    async (
+      defaults: DraftAgentSessionDefaults,
+      workspaceSource: AgentSessionWorkspaceSource,
+      rememberedWorkspaceId?: string
+    ) => {
+      if (!defaults.agentId) return null
+
+      try {
+        return await buildDraftSession({
+          agentId: defaults.agentId,
+          workspaceSource
+        })
+      } catch (err) {
+        if (!rememberedWorkspaceId || defaults.workspaceId || defaults.workspace?.type === AGENT_WORKSPACE_TYPE.USER) {
+          throw err
+        }
+
+        logger.warn('Failed to start draft session with remembered workspace', err as Error, {
+          workspaceId: rememberedWorkspaceId
+        })
+        setLastUsedWorkspaceId(null)
+        return buildDraftSession({
+          agentId: defaults.agentId,
+          workspaceSource: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        })
+      }
+    },
+    [buildDraftSession, setLastUsedWorkspaceId]
+  )
+
+  const rememberLastUsedSession = useCallback(
+    (agentId: string, userWorkspaceId?: string) => {
+      setLastUsedAgentId(agentId)
+      if (userWorkspaceId) setLastUsedWorkspaceId(userWorkspaceId)
+    },
+    [setLastUsedAgentId, setLastUsedWorkspaceId]
+  )
+
+  const startDraftSession = useCallback(
+    async (defaults: DraftAgentSessionDefaults) => {
+      closeResourceView()
+      const { rememberedWorkspaceId, workspaceSource } = resolveDraftWorkspaceSource(defaults)
 
       if (
         visibleDraftSession &&
@@ -285,55 +441,106 @@ const AgentPage = () => {
         return
       }
 
-      if (!defaults.agentId) return
+      const started = await buildDraftSessionWithFallback(defaults, workspaceSource, rememberedWorkspaceId)
+      if (!started) return
 
-      let started: DraftAgentSession
-      try {
-        started = await buildDraftSession({
-          agentId: defaults.agentId,
-          workspaceSource
-        })
-      } catch (err) {
-        if (!rememberedWorkspaceId || defaults.workspaceId || defaults.workspace?.type === AGENT_WORKSPACE_TYPE.USER) {
-          throw err
-        }
-
-        logger.warn('Failed to start draft session with remembered workspace', err as Error, {
-          workspaceId: rememberedWorkspaceId
-        })
-        setLastUsedWorkspaceId(null)
-        started = await buildDraftSession({
-          agentId: defaults.agentId,
-          workspaceSource: { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-        })
-      }
       pendingSelectedSessionRef.current = null
       setDraftSessionState(started)
-      setLastUsedAgentId(started.agentId)
-      if (started.workspaceSource.type === AGENT_WORKSPACE_TYPE.USER) {
-        setLastUsedWorkspaceId(started.workspaceSource.workspaceId)
-      }
+      rememberLastUsedSession(
+        started.agentId,
+        started.workspaceSource.type === AGENT_WORKSPACE_TYPE.USER ? started.workspaceSource.workspaceId : undefined
+      )
       setMissingAgentDraft(false)
       setActiveSessionId(null)
     },
     [
-      buildDraftSession,
-      lastUsedWorkspaceId,
+      buildDraftSessionWithFallback,
+      closeResourceView,
+      rememberLastUsedSession,
+      resolveDraftWorkspaceSource,
       setActiveSessionId,
       setDraftSessionState,
-      setLastUsedAgentId,
       setLastUsedWorkspaceId,
       visibleDraftSession
     ]
   )
 
+  const handleAgentConversationSelect = useCallback(
+    async (agentId: string) => {
+      if (isCreatingClassicEmptySessionRef.current) return
+      isCreatingClassicEmptySessionRef.current = true
+      // Close the picker first so the session/state churn below doesn't refresh the dialog while it's
+      // still visible (which reads as a black/white flash + the dialog reopening).
+      setAgentPickerOpen(false)
+      try {
+        // Reuse the agent's latest empty placeholder regardless of workspace — the picker resolves a
+        // fresh workspace below only when it has to create one. See findReusableEmptySession.
+        const reusableSession = findReusableEmptySession(
+          classicLayoutSessions,
+          (candidate) => candidate.agentId === agentId
+        )
+
+        let session = reusableSession
+        if (!session) {
+          const defaults = { agentId }
+          const { rememberedWorkspaceId, workspaceSource } = resolveDraftWorkspaceSource(defaults)
+          const started = await buildDraftSessionWithFallback(defaults, workspaceSource, rememberedWorkspaceId)
+          if (!started) return
+
+          session = await dataApiService.post('/agent-sessions', {
+            body: {
+              agentId: started.agentId,
+              name: '',
+              workspace: started.workspaceSource
+            }
+          })
+        }
+
+        setPendingLocateMessageId(undefined)
+        pendingSelectedSessionRef.current = session
+        setDraftSessionState(null)
+        setMissingAgentDraft(false)
+        rememberLastUsedSession(
+          session.agentId ?? agentId,
+          isUserWorkspaceSession(session) ? session.workspaceId : undefined
+        )
+        setActiveSessionId(session.id)
+        closeResourceView()
+        if (!reusableSession) {
+          void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch(
+            (err) => {
+              logger.warn('Failed to refresh session metadata after agent picker session create', err as Error)
+            }
+          )
+        }
+      } catch (err) {
+        logger.error('Failed to create agent session from classic-layout picker', err as Error, { agentId })
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+      } finally {
+        isCreatingClassicEmptySessionRef.current = false
+      }
+    },
+    [
+      buildDraftSessionWithFallback,
+      closeResourceView,
+      invalidateCache,
+      classicLayoutSessions,
+      rememberLastUsedSession,
+      resolveDraftWorkspaceSource,
+      setActiveSessionId,
+      setDraftSessionState,
+      t
+    ]
+  )
+
   const startMissingAgentDraft = useCallback(() => {
+    closeResourceView()
     setPendingLocateMessageId(undefined)
     pendingSelectedSessionRef.current = null
     setDraftSessionState(null)
     setActiveSessionId(null)
     setMissingAgentDraft(true)
-  }, [setActiveSessionId, setDraftSessionState])
+  }, [closeResourceView, setActiveSessionId, setDraftSessionState])
 
   const startMissingAgentDraftSession = useCallback(
     async (agentId: string | null) => {
@@ -344,6 +551,7 @@ const AgentPage = () => {
   )
 
   const startDefaultDraftSession = useCallback(async () => {
+    closeResourceView()
     setPendingLocateMessageId(undefined)
     pendingSelectedSessionRef.current = null
 
@@ -357,13 +565,16 @@ const AgentPage = () => {
     const rememberedAgent = lastUsedAgentId ? agents.find((agent) => agent.id === lastUsedAgentId) : undefined
     const defaultAgent = rememberedAgent ?? agents[0]
     await startDraftSession({ agentId: defaultAgent.id })
-  }, [agents, lastUsedAgentId, setActiveSessionId, setDraftSessionState, startDraftSession])
+  }, [agents, closeResourceView, lastUsedAgentId, setActiveSessionId, setDraftSessionState, startDraftSession])
 
   const handleHistorySessionSelect = useCallback(
     (sessionId: string | null, messageId?: string) => {
-      if (sessionId && conversationNav.focusExistingTab(sessionId, { excludeTabId: currentTabId ?? undefined })) return
+      closeResourceView()
       pendingSelectedSessionRef.current = null
       setResourceListOpen(true)
+      // Locate (history / global search) should reveal the target in the right session pane. In modern layout
+      // this setter is a no-op; classic layout persists it for the next AgentChat remount.
+      setSessionPaneOpen(true)
       setDraftSessionState(null)
       setMissingAgentDraft(false)
       setPendingLocateMessageId(messageId)
@@ -382,7 +593,7 @@ const AgentPage = () => {
         requestId: sessionRevealRequestIdRef.current
       })
     },
-    [conversationNav, currentTabId, setDraftSessionState, setResourceListOpen, startDefaultDraftSession]
+    [closeResourceView, setDraftSessionState, setResourceListOpen, setSessionPaneOpen, startDefaultDraftSession]
   )
   const closeHistoryRecords = useCallback(() => {
     setHistoryRecordsOpen(false)
@@ -402,14 +613,18 @@ const AgentPage = () => {
   })
 
   useEffect(() => {
-    const unsubscribeSession = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, (sessionId) => {
-      handleGlobalSearchSessionSelect(sessionId as string)
+    const unsubscribeSession = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, (payload) => {
+      const selection = payload as GlobalSearchAgentSessionSelectionPayload
+      if (!selection.sessionId || !isGlobalSearchSelectionForTab(selection, currentTabId)) return
+
+      handleGlobalSearchSessionSelect(selection.sessionId)
     })
     const unsubscribeMessage = EventEmitter.on(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE, (payload) => {
-      const { messageId, sessionId } = payload as { messageId?: string; sessionId?: string }
-      if (!sessionId || !messageId) return
+      const selection = payload as GlobalSearchAgentSessionMessageSelectionPayload
+      if (!selection.sessionId || !selection.messageId || !isGlobalSearchSelectionForTab(selection, currentTabId))
+        return
 
-      handleGlobalSearchSessionSelect(sessionId, messageId)
+      handleGlobalSearchSessionSelect(selection.sessionId, selection.messageId)
     })
 
     return () => {
@@ -417,7 +632,7 @@ const AgentPage = () => {
       unsubscribeMessage()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest tab/session state without resubscribing.
-  }, [])
+  }, [currentTabId])
 
   useEffect(() => {
     if (initialDraftSessionEvaluatedRef.current) {
@@ -427,6 +642,26 @@ const AgentPage = () => {
     if (isMessageOnlyView) {
       initialDraftSessionEvaluatedRef.current = true
       return
+    }
+
+    if (missingAgentDraft || activeSessionId || visibleDraftSession) {
+      initialDraftSessionEvaluatedRef.current = true
+      return
+    }
+
+    if (isClassicSessionLayout) {
+      if (!isClassicSessionLayoutHistoryReady) return
+
+      const latestSession = findLatestUpdated(classicLayoutSessions)
+      if (latestSession) {
+        initialDraftSessionEvaluatedRef.current = true
+        setPendingLocateMessageId(undefined)
+        pendingSelectedSessionRef.current = latestSession
+        setDraftSessionState(null)
+        setMissingAgentDraft(false)
+        setActiveSessionId(latestSession.id)
+        return
+      }
     }
 
     if (isAgentsLoading) return
@@ -440,11 +675,6 @@ const AgentPage = () => {
       return
     }
 
-    if (missingAgentDraft || activeSessionId || visibleDraftSession) {
-      initialDraftSessionEvaluatedRef.current = true
-      return
-    }
-
     const rememberedAgent = lastUsedAgentId ? agents?.find((agent) => agent.id === lastUsedAgentId) : undefined
     const defaultAgent = rememberedAgent ?? agents?.[0]
 
@@ -455,15 +685,20 @@ const AgentPage = () => {
     agents,
     isAgentsLoading,
     isMessageOnlyView,
+    isClassicSessionLayout,
+    isClassicSessionLayoutHistoryReady,
     lastUsedAgentId,
     missingAgentDraft,
+    classicLayoutSessions,
     setActiveSessionId,
+    setDraftSessionState,
     startDraftSession,
     visibleDraftSession
   ])
 
   const setActiveSessionAndDiscardDraft = useCallback(
     (sessionId: string | null, session?: AgentSessionEntity | null) => {
+      closeResourceView()
       pendingSelectedSessionRef.current = session ?? null
       if (sessionId) {
         setDraftSessionState(null)
@@ -471,7 +706,35 @@ const AgentPage = () => {
 
       setActiveSessionId(sessionId)
     },
-    [setDraftSessionState]
+    [closeResourceView, setDraftSessionState]
+  )
+  const handleResourceSessionSelect = useCallback(
+    (sessionId: string, session: AgentSessionEntity) => {
+      closeResourceView()
+      setActiveSessionAndDiscardDraft(sessionId, session)
+    },
+    [closeResourceView, setActiveSessionAndDiscardDraft]
+  )
+  // Classic-layout reset after deleting the active agent: select the latest remaining
+  // session (across other agents), or clear to the empty state. Never open the
+  // draft compose — that belongs to the modern layout. Filter by the deleted id so
+  // this is correct even before the session cache refetches.
+  const handleActiveAgentDeleted = useCallback(
+    (deletedAgentId: string) => {
+      const nextSession = findLatestUpdated(
+        classicLayoutSessions.filter((session) => session.agentId !== deletedAgentId)
+      )
+      if (nextSession) {
+        setActiveSessionAndDiscardDraft(nextSession.id, nextSession)
+        return
+      }
+      setPendingLocateMessageId(undefined)
+      setMissingAgentDraft(false)
+      setDraftSessionState(null)
+      pendingSelectedSessionRef.current = null
+      setActiveSessionId(null)
+    },
+    [classicLayoutSessions, setActiveSessionAndDiscardDraft, setActiveSessionId, setDraftSessionState]
   )
 
   const ensurePersistentSession = useCallback(
@@ -481,11 +744,11 @@ const AgentPage = () => {
         throw new Error('Draft session handoff failed: no active draft session')
       }
 
-      const trimmed = initialName?.trim()
+      const temporaryTitle = buildFirstUserMessageTitle(initialName ?? '')
       const session = await dataApiService.post('/agent-sessions', {
         body: {
           agentId: current.agentId,
-          name: trimmed ? trimmed.slice(0, 30) : t('common.unnamed'),
+          name: temporaryTitle || '',
           workspace: current.workspaceSource
         }
       })
@@ -508,7 +771,7 @@ const AgentPage = () => {
       })
       return persisted
     },
-    [invalidateCache, setActiveSessionId, setDraftSessionState, setLastUsedAgentId, setLastUsedWorkspaceId, t]
+    [invalidateCache, setActiveSessionId, setDraftSessionState, setLastUsedAgentId, setLastUsedWorkspaceId]
   )
   const replaceDraftAgent = useCallback(
     async (agentId: string | null) => {
@@ -527,7 +790,7 @@ const AgentPage = () => {
         setLastUsedAgentId(agentId)
         setActiveSessionId(null)
       } catch (err) {
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
         setReplacingDraftAgent(false)
       }
@@ -567,58 +830,298 @@ const AgentPage = () => {
         setActiveSessionId(null)
       } catch (err) {
         logger.error('Failed to replace draft workspace', err as Error, { workspaceId })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
       } finally {
         setReplacingDraftWorkspace(false)
       }
     },
     [buildDraftSession, replacingDraftWorkspace, setActiveSessionId, setDraftSessionState, setLastUsedWorkspaceId, t]
   )
+  const replaceSessionWorkspace = useCallback(
+    async (workspaceId: string | null) => {
+      const current = visibleSession
+      if (!isClassicSessionLayout || !current) return
+
+      const currentIsSystemWorkspace = current.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM
+      if (workspaceId === null && currentIsSystemWorkspace) return
+      if (workspaceId && isUserWorkspaceSession(current) && workspaceId === current.workspaceId) {
+        setLastUsedWorkspaceId(workspaceId)
+        return
+      }
+      if (replacingSessionWorkspace) return
+
+      setReplacingSessionWorkspace(true)
+      try {
+        const workspaceSource: AgentSessionWorkspaceSource = workspaceId
+          ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId }
+          : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        const updated = await setSessionWorkspace(current.id, workspaceSource)
+        if (!updated) return
+
+        pendingSelectedSessionRef.current = updated
+        if (workspaceId) {
+          setLastUsedWorkspaceId(workspaceId)
+        }
+        setActiveSessionId(updated.id)
+      } finally {
+        setReplacingSessionWorkspace(false)
+      }
+    },
+    [
+      isClassicSessionLayout,
+      replacingSessionWorkspace,
+      setActiveSessionId,
+      setLastUsedWorkspaceId,
+      setSessionWorkspace,
+      visibleSession
+    ]
+  )
   const handleLocateMessageHandled = useCallback(() => {
     setPendingLocateMessageId(undefined)
   }, [])
 
-  const panePosition = 'left'
+  // Classic layout = entity rail + right session panel; modern layout = the single sidebar (AgentSidePanel).
+  const activeResourceAgentId = visibleSession?.agentId ?? visibleDraftSession?.agentId ?? null
+  const sessionResourcePaneCount: ResourcePaneCountButtonProps | undefined =
+    isClassicSessionLayout && panePosition === 'right' && activeResourceAgentId
+      ? {
+          label: t('agent.session.list.title'),
+          count: classicLayoutSessions.filter((session) => session.agentId === activeResourceAgentId).length
+        }
+      : undefined
+  const createAndActivateEmptySession = useCallback(async () => {
+    if (isCreatingClassicEmptySessionRef.current) return
+    isCreatingClassicEmptySessionRef.current = true
+
+    try {
+      closeResourceView()
+      const agentId = activeResourceAgentId
+      if (!agentId) return
+
+      const workspaceSource: AgentSessionWorkspaceSource = visibleDraftSession
+        ? visibleDraftSession.workspaceSource
+        : visibleSession?.workspace?.type === AGENT_WORKSPACE_TYPE.SYSTEM
+          ? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+          : visibleSession?.workspaceId
+            ? { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: visibleSession.workspaceId }
+            : { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+
+      // Composer "new session" stays in the current workspace, so only reuse a placeholder that
+      // matches it. See findReusableEmptySession.
+      const reusableSession = findReusableEmptySession(
+        classicLayoutSessions,
+        (candidate) => candidate.agentId === agentId && sessionMatchesWorkspaceSource(candidate, workspaceSource)
+      )
+      const session =
+        reusableSession ??
+        (await dataApiService.post('/agent-sessions', {
+          body: {
+            agentId,
+            name: '',
+            workspace: workspaceSource
+          }
+        }))
+
+      setPendingLocateMessageId(undefined)
+      pendingSelectedSessionRef.current = session
+      setDraftSessionState(null)
+      setMissingAgentDraft(false)
+      rememberLastUsedSession(agentId, isUserWorkspaceSession(session) ? session.workspaceId : undefined)
+      setActiveSessionId(session.id)
+      if (!reusableSession) {
+        void invalidateCache(['/agent-sessions', '/agent-workspaces', `/agent-sessions/${session.id}`]).catch((err) => {
+          logger.warn('Failed to refresh session metadata after composer session create', err as Error)
+        })
+      }
+    } catch (err) {
+      logger.error('Failed to create empty agent session from classic-layout composer', err as Error, {
+        agentId: activeResourceAgentId
+      })
+      toast.error(formatErrorMessageWithPrefix(err, t('agent.session.create.error.failed')))
+    } finally {
+      isCreatingClassicEmptySessionRef.current = false
+    }
+  }, [
+    activeResourceAgentId,
+    closeResourceView,
+    invalidateCache,
+    classicLayoutSessions,
+    rememberLastUsedSession,
+    setActiveSessionId,
+    setDraftSessionState,
+    t,
+    visibleDraftSession,
+    visibleSession?.workspace?.type,
+    visibleSession?.workspaceId
+  ])
+  const setSessionListPosition = useCallback(
+    async (position: TopicTabPosition) => {
+      await setSessionDisplayMode('agent')
+      if (position === 'left') {
+        const activeAgentId = visibleSession?.agentId ?? visibleDraftSession?.agentId
+        const collapsedAgentGroupIds = Array.from(
+          new Set(
+            classicLayoutSessions
+              .map((session) => session.agentId)
+              .filter((agentId): agentId is string => !!agentId && agentId !== activeAgentId)
+              .map((agentId) => `session:agent:${agentId}`)
+          )
+        )
+        setSessionExpansionAgent(collapsedAgentGroupIds)
+      }
+      await setPanePosition(position)
+      setSessionPaneOpen(position === 'right', { force: true })
+      setResourceListOpen(true)
+    },
+    [
+      classicLayoutSessions,
+      setPanePosition,
+      setResourceListOpen,
+      setSessionDisplayMode,
+      setSessionExpansionAgent,
+      setSessionPaneOpen,
+      visibleDraftSession?.agentId,
+      visibleSession?.agentId
+    ]
+  )
+  const sessionListPosition: TopicTabPosition = isClassicSessionLayout && panePosition === 'right' ? 'right' : 'left'
+  const shellPanePosition: TopicTabPosition = 'left'
+  const pane =
+    isClassicSessionLayout && sessionListPosition === 'right' ? (
+      <AgentResourceList
+        activeAgentId={activeResourceAgentId}
+        onAddAgent={() => {
+          setAgentPickerOpen(true)
+        }}
+        onOpenHistoryRecords={openHistoryRecords}
+        onSelectSession={handleResourceSessionSelect}
+        onSelectedAgentClick={() => {
+          closeResourceView()
+          setSessionPaneOpen(!sessionPaneOpen)
+        }}
+        onStartDraftAgent={(agentId) => startDraftSession({ agentId })}
+        onStartMissingAgentDraft={startMissingAgentDraft}
+        resourceMenuItems={resourceMenuItems}
+        onActiveAgentDeleted={handleActiveAgentDeleted}
+      />
+    ) : (
+      <AgentSidePanel
+        activeSessionId={activeSessionId}
+        onActiveAgentDeleted={handleActiveAgentDeleted}
+        onAddAgent={() => {
+          setAgentPickerOpen(true)
+        }}
+        revealRequest={sessionRevealRequest}
+        onOpenHistoryRecords={openHistoryRecords}
+        onStartDraftSession={startDraftSession}
+        onStartMissingAgentDraft={isMessageOnlyView ? undefined : startMissingAgentDraft}
+        onSetPanePosition={setSessionListPosition}
+        panePosition="left"
+        resourceMenuItems={resourceMenuItems}
+        setActiveSessionId={setActiveSessionAndDiscardDraft}
+      />
+    )
+  // In classic layout the session list moves into the chat's right pane as a tab; AgentChat keeps the
+  // pane provider per-branch (its Shell meta is bound to per-session runtime, unlike Home), so the
+  // config is threaded into each branch rather than lifted to this page.
+  const resourcePane: ResourcePaneConfig | null =
+    isClassicSessionLayout && sessionListPosition === 'right'
+      ? {
+          label: t('agent.session.list.title'),
+          node: (
+            <Sessions
+              presentation="right-panel"
+              activeSessionId={activeSessionId}
+              agentIdFilter={activeResourceAgentId}
+              onActiveAgentDeleted={handleActiveAgentDeleted}
+              revealRequest={sessionRevealRequest}
+              onStartDraftSession={startDraftSession}
+              onStartMissingAgentDraft={isMessageOnlyView ? undefined : startMissingAgentDraft}
+              onSetPanePosition={setSessionListPosition}
+              panePosition="right"
+              setActiveSessionId={setActiveSessionAndDiscardDraft}
+            />
+          )
+        }
+      : null
+  const resourceCenter = useMemo(
+    () =>
+      activeResourceViewKind
+        ? {
+            className: 'relative',
+            content: (
+              <ConversationResourceView
+                kind={activeResourceViewKind}
+                toolbarLeading={
+                  !isMessageOnlyView && !isWindowFrame ? (
+                    <ConversationSidebarToggleButton
+                      sidebarOpen={effectiveShowSidebar}
+                      onSidebarToggle={toggleResourceListOpen}
+                      tooltipPlacement="bottom"
+                    />
+                  ) : undefined
+                }
+              />
+            )
+          }
+        : null,
+    [activeResourceViewKind, effectiveShowSidebar, isMessageOnlyView, isWindowFrame, toggleResourceListOpen]
+  )
 
   return (
     <Container>
       <div className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
-        <AgentChat
-          activeSession={visibleSession}
-          activeSessionLoading={isActiveSessionLoading}
-          activeSessionSource={activeSessionSource}
-          pane={
-            <AgentSidePanel
-              activeSessionId={activeSessionId}
-              revealRequest={sessionRevealRequest}
-              onOpenHistoryRecords={openHistoryRecords}
-              onStartDraftSession={startDraftSession}
-              onStartMissingAgentDraft={isMessageOnlyView ? undefined : startMissingAgentDraft}
-              setActiveSessionId={setActiveSessionAndDiscardDraft}
-            />
-          }
-          lockedSession={isMessageOnlyView ? (routeSession ?? null) : undefined}
-          lockedSessionLoading={isMessageOnlyView && isRouteSessionLoading}
-          paneOpen={effectiveShowSidebar}
-          panePosition={panePosition}
-          onPaneCollapse={() => setResourceListOpen(false)}
-          showResourceListControls={!isMessageOnlyView && !isWindowFrame}
-          sidebarOpen={effectiveShowSidebar}
-          onSidebarToggle={toggleResourceListOpen}
-          draftConversation={isMessageOnlyView ? null : visibleDraftSession}
-          missingAgentDraft={!isMessageOnlyView && missingAgentDraft && !visibleSession && !visibleDraftSession}
-          onStartDraftSession={isMessageOnlyView ? undefined : startDraftSession}
-          onMissingAgentDraftAgentChange={isMessageOnlyView ? undefined : startMissingAgentDraftSession}
-          onEnsurePersistentSession={isMessageOnlyView ? undefined : ensurePersistentSession}
-          onDraftAgentChange={isMessageOnlyView ? undefined : replaceDraftAgent}
-          onDraftWorkspaceChange={isMessageOnlyView ? undefined : replaceDraftWorkspace}
-          onVisibleAgentChange={isMessageOnlyView ? undefined : setLastUsedAgentId}
-          onVisibleWorkspaceChange={isMessageOnlyView ? undefined : setLastUsedWorkspaceId}
-          locateMessageId={pendingLocateMessageId}
-          onLocateMessageHandled={handleLocateMessageHandled}
-          replacingDraftAgent={replacingDraftAgent}
-          replacingDraftWorkspace={replacingDraftWorkspace}
-        />
+        {resourceCenter ? (
+          <ConversationPageShell
+            center={resourceCenter}
+            pane={pane}
+            paneOpen={effectiveShowSidebar}
+            panePosition={shellPanePosition}
+            onPaneCollapse={() => setResourceListOpen(false)}
+            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
+          />
+        ) : (
+          <AgentChat
+            activeSession={visibleSession}
+            activeSessionLoading={isActiveSessionLoading}
+            activeSessionSource={activeSessionSource}
+            pane={pane}
+            lockedSession={isMessageOnlyView ? (routeSession ?? null) : undefined}
+            lockedSessionLoading={isMessageOnlyView && isRouteSessionLoading}
+            paneOpen={effectiveShowSidebar}
+            panePosition={shellPanePosition}
+            onPaneCollapse={() => setResourceListOpen(false)}
+            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
+            showResourceListControls={!isMessageOnlyView && !isWindowFrame}
+            sidebarOpen={effectiveShowSidebar}
+            onSidebarToggle={toggleResourceListOpen}
+            draftConversation={isMessageOnlyView ? null : visibleDraftSession}
+            missingAgentDraft={!isMessageOnlyView && missingAgentDraft && !visibleSession && !visibleDraftSession}
+            onStartDraftSession={isMessageOnlyView ? undefined : startDraftSession}
+            onCreateEmptySession={
+              isClassicSessionLayout && !isMessageOnlyView ? createAndActivateEmptySession : undefined
+            }
+            onMissingAgentDraftAgentChange={isMessageOnlyView ? undefined : startMissingAgentDraftSession}
+            onEnsurePersistentSession={isMessageOnlyView ? undefined : ensurePersistentSession}
+            onDraftAgentChange={isMessageOnlyView ? undefined : replaceDraftAgent}
+            onDraftWorkspaceChange={isMessageOnlyView ? undefined : replaceDraftWorkspace}
+            onSessionWorkspaceChange={
+              isClassicSessionLayout && !isMessageOnlyView ? replaceSessionWorkspace : undefined
+            }
+            onVisibleAgentChange={isMessageOnlyView ? undefined : setLastUsedAgentId}
+            onVisibleWorkspaceChange={isMessageOnlyView ? undefined : setLastUsedWorkspaceId}
+            locateMessageId={pendingLocateMessageId}
+            onLocateMessageHandled={handleLocateMessageHandled}
+            replacingDraftAgent={replacingDraftAgent}
+            replacingDraftWorkspace={replacingDraftWorkspace}
+            replacingSessionWorkspace={replacingSessionWorkspace}
+            resourcePane={resourcePane}
+            resourcePaneCount={sessionResourcePaneCount}
+            resourcePaneRevealRequest={sessionRevealRequest}
+            sessionPaneOpen={isClassicSessionLayout ? sessionPaneOpen : undefined}
+            onSessionPaneOpenChange={isClassicSessionLayout ? setSessionPaneOpen : undefined}
+          />
+        )}
       </div>
       <HistoryRecordsPage
         mode="agent"
@@ -627,6 +1130,15 @@ const AgentPage = () => {
         onClose={closeHistoryRecords}
         onRecordSelect={handleHistoryRecordsSessionSelect}
       />
+      {isClassicSessionLayout && (
+        <AgentConversationPickerDialog
+          open={agentPickerOpen}
+          onOpenChange={setAgentPickerOpen}
+          agents={agents}
+          agentsLoading={isAgentsLoading}
+          onSelect={handleAgentConversationSelect}
+        />
+      )}
     </Container>
   )
 }

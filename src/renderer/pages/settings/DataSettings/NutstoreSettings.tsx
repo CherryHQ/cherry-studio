@@ -2,10 +2,18 @@ import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import NutstorePathPopup from '@renderer/components/Popups/NutsorePathPopup'
 import Selector from '@renderer/components/Selector'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import {
   backupToNutstore,
@@ -16,6 +24,8 @@ import {
   startNutstoreAutoSync,
   stopNutstoreAutoSync
 } from '@renderer/services/NutstoreService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
 import { Check, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
@@ -23,8 +33,6 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type FileStat } from 'webdav'
-
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
@@ -79,14 +87,10 @@ const NutstoreSettings: FC = () => {
   }, [nutstoreToken, setNutstorePath, nutstorePath])
 
   const handleLayout = useCallback(async () => {
-    const confirmedLogout = await new Promise<boolean>((resolve) => {
-      window.modal.confirm({
-        centered: true,
-        title: t('settings.data.nutstore.logout.title'),
-        content: t('settings.data.nutstore.logout.content'),
-        onOk: () => resolve(true),
-        onCancel: () => resolve(false)
-      })
+    const confirmedLogout = await popup.confirm({
+      centered: true,
+      title: t('settings.data.nutstore.logout.title'),
+      content: t('settings.data.nutstore.logout.content')
     })
     if (confirmedLogout) {
       void setNutstoreToken('')
@@ -101,7 +105,7 @@ const NutstoreSettings: FC = () => {
     setCheckConnectionLoading(true)
     const isConnectedToNutstore = await checkConnection()
 
-    window.toast[isConnectedToNutstore ? 'success' : 'error']({
+    toast[isConnectedToNutstore ? 'success' : 'error']({
       timeout: 2000,
       title: isConnectedToNutstore
         ? t('settings.data.nutstore.checkConnection.success')

@@ -17,9 +17,10 @@ import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
-import { DataApiError, ErrorCode } from '@shared/data/api'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type {
   BranchMessagesResponse,
   CherryUIMessage,
@@ -310,7 +311,7 @@ export function useChatWriteActions(params: Params): Result {
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveNode on unpersisted message', { messageId, topicId: topic.id })
-          window.toast.warning('Message is still syncing — try again in a moment')
+          toast.warning('Message is still syncing — try again in a moment')
           return
         }
         throw err
@@ -332,7 +333,7 @@ export function useChatWriteActions(params: Params): Result {
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveBranch on unpersisted message', { throughNodeId, topicId: topic.id })
-          window.toast.warning('Message is still syncing — try again in a moment')
+          toast.warning('Message is still syncing — try again in a moment')
           return
         }
         throw err

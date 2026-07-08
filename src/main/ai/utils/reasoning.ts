@@ -58,7 +58,7 @@ import {
 import { isSupportEnableThinkingProvider } from '@shared/utils/provider'
 import { EFFORT_RATIO } from '@shared/utils/reasoning'
 import { isSystemProviderId, SystemProviderIds } from '@shared/utils/systemProviderId'
-import { toInteger } from 'lodash'
+import { toInteger } from 'es-toolkit/compat'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
 const logger = loggerService.withContext('reasoning')

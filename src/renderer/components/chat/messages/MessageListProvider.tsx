@@ -40,6 +40,7 @@ type MessageListDataValue = Pick<
   | 'topic'
   | 'beforeList'
   | 'isInitialLoading'
+  | 'isMessagesStale'
   | 'hasOlder'
   | 'messageNavigation'
   | 'estimateSize'
@@ -87,6 +88,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       topic: state.topic,
       beforeList: state.beforeList,
       isInitialLoading: state.isInitialLoading,
+      isMessagesStale: state.isMessagesStale,
       hasOlder: state.hasOlder,
       messageNavigation: state.messageNavigation,
       estimateSize: state.estimateSize,
@@ -99,6 +101,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.topic,
       state.beforeList,
       state.isInitialLoading,
+      state.isMessagesStale,
       state.hasOlder,
       state.messageNavigation,
       state.estimateSize,

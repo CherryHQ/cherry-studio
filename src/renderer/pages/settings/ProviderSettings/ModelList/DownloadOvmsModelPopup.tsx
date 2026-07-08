@@ -1,7 +1,8 @@
 import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { TopView } from '@renderer/components/TopView'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,9 +18,7 @@ interface ShowParams {
   provider: Provider
 }
 
-interface Props extends ShowParams {
-  resolve: (data: any) => unknown
-}
+type Props = ShowParams & PopupInjectedProps<any>
 
 type OvmsDownloadTask = 'embeddings' | 'image_generation' | 'rerank' | 'text_generation'
 
@@ -89,8 +88,7 @@ const PRESET_MODELS: PresetModel[] = [
   }
 ]
 
-const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
-  const [open, setOpen] = useState(true)
+const PopupContainer: React.FC<Props> = ({ title, resolve, open }) => {
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [cancelled, setCancelled] = useState(false)
@@ -183,7 +181,6 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       }
       return
     }
-    setOpen(false)
     resolve({})
   }
 
@@ -215,8 +212,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
       if (result.success) {
         stopFakeProgress(true) // Complete the progress bar
-        window.toast.success(t('ovms.download.success_desc', { modelName: modelName, modelId: modelId }))
-        setOpen(false)
+        toast.success(t('ovms.download.success_desc', { modelName: modelName, modelId: modelId }))
         resolve({})
       } else {
         stopFakeProgress(false) // Reset progress on error
@@ -345,23 +341,6 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   )
 }
 
-export default class DownloadOvmsModelPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide('DownloadOvmsModelPopup')
-  }
-  static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            this.hide()
-          }}
-        />,
-        'DownloadOvmsModelPopup'
-      )
-    })
-  }
-}
+const DownloadOvmsModelPopup = createPopup<ShowParams, any>(PopupContainer, { dismissResult: {} })
+
+export default DownloadOvmsModelPopup

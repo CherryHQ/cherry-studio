@@ -18,7 +18,7 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: () => ['anchor']
 }))
 
-vi.mock('@renderer/hooks/agents/useSession', () => ({
+vi.mock('@renderer/hooks/agent/useSession', () => ({
   useSession: () => ({
     session: {
       id: 'session-1',

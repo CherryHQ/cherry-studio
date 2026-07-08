@@ -15,29 +15,38 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
+import {
+  ResourceEditDialogHost,
+  type ResourceEditDialogTarget
+} from '@renderer/components/resourceCatalog/dialogs/edit'
 import {
   type DynamicVirtualListRef,
   GroupedVirtualList,
   type GroupedVirtualListGroup
 } from '@renderer/components/VirtualList'
+import { useTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
-import { useTabs } from '@renderer/hooks/useTabs'
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
+import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
 import { ChevronDown, Clock3, CornerDownLeft, Search, X } from 'lucide-react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  areGlobalSearchRecentEntriesEqual,
+  getDisplayGlobalSearchRecentEntries,
+  getGlobalSearchRecentEntryId,
   type GlobalMessageSearchPanelItem,
   type GlobalMessageSearchResult,
   type GlobalMessageSearchSourceFilter,
   type GlobalSearchFilter,
   type GlobalSearchPanelGroup,
-  type GlobalSearchPanelGroupFooter
+  type GlobalSearchPanelGroupFooter,
+  sanitizeGlobalSearchRecentEntries
 } from './globalSearchGroups'
 import {
   GlobalSearchMessagePreviewPanel,
@@ -52,6 +61,12 @@ import {
   GlobalSearchRow,
   GlobalSearchState
 } from './GlobalSearchResults'
+import type {
+  GlobalSearchAgentSessionMessageSelectionPayload,
+  GlobalSearchAgentSessionSelectionPayload,
+  GlobalSearchTopicMessageSelectionPayload,
+  GlobalSearchTopicSelectionPayload
+} from './globalSearchSelectionEvents'
 import {
   getGlobalSearchFooterItemId,
   getGlobalSearchOptionDomId,
@@ -80,6 +95,8 @@ const MESSAGE_SOURCE_FILTER_BUTTONS: Exclude<GlobalMessageSearchSourceFilter, 'a
 const SEARCH_SCOPE_CONTROL_CLASS_NAME =
   'h-7 shrink-0 border-border-subtle bg-muted/40 p-0.5 [&_[role=radio]]:h-6 [&_[role=radio]]:px-2 [&_[role=radio]]:text-xs [&_[role=radio]]:leading-none'
 const logger = loggerService.withContext('GlobalSearchPanel')
+const RECENT_ITEMS_REFRESH_THROTTLE_MS = 60 * 1000 // 1 minute throttle
+const recentRefreshHistory = new Map<string, number>()
 const FILTER_LABEL_KEYS: Record<GlobalSearchFilter, string> = {
   all: 'globalSearch.filters.all',
   topic: 'globalSearch.filters.topic',
@@ -212,6 +229,10 @@ function emitGlobalSearchSelection(eventName: string, payload: unknown, context:
   })
 }
 
+function logMissingSelectionTarget(context: Record<string, unknown>) {
+  logger.warn('Skipped global search selection event without target tab', context)
+}
+
 function getGroupedVirtualListRowIndex<TGroup, TItem, TFooter>(
   groups: readonly GroupedVirtualListGroup<TGroup, TItem, TGroup, TFooter>[],
   itemId: string,
@@ -300,7 +321,8 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const [expandedMessageParentIds, setExpandedMessageParentIds] = useState<ReadonlySet<string>>(() => new Set())
   const [messagePreviewTarget, setMessagePreviewTarget] = useState<GlobalSearchMessagePreviewTarget | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
-  const [recentItems] = usePersistCache('ui.global_search.recent_items')
+  const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const sanitizedRecentItems = useMemo(() => sanitizeGlobalSearchRecentEntries(recentItems ?? []), [recentItems])
   const [userName] = usePreference('app.user.name')
   const {
     error,
@@ -325,7 +347,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     filter,
     messageSourceFilter,
     panelMode,
-    recentItems,
+    recentItems: sanitizedRecentItems,
     timeFilter
   })
   const { activeItemId, keyboardItems, messageSelectableItems, moveActiveItem, selectableItems, setActiveItemId } =
@@ -355,6 +377,91 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   }, [])
 
   useEffect(() => {
+    if (!recentItems || sanitizedRecentItems === recentItems) return
+    setRecentItems(sanitizedRecentItems)
+  }, [recentItems, sanitizedRecentItems, setRecentItems])
+
+  // On open: best-effort refresh of up to GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT
+  // recent topic/session titles. Persisted snapshots may carry stale titles
+  // when the entity was renamed after the last visit; a single parallel
+  // fetch per id corrects the snapshot in place. Failures (deleted entity,
+  // network) silently fall back to the cached title. Runs once per mount
+  // (deps intentionally empty); the functional setRecentItems updater reads the
+  // latest snapshot when the fetch resolves, so the effect doesn't re-run.
+  useEffect(() => {
+    const display = getDisplayGlobalSearchRecentEntries(sanitizedRecentItems)
+    type Refreshable = Extract<GlobalSearchRecentEntry, { kind: 'topic' | 'session' }>
+    const refreshable: Refreshable[] = display.flatMap((entry): Refreshable[] => {
+      if (entry.kind === 'route') return []
+      return [entry]
+    })
+
+    const now = Date.now()
+    const due = refreshable.filter((entry) => {
+      if (entry.title.trim() === '') return true
+      const lastRefresh = recentRefreshHistory.get(getGlobalSearchRecentEntryId(entry)) ?? 0
+      return now - lastRefresh > RECENT_ITEMS_REFRESH_THROTTLE_MS
+    })
+
+    if (due.length === 0) return
+
+    let cancelled = false
+    void Promise.all(
+      due.map(async (entry) => {
+        const refreshKey = getGlobalSearchRecentEntryId(entry)
+        // Don't poison the cooldown on failure: only mark the throttle slot
+        // after a fetch resolves (success or empty-name) so retries aren't
+        // blocked for an entry we never actually refreshed.
+        try {
+          const fetched = await dataApiService.get(
+            entry.kind === 'topic' ? `/topics/${entry.topicId}` : `/agent-sessions/${entry.sessionId}`
+          )
+          const name = (fetched as { name?: string })?.name?.trim()
+          if (name) {
+            recentRefreshHistory.set(refreshKey, Date.now())
+            return { id: refreshKey, name }
+          }
+          recentRefreshHistory.set(refreshKey, Date.now())
+          return null
+        } catch (error) {
+          logger.warn('Failed to refresh recent title', { entryKind: entry.kind, id: refreshKey, error })
+          return null
+        }
+      })
+    ).then((results) => {
+      if (cancelled) return
+      const updates = new Map<string, string>()
+      for (const result of results) {
+        if (!result) continue
+        updates.set(result.id, result.name)
+      }
+      if (updates.size === 0) return
+      // Functional update resolves against the latest persisted value (the list
+      // may have changed during the fetch). Returning `current` unchanged lets
+      // the CacheService isEqual short-circuit drop the write.
+      setRecentItems((prev) => {
+        const current = [...(prev ?? [])]
+        const next = current.map((entry) => {
+          if (entry.kind === 'route') return entry
+          const updateName = updates.get(getGlobalSearchRecentEntryId(entry))
+          // Compare against the trimmed name so a fetch returning "" or " "
+          // never overwrites a non-empty cached title; the empty-title bypass
+          // above keeps refetching until the server actually returns one.
+          return updateName && entry.title.trim() !== updateName ? { ...entry, title: updateName } : entry
+        })
+        return next.every((entry, index) => areGlobalSearchRecentEntriesEqual(entry, current[index])) ? current : next
+      })
+    })
+
+    return () => {
+      cancelled = true
+    }
+    // Mount-only: sanitizedRecentItems is read once (closure-captured at mount)
+    // and updates flow through the functional setRecentItems updater.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
     setExpandedSearchGroupIds(new Set())
     setExpandedMessageParentIds(new Set())
     setMessagePreviewTarget(null)
@@ -369,12 +476,25 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     async (topicId: string) => {
       const apiTopic = await dataApiService.get(`/topics/${topicId}`)
       const topic = mapApiTopicToRendererTopic(apiTopic)
-      chatNav.openConversationTab(topic.id)
+      const targetTabId = chatNav.openConversationTab(topic.id)
+      if (!targetTabId) {
+        logMissingSelectionTarget({ eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, topicId })
+        onClose()
+        return
+      }
       window.requestAnimationFrame(() => {
-        emitGlobalSearchSelection(EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC, topic, {
-          eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC,
-          topicId
-        })
+        emitGlobalSearchSelection(
+          EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC,
+          {
+            targetTabId,
+            topic
+          } satisfies GlobalSearchTopicSelectionPayload,
+          {
+            eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC,
+            targetTabId,
+            topicId
+          }
+        )
       })
       onClose()
     },
@@ -383,12 +503,25 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
   const openSession = useCallback(
     (sessionId: string) => {
-      agentNav.openConversationTab(sessionId)
+      const targetTabId = agentNav.openConversationTab(sessionId)
+      if (!targetTabId) {
+        logMissingSelectionTarget({ eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, sessionId })
+        onClose()
+        return
+      }
       window.requestAnimationFrame(() => {
-        emitGlobalSearchSelection(EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION, sessionId, {
-          eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION,
-          sessionId
-        })
+        emitGlobalSearchSelection(
+          EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION,
+          {
+            sessionId,
+            targetTabId
+          } satisfies GlobalSearchAgentSessionSelectionPayload,
+          {
+            eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION,
+            sessionId,
+            targetTabId
+          }
+        )
       })
       onClose()
     },
@@ -412,14 +545,20 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
       await dataApiService.put(`/topics/${topicId}/active-node`, { body: { nodeId: activeNodeId } })
       await invalidateCache([`/topics/${topicId}/messages`, `/topics/${topicId}/tree`])
-      chatNav.openConversationTab(topic.id)
+      const targetTabId = chatNav.openConversationTab(topic.id)
+      if (!targetTabId) {
+        logMissingSelectionTarget({ eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE, messageId, topicId })
+        onClose()
+        return
+      }
       window.requestAnimationFrame(() => {
         emitGlobalSearchSelection(
           EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE,
-          { topic, messageId },
+          { messageId, targetTabId, topic } satisfies GlobalSearchTopicMessageSelectionPayload,
           {
             eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE,
             messageId,
+            targetTabId,
             topicId
           }
         )
@@ -437,15 +576,25 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         `/agent-sessions/${sessionId}`,
         `/agent-sessions/${sessionId}/messages`
       ])
-      agentNav.openConversationTab(sessionId)
+      const targetTabId = agentNav.openConversationTab(sessionId)
+      if (!targetTabId) {
+        logMissingSelectionTarget({
+          eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE,
+          messageId,
+          sessionId
+        })
+        onClose()
+        return
+      }
       window.requestAnimationFrame(() => {
         emitGlobalSearchSelection(
           EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE,
-          { sessionId, messageId },
+          { messageId, sessionId, targetTabId } satisfies GlobalSearchAgentSessionMessageSelectionPayload,
           {
             eventName: EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE,
             messageId,
-            sessionId
+            sessionId,
+            targetTabId
           }
         )
       })
@@ -473,14 +622,14 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       if (target.sourceType === 'topic') {
         void openTopicMessageById(target.topicId, target.messageId).catch((error) => {
           logOpenFailure(error, target)
-          window.toast?.error(t('globalSearch.open_failed'))
+          toast.error(t('globalSearch.open_failed'))
         })
         return
       }
 
       void openSessionMessageById(target.sessionId, target.messageId).catch((error) => {
         logOpenFailure(error, target)
-        window.toast?.error(t('globalSearch.open_failed'))
+        toast.error(t('globalSearch.open_failed'))
       })
     },
     [openSessionMessageById, openTopicMessageById, t]
@@ -628,7 +777,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         }
       } catch (error) {
         logOpenFailure(error, getOpenItemLogContext(item))
-        window.toast?.error(t('globalSearch.open_failed'))
+        toast.error(t('globalSearch.open_failed'))
       }
     },
     [onClose, openGlobalSearchFooter, openKnowledgeBase, openMessagePanelItem, openSession, openTab, openTopic, t]
@@ -1020,4 +1169,8 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       />
     </div>
   )
+}
+
+export const testOnlyClearRefreshHistory = () => {
+  recentRefreshHistory.clear()
 }

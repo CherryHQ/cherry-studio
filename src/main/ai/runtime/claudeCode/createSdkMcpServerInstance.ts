@@ -64,8 +64,8 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
  * in-memory (`type: 'sdk'`) transport, keeping all communication
  * within the Electron main process.
  */
-export async function createSdkMcpServerInstance(mcpId: string): Promise<McpServer> {
-  const serverConfig = await mcpServerService.findByIdOrName(mcpId)
+export function createSdkMcpServerInstance(mcpId: string): McpServer {
+  const serverConfig = mcpServerService.findByIdOrName(mcpId)
   if (!serverConfig) {
     throw new Error(`MCP server not found: ${mcpId}`)
   }
@@ -84,7 +84,7 @@ export async function createSdkMcpServerInstance(mcpId: string): Promise<McpServ
   rawServer.setRequestHandler(ListToolsRequestSchema, async () => {
     try {
       logger.debug('SDK bridge: listing tools', { mcpId })
-      const tools = await application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false })
+      const tools = application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false })
       return {
         tools: tools.map(toSdkTool)
       }

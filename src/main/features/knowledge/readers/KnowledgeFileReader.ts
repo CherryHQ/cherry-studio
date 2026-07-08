@@ -1,4 +1,4 @@
-import { getFileExt } from '@main/utils/file'
+import { getFileExt } from '@main/utils/legacyFile'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
 import type { FilePath } from '@shared/types/file'
 import { Document, type FileReader as VectorStoreFileReader } from '@vectorstores/core'

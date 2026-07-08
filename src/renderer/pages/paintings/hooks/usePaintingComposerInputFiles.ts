@@ -1,9 +1,10 @@
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
-import type { FilePath } from '@shared/types/file/common'
-import { getFileTypeByExt } from '@shared/utils/file/fileType'
+import type { FileEntry } from '@shared/data/types/file'
+import type { FilePath } from '@shared/types/file'
+import { getFileTypeByExt } from '@shared/utils/file'
 import { type Dispatch, type SetStateAction, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -137,7 +138,7 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
       if (failedSourceIds.length > 0) {
         const failed = new Set(failedSourceIds)
         setFiles((prev) => prev.filter((file) => !failed.has(file.fileTokenSourceId)))
-        window.toast?.error(t('paintings.image_file_retry'))
+        toast.error(t('paintings.image_file_retry'))
       }
 
       // Carry through entries that failed to seed so a transient read error can't

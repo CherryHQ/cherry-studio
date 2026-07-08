@@ -2,10 +2,6 @@ import {
   Alert,
   Badge,
   Button,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
   Flex,
   Form,
   FormControl,
@@ -17,6 +13,7 @@ import {
   Input,
   RadioGroup,
   RadioGroupItem,
+  SegmentedControl,
   Select,
   SelectContent,
   SelectItem,
@@ -25,22 +22,22 @@ import {
   Switch,
   Tabs,
   TabsContent,
-  TabsList,
-  TabsTrigger,
   Textarea
 } from '@cherrystudio/ui'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { DeleteIcon } from '@renderer/components/Icons'
+import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useSharedCache } from '@renderer/data/hooks/useCache'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServer } from '@renderer/hooks/useMcpServer'
-import { useMcpServerTrust } from '@renderer/hooks/useMcpServerTrust'
+import { useTheme } from '@renderer/hooks/useTheme'
 import McpDescription from '@renderer/pages/settings/McpSettings/McpDescription'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { McpTool } from '@renderer/types/tool'
 import { parseKeyValueString } from '@renderer/utils/env'
 import { formatMcpError } from '@renderer/utils/error'
@@ -49,16 +46,16 @@ import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
 import { useNavigate, useParams } from '@tanstack/react-router'
-import { ArrowLeft, ChevronDown, SaveIcon, X } from 'lucide-react'
-import React, { useCallback, useEffect, useState } from 'react'
+import { ArrowLeft, SaveIcon } from 'lucide-react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
 
-import { SettingContainer, SettingDivider, SettingTitle } from '..'
 import McpPromptsSection from './McpPrompt'
 import McpResourcesSection from './McpResource'
 import McpToolsSection from './McpTool'
+import { useMcpServerTrust } from './useMcpServerTrust'
 import { toUpdateMcpServerDto } from './utils'
 
 const logger = loggerService.withContext('McpSettings')
@@ -111,7 +108,7 @@ const PipRegistry: Registry[] = [
   { name: '腾讯云', url: 'https://mirrors.cloud.tencent.com/pypi/simple/' }
 ]
 
-type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
+type TabKey = 'settings' | 'description' | 'logs' | 'tools' | 'prompts' | 'resources'
 type McpTabItem = {
   key: TabKey
   label: React.ReactNode
@@ -167,10 +164,9 @@ const McpSettings: React.FC = () => {
   const [customRegistryUrl, setCustomRegistryUrl] = useState('')
   const [selectedRegistryType, setSelectedRegistryType] = useState<string>('')
 
-  const [showAdvanced, setShowAdvanced] = useState(false)
   const [serverVersion, setServerVersion] = useState<string | null>(null)
-  const [logModalOpen, setLogModalOpen] = useState(false)
   const [logs, setLogs] = useState<(McpServerLogEntry & { serverId?: string })[]>([])
+  const fetchServerLogsRequestRef = useRef(0)
 
   const { theme } = useTheme()
 
@@ -313,11 +309,14 @@ const McpSettings: React.FC = () => {
     }
   }
 
-  const fetchServerLogs = async () => {
-    if (!server) return
+  const fetchServerLogs = async (serverId = server?.id) => {
+    if (!serverId) return
+    const requestId = ++fetchServerLogsRequestRef.current
     try {
-      const history = await window.api.mcp.getServerLogs(server.id)
-      setLogs(history)
+      const history = await window.api.mcp.getServerLogs(serverId)
+      if (requestId === fetchServerLogsRequestRef.current && serverId === server?.id) {
+        setLogs((prev) => mergeServerLogs(history, prev))
+      }
     } catch (error) {
       logger.warn('Failed to load server logs', error as Error)
     }
@@ -341,8 +340,16 @@ const McpSettings: React.FC = () => {
   }, [server?.id])
 
   useEffect(() => {
+    fetchServerLogsRequestRef.current += 1
     setLogs([])
   }, [server?.id])
+
+  useEffect(() => {
+    if (activeTab === 'logs') {
+      void fetchServerLogs()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, server?.id])
 
   useEffect(() => {
     if (server?.isActive) {
@@ -350,7 +357,6 @@ const McpSettings: React.FC = () => {
       void fetchPrompts()
       void fetchResources()
       void fetchServerVersion()
-      void fetchServerLogs()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [server?.id, server?.isActive])
@@ -413,10 +419,10 @@ const McpSettings: React.FC = () => {
         try {
           await updateMcpServer({ body: { ...mcpServerDto, isActive: true } })
           await window.api.mcp.restartServer(server.id)
-          window.toast.success(t('settings.mcp.updateSuccess'))
+          toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
-          window.modal.error({
+          void popup.error({
             title: t('settings.mcp.updateError'),
             content: error.message,
             centered: true
@@ -424,7 +430,7 @@ const McpSettings: React.FC = () => {
         }
       } else {
         await updateMcpServer({ body: { ...mcpServerDto, isActive: false } })
-        window.toast.success(t('settings.mcp.updateSuccess'))
+        toast.success(t('settings.mcp.updateSuccess'))
         setIsFormChanged(false)
       }
       setLoading(false)
@@ -481,20 +487,20 @@ const McpSettings: React.FC = () => {
   const onDeleteMcpServer = useCallback(
     async (serverToDelete: McpServer) => {
       try {
-        window.modal.confirm({
+        const confirmed = await popup.confirm({
           title: t('settings.mcp.deleteServer'),
           content: t('settings.mcp.deleteServerConfirm'),
           centered: true,
-          okButtonProps: { danger: true },
-          onOk: async () => {
-            await window.api.mcp.removeServer(serverToDelete.id)
-            await deleteMcpServer({})
-            window.toast.success(t('settings.mcp.deleteSuccess'))
-            void navigate({ to: '/settings/mcp' })
-          }
+          okButtonProps: { danger: true }
         })
+        if (!confirmed) return
+
+        await window.api.mcp.removeServer(serverToDelete.id)
+        await deleteMcpServer({})
+        toast.success(t('settings.mcp.deleteSuccess'))
+        void navigate({ to: '/settings/mcp' })
       } catch (error: any) {
-        window.toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
+        toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
       }
     },
 
@@ -539,7 +545,7 @@ const McpSettings: React.FC = () => {
           const version = await window.api.mcp.getServerVersion(serverForUpdate.id)
           setServerVersion(version)
         } catch (error: any) {
-          window.modal.error({
+          void popup.error({
             title: t('settings.mcp.startError'),
             content: formatMcpError(error as McpError),
             centered: true
@@ -551,7 +557,7 @@ const McpSettings: React.FC = () => {
         setServerVersion(null)
       }
     } catch (error: any) {
-      window.modal.error({
+      void popup.error({
         title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
         content: formatMcpError(error as McpError),
         centered: true
@@ -938,75 +944,6 @@ const McpSettings: React.FC = () => {
                 />
               </McpFormGrid>
             </McpFormSection>
-
-            <AdvancedSettingsButton onClick={() => setShowAdvanced(!showAdvanced)}>
-              <ChevronDown
-                size={16}
-                className={cn('transition-transform duration-200', showAdvanced && 'rotate-180')}
-              />
-              {t('common.advanced_settings')}
-            </AdvancedSettingsButton>
-
-            {showAdvanced && (
-              <McpFormSection>
-                <McpFormGrid>
-                  <FormField
-                    control={form.control}
-                    name="provider"
-                    render={({ field }) => (
-                      <FormItem className="min-w-0">
-                        <FormLabel>{t('settings.mcp.provider', 'Provider')}</FormLabel>
-                        <FormControl>
-                          <Input placeholder={t('settings.mcp.providerPlaceholder', 'Provider name')} {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="providerUrl"
-                    render={({ field }) => (
-                      <FormItem className="min-w-0">
-                        <FormLabel>{t('settings.mcp.providerUrl', 'Provider URL')}</FormLabel>
-                        <FormControl>
-                          <Input placeholder="https://provider-website.com" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="logoUrl"
-                    render={({ field }) => (
-                      <FormItem className="min-w-0">
-                        <FormLabel>{t('settings.mcp.logoUrl', 'Logo URL')}</FormLabel>
-                        <FormControl>
-                          <Input placeholder="https://example.com/logo.png" {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="tags"
-                    render={({ field }) => (
-                      <FormItem className="min-w-0 xl:col-span-2">
-                        <FormLabel>{t('settings.mcp.tags', 'Tags')}</FormLabel>
-                        <FormControl>
-                          <TagsInput
-                            value={field.value ?? []}
-                            onChange={(next) => {
-                              field.onChange(next)
-                              setIsFormChanged(true)
-                            }}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </McpFormGrid>
-              </McpFormSection>
-            )}
           </form>
         </Form>
       )
@@ -1061,6 +998,32 @@ const McpSettings: React.FC = () => {
     )
   }
 
+  tabs.push({
+    key: 'logs',
+    label: t('settings.mcp.logs', 'Logs'),
+    children: (
+      <LogList>
+        {logs.length === 0 && (
+          <span className="text-foreground-muted text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
+        )}
+        {logs.map((log, idx) => (
+          <LogItem key={`${log.timestamp}-${idx}`}>
+            <LogHeader>
+              <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
+              <Badge variant="outline" className={mapLogLevelClass(log.level)}>
+                {log.level}
+              </Badge>
+              <LogMessage>{log.message}</LogMessage>
+            </LogHeader>
+            {log.data && (
+              <PreBlock>{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</PreBlock>
+            )}
+          </LogItem>
+        ))}
+      </LogList>
+    )
+  })
+
   const activeTabValue = tabs.some((tab) => tab.key === activeTab) ? activeTab : 'settings'
 
   return (
@@ -1074,7 +1037,7 @@ const McpSettings: React.FC = () => {
           onValueChange={(value) => setActiveTab(value as TabKey)}
           variant="line"
           className="flex min-h-0 flex-1 flex-col bg-transparent">
-          <div className="shrink-0 px-6 pt-4">
+          <div className="shrink-0 px-6 pt-3">
             <div className="mx-auto w-full max-w-3xl">
               <SettingTitle className="min-w-0 flex-wrap gap-2">
                 <Flex className="min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -1093,56 +1056,37 @@ const McpSettings: React.FC = () => {
                     <McpRuntimeStatusBadge state={server.isActive ? runtimeStatus.state : 'disabled'}>
                       {runtimeStatusLabel}
                     </McpRuntimeStatusBadge>
-                    {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
-                    <Button size="sm" variant="ghost" className="shrink-0" onClick={() => setLogModalOpen(true)}>
-                      {t('settings.mcp.logs', 'View Logs')}
-                    </Button>
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      className="shrink-0"
-                      aria-label={t('common.delete')}
-                      title={t('common.delete')}
-                      onClick={() => onDeleteMcpServer(server)}>
-                      <DeleteIcon size={14} className="lucide-custom text-destructive" />
-                    </Button>
+                    {serverVersion && <VersionText>{serverVersion}</VersionText>}
                   </Flex>
                 </Flex>
-                <Flex className="shrink-0 items-center gap-3">
+                <Flex className="shrink-0 items-center">
                   <Switch
                     checked={server.isActive}
                     key={server.id}
                     loading={loadingServer === server.id}
                     onCheckedChange={onToggleActive}
                   />
-                  <Button
-                    size="sm"
-                    variant="default"
-                    onClick={onSave}
-                    disabled={loading || !isFormChanged || activeTabValue !== 'settings'}
-                    className="rounded-full">
-                    <SaveIcon size={14} />
-                    {t('common.save')}
-                  </Button>
                 </Flex>
               </SettingTitle>
               <SettingDivider className="mb-0" />
-              <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
-                <TabsList className="min-w-0 max-w-full overflow-x-auto">
-                  {tabs.map((tab) => (
-                    <TabsTrigger key={tab.key} value={tab.key}>
-                      {tab.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
+              <div className="mt-2 flex min-w-0 items-center justify-between gap-2">
+                <SegmentedControl<TabKey>
+                  value={activeTabValue}
+                  options={tabs.map((tab) => ({ value: tab.key, label: tab.label }))}
+                  onValueChange={setActiveTab}
+                  size="sm"
+                  className="min-w-0 max-w-full overflow-x-auto border-0 bg-muted/60"
+                  aria-label={t('settings.mcp.title')}
+                />
                 {activeTabValue === 'tools' && tools.length > 0 && (
-                  <div className="shrink-0 pt-1">
+                  <div className="flex h-7 shrink-0 items-center">
                     <CollapsibleSearchBar
                       onSearch={setToolSearchText}
                       placeholder={t('common.search')}
                       tooltip={t('common.search')}
                       maxWidth={220}
-                      style={{ borderRadius: 20 }}
+                      collapsedSize={28}
+                      style={{ borderRadius: 14 }}
                     />
                   </div>
                 )}
@@ -1158,40 +1102,31 @@ const McpSettings: React.FC = () => {
               ))}
             </div>
           </Scrollbar>
+          {activeTabValue === 'settings' && (
+            <div className="flex min-h-14 shrink-0 items-center border-border/60 border-t px-6">
+              <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onDeleteMcpServer(server)}
+                  className="-ml-2 -mt-1 rounded-full text-destructive opacity-60 hover:text-destructive hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
+                  <DeleteIcon size={14} className="lucide-custom" />
+                  {t('common.delete')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={onSave}
+                  disabled={loading || !isFormChanged}
+                  className="rounded-full">
+                  <SaveIcon size={14} />
+                  {t('common.save')}
+                </Button>
+              </div>
+            </div>
+          )}
         </Tabs>
       </SettingContainer>
-
-      <Dialog
-        open={logModalOpen}
-        onOpenChange={(next) => {
-          setLogModalOpen(next)
-          if (next) void fetchServerLogs()
-        }}>
-        <DialogContent className="max-h-[70vh] sm:max-w-180">
-          <DialogHeader>
-            <DialogTitle>{t('settings.mcp.logs', 'Server Logs')}</DialogTitle>
-          </DialogHeader>
-          <LogList>
-            {logs.length === 0 && (
-              <span className="text-foreground-muted text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
-            )}
-            {logs.map((log, idx) => (
-              <LogItem key={`${log.timestamp}-${idx}`}>
-                <LogHeader>
-                  <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
-                  <Badge variant="outline" className={mapLogLevelClass(log.level)}>
-                    {log.level}
-                  </Badge>
-                  <LogMessage>{log.message}</LogMessage>
-                </LogHeader>
-                {log.data && (
-                  <PreBlock>{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</PreBlock>
-                )}
-              </LogItem>
-            ))}
-          </LogList>
-        </DialogContent>
-      </Dialog>
     </Container>
   )
 }
@@ -1215,24 +1150,8 @@ const McpFormGrid = ({ className, ...props }: React.ComponentPropsWithoutRef<'di
 const mcpInlineSettingItemClassName =
   'flex h-14 min-w-0 flex-row items-center justify-between gap-4 rounded-md border border-border/70 px-3'
 
-const AdvancedSettingsButton = ({
-  className,
-  type = 'button',
-  variant = 'ghost',
-  size = 'sm',
-  ...props
-}: React.ComponentPropsWithoutRef<typeof Button>) => (
-  <Button
-    type={type}
-    variant={variant}
-    size={size}
-    className={cn('h-8 w-fit gap-1.5 px-2 text-primary hover:text-primary', className)}
-    {...props}
-  />
-)
-
-const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
-  <Scrollbar className={cn('flex flex-col gap-3 pt-1.25 pb-3.75', className)} {...props} />
+const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex flex-col gap-3 pt-1.25 pb-3.75', className)} {...props} />
 )
 
 const LogItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -1276,15 +1195,25 @@ function mapLogLevelClass(level: McpServerLogEntry['level']) {
   }
 }
 
-const VersionBadge = ({ count, className, ...props }: { count: string } & React.ComponentProps<'span'>) => (
-  <span
-    className={cn(
-      'inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-[9px] bg-primary px-1.5 font-medium text-[11px] text-white leading-4.5 shadow-sm',
-      className
-    )}
-    {...props}>
-    {count}
-  </span>
+function mergeServerLogs(
+  history: McpServerLogEntry[],
+  current: (McpServerLogEntry & { serverId?: string })[]
+): (McpServerLogEntry & { serverId?: string })[] {
+  const seen = new Set<string>()
+  const merged: (McpServerLogEntry & { serverId?: string })[] = []
+
+  for (const log of [...history, ...current]) {
+    const key = `${log.timestamp}:${log.level}:${log.source ?? ''}:${log.message}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    merged.push(log)
+  }
+
+  return merged.length > 200 ? merged.slice(merged.length - 200) : merged
+}
+
+const VersionText = ({ className, ...props }: React.ComponentProps<'span'>) => (
+  <span className={cn('shrink-0 text-[11px] text-muted-foreground leading-4', className)} {...props} />
 )
 
 const McpRuntimeStatusBadge = ({
@@ -1304,72 +1233,5 @@ const McpRuntimeStatusBadge = ({
     {...props}
   />
 )
-
-interface TagsInputProps {
-  value: string[]
-  onChange: (next: string[]) => void
-}
-
-const TagsInput = ({ value, onChange }: TagsInputProps) => {
-  const { t } = useTranslation()
-  const [draft, setDraft] = useState('')
-
-  const commit = (raw: string) => {
-    const parts = raw
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0 && !value.includes(s))
-    if (parts.length > 0) {
-      onChange([...value, ...parts])
-    }
-    setDraft('')
-  }
-
-  const removeAt = (index: number) => {
-    onChange(value.filter((_, i) => i !== index))
-  }
-
-  return (
-    <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-2 py-1 shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
-      {value.map((tag, index) => (
-        <span
-          key={`${tag}-${index}`}
-          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-foreground text-xs">
-          {tag}
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-destructive"
-            onClick={() => removeAt(index)}>
-            <X size={12} className="lucide-custom" />
-          </button>
-        </span>
-      ))}
-      <input
-        className="min-w-30 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-        value={draft}
-        placeholder={t('settings.mcp.tagsPlaceholder', 'Enter tags')}
-        onChange={(e) => {
-          const next = e.target.value
-          if (next.endsWith(',')) {
-            commit(next)
-          } else {
-            setDraft(next)
-          }
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && draft.trim()) {
-            e.preventDefault()
-            commit(draft)
-          } else if (e.key === 'Backspace' && draft === '' && value.length > 0) {
-            removeAt(value.length - 1)
-          }
-        }}
-        onBlur={() => {
-          if (draft.trim()) commit(draft)
-        }}
-      />
-    </div>
-  )
-}
 
 export default McpSettings

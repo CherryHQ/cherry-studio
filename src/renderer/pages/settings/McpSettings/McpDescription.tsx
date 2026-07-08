@@ -1,6 +1,6 @@
 import { Spinner } from '@cherrystudio/ui'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useTheme } from '@renderer/hooks/useTheme'
 import DOMPurify from 'dompurify'
 import { npxFinder } from 'npx-scope-finder'
 import type { FC } from 'react'

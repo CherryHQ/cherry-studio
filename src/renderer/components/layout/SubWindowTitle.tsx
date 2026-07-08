@@ -1,4 +1,4 @@
-import { useTabs } from '@renderer/hooks/useTabs'
+import { useTabs } from '@renderer/hooks/tab'
 import { cn } from '@renderer/utils/style'
 
 import { TabIcon } from './TabIcon'

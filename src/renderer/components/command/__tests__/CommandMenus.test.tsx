@@ -25,7 +25,7 @@ vi.mock('@data/hooks/usePreference', () => ({
   useMultiplePreferences: () => [preferenceValues, vi.fn()]
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   isMac: true,
   platform: 'darwin'
 }))
@@ -64,8 +64,10 @@ vi.mock('@cherrystudio/ui', () => {
       }
       return <span onContextMenu={handleContextMenu}>{children}</span>
     },
-    ContextMenuContent: ({ children }: { children: React.ReactNode }) => (
-      <div data-testid="menu-content">{children}</div>
+    ContextMenuContent: ({ children, ...props }: React.ComponentProps<'div'>) => (
+      <div data-testid="menu-content" {...props}>
+        {children}
+      </div>
     ),
     ContextMenuSeparator: () => <hr />,
     ContextMenuSub: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -163,6 +165,11 @@ vi.mock('@cherrystudio/ui', () => {
       <button type="button" disabled={disabled} onClick={onSelect}>
         {children}
       </button>
+    ),
+    Tooltip: ({ children, content }: { children: React.ReactNode; content?: React.ReactNode }) => (
+      <span data-testid="mock-tooltip" data-content={typeof content === 'string' ? content : undefined}>
+        {children}
+      </span>
     )
   }
 })
@@ -181,12 +188,14 @@ function RegisteredTopicCreate({ onExecute }: { onExecute: () => void }) {
 function renderMenu({
   extraItems = [],
   onExecute = vi.fn(),
+  onOpenChange,
   getExtraItems,
   pendingExtraItems,
   location = 'chat.input.tools.context'
 }: {
   extraItems?: readonly CommandContextMenuExtraItem[]
   onExecute?: () => void
+  onOpenChange?: (open: boolean) => void
   getExtraItems?: (
     event: ReactMouseEvent
   ) => readonly CommandContextMenuExtraItem[] | PromiseLike<readonly CommandContextMenuExtraItem[]>
@@ -201,6 +210,7 @@ function renderMenu({
           location={location}
           extraItems={extraItems}
           pendingExtraItems={pendingExtraItems}
+          onOpenChange={onOpenChange}
           getExtraItems={getExtraItems}>
           <button type="button">trigger</button>
         </CommandContextMenu>
@@ -293,6 +303,25 @@ describe('CommandContextMenu', () => {
     })
   })
 
+  it('triggers onOpenChange around native context menus', async () => {
+    const onOpenChange = vi.fn()
+    showNativePopupMenuMock.mockResolvedValueOnce(null)
+
+    renderMenu({
+      location: 'webcontents.context',
+      onOpenChange,
+      extraItems: [{ type: 'item', id: 'tool:branch', label: 'Branch', onSelect: vi.fn() }]
+    })
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'trigger' }))
+
+    expect(onOpenChange).toHaveBeenCalledWith(true)
+
+    await waitFor(() => {
+      expect(showNativePopupMenuMock).toHaveBeenCalled()
+      expect(onOpenChange).toHaveBeenLastCalledWith(false)
+    })
+  })
+
   it('uses event-time extra items for native menus', async () => {
     const onSelect = vi.fn()
     showNativePopupMenuMock.mockResolvedValueOnce({ type: 'custom', id: 'tool:fresh' })
@@ -352,6 +381,65 @@ describe('CommandContextMenu', () => {
     fireEvent.click(screen.getByRole('button', { name: /Web Search/ }))
 
     await waitFor(() => expect(onSelect).toHaveBeenCalledOnce())
+  })
+
+  it('stops cherry context-menu events after an inner menu handles them', () => {
+    const outerOpenChange = vi.fn()
+    const innerOpenChange = vi.fn()
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+
+    render(
+      <CommandContextKeyProvider>
+        <CommandProvider>
+          <CommandContextMenu
+            location="webcontents.context"
+            onOpenChange={outerOpenChange}
+            extraItems={[{ type: 'item', id: 'outer:action', label: 'Outer Action', onSelect: vi.fn() }]}>
+            <div>
+              <CommandContextMenu
+                location="webcontents.context"
+                onOpenChange={innerOpenChange}
+                extraItems={[{ type: 'item', id: 'inner:action', label: 'Inner Action', onSelect: vi.fn() }]}>
+                <button type="button">inner trigger</button>
+              </CommandContextMenu>
+            </div>
+          </CommandContextMenu>
+        </CommandProvider>
+      </CommandContextKeyProvider>
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'inner trigger' }))
+
+    expect(innerOpenChange).toHaveBeenCalledWith(true)
+    expect(outerOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('stops pointer and mouse down events from bubbling out of cherry context menu content', () => {
+    const onPointerDown = vi.fn()
+    const onMouseDown = vi.fn()
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+
+    render(
+      <div onPointerDown={onPointerDown} onMouseDown={onMouseDown}>
+        <CommandContextKeyProvider>
+          <CommandProvider>
+            <RegisteredTopicCreate onExecute={vi.fn()} />
+            <CommandContextMenu
+              location="webcontents.context"
+              extraItems={[{ type: 'item', id: 'tool:web-search', label: 'Web Search', onSelect: vi.fn() }]}>
+              <button type="button">trigger</button>
+            </CommandContextMenu>
+          </CommandProvider>
+        </CommandContextKeyProvider>
+      </div>
+    )
+
+    const menuContent = screen.getByTestId('menu-content')
+    fireEvent.pointerDown(menuContent)
+    fireEvent.mouseDown(menuContent)
+
+    expect(onPointerDown).not.toHaveBeenCalled()
+    expect(onMouseDown).not.toHaveBeenCalled()
   })
 
   it('renders extra item shortcutCommand in cherry mode', () => {
@@ -587,6 +675,44 @@ describe('CommandContextMenu', () => {
     await waitFor(() => {
       expect(onSelect).toHaveBeenCalledOnce()
     })
+  })
+
+  it('keeps disabled popup extra item descriptions in a tooltip in cherry mode', () => {
+    preferenceValues['menu.presentation_mode'] = 'cherry'
+    const onSelect = vi.fn()
+
+    render(
+      <CommandContextKeyProvider>
+        <CommandProvider>
+          <CommandPopupMenu
+            location="webcontents.context"
+            extraItems={[
+              {
+                type: 'item',
+                id: 'tool:branch',
+                label: 'New Branch',
+                description: 'You are already at the end of this branch.',
+                enabled: false,
+                onSelect
+              }
+            ]}>
+            <button type="button">trigger-popup</button>
+          </CommandPopupMenu>
+        </CommandProvider>
+      </CommandContextKeyProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'trigger-popup' }))
+
+    expect(screen.getByText('New Branch')).toBeInTheDocument()
+    expect(screen.queryByText('You are already at the end of this branch.')).not.toBeInTheDocument()
+    expect(screen.getByTestId('mock-tooltip')).toHaveAttribute(
+      'data-content',
+      'You are already at the end of this branch.'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /New Branch/ }))
+    expect(onSelect).not.toHaveBeenCalled()
   })
 
   it('triggers onOpenChange(true) when right-clicked in cherry mode, and onOpenChange(false) when selecting item', async () => {

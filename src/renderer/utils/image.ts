@@ -1,9 +1,19 @@
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
-import imageCompression from 'browser-image-compression'
-import * as htmlToImage from 'html-to-image'
+import i18n from '@renderer/i18n/resolver'
+import type { Options as ImageCompressionOptions } from 'browser-image-compression'
+import type * as HtmlToImage from 'html-to-image'
 
 const logger = loggerService.withContext('Utils:image')
+
+let htmlToImagePromise: Promise<typeof HtmlToImage> | undefined
+
+const loadHtmlToImage = () => {
+  htmlToImagePromise ??= import('html-to-image').catch((error) => {
+    htmlToImagePromise = undefined
+    throw error
+  })
+  return htmlToImagePromise
+}
 
 /**
  * 将文件转换为 Base64 编码的字符串或 ArrayBuffer。
@@ -24,11 +34,14 @@ export const convertToBase64 = (file: File): Promise<string | ArrayBuffer | null
  * @param {File} file 要压缩的图像文件
  * @returns {Promise<File>} 压缩后的图像文件
  */
-export const compressImage = async (file: File): Promise<File> => {
+export const compressImage = async (file: File, options: ImageCompressionOptions = {}): Promise<File> => {
+  const { default: imageCompression } = await import('browser-image-compression')
+
   return await imageCompression(file, {
     maxSizeMB: 1,
     maxWidthOrHeight: 300,
-    useWebWorker: false
+    useWebWorker: false,
+    ...options
   })
 }
 
@@ -55,6 +68,7 @@ export const fileToAvatarDataUrl = async (file: File): Promise<string> => {
 export async function captureElement(elRef: React.RefObject<HTMLElement>) {
   if (elRef.current) {
     try {
+      const htmlToImage = await loadHtmlToImage()
       const canvas = await htmlToImage.toCanvas(elRef.current)
       const imageData = canvas.toDataURL('image/png')
       return imageData
@@ -72,20 +86,22 @@ export async function captureElement(elRef: React.RefObject<HTMLElement>) {
  * @returns Promise<HTMLCanvasElement | undefined> 捕获的画布对象，如果失败则返回 undefined
  */
 export const captureScrollable = async (elRef: React.RefObject<HTMLElement | null>) => {
-  if (elRef.current) {
+  const el = elRef.current
+
+  if (el) {
+    const htmlToImage = await loadHtmlToImage()
+
+    // Save original styles
+    const originalStyle = {
+      height: el.style.height,
+      maxHeight: el.style.maxHeight,
+      overflow: el.style.overflow,
+      position: el.style.position
+    }
+
+    const originalScrollTop = el.scrollTop
+
     try {
-      const el = elRef.current
-
-      // Save original styles
-      const originalStyle = {
-        height: el.style.height,
-        maxHeight: el.style.maxHeight,
-        overflow: el.style.overflow,
-        position: el.style.position
-      }
-
-      const originalScrollTop = el.scrollTop
-
       // Hide scrollbars during capture
       el.classList.add('hide-scrollbar')
 
@@ -102,19 +118,9 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       // check if the size of the element is too large
       const MAX_ALLOWED_DIMENSION = 32767 // the maximum allowed pixel size
       if (totalHeight > MAX_ALLOWED_DIMENSION || totalWidth > MAX_ALLOWED_DIMENSION) {
-        // restore the original styles
-        el.style.height = originalStyle.height
-        el.style.maxHeight = originalStyle.maxHeight
-        el.style.overflow = originalStyle.overflow
-        el.style.position = originalStyle.position
-
-        // restore the original scroll position
-        setTimeout(() => {
-          el.scrollTop = originalScrollTop
-        }, 0)
-
-        window.toast.error(i18n.t('message.error.dimension_too_large'))
-        return Promise.reject()
+        // utils must not toast (it would import the renderer services layer); reject
+        // with the message so the calling component surfaces it.
+        return Promise.reject(new Error(i18n.t('message.error.dimension_too_large')))
       }
 
       const filterHiddenElements = (node: Node) => {
@@ -147,28 +153,24 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       const warmupCanvas = await htmlToImage.toCanvas(el, captureOptions)
       warmupCanvas.width = 0
       warmupCanvas.height = 0
-      const canvas = await htmlToImage.toCanvas(el, captureOptions)
-
+      return await htmlToImage.toCanvas(el, captureOptions)
+    } catch (error) {
+      logger.error('Error capturing scrollable element:', error as Error)
+      throw error
+    } finally {
       // Restore original styles
       el.style.height = originalStyle.height
       el.style.maxHeight = originalStyle.maxHeight
       el.style.overflow = originalStyle.overflow
       el.style.position = originalStyle.position
 
-      const imageData = canvas
-
       // Restore original scroll position
       setTimeout(() => {
         el.scrollTop = originalScrollTop
       }, 0)
 
-      return imageData
-    } catch (error) {
-      logger.error('Error capturing scrollable element:', error as Error)
-      throw error
-    } finally {
       // Remove scrollbar hiding class
-      elRef.current?.classList.remove('hide-scrollbar')
+      el.classList.remove('hide-scrollbar')
     }
   }
 
@@ -180,7 +182,7 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
  * @param elRef 可滚动元素的引用
  * @returns Promise<string | undefined> 图像数据 URL，如果失败则返回 undefined
  */
-export const captureScrollableAsDataURL = async (elRef: React.RefObject<HTMLElement | null>) => {
+export const captureScrollableAsDataUrl = async (elRef: React.RefObject<HTMLElement | null>) => {
   return captureScrollable(elRef).then((canvas) => {
     if (canvas) {
       return canvas.toDataURL('image/png')
@@ -323,14 +325,7 @@ export async function captureScrollableIframe(
   const animationStyle = disableAnimations()
   let injectedFontStyle: HTMLStyleElement | null = null
 
-  const ensureFontStyle = (css: string): HTMLStyleElement => {
-    const EXISTING = doc.head.querySelector<HTMLStyleElement>('style[data-cs-inline-fonts="true"]')
-    if (EXISTING) {
-      if (css && css.trim()) {
-        EXISTING.textContent = `${EXISTING.textContent || ''}\n${css}`
-      }
-      return EXISTING
-    }
+  const createFontStyle = (css: string): HTMLStyleElement => {
     const style = doc.createElement('style')
     style.setAttribute('data-cs-inline-fonts', 'true')
     style.textContent = css
@@ -350,7 +345,7 @@ export async function captureScrollableIframe(
 
     // 将字体 CSS 注入到 iframe 文档中，确保注册到 FontFaceSet
     if (fontEmbedCSS && fontEmbedCSS.trim().length > 0) {
-      injectedFontStyle = ensureFontStyle(fontEmbedCSS)
+      injectedFontStyle = createFontStyle(fontEmbedCSS)
       // 访问一次以避免被标记为未使用
       if (injectedFontStyle.parentNode == null) {
         doc.head.appendChild(injectedFontStyle)
@@ -379,6 +374,8 @@ export async function captureScrollableIframe(
     const backgroundColor = styles.backgroundColor || '#ffffff'
     const color = styles.color || '#000000'
 
+    const htmlToImage = await loadHtmlToImage()
+
     return await htmlToImage.toCanvas(de, {
       fontEmbedCSS,
       backgroundColor,
@@ -400,12 +397,13 @@ export async function captureScrollableIframe(
     logger.error('Error capturing iframe:', error as Error)
     return undefined
   } finally {
+    injectedFontStyle?.remove()
     // 恢复动画
     animationStyle.remove()
   }
 }
 
-export const captureScrollableIframeAsDataURL = async (iframeRef: React.RefObject<HTMLIFrameElement | null>) => {
+export const captureScrollableIframeAsDataUrl = async (iframeRef: React.RefObject<HTMLIFrameElement | null>) => {
   return captureScrollableIframe(iframeRef).then((canvas) => {
     if (canvas) {
       return canvas.toDataURL('image/png')
@@ -514,6 +512,39 @@ export const svgToPngBlob = (svgElement: SVGElement, scale = 3): Promise<Blob> =
 export const svgToSvgBlob = (svgElement: SVGElement): Blob => {
   const svgData = new XMLSerializer().serializeToString(svgElement)
   return new Blob([svgData], { type: 'image/svg+xml' })
+}
+
+export type ImageInput = SVGElement | HTMLImageElement | string | Blob
+
+export interface ImagePreviewOptions {
+  format?: 'svg' | 'png' | 'jpeg'
+  scale?: number
+  quality?: number
+}
+
+/**
+ * Resolve any supported image input to a previewable URL. SVG elements and blobs
+ * produce an object URL the caller must revoke (test with `url.startsWith('blob:')`).
+ */
+export const imageInputToPreviewUrl = async (input: ImageInput, options: ImagePreviewOptions = {}): Promise<string> => {
+  if (input instanceof SVGElement) {
+    const blob = options.format === 'svg' ? svgToSvgBlob(input) : await svgToPngBlob(input, options.scale || 3)
+    return URL.createObjectURL(blob)
+  }
+
+  if (input instanceof HTMLImageElement) {
+    return input.src
+  }
+
+  if (typeof input === 'string') {
+    return input
+  }
+
+  if (input instanceof Blob) {
+    return URL.createObjectURL(input)
+  }
+
+  throw new Error('Unsupported input type')
 }
 
 /**

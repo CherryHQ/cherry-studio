@@ -1,4 +1,4 @@
-import FileProcessingSettings from '@renderer/pages/settings/FileProcessingSettings'
+import FileProcessingSettings from '@renderer/pages/settings/FileProcessingSettings/FileProcessingSettings'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/settings/file-processing')({

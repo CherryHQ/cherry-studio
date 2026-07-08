@@ -28,7 +28,8 @@ export function buildCompactReplay(buffer: readonly StreamChunkPayload[]): Strea
         if (
           pending?.chunk.type === 'text-delta' &&
           pending.chunk.id === chunk.chunk.id &&
-          pending.executionId === chunk.executionId
+          pending.executionId === chunk.executionId &&
+          pending.anchorMessageId === chunk.anchorMessageId
         ) {
           pending = {
             ...pending,
@@ -49,7 +50,8 @@ export function buildCompactReplay(buffer: readonly StreamChunkPayload[]): Strea
         if (
           pending?.chunk.type === 'reasoning-delta' &&
           pending.chunk.id === chunk.chunk.id &&
-          pending.executionId === chunk.executionId
+          pending.executionId === chunk.executionId &&
+          pending.anchorMessageId === chunk.anchorMessageId
         ) {
           pending = {
             ...pending,
@@ -79,7 +81,8 @@ export function buildCompactReplay(buffer: readonly StreamChunkPayload[]): Strea
         if (
           pending?.chunk.type === 'tool-input-delta' &&
           pending.chunk.toolCallId === chunk.chunk.toolCallId &&
-          pending.executionId === chunk.executionId
+          pending.executionId === chunk.executionId &&
+          pending.anchorMessageId === chunk.anchorMessageId
         ) {
           pending = {
             ...pending,

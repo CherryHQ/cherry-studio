@@ -1,7 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
-import { classifyErrorByAI } from '@renderer/services/ErrorDiagnosisService'
+import { classifyErrorByAI } from '@renderer/utils/errorDiagnosis'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
 

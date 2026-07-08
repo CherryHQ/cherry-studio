@@ -36,7 +36,7 @@ export const miniAppTable = sqliteTable(
 
     status: text().$type<MiniAppStatus>().notNull().default('enabled'),
 
-    // Fractional-indexing order key, scoped per status (see data-ordering-guide.md)
+    // Fractional-indexing order key. Enabled + pinned share visible scope; disabled is separate.
     ...orderKeyColumns,
 
     bordered: integer({ mode: 'boolean' }).notNull().default(true),

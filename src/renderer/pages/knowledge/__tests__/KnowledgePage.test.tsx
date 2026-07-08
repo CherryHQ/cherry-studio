@@ -1,4 +1,5 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase, KnowledgeItemOf, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
@@ -35,14 +36,14 @@ vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useReindexKnowledgeItem: (baseId: string) => mockUseReindexKnowledgeItem(baseId)
 }))
 
-vi.mock('../hooks', () => ({
+vi.mock('../hooks/useKnowledgeGroups', () => ({
   useKnowledgeGroups: () => mockUseKnowledgeGroups(),
   useCreateKnowledgeGroup: () => mockUseCreateKnowledgeGroup(),
   useUpdateKnowledgeGroup: () => mockUseUpdateKnowledgeGroup(),
   useDeleteKnowledgeGroup: () => mockUseDeleteKnowledgeGroup()
 }))
 
-vi.mock('@renderer/components/app/Navbar', () => ({
+vi.mock('@renderer/components/Navbar', () => ({
   Navbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   NavbarCenter: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
@@ -112,7 +113,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('../components/navigator', () => ({
-  default: ({
+  BaseNavigator: ({
     bases,
     groups,
     width,
@@ -192,15 +193,11 @@ vi.mock('../components/DetailHeader', () => ({
   default: ({
     base,
     onOpenRagConfig,
-    onOpenRecallTest,
-    onRenameBase,
-    onDeleteBase
+    onOpenRecallTest
   }: {
     base: KnowledgeBase
     onOpenRagConfig: () => void
     onOpenRecallTest: () => void
-    onRenameBase: (base: { id: string; name: string }) => void
-    onDeleteBase: (baseId: string) => Promise<void> | void
   }) => (
     <div>
       <div data-testid="detail-header">{base.name}</div>
@@ -209,12 +206,6 @@ vi.mock('../components/DetailHeader', () => ({
       </button>
       <button type="button" onClick={onOpenRecallTest}>
         OpenRecallTest
-      </button>
-      <button type="button" onClick={() => onRenameBase(base)}>
-        HeaderRename {base.name}
-      </button>
-      <button type="button" onClick={() => void onDeleteBase(base.id)}>
-        HeaderDelete {base.name}
       </button>
     </div>
   )
@@ -488,11 +479,9 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): Kn
   chunkOverlap: 200,
   chunkStrategy: 'structured',
   chunkSeparator: '\\n\\n',
-  threshold: undefined,
   documentCount: undefined,
   status: 'completed',
   error: null,
-  searchMode: 'hybrid',
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -526,11 +515,6 @@ const createKnowledgeItem = ({ id }: { id: string }): KnowledgeItemOf<'note'> =>
 describe('KnowledgePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.assign(window, {
-      toast: {
-        error: vi.fn()
-      }
-    })
     mockUseCreateKnowledgeGroup.mockReturnValue({
       createGroup: vi.fn(),
       isCreating: false,
@@ -902,8 +886,8 @@ describe('KnowledgePage', () => {
 
     await waitFor(() => {
       expect(createGroupMock).toHaveBeenCalledWith('Group 2')
+      expect(screen.queryByTestId('create-group-dialog')).not.toBeInTheDocument()
     })
-    expect(screen.queryByTestId('create-group-dialog')).not.toBeInTheDocument()
   })
 
   it('opens the rename dialog with the current name and updates the selected group', async () => {
@@ -980,7 +964,7 @@ describe('KnowledgePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'DeleteGroup Research' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('分组删除失败: delete failed')
+      expect(toast.error).toHaveBeenCalledWith('分组删除失败: delete failed')
     })
   })
 
@@ -1014,46 +998,6 @@ describe('KnowledgePage', () => {
     expect(screen.queryByTestId('rename-base-dialog')).not.toBeInTheDocument()
   })
 
-  it('reuses the same rename-base flow when the detail header triggers it', () => {
-    mockUseKnowledgeBases.mockReturnValue({
-      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
-      isLoading: false,
-      error: undefined,
-      refetch: vi.fn()
-    })
-
-    render(<KnowledgePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'HeaderRename Base 1' }))
-
-    expect(screen.getByTestId('rename-base-dialog')).toBeInTheDocument()
-    expect(screen.getByTestId('base-dialog-initial-name')).toHaveTextContent('Base 1')
-  })
-
-  it('wires detail header delete to the knowledge base delete hook', async () => {
-    const deleteBase = vi.fn().mockResolvedValue(undefined)
-
-    mockUseKnowledgeBases.mockReturnValue({
-      bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
-      isLoading: false,
-      error: undefined,
-      refetch: vi.fn()
-    })
-    mockUseDeleteKnowledgeBase.mockReturnValue({
-      deleteBase,
-      isDeleting: false,
-      deleteError: undefined
-    })
-
-    render(<KnowledgePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'HeaderDelete Base 1' }))
-
-    await waitFor(() => {
-      expect(deleteBase).toHaveBeenCalledWith('base-1')
-    })
-  })
-
   it('shows a toast when knowledge base deletion fails', async () => {
     const deleteBase = vi.fn().mockRejectedValue(new Error('delete failed'))
 
@@ -1071,10 +1015,10 @@ describe('KnowledgePage', () => {
 
     render(<KnowledgePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'HeaderDelete Base 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Base 1' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('知识库删除失败: delete failed')
+      expect(toast.error).toHaveBeenCalledWith('知识库删除失败: delete failed')
     })
   })
 
@@ -1491,7 +1435,7 @@ describe('KnowledgePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Move Base 1' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('知识库移动失败: move failed')
+      expect(toast.error).toHaveBeenCalledWith('知识库移动失败: move failed')
     })
   })
 })
