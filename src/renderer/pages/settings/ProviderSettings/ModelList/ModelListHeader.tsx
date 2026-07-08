@@ -1,5 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { FileText, Search, X } from 'lucide-react'
+import { ChevronsDownUp, ChevronsUpDown, FileText, Search, X } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,6 +11,8 @@ export interface ModelListHeaderProps {
   hasNoModels: boolean
   searchText: string
   setSearchText: (text: string) => void
+  groupsExpanded: boolean
+  onToggleGroupsExpanded: () => void
   docsWebsite?: string
   modelsWebsite?: string
   actions?: React.ReactNode
@@ -18,8 +20,11 @@ export interface ModelListHeaderProps {
 
 const ModelListHeader: React.FC<ModelListHeaderProps> = ({
   isBusy,
+  hasNoModels,
   searchText,
   setSearchText,
+  groupsExpanded,
+  onToggleGroupsExpanded,
   docsWebsite,
   modelsWebsite,
   actions
@@ -29,6 +34,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
   const [searchOpen, setSearchOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const isSearchExpanded = searchOpen || Boolean(searchText)
+  const GroupExpansionIcon = groupsExpanded ? ChevronsDownUp : ChevronsUpDown
 
   useEffect(() => {
     if (isSearchExpanded) {
@@ -54,6 +60,16 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
             </Tooltip>
           </div>
         ) : null}
+        <Tooltip content={t(groupsExpanded ? 'settings.models.collapse_all' : 'settings.models.expand_all')}>
+          <button
+            type="button"
+            className={modelListClasses.groupToggleIconButton}
+            aria-label={t(groupsExpanded ? 'settings.models.collapse_all' : 'settings.models.expand_all')}
+            disabled={isBusy || hasNoModels}
+            onClick={onToggleGroupsExpanded}>
+            <GroupExpansionIcon className={modelListClasses.toolbarHeaderIcon} />
+          </button>
+        </Tooltip>
         {isSearchExpanded ? (
           <div className={modelListClasses.searchCompactWrap}>
             <Search className={modelListClasses.searchIcon} />

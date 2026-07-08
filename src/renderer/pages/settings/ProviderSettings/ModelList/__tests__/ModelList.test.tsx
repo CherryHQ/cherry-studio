@@ -87,7 +87,7 @@ describe('useProviderModelList', () => {
     expect(result.current.sections.isLoading).toBe(false)
   })
 
-  it('moves a newly disabled model into the disabled section immediately', async () => {
+  it('keeps a newly disabled model visible in the unified model list immediately', async () => {
     let serverModels = [
       {
         id: 'openai::reasoning-alpha',
@@ -114,24 +114,24 @@ describe('useProviderModelList', () => {
     })
 
     expect(result.current.header.enabledModelCount).toBe(0)
-    expect(result.current.sections.displayEnabledModelCount).toBe(0)
-    expect(result.current.sections.displayDisabledModelCount).toBe(2)
-    expect(result.current.sections.enabledSections).toHaveLength(0)
+    expect(result.current.sections.displayEnabledModelCount).toBe(2)
+    expect(result.current.sections.displayDisabledModelCount).toBe(0)
     expect(
-      result.current.sections.disabledSections.flatMap((section) => section.items).map((item) => item.model.id)
+      result.current.sections.enabledSections.flatMap((section) => section.items).map((item) => item.model.id)
     ).toContain('openai::reasoning-alpha')
 
     serverModels = [{ ...serverModels[0], isEnabled: false }, serverModels[1]]
 
     rerender()
 
-    expect(result.current.sections.enabledSections).toHaveLength(0)
+    expect(result.current.sections.displayEnabledModelCount).toBe(2)
+    expect(result.current.sections.displayDisabledModelCount).toBe(0)
     expect(
-      result.current.sections.disabledSections.flatMap((section) => section.items).map((item) => item.model.id)
+      result.current.sections.enabledSections.flatMap((section) => section.items).map((item) => item.model.id)
     ).toContain('openai::reasoning-alpha')
   })
 
-  it('moves a newly enabled model into the enabled section immediately', async () => {
+  it('keeps a newly enabled model visible in the unified model list immediately', async () => {
     let serverModels = [
       {
         id: 'openai::reasoning-alpha',
@@ -208,7 +208,7 @@ describe('useProviderModelList', () => {
     expect(result.current.sections.pendingModelIds.has('openai::model-beta')).toBe(false)
   })
 
-  it('rolls a failed model delete back to its original section', async () => {
+  it('rolls a failed model delete back to the unified model list', async () => {
     const error = new Error('delete failed')
     let rejectDelete!: (reason?: unknown) => void
     const deletePromise = new Promise<void>((_, reject) => {
@@ -237,10 +237,10 @@ describe('useProviderModelList', () => {
 
     expect(result.current.sections.pendingModelIds.has('openai::model-beta')).toBe(false)
     expect(result.current.header.modelCount).toBe(2)
-    expect(result.current.sections.displayEnabledModelCount).toBe(1)
-    expect(result.current.sections.displayDisabledModelCount).toBe(1)
+    expect(result.current.sections.displayEnabledModelCount).toBe(2)
+    expect(result.current.sections.displayDisabledModelCount).toBe(0)
     expect(
-      result.current.sections.disabledSections.flatMap((section) => section.items).map((item) => item.model.id)
+      result.current.sections.enabledSections.flatMap((section) => section.items).map((item) => item.model.id)
     ).toContain('openai::model-beta')
   })
 
@@ -390,7 +390,7 @@ describe('useProviderModelList', () => {
     ).toEqual(['openai::chat-alpha', 'openai::chat-beta'])
   })
 
-  it('moves bulk-disabled models into the disabled section immediately', async () => {
+  it('keeps bulk-disabled models visible in the unified model list immediately', async () => {
     let serverModels = [
       {
         id: 'openai::reasoning-alpha',
@@ -434,11 +434,10 @@ describe('useProviderModelList', () => {
     ])
     expect(updateModelMock).not.toHaveBeenCalled()
     expect(result.current.header.enabledModelCount).toBe(0)
-    expect(result.current.sections.displayEnabledModelCount).toBe(0)
-    expect(result.current.sections.displayDisabledModelCount).toBe(3)
-    expect(result.current.sections.enabledSections).toHaveLength(0)
+    expect(result.current.sections.displayEnabledModelCount).toBe(3)
+    expect(result.current.sections.displayDisabledModelCount).toBe(0)
     expect(
-      result.current.sections.disabledSections
+      result.current.sections.enabledSections
         .flatMap((section) => section.items)
         .map((item) => [item.model.id, item.model.isEnabled] as const)
     ).toEqual([
@@ -453,8 +452,8 @@ describe('useProviderModelList', () => {
 
     rerender()
 
-    expect(result.current.sections.displayEnabledModelCount).toBe(0)
-    expect(result.current.sections.displayDisabledModelCount).toBe(3)
+    expect(result.current.sections.displayEnabledModelCount).toBe(3)
+    expect(result.current.sections.displayDisabledModelCount).toBe(0)
   })
 
   it('bulk-disables only the selected visible model group', async () => {
@@ -498,14 +497,11 @@ describe('useProviderModelList', () => {
     expect(updateModelsMock).toHaveBeenCalledWith([
       { uniqueModelId: 'openai::chat-alpha', patch: { isEnabled: false } }
     ])
-    expect(result.current.sections.displayEnabledModelCount).toBe(1)
-    expect(result.current.sections.displayDisabledModelCount).toBe(2)
+    expect(result.current.sections.displayEnabledModelCount).toBe(3)
+    expect(result.current.sections.displayDisabledModelCount).toBe(0)
     expect(
       result.current.sections.enabledSections.flatMap((section) => section.items).map((item) => item.model.id)
-    ).toEqual(['openai::vision-beta'])
-    expect(
-      result.current.sections.disabledSections.flatMap((section) => section.items).map((item) => item.model.id)
-    ).toContain('openai::chat-alpha')
+    ).toEqual(['openai::chat-alpha', 'openai::chat-gamma', 'openai::vision-beta'])
   })
 
   it('bulk-enables only the selected visible model group', async () => {
@@ -539,7 +535,7 @@ describe('useProviderModelList', () => {
     useModelsMock.mockReturnValue({ models: groupedModels, isLoading: false })
 
     const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
-    const chatSection = result.current.sections.disabledSections.find((section) => section.groupName === 'chat')
+    const chatSection = result.current.sections.enabledSections.find((section) => section.groupName === 'chat')
 
     await act(async () => {
       await result.current.sections.onToggleModels(chatSection?.items.map((item) => item.model) ?? [], true)
@@ -547,14 +543,11 @@ describe('useProviderModelList', () => {
 
     expect(updateModelsMock).toHaveBeenCalledTimes(1)
     expect(updateModelsMock).toHaveBeenCalledWith([{ uniqueModelId: 'openai::chat-alpha', patch: { isEnabled: true } }])
-    expect(result.current.sections.displayEnabledModelCount).toBe(2)
-    expect(result.current.sections.displayDisabledModelCount).toBe(1)
+    expect(result.current.sections.displayEnabledModelCount).toBe(3)
+    expect(result.current.sections.displayDisabledModelCount).toBe(0)
     expect(
       result.current.sections.enabledSections.flatMap((section) => section.items).map((item) => item.model.id)
     ).toContain('openai::chat-alpha')
-    expect(
-      result.current.sections.disabledSections.flatMap((section) => section.items).map((item) => item.model.id)
-    ).toEqual(['openai::vision-beta'])
   })
 
   it('bulk-toggles only the searched visible models in a selected group', async () => {
@@ -612,7 +605,7 @@ describe('useProviderModelList', () => {
     ])
   })
 
-  it('rolls a failed model toggle back to its original section', async () => {
+  it('rolls a failed model toggle back in the unified model list', async () => {
     useModelsMock.mockReturnValue({ models, isLoading: false })
     updateModelMock.mockRejectedValueOnce(new Error('toggle failed'))
 
@@ -623,8 +616,8 @@ describe('useProviderModelList', () => {
     })
 
     expect(result.current.header.enabledModelCount).toBe(1)
-    expect(result.current.sections.displayEnabledModelCount).toBe(1)
-    expect(result.current.sections.displayDisabledModelCount).toBe(1)
+    expect(result.current.sections.displayEnabledModelCount).toBe(2)
+    expect(result.current.sections.displayDisabledModelCount).toBe(0)
     expect(result.current.sections.enabledSections[0]?.items[0]?.model.id).toBe('openai::reasoning-alpha')
     expect(
       result.current.sections.disabledSections.flatMap((section) => section.items).map((item) => item.model.id)

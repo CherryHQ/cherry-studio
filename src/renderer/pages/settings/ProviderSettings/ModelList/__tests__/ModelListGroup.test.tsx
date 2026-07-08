@@ -38,19 +38,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         {children}
       </button>
     ),
-    Switch: ({ checked, onCheckedChange, onClick, size, ...props }: any) => (
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        data-size={size}
-        onClick={(event) => {
-          onClick?.(event)
-          onCheckedChange?.(!checked)
-        }}
-        {...props}
-      />
-    ),
     Tooltip: ({ children, classNames }: any) => (
       <span className={classNames?.placeholder} data-testid={classNames?.placeholder ? 'tooltip-trigger' : undefined}>
         {children}
@@ -92,9 +79,7 @@ describe('ModelListGroup', () => {
     vi.clearAllMocks()
   })
 
-  it('runs the group bulk action without toggling the group open state', () => {
-    const onToggleModels = vi.fn().mockResolvedValue(undefined)
-
+  it('renders the group without an enabled switch', () => {
     render(
       <ModelListGroup
         groupName="chat"
@@ -102,85 +87,14 @@ describe('ModelListGroup', () => {
         defaultOpen
         disabled={false}
         pendingModelIds={new Set()}
-        bulkToggleEnabled={false}
-        bulkToggleLabel="settings.models.group_disable"
         onEditModel={vi.fn()}
         onDeleteModel={vi.fn()}
         onDeleteModels={vi.fn()}
-        onToggleModel={vi.fn()}
-        onToggleModels={onToggleModels}
       />
     )
 
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
     expect(screen.getByTestId('model-openai::alpha')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('switch', { name: 'settings.models.group_disable' }))
-
-    expect(onToggleModels).toHaveBeenCalledWith(models, false)
-    expect(screen.getByTestId('model-openai::alpha')).toBeInTheDocument()
-  })
-
-  it('logs and shows a toast when group bulk action fails', async () => {
-    const error = new Error('toggle failed')
-    const onToggleModels = vi.fn().mockRejectedValue(error)
-
-    render(
-      <ModelListGroup
-        groupName="chat"
-        items={models.map((model: any) => ({ model }))}
-        defaultOpen
-        disabled={false}
-        pendingModelIds={new Set()}
-        bulkToggleEnabled={false}
-        bulkToggleLabel="settings.models.group_disable"
-        onEditModel={vi.fn()}
-        onDeleteModel={vi.fn()}
-        onDeleteModels={vi.fn()}
-        onToggleModel={vi.fn()}
-        onToggleModels={onToggleModels}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('switch', { name: 'settings.models.group_disable' }))
-
-    await waitFor(() => {
-      expect(loggerErrorMock).toHaveBeenCalledWith('Failed to toggle provider model group', {
-        groupName: 'chat',
-        enabled: false,
-        error
-      })
-    })
-    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
-  })
-
-  it('renders the group bulk action as a switch', () => {
-    render(
-      <ModelListGroup
-        groupName="chat"
-        items={models.map((model: any) => ({ model }))}
-        defaultOpen
-        disabled={false}
-        pendingModelIds={new Set()}
-        bulkToggleEnabled={false}
-        bulkToggleLabel="settings.models.group_disable"
-        onEditModel={vi.fn()}
-        onDeleteModel={vi.fn()}
-        onDeleteModels={vi.fn()}
-        onToggleModel={vi.fn()}
-        onToggleModels={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('switch', { name: 'settings.models.group_disable' })).toHaveAttribute(
-      'aria-checked',
-      'true'
-    )
-    expect(screen.getByRole('switch', { name: 'settings.models.group_disable' })).toHaveAttribute('data-size', 'xs')
-    expect(screen.getByRole('switch', { name: 'settings.models.group_disable' }).parentElement).toHaveClass(
-      'inline-flex',
-      'h-6',
-      'items-center'
-    )
   })
 
   it('passes delete actions to model rows', () => {
@@ -193,13 +107,9 @@ describe('ModelListGroup', () => {
         defaultOpen
         disabled={false}
         pendingModelIds={new Set()}
-        bulkToggleEnabled={false}
-        bulkToggleLabel="settings.models.group_disable"
         onEditModel={vi.fn()}
         onDeleteModel={onDeleteModel}
         onDeleteModels={vi.fn()}
-        onToggleModel={vi.fn()}
-        onToggleModels={vi.fn()}
       />
     )
 
@@ -218,19 +128,15 @@ describe('ModelListGroup', () => {
         defaultOpen
         disabled={false}
         pendingModelIds={new Set()}
-        bulkToggleEnabled={false}
-        bulkToggleLabel="settings.models.group_disable"
         onEditModel={vi.fn()}
         onDeleteModel={vi.fn()}
         onDeleteModels={onDeleteModels}
-        onToggleModel={vi.fn()}
-        onToggleModels={vi.fn()}
       />
     )
 
     const deleteButtons = screen.getAllByRole('button', { name: 'settings.models.manage.remove_whole_group' })
 
-    expect(deleteButtons[0]).toHaveClass('opacity-0', 'group-hover/groupRow:opacity-100')
+    expect(deleteButtons[0]).toHaveClass('opacity-0', 'group-hover/modelGroup:opacity-100')
     fireEvent.click(deleteButtons[0])
 
     expect(onDeleteModels).toHaveBeenCalledWith(models)
@@ -247,13 +153,9 @@ describe('ModelListGroup', () => {
         defaultOpen
         disabled={false}
         pendingModelIds={new Set()}
-        bulkToggleEnabled={false}
-        bulkToggleLabel="settings.models.group_disable"
         onEditModel={vi.fn()}
         onDeleteModel={vi.fn()}
         onDeleteModels={onDeleteModels}
-        onToggleModel={vi.fn()}
-        onToggleModels={vi.fn()}
       />
     )
 
@@ -282,13 +184,9 @@ describe('ModelListGroup', () => {
         defaultOpen
         disabled={false}
         pendingModelIds={new Set()}
-        bulkToggleEnabled={false}
-        bulkToggleLabel="settings.models.group_disable"
         onEditModel={vi.fn()}
         onDeleteModel={vi.fn()}
         onDeleteModels={onDeleteModels}
-        onToggleModel={vi.fn()}
-        onToggleModels={vi.fn()}
       />
     )
 
@@ -307,20 +205,18 @@ describe('ModelListGroup', () => {
         defaultOpen
         disabled={false}
         pendingModelIds={new Set()}
-        bulkToggleEnabled
-        bulkToggleLabel="settings.models.group_enable"
         onEditModel={vi.fn()}
         onDeleteModel={vi.fn()}
         onDeleteModels={vi.fn()}
-        onToggleModel={vi.fn()}
-        onToggleModels={vi.fn()}
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat' }))
+    const header = screen.getByRole('button', { name: 'chat' })
+    fireEvent.click(header)
 
-    expect(screen.queryByTestId('model-openai::alpha')).not.toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: 'settings.models.group_enable' })).toBeInTheDocument()
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByTestId('model-openai::alpha')).toBeInTheDocument()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
   })
 
   it('applies list-level expansion commands', () => {
@@ -331,13 +227,9 @@ describe('ModelListGroup', () => {
         defaultOpen
         disabled={false}
         pendingModelIds={new Set()}
-        bulkToggleEnabled
-        bulkToggleLabel="settings.models.group_enable"
         onEditModel={vi.fn()}
         onDeleteModel={vi.fn()}
         onDeleteModels={vi.fn()}
-        onToggleModel={vi.fn()}
-        onToggleModels={vi.fn()}
       />
     )
 
@@ -350,18 +242,15 @@ describe('ModelListGroup', () => {
         defaultOpen
         disabled={false}
         pendingModelIds={new Set()}
-        bulkToggleEnabled
-        bulkToggleLabel="settings.models.group_enable"
         expansionCommand={{ expanded: false, version: 1 }}
         onEditModel={vi.fn()}
         onDeleteModel={vi.fn()}
         onDeleteModels={vi.fn()}
-        onToggleModel={vi.fn()}
-        onToggleModels={vi.fn()}
       />
     )
 
-    expect(screen.queryByTestId('model-openai::alpha')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'chat' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByTestId('model-openai::alpha')).toBeInTheDocument()
 
     rerender(
       <ModelListGroup
@@ -370,14 +259,10 @@ describe('ModelListGroup', () => {
         defaultOpen
         disabled={false}
         pendingModelIds={new Set()}
-        bulkToggleEnabled
-        bulkToggleLabel="settings.models.group_enable"
         expansionCommand={{ expanded: true, version: 2 }}
         onEditModel={vi.fn()}
         onDeleteModel={vi.fn()}
         onDeleteModels={vi.fn()}
-        onToggleModel={vi.fn()}
-        onToggleModels={vi.fn()}
       />
     )
 

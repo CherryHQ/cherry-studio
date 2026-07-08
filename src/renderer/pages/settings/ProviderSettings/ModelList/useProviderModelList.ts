@@ -146,21 +146,12 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   }, [modelById, models, pendingModelIdMap])
 
   const displayState = useMemo<DisplayedSectionState>(() => {
-    const enabledModels: Model[] = []
-    const disabledModels: Model[] = []
     const preserveGroupOrder = Boolean(searchText.trim())
-
-    for (const model of derivedState.filteredModels) {
-      if (model.isEnabled) {
-        enabledModels.push(model)
-      } else {
-        disabledModels.push(model)
-      }
-    }
+    const enabledModels = derivedState.filteredModels
 
     const sections: ModelSections = {
       enabled: groupModels(enabledModels, preserveGroupOrder),
-      disabled: groupModels(disabledModels, preserveGroupOrder)
+      disabled: {}
     }
 
     return {

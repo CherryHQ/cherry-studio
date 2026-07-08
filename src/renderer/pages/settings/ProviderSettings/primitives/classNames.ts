@@ -12,7 +12,7 @@ export const providerSettingsTypography = {
 
 /** Connection — transparent input body + same muted border as model search.
  * Fixed `h-8` (32px) so all input groups in this page line up regardless of trailing-control height. */
-const providerSettingsInputGroupBase = 'h-8 rounded-lg border border-border-muted bg-background px-2.5 shadow-none'
+const providerSettingsInputGroupBase = 'h-8 rounded-lg border border-border-muted bg-muted/30 px-2.5 shadow-none'
 
 /** Softer focus ring than `@cherrystudio/ui` InputGroup default (`ring-[3px]`) — business-layer override only. */
 const providerSettingsInputGroupFocusOverride =
@@ -213,6 +213,8 @@ export const modelListClasses = {
     'flex h-8 w-[min(38vw,220px)] min-w-36 items-center gap-1 rounded-[10px] border border-border-muted bg-background px-2.5 py-1',
   searchIconButton:
     'inline-flex size-6 shrink-0 items-center justify-center rounded-[length:var(--cs-radius-md)] bg-transparent text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground disabled:opacity-40',
+  groupToggleIconButton:
+    'inline-flex size-6 shrink-0 items-center justify-center rounded-[length:var(--cs-radius-md)] bg-transparent text-muted-foreground/70 shadow-none transition-colors hover:text-foreground disabled:opacity-40',
   searchIcon: 'size-3 shrink-0 text-muted-foreground/65',
   searchInput:
     'min-w-0 flex-1 border-none bg-transparent text-sm leading-5 text-foreground/80 outline-none placeholder:text-muted-foreground/75 disabled:cursor-not-allowed disabled:opacity-60',
@@ -226,7 +228,7 @@ export const modelListClasses = {
     'size-8 rounded-lg border-border-muted bg-transparent text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
   emptyState:
     'flex min-h-40 items-center justify-center rounded-2xl border border-border border-dashed bg-muted/30 px-4 text-center text-sm leading-5 text-foreground-muted',
-  listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden pr-1',
+  listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden pt-1',
   /**
    * — grouped catalog inside manage drawer (flat headers, no collapse).
    */
@@ -255,24 +257,28 @@ export const modelListClasses = {
   /** Disable-all hover — destructive (design draft). */
   manageDrawerBulkGhostDisableHover: 'hover:!text-destructive',
   /** Provider-grouped card: bordered shell with leading chevron; rows render inside the same card on expand. */
-  groupCard: 'group/modelGroup min-w-0 w-full rounded-md border border-border-subtle bg-transparent px-2 py-1',
+  groupCard: 'group/modelGroup min-w-0 w-full overflow-hidden rounded-lg border border-border-subtle bg-transparent',
   groupHeader:
-    'group/groupRow flex min-h-7 w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
+    'group/groupRow flex min-h-9 w-full items-center justify-between gap-2 bg-muted/30 px-4 text-left outline-none focus-visible:outline-none',
+  groupHeaderOpen: '[border-bottom:0.5px_solid_var(--color-border-subtle)]',
   groupToggleButton:
-    'flex min-w-0 max-w-full items-center gap-1 bg-transparent text-left outline-none focus-visible:outline-none',
+    'flex min-w-0 max-w-full items-center gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
   groupHeaderActions: 'flex h-6 shrink-0 items-center gap-1',
   groupHeaderIconTooltipTrigger: 'inline-flex h-6 shrink-0 items-center justify-center leading-none',
-  groupSwitchTooltipTrigger: 'inline-flex h-6 shrink-0 items-center justify-center leading-none',
   groupTitle: 'min-w-0 truncate text-sm leading-5 text-foreground font-medium',
-  groupChevron:
-    'size-4 shrink-0 text-muted-foreground/65 transition-[transform,color] duration-150 group-hover/groupRow:text-foreground',
+  groupChevron: 'size-4 shrink-0 text-muted-foreground/65 transition-transform duration-150',
   groupChevronOpen: 'rotate-90',
-  groupBody: 'mt-0.5 flex flex-col gap-0.5',
+  groupBody: 'grid overflow-hidden transition-[grid-template-rows] duration-200 ease-out',
+  groupBodyOpen: 'grid-rows-[1fr]',
+  groupBodyClosed: 'grid-rows-[0fr]',
+  groupBodyInner: 'min-h-0 overflow-hidden',
+  groupBodyList: 'flex flex-col gap-0',
   groupOverflowHint:
     'mt-1 rounded-lg px-3 py-2 text-left text-[13px] leading-tight text-muted-foreground/70 transition-colors hover:bg-accent/40 hover:text-foreground',
-  row: 'group flex min-h-11 items-center gap-3 py-2 text-foreground leading-none',
-  rowMain: 'min-w-0 flex-1 items-center gap-3 self-center',
-  rowAvatar: 'h-[26px] w-[26px] shrink-0 rounded-lg',
+  row: 'group flex min-h-[42px] items-center gap-2.5 px-4 py-1 text-foreground leading-none',
+  rowMain: 'min-w-0 flex-1 items-center gap-2.5 self-center',
+  rowAvatar:
+    'inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-lg [&_*]:overflow-hidden [&_*]:rounded-[inherit] [&_img]:rounded-[inherit] [&_svg]:rounded-[inherit]',
   rowBody: 'flex min-w-0 max-w-full flex-1 items-center overflow-hidden',
   /** Model name opens the edit drawer; the settings icon is the explicit secondary action. */
   rowNameCopyable: 'cursor-pointer',
@@ -286,8 +292,12 @@ export const modelListClasses = {
   rowMeta: 'mt-[3px] block min-w-0 max-w-full truncate text-xs leading-tight text-foreground/65',
   healthStatusSlot: 'shrink-0',
   /** Trailing column: health + (capability strip + enable) on one row. */
-  rowActionsCluster: 'flex min-h-7 min-w-0 items-center gap-2',
-  rowActions: 'min-w-0 shrink-0 items-center gap-1.5 self-center',
+  rowActionsCluster: 'flex min-h-8 min-w-0 items-center gap-2',
+  rowActions: 'ml-auto min-w-0 shrink-0 items-center gap-2 self-center',
+  rowInlineActions: 'flex shrink-0 items-center gap-1',
+  rowActionButton:
+    'inline-flex size-[30px] shrink-0 items-center justify-center rounded-lg p-0 !text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/40 hover:!text-foreground',
+  rowDangerActionButton: 'hover:!text-foreground',
   rowIconButton:
     'size-7 rounded-lg border border-border-muted bg-transparent text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground'
 } as const

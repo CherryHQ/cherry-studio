@@ -13,15 +13,13 @@ interface ModelListSectionsProps {
   hasNoModels: boolean
   hasVisibleModels: boolean
   enabledSections: ModelListGroupSection[]
-  disabledSections: ModelListGroupSection[]
   disabled: boolean
   pendingModelIds: Set<string>
   onEditModel: (model: Model) => void
   onDeleteModel: (model: Model) => Promise<void>
   onDeleteModels: (models: Model[]) => Promise<void>
-  onToggleModel: (model: Model, enabled: boolean) => Promise<void>
-  onToggleModels: (models: Model[], enabled: boolean) => Promise<void>
   bulkActionDisabled?: boolean
+  expansionCommand?: { expanded: boolean; version: number }
 }
 
 const ModelListSections: React.FC<ModelListSectionsProps> = ({
@@ -29,15 +27,13 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   hasNoModels,
   hasVisibleModels,
   enabledSections,
-  disabledSections,
   disabled,
   pendingModelIds,
   onEditModel,
   onDeleteModel,
   onDeleteModels,
-  onToggleModel,
-  onToggleModels,
-  bulkActionDisabled
+  bulkActionDisabled,
+  expansionCommand
 }) => {
   const { t } = useTranslation()
 
@@ -62,7 +58,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
       <div className="flex min-h-full w-full min-w-0 flex-col gap-2.5">
         {!isEmpty(enabledSections) && (
           <div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
               {enabledSections.map(({ groupName, items }, index) => (
                 <ModelListGroup
                   key={`enabled-${groupName}`}
@@ -71,38 +67,11 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
                   defaultOpen={index <= 5}
                   disabled={disabled}
                   bulkActionDisabled={bulkActionDisabled}
-                  bulkToggleEnabled={false}
-                  bulkToggleLabel={t('settings.models.group_disable')}
                   pendingModelIds={pendingModelIds}
                   onEditModel={onEditModel}
                   onDeleteModel={onDeleteModel}
                   onDeleteModels={onDeleteModels}
-                  onToggleModel={onToggleModel}
-                  onToggleModels={onToggleModels}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-        {!isEmpty(disabledSections) && (
-          <div>
-            <div className="flex flex-col gap-2">
-              {disabledSections.map(({ groupName, items }, index) => (
-                <ModelListGroup
-                  key={`disabled-${groupName}`}
-                  groupName={groupName}
-                  items={items}
-                  defaultOpen={index <= 2}
-                  disabled={disabled}
-                  bulkActionDisabled={bulkActionDisabled}
-                  bulkToggleEnabled
-                  bulkToggleLabel={t('settings.models.group_enable')}
-                  pendingModelIds={pendingModelIds}
-                  onEditModel={onEditModel}
-                  onDeleteModel={onDeleteModel}
-                  onDeleteModels={onDeleteModels}
-                  onToggleModel={onToggleModel}
-                  onToggleModels={onToggleModels}
+                  expansionCommand={expansionCommand}
                 />
               ))}
             </div>

@@ -27,7 +27,9 @@ const baseProps = {
   isBusy: false,
   hasNoModels: false,
   searchText: '',
-  setSearchText: vi.fn()
+  setSearchText: vi.fn(),
+  groupsExpanded: true,
+  onToggleGroupsExpanded: vi.fn()
 }
 
 describe('ModelListHeader', () => {
@@ -42,11 +44,20 @@ describe('ModelListHeader', () => {
     render(<ModelListHeader {...baseProps} actions={<button type="button">external-action</button>} />)
 
     expect(screen.getByText('settings.models.list_title')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.models.collapse_all' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.search' })).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('models.search.placeholder')).not.toBeInTheDocument()
     expect(screen.getByText('external-action')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'settings.models.bulk_enable' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'settings.models.bulk_disable' })).not.toBeInTheDocument()
+  })
+
+  it('toggles all model groups from the header action', () => {
+    render(<ModelListHeader {...baseProps} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.collapse_all' }))
+
+    expect(baseProps.onToggleGroupsExpanded).toHaveBeenCalledTimes(1)
   })
 
   it('renders provider documentation links when websites are available', () => {

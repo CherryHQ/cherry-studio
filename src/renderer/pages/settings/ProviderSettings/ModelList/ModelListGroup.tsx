@@ -1,10 +1,10 @@
-import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { Model } from '@shared/data/types/model'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronRight, Trash2 } from 'lucide-react'
+import { ChevronRight, Minus } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,14 +22,10 @@ interface ModelListGroupProps {
   defaultOpen: boolean
   disabled?: boolean
   bulkActionDisabled?: boolean
-  bulkToggleEnabled?: boolean
-  bulkToggleLabel?: string
   pendingModelIds: Set<string>
   onEditModel: (model: Model) => void
   onDeleteModel: (model: Model) => Promise<void>
   onDeleteModels: (models: Model[]) => Promise<void>
-  onToggleModel: (model: Model, enabled: boolean) => Promise<void>
-  onToggleModels?: (models: Model[], enabled: boolean) => Promise<void>
   expansionCommand?: { expanded: boolean; version: number }
 }
 
@@ -39,14 +35,10 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   defaultOpen,
   disabled,
   bulkActionDisabled,
-  bulkToggleEnabled,
-  bulkToggleLabel,
   pendingModelIds,
   onEditModel,
   onDeleteModel,
   onDeleteModels,
-  onToggleModel,
-  onToggleModels,
   expansionCommand
 }) => {
   const { t } = useTranslation()
@@ -57,9 +49,6 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   const shouldVirtualize = items.length > 80
   const previewItems = useMemo(() => items.slice(0, 80), [items])
   const hasPendingModel = groupModels.some((model) => pendingModelIds.has(model.id))
-  const canToggleGroupModels =
-    typeof bulkToggleEnabled === 'boolean' && bulkToggleLabel !== undefined && onToggleModels !== undefined
-  const groupSwitchChecked = bulkToggleEnabled === false
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollerRef.current,
@@ -79,48 +68,54 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
     setOpen(expansionCommand.expanded)
   }, [expansionCommand])
 
-  const handleToggleGroupModels = useCallback(
-    (enabled: boolean) => {
-      if (!canToggleGroupModels || onToggleModels === undefined) {
+  const handleGroupHeaderKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== 'Enter' && event.key !== ' ') {
         return
       }
 
-      void onToggleModels(groupModels, enabled).catch((error) => {
-        logger.error('Failed to toggle provider model group', { groupName, enabled, error })
-        toast.error(t('settings.models.manage.operation_failed'))
-      })
+      event.preventDefault()
+      toggleOpen()
     },
-    [canToggleGroupModels, groupModels, groupName, onToggleModels, t]
+    [toggleOpen]
   )
 
-  const handleDeleteGroupModels = useCallback(() => {
-    void onDeleteModels(groupModels).catch((error) => {
-      logger.error('Failed to delete provider model group', { groupName, error })
-      toast.error(
-        getModelOperationErrorMessage(error, {
-          fallback: t('settings.models.manage.operation_failed'),
-          modelInUseByKnowledgeBase: t('settings.models.manage.model_in_use_by_knowledge_base'),
-          modelInUseAsDefault: t('settings.models.manage.sync_apply_default_in_use')
-        })
-      )
-    })
-  }, [groupModels, groupName, onDeleteModels, t])
+  const handleDeleteGroupModels = useCallback(
+    (event?: React.MouseEvent<HTMLButtonElement>) => {
+      event?.stopPropagation()
+      void onDeleteModels(groupModels).catch((error) => {
+        logger.error('Failed to delete provider model group', { groupName, error })
+        toast.error(
+          getModelOperationErrorMessage(error, {
+            fallback: t('settings.models.manage.operation_failed'),
+            modelInUseByKnowledgeBase: t('settings.models.manage.model_in_use_by_knowledge_base'),
+            modelInUseAsDefault: t('settings.models.manage.sync_apply_default_in_use')
+          })
+        )
+      })
+    },
+    [groupModels, groupName, onDeleteModels, t]
+  )
 
   return (
     <div className={modelListClasses.groupCard}>
-      <div className={modelListClasses.groupHeader}>
+      <div
+        className={cn(modelListClasses.groupHeader, open && modelListClasses.groupHeaderOpen, 'cursor-pointer')}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onClick={toggleOpen}
+        onKeyDown={handleGroupHeaderKeyDown}>
         <div className="flex min-w-0 flex-1 items-center gap-1">
-          <button
-            type="button"
-            className={modelListClasses.groupToggleButton}
-            aria-expanded={open}
-            onClick={toggleOpen}>
+          <div className={modelListClasses.groupToggleButton}>
             <ChevronRight
               className={cn(modelListClasses.groupChevron, open && modelListClasses.groupChevronOpen)}
               aria-hidden
             />
             <span className={modelListClasses.groupTitle}>{groupLabel}</span>
-          </button>
+          </div>
+        </div>
+        <div className={modelListClasses.groupHeaderActions}>
           <Tooltip
             content={t('settings.models.manage.remove_whole_group')}
             placement="top"
@@ -131,29 +126,19 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
               size="icon-sm"
               aria-label={t('settings.models.manage.remove_whole_group')}
               disabled={disabled || bulkActionDisabled || hasPendingModel || groupModels.length === 0}
-              className="inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/45 opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-destructive focus-visible:opacity-100 group-focus-within/groupRow:opacity-100 group-hover/groupRow:opacity-100"
+              className={`${modelListClasses.rowActionButton} ${modelListClasses.rowDangerActionButton} opacity-0 transition-opacity focus-visible:opacity-100 group-focus-within/modelGroup:opacity-100 group-hover/modelGroup:opacity-100`}
               onClick={handleDeleteGroupModels}>
-              <Trash2 className="size-3" />
+              <Minus className="size-3.5" />
             </Button>
           </Tooltip>
         </div>
-        <div className={modelListClasses.groupHeaderActions}>
-          {canToggleGroupModels ? (
-            <Tooltip content={bulkToggleLabel} classNames={{ placeholder: modelListClasses.groupSwitchTooltipTrigger }}>
-              <Switch
-                checked={groupSwitchChecked}
-                aria-label={bulkToggleLabel}
-                size="xs"
-                disabled={disabled || bulkActionDisabled || hasPendingModel}
-                onClick={(event) => event.stopPropagation()}
-                onCheckedChange={handleToggleGroupModels}
-              />
-            </Tooltip>
-          ) : null}
-        </div>
       </div>
-      {open && (
-        <div className={modelListClasses.groupBody}>
+      <div
+        className={cn(
+          modelListClasses.groupBody,
+          open ? modelListClasses.groupBodyOpen : modelListClasses.groupBodyClosed
+        )}>
+        <div className={modelListClasses.groupBodyInner}>
           {shouldVirtualize ? (
             <div ref={scrollerRef} className="overflow-y-auto" style={{ maxHeight: 520 }}>
               <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
@@ -178,7 +163,6 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
                         model={model}
                         onEdit={onEditModel}
                         onDelete={onDeleteModel}
-                        onToggleEnabled={onToggleModel}
                         disabled={disabled || pendingModelIds.has(model.id)}
                       />
                     </div>
@@ -187,19 +171,20 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
               </div>
             </div>
           ) : (
-            previewItems.map(({ model }) => (
-              <ModelListItem
-                key={model.id}
-                model={model}
-                onEdit={onEditModel}
-                onDelete={onDeleteModel}
-                onToggleEnabled={onToggleModel}
-                disabled={disabled || pendingModelIds.has(model.id)}
-              />
-            ))
+            <div className={modelListClasses.groupBodyList}>
+              {previewItems.map(({ model }) => (
+                <ModelListItem
+                  key={model.id}
+                  model={model}
+                  onEdit={onEditModel}
+                  onDelete={onDeleteModel}
+                  disabled={disabled || pendingModelIds.has(model.id)}
+                />
+              ))}
+            </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

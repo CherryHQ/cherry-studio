@@ -1,4 +1,5 @@
 import type React from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -14,12 +15,36 @@ interface ProviderModelListProps {
 }
 
 const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disabled, actions }) => {
+  const [groupExpansionCommand, setGroupExpansionCommand] = useState({ expanded: true, version: 0 })
   const modelList = useProviderModelList({
     providerId,
     disabled
   })
   const providerMeta = useProviderMeta(providerId)
   const toolbarDisabled = disabled || modelList.isBulkUpdating
+  const toggleGroupsExpanded = useCallback(() => {
+    setGroupExpansionCommand((current) => ({
+      expanded: !current.expanded,
+      version: current.version + 1
+    }))
+  }, [])
+
+  useEffect(() => {
+    if (!modelList.header.searchText.trim()) {
+      return
+    }
+
+    setGroupExpansionCommand((current) => {
+      if (current.expanded) {
+        return current
+      }
+
+      return {
+        expanded: true,
+        version: current.version + 1
+      }
+    })
+  }, [modelList.header.searchText])
 
   return (
     <>
@@ -29,6 +54,8 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disab
           hasNoModels={modelList.header.hasNoModels}
           searchText={modelList.header.searchText}
           setSearchText={modelList.header.setSearchText}
+          groupsExpanded={groupExpansionCommand.expanded}
+          onToggleGroupsExpanded={toggleGroupsExpanded}
           docsWebsite={providerMeta.docsWebsite}
           modelsWebsite={providerMeta.modelsWebsite}
           actions={actions?.({
@@ -41,15 +68,13 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disab
           hasNoModels={modelList.sections.hasNoModels}
           hasVisibleModels={modelList.sections.hasVisibleModels}
           enabledSections={modelList.sections.enabledSections}
-          disabledSections={modelList.sections.disabledSections}
           disabled={modelList.sections.disabled}
           pendingModelIds={modelList.sections.pendingModelIds}
           onEditModel={modelList.sections.onEditModel}
           onDeleteModel={modelList.sections.onDeleteModel}
           onDeleteModels={modelList.sections.onDeleteModels}
-          onToggleModel={modelList.sections.onToggleModel}
-          onToggleModels={modelList.sections.onToggleModels}
           bulkActionDisabled={toolbarDisabled}
+          expansionCommand={groupExpansionCommand}
         />
       </div>
       <EditModelDrawer
