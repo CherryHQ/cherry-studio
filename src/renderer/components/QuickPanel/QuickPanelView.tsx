@@ -451,8 +451,22 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       return
     }
 
-    setInputSearchText(nextSearchText)
-  }, [closePanel, ctx.triggerInfo?.type, inputAdapter, inputTriggerSymbol, isPanelVisible, isTrackedInputPanel])
+    setInputSearchText(
+      getTrackedInputSearchText({
+        triggerType: ctx.triggerInfo?.type,
+        inputSearchText: nextSearchText,
+        initialSearchText: ctx.initialSearchText
+      })
+    )
+  }, [
+    closePanel,
+    ctx.initialSearchText,
+    ctx.triggerInfo?.type,
+    inputAdapter,
+    inputTriggerSymbol,
+    isPanelVisible,
+    isTrackedInputPanel
+  ])
 
   useEffect(() => {
     if (!ctx.isVisible) return

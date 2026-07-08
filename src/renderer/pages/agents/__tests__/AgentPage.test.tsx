@@ -63,6 +63,7 @@ const agentPageMocks = vi.hoisted(() => ({
   setSessionExpansionAgent: vi.fn(),
   setClassicLayoutRightPaneOpen: vi.fn(),
   setShowSidebar: vi.fn(),
+  closeConversationTabs: vi.fn(),
   sessionDisplayMode: 'time' as 'time' | 'workdir' | 'agent',
   sessionPanePosition: 'right' as 'left' | 'right',
   isActiveTab: false,
@@ -308,6 +309,7 @@ vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
+  useCloseConversationTabs: () => agentPageMocks.closeConversationTabs,
   useCurrentTab: () => agentPageMocks.currentTab,
   useCurrentTabId: () => 'agent-tab',
   useIsActiveTab: () => agentPageMocks.isActiveTab,
@@ -1195,6 +1197,7 @@ describe('AgentPage', () => {
         query: { ids: 'session-empty-system-old' }
       })
     )
+    expect(agentPageMocks.closeConversationTabs).toHaveBeenCalledWith('agents', ['session-empty-system-old'])
   })
 
   it('reuses the latest empty session when an older candidate has an invalid timestamp', async () => {
@@ -1318,6 +1321,10 @@ describe('AgentPage', () => {
         query: { ids: 'session-empty-system-middle,session-empty-system-oldest' }
       })
     )
+    expect(agentPageMocks.closeConversationTabs).toHaveBeenCalledWith('agents', [
+      'session-empty-system-middle',
+      'session-empty-system-oldest'
+    ])
   })
 
   it('does not reuse an empty session from a different workspace from the classic-layout composer button', async () => {

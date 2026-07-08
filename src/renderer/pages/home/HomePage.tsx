@@ -521,7 +521,7 @@ const HomePage: FC = () => {
 
   const handleCreateEmptyTopicForAssistant = useCallback(
     (assistantId: string | null) => {
-      void createAndActivateEmptyTopic(assistantId ? { assistantId } : undefined)
+      void createAndActivateEmptyTopic({ assistantId })
     },
     [createAndActivateEmptyTopic]
   )

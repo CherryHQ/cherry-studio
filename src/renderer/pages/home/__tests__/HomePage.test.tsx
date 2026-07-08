@@ -571,6 +571,7 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     assistantTopicsSource,
     onAddAssistant,
     onActiveAssistantDeleted,
+    onCreateTopic,
     onSelectedAssistantClick,
     resourceMenuItems
   }: {
@@ -578,6 +579,7 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     assistantTopicsSource?: unknown
     onAddAssistant?: () => void | Promise<void>
     onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
+    onCreateTopic?: (assistantId: string | null) => void | Promise<void>
     onSelectedAssistantClick?: () => void | Promise<void>
     resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => {
@@ -590,6 +592,9 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
         </button>
         <button type="button" onClick={() => void onActiveAssistantDeleted?.(activeAssistantId ?? '')}>
           Delete active assistant
+        </button>
+        <button type="button" onClick={() => void onCreateTopic?.(null)}>
+          Create default assistant topic
         </button>
         <button type="button" onClick={() => void onSelectedAssistantClick?.()}>
           Toggle selected assistant pane
@@ -929,6 +934,19 @@ describe('HomePage', () => {
     expect(screen.queryByTestId('resource-catalog-assistant')).not.toBeInTheDocument()
     expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created')
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
+  })
+
+  it('preserves the default assistant target when creating from the classic rail', async () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
+    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-2')
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: undefined })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create default assistant topic' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({}))
   })
 
   it('respects a manually closed classic-layout topic right pane on re-entry', () => {

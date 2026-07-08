@@ -348,12 +348,17 @@ describe('QuickPanelView', () => {
 
   it('filters a button-triggered tracked panel with initial search text', async () => {
     const captureDispatch = vi.fn()
+    const listeners = new Set<Parameters<NonNullable<QuickPanelInputAdapter['subscribeInput']>>[0]>()
     const inputAdapter: QuickPanelInputAdapter = {
       getText: () => '',
       getCursorOffset: () => 0,
       insertText: vi.fn(),
       deleteTriggerRange: vi.fn(),
-      focus: vi.fn()
+      focus: vi.fn(),
+      subscribeInput: (listener) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      }
     }
 
     render(
@@ -374,6 +379,13 @@ describe('QuickPanelView', () => {
     )
 
     expect(await screen.findByText('Agent skill')).toBeInTheDocument()
+    expect(screen.queryByText('Attachment')).not.toBeInTheDocument()
+
+    act(() => {
+      listeners.forEach((listener) => listener())
+    })
+
+    expect(screen.getByText('Agent skill')).toBeInTheDocument()
     expect(screen.queryByText('Attachment')).not.toBeInTheDocument()
   })
 

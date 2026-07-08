@@ -26,7 +26,13 @@ import { useAgent, useAgents } from '@renderer/hooks/agent/useAgent'
 import { useActiveSession, useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
+import {
+  useCloseConversationTabs,
+  useCurrentTab,
+  useCurrentTabId,
+  useIsActiveTab,
+  useTabSelfMetadata
+} from '@renderer/hooks/tab'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -224,6 +230,7 @@ const AgentPage = () => {
   const [agentPickerOpen, setAgentPickerOpen] = useState(false)
   const { t } = useTranslation()
   const invalidateCache = useInvalidateCache()
+  const closeConversationTabs = useCloseConversationTabs()
   const { setSessionWorkspace } = useUpdateSession()
   const pendingSelectedSession =
     pendingSelectedSessionRef.current?.id === activeSessionId ? pendingSelectedSessionRef.current : null
@@ -455,6 +462,7 @@ const AgentPage = () => {
         await dataApiService.delete('/agent-sessions', {
           query: { ids: sessionIds.join(',') }
         })
+        closeConversationTabs('agents', sessionIds)
         await invalidateCache([
           '/agent-sessions',
           '/agent-workspaces',
@@ -464,7 +472,7 @@ const AgentPage = () => {
         logger.warn('Failed to delete duplicate empty system agent sessions', err as Error, { sessionIds })
       }
     },
-    [invalidateCache]
+    [closeConversationTabs, invalidateCache]
   )
 
   const createAndActivateEmptySession = useCallback(
