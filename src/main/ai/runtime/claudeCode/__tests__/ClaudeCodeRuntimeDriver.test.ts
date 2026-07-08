@@ -76,7 +76,7 @@ vi.mock('../streamAdapter', () => ({
   }
 }))
 
-const { ClaudeCodeRuntimeDriver, buildAgentUserContent } = await import('../ClaudeCodeRuntimeDriver')
+const { ClaudeCodeRuntimeDriver } = await import('../ClaudeCodeRuntimeDriver')
 
 function createAsyncQueue<T>() {
   const items: T[] = []
@@ -200,7 +200,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
             { type: 'file', url: 'file:///tmp/spec.pdf', mediaType: 'application/pdf', filename: 'spec.pdf' }
           ]
         }
-      } as any
+      }
     })
 
     await expect(nextInput).resolves.toMatchObject({
@@ -219,7 +219,100 @@ describe('ClaudeCodeRuntimeDriver', () => {
       },
       done: false
     })
-    expect(mocks.materializeNativeFilePart).toHaveBeenCalledOnce()
+    expect(mocks.materializeNativeFilePart).toHaveBeenCalledTimes(2)
+    void connection.close()
+  })
+
+  it('keeps a visible fallback when an image attachment cannot be materialized or exposed as a local path', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.materializeNativeFilePart.mockResolvedValueOnce(null)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            {
+              type: 'file',
+              url: 'https://example.com/pixel.png',
+              mediaType: 'image/png',
+              filename: 'pixel.png'
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        type: 'user',
+        message: {
+          role: 'user',
+          content:
+            'describe this\n\nUnavailable attachments (could not be sent natively or exposed as local file paths):\n- pixel.png (image/png, https: URL)'
+        }
+      },
+      done: false
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Claude Code attachment could not be materialized or exposed as a local file path',
+      {
+        attachments: [{ filename: 'pixel.png', mediaType: 'image/png', urlKind: 'https: URL' }]
+      }
+    )
+    void connection.close()
+  })
+
+  it('adds a steer reminder text part for image-only turns', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.materializeNativeFilePart.mockResolvedValueOnce({
+      type: 'file',
+      url: 'data:image/png;base64,QUJD',
+      mediaType: 'image/png'
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      systemReminder: true,
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [{ type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            { type: 'text', text: expect.stringContaining('<system-reminder>') },
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+          ]
+        }
+      },
+      done: false
+    })
     void connection.close()
   })
 
@@ -901,43 +994,5 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
     expect(approvalEmitter.dispose).toHaveBeenCalledTimes(1)
     expect(steerHolder.dispose).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('buildAgentUserContent', () => {
-  const messageWith = (parts: unknown[]) =>
-    ({ data: { parts } }) as unknown as Parameters<typeof buildAgentUserContent>[0]
-
-  it('returns plain text when there are no attachments', () => {
-    expect(buildAgentUserContent(messageWith([{ type: 'text', text: 'hello' }]))).toBe('hello')
-  })
-
-  it('appends absolute paths of file attachments below the text', () => {
-    const content = buildAgentUserContent(
-      messageWith([
-        { type: 'text', text: 'look at these' },
-        { type: 'file', url: 'file:///tmp/diagram.png', filename: 'diagram.png' },
-        { type: 'file', url: 'file:///tmp/spec.pdf', filename: 'spec.pdf' }
-      ])
-    )
-    expect(content).toBe(
-      'look at these\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/diagram.png\n- /tmp/spec.pdf'
-    )
-  })
-
-  it('emits only the attachment section when there is no text', () => {
-    const content = buildAgentUserContent(messageWith([{ type: 'file', url: 'file:///tmp/a.png' }]))
-    expect(content).toBe('Attached files (read them with your tools using these absolute paths):\n- /tmp/a.png')
-  })
-
-  it('ignores non-file parts and non-file:// urls', () => {
-    const content = buildAgentUserContent(
-      messageWith([
-        { type: 'text', text: 'hi' },
-        { type: 'file', url: 'https://example.com/x.png' },
-        { type: 'image', url: 'file:///tmp/nope.png' }
-      ])
-    )
-    expect(content).toBe('hi')
   })
 })

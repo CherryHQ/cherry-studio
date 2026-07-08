@@ -31,6 +31,8 @@ import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsa
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
+import type { FileUIPart } from '@shared/data/types/message'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import type {
   AgentRuntimeConnectInput,
@@ -499,15 +501,9 @@ async function toSdkUserMessage(
   resumeToken?: string,
   systemReminder = false
 ): Promise<SDKUserMessage> {
-  let content = await buildAgentUserSdkContent(message)
+  let content = await materializeUserContent(message)
   if (systemReminder) {
-    content = Array.isArray(content)
-      ? content.map((part) =>
-          part.type === 'text' && part.text.trim() ? { ...part, text: wrapSteerReminder(part.text) } : part
-        )
-      : content.trim()
-        ? wrapSteerReminder(content)
-        : content
+    content = applySteerReminder(content)
   }
 
   return {
@@ -519,41 +515,66 @@ async function toSdkUserMessage(
 }
 
 /**
- * Build the text fallback for agent attachments. Non-native files are forwarded
- * as paths so the filesystem agent can inspect them with tools.
+ * Wrap a steer reminder into user content so the model re-reads the system
+ * prompt before its next action. Handles both string and array (text+image)
+ * content shapes.
  */
-export function buildAgentUserContent(message: AgentSessionMessageEntity): string {
-  const text = extractMessageText(message)
-  const paths = extractAttachmentPaths(message)
-  return appendAttachmentPaths(text, paths)
+function applySteerReminder(content: SDKUserMessage['message']['content']): SDKUserMessage['message']['content'] {
+  if (Array.isArray(content)) {
+    let wrappedText = false
+    const wrapped = content.map((part) => {
+      if (part.type !== 'text' || !part.text.trim()) return part
+      wrappedText = true
+      return { ...part, text: wrapSteerReminder(part.text) }
+    })
+    return wrappedText ? wrapped : [{ type: 'text', text: wrapSteerReminder('') }, ...wrapped]
+  }
+  return content.trim() ? wrapSteerReminder(content) : content
 }
 
-async function buildAgentUserSdkContent(
+/**
+ * Build SDK user content from a message entity. Supported image attachments
+ * (png, jpeg, gif, webp) are materialized into native Anthropic image blocks;
+ * non-image files and images that cannot be materialized fall back to
+ * file-path references so the agent can inspect them with tools.
+ *
+ * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
+ */
+async function materializeUserContent(
   message: AgentSessionMessageEntity
 ): Promise<SDKUserMessage['message']['content']> {
   const text = extractMessageText(message)
   const images: ImageBlockParam[] = []
-  const pathFallbacks: string[] = []
+  const fallbackParts: FileUIPart[] = []
+  const unavailableParts: FileUIPart[] = []
 
   for (const part of message.data?.parts ?? []) {
     if (part.type !== 'file') continue
-    const mediaType = toClaudeImageMediaType(part.mediaType)
-    if (mediaType) {
-      const match = (await materializeNativeFilePart(part))?.url.match(/^data:[^;,]+;base64,(.*)$/s)
-      if (match) {
+
+    const materialized = await materializeNativeFilePart(part)
+    const parsed = materialized && parseDataUrl(materialized.url)
+    if (parsed?.isBase64) {
+      const claudeType = toClaudeImageMediaType(parsed.mediaType)
+      if (claudeType) {
         images.push({
           type: 'image',
-          source: { type: 'base64', media_type: mediaType, data: match[1] }
+          source: { type: 'base64', media_type: claudeType, data: parsed.data }
         })
         continue
       }
     }
-    if (part.url.startsWith('file://')) {
-      pathFallbacks.push(fileURLToPath(part.url))
+
+    if (part.url?.startsWith('file://')) {
+      fallbackParts.push(part)
+      continue
     }
+
+    unavailableParts.push(part)
   }
 
-  const textContent = appendAttachmentPaths(text, pathFallbacks)
+  const paths = extractAttachmentPaths(fallbackParts)
+  let textContent = appendAttachmentPaths(text, paths)
+  textContent = appendUnavailableAttachments(textContent, unavailableParts)
   if (images.length === 0) return textContent
   return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
 }
@@ -566,6 +587,40 @@ function appendAttachmentPaths(text: string, paths: string[]): string {
   return text.trim() ? `${text}\n\n${section}` : section
 }
 
+function appendUnavailableAttachments(text: string, parts: readonly FileUIPart[]): string {
+  if (parts.length === 0) return text
+
+  logger.warn('Claude Code attachment could not be materialized or exposed as a local file path', {
+    attachments: parts.map((part) => ({
+      filename: part.filename,
+      mediaType: part.mediaType,
+      urlKind: describeAttachmentUrl(part.url)
+    }))
+  })
+
+  const list = parts.map((part) => `- ${formatUnavailableAttachment(part)}`).join('\n')
+  const section = `Unavailable attachments (could not be sent natively or exposed as local file paths):\n${list}`
+  return text.trim() ? `${text}\n\n${section}` : section
+}
+
+function formatUnavailableAttachment(part: FileUIPart): string {
+  const label = part.filename || part.mediaType || 'attachment'
+  const urlKind = describeAttachmentUrl(part.url)
+  return part.mediaType && part.mediaType !== label
+    ? `${label} (${part.mediaType}, ${urlKind})`
+    : `${label} (${urlKind})`
+}
+
+function describeAttachmentUrl(url: string | undefined): string {
+  if (!url) return 'missing URL'
+  if (url.startsWith('data:')) return 'data URL'
+  try {
+    return `${new URL(url).protocol || 'unknown:'} URL`
+  } catch {
+    return 'unrecognized URL'
+  }
+}
+
 function extractMessageText(message: AgentSessionMessageEntity): string {
   return (
     message.data?.parts
@@ -575,12 +630,11 @@ function extractMessageText(message: AgentSessionMessageEntity): string {
   )
 }
 
-/** Absolute local paths of `file://`-backed attachment parts (composer attachments). */
-function extractAttachmentPaths(message: AgentSessionMessageEntity): string[] {
+/** Absolute local paths of `file://`-backed attachment parts (shared path extraction). */
+function extractAttachmentPaths(parts: Array<{ type: string; url?: string }>): string[] {
   const paths: string[] = []
-  for (const part of message.data?.parts ?? []) {
-    // `parts` is a typed `CherryMessagePart[]`, so `type === 'file'` narrows to `FileUIPart`.
-    if (part.type !== 'file' || !part.url.startsWith('file://')) continue
+  for (const part of parts) {
+    if (part.type !== 'file' || !part.url?.startsWith('file://')) continue
     paths.push(fileURLToPath(part.url))
   }
   return paths
