@@ -1083,6 +1083,72 @@ describe('AgentComposer', () => {
     })
   })
 
+  it('does not overwrite the persisted agent draft while previewing input history', async () => {
+    seedInputHistory(['history entry'])
+    vi.mocked(cacheService.getCasual).mockReturnValue({
+      text: 'long in-progress agent draft',
+      tokens: []
+    })
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: []
+    }))
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+    vi.mocked(cacheService.setCasual).mockClear()
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+
+    expect(cacheService.setCasual).not.toHaveBeenCalledWith(
+      'agent-session-draft-agent-1',
+      expect.objectContaining({ text: 'history entry' }),
+      expect.any(Number)
+    )
+  })
+
+  it('cancels the delayed post-send clear when recalling input history', async () => {
+    seedInputHistory(['history entry'])
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: []
+    }))
+    mocks.sendMessage.mockResolvedValue(undefined)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'agent says hi', tokens: [] })
+    })
+    expect(mocks.timeoutCallbacks.has('agentComposerSendMessage')).toBe(true)
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+
+    expect(mocks.clearTimeoutTimer).toHaveBeenCalledWith('agentComposerSendMessage')
+    expect(mocks.timeoutCallbacks.has('agentComposerSendMessage')).toBe(false)
+  })
+
   it('clears agent files while previewing plain-text history and restores the entry draft files', async () => {
     seedInputHistory(['history entry'])
     mocks.files = [file]

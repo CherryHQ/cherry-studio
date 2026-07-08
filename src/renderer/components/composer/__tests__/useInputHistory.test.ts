@@ -376,7 +376,7 @@ describe('useInputHistory', () => {
       expect(appliedDrafts).toEqual([])
     })
 
-    it('returns false at the oldest boundary when pressing ArrowUp repeatedly', () => {
+    it('returns true at the oldest boundary so the editor does not handle ArrowUp', () => {
       seedHistory([sampleHistoryEntry(0)])
       const appliedDrafts: ComposerSerializedDraft[] = []
 
@@ -390,9 +390,10 @@ describe('useInputHistory', () => {
         result.current.navigateHistory('up', draftWithText('draft'))
       })
       // After first ArrowUp: historyIndex=0. Second ArrowUp at the oldest entry (length=1)
-      // computes nextIndex=0 which equals historyIndex → returns false without applying.
+      // computes nextIndex=0 which equals historyIndex, but it must still be
+      // handled so ProseMirror does not move the caret/scroll while browsing history.
       act(() => {
-        expect(result.current.navigateHistory('up', draftWithText('history-0'))).toBe(false)
+        expect(result.current.navigateHistory('up', draftWithText('history-0'))).toBe(true)
       })
       expect(appliedDrafts).toEqual([{ text: 'history-0', tokens: [] }])
     })
@@ -450,6 +451,31 @@ describe('useInputHistory', () => {
         entryDraft
       ])
     })
+
+    it('keeps the active navigation list stable when another window prepends history', () => {
+      seedHistory(['old latest'])
+      const appliedDrafts: ComposerSerializedDraft[] = []
+
+      const { result, rerender } = renderHook(() =>
+        useInputHistory({
+          applyDraft: (value) => appliedDrafts.push(value)
+        })
+      )
+
+      act(() => {
+        expect(result.current.navigateHistory('up', draftWithText('draft before history'))).toBe(true)
+      })
+      expect(appliedDrafts).toEqual([{ text: 'old latest', tokens: [] }])
+
+      seedHistory(['new latest', 'old latest'])
+      rerender()
+
+      act(() => {
+        expect(result.current.navigateHistory('down', draftWithText('old latest'))).toBe(true)
+      })
+
+      expect(appliedDrafts).toEqual([{ text: 'old latest', tokens: [] }, draftWithText('draft before history')])
+    })
   })
 
   describe('navigateHistory safety with mismatched history', () => {
@@ -473,10 +499,10 @@ describe('useInputHistory', () => {
       seedHistory([])
       rerender()
 
-      // navigateHistory must return false (no transition possible) AND not clear
-      // the composer with an empty value.
+      // navigateHistory must keep the active navigation snapshot and not clear
+      // the composer with an empty value even though the backing cache is now empty.
       act(() => {
-        expect(result.current.navigateHistory('up', draftWithText('history-0'))).toBe(false)
+        expect(result.current.navigateHistory('up', draftWithText('history-0'))).toBe(true)
       })
       expect(appliedDrafts).toEqual([{ text: 'history-0', tokens: [] }])
     })

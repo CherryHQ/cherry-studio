@@ -889,21 +889,37 @@ const AgentComposerInner = ({
 
   const setText = useCallback(
     (nextText: string) => {
+      clearTimeoutTimer('agentComposerSendMessage')
       textRef.current = nextText
       setTextState(nextText)
       writeAgentDraftCache(draftCacheKey, nextText, draftTokensRef.current)
     },
-    [draftCacheKey]
+    [clearTimeoutTimer, draftCacheKey]
+  )
+  const previewText = useCallback(
+    (nextText: string) => {
+      clearTimeoutTimer('agentComposerSendMessage')
+      textRef.current = nextText
+      setTextState(nextText)
+    },
+    [clearTimeoutTimer]
   )
   const filesRef = useLatest(files)
   const inputHistoryFilesRef = useRef<ComposerAttachment[] | null>(null)
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       const nextSkillTokens = getCachedSkillTokens(historyDraft.tokens)
-      setText(historyDraft.text)
+      const persistDraft = options.source === 'draft'
+      if (persistDraft) {
+        setText(historyDraft.text)
+      } else {
+        previewText(historyDraft.text)
+      }
       setDraftTokens(nextSkillTokens)
       draftTokensRef.current = nextSkillTokens
-      writeAgentDraftCache(draftCacheKey, historyDraft.text, nextSkillTokens)
+      if (persistDraft) {
+        writeAgentDraftCache(draftCacheKey, historyDraft.text, nextSkillTokens)
+      }
       setSelectedSkills(nextSkillTokens.map(getSkillFromCachedToken))
 
       if (options.source === 'history') {
@@ -917,7 +933,7 @@ const AgentComposerInner = ({
       if (!savedFiles) return
       setFiles(savedFiles)
     },
-    [draftCacheKey, filesRef, setFiles, setText]
+    [draftCacheKey, filesRef, previewText, setFiles, setText]
   )
   const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft

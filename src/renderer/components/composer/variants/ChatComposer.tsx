@@ -117,6 +117,10 @@ interface SavedComposerDraft {
   selectedKnowledgeBases: KnowledgeBase[]
 }
 
+interface InputHistoryToolSnapshot extends Pick<SavedComposerDraft, 'files' | 'selectedKnowledgeBases'> {
+  mentionedModels: Model[]
+}
+
 type ComposerFilePart = Extract<CherryMessagePart, { type: 'file' }>
 
 interface ChatComposerContextControlsProps {
@@ -594,7 +598,8 @@ const ChatComposerInner = ({
   )
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
-  const inputHistoryToolsRef = useRef<Pick<SavedComposerDraft, 'files' | 'selectedKnowledgeBases'> | null>(null)
+  const mentionedModelsRef = useLatest(mentionedModels)
+  const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       setText(historyDraft.text)
@@ -603,9 +608,11 @@ const ChatComposerInner = ({
       if (options.source === 'history') {
         inputHistoryToolsRef.current ??= {
           files: filesRef.current,
+          mentionedModels: mentionedModelsRef.current,
           selectedKnowledgeBases: selectedKnowledgeBasesRef.current
         }
         setFiles([])
+        setMentionedModels([])
         setSelectedKnowledgeBases([])
         return
       }
@@ -614,9 +621,10 @@ const ChatComposerInner = ({
       inputHistoryToolsRef.current = null
       if (!savedTools) return
       setFiles(savedTools.files)
+      setMentionedModels(savedTools.mentionedModels)
       setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
     },
-    [filesRef, selectedKnowledgeBasesRef, setFiles, setSelectedKnowledgeBases]
+    [filesRef, mentionedModelsRef, selectedKnowledgeBasesRef, setFiles, setMentionedModels, setSelectedKnowledgeBases]
   )
   const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft

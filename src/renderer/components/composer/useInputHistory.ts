@@ -17,6 +17,7 @@ interface UseInputHistoryOptions {
 export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
   const [historyIndex, setHistoryIndex] = useState(-1)
   const draftBeforeHistoryRef = useRef<ComposerSerializedDraft | null>(null)
+  const navigationHistoryRef = useRef<string[] | null>(null)
   const [history, setHistory] = usePersistCache('ui.composer.input_history')
 
   const applyHistoryIndex = useCallback(
@@ -25,13 +26,16 @@ export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
       if (nextIndex === -1) {
         applyDraft(draftBeforeHistoryRef.current ?? { text: '', tokens: [] }, { source: 'draft' })
         draftBeforeHistoryRef.current = null
+        navigationHistoryRef.current = null
         return
       }
 
-      const historyItem = history[nextIndex]
+      const activeHistory = navigationHistoryRef.current ?? history
+      const historyItem = activeHistory[nextIndex]
       if (!historyItem) {
         applyDraft(draftBeforeHistoryRef.current ?? { text: '', tokens: [] }, { source: 'draft' })
         draftBeforeHistoryRef.current = null
+        navigationHistoryRef.current = null
         setHistoryIndex(-1)
         return
       }
@@ -43,28 +47,31 @@ export function useInputHistory({ applyDraft }: UseInputHistoryOptions) {
 
   const navigateHistory = useCallback(
     (direction: InputHistoryDirection, currentDraft: ComposerSerializedDraft) => {
+      const activeHistory = navigationHistoryRef.current ?? history
       const nextIndex = getNextInputHistoryIndex({
         currentIndex: historyIndex,
         direction,
-        messagesLength: history.length
+        messagesLength: activeHistory.length
       })
 
       if (nextIndex === historyIndex) {
-        return false
+        return historyIndex !== -1
       }
 
       if (historyIndex === -1 && nextIndex !== -1) {
         draftBeforeHistoryRef.current = currentDraft
+        navigationHistoryRef.current = history
       }
       applyHistoryIndex(nextIndex)
       return true
     },
-    [applyHistoryIndex, history.length, historyIndex]
+    [applyHistoryIndex, history, historyIndex]
   )
 
   const resetHistoryIndex = useCallback(() => {
     setHistoryIndex(-1)
     draftBeforeHistoryRef.current = null
+    navigationHistoryRef.current = null
   }, [])
 
   const saveHistory = useCallback(

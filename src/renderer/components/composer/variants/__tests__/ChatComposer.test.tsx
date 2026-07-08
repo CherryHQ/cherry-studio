@@ -1664,6 +1664,57 @@ describe('ChatComposer', () => {
       expect.objectContaining({ id: 'knowledge:kb-1' })
     ])
   })
+
+  it('clears mentioned models while previewing plain-text history before sending', async () => {
+    seedInputHistory(['history entry'])
+    mocks.mentionedModels = [model, modelB]
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: []
+    }))
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    render(<ChatHomeComposer topic={topic} onSend={onSend} />)
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+    expect(mocks.mentionedModels).toEqual([])
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'history entry', tokens: [] })
+    })
+
+    expect(onSend).toHaveBeenCalledWith(
+      'history entry',
+      expect.objectContaining({
+        mentionedModels: undefined
+      })
+    )
+  })
+
+  it('restores mentioned models when leaving input history navigation', async () => {
+    seedInputHistory(['history entry'])
+    mocks.mentionedModels = [model, modelB]
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: []
+    }))
+
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.mentionedModels).toEqual([model, modelB]))
+  })
+
   it('does NOT save input history when editing a previous message via forkAndResend', async () => {
     const forkAndResend = vi.fn().mockResolvedValue(undefined)
     mocks.chatWrite = { pause: vi.fn(), editMessage: vi.fn(), resend: vi.fn(), forkAndResend }
