@@ -21,7 +21,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import {
   exportMarkdownToObsidian,
   messagesToMarkdown,
@@ -29,6 +29,7 @@ import {
   messageToMarkdownWithReasoning,
   topicToMarkdown
 } from '@renderer/services/ExportService'
+import { toast } from '@renderer/services/toast'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 import { XIcon } from 'lucide-react'
@@ -278,7 +279,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       content = `---\ntitle: ${state.title}\ncreated: ${state.createdAt}\nsource: ${state.source}\ntags: ${state.tags}\n---\n${markdown}`
     }
     if (content === '') {
-      window.toast.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+      toast.error(i18n.t('chat.topics.export.obsidian_export_failed'))
       return
     }
     await navigator.clipboard.writeText(content)
@@ -413,7 +414,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
 
   return (
     <Dialog open={openState} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>{i18n.t('chat.topics.export.obsidian_atributes')}</DialogTitle>
         </DialogHeader>

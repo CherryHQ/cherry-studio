@@ -36,14 +36,14 @@ vi.mock('node:fs', async (importOriginal) => {
   }
 })
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: vi.fn(),
     getPath: mockGetPath
   }
 }))
 
-vi.mock('@main/utils/file/pathStatus', () => ({
+vi.mock('@main/utils/file', () => ({
   getPathStatus: mockGetPathStatus
 }))
 

@@ -5,7 +5,7 @@ import type * as ReactModule from 'react'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import BaseNavigator from '../navigator'
+import { BaseNavigator } from '../navigator'
 
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react') as typeof ReactModule
@@ -462,11 +462,9 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): Kn
   chunkOverlap: 200,
   chunkStrategy: 'structured',
   chunkSeparator: '\\n\\n',
-  threshold: undefined,
   documentCount: undefined,
   status: 'completed',
   error: null,
-  searchMode: 'hybrid',
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -524,17 +522,10 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(container.querySelector('.min-h-0.flex-1')).toHaveClass(
-      'overflow-x-hidden',
-      // px-0: the list's only horizontal inset is the both-edges scrollbar gutter, which lines the
-      // rows up with the search box above.
-      'px-0',
-      'pb-3',
-      // Reserve the scrollbar gutter on both edges so the list keeps symmetric left/right padding
-      // whether or not the scrollbar is showing.
-      '[scrollbar-gutter:stable_both-edges]'
-    )
+    expect(container.querySelector('.min-h-0.flex-1')).toHaveClass('overflow-x-hidden', 'px-2.5', 'pb-3')
+    expect(container.querySelector('.min-h-0.flex-1')?.className).not.toContain('px-0')
     expect(container.querySelector('.min-h-0.flex-1')?.className).not.toContain('[scrollbar-gutter:auto]')
+    expect(container.querySelector('.min-h-0.flex-1')?.className).not.toContain('[scrollbar-gutter:stable_both-edges]')
   })
 
   it('shows real group names and falls back to raw groupId when the mapping is missing', () => {

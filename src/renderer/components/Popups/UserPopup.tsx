@@ -20,42 +20,31 @@ import { usePreference } from '@data/hooks/usePreference'
 import DefaultAvatar from '@renderer/assets/images/avatar.png'
 import useAvatar from '@renderer/hooks/useAvatar'
 import ImageStorage from '@renderer/services/ImageStorage'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { fileToAvatarDataUrl } from '@renderer/utils/image'
 import { isEmoji } from '@renderer/utils/naming'
 import React, { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import EmojiPicker from '../EmojiPicker'
-import { TopView } from '../TopView'
+import { EmojiPicker } from '../EmojiPicker'
 
-const CLOSE_ANIMATION_MS = 200
-
-interface Props {
-  resolve: (data: any) => void
-}
+type Props = PopupInjectedProps<Record<string, never>>
 
 type AvatarPopoverView = 'menu' | 'emoji'
 
-const PopupContainer: React.FC<Props> = ({ resolve }) => {
+const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [userName, setUserName] = usePreference('app.user.name')
 
-  const [open, setOpen] = useState(true)
   const [avatarPopoverOpen, setAvatarPopoverOpen] = useState(false)
   const [avatarPopoverView, setAvatarPopoverView] = useState<AvatarPopoverView>('menu')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { t } = useTranslation()
   const avatar = useAvatar()
 
-  const closeDialog = () => {
-    setOpen(false)
-    window.setTimeout(() => {
-      resolve({})
-    }, CLOSE_ANIMATION_MS)
-  }
-
   const onOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
-      closeDialog()
+      resolve({})
     }
   }
 
@@ -68,7 +57,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
-      window.toast.error(error.message)
+      toast.error(error.message)
     }
   }
 
@@ -79,7 +68,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
-      window.toast.error(error.message)
+      toast.error(error.message)
     }
   }
 
@@ -91,7 +80,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       setAvatarPopoverOpen(false)
       setAvatarPopoverView('menu')
     } catch (error: any) {
-      window.toast.error(error.message)
+      toast.error(error.message)
     }
   }
 
@@ -181,22 +170,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   )
 }
 
-export default class UserPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide('UserPopup')
-  }
-  static show() {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          resolve={(v) => {
-            resolve(v)
-            this.hide()
-          }}
-        />,
-        'UserPopup'
-      )
-    })
-  }
-}
+const UserPopup = createPopup<Record<string, never>, Record<string, never>>(PopupContainer, { dismissResult: {} })
+
+export default UserPopup

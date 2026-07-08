@@ -2,15 +2,16 @@ import { useChat } from '@ai-sdk/react'
 import { Separator } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { toMessageListItem } from '@renderer/components/chat/messages'
+import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import { ipcChatTransport } from '@renderer/services/aiTransport'
+import { toast } from '@renderer/services/toast'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
@@ -362,7 +363,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const handleCopy = useCallback(() => {
     if (!content) return
     void navigator.clipboard.writeText(content)
-    window.toast.success(t('message.copy.success'))
+    toast.success(t('message.copy.success'))
   }, [content, t])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

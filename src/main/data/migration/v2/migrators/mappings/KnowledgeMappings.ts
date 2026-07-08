@@ -1,17 +1,16 @@
 import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
-import { sanitizeFilename } from '@main/utils/file'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import { sanitizeFilename } from '@main/utils/legacyFile'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
   DEFAULT_KNOWLEDGE_BASE_STATUS,
-  DEFAULT_KNOWLEDGE_SEARCH_MODE,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED,
   KNOWLEDGE_NOTE_CONTENT_MAX,
   type KnowledgeItemData,
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
@@ -195,18 +194,12 @@ function normalizeMigratedKnowledgeBaseConfig<T extends Partial<NewKnowledgeBase
     normalized.chunkOverlap = getDefaultChunkOverlap(chunkSize) as T['chunkOverlap']
   }
 
-  if (normalized.threshold != null && (normalized.threshold < 0 || normalized.threshold > 1)) {
-    normalized.threshold = undefined as T['threshold']
-  }
-
   if (normalized.documentCount != null && normalized.documentCount <= 0) {
     normalized.documentCount = undefined as T['documentCount']
   }
 
-  if (normalized.hybridAlpha != null) {
-    if (normalized.hybridAlpha < 0 || normalized.hybridAlpha > 1 || normalized.searchMode !== 'hybrid') {
-      normalized.hybridAlpha = undefined as T['hybridAlpha']
-    }
+  if (normalized.threshold != null && (normalized.threshold < 0 || normalized.threshold > 1)) {
+    normalized.threshold = undefined as T['threshold']
   }
 
   return normalized
@@ -269,7 +262,6 @@ export const transformKnowledgeBase = (
     chunkOverlap: base.chunkOverlap ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
     threshold: base.threshold,
     documentCount: base.documentCount,
-    searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE,
     createdAt: toTimestamp(base.created_at),
     updatedAt: toTimestamp(base.updated_at)
   }

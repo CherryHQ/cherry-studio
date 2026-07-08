@@ -30,14 +30,23 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ListItem from '@renderer/components/ListItem'
-import { WorkspaceSelector } from '@renderer/components/resource'
+import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import Scrollbar from '@renderer/components/Scrollbar'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingsContentColumn,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { useCreateTask, useDeleteTask, useRunTask, useTaskLogs, useUpdateTask } from '@renderer/hooks/agent/useTasks'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { toast } from '@renderer/services/toast'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type {
@@ -66,8 +75,6 @@ import {
 } from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
 
 const logger = loggerService.withContext('TasksSettings')
 
@@ -585,7 +592,7 @@ const TaskDetail: FC<{
       </SettingGroup>
 
       <Dialog open={promptModalOpen} onOpenChange={handlePromptModalOpenChange}>
-        <DialogContent className="sm:max-w-160">
+        <DialogContent closeOnOverlayClick={false} className="sm:max-w-160">
           <DialogHeader>
             <DialogTitle>{t('agent.cherryClaw.tasks.prompt.label')}</DialogTitle>
           </DialogHeader>
@@ -918,7 +925,7 @@ const CreateForm: FC<{
           </SettingRow>
 
           <Dialog open={promptModalOpen} onOpenChange={setPromptModalOpen}>
-            <DialogContent className="sm:max-w-160">
+            <DialogContent closeOnOverlayClick={false} className="sm:max-w-160">
               <DialogHeader>
                 <DialogTitle>{t('agent.cherryClaw.tasks.prompt.label')}</DialogTitle>
               </DialogHeader>
@@ -1020,7 +1027,7 @@ const TasksSettings: FC = () => {
       )
     } catch (error) {
       logger.error('Failed to load tasks settings', error as Error)
-      window.toast.error(t('agent.cherryClaw.tasks.error.loadFailed'))
+      toast.error(t('agent.cherryClaw.tasks.error.loadFailed'))
     } finally {
       setLoading(false)
     }

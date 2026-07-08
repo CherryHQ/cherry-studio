@@ -1,5 +1,5 @@
 import type { ToolExecutionOptions } from '@ai-sdk/provider-utils'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { Assistant } from '@shared/data/types/assistant'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,7 +8,7 @@ const deleteConcepts = vi.fn()
 const refreshConcepts = vi.fn()
 const loggerWarn = vi.hoisted(() => vi.fn())
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'KnowledgeService') return { addItems, deleteConcepts, refreshConcepts }
@@ -42,14 +42,14 @@ type ManageArgs = {
   conceptIds?: string[]
 }
 
-function callExecute(args: ManageArgs, ctx: { assistant?: Assistant } = {}): Promise<unknown> {
+function callExecute(args: ManageArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
   const execute = entry.tool.execute as (args: ManageArgs, options: ToolExecutionOptions) => Promise<unknown>
   return execute(args, {
     toolCallId: 'tc-1',
     messages: [],
     experimental_context: {
       requestId: 'req-1',
-      assistant: ctx.assistant,
+      knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
       abortSignal: new AbortController().signal
     }
   } as ToolExecutionOptions)
@@ -80,7 +80,7 @@ describe('kb_manage', () => {
   it('returns an error and does not mutate when the base is outside the assistant scope', async () => {
     const result = (await callExecute(
       { baseId: 'kb-other', action: 'delete', conceptIds: ['docs/a.md'] },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      { knowledgeBaseIds: ['kb-1'] }
     )) as { error: string }
 
     expect(result.error).toContain('kb-other')
@@ -90,7 +90,7 @@ describe('kb_manage', () => {
   it('adds a file by absolute path, deriving the source name from the basename', async () => {
     const result = await callExecute(
       { baseId: 'kb-1', action: 'add', type: 'file', path: '/Users/me/docs/report.pdf' },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      { knowledgeBaseIds: ['kb-1'] }
     )
 
     expect(addItems).toHaveBeenCalledWith('kb-1', [
@@ -102,7 +102,7 @@ describe('kb_manage', () => {
   it('rejects a non-absolute file path via schema validation and does not add', async () => {
     const result = (await callExecute(
       { baseId: 'kb-1', action: 'add', type: 'file', path: 'relative/report.pdf' },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      { knowledgeBaseIds: ['kb-1'] }
     )) as { error: string }
 
     expect(result.error).toContain('Invalid knowledge item to add')
@@ -115,7 +115,7 @@ describe('kb_manage', () => {
   it('adds a url, using the url as its source', async () => {
     const result = await callExecute(
       { baseId: 'kb-1', action: 'add', type: 'url', url: 'https://example.com/post' },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      { knowledgeBaseIds: ['kb-1'] }
     )
 
     expect(addItems).toHaveBeenCalledWith('kb-1', [
@@ -127,7 +127,7 @@ describe('kb_manage', () => {
   it('adds a note, deriving the source from the first line when no title is given', async () => {
     const result = await callExecute(
       { baseId: 'kb-1', action: 'add', type: 'note', content: 'First line\nsecond line' },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      { knowledgeBaseIds: ['kb-1'] }
     )
 
     expect(addItems).toHaveBeenCalledWith('kb-1', [
@@ -139,7 +139,7 @@ describe('kb_manage', () => {
   it('returns a steer and does not add when a required add field is missing', async () => {
     const result = (await callExecute(
       { baseId: 'kb-1', action: 'add', type: 'file' },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      { knowledgeBaseIds: ['kb-1'] }
     )) as { error: string }
 
     expect(result.error).toContain('path')
@@ -151,7 +151,7 @@ describe('kb_manage', () => {
 
     const result = await callExecute(
       { baseId: 'kb-1', action: 'delete', conceptIds: ['docs/a.md', 'docs/gone.md'] },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      { knowledgeBaseIds: ['kb-1'] }
     )
 
     expect(deleteConcepts).toHaveBeenCalledWith('kb-1', ['docs/a.md', 'docs/gone.md'])
@@ -163,7 +163,7 @@ describe('kb_manage', () => {
 
     const result = await callExecute(
       { baseId: 'kb-1', action: 'refresh', conceptIds: ['docs/a.md'] },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+      { knowledgeBaseIds: ['kb-1'] }
     )
 
     expect(refreshConcepts).toHaveBeenCalledWith('kb-1', ['docs/a.md'])
@@ -171,10 +171,9 @@ describe('kb_manage', () => {
   })
 
   it('returns a steer and does not delete when conceptIds are missing', async () => {
-    const result = (await callExecute(
-      { baseId: 'kb-1', action: 'delete' },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
-    )) as { error: string }
+    const result = (await callExecute({ baseId: 'kb-1', action: 'delete' }, { knowledgeBaseIds: ['kb-1'] })) as {
+      error: string
+    }
 
     expect(result.error).toContain('conceptIds')
     expect(deleteConcepts).not.toHaveBeenCalled()
@@ -185,7 +184,7 @@ describe('kb_manage', () => {
 
     const result = (await callExecute(
       { baseId: 'kb-gone', action: 'delete', conceptIds: ['docs/a.md'] },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-gone'] }) }
+      { knowledgeBaseIds: ['kb-gone'] }
     )) as { error: string }
 
     expect(result.error).toContain('kb-gone')
@@ -216,31 +215,45 @@ describe('kb_manage', () => {
   })
 
   describe('applies', () => {
-    it('returns true only when a base exists AND at least one is bound to the assistant', () => {
+    it('returns true only when a base exists AND at least one is in the effective scope', () => {
       const applies = entry.applies!
       // No base in the system → never applies, even with bound ids.
       expect(
         applies({
           assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
           mcpToolIds: new Set(),
-          hasAnyKnowledgeBase: false
+          hasAnyKnowledgeBase: false,
+          knowledgeBaseIds: ['kb-1']
         })
       ).toBe(false)
-      // A base exists but none bound to this assistant → does not apply.
-      expect(applies({ assistant: undefined, mcpToolIds: new Set(), hasAnyKnowledgeBase: true })).toBe(false)
+      // A base exists but the effective scope is empty → does not apply.
+      expect(
+        applies({ assistant: undefined, mcpToolIds: new Set(), hasAnyKnowledgeBase: true, knowledgeBaseIds: [] })
+      ).toBe(false)
       expect(
         applies({
           assistant: makeAssistant({ knowledgeBaseIds: [] }),
           mcpToolIds: new Set(),
-          hasAnyKnowledgeBase: true
+          hasAnyKnowledgeBase: true,
+          knowledgeBaseIds: []
         })
       ).toBe(false)
-      // A base exists AND is bound → applies.
+      // A base exists AND is bound to the assistant → applies.
       expect(
         applies({
           assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
           mcpToolIds: new Set(),
-          hasAnyKnowledgeBase: true
+          hasAnyKnowledgeBase: true,
+          knowledgeBaseIds: ['kb-1']
+        })
+      ).toBe(true)
+      // Assistant has no static binding, but the composer selected one for this turn → applies.
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: [] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: true,
+          knowledgeBaseIds: ['kb-selected-this-turn']
         })
       ).toBe(true)
     })

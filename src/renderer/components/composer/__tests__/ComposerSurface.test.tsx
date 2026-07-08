@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurface'
+import { COMPOSER_SUPPRESS_SUGGESTION_META } from '../quickPanel/suggestionExtension'
 
 const mocks = vi.hoisted(() => ({
   editorOptions: undefined as any,
@@ -23,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   insertComposerToken: vi.fn(),
   deleteRange: vi.fn(),
   deleteSelection: vi.fn(),
+  setMeta: vi.fn(),
   setContent: vi.fn(),
   setNodeSelection: vi.fn(),
   chainRun: vi.fn(),
@@ -157,6 +159,16 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
           deleteSelection: () => {
             mocks.deleteSelection()
             return { run: mocks.chainRun }
+          },
+          setMeta: (...args: unknown[]) => {
+            mocks.setMeta(...args)
+            return {
+              insertContent: (...contentArgs: unknown[]) => {
+                mocks.insertContent(...contentArgs)
+                return { run: mocks.chainRun }
+              },
+              run: mocks.chainRun
+            }
           },
           insertContent: (...args: unknown[]) => {
             mocks.insertContent(...args)
@@ -376,6 +388,7 @@ describe('ComposerSurface', () => {
     mocks.insertComposerToken.mockReset()
     mocks.deleteRange.mockReset()
     mocks.deleteSelection.mockReset()
+    mocks.setMeta.mockReset()
     mocks.setContent.mockReset()
     mocks.setNodeSelection.mockReset()
     mocks.chainRun.mockReset()
@@ -435,6 +448,8 @@ describe('ComposerSurface', () => {
 
   afterEach(() => {
     clearMockTimers()
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
   })
 
   it('keeps composer narrow mode independent from chat wide-layout overrides', () => {
@@ -450,6 +465,7 @@ describe('ComposerSurface', () => {
     const editorContent = screen.getByTestId('editor-content')
     const editor = screen.getByTestId('composer-editor')
     const editorContainer = editorContent.parentElement
+    const inputbar = document.getElementById('inputbar')
     const expandedHeight = `${Math.max(220, Math.round(window.innerHeight * 0.5))}px`
 
     expect(editorContainer).toHaveStyle({ minHeight: '46px' })
@@ -475,12 +491,24 @@ describe('ComposerSurface', () => {
     )
     expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('height: 100%')
     expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('overflow-y: auto')
+    expect(inputbar).toHaveClass('expanded')
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.restore' }))
+
+    await waitFor(() => expect(editorContainer).toHaveStyle({ height: '46px', overflow: 'hidden' }))
+    fireEvent.transitionEnd(editorContainer as HTMLElement, { propertyName: 'height' })
+
+    expect(screen.getByRole('button', { name: 'chat.input.expand' })).toHaveAttribute('aria-pressed', 'false')
+    expect(editorContent).not.toHaveStyle({ height: '100%' })
+    expect(editor.getAttribute('data-editor-style')).toContain('max-height: max(220px, 40vh)')
+    expect(inputbar).not.toHaveClass('expanded')
   })
 
-  it('renders the expand control in the inputbar corner', () => {
+  it('renders the resize handle and expand control in the inputbar corner', () => {
     render(<Harness />)
 
     const expandButton = screen.getByRole('button', { name: 'chat.input.expand' })
+    const resizeHandle = screen.getByRole('separator', { name: 'chat.input.resize_height' })
     const inputbar = document.getElementById('inputbar')
     const corner = inputbar?.querySelector('[data-composer-expand-corner]') as HTMLElement | null
     const cornerLine = inputbar?.querySelector('[data-composer-expand-corner-line]') as HTMLElement | null
@@ -489,6 +517,11 @@ describe('ComposerSurface', () => {
     expect(screen.getByRole('button', { name: 'send' })).toBeInTheDocument()
     expect(inputbar).not.toBeNull()
     expect(corner).not.toBeNull()
+    expect(resizeHandle.closest('#inputbar')).toBe(inputbar)
+    expect(resizeHandle).toHaveAttribute('aria-orientation', 'horizontal')
+    expect(resizeHandle).toHaveAttribute('aria-valuemin', '46')
+    expect(resizeHandle).toHaveAttribute('aria-valuemax', `${Math.max(220, Math.round(window.innerHeight * 0.5))}`)
+    expect(resizeHandle).toHaveClass('cursor-row-resize', '[-webkit-app-region:no-drag]')
     expect(expandButton.closest('#inputbar')).toBe(inputbar)
     expect(expandButton.parentElement).toBe(corner)
     expect(inputbar).not.toHaveClass('group/inputbar')
@@ -526,10 +559,145 @@ describe('ComposerSurface', () => {
 
     fireEvent.click(expandButton)
 
-    const collapseButton = screen.getByRole('button', { name: 'chat.input.collapse' })
-    expect(collapseButton).toHaveAttribute('aria-pressed', 'true')
-    expect(collapseButton).toHaveClass('opacity-100', 'bg-accent/80', 'rotate-0')
-    expect(cornerLine).toHaveClass('opacity-0', 'scale-50')
+    const restoreButton = screen.getByRole('button', { name: 'chat.input.restore' })
+    expect(restoreButton).toHaveAttribute('aria-pressed', 'true')
+    // Button remains hover-only regardless of custom height state.
+    expect(restoreButton).toHaveClass('opacity-0')
+    expect(restoreButton).not.toHaveClass('opacity-100')
+    // Corner arc stays visible as a hover affordance even after height is set.
+    expect(cornerLine).not.toHaveClass('opacity-0')
+    expect(cornerLine).not.toHaveClass('scale-50')
+  })
+
+  it('uses temporary manual height while dragging and restores the default height from the corner control', async () => {
+    render(<Harness />)
+
+    const resizeHandle = screen.getByRole('separator', { name: 'chat.input.resize_height' })
+    const editorContent = screen.getByTestId('editor-content')
+    const editorContainer = editorContent.parentElement as HTMLElement
+    const inputbar = document.getElementById('inputbar')
+
+    fireEvent.mouseDown(resizeHandle, { clientY: 200 })
+    expect(document.body.style.cursor).toBe('row-resize')
+
+    fireEvent.mouseMove(document, { clientY: 100 })
+
+    expect(editorContainer).toHaveStyle({ height: '146px', transitionDuration: '0ms' })
+    expect(editorContent).toHaveStyle({ height: '100%' })
+    expect(screen.getByTestId('composer-editor').className).toContain('max-h-[max(220px,50vh)]')
+    expect(screen.getByTestId('composer-editor').getAttribute('data-editor-style')).toContain('max-height: 146px')
+    expect(screen.getByRole('button', { name: 'chat.input.restore' })).toHaveAttribute('aria-pressed', 'true')
+    expect(inputbar).not.toHaveClass('expanded')
+
+    fireEvent.mouseUp(document)
+    expect(document.body.style.cursor).toBe('')
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.restore' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'chat.input.expand' })).toHaveAttribute('aria-pressed', 'false')
+    )
+    await waitFor(() => expect(editorContainer).toHaveStyle({ height: '46px' }))
+    fireEvent.transitionEnd(editorContainer, { propertyName: 'height' })
+
+    expect(editorContainer.style.height).toBe('')
+    expect(editorContent).not.toHaveStyle({ height: '100%' })
+  })
+
+  it('clamps pointer drag height to the editor minimum and expanded maximum', () => {
+    render(<Harness />)
+
+    const resizeHandle = screen.getByRole('separator', { name: 'chat.input.resize_height' })
+    const editorContainer = screen.getByTestId('editor-content').parentElement as HTMLElement
+    const expandedHeight = `${Math.max(220, Math.round(window.innerHeight * 0.5))}px`
+
+    fireEvent.mouseDown(resizeHandle, { clientY: 200 })
+    fireEvent.mouseMove(document, { clientY: -1000 })
+    expect(editorContainer).toHaveStyle({ height: expandedHeight })
+
+    fireEvent.mouseMove(document, { clientY: 1000 })
+    expect(editorContainer).toHaveStyle({ height: '46px' })
+  })
+
+  it('converts expanded height to manual height when dragging from the expanded state', async () => {
+    render(<Harness />)
+
+    const editorContainer = screen.getByTestId('editor-content').parentElement as HTMLElement
+    const expandedHeight = Math.max(220, Math.round(window.innerHeight * 0.5))
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.input.expand' }))
+    await waitFor(() => expect(editorContainer).toHaveStyle({ height: `${expandedHeight}px` }))
+
+    fireEvent.mouseDown(screen.getByRole('separator', { name: 'chat.input.resize_height' }), { clientY: 200 })
+    fireEvent.mouseMove(document, { clientY: 260 })
+
+    expect(editorContainer).toHaveStyle({ height: `${expandedHeight - 60}px` })
+    expect(screen.queryByRole('button', { name: 'chat.input.collapse' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'chat.input.restore' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('clears manual height when an external expand is collapsed with Escape', async () => {
+    render(<Harness />)
+
+    const editorContent = screen.getByTestId('editor-content')
+    const editorContainer = editorContent.parentElement as HTMLElement
+    const expandedHeight = `${Math.max(220, Math.round(window.innerHeight * 0.5))}px`
+
+    fireEvent.mouseDown(screen.getByRole('separator', { name: 'chat.input.resize_height' }), { clientY: 200 })
+    fireEvent.mouseMove(document, { clientY: 100 })
+    fireEvent.mouseUp(document)
+
+    expect(editorContainer).toHaveStyle({ height: '146px' })
+
+    act(() => {
+      mocks.actions?.toggleExpanded(true)
+    })
+
+    await waitFor(() => expect(editorContainer).toHaveStyle({ height: expandedHeight }))
+    fireEvent.transitionEnd(editorContainer, { propertyName: 'height' })
+
+    expect(editorContainer).toHaveStyle({ height: 'max(220px, 50vh)' })
+
+    let handled = false
+    act(() => {
+      const event = new KeyboardEvent('keydown', { key: 'Escape' })
+      handled = mocks.editorOptions.editorProps.handleKeyDown(null, event)
+    })
+    expect(handled).toBe(true)
+
+    await waitFor(() => expect(editorContainer).toHaveStyle({ height: '46px' }))
+    fireEvent.transitionEnd(editorContainer, { propertyName: 'height' })
+
+    expect(editorContainer.style.height).toBe('')
+    expect(editorContent).not.toHaveStyle({ height: '100%' })
+    expect(screen.getByRole('button', { name: 'chat.input.expand' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('supports keyboard resizing through the horizontal separator', () => {
+    mocks.focus.mockImplementation(() => {
+      const activeElement = document.activeElement
+      if (activeElement instanceof HTMLElement) activeElement.blur()
+    })
+    render(<Harness />)
+
+    const resizeHandle = screen.getByRole('separator', { name: 'chat.input.resize_height' })
+    const editorContainer = screen.getByTestId('editor-content').parentElement as HTMLElement
+    const expandedHeight = Math.max(220, Math.round(window.innerHeight * 0.5))
+
+    resizeHandle.focus()
+    expect(resizeHandle).toHaveFocus()
+
+    fireEvent.keyDown(resizeHandle, { key: 'End' })
+    expect(editorContainer).toHaveStyle({ height: `${expandedHeight}px` })
+    expect(screen.getByRole('button', { name: 'chat.input.restore' })).toBeInTheDocument()
+    expect(resizeHandle).toHaveFocus()
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'ArrowDown' })
+    expect(editorContainer).toHaveStyle({ height: `${expandedHeight - 16}px` })
+    expect(resizeHandle).toHaveFocus()
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Home' })
+    expect(editorContainer).toHaveStyle({ height: '46px' })
   })
 
   it('renders a compact editing mode badge attached to the inputbar edge', () => {
@@ -2550,7 +2718,7 @@ describe('ComposerSurface', () => {
         },
         fallbackText: '/pdf/'
       },
-      { type: 'text', text: ' private' }
+      { type: 'text', text: ' private @scope/package' }
     ])
     const event = {
       preventDefault,
@@ -2577,8 +2745,9 @@ describe('ComposerSurface', () => {
           promptText: 'Use the PDF skill.'
         }
       },
-      { type: 'text', text: ' private' }
+      { type: 'text', text: ' private @scope/package' }
     ])
+    expect(mocks.setMeta).toHaveBeenCalledWith(COMPOSER_SUPPRESS_SUGGESTION_META, true)
     expect(resolveSkillMarker).toHaveBeenCalledWith('pdf')
   })
 
@@ -2713,6 +2882,27 @@ describe('ComposerSurface', () => {
     expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: 'plain paste' }])
     expect(mocks.insertContent).toHaveBeenCalledTimes(1)
     expect(read).not.toHaveBeenCalled()
+  })
+
+  it('suppresses composer suggestions when pasting scoped shell command text', async () => {
+    const pastedText = "-lc 'exec npx -y @agentclientprotocol/claude-agent-acp'"
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? pastedText : ''))
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(mocks.setMeta).toHaveBeenCalledWith(COMPOSER_SUPPRESS_SUGGESTION_META, true)
+    expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: pastedText }])
+    expect(mocks.chainRun).toHaveBeenCalled()
   })
 
   it('prefers paste event private fragments over the session cache', async () => {
@@ -2998,6 +3188,27 @@ describe('ComposerSurface', () => {
       preventDefault: vi.fn(),
       clipboardData: {
         getData: vi.fn((type: string) => (type === 'text/plain' ? 'a'.repeat(2001) : ''))
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
+  })
+
+  it('intercepts file-only clipboard paste synchronously', async () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn(() => ''),
+        files: [{ name: 'test.png', type: 'image/png' }],
+        items: [{ kind: 'file', type: 'image/png' }]
       }
     }
 

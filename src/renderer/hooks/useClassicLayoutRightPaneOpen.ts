@@ -6,6 +6,8 @@ const RIGHT_PANE_OPEN_CACHE_KEY = {
   agent: 'ui.agent.right_pane_open'
 } as const
 
+type ClassicLayoutPaneOpenSetter = (open: boolean, options?: { force?: boolean }) => void
+
 /**
  * Classic-layout right-pane open state, cached per surface so the assistant (`'chat'`) and agent
  * surfaces never bleed into each other (mirrors the `ui.chat.*` vs `ui.agent.*` split used elsewhere).
@@ -16,12 +18,12 @@ const RIGHT_PANE_OPEN_CACHE_KEY = {
 export function useClassicLayoutRightPaneOpen(
   surface: 'chat' | 'agent',
   isClassicLayout: boolean
-): readonly [boolean, (open: boolean) => void] {
+): readonly [boolean, ClassicLayoutPaneOpenSetter] {
   const [stored, setStored] = usePersistCache(RIGHT_PANE_OPEN_CACHE_KEY[surface])
   const paneOpen = isClassicLayout && stored
-  const setPaneOpen = useCallback(
-    (open: boolean) => {
-      if (isClassicLayout) setStored(open)
+  const setPaneOpen = useCallback<ClassicLayoutPaneOpenSetter>(
+    (open, options) => {
+      if (isClassicLayout || options?.force) setStored(open)
     },
     [isClassicLayout, setStored]
   )

@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { sanitizeFilename } from '@main/utils/file'
+import { sanitizeFilename } from '@main/utils/legacyFile'
 import Database from 'better-sqlite3'
 
 const LEGACY_VECTOR_TABLE_NAME = 'vectors'
@@ -13,14 +13,34 @@ export interface LegacyKnowledgeVectorRow {
   vector: LegacyKnowledgeVectorDecodeResult
 }
 
+/**
+ * A projection of just the two columns a `uniqueLoaderId → source` map needs. Used by callers
+ * (directory expansion in KnowledgeMigrator) that must not pay to read + float32-decode the
+ * vector BLOBs.
+ */
+export interface LegacyKnowledgeLoaderSourceRow {
+  uniqueLoaderId: string
+  source: string
+}
+
 export type LegacyKnowledgeVectorDecodeResult =
   | { status: 'decoded'; value: number[] }
   | { status: 'missing' }
   | { status: 'unsupported_encoding'; encoding: string }
 
+/** Shared non-`ok` outcomes for both the full read and the loader-source-only read. */
+type LegacyKnowledgeSourceLoadFailure = {
+  status: 'invalid_path' | 'missing' | 'directory' | 'not_embedjs'
+  dbPath?: string
+}
+
 export type LegacyKnowledgeVectorLoadResult =
   | { status: 'ok'; dbPath: string; rows: LegacyKnowledgeVectorRow[] }
-  | { status: 'invalid_path' | 'missing' | 'directory' | 'not_embedjs'; dbPath?: string }
+  | LegacyKnowledgeSourceLoadFailure
+
+export type LegacyKnowledgeLoaderSourceLoadResult =
+  | { status: 'ok'; dbPath: string; rows: LegacyKnowledgeLoaderSourceRow[] }
+  | LegacyKnowledgeSourceLoadFailure
 
 export class KnowledgeVectorSourceReader {
   constructor(private readonly knowledgeBaseDir: string) {}
@@ -29,7 +49,31 @@ export class KnowledgeVectorSourceReader {
     return path.join(this.knowledgeBaseDir, sanitizeFilename(baseId, '_'))
   }
 
+  /**
+   * Read a base's full legacy vector rows (page content + decoded vectors). Use this only when
+   * the vectors themselves are needed (the vector migrator); to build a loader→source map, use
+   * the lighter {@link loadBaseLoaderSources}.
+   */
   async loadBase(baseId: string): Promise<LegacyKnowledgeVectorLoadResult> {
+    return this.loadFromLegacyDb(baseId, (db) => this.readLegacyVectorRows(db))
+  }
+
+  /**
+   * Read only the *distinct* `uniqueLoaderId`/`source` pairs — never the pageContent or vector
+   * BLOB. This lets directory expansion build its loader→source map without synchronously reading
+   * and float32-decoding a whole base's vectors, which on large folders froze the migration UI and
+   * risked OOM; the `DISTINCT` also keeps the returned rows down to one per loader instead of one
+   * per chunk. Path resolution and the embedjs guard are shared with {@link loadBase}, so both
+   * reads see the exact same set of loaders.
+   */
+  async loadBaseLoaderSources(baseId: string): Promise<LegacyKnowledgeLoaderSourceLoadResult> {
+    return this.loadFromLegacyDb(baseId, (db) => this.readLegacyLoaderSourceRows(db))
+  }
+
+  private loadFromLegacyDb<TRow>(
+    baseId: string,
+    readRows: (db: Database.Database) => TRow[]
+  ): { status: 'ok'; dbPath: string; rows: TRow[] } | LegacyKnowledgeSourceLoadFailure {
     const dbPath = this.getLegacyDbPath(baseId)
     if (!dbPath) {
       return { status: 'invalid_path' }
@@ -39,27 +83,17 @@ export class KnowledgeVectorSourceReader {
       return { status: 'missing', dbPath }
     }
 
-    const stat = fs.statSync(dbPath)
-    if (stat.isDirectory()) {
+    if (fs.statSync(dbPath).isDirectory()) {
       return { status: 'directory', dbPath }
     }
 
-    return this.loadLegacyDb(dbPath)
-  }
-
-  private loadLegacyDb(dbPath: string): LegacyKnowledgeVectorLoadResult {
     const db = new Database(dbPath, { readonly: true, fileMustExist: true })
     try {
-      const isEmbedjs = this.isEmbedjsDatabase(db)
-      if (!isEmbedjs) {
+      if (!this.isEmbedjsDatabase(db)) {
         return { status: 'not_embedjs', dbPath }
       }
 
-      return {
-        status: 'ok',
-        dbPath,
-        rows: this.readLegacyVectorRows(db)
-      }
+      return { status: 'ok', dbPath, rows: readRows(db) }
     } finally {
       db.close()
     }
@@ -81,6 +115,20 @@ export class KnowledgeVectorSourceReader {
       uniqueLoaderId: String(row.uniqueLoaderId ?? ''),
       source: String(row.source ?? ''),
       vector: this.deserializeLegacyVector(row.vector)
+    }))
+  }
+
+  private readLegacyLoaderSourceRows(db: Database.Database): LegacyKnowledgeLoaderSourceRow[] {
+    // `DISTINCT` dedups in SQLite so this materializes only the unique loader/source pairs the
+    // caller folds into its map — not one JS object per legacy vector chunk. A large folder can
+    // have thousands of chunks under a single loader; without `DISTINCT` that's thousands of
+    // redundant allocations here for a map that keeps one entry per loader.
+    const statement = db.prepare(`SELECT DISTINCT uniqueLoaderId, source FROM ${LEGACY_VECTOR_TABLE_NAME}`)
+    const rows = statement.all() as Array<Record<string, unknown>>
+
+    return rows.map((row) => ({
+      uniqueLoaderId: String(row.uniqueLoaderId ?? ''),
+      source: String(row.source ?? '')
     }))
   }
 

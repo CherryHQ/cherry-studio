@@ -5,7 +5,7 @@
  * declared in `src/shared/ipc/schemas/knowledge`, not through DataApi.
  */
 
-import type { CursorPaginationResponse, OffsetPaginationResponse } from '@shared/data/api'
+import type { CursorPaginationResponse, OffsetPaginationResponse } from '@shared/data/api/types'
 import {
   type KnowledgeBase,
   KnowledgeBaseEntitySchema,
@@ -27,9 +27,7 @@ const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
   chunkStrategy: true,
   chunkSeparator: true,
   threshold: true,
-  documentCount: true,
-  searchMode: true,
-  hybridAlpha: true
+  documentCount: true
 } as const
 
 // `embeddingModelId` and `dimensions` are mutable here only while the base has
@@ -45,8 +43,7 @@ export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDG
     rerankModelId: KnowledgeBaseEntitySchema.shape.rerankModelId,
     fileProcessorId: KnowledgeBaseEntitySchema.shape.fileProcessorId,
     threshold: KnowledgeBaseEntitySchema.shape.threshold,
-    documentCount: KnowledgeBaseEntitySchema.shape.documentCount,
-    hybridAlpha: KnowledgeBaseEntitySchema.shape.hybridAlpha
+    documentCount: KnowledgeBaseEntitySchema.shape.documentCount
   })
   .superRefine((value, ctx) => {
     // Paired like create/restore: a vector base needs both, a BM25-only base

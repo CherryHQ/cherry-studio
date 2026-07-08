@@ -1,3 +1,4 @@
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
   MdiLightbulbAutoOutline,
@@ -11,6 +12,7 @@ import {
 } from '@renderer/components/icons/SvgIcon'
 import { cacheService } from '@renderer/data/CacheService'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import {
   getThinkModelType,
@@ -90,7 +92,7 @@ const useThinkingToolController = ({
         assistant?.settings.enableWebSearch &&
         option === 'minimal'
       ) {
-        window.toast.warning(t('chat.web_search.warning.openai'))
+        toast.warning(t('chat.web_search.warning.openai'))
         return
       }
       cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)
@@ -183,6 +185,10 @@ const useThinkingToolController = ({
         order: 60,
         label: t('assistants.settings.reasoning_effort.label'),
         description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'assistants.settings.reasoning_effort.label', [
+          'think',
+          'reasoning effort'
+        ]),
         disabledReason,
         icon: ThinkingIcon({ option: currentReasoningEffort }),
         active: isReasoningConfigurable && isThinkingEnabled,

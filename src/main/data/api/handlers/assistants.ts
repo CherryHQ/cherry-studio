@@ -9,7 +9,6 @@
  */
 
 import { assistantDataService } from '@data/services/AssistantService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AssistantSchemas } from '@shared/data/api/schemas/assistants'
 import {
@@ -18,6 +17,7 @@ import {
   ListAssistantsQuerySchema,
   UpdateAssistantSchema
 } from '@shared/data/api/schemas/assistants'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const assistantHandlers: HandlersFor<AssistantSchemas> = {
   '/assistants': {
@@ -50,8 +50,7 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
 
     DELETE: async ({ params, query }) => {
       const parsed = DeleteAssistantQuerySchema.parse(query ?? {})
-      assistantDataService.delete(params.id, { deleteTopics: parsed.deleteTopics === true })
-      return undefined
+      return assistantDataService.delete(params.id, { deleteTopics: parsed.deleteTopics === true })
     }
   },
 

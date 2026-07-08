@@ -1,12 +1,15 @@
 import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EmojiIcon from '@renderer/components/EmojiIcon'
-import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resource'
-import { ResourceCreateWizard, type ResourceCreateWizardValues } from '@renderer/components/resource/dialogs'
-import { isSelectableAssistantModel } from '@renderer/components/resource/dialogs/form/assistantModelFilter'
+import {
+  ResourceCreateWizard,
+  type ResourceCreateWizardValues
+} from '@renderer/components/resourceCatalog/dialogs/create'
+import { ConversationPickerDialog, type ConversationPickerItem } from '@renderer/components/resourceCatalog/selectors'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
 import { type AssistantCatalogPreset, useAssistantCatalogPresets } from '@renderer/hooks/useAssistantCatalogPresets'
 import type { Assistant } from '@renderer/types/assistant'
+import { isSelectableAssistantModel } from '@renderer/utils/resourceCatalog'
 import { cn } from '@renderer/utils/style'
 import { Bot, Check, Filter, Plus } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'

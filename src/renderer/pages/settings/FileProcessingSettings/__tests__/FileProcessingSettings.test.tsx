@@ -1,18 +1,19 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { PopupHost } from '@renderer/components/PopupHost'
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type * as RendererConstantModule from '@renderer/utils/platform'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import FileProcessingSettings from '..'
 import { PADDLEOCR_DEPLOYMENT_URL } from '../components/PaddleOcrDeploymentInfo'
+import FileProcessingSettings from '../FileProcessingSettings'
 
 const setPreferencesMock = vi.hoisted(() => vi.fn())
 const setOverridesMock = vi.hoisted(() => vi.fn())
 const ipcRequestMock = vi.hoisted(() => vi.fn())
-const topViewShowMock = vi.hoisted(() => vi.fn())
-const topViewHideMock = vi.hoisted(() => vi.fn())
 const comboboxMockState = vi.hoisted(() => ({
   onChange: undefined as ((value: string | string[]) => void) | undefined,
   options: [] as Array<{ value: string; label: string }>,
@@ -76,12 +77,9 @@ vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
 }))
 
-vi.mock('@renderer/components/TopView', () => ({
-  TopView: {
-    show: topViewShowMock,
-    hide: topViewHideMock
-  }
-}))
+// The API key list popup now renders through the real services/popup store + PopupHost,
+// so opt this file out of the globally installed popup mock (tests/renderer.setup.ts).
+vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
@@ -142,11 +140,18 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     },
     Dialog: ({ children, open }: React.HTMLAttributes<HTMLDivElement> & { open?: boolean }) =>
       open === false ? null : <>{children}</>,
-    DialogContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-      <div role="dialog" {...props}>
-        {children}
-      </div>
-    ),
+    DialogContent: ({
+      children,
+      closeOnOverlayClick,
+      ...props
+    }: React.HTMLAttributes<HTMLDivElement> & { closeOnOverlayClick?: boolean }) => {
+      void closeOnOverlayClick
+      return (
+        <div role="dialog" {...props}>
+          {children}
+        </div>
+      )
+    },
     DialogHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
     DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
     InfoTooltip: ({
@@ -251,26 +256,23 @@ describe('FileProcessingSettings', () => {
     setOverridesMock.mockResolvedValue(undefined)
     loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     loggerWarnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
-    topViewShowMock.mockReset()
-    topViewHideMock.mockReset()
     ipcRequestMock.mockReset()
     ipcRequestMock.mockResolvedValue({
       processorIds: ['system', 'tesseract', 'paddleocr', 'mineru', 'doc2x', 'mistral', 'open-mineru']
     })
-    Object.defineProperty(window, 'modal', {
-      configurable: true,
-      value: {
-        confirm: vi.fn().mockResolvedValue(true)
-      }
-    })
-    Object.defineProperty(window, 'toast', {
-      configurable: true,
-      value: {
-        error: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn()
-      }
-    })
+  })
+
+  afterEach(() => {
+    // Unmount the host first so settling leftover popups triggers no React update on a
+    // still-mounted tree, then drain the singleton popup store so the next test starts
+    // empty. Fake timers fire the exit phase synchronously (no wall-clock wait).
+    cleanup()
+    vi.useFakeTimers()
+    for (const entry of [...popupService.getSnapshot()]) {
+      popupService.settle(entry.instanceId, null)
+    }
+    vi.advanceTimersByTime(POPUP_EXIT_MS)
+    vi.useRealTimers()
   })
 
   it('sets the active image processor as the image-to-text default', async () => {
@@ -434,7 +436,7 @@ describe('FileProcessingSettings', () => {
     fireEvent.blur(screen.getByPlaceholderText('settings.provider.api_host'))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
     })
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to save API host', error)
   })
@@ -480,14 +482,19 @@ describe('FileProcessingSettings', () => {
     fireEvent.blur(apiHostInput)
 
     await waitFor(() => {
-      expect(window.toast.warning).toHaveBeenCalledWith('settings.tool.file_processing.errors.invalid_api_host')
+      expect(toast.warning).toHaveBeenCalledWith('settings.tool.file_processing.errors.invalid_api_host')
     })
     expect(setOverridesMock).not.toHaveBeenCalled()
     expect(apiHostInput).toHaveValue('not-a-url')
   })
 
   it('opens the file processing API key list popup from the API key field', async () => {
-    render(<FileProcessingSettings />)
+    render(
+      <>
+        <FileProcessingSettings />
+        <PopupHost />
+      </>
+    )
 
     fireEvent.click(
       (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
@@ -497,44 +504,74 @@ describe('FileProcessingSettings', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
 
-    await waitFor(() => {
-      expect(topViewShowMock).toHaveBeenCalled()
-    })
-
-    const popup = topViewShowMock.mock.calls[0][0]
-    expect(popup.props.processorId).toBe('mistral')
-    expect(popup.props.apiKeys).toEqual(['key-1', 'key-2'])
-    expect(popup.props.title).toBe(
-      'settings.tool.file_processing.processors.mistral.name settings.provider.api.key.list.title'
-    )
+    // The real popup mounts under PopupHost: it carries the mistral-scoped title and lists the
+    // two keys parsed from the API key field (short keys render unmasked).
+    expect(
+      await screen.findByText(
+        'settings.tool.file_processing.processors.mistral.name settings.provider.api.key.list.title'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByText('key-1')).toBeInTheDocument()
+    expect(screen.getByText('key-2')).toBeInTheDocument()
   })
 
   it('reopens the file processing API key list with keys saved from the popup', async () => {
-    render(<FileProcessingSettings />)
+    render(
+      <>
+        <FileProcessingSettings />
+        <PopupHost />
+      </>
+    )
 
     fireEvent.click(
       (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ }))[0]
     )
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
 
-    await waitFor(() => {
-      expect(topViewShowMock).toHaveBeenCalledTimes(1)
-    })
+    // The popup opens empty (no keys configured yet).
+    await screen.findByText('error.no_api_key')
 
+    // Add a key containing a comma, then a plain key, through the popup's own UI. Each save
+    // routes through the popup's onSetApiKeys callback back into the API key field.
+    fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.api.key.new_key.placeholder'), {
+      target: { value: 'key,1' }
+    })
     await act(async () => {
-      await topViewShowMock.mock.calls[0][0].props.onSetApiKeys('mistral', ['key,1', 'key2'])
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
     })
 
-    expect(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder')).toHaveValue(
-      'key\\,1, key2'
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'common.add' }))
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.api.key.new_key.placeholder'), {
+      target: { value: 'key2' }
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+    })
 
+    // The API key field now reflects the saved keys with the comma escaped.
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('settings.tool.file_processing.fields.api_keys_placeholder')).toHaveValue(
+        'key\\,1, key2'
+      )
+    })
+
+    // Close the popup so single-flight resets, then let the exit phase remove the entry.
+    await act(async () => {
+      for (const entry of [...popupService.getSnapshot()]) {
+        popupService.settle(entry.instanceId, null)
+      }
+    })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, POPUP_EXIT_MS + 20))
+    })
+
+    // Reopening reads the current field value, so the popup now lists the saved keys.
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.open' }))
 
-    await waitFor(() => {
-      expect(topViewShowMock).toHaveBeenCalledTimes(2)
-    })
-    expect(topViewShowMock.mock.calls[1][0].props.apiKeys).toEqual(['key,1', 'key2'])
+    expect(await screen.findByText('key,1')).toBeInTheDocument()
+    expect(screen.getByText('key2')).toBeInTheDocument()
   })
 
   it('stores System OCR language options on Windows', async () => {

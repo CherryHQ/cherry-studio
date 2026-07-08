@@ -26,9 +26,10 @@ import type {
 } from '@renderer/pages/home/Tabs/components/topicContextMenuActions'
 import { sortTopicsForDisplayGroups } from '@renderer/pages/home/Tabs/components/topicsHelpers'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/pages/home/Tabs/components/useTopicMenuActions'
-import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
+import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { Bot, ChevronLeft } from 'lucide-react'
@@ -299,7 +300,7 @@ const AssistantHistoryRecordsContent = ({
       } catch (err) {
         logger.error('Failed to delete topic from history records', { topicId: topic.id, err })
         const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
-        window.toast.error(message)
+        toast.error(message)
         return
       }
 
@@ -337,7 +338,7 @@ const AssistantHistoryRecordsContent = ({
     } catch (err) {
       logger.error('Failed to bulk delete topics from history records', { ids, err })
       const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
-      window.toast.error(message)
+      toast.error(message)
     }
   }, [activeRecordId, deleteTopics, getRendererTopic, onRecordSelect, selectedDeletableTopicIds, t, timeSortedTopics])
 
@@ -358,13 +359,13 @@ const AssistantHistoryRecordsContent = ({
 
         if (failedResults.length === 0) {
           setSelectedTopicIds([])
-          window.toast.success(t('history.records.bulkMoveTopics.success', { count: ids.length }))
+          toast.success(t('history.records.bulkMoveTopics.success', { count: ids.length }))
           return
         }
 
         logger.error('Failed to bulk move topics from history records', { ids, targetAssistantId, failedResults })
         if (movedIds.length > 0) {
-          window.toast.warning(
+          toast.warning(
             t('history.records.bulkMoveTopics.partialSuccess', {
               failed: failedResults.length,
               moved: movedIds.length,
@@ -376,11 +377,11 @@ const AssistantHistoryRecordsContent = ({
 
         const firstReason = failedResults[0]?.reason
         const message = firstReason instanceof Error ? firstReason.message : t('history.records.bulkMoveTopics.error')
-        window.toast.error(message)
+        toast.error(message)
       } catch (err) {
         logger.error('Failed to bulk move topics from history records', { ids, targetAssistantId, err })
         const message = err instanceof Error ? err.message : t('history.records.bulkMoveTopics.error')
-        window.toast.error(message)
+        toast.error(message)
       }
     },
     [batchUpdateTopics, selectedTopicIds, t, topics]
@@ -401,7 +402,7 @@ const AssistantHistoryRecordsContent = ({
         if (summaryText) {
           void updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
         } else if (summaryError) {
-          window.toast?.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
+          toast.error(`${t('message.error.fetchTopicName')}: ${summaryError}`)
         }
       } finally {
         finishTopicRenaming(topic.id)
@@ -418,11 +419,11 @@ const AssistantHistoryRecordsContent = ({
 
       try {
         await updateTopic({ ...topic, name: trimmedName, isNameManuallyEdited: true })
-        window.toast.success(t('common.saved'))
+        toast.success(t('common.saved'))
       } catch (err) {
         logger.error('Failed to rename topic from history records', { topicId, err })
         const message = err instanceof Error ? err.message : t('common.save_failed')
-        window.toast.error(message)
+        toast.error(message)
       }
     },
     [rendererTopicById, t, updateTopic]
@@ -661,7 +662,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
         { showSuccessToast: false }
       )
       if (updatedSession) {
-        window.toast.success(t('common.saved'))
+        toast.success(t('common.saved'))
       }
     },
     [sessions, t, updateSession]

@@ -22,6 +22,17 @@ const DEFAULT_TAB: Tab = {
   isDormant: false
 }
 
+function createLaunchpadFallbackTab(): Tab {
+  return {
+    id: uuid(),
+    type: 'route',
+    url: '/app/launchpad',
+    title: getDefaultRouteTitle('/app/launchpad'),
+    lastAccessTime: Date.now(),
+    isDormant: false
+  }
+}
+
 const LEGACY_LIBRARY_ROUTE_PATH = '/app/library'
 
 function isLegacyLibraryTab(tab: Tab): boolean {
@@ -208,30 +219,46 @@ export function TabsProvider({
     [tabs, setActiveTab, setPinnedTabs, performLRUCheck, storesPinned]
   )
 
-  const closeTab = useCallback(
-    (id: string) => {
-      const tab = tabs.find((t) => t.id === id)
-      if (!tab) return
+  const closeTabs = useCallback(
+    (ids: readonly string[]) => {
+      const closingIdSet = new Set(ids)
+      if (closingIdSet.size === 0) return
 
-      // Calculate new activeTabId
+      const closingTabs = tabs.filter((tab) => closingIdSet.has(tab.id))
+      if (closingTabs.length === 0) return
+
+      const remainingTabs = tabs.filter((tab) => !closingIdSet.has(tab.id))
+      const fallbackTab = remainingTabs.length === 0 ? createLaunchpadFallbackTab() : null
+
       let newActiveId = activeTabId
-      if (activeTabId === id) {
-        const index = tabs.findIndex((t) => t.id === id)
-        const remainingTabs = tabs.filter((t) => t.id !== id)
-        const nextTab = remainingTabs[index - 1] || remainingTabs[index] || remainingTabs[0]
-        newActiveId = nextTab ? nextTab.id : ''
+      if (fallbackTab) {
+        newActiveId = fallbackTab.id
+      } else if (closingIdSet.has(activeTabId)) {
+        const activeIndex = tabs.findIndex((tab) => tab.id === activeTabId)
+        const leftTab = [...tabs.slice(0, activeIndex)].reverse().find((tab) => !closingIdSet.has(tab.id))
+        const rightTab = tabs.slice(activeIndex + 1).find((tab) => !closingIdSet.has(tab.id))
+        newActiveId = (leftTab ?? rightTab)?.id ?? ''
       }
 
-      if (storesPinned(tab)) {
-        setPinnedTabs((prev) => prev.filter((t) => t.id !== id))
-      } else {
-        setNormalTabs((prev) => prev.filter((t) => t.id !== id))
+      const pinnedIds = new Set(closingTabs.filter(storesPinned).map((tab) => tab.id))
+      const normalIds = new Set(closingTabs.filter((tab) => !storesPinned(tab)).map((tab) => tab.id))
+
+      if (pinnedIds.size > 0) {
+        setPinnedTabs((prev) => prev.filter((tab) => !pinnedIds.has(tab.id)))
+      }
+      if (normalIds.size > 0 || fallbackTab) {
+        setNormalTabs((prev) => {
+          const next = normalIds.size > 0 ? prev.filter((tab) => !normalIds.has(tab.id)) : prev
+          return fallbackTab ? [fallbackTab] : next
+        })
       }
 
       setActiveTabIdState(newActiveId)
     },
     [tabs, activeTabId, setPinnedTabs, storesPinned]
   )
+
+  const closeTab = useCallback((id: string) => closeTabs([id]), [closeTabs])
 
   /**
    * Open a Tab - reuses existing tab or creates new one
@@ -408,6 +435,7 @@ export function TabsProvider({
     // Basic operations
     addTab,
     closeTab,
+    closeTabs,
     setActiveTab,
     updateTab,
 

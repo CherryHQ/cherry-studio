@@ -1,4 +1,5 @@
-import { defineTool, registerTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import type { PermissionMode } from '@renderer/types/agent'
@@ -79,6 +80,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         order: 80,
         label: t('agent.settings.permissionMode.title', 'Permission Mode'),
         description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'agent.settings.permissionMode.title'),
         icon: getPermissionModeIcon(currentMode),
         suffix: tooltipTitle,
         submenu: modeSubmenu
@@ -103,7 +105,5 @@ const permissionModeTool = defineTool({
     runtime: ({ context }) => <PermissionModeComposerRuntime context={context} />
   }
 })
-
-registerTool(permissionModeTool)
 
 export default permissionModeTool

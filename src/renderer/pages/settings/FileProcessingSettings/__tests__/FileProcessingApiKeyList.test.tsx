@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
@@ -17,15 +18,8 @@ vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
 }))
 
-vi.mock('@renderer/components/TopView', () => ({
-  TopView: {
-    show: vi.fn(),
-    hide: vi.fn()
-  }
-}))
-
-vi.mock('@renderer/components/icons', () => ({
-  EditIcon: ({ size }: { size?: number }) => <span data-size={size}>edit</span>
+vi.mock('@renderer/components/icons/EditIcon', () => ({
+  default: ({ size }: { size?: number }) => <span data-size={size}>edit</span>
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -42,11 +36,18 @@ vi.mock('@cherrystudio/ui', () => ({
   },
   Dialog: ({ children, open }: React.HTMLAttributes<HTMLDivElement> & { open?: boolean }) =>
     open === false ? null : <>{children}</>,
-  DialogContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-    <div role="dialog" {...props}>
-      {children}
-    </div>
-  ),
+  DialogContent: ({
+    children,
+    closeOnOverlayClick,
+    ...props
+  }: React.HTMLAttributes<HTMLDivElement> & { closeOnOverlayClick?: boolean }) => {
+    void closeOnOverlayClick
+    return (
+      <div role="dialog" {...props}>
+        {children}
+      </div>
+    )
+  },
   DialogHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
@@ -62,20 +63,6 @@ describe('FileProcessingApiKeyList', () => {
     loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     setApiKeysMock.mockReset()
     setApiKeysMock.mockResolvedValue(undefined)
-    Object.defineProperty(window, 'modal', {
-      configurable: true,
-      value: {
-        confirm: vi.fn().mockResolvedValue(true)
-      }
-    })
-    Object.defineProperty(window, 'toast', {
-      configurable: true,
-      value: {
-        error: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn()
-      }
-    })
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -114,7 +101,7 @@ describe('FileProcessingApiKeyList', () => {
 
     expect(setApiKeysMock).not.toHaveBeenCalled()
     await waitFor(() => {
-      expect(window.toast.warning).toHaveBeenCalledWith('settings.provider.api.key.error.duplicate')
+      expect(toast.warning).toHaveBeenCalledWith('settings.provider.api.key.error.duplicate')
     })
   })
 
@@ -144,7 +131,7 @@ describe('FileProcessingApiKeyList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
     })
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to save file processing API key', error)
     expect(screen.getByPlaceholderText('settings.provider.api.key.new_key.placeholder')).toHaveValue('key-1')
@@ -158,7 +145,7 @@ describe('FileProcessingApiKeyList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.tool.file_processing.errors.save_failed')
     })
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to remove file processing API key', error)
     expect(screen.getByText('key-1')).toBeInTheDocument()

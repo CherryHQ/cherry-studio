@@ -1,3 +1,4 @@
+import { application } from '@application'
 import {
   embedMany as aiCoreEmbedMany,
   generateImage as aiCoreGenerateImage,
@@ -7,7 +8,6 @@ import type { ParamValues } from '@cherrystudio/provider-registry'
 import { assistantDataService } from '@data/services/AssistantService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
@@ -18,11 +18,11 @@ import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { Base64String, UrlString } from '@shared/types/file/common'
+import type { Base64String, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
@@ -41,16 +41,18 @@ import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './prov
 import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { listModels as listModelsFromProvider } from './provider/listModels'
-import { Agent } from './runtime/aiSdk/Agent'
-import type { AgentLoopHooks } from './runtime/aiSdk/loop'
-import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
-import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
-import type { RequestFeature } from './runtime/aiSdk/params/feature'
+import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
+import { Agent, buildAgentParams, mergeUsage, ZERO_USAGE } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
-import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
-import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
-import type { AppProviderSettingsMap } from './types'
-import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
+import { WebContentsListener } from './streamManager'
+import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
+import type {
+  AiBaseRequest,
+  AiStreamRequest,
+  AiTransportOptions,
+  AppProviderSettingsMap,
+  ListModelsRequest
+} from './types'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 

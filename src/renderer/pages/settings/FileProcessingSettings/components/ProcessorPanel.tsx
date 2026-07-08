@@ -1,13 +1,21 @@
 import { Badge, Button, type ComboboxOption, Input, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import {
+  SettingHelpLink,
+  SettingHelpText,
+  SettingHelpTextRow,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useLanguages } from '@renderer/hooks/translate'
+import { toast } from '@renderer/services/toast'
 import { formatApiKeys, joinApiKeyString, splitApiKeyString, validateApiHost } from '@renderer/utils/api'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { List, SquareCheckBig } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingRow, SettingRowTitle, SettingTitle } from '../..'
 import {
   type FileProcessingMenuEntry,
   getProcessorApiKeyWebsite,
@@ -108,7 +116,7 @@ export function ProcessorPanel({
         await action()
       } catch (error) {
         logger.error(`Failed to ${actionName}`, error as Error)
-        window.toast.error(t('settings.tool.file_processing.errors.save_failed'))
+        toast.error(t('settings.tool.file_processing.errors.save_failed'))
       }
     },
     [t]
@@ -134,7 +142,7 @@ export function ProcessorPanel({
     const trimmedApiHost = apiHostInput.trim()
     setApiHostInput(trimmedApiHost)
     if (!validateApiHost(trimmedApiHost)) {
-      window.toast.warning(t('settings.tool.file_processing.errors.invalid_api_host'))
+      toast.warning(t('settings.tool.file_processing.errors.invalid_api_host'))
       return
     }
     await persist(() => onSetCapabilityField(processor.id, entry.feature, 'apiHost', trimmedApiHost), 'save API host')

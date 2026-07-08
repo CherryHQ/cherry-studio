@@ -6,8 +6,8 @@ import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { findExecutableInEnv } from '@main/utils/commandResolver'
-import { directoryExists } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
+import { directoryExists } from '@main/utils/legacyFile'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { executeCommand } from '@main/utils/processRunner'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
@@ -284,19 +284,20 @@ export class SkillService {
 
   private async installFromClaudePlugins(identifier: string): Promise<InstalledSkill> {
     const parts = identifier.split('/')
-    if (parts.length < 3) {
+    const [owner, repo, ...directoryParts] = parts
+    const directoryPath = directoryParts.join('/')
+    const skillName = directoryParts[directoryParts.length - 1] ?? ''
+
+    if (!owner || !repo || !directoryPath || !skillName || directoryParts.some((part) => !part.trim())) {
       throw new Error(`Invalid claude-plugins identifier: ${identifier}`)
     }
 
-    const [owner, repo, ...rest] = parts
-    const directoryPath = rest.join('/')
     const repoUrl = `https://github.com/${owner}/${repo}`
     const sourceUrl = `${repoUrl}/tree/main/${directoryPath}`
     const tempDir = await this.createTempDir('claude-plugins')
 
     try {
       await this.cloneRepository(repoUrl, tempDir)
-      const skillName = parts[parts.length - 1]
       const skillDir = await this.resolveSkillDirectory(tempDir, skillName, directoryPath)
       const installed = await this.installSkillDir(skillDir, 'marketplace', sourceUrl)
 
@@ -333,7 +334,7 @@ export class SkillService {
   }
 
   private async installFromClawhub(slug: string): Promise<InstalledSkill> {
-    const detailUrl = `https://api.clawhub.ai/api/v1/skills/${slug}`
+    const detailUrl = `https://clawhub.ai/api/v1/skills/${slug}`
     const detailResp = await net.fetch(detailUrl, {
       headers: { 'User-Agent': 'CherryStudio' }
     })
@@ -342,7 +343,16 @@ export class SkillService {
       throw new Error(`clawhub detail failed: HTTP ${detailResp.status}`)
     }
 
-    const downloadUrl = `https://api.clawhub.ai/api/v1/skills/${slug}/download`
+    const detailData = await detailResp.json()
+    const ownerHandle: string | undefined = (detailData as Record<string, unknown>)?.owner
+      ? (((detailData as Record<string, unknown>).owner as Record<string, unknown>)?.handle as string | undefined)
+      : undefined
+
+    const sourceUrl = ownerHandle
+      ? `https://clawhub.ai/${ownerHandle}/skills/${slug}`
+      : `https://clawhub.ai/skills/${slug}`
+
+    const downloadUrl = `https://clawhub.ai/api/v1/download?slug=${encodeURIComponent(slug)}`
     const downloadResp = await net.fetch(downloadUrl, {
       headers: { 'User-Agent': 'CherryStudio' }
     })
@@ -361,7 +371,7 @@ export class SkillService {
       await fs.promises.mkdir(extractDir, { recursive: true })
       await this.extractZip(zipPath, extractDir)
       const skillDir = await this.locateSkillDir(extractDir)
-      return await this.installSkillDir(skillDir, 'marketplace', `https://clawhub.ai/skills/${slug}`)
+      return await this.installSkillDir(skillDir, 'marketplace', sourceUrl)
     } finally {
       await this.safeRemoveDirectory(tempDir)
     }

@@ -7,7 +7,7 @@ import type {
   StreamDonePayload,
   StreamErrorPayload
 } from '@shared/ai/transport'
-import { type FileEntry, FileEntrySchema } from '@shared/data/types/file/fileEntry'
+import { type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { ImageGenerationModeSchema, ModelSchema, type UniqueModelId } from '@shared/data/types/model'
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
@@ -114,7 +114,8 @@ export const aiRequestSchemas = {
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
-        mentionedModelIds: z.array(z.custom<UniqueModelId>()).optional()
+        mentionedModelIds: z.array(z.custom<UniqueModelId>()).optional(),
+        knowledgeBaseIds: z.array(z.string()).optional()
       }),
       z.discriminatedUnion('trigger', [
         z.object({

@@ -11,7 +11,7 @@ import { modelService, UPDATE_MODEL_FIELD_MAP } from '@data/services/ModelServic
 import { pinService } from '@data/services/PinService'
 import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegistryService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { ErrorCode } from '@shared/data/api'
+import { ErrorCode } from '@shared/data/api/errors'
 import { MODELS_DELETE_MAX_IDS, type UpdateModelDto } from '@shared/data/api/schemas/models'
 import {
   CHERRYAI_DEFAULT_MODEL_ID,
@@ -1083,8 +1083,7 @@ describe('ModelService.delete', () => {
       status: 'completed',
       error: null,
       chunkSize: 1024,
-      chunkOverlap: 200,
-      searchMode: 'vector'
+      chunkOverlap: 200
     })
 
     let err: unknown
@@ -1272,8 +1271,7 @@ describe('ModelService.bulkDelete', () => {
       status: 'completed',
       error: null,
       chunkSize: 1024,
-      chunkOverlap: 200,
-      searchMode: 'vector'
+      chunkOverlap: 200
     })
 
     let err: unknown

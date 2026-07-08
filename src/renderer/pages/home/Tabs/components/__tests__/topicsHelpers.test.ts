@@ -1,7 +1,7 @@
 import type {
   ResourceListGroupReorderPayload,
   ResourceListItemReorderPayload
-} from '@renderer/components/chat/resources'
+} from '@renderer/components/chat/resourceList/base'
 import type { Topic } from '@renderer/types/topic'
 import { describe, expect, it } from 'vitest'
 
@@ -279,6 +279,7 @@ describe('Topics helpers', () => {
     const topics = [
       createTopic({ id: 'assistant-b-1', assistantId: 'assistant-b' }),
       createTopic({ id: 'unknown-1', assistantId: 'missing-assistant' }),
+      createTopic({ id: 'default-1', assistantId: undefined }),
       createTopic({ id: 'assistant-a-1', assistantId: 'assistant-a' }),
       createTopic({ id: 'pinned-1', assistantId: 'missing-assistant', pinned: true }),
       createTopic({ id: 'assistant-b-2', assistantId: 'assistant-b' })
@@ -292,7 +293,7 @@ describe('Topics helpers', () => {
         ]),
         mode: 'assistant'
       }).map((topic) => topic.id)
-    ).toEqual(['pinned-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'unknown-1'])
+    ).toEqual(['pinned-1', 'assistant-a-1', 'assistant-b-1', 'assistant-b-2', 'default-1', 'unknown-1'])
   })
 
   it('sorts assistant group topics by raw persisted orderKey ascending when available', () => {

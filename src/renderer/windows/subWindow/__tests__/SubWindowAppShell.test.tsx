@@ -10,7 +10,7 @@ const tabs = [{ id: 'home', type: 'route', url: '/home', title: 'Home' }]
 async function renderSubWindowAppShell() {
   vi.resetModules()
   vi.doMock('@renderer/utils/platform', () => ({ isMac: false, isWin: false, isLinux: false }))
-  vi.doMock('@renderer/databases', () => ({}))
+  vi.doMock('@renderer/databases/db', () => ({}))
   vi.doMock('@renderer/hooks/useWindowInitData', () => ({
     useWindowInitData: () => null
   }))
@@ -42,7 +42,7 @@ async function renderSubWindowAppShell() {
     SubWindowTitle: () => <div data-testid="sub-window-title" />
   }))
   vi.doMock('@renderer/components/WindowControls', () => ({
-    default: () => <div data-testid="window-controls" />,
+    WindowControls: () => <div data-testid="window-controls" />,
     useHasWindowControls: () => false
   }))
   vi.doMock('../SubWindowTitleBar', () => ({

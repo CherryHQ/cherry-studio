@@ -15,7 +15,7 @@ import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { pinService } from '@data/services/PinService'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { ErrorCode } from '@shared/data/api'
+import { ErrorCode } from '@shared/data/api/errors'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -382,9 +382,10 @@ describe('AgentService', () => {
     it('hard-deletes an agent and removes the row', async () => {
       const { id } = await insertAgent({ id: 'agent_regular_test_001' })
 
-      const deleted = agentService.deleteAgent(id)
+      const result = agentService.deleteAgent(id)
 
-      expect(deleted).toBe(true)
+      expect(result.deleted).toBe(true)
+      expect(result.deletedSessionIds).toBeUndefined()
       const rows = await dbh.db.select().from(agentTable)
       expect(rows.find((r) => r.id === id)).toBeUndefined()
     })
@@ -425,9 +426,10 @@ describe('AgentService', () => {
         }
       ])
 
-      const deleted = agentService.deleteAgent(id, { deleteSessions: true })
+      const result = agentService.deleteAgent(id, { deleteSessions: true })
 
-      expect(deleted).toBe(true)
+      expect(result.deleted).toBe(true)
+      expect(result.deletedSessionIds).toEqual(['session-delete-with-agent'])
       const agentRows = await dbh.db.select().from(agentTable).where(eq(agentTable.id, id))
       expect(agentRows).toHaveLength(0)
       const sessionRows = await dbh.db.select().from(agentSessionTable)

@@ -13,8 +13,7 @@ import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
-import { DataApiErrorFactory } from '@shared/data/api'
-import type { ListOptions } from '@shared/data/api/apiTypes'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AGENT_MUTABLE_FIELDS,
@@ -25,6 +24,7 @@ import {
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
+import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, count, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
@@ -389,11 +389,15 @@ export class AgentService {
     tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id)).run()
   }
 
-  deleteAgent(id: string, options: { deleteSessions?: boolean } = {}): boolean {
+  deleteAgent(
+    id: string,
+    options: { deleteSessions?: boolean } = {}
+  ): { deleted: boolean; deletedSessionIds?: string[] } {
     // By default sessions detach (agentId → NULL) via FK ON DELETE SET NULL; callers
     // can opt into deleting them in this same transaction. `pin` has no FK back
     // to agent, so purge it alongside the agent row. Junction table rows are
     // cascade-deleted by FK.
+    let deletedSessionIds: string[] | undefined
     const result = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
@@ -406,7 +410,7 @@ export class AgentService {
           if (!agent) return { rowsAffected: 0 }
 
           if (options.deleteSessions === true) {
-            agentSessionService.deleteByAgentIdTx(tx, id, { validateAgent: false })
+            deletedSessionIds = agentSessionService.deleteByAgentIdTx(tx, id, { validateAgent: false })
           }
 
           return this.deleteAgentTx(tx, id)
@@ -418,7 +422,7 @@ export class AgentService {
     if (deleted) {
       this._onAgentDeleted.fire({ agentId: id })
     }
-    return deleted
+    return { deleted, deletedSessionIds }
   }
 
   deleteAgentTx(tx: DbOrTx, id: string): { rowsAffected: number } {

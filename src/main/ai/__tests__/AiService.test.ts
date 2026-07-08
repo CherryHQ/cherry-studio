@@ -16,7 +16,7 @@ const mockGetImageGenerationSupport = vi.fn()
 const mockListProviderRegistryModels = vi.fn()
 const mockListModelsFromProvider = vi.fn()
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: mockApplicationGet
   }

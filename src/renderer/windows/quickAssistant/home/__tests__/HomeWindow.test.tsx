@@ -74,13 +74,13 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
   useExecutionOverlay: () => ({ liveAssistants: state.liveAssistants, reset: state.resetExecutionMessages })
 }))
 
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: { changeLanguage: vi.fn() }
 }))
 
-// Stub the chat message barrel so this lightweight window (which only projects messages)
-// doesn't pull the whole message-rendering package into the test.
-vi.mock('@renderer/components/chat/messages', () => ({
+// Stub the message-list projection helper so this lightweight window (which only projects
+// messages) doesn't pull the whole message-rendering package into the test.
+vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
   toMessageListItem: (message: unknown) => message
 }))
 

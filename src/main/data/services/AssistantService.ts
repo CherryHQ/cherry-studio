@@ -13,7 +13,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
+import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
@@ -521,13 +521,14 @@ export class AssistantDataService {
    * Tag bindings are intentionally removed during delete, so restoring a
    * soft-deleted assistant does not restore its previous tags.
    */
-  delete(id: string, options: { deleteTopics?: boolean } = {}): void {
+  delete(id: string, options: { deleteTopics?: boolean } = {}): { deleted: boolean; deletedTopicIds?: string[] } {
+    let deletedTopicIds: string[] | undefined
     const deleted = application.get('DbService').withWriteTx((tx) => {
       const didDelete = this.deleteTx(tx, id)
       if (!didDelete) return false
 
       if (options.deleteTopics === true) {
-        topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false })
+        deletedTopicIds = topicService.deleteByAssistantIdTx(tx, id, { validateAssistant: false })
       }
 
       return true
@@ -538,6 +539,7 @@ export class AssistantDataService {
     }
 
     logger.info('Soft-deleted assistant', { id, deleteTopics: options.deleteTopics === true })
+    return { deleted, deletedTopicIds }
   }
 
   deleteTx(tx: DbOrTx, id: string): boolean {

@@ -75,7 +75,7 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: () => ({ data: [] })
 }))
 
-vi.mock('@renderer/components/resource', () => ({
+vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
   WorkspaceSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
 }))
 
@@ -139,8 +139,10 @@ vi.mock('@cherrystudio/ui', () => {
 
   const passthrough =
     (tag: keyof React.JSX.IntrinsicElements) =>
-    ({ children, ...props }: { children?: React.ReactNode }) =>
-      React.createElement(tag, props, children)
+    ({ children, closeOnOverlayClick, ...props }: { children?: React.ReactNode; closeOnOverlayClick?: boolean }) => {
+      void closeOnOverlayClick
+      return React.createElement(tag, props, children)
+    }
 
   return {
     Badge: passthrough('span'),
@@ -444,7 +446,7 @@ describe('TasksSettings task logs', () => {
   it('swaps the schedule input when the segmented selector changes type', async () => {
     render(<TasksSettings />)
 
-    await screen.findByText('agent.cherryClaw.tasks.logs.viewSession')
+    await screen.findByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')
 
     // Interval is the task's initial type.
     expect(screen.getByPlaceholderText('agent.cherryClaw.tasks.intervalPlaceholder')).toBeInTheDocument()

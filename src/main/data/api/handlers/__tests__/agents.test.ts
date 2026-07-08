@@ -1,4 +1,4 @@
-import { ErrorCode } from '@shared/data/api'
+import { ErrorCode } from '@shared/data/api/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -218,30 +218,30 @@ describe('agentHandlers', () => {
     })
 
     it('delegates DELETE', async () => {
-      deleteAgentMock.mockReturnValueOnce(true)
+      deleteAgentMock.mockReturnValueOnce({ deleted: true })
 
       await expect(
         agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
-      ).resolves.toBeUndefined()
+      ).resolves.toEqual({ deleted: true, deletedSessionIds: undefined })
 
       expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: false })
     })
 
     it('delegates DELETE with session cleanup when requested', async () => {
-      deleteAgentMock.mockResolvedValueOnce(true)
+      deleteAgentMock.mockReturnValueOnce({ deleted: true, deletedSessionIds: ['session-1'] })
 
       await expect(
         agentHandlers['/agents/:agentId'].DELETE({
           params: { agentId: AGENT_ID },
           query: { deleteSessions: true }
         } as never)
-      ).resolves.toBeUndefined()
+      ).resolves.toEqual({ deleted: true, deletedSessionIds: ['session-1'] })
 
       expect(deleteAgentMock).toHaveBeenCalledWith(AGENT_ID, { deleteSessions: true })
     })
 
     it('throws notFound when agent does not exist on DELETE', async () => {
-      deleteAgentMock.mockReturnValueOnce(false)
+      deleteAgentMock.mockReturnValueOnce({ deleted: false })
 
       await expect(
         agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)

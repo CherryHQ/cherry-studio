@@ -53,7 +53,7 @@ Before the migration window is created, the gate validates the upgrade
 path using `core/versionPolicy.ts`. This catches manual installs that
 bypass the auto-updater's version filtering.
 
-**Required upgrade path**: `v1.old → v1.last (≥1.9.0) → v2.0.0 → v2.x`
+**Required upgrade path**: `v1.old → v1.last (≥1.9.12) → v2.0.0 → v2.x`
 
 ### Blocking rules
 
@@ -87,7 +87,7 @@ Path Safety section above.
 
 1. Extend `BaseMigrator` in `migrators/`
 2. Implement `prepare`, `execute`, `validate` methods
-3. Register in `migrators/index.ts`
+3. Add it to the `getAllMigrators()` list in `migrators/migratorRegistry.ts`
 4. Use `ctx.paths` for all filesystem paths — **NEVER** call `app.getPath()` directly
 
 ### Key Contracts

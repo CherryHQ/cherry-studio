@@ -3,7 +3,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { KnowledgeItemService } from '@data/services/KnowledgeItemService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
-import { ErrorCode } from '@shared/data/api'
+import { ErrorCode } from '@shared/data/api/errors'
 import type { CreateKnowledgeItemDto } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -68,8 +68,7 @@ describe('KnowledgeItemService', () => {
       status: 'completed',
       error: null,
       chunkSize: 1024,
-      chunkOverlap: 200,
-      searchMode: 'hybrid'
+      chunkOverlap: 200
     })
   })
 
@@ -353,8 +352,7 @@ describe('KnowledgeItemService', () => {
         status: 'completed',
         error: null,
         chunkSize: 1024,
-        chunkOverlap: 200,
-        searchMode: 'hybrid'
+        chunkOverlap: 200
       })
       await seedItem({
         id: 'kb-2-deleting-root',

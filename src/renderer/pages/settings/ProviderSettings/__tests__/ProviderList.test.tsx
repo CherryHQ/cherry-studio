@@ -1,8 +1,9 @@
+import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ProviderList from '../ProviderList'
+import { ProviderList } from '../ProviderList'
 
 const reorderSpy = vi.fn()
 const useProvidersMock = vi.fn()
@@ -117,6 +118,16 @@ vi.mock('../ProviderList/ProviderEditorDrawer', () => ({
   default: ({ open }: any) => <div data-testid="provider-editor-drawer" data-open={open ? 'true' : 'false'} />
 }))
 
+// The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
+// the gated action (as if the user confirmed) and assert the delete flow.
+const { confirmActionShow } = vi.hoisted(() => ({
+  confirmActionShow: vi.fn(async (options?: { action?: () => unknown }) => {
+    await options?.action?.()
+    return true
+  })
+}))
+vi.mock('@renderer/components/Popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
+
 describe('ProviderList', () => {
   const providers = [
     {
@@ -174,8 +185,6 @@ describe('ProviderList', () => {
       ...(window as any).api,
       getAppInfo: vi.fn().mockResolvedValue({ appDataPath: '' })
     }
-    ;(window as any).modal = { confirm: vi.fn() }
-    ;(window as any).toast = { error: vi.fn(), success: vi.fn() }
   })
 
   it('filters providers by search text and forwards selection', () => {
@@ -310,21 +319,37 @@ describe('ProviderList', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'trigger-reorder' })[0])
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalled()
     })
   })
 
-  it('applies an external filter hint without making the page own list filter state', () => {
+  it('applies the agent filter hint without hiding gateway-routable providers', () => {
     const onSelectProvider = vi.fn()
+    useProvidersMock.mockReturnValue({
+      providers: [
+        ...providers,
+        {
+          id: 'gemini',
+          name: 'Gemini',
+          presetProviderId: 'gemini',
+          defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+          authType: 'api-key',
+          isEnabled: true
+        }
+      ],
+      createProvider: vi.fn()
+    })
     const { rerender } = render(<ProviderList selectedProviderId="openai" onSelectProvider={onSelectProvider} />)
 
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
+    expect(screen.getByText('Gemini')).toBeInTheDocument()
 
     rerender(<ProviderList selectedProviderId="openai" filterModeHint="agent" onSelectProvider={onSelectProvider} />)
 
-    expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
+    expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
+    expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
     const filterButton = screen.getByRole('button', { name: '筛选服务商' })
     expect(filterButton).not.toHaveClass('bg-primary/10')
     expect(filterButton.querySelector('svg')).toHaveClass('text-primary!')
@@ -369,22 +394,14 @@ describe('ProviderList', () => {
 
     fireEvent.click(screen.getByTestId('provider-list-delete-openai'))
 
-    expect(window.modal.confirm).toHaveBeenCalledTimes(1)
-    const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(options.title).toBeTruthy()
-    expect(options.okText).toBeTruthy()
-    expect(options.okButtonProps).toEqual({ danger: true })
-    expect(options.centered).toBe(true)
+    expect(confirmActionShow).toHaveBeenCalledTimes(1)
   })
 
   it('delegates provider deletion from the confirmation callback', async () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
     fireEvent.click(screen.getByTestId('provider-list-delete-openai'))
-    const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
 
-    await options.onOk()
-
-    expect(deleteProviderMock).toHaveBeenCalledWith('openai')
+    await vi.waitFor(() => expect(deleteProviderMock).toHaveBeenCalledWith('openai'))
   })
 })

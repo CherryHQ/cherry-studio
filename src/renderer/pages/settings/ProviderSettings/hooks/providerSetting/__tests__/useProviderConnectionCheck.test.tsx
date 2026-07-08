@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -49,7 +50,7 @@ vi.mock('../useProviderEndpoints', () => ({
   useProviderEndpoints: (...args: any[]) => useProviderEndpointsMock(...args)
 }))
 
-vi.mock('@renderer/services/ApiService', () => ({
+vi.mock('@renderer/pages/settings/ProviderSettings/utils/healthCheck', () => ({
   checkApi: (...args: any[]) => checkApiMock(...args)
 }))
 
@@ -70,11 +71,6 @@ describe('useProviderConnectionCheck', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-
-    ;(window as any).toast = {
-      error: vi.fn(),
-      success: vi.fn()
-    }
 
     useProviderMock.mockReturnValue({
       provider: { id: 'cherryin', name: 'CherryIN', isEnabled: false },
@@ -201,10 +197,10 @@ describe('useProviderConnectionCheck', () => {
       modelId: 'cherryin::claude-4-sonnet',
       error: saveError
     })
-    expect(window.toast.error).toHaveBeenCalledWith(
+    expect(toast.error).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'settings.provider.api_key.save_failed' })
     )
-    expect(window.toast.success).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('does not patch an already enabled provider after a successful model connection check', async () => {
@@ -240,6 +236,6 @@ describe('useProviderConnectionCheck', () => {
       modelId: 'cherryin::claude-4-sonnet',
       error: expect.any(Error)
     })
-    expect(window.toast.error).toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
   })
 })

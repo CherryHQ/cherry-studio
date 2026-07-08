@@ -11,8 +11,7 @@ import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/Agent
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
-import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
@@ -23,6 +22,7 @@ import type {
 } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -355,12 +355,14 @@ export class AgentSessionService {
     return { deletedIds }
   }
 
-  deleteWorkspaceCascade(workspaceId: string): void {
-    application.get('DbService').withWriteTx((tx) => {
+  deleteWorkspaceCascade(workspaceId: string): DeleteAgentSessionsResult {
+    const deletedIds = application.get('DbService').withWriteTx((tx) => {
       agentWorkspaceService.getRowByIdTx(tx, workspaceId)
-      this.deleteByWorkspaceTx(tx, workspaceId)
+      const deletedIds = this.deleteByWorkspaceTx(tx, workspaceId)
       agentWorkspaceService.deleteByIdTx(tx, workspaceId)
+      return deletedIds
     })
+    return { deletedIds }
   }
 
   deleteByWorkspaceTx(tx: DbOrTx, workspaceId: string): string[] {

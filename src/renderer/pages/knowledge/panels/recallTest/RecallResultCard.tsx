@@ -1,7 +1,8 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
-import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils'
+import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
+import { toast } from '@renderer/services/toast'
 import { Check, ChevronDown, ChevronUp, Copy, FileText } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,7 +37,7 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
         sourceName: item.sourceName,
         chunkIndex: item.chunkIndex
       })
-      window.toast.error(t('message.copy.failed'))
+      toast.error(t('message.copy.failed'))
     }
   }
 

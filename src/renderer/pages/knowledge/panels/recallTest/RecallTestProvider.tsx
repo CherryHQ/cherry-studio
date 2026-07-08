@@ -1,7 +1,8 @@
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils'
+import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { ReactNode } from 'react'
 import { createContext, use, useEffect, useRef, useState } from 'react'
@@ -97,7 +98,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
       if (!isCurrentSearch()) {
         return
       }
-      window.toast.error(formatErrorMessageWithPrefix(normalizedError, t('knowledge.recall.search_failed')))
+      toast.error(formatErrorMessageWithPrefix(normalizedError, t('knowledge.recall.search_failed')))
       setResults([])
     }
 

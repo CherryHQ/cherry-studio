@@ -21,11 +21,24 @@ vi.mock('@cherrystudio/ui', async () => {
       </button>
     ),
     Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
-    DialogContent: ({ children, size, ...props }: { children: ReactNode; size?: string; [key: string]: unknown }) => (
-      <div role="dialog" data-size={size} {...props}>
-        {children}
-      </div>
-    ),
+    DialogContent: ({
+      children,
+      closeOnOverlayClick,
+      size,
+      ...props
+    }: {
+      children: ReactNode
+      closeOnOverlayClick?: boolean
+      size?: string
+      [key: string]: unknown
+    }) => {
+      void closeOnOverlayClick
+      return (
+        <div role="dialog" data-size={size} {...props}>
+          {children}
+        </div>
+      )
+    },
     DialogFooter: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <div {...props}>{children}</div>
     ),
@@ -100,12 +113,9 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   chunkOverlap: 200,
   chunkStrategy: 'structured',
   chunkSeparator: '\\n\\n',
-  threshold: undefined,
   documentCount: undefined,
   status: 'completed',
   error: null,
-  searchMode: 'bm25',
-  hybridAlpha: undefined,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides

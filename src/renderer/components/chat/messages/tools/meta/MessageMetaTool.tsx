@@ -1,15 +1,13 @@
-import { CopyIcon } from '@renderer/components/icons'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import { Check, Wrench } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
-import { getEffectiveStatus, ToolStatusIndicator } from '../agent/GenericTools'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, formatArgValue } from '../shared/ArgsTable'
+import { getEffectiveStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import { ToolDisclosure } from '../shared/ToolDisclosure'
 import type { MetaToolName } from './metaToolNames'
 
@@ -43,6 +41,8 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
     }
   }, [isStreaming, isDone, isError, status, id])
 
+  const titleLabel = useTitleLabel(toolResponse)
+
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation()
     const payload = JSON.stringify({ args: toolResponse.arguments, response: toolResponse.response }, null, 2)
@@ -57,8 +57,6 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
       })
   }
 
-  const titleLabel = useTitleLabel(toolResponse)
-
   return (
     <Container>
       <CollapseShell
@@ -70,24 +68,21 @@ const MessageMetaTool: FC<Props> = ({ toolResponse }) => {
             key: id,
             label: (
               <MessageTitleLabel>
-                <StatusIconColumn>
-                  <Wrench size={15} />
-                </StatusIconColumn>
                 <TitleContent>
                   <ToolName>{titleLabel}</ToolName>
                 </TitleContent>
                 <TitleActions>
                   <ToolStatusIndicator status={getEffectiveStatus(status, false)} hasError={hasError} />
-                  {(isDone || isError) && copyText && (
-                    <CopyButton
-                      className="message-action-button invisible opacity-0 transition-opacity duration-150 focus-visible:visible focus-visible:opacity-100 group-hover/tool:visible group-hover/tool:opacity-100"
-                      onClick={handleCopy}
-                      aria-label={t('common.copy')}>
-                      {copied ? <Check size={14} color="var(--status-color-success)" /> : <CopyIcon size={14} />}
-                    </CopyButton>
-                  )}
                 </TitleActions>
               </MessageTitleLabel>
+            ),
+            extra: (isDone || isError) && copyText && (
+              <CopyButton
+                className="message-action-button invisible opacity-0 transition-opacity duration-150 focus-visible:visible focus-visible:opacity-100 group-hover/tool:visible group-hover/tool:opacity-100"
+                onClick={handleCopy}
+                aria-label={t('common.copy')}>
+                {copied ? t('common.copied') : t('common.copy')}
+              </CopyButton>
             ),
             children: <Body toolResponse={toolResponse} toolName={tool.name as MetaToolName} />
           }
@@ -356,18 +351,6 @@ const TitleContent = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) 
   />
 )
 
-const StatusIconColumn = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={[
-      'flex h-5 w-4 shrink-0 items-center justify-start text-foreground-muted transition-colors duration-150 group-hover/tool:text-foreground-secondary',
-      className
-    ]
-      .filter(Boolean)
-      .join(' ')}
-    {...props}
-  />
-)
-
 const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
   <span
     className={[
@@ -384,11 +367,11 @@ const TitleActions = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) 
   <div className={['flex shrink-0 items-center gap-1.5', className].filter(Boolean).join(' ')} {...props} />
 )
 
-const CopyButton = ({ className, ...props }: ComponentPropsWithoutRef<'button'>) => (
+const CopyButton = ({ className, type = 'button', ...props }: ComponentPropsWithoutRef<'button'>) => (
   <button
-    type="button"
+    type={type}
     className={[
-      'flex size-5 cursor-pointer items-center justify-center gap-1 rounded border-none bg-transparent p-0 text-foreground-secondary opacity-70 transition-all duration-200 hover:bg-(--color-accent) hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-(--color-primary) focus-visible:outline-2 focus-visible:outline-offset-2 [&_.iconfont]:text-[13px]',
+      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-foreground-secondary opacity-70 transition-all duration-200 hover:bg-(--color-accent) hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-(--color-primary) focus-visible:outline-2 focus-visible:outline-offset-2',
       className
     ]
       .filter(Boolean)

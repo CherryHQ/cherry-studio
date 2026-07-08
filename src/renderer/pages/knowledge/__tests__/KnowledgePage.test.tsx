@@ -1,4 +1,5 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase, KnowledgeItemOf, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
@@ -35,7 +36,7 @@ vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useReindexKnowledgeItem: (baseId: string) => mockUseReindexKnowledgeItem(baseId)
 }))
 
-vi.mock('../hooks', () => ({
+vi.mock('../hooks/useKnowledgeGroups', () => ({
   useKnowledgeGroups: () => mockUseKnowledgeGroups(),
   useCreateKnowledgeGroup: () => mockUseCreateKnowledgeGroup(),
   useUpdateKnowledgeGroup: () => mockUseUpdateKnowledgeGroup(),
@@ -112,7 +113,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('../components/navigator', () => ({
-  default: ({
+  BaseNavigator: ({
     bases,
     groups,
     width,
@@ -478,11 +479,9 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): Kn
   chunkOverlap: 200,
   chunkStrategy: 'structured',
   chunkSeparator: '\\n\\n',
-  threshold: undefined,
   documentCount: undefined,
   status: 'completed',
   error: null,
-  searchMode: 'hybrid',
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -516,11 +515,6 @@ const createKnowledgeItem = ({ id }: { id: string }): KnowledgeItemOf<'note'> =>
 describe('KnowledgePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.assign(window, {
-      toast: {
-        error: vi.fn()
-      }
-    })
     mockUseCreateKnowledgeGroup.mockReturnValue({
       createGroup: vi.fn(),
       isCreating: false,
@@ -970,7 +964,7 @@ describe('KnowledgePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'DeleteGroup Research' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('分组删除失败: delete failed')
+      expect(toast.error).toHaveBeenCalledWith('分组删除失败: delete failed')
     })
   })
 
@@ -1024,7 +1018,7 @@ describe('KnowledgePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete Base 1' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('知识库删除失败: delete failed')
+      expect(toast.error).toHaveBeenCalledWith('知识库删除失败: delete failed')
     })
   })
 
@@ -1441,7 +1435,7 @@ describe('KnowledgePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Move Base 1' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('知识库移动失败: move failed')
+      expect(toast.error).toHaveBeenCalledWith('知识库移动失败: move failed')
     })
   })
 })

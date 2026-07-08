@@ -1,3 +1,4 @@
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -69,7 +70,6 @@ const homeMocks = vi.hoisted(() => ({
   activeTopicOverride: undefined as Topic | undefined,
   activeTopicSource: 'query' as 'query' | 'pending' | 'none',
   forceActiveTopicUndefined: false,
-  focusExistingTab: vi.fn(() => false),
   locationState: undefined as { topic: Topic } | undefined,
   persistCacheValues: new Map<string, unknown>(),
   preferenceValues: new Map<string, unknown>(),
@@ -143,47 +143,83 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
   }
 })
 
-vi.mock('@renderer/components/chat', () => ({
+vi.mock('@renderer/components/chat/shell/ChatAppShell', () => ({
   ChatAppShell: ({ centerContent }: { centerContent?: ReactNode }) => (
     <div data-testid="message-only-shell">{centerContent}</div>
-  ),
-  ConversationPageShell: ({
+  )
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationPageShell', () => ({
+  default: ({
     center,
     pane,
     paneOpen,
-    topBar
+    panePosition,
+    topBar,
+    onPaneAutoCollapseChange
   }: {
     center?: { content?: ReactNode }
     pane?: ReactNode
     paneOpen?: boolean
+    panePosition?: string
     topBar?: ReactNode
+    onPaneAutoCollapseChange?: (collapsed: boolean) => void
   }) => (
     <section data-testid="home-conversation-page-shell">
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      <output data-testid="pane-position">{panePosition ?? ''}</output>
+      {onPaneAutoCollapseChange && (
+        <>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
+            Auto collapse pane
+          </button>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(false)}>
+            Auto restore pane
+          </button>
+        </>
+      )}
       <div>{topBar}</div>
       <div>{pane}</div>
       <div>{center?.content}</div>
     </section>
-  ),
-  ConversationShell: ({
+  )
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
+  default: ({
     topBar,
     pane,
     paneOpen,
-    center
+    center,
+    onPaneAutoCollapseChange
   }: {
     topBar?: ReactNode
     pane?: ReactNode
     paneOpen?: boolean
     center?: ReactNode
+    onPaneAutoCollapseChange?: (collapsed: boolean) => void
   }) => (
     <section>
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      {onPaneAutoCollapseChange && (
+        <>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
+            Auto collapse pane
+          </button>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(false)}>
+            Auto restore pane
+          </button>
+        </>
+      )}
       <div>{topBar}</div>
       <div>{pane}</div>
       <div>{center}</div>
     </section>
-  ),
-  ConversationStageCenter: ({
+  )
+}))
+
+vi.mock('@renderer/components/chat/shell/ConversationStageCenter', () => ({
+  default: ({
     placement,
     composer,
     homeWelcomeText
@@ -196,12 +232,16 @@ vi.mock('@renderer/components/chat', () => ({
       <output data-testid="welcome-text">{homeWelcomeText ?? ''}</output>
       {composer}
     </div>
-  ),
+  )
+}))
+
+vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
+  ...(await importActual<typeof ChatPrimitives>()),
   EmptyState: ({ title }: { title?: string }) => <div data-testid="empty-state">{title}</div>,
   LoadingState: ({ label }: { label?: string }) => <div role="status">{label}</div>
 }))
 
-vi.mock('@renderer/components/resource/catalog', () => ({
+vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
   ResourceCatalogView: ({
     onOpenAssistantChat,
     resourceType,
@@ -269,13 +309,6 @@ vi.mock('@renderer/hooks/tab', () => ({
   useCurrentTabId: () => 'chat-tab',
   useIsActiveTab: () => homeMocks.isActiveTab,
   useTabSelfMetadata: vi.fn()
-}))
-
-vi.mock('@renderer/hooks/useConversationNavigation', () => ({
-  useConversationNavigation: () => ({
-    focusExistingTab: homeMocks.focusExistingTab,
-    openConversationTab: vi.fn()
-  })
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -385,17 +418,20 @@ vi.mock('../Chat', () => ({
     activeTopic,
     pane,
     paneOpen,
+    panePosition,
     showResourceListControls,
     locateMessageId,
     resourcePaneCount,
     onCreateEmptyTopic,
     onNewTopic,
     onLocateMessageHandled,
-    onPaneCollapse
+    onPaneCollapse,
+    onPaneAutoCollapseChange
   }: {
     activeTopic: Topic
     pane?: ReactNode
     paneOpen?: boolean
+    panePosition?: string
     showResourceListControls?: boolean
     locateMessageId?: string
     resourcePaneCount?: { label: string; count: number }
@@ -403,11 +439,13 @@ vi.mock('../Chat', () => ({
     onNewTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
     onLocateMessageHandled?: () => void
     onPaneCollapse?: () => void
+    onPaneAutoCollapseChange?: (collapsed: boolean) => void
   }) => (
     <section>
       <output data-testid="active-topic">{activeTopic.id}</output>
       <output data-testid="active-topic-assistant">{activeTopic.assistantId ?? ''}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      <output data-testid="pane-position">{panePosition ?? ''}</output>
       <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
       <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
       {resourcePaneCount && (
@@ -445,6 +483,16 @@ vi.mock('../Chat', () => ({
           Collapse pane
         </button>
       )}
+      {onPaneAutoCollapseChange && (
+        <>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(true)}>
+            Auto collapse pane
+          </button>
+          <button type="button" onClick={() => onPaneAutoCollapseChange(false)}>
+            Auto restore pane
+          </button>
+        </>
+      )}
       {pane}
     </section>
   )
@@ -462,17 +510,39 @@ vi.mock('../components/ChatNavbar', () => ({
   )
 }))
 
-vi.mock('../Tabs', () => ({
-  default: ({ onOpenHistoryRecords, resourceMenuItems, revealRequest }: any) => (
+vi.mock('../Tabs/HomeTabs', () => ({
+  default: ({ onOpenHistoryRecords, onSetPanePosition, resourceMenuItems, revealRequest, setActiveTopic }: any) => (
     <div data-reveal-request={JSON.stringify(revealRequest ?? null)} data-testid="home-tabs">
+      <button
+        type="button"
+        onClick={() => {
+          setActiveTopic?.({
+            id: 'topic-next',
+            assistantId: 'assistant-default',
+            name: 'Topic Next',
+            messages: [],
+            createdAt: '2026-01-02T00:00:00.000Z',
+            updatedAt: '2026-01-02T00:00:00.000Z'
+          })
+        }}>
+        Select topic next
+      </button>
       <button type="button" onClick={() => onOpenHistoryRecords?.()}>
         Open history records
       </button>
-      {resourceMenuItems?.map((item: { id: string; label: ReactNode; onSelect: () => void | Promise<void> }) => (
-        <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-          {item.label}
-        </button>
-      ))}
+      <button type="button" onClick={() => void onSetPanePosition?.('right')}>
+        Move topics right
+      </button>
+      <button type="button" onClick={() => void onSetPanePosition?.('left')}>
+        Move topics left
+      </button>
+      {resourceMenuItems
+        ?.filter((item: { id: string }) => item.id === 'assistant-resource-view')
+        .map((item: { id: string; onSelect: () => void | Promise<void> }) => (
+          <button key={item.id} type="button" onClick={() => void item.onSelect()}>
+            assistants.presets.manage.title
+          </button>
+        ))}
     </div>
   )
 }))
@@ -524,16 +594,18 @@ vi.mock('../components/TopicRightPane', () => {
   return { TopicRightPane }
 })
 
-vi.mock('@renderer/components/chat/resources/variants/AssistantResourceList', () => ({
+vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
   AssistantResourceList: ({
     activeAssistantId,
     onAddAssistant,
     onActiveAssistantDeleted,
+    onSelectedAssistantClick,
     resourceMenuItems
   }: {
     activeAssistantId?: string | null
     onAddAssistant?: () => void | Promise<void>
     onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
+    onSelectedAssistantClick?: () => void | Promise<void>
     resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => (
     <div data-active-assistant-id={activeAssistantId ?? ''} data-testid="assistant-resource-list">
@@ -543,11 +615,16 @@ vi.mock('@renderer/components/chat/resources/variants/AssistantResourceList', ()
       <button type="button" onClick={() => void onActiveAssistantDeleted?.(activeAssistantId ?? '')}>
         Delete active assistant
       </button>
-      {resourceMenuItems?.map((item) => (
-        <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-          {item.label}
-        </button>
-      ))}
+      <button type="button" onClick={() => void onSelectedAssistantClick?.()}>
+        Toggle selected assistant pane
+      </button>
+      {resourceMenuItems
+        ?.filter((item) => item.id === 'assistant-resource-view')
+        .map((item) => (
+          <button key={item.id} type="button" onClick={() => void item.onSelect()}>
+            assistants.presets.manage.title
+          </button>
+        ))}
     </div>
   )
 }))
@@ -603,6 +680,7 @@ vi.mock('@renderer/services/EventService', () => ({
 
 import { useTabSelfMetadata } from '@renderer/hooks/tab'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 
 import HomePage from '../HomePage'
@@ -623,7 +701,6 @@ describe('HomePage', () => {
     homeMocks.routeTopicLoading = false
     homeMocks.activeTopicOptions = undefined
     homeMocks.persistCacheValues.clear()
-    homeMocks.focusExistingTab.mockReturnValue(false)
     homeMocks.addAssistant.mockResolvedValue({
       id: 'assistant-created',
       name: 'Catalog Preset'
@@ -638,6 +715,7 @@ describe('HomePage', () => {
     homeMocks.forceActiveTopicUndefined = false
     homeMocks.preferenceValues.clear()
     homeMocks.preferenceValues.set('topic.tab.show', false)
+    homeMocks.preferenceValues.set('topic.tab.position', 'right')
     homeMocks.preferenceValues.set('chat.message.style', 'message-style')
 
     Object.defineProperty(window, 'api', {
@@ -652,7 +730,7 @@ describe('HomePage', () => {
   })
 
   it('renders the assistant resource list with the resource pane open by default', () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
 
     render(<HomePage />)
 
@@ -664,10 +742,93 @@ describe('HomePage', () => {
     expect(screen.queryByTestId('home-tabs')).not.toBeInTheDocument()
   })
 
+  it('does not render the topic resource pane when the classic topic position is left', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.preferenceValues.set('topic.tab.position', 'left')
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open', true)
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('home-tabs')).toBeInTheDocument()
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-tab', 'branch')
+    expect(screen.queryByTestId('assistant-resource-list')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('topic-resource-panel')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('resource-pane-count')).not.toBeInTheDocument()
+  })
+
+  it('does not auto-open the topic right pane when switching to assistant display mode with left topic position', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.preferenceValues.set('topic.tab.position', 'left')
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open', false)
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'false')
+    expect(homeMocks.cacheSetPersist).not.toHaveBeenCalledWith('ui.chat.right_pane_open', true)
+  })
+
+  it('toggles the classic topic pane when the selected assistant is clicked again', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected assistant pane' }))
+
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open', false)
+  })
+
+  it('renders the modern topic sidebar when topic display mode is time', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.preferenceValues.set('topic.tab.position', 'right')
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('home-tabs')).toBeInTheDocument()
+    expect(screen.queryByTestId('assistant-resource-list')).not.toBeInTheDocument()
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-tab', 'branch')
+    expect(screen.getByTestId('pane-position')).toHaveTextContent('left')
+  })
+
+  it('switches to assistant grouping when changing topic position from the left sidebar', async () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.preferenceValues.set('topic.tab.position', 'left')
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open', false)
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move topics right' }))
+
+    await waitFor(() => expect(homeMocks.preferenceValues.get('topic.tab.display_mode')).toBe('assistant'))
+    expect(homeMocks.preferenceValues.get('topic.tab.position')).toBe('right')
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open', true)
+  })
+
+  it('expands only the active topic assistant when changing topic position to the left sidebar', async () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.preferenceValues.set('topic.tab.position', 'right')
+    homeMocks.classicLayoutTopics = [
+      { ...historyTopic, id: 'topic-a', assistantId: 'assistant-1' },
+      { ...historyTopic, id: 'topic-b', assistantId: 'assistant-2' },
+      { ...historyTopic, id: 'topic-c', assistantId: 'assistant-3' },
+      { ...historyTopic, id: 'topic-default', assistantId: undefined }
+    ]
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move topics left' }))
+
+    await waitFor(() => expect(homeMocks.preferenceValues.get('topic.tab.position')).toBe('left'))
+    expect(homeMocks.persistCacheValues.get('ui.topic.expansion.assistant')).toEqual([
+      'topic:assistant:assistant-2',
+      'topic:assistant:assistant-3',
+      'topic:assistant:unknown'
+    ])
+  })
+
   it('renders the assistant resource view in the chat center', () => {
     render(<HomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
 
     expect(screen.getByTestId('resource-catalog-assistant')).toBeInTheDocument()
     expect(screen.getByTestId('home-conversation-page-shell')).toBeInTheDocument()
@@ -675,11 +836,11 @@ describe('HomePage', () => {
   })
 
   it('keeps the assistant resource view open while opening the classic-layout assistant picker', () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
 
     render(<HomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
     fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
 
     expect(screen.getByTestId('assistant-conversation-picker')).toBeInTheDocument()
@@ -688,7 +849,7 @@ describe('HomePage', () => {
   })
 
   it('keeps the assistant resource view open until the selected assistant topic is ready', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     let resolveCreateTopic!: (topic: Topic) => void
     homeMocks.createTopic.mockReturnValue(
       new Promise<Topic>((resolve) => {
@@ -698,7 +859,7 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
     fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
     fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
 
@@ -721,7 +882,7 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
 
     const shell = screen.getByTestId('home-conversation-page-shell')
     expect(within(shell).getByTestId('pane-open')).toHaveTextContent('true')
@@ -741,7 +902,7 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
     fireEvent.click(screen.getByRole('button', { name: 'Go to chat with assistant 2' }))
 
     await waitFor(() =>
@@ -752,13 +913,13 @@ describe('HomePage', () => {
   })
 
   it('creates an empty classic-layout topic from the inline assistant catalog go-to-chat action', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
 
     render(<HomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.assistant' }))
+    fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
     fireEvent.click(screen.getByRole('button', { name: 'Go to chat with assistant 2' }))
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
@@ -767,13 +928,20 @@ describe('HomePage', () => {
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-2')
   })
 
-  it('restores and records the classic-layout topic right pane open state from cache', () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+  it('respects a manually closed classic-layout topic right pane on re-entry', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.persistCacheValues.set('ui.chat.right_pane_open', false)
 
     render(<HomePage />)
 
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'false')
+    expect(homeMocks.cacheSetPersist).not.toHaveBeenCalledWith('ui.chat.right_pane_open', true)
+  })
+
+  it('records manual close state for the classic-layout topic right pane', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+
+    render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Close topic right pane' }))
 
@@ -781,7 +949,7 @@ describe('HomePage', () => {
   })
 
   it('passes the current assistant topic count to the classic-layout top button', () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
       { ...historyTopic, id: 'topic-a' },
       { ...historyTopic, id: 'topic-b' },
@@ -797,7 +965,7 @@ describe('HomePage', () => {
 
   it('selects the latest historical topic by default when entering classic layout without a route topic', async () => {
     homeMocks.locationState = undefined
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
       { ...historyTopic, id: 'topic-older', updatedAt: '2026-01-01T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-latest', updatedAt: '2026-01-03T00:00:00.000Z' }
@@ -812,7 +980,7 @@ describe('HomePage', () => {
 
   it('selects the latest remaining topic after deleting the active assistant (classic layout, never draft)', async () => {
     homeMocks.locationState = undefined
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
       { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' },
       { ...historyTopic, id: 'topic-b-old', assistantId: 'assistant-b', updatedAt: '2026-01-01T00:00:00.000Z' },
@@ -832,8 +1000,26 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
+  it('excludes the deleted active assistant when falling back to a draft after deletion', async () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
+    homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-1')
+    homeMocks.classicLayoutTopics = [
+      { ...historyTopic, id: 'topic-a', assistantId: 'assistant-1', updatedAt: '2026-01-05T00:00:00.000Z' }
+    ]
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete active assistant' }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('draft-composer')).toHaveAttribute('data-assistant-id', 'assistant-2')
+    )
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.last_used_assistant_id', null)
+  })
+
   it('creates and activates an empty topic after selecting an existing assistant from the classic-layout picker', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
 
     render(<HomePage />)
@@ -848,7 +1034,7 @@ describe('HomePage', () => {
   })
 
   it('adds a catalog assistant before creating an empty topic from the classic-layout picker', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-created' })
 
     render(<HomePage />)
@@ -869,7 +1055,7 @@ describe('HomePage', () => {
   })
 
   it('reuses an existing assistant whose name matches the catalog preset instead of duplicating it', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-existing', name: 'Catalog Preset' }]
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-existing' })
 
@@ -884,7 +1070,7 @@ describe('HomePage', () => {
   })
 
   it('reuses the assistant latest empty topic instead of creating another one in the classic-layout picker', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
       {
         id: 'topic-empty-latest',
@@ -913,7 +1099,7 @@ describe('HomePage', () => {
   })
 
   it('reuses the latest empty topic when an older candidate has an invalid timestamp', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
       {
         id: 'topic-empty-invalid',
@@ -941,7 +1127,7 @@ describe('HomePage', () => {
   })
 
   it('reuses the current assistant empty topic from the classic-layout composer button', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
     homeMocks.classicLayoutTopics = [
       {
@@ -963,7 +1149,7 @@ describe('HomePage', () => {
   })
 
   it('creates and activates a fresh empty topic from the classic-layout composer button when no empty topic exists', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
     homeMocks.classicLayoutTopics = [
       {
@@ -990,7 +1176,7 @@ describe('HomePage', () => {
   })
 
   it('creates a new topic when the assistant latest topic is chatted-in with a blank name (auto-naming off) in the classic-layout picker', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     // Auto-naming off keeps the name blank, but updatedAt has moved past createdAt — this is a real
     // conversation that must NOT be reopened as a reusable empty placeholder (#16434).
     homeMocks.classicLayoutTopics = [
@@ -1013,7 +1199,7 @@ describe('HomePage', () => {
   })
 
   it('ignores a rapid double-click on the classic-layout composer new-topic action', () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
     homeMocks.classicLayoutTopics = []
     // Never resolves: the first create stays in flight so the re-entry guard must drop the second click.
@@ -1028,9 +1214,8 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).toHaveBeenCalledTimes(1)
   })
 
-  it('focuses the existing tab instead of duplicating a reused topic already open elsewhere', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
-    homeMocks.focusExistingTab.mockReturnValue(true)
+  it('selects a reused topic in the current tab even when another tab may already show it', async () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = [
       {
         id: 'topic-empty-latest',
@@ -1046,21 +1231,14 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
     fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
 
-    // The reused topic is already open in another tab, so we focus it instead of navigating
-    // (and duplicating) the current tab.
-    await waitFor(() =>
-      expect(homeMocks.focusExistingTab).toHaveBeenCalledWith('topic-empty-latest', expect.anything())
-    )
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-empty-latest'))
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
-    expect(screen.queryByTestId('active-topic')?.textContent).not.toBe('topic-empty-latest')
   })
 
   it('toasts and leaves the active topic untouched when classic-layout picker topic creation fails', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.classicLayoutTopics = []
     homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
-    const toastError = vi.fn()
-    Object.assign(window, { toast: { error: toastError } })
 
     render(<HomePage />)
 
@@ -1068,24 +1246,22 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
-    await waitFor(() => expect(toastError).toHaveBeenCalled())
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
     expect(screen.queryByTestId('active-topic')?.textContent).not.toBe('topic-created')
   })
 
   it('toasts when the classic-layout composer empty-topic creation fails', async () => {
-    homeMocks.preferenceValues.set('topic.layout', 'classic')
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-default' }]
     homeMocks.classicLayoutTopics = []
     homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
-    const toastError = vi.fn()
-    Object.assign(window, { toast: { error: toastError } })
 
     render(<HomePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Create empty topic from composer' }))
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalled())
-    await waitFor(() => expect(toastError).toHaveBeenCalled())
+    await waitFor(() => expect(toast.error).toHaveBeenCalled())
     expect(screen.queryByTestId('active-topic')?.textContent).not.toBe('topic-created')
   })
 
@@ -1127,6 +1303,37 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false))
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+  })
+  it('temporarily hides and restores the topic sidebar for responsive auto-collapse without changing the user preference', async () => {
+    homeMocks.preferenceValues.set('topic.tab.show', true)
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auto collapse pane' }))
+
+    await waitFor(() => expect(screen.getByTestId('pane-open')).toHaveTextContent('false'))
+    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
+    expect(homeMocks.preferenceValues.get('topic.tab.show')).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Auto restore pane' }))
+
+    await waitFor(() => expect(screen.getByTestId('pane-open')).toHaveTextContent('true'))
+    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
+    expect(homeMocks.preferenceValues.get('topic.tab.show')).toBe(true)
+  })
+
+  it('keeps the topic sidebar open after selecting a topic from the sidebar', async () => {
+    homeMocks.preferenceValues.set('topic.tab.show', true)
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select topic next' }))
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-next'))
+    expect(homeMocks.setShowSidebar).not.toHaveBeenCalledWith(false)
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
   })
 
   it('starts a draft assistant selection when history clears the selected topic', async () => {
@@ -1205,7 +1412,7 @@ describe('HomePage', () => {
       | undefined
 
     act(() => {
-      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target' })
+      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target', targetTabId: 'chat-tab' })
     })
 
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-history'))
@@ -1215,9 +1422,8 @@ describe('HomePage', () => {
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
-  it('does not write locate state into the current tab before focusing an already-open topic message', () => {
+  it('writes locate state into the current tab for a global-search topic message', async () => {
     homeMocks.locationState = undefined
-    homeMocks.focusExistingTab.mockReturnValue(true)
 
     render(<HomePage />)
 
@@ -1228,12 +1434,28 @@ describe('HomePage', () => {
       | undefined
 
     act(() => {
-      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target' })
+      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target', targetTabId: 'chat-tab' })
     })
 
-    expect(homeMocks.focusExistingTab).toHaveBeenCalledWith('topic-history', { excludeTabId: 'chat-tab' })
-    expect(screen.getByTestId('draft-composer')).toBeInTheDocument()
-    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-history'))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-target')
+  })
+
+  it('ignores a global-search topic message targeted at another tab', async () => {
+    render(<HomePage />)
+
+    const topicMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      topicMessageHandler?.({ topic: historyTopic, messageId: 'message-target', targetTabId: 'other-chat-tab' })
+    })
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial'))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
   })
 
   it('keeps the current topic visible while the active topic is reloading', async () => {

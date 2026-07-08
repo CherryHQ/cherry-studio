@@ -1,24 +1,22 @@
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
+import { analyzeMessagesContent, processMessagesContent } from '@renderer/services/knowledgeContent'
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { MessageExportView } from '@renderer/types/messageExport'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   processMessageContent: vi.fn(),
-  submitKnowledgeItems: vi.fn(),
-  TopView: {
-    show: vi.fn(),
-    hide: vi.fn()
-  },
-  toast: {
-    error: vi.fn(),
-    success: vi.fn(),
-    warning: vi.fn()
-  }
+  submitKnowledgeItems: vi.fn()
 }))
+
+// This suite renders the real popup under a real PopupHost, so opt out of the
+// global services/popup mock installed in tests/renderer.setup.ts.
+vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useKnowledgeBases: vi.fn()
@@ -26,10 +24,6 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
 
 vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useAddKnowledgeItems: vi.fn()
-}))
-
-vi.mock('@renderer/components/TopView', () => ({
-  TopView: mocks.TopView
 }))
 
 vi.mock('@renderer/utils/knowledge', () => ({
@@ -59,7 +53,20 @@ vi.mock('@renderer/utils/knowledge', () => ({
 }))
 
 vi.mock('@renderer/services/knowledgeContent', () => ({
+  analyzeMessagesContent: vi.fn(() => ({
+    text: 0,
+    code: 0,
+    thinking: 0,
+    images: 0,
+    files: 0,
+    tools: 0,
+    citations: 0,
+    translations: 0,
+    errors: 0,
+    messages: 0
+  })),
   analyzeTopicContent: vi.fn(),
+  processMessagesContent: vi.fn(),
   processTopicContent: vi.fn()
 }))
 
@@ -106,7 +113,14 @@ vi.mock('@cherrystudio/ui', () => ({
     </select>
   ),
   Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
-  DialogContent: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
+  DialogContent: ({
+    children,
+    closeOnOverlayClick,
+    ...props
+  }: React.ComponentProps<'div'> & { closeOnOverlayClick?: boolean }) => {
+    void closeOnOverlayClick
+    return <div {...props}>{children}</div>
+  },
   DialogFooter: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
   DialogHeader: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
   DialogTitle: ({ children, ...props }: React.ComponentProps<'h2'>) => <h2 {...props}>{children}</h2>,
@@ -115,13 +129,18 @@ vi.mock('@cherrystudio/ui', () => ({
   Label: ({ children, ...props }: React.ComponentProps<'label'>) => <label {...props}>{children}</label>
 }))
 
+import { PopupHost } from '@renderer/components/PopupHost'
+
 import SaveToKnowledgePopup from '../SaveToKnowledgePopup'
 
 function renderPopup(source: MessageExportView) {
-  const promise = SaveToKnowledgePopup.show({ source: { type: 'message', data: source } })
-  const rendered = mocks.TopView.show.mock.calls[0][0] as React.ReactNode
+  render(<PopupHost />)
 
-  render(<>{rendered}</>)
+  let promise!: ReturnType<typeof SaveToKnowledgePopup.show>
+  act(() => {
+    promise = SaveToKnowledgePopup.show({ source: { type: 'message', data: source } })
+  })
+
   return { promise }
 }
 
@@ -175,13 +194,78 @@ describe('SaveToKnowledgePopup', () => {
         file: {
           ensureExternalEntry: vi.fn()
         }
-      },
-      toast: mocks.toast
+      }
     })
   })
 
   afterEach(() => {
+    // Unmount the host first so draining leftover entries fires no React update on a
+    // still-mounted host, then settle+drain the singleton store for the next test. Fake
+    // timers fire the exit phase synchronously (no wall-clock wait).
+    cleanup()
+    vi.useFakeTimers()
+    for (const entry of [...popupService.getSnapshot()]) {
+      popupService.settle(entry.instanceId, null)
+    }
+    vi.advanceTimersByTime(POPUP_EXIT_MS)
     vi.useRealTimers()
+  })
+
+  it('keeps the dialog title separate from the message group source title', async () => {
+    const message = createMessageWithFiles([])
+
+    render(<PopupHost />)
+    act(() => {
+      void SaveToKnowledgePopup.showForMessages([message], 'Session title')
+    })
+
+    expect(await screen.findByRole('heading', { name: 'chat.save.topic.knowledge.title' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Session title' })).not.toBeInTheDocument()
+    expect(await screen.findByText('chat.save.topic.knowledge.empty.no_content')).toBeInTheDocument()
+  })
+
+  it('uses the translated conversation fallback for blank message group source titles', async () => {
+    const message = createMessageWithFiles([])
+
+    ;(analyzeMessagesContent as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+      text: 1,
+      code: 0,
+      thinking: 0,
+      images: 0,
+      files: 0,
+      tools: 0,
+      citations: 0,
+      translations: 0,
+      errors: 0,
+      messages: 1
+    })
+    ;(processMessagesContent as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+      text: 'Saved conversation',
+      files: []
+    })
+
+    render(<PopupHost />)
+    let promise!: ReturnType<typeof SaveToKnowledgePopup.showForMessages>
+    act(() => {
+      promise = SaveToKnowledgePopup.showForMessages([message], '   ')
+    })
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
+      {
+        type: 'note',
+        data: {
+          source: 'chat.save.topic.knowledge.source_fallback',
+          content: 'Saved conversation'
+        }
+      }
+    ])
+    await expect(promise).resolves.toEqual({ success: true, savedCount: 1 })
   })
 
   it('saves resolvable files and warns about failed files', async () => {
@@ -190,20 +274,22 @@ describe('SaveToKnowledgePopup', () => {
     )
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'common.save' })).not.toBeDisabled())
-    fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
-    await waitFor(() =>
-      expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
-        {
-          type: 'file',
-          data: {
-            source: '/tmp/ok.pdf',
-            path: '/tmp/ok.pdf'
-          }
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
+      await promise
+    })
+
+    expect(mocks.submitKnowledgeItems).toHaveBeenCalledWith([
+      {
+        type: 'file',
+        data: {
+          source: '/tmp/ok.pdf',
+          path: '/tmp/ok.pdf'
         }
-      ])
-    )
-    expect(mocks.toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
+      }
+    ])
+    expect(toast.warning).toHaveBeenCalledWith('chat.save.knowledge.error.file_partial_failed:{"count":1}')
 
     await expect(promise).resolves.toEqual({ success: true, savedCount: 1 })
   })

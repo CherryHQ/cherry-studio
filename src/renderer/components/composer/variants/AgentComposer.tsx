@@ -13,17 +13,19 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import type { QuickPanelInputAdapter, QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { AgentSelector, WorkspaceSelector } from '@renderer/components/resource'
-import type { ResourceEditDialogTarget } from '@renderer/components/resource/dialogs'
-import { ModelSelector } from '@renderer/components/Selector'
+import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
+import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
 import { useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
@@ -33,6 +35,7 @@ import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { isSoulModeEnabled } from '@renderer/utils/agent/agentConfiguration'
@@ -86,7 +89,7 @@ import { useComposerFileCapabilities } from './shared/useComposerFileCapabilitie
 
 const logger = loggerService.withContext('AgentComposer')
 const ResourceEditDialogHost = React.lazy(() =>
-  import('@renderer/components/resource/dialogs/edit/ResourceEditDialogHost').then((module) => ({
+  import('@renderer/components/resourceCatalog/dialogs/edit').then((module) => ({
     default: module.ResourceEditDialogHost
   }))
 )
@@ -171,23 +174,26 @@ const AgentComposerRoot = ({
   const { agent } = useAgent(agentId)
   const { model: sessionModel } = useModelById((agent?.model ?? '') as UniqueModelId)
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
-  const [sessionLayout] = usePreference('agent.layout')
+  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
+  const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const handleNewSessionShortcut = useCallback(() => {
-    if (sessionLayout === 'classic' && onCreateEmptySession) {
+    if (isClassicSessionLayout && onCreateEmptySession) {
       void onCreateEmptySession()
       return
     }
 
     void onNewSessionDraft?.()
-  }, [onCreateEmptySession, onNewSessionDraft, sessionLayout])
-  const hasNewSessionShortcutAction =
-    sessionLayout === 'classic' ? Boolean(onCreateEmptySession || onNewSessionDraft) : Boolean(onNewSessionDraft)
+  }, [isClassicSessionLayout, onCreateEmptySession, onNewSessionDraft])
+  const hasNewSessionShortcutAction = isClassicSessionLayout
+    ? Boolean(onCreateEmptySession || onNewSessionDraft)
+    : Boolean(onNewSessionDraft)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewSessionShortcut, {
     enabled: isActiveTab && Boolean(session && agent && hasNewSessionShortcutAction)
   })
 
+  const sessionSlashCommands = useAgentSessionSlashCommands(sessionId)
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
     const accessiblePaths = session.workspace?.type === 'user' && session.workspace.path ? [session.workspace.path] : []
@@ -195,9 +201,10 @@ const AgentComposerRoot = ({
       agentId,
       sessionId,
       agentType: agent.type,
-      accessiblePaths
+      accessiblePaths,
+      slashCommands: sessionSlashCommands
     }
-  }, [session, agent, agentId, sessionId])
+  }, [session, agent, agentId, sessionId, sessionSlashCommands])
 
   const initialState = useMemo(
     () => ({
@@ -282,6 +289,7 @@ interface AgentComposerContextControlsProps {
   iconOnly?: boolean
   showAgentTrigger?: boolean
   agentTriggerMode?: 'selector' | 'edit'
+  onDialogCloseAutoFocus?: () => void
   onAgentChange: (agentId: string | null) => void | Promise<void>
 }
 
@@ -316,6 +324,7 @@ const AgentComposerContextControls = ({
   iconOnly = false,
   showAgentTrigger = true,
   agentTriggerMode = 'selector',
+  onDialogCloseAutoFocus,
   onAgentChange
 }: AgentComposerContextControlsProps) => {
   const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
@@ -366,7 +375,10 @@ const AgentComposerContextControls = ({
               <ResourceEditDialogHost
                 target={agentEditDialogTarget}
                 onOpenChange={(open) => {
-                  if (!open) setAgentEditDialogTarget(null)
+                  if (!open) {
+                    setAgentEditDialogTarget(null)
+                    onDialogCloseAutoFocus?.()
+                  }
                 }}
               />
             </React.Suspense>
@@ -380,6 +392,7 @@ const AgentComposerContextControls = ({
           side={side}
           align="start"
           mountStrategy="lazy-keep"
+          onDialogCloseAutoFocus={onDialogCloseAutoFocus}
           trigger={agentTrigger}
         />
       )}
@@ -555,6 +568,21 @@ type AgentComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls'
 }
 type AgentComposerControlsRenderer = (props: AgentComposerControlProps) => AgentComposerControlSlots
 
+type AgentComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
+
+const restoreAgentComposerInputFocus = (inputAdapter: AgentComposerInputAdapter) => {
+  window.requestAnimationFrame(() => inputAdapter?.focus())
+}
+
+const AgentComposerContextControlsWithAutoFocus = ({
+  inputAdapter,
+  ...props
+}: AgentComposerContextControlsProps & { inputAdapter: AgentComposerInputAdapter }) => {
+  const onDialogCloseAutoFocus = useCallback(() => restoreAgentComposerInputFocus(inputAdapter), [inputAdapter])
+
+  return <AgentComposerContextControls {...props} onDialogCloseAutoFocus={onDialogCloseAutoFocus} />
+}
+
 // Active agent sessions are bound to their agent, so the agent trigger opens edit instead of switching.
 const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
   return {
@@ -565,7 +593,13 @@ const renderAgentToolbarControls: AgentComposerControlsRenderer = (props) => {
         toolMenuPlacement="beforeContext"
         renderContextControls={({ side, iconOnly }) => (
           <>
-            <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} agentTriggerMode="edit" />
+            <AgentComposerContextControlsWithAutoFocus
+              {...props}
+              side={side}
+              iconOnly={iconOnly}
+              agentTriggerMode="edit"
+              inputAdapter={inputAdapter}
+            />
             <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
           </>
         )}
@@ -581,11 +615,16 @@ const renderAgentHomeControls: AgentComposerControlsRenderer = (props) => {
         <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
       </div>
     ),
-    renderBelowControls: () => (
+    renderBelowControls: (inputAdapter) => (
       <ComposerBelowControls
         renderContextControls={({ side, iconOnly }) => (
           <>
-            <AgentComposerContextControls {...props} side={side} iconOnly={iconOnly} />
+            <AgentComposerContextControlsWithAutoFocus
+              {...props}
+              side={side}
+              iconOnly={iconOnly}
+              inputAdapter={inputAdapter}
+            />
             <AgentComposerModelControl {...props} side={side} iconOnly={iconOnly} />
           </>
         )}
@@ -636,7 +675,8 @@ const AgentComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [sessionLayout] = usePreference('agent.layout')
+  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
+  const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const { t } = useTranslation()
   const modelProviderName = useProviderDisplayName(model?.providerId)
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
@@ -800,7 +840,7 @@ const AgentComposerInner = ({
 
     const label = t('agent.session.new')
 
-    if (sessionLayout === 'classic') {
+    if (isClassicSessionLayout) {
       if (!onCreateEmptySession) return []
 
       return [
@@ -809,6 +849,7 @@ const AgentComposerInner = ({
           label,
           icon: <MessageSquarePlus size={16} />,
           filterText: label,
+          searchAliases: getQuickPanelSearchAliases(t, 'agent.session.new'),
           action: () => {
             handleCreateEmptySession()
           }
@@ -824,12 +865,13 @@ const AgentComposerInner = ({
         label,
         icon: <MessageSquarePlus size={16} />,
         filterText: label,
+        searchAliases: getQuickPanelSearchAliases(t, 'agent.session.new'),
         action: () => {
           void onNewSessionDraft()
         }
       }
     ]
-  }, [agentBase, handleCreateEmptySession, onCreateEmptySession, onNewSessionDraft, sessionLayout, t])
+  }, [agentBase, handleCreateEmptySession, isClassicSessionLayout, onCreateEmptySession, onNewSessionDraft, t])
 
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined
@@ -931,7 +973,7 @@ const AgentComposerInner = ({
     isFulfilled: sessionFulfilled,
     markSeen: markSessionSeen,
     onDrain: sendQueuedPayload,
-    onDrainFailed: () => window.toast?.error(t('chat.input.send_failed'))
+    onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
 
   // Edit a queued item = restore the draft (text + files + skills) into the live composer, then drop
@@ -949,11 +991,11 @@ const AgentComposerInner = ({
     (draft: ComposerSerializedDraft) => {
       if (sendDisabled) return
       if (!model) {
-        window.toast?.error(t('code.model_required'))
+        toast.error(t('code.model_required'))
         return
       }
       if (workspaceWarning) {
-        window.toast?.error(workspaceWarning)
+        toast.error(workspaceWarning)
         return
       }
       const payload = buildQueuedPayload(draft)
@@ -982,7 +1024,7 @@ const AgentComposerInner = ({
           setDraftTokens(previousDraftTokens)
           draftTokensRef.current = previousDraftTokens
           writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
-          window.toast?.error(t('chat.input.send_failed'))
+          toast.error(t('chat.input.send_failed'))
         }
       })
     },
@@ -1035,7 +1077,7 @@ const AgentComposerInner = ({
     selectModelLabel: t('button.select_model'),
     agentChanging,
     shouldAutoSelectCreatedAgent: Boolean(onAgentChange),
-    showAgentTrigger: sessionLayout !== 'classic',
+    showAgentTrigger: !isClassicSessionLayout,
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
@@ -1081,7 +1123,7 @@ const AgentComposerInner = ({
                 // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
                 const sent = await sendQueuedPayload(item.payload)
                 if (sent) removeFollowup(id)
-                else window.toast?.error(t('chat.input.send_failed'))
+                else toast.error(t('chat.input.send_failed'))
               }}
               onEdit={(id) => {
                 const item = queuedFollowups.find((entry) => entry.id === id)
@@ -1142,7 +1184,8 @@ const MissingAgentHomeComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [sessionLayout] = usePreference('agent.layout')
+  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
+  const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const selectAgentMessage = t('chat.alerts.select_agent')
@@ -1163,7 +1206,7 @@ const MissingAgentHomeComposerInner = ({
     [onAgentChange, text]
   )
   const handleBlockedSend = useCallback(() => {
-    window.toast?.error(selectAgentMessage)
+    toast.error(selectAgentMessage)
   }, [selectAgentMessage])
   const placeholderText = t('agent.input.placeholder', {
     key: getSendMessageShortcutLabel(sendMessageShortcut)
@@ -1176,7 +1219,7 @@ const MissingAgentHomeComposerInner = ({
     selectModelLabel: t('button.select_model'),
     agentChanging,
     shouldAutoSelectCreatedAgent: true,
-    showAgentTrigger: sessionLayout !== 'classic',
+    showAgentTrigger: !isClassicSessionLayout,
     canChangeModel: false,
     onAgentChange: handleAgentChange,
     onModelSelect: () => undefined

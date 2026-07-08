@@ -14,7 +14,7 @@ import { AssistantDataService, assistantDataService } from '@data/services/Assis
 import { pinService } from '@data/services/PinService'
 import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { ErrorCode } from '@shared/data/api'
+import { ErrorCode } from '@shared/data/api/errors'
 import { type ListAssistantsQuery, ListAssistantsQuerySchema } from '@shared/data/api/schemas/assistants'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -97,8 +97,7 @@ describe('AssistantDataService', () => {
       status: 'completed',
       error: null,
       chunkSize: 1024,
-      chunkOverlap: 200,
-      searchMode: 'hybrid'
+      chunkOverlap: 200
     })
   }
 
@@ -1303,8 +1302,10 @@ describe('AssistantDataService', () => {
         { id: 'topic-2', name: 'kept', assistantId: 'ast-2', orderKey: 'a1' }
       ])
 
-      assistantDataService.delete('ast-1', { deleteTopics: true })
+      const result = assistantDataService.delete('ast-1', { deleteTopics: true })
 
+      expect(result.deleted).toBe(true)
+      expect(result.deletedTopicIds).toEqual(['topic-1'])
       const assistantRows = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, 'ast-1'))
       expect(assistantRows[0].deletedAt).toBeTruthy()
       const topicRows = await dbh.db.select().from(topicTable)

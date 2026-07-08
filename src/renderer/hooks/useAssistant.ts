@@ -22,8 +22,8 @@ import { loggerService } from '@logger'
 import { useModelById } from '@renderer/hooks/useModel'
 import type { Assistant, AssistantSettings } from '@renderer/types/assistant'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/model'
-import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
-import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import type { CreateAssistantDto, DeleteAssistantResult, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useRef } from 'react'
@@ -121,12 +121,16 @@ export function useAssistantMutations() {
     return updated
   }, [])
 
-  const deleteAssistant = useCallback(async (id: string, options: { deleteTopics?: boolean } = {}): Promise<void> => {
-    await deleteTriggerRef.current(
-      options.deleteTopics === true ? { params: { id }, query: { deleteTopics: true } } : { params: { id } }
-    )
-    logger.info('Deleted assistant', { id, deleteTopics: options.deleteTopics === true })
-  }, [])
+  const deleteAssistant = useCallback(
+    async (id: string, options: { deleteTopics?: boolean } = {}): Promise<DeleteAssistantResult> => {
+      const result: DeleteAssistantResult = await deleteTriggerRef.current(
+        options.deleteTopics === true ? { params: { id }, query: { deleteTopics: true } } : { params: { id } }
+      )
+      logger.info('Deleted assistant', { id, deleteTopics: options.deleteTopics === true })
+      return result
+    },
+    []
+  )
 
   return {
     createAssistant,

@@ -2,14 +2,16 @@ import { useQuery } from '@data/hooks/useDataApi'
 import type { MessageListActions, MessageListState } from '@renderer/components/chat/messages/types'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
+import { popup } from '@renderer/services/popup'
 import type { FileMetadata } from '@renderer/types/file'
 import type { McpTool } from '@renderer/types/tool'
 import { buildEditorUrl } from '@renderer/utils/editor'
 import { parseFileTypes } from '@renderer/utils/file'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
+import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { FileHandle, FilePath } from '@shared/types/file'
+import type { FilePath } from '@shared/types/file'
 import type { McpProgressEvent } from '@shared/types/mcp'
 import { createFileEntryHandle, createFilePathHandle, toSafeFileUrl } from '@shared/utils/file'
 import dayjs from 'dayjs'
@@ -114,7 +116,7 @@ export function useMessageLeafCapabilities({
     async (file) => {
       const fileType = parseFileTypes(file.type)
       if (fileType === null) {
-        window.modal.error({ content: t('files.preview.error'), centered: true })
+        void popup.error({ content: t('files.preview.error'), centered: true })
         return
       }
 
@@ -126,7 +128,7 @@ export function useMessageLeafCapabilities({
       try {
         await safeOpen(fileMetadataToHandle(file))
       } catch {
-        window.modal.error({ content: t('files.preview.error'), centered: true })
+        void popup.error({ content: t('files.preview.error'), centered: true })
       }
     },
     [preview, t]

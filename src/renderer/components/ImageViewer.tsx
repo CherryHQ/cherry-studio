@@ -6,9 +6,10 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { toast } from '@renderer/services/toast'
 import { convertImageToPng } from '@renderer/utils/image'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { sanitizeFilename } from '@shared/utils/file/filename'
+import { sanitizeFilename } from '@shared/utils/file'
 import { Base64 } from 'js-base64'
 import { CopyIcon, DownloadIcon } from 'lucide-react'
 import mime from 'mime'
@@ -205,11 +206,11 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ alt, onClick, onContextMenu, 
     async (item: ImagePreviewItem) => {
       try {
         await copyImageToClipboard(item.src)
-        window.toast.success(t('message.copy.success'))
+        toast.success(t('message.copy.success'))
       } catch (error) {
         const err = error as Error
         logger.error(`Failed to copy image: ${err.message}`, { stack: err.stack })
-        window.toast.error(t('message.copy.failed'))
+        toast.error(t('message.copy.failed'))
       }
     },
     [t]
@@ -219,11 +220,11 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ alt, onClick, onContextMenu, 
     async (item: ImagePreviewItem) => {
       try {
         await navigator.clipboard.writeText(item.src)
-        window.toast.success(t('message.copy.success'))
+        toast.success(t('message.copy.success'))
       } catch (error) {
         const err = error as Error
         logger.error(`Failed to copy image source: ${err.message}`, { stack: err.stack })
-        window.toast.error(t('message.copy.failed'))
+        toast.error(t('message.copy.failed'))
       }
     },
     [t]
@@ -234,12 +235,12 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ alt, onClick, onContextMenu, 
       try {
         const savedPath = await saveImageFromSource(item.src)
         if (savedPath) {
-          window.toast.success(t('message.download.success'))
+          toast.success(t('message.download.success'))
         }
       } catch (error) {
         const err = error as Error
         logger.error(`Failed to download image: ${err.message}`, { stack: err.stack })
-        window.toast.error(t('message.download.failed'))
+        toast.error(t('message.download.failed'))
       }
     },
     [t]
