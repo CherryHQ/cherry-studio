@@ -20,7 +20,15 @@ export const COMPOSER_CLIPBOARD_FRAGMENT_MIME = 'web application/x-cherry-compos
 
 const COMPOSER_CLIPBOARD_FRAGMENT_VERSION = 1
 const COMPOSER_CLIPBOARD_FRAGMENT_MAX_LENGTH = 250_000
-const COMPOSER_CLIPBOARD_TOKEN_KINDS = ['skill', 'file', 'knowledge', 'reference', 'quote', 'promptVariable'] as const
+const COMPOSER_CLIPBOARD_TOKEN_KINDS = [
+  'skill',
+  'file',
+  'folder',
+  'knowledge',
+  'reference',
+  'quote',
+  'promptVariable'
+] as const
 const COMPOSER_CLIPBOARD_FILE_HANDLE_TTL_MS = 30 * 60 * 1000
 
 type ComposerClipboardTokenKind = (typeof COMPOSER_CLIPBOARD_TOKEN_KINDS)[number]
@@ -111,6 +119,7 @@ interface ComposerClipboardDraft {
 const COMPOSER_CLIPBOARD_MESSAGE_TOKEN_KINDS = new Set<ComposerMessageToken['kind']>([
   'skill',
   'file',
+  'folder',
   'knowledge',
   'reference',
   'quote'

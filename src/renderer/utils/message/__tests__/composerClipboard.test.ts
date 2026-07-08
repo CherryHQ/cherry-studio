@@ -452,6 +452,49 @@ describe('composer clipboard', () => {
     ])
   })
 
+  it('preserves folder tokens when copying composer message text parts', () => {
+    const folderPath = '/Users/example/Notes/Project Notes'
+    const content = createComposerRichClipboardContentFromParts([
+      {
+        type: 'text',
+        text: `Read ${folderPath} now`,
+        providerMetadata: {
+          cherry: {
+            composer: {
+              version: 1,
+              tokens: [
+                {
+                  id: 'folder:project-notes',
+                  kind: 'folder',
+                  label: 'Project Notes',
+                  index: 0,
+                  textOffset: 'Read '.length,
+                  promptText: folderPath
+                }
+              ]
+            }
+          }
+        }
+      }
+    ] as any)
+
+    expect(content?.plainText).toBe(`Read ${folderPath} now`)
+    expect(readComposerClipboardFragment(content!.customFormats![COMPOSER_CLIPBOARD_FRAGMENT_MIME])?.segments).toEqual([
+      { type: 'text', text: 'Read ' },
+      {
+        type: 'token',
+        fallbackText: folderPath,
+        token: {
+          id: 'folder:project-notes',
+          kind: 'folder',
+          label: 'Project Notes',
+          promptText: folderPath
+        }
+      },
+      { type: 'text', text: ' now' }
+    ])
+  })
+
   it('keeps file paths private and registers a handle when a matching source file part can restore the attachment', () => {
     const content = createComposerRichClipboardContentFromParts([
       {
