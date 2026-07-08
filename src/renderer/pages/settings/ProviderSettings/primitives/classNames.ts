@@ -184,10 +184,13 @@ export const modelListClasses = {
   /** Model-list section title: same size, line-height, and color; semibold emphasis. */
   sectionTitleLine: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
   sectionTitle: cn(sectionHeadingBase, 'shrink-0 whitespace-nowrap font-semibold'),
-  titleHelpRow: 'flex min-w-0 flex-wrap items-center gap-x-1 self-center text-foreground-muted',
+  titleHelpRow: 'flex min-w-0 flex-wrap items-center gap-x-1.5 self-center text-foreground-muted',
   titleHelpText: 'shrink-0 opacity-60',
   titleHelpLink:
-    'mx-0 inline-flex shrink-0 items-center leading-[1.3] !text-foreground-muted/60 hover:!text-primary hover:underline',
+    'mx-0 inline-flex shrink-0 items-center leading-[1.3] !text-foreground-muted/70 transition-colors hover:!text-primary hover:no-underline',
+  titleHelpIconLink:
+    'inline-flex h-[1.3em] w-[1.3em] shrink-0 items-center justify-center rounded-md align-middle text-foreground-muted/70 transition-colors hover:text-primary',
+  titleHelpIcon: 'relative -top-px size-3.5 shrink-0',
   titleHelpSeparator: 'inline-flex shrink-0 items-center leading-[1.3] text-foreground-muted/50',
   countMeta: 'text-xs leading-tight text-foreground-muted tabular-nums',
   toolbarGhost:
@@ -215,17 +218,6 @@ export const modelListClasses = {
     'size-8 min-h-0 rounded-[length:var(--cs-radius-md)] border-border-muted bg-background p-0 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addIconButton:
     'size-8 rounded-lg border-border-muted bg-transparent text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
-  capabilityFilterRoot: 'flex min-w-0 shrink-0 items-center gap-1',
-  capabilityFilterButton:
-    'h-7 min-h-0 max-w-[170px] gap-1.5 rounded-[length:var(--cs-radius-md)] border-border-muted bg-background px-2 py-0 text-xs leading-tight text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40',
-  capabilityFilterButtonIconOnly: 'size-7 px-0',
-  capabilityFilterButtonActive: 'border-border-active bg-accent/40',
-  capabilityFilterLabel: 'min-w-0 truncate',
-  capabilityFilterClear:
-    'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/45 transition-colors hover:bg-accent/40 hover:text-muted-foreground/80',
-  capabilityFilterMenu: 'w-fit min-w-40 rounded-xl p-1.5',
-  capabilityFilterMenuItem: 'h-8 rounded-lg px-2.5 text-sm',
-  capabilityTabIcon: 'size-3 shrink-0',
   subsectionRow: 'flex min-w-0 items-center gap-2 px-1',
   subsectionTitleWrap: 'flex min-w-0 items-center gap-2',
   subsectionActions: 'ml-1 flex shrink-0 items-center gap-2',
@@ -410,7 +402,7 @@ export const oauthCardClasses = {
     'h-auto min-h-0 p-0 text-xs text-muted-foreground/60 shadow-none hover:bg-transparent hover:text-foreground',
   loginFooterDivider: 'text-xs text-muted-foreground/50',
   /** CherryIN portal link — matches scoped caption + primary link treatment. */
-  externalLink: 'mt-1 inline-block text-xs leading-tight text-primary hover:underline',
+  externalLink: 'mt-1 inline-block text-xs leading-tight text-primary',
   /** Logged-in CherryIN: mock CherryIN account section — one row, no stat grid. */
   shellLoggedIn: 'w-full min-w-0 overflow-hidden rounded-xl border border-border-subtle px-3 py-2.5',
   loggedInRow: 'flex w-full min-w-0 flex-wrap items-center justify-between gap-3',
@@ -477,5 +469,6 @@ export const fieldClasses = {
   apiKeyVisibilityToggle:
     'flex size-5 shrink-0 items-center justify-center text-muted-foreground/70 transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
   titleWithHelp: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-semibold',
-  titleHelpLink: 'mx-0 inline-flex shrink-0 items-center leading-5 text-primary hover:underline'
+  titleHelpLink:
+    'mx-0 inline-flex shrink-0 items-center font-normal text-xs leading-5 text-foreground-muted/70 transition-colors hover:text-primary hover:no-underline'
 } as const

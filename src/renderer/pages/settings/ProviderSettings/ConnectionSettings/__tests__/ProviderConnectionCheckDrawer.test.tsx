@@ -1,5 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { showErrorDetailPopupMock } = vi.hoisted(() => ({
+  showErrorDetailPopupMock: vi.fn()
+}))
 
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
@@ -52,6 +56,10 @@ vi.mock('@renderer/utils/model', () => ({
   }
 }))
 
+vi.mock('@renderer/components/ErrorDetailModal', () => ({
+  showErrorDetailPopup: showErrorDetailPopupMock
+}))
+
 import ProviderConnectionCheckDrawer from '@renderer/pages/settings/ProviderSettings/ConnectionSettings/ProviderConnectionCheckDrawer'
 
 vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
@@ -73,6 +81,10 @@ describe('ProviderConnectionCheckDrawer', () => {
     onClose: vi.fn(),
     onStart: vi.fn()
   }
+
+  beforeEach(() => {
+    showErrorDetailPopupMock.mockClear()
+  })
 
   it('opens model health check from the footer and closes this drawer first', () => {
     const onClose = vi.fn()
@@ -139,14 +151,15 @@ describe('ProviderConnectionCheckDrawer', () => {
     expect(onStart).toHaveBeenCalledWith({ model, apiKey: 'sk-second' })
   })
 
-  it('shows the connection failure message at the bottom of the dialog', () => {
-    render(
-      <ProviderConnectionCheckDrawer
-        {...baseProps}
-        connectionError={{ name: 'HealthCheckError', message: 'invalid api key', stack: null }}
-      />
-    )
+  it('shows the connection failure message and opens the error detail popup', () => {
+    const connectionError = { name: 'HealthCheckError', message: 'invalid api key', stack: null }
+
+    render(<ProviderConnectionCheckDrawer {...baseProps} connectionError={connectionError} />)
 
     expect(screen.getByRole('alert')).toHaveTextContent('invalid api key')
+
+    fireEvent.click(screen.getByRole('alert'))
+
+    expect(showErrorDetailPopupMock).toHaveBeenCalledWith({ error: connectionError })
   })
 })

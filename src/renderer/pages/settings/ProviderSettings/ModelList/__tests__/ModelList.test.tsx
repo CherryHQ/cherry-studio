@@ -82,7 +82,7 @@ describe('useProviderModelList', () => {
     expect(updateModelMock).not.toHaveBeenCalled()
   })
 
-  it('does not surface local capability filtering as a loading state for larger model sets', async () => {
+  it('does not surface local search filtering as a loading state for larger model sets', async () => {
     const largeModelSet = Array.from({ length: 12 }, (_, index) => ({
       id: `openai::model-${index}`,
       name: `Model ${index}`,
@@ -98,11 +98,11 @@ describe('useProviderModelList', () => {
     expect(result.current.sections.isLoading).toBe(false)
 
     act(() => {
-      result.current.header.setSelectedCapabilityFilter('reasoning')
+      result.current.header.setSearchText('Model 1')
     })
 
     await waitFor(() => {
-      expect(result.current.header.modelCount).toBe(6)
+      expect(result.current.header.modelCount).toBe(3)
     })
 
     expect(result.current.sections.isLoading).toBe(false)
@@ -312,7 +312,7 @@ describe('useProviderModelList', () => {
     ).toEqual(['openai::vision-gamma'])
   })
 
-  it('deletes only the filtered visible models in a selected group', async () => {
+  it('deletes only the searched visible models in a selected group', async () => {
     const groupedModels = [
       {
         id: 'openai::chat-alpha',
@@ -345,7 +345,7 @@ describe('useProviderModelList', () => {
     const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 
     act(() => {
-      result.current.header.setSelectedCapabilityFilter('embedding')
+      result.current.header.setSearchText('Beta')
     })
 
     await waitFor(() => {
@@ -362,7 +362,7 @@ describe('useProviderModelList', () => {
     expect(deleteModelsMock).toHaveBeenCalledWith(['openai::chat-beta'])
 
     act(() => {
-      result.current.header.setSelectedCapabilityFilter('all')
+      result.current.header.setSearchText('')
     })
 
     await waitFor(() => {
@@ -575,7 +575,7 @@ describe('useProviderModelList', () => {
     ).toEqual(['openai::vision-beta'])
   })
 
-  it('bulk-toggles only the filtered visible models in a selected group', async () => {
+  it('bulk-toggles only the searched visible models in a selected group', async () => {
     const groupedModels = [
       {
         id: 'openai::chat-alpha',
@@ -608,11 +608,11 @@ describe('useProviderModelList', () => {
     const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
 
     act(() => {
-      result.current.header.setSelectedCapabilityFilter('reasoning')
+      result.current.header.setSearchText('Alpha')
     })
 
     await waitFor(() => {
-      expect(result.current.header.modelCount).toBe(2)
+      expect(result.current.header.modelCount).toBe(1)
     })
 
     const chatSection = result.current.sections.enabledSections.find((section) => section.groupName === 'chat')

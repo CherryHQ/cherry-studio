@@ -1,16 +1,13 @@
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
 import {
   calculateModelListDerivedState,
   countModelsInGroups,
   groupModels,
-  MODEL_LIST_CAPABILITY_FILTERS,
-  type ModelListCapabilityCounts,
-  type ModelListCapabilityFilter,
   type ModelSections
 } from './modelListDerivedState'
 
@@ -31,10 +28,6 @@ export interface ProviderModelListHeaderSurface {
   hasNoModels: boolean
   searchText: string
   setSearchText: (text: string) => void
-  selectedCapabilityFilter: ModelListCapabilityFilter
-  setSelectedCapabilityFilter: (filter: ModelListCapabilityFilter) => void
-  capabilityOptions: readonly ModelListCapabilityFilter[]
-  capabilityModelCounts: ModelListCapabilityCounts
   onToggleVisibleModels: (enabled: boolean) => Promise<void>
 }
 
@@ -98,18 +91,11 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   const { deleteModel, deleteModels, updateModel, updateModels } = useModelMutations()
   const [searchInputText, setSearchInputText] = useState('')
   const searchText = useDeferredValue(searchInputText)
-  const [selectedCapabilityFilter, setSelectedCapabilityFilterState] = useState<ModelListCapabilityFilter>('all')
   const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [isBulkUpdating, setIsBulkUpdating] = useState(false)
   const [optimisticEnabledByModelId, setOptimisticEnabledByModelId] = useState<Record<string, boolean>>({})
   const [optimisticDeletedByModelId, setOptimisticDeletedByModelId] = useState<Record<string, true>>({})
   const [pendingModelIdMap, setPendingModelIdMap] = useState<Record<string, true>>({})
-
-  const setSelectedCapabilityFilter = useCallback((filter: ModelListCapabilityFilter) => {
-    startTransition(() => {
-      setSelectedCapabilityFilterState(filter)
-    })
-  }, [])
 
   const modelById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
   const optimisticModels = useMemo(
@@ -129,21 +115,11 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       calculateModelListDerivedState({
         models: optimisticModels,
         searchText,
-        selectedCapabilityFilter,
+        selectedCapabilityFilter: 'all',
         modelStatuses: []
       }),
-    [optimisticModels, searchText, selectedCapabilityFilter]
+    [optimisticModels, searchText]
   )
-
-  useEffect(() => {
-    if (selectedCapabilityFilter === 'all') {
-      return
-    }
-
-    if ((derivedState.capabilityModelCounts[selectedCapabilityFilter] ?? 0) === 0) {
-      setSelectedCapabilityFilter('all')
-    }
-  }, [derivedState.capabilityModelCounts, selectedCapabilityFilter, setSelectedCapabilityFilter])
 
   useEffect(() => {
     const validModelIds = new Set(models.map((model) => model.id))
@@ -421,10 +397,6 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     hasNoModels: derivedState.hasNoModels,
     searchText: searchInputText,
     setSearchText: setSearchInputText,
-    selectedCapabilityFilter,
-    setSelectedCapabilityFilter,
-    capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,
-    capabilityModelCounts: derivedState.capabilityModelCounts,
     onToggleVisibleModels
   }
 

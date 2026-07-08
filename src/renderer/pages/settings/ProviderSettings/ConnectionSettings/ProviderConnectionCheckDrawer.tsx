@@ -10,11 +10,13 @@ import {
   DialogHeader,
   DialogTitle
 } from '@cherrystudio/ui'
+import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import type { SerializedError } from '@renderer/types/error'
 import { maskApiKey } from '@renderer/utils/api'
 import { getModelLogo } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import { sortBy } from 'es-toolkit/compat'
+import { AlertTriangle, ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -98,6 +100,9 @@ export default function ProviderConnectionCheckDrawer({
   const selectedApiKey = apiKeys[selectedKeyIndex] ?? apiKeys[0] ?? ''
   const hasMultipleKeys = apiKeys.length > 1
   const connectionErrorText = healthCheckErrorToDisplayString(connectionError)
+  const handleShowConnectionErrorDetail = () => {
+    showErrorDetailPopup({ error: connectionError })
+  }
   const handleOpenModelHealthCheck = () => {
     onClose()
     onOpenModelHealthCheck?.()
@@ -174,9 +179,27 @@ export default function ProviderConnectionCheckDrawer({
         {connectionErrorText ? (
           <div
             role="alert"
-            className="rounded-md border border-destructive/35 bg-destructive/10 px-3 py-2 text-destructive text-xs leading-5">
-            <div className="font-medium">{t('message.api.connection.failed')}</div>
-            <div className="mt-0.5 break-words text-destructive/85">{connectionErrorText}</div>
+            className="group cursor-pointer rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-[13px] transition-all duration-200"
+            onClick={handleShowConnectionErrorDetail}>
+            <div className="mb-1.5 flex items-center gap-2">
+              <div className="flex shrink-0 items-center justify-center text-error-base">
+                <AlertTriangle size={15} className="lucide-custom" />
+              </div>
+              <div className="pr-5 font-medium text-[13px] leading-[1.4]">{t('message.api.connection.failed')}</div>
+            </div>
+            <div
+              className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal"
+              style={{ color: 'var(--color-foreground-secondary)' }}>
+              {connectionErrorText}
+            </div>
+            <div className="mt-2.5 ml-5.75 flex items-center">
+              <div
+                className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-foreground"
+                style={{ color: 'var(--color-foreground-muted)' }}>
+                {t('common.detail')}
+                <ChevronRight size={14} />
+              </div>
+            </div>
           </div>
         ) : null}
         <DialogFooter className="mt-1 flex-row items-center justify-between gap-3 sm:justify-between">

@@ -14,11 +14,7 @@ function ApiHostEndpointButton({ onClick }: { onClick: () => void }) {
   const label = t('settings.provider.more_endpoints.add')
 
   return (
-    <button
-      type="button"
-      aria-label={label}
-      className="h-auto rounded px-0 py-0 font-normal text-primary text-xs leading-5 shadow-none hover:text-primary/80"
-      onClick={onClick}>
+    <button type="button" aria-label={label} className={fieldClasses.titleHelpLink} onClick={onClick}>
       {label}
     </button>
   )
@@ -88,6 +84,13 @@ export function ApiHostField({
 }: ApiHostFieldProps) {
   const { t } = useTranslation()
   const trimmedApiHost = apiHost.trim()
+  const help = isVertexAI ? (
+    <div className="space-y-1 pt-1">
+      <div className="text-[12px] text-foreground/55 leading-[1.35]">
+        {t('settings.provider.vertex_ai.api_host_help')}
+      </div>
+    </div>
+  ) : undefined
 
   return (
     <ProviderField
@@ -98,18 +101,7 @@ export function ApiHostField({
         </span>
       }
       titleClassName="text-foreground"
-      help={
-        <div className="space-y-1 pt-1">
-          {isVertexAI && (
-            <div className="text-[12px] text-foreground/55 leading-[1.35]">
-              {t('settings.provider.vertex_ai.api_host_help')}
-            </div>
-          )}
-          {/* <div className="break-all text-[12px] text-foreground/55 leading-[1.35]">
-            {t('settings.provider.api_host_preview', { url: hostPreview })}
-          </div> */}
-        </div>
-      }>
+      help={help}>
       {isCherryIN && isChineseUser ? (
         <div className={cn(fieldClasses.inputRow, 'group')}>
           <div className="flex min-w-0 flex-1">

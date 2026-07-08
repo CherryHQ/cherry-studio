@@ -2,7 +2,6 @@ import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { MODEL_LIST_CAPABILITY_FILTERS } from '../modelListDerivedState'
 import ProviderModelList from '../ProviderModelList'
 
 const onToggleVisibleModelsMock = vi.fn()
@@ -83,13 +82,6 @@ vi.mock('../useProviderModelList', () => ({
       hasNoModels: false,
       searchText: '',
       setSearchText: vi.fn(),
-      selectedCapabilityFilter: 'all',
-      setSelectedCapabilityFilter: vi.fn(),
-      capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,
-      capabilityModelCounts: MODEL_LIST_CAPABILITY_FILTERS.reduce<Record<string, number>>((counts, filter) => {
-        counts[filter] = filter === 'all' ? 1 : 0
-        return counts
-      }, {}),
       onToggleVisibleModels: onToggleVisibleModelsMock
     },
     sections: {
