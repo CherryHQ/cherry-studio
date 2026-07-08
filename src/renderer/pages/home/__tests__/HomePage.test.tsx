@@ -345,9 +345,15 @@ vi.mock('@renderer/hooks/useTopic', async () => {
         initialTopic: options.initialTopic,
         setActiveTopicId
       }
+      const clearActiveTopic = React.useCallback(() => {
+        homeMocks.activeTopicOverride = undefined
+        setActiveTopic(undefined)
+        commitActiveTopicId(null)
+      }, [commitActiveTopicId])
       return {
         activeTopic: homeMocks.forceActiveTopicUndefined ? undefined : (homeMocks.activeTopicOverride ?? activeTopic),
         setActiveTopic: setActiveTopicValue,
+        clearActiveTopic,
         isLoading: homeMocks.activeTopicLoading,
         topicSource: homeMocks.activeTopicSource
       }
@@ -1136,6 +1142,25 @@ describe('HomePage', () => {
     expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.last_used_assistant_id', null)
   })
 
+  it('clears the active topic when the fallback create fails after deleting the active assistant', async () => {
+    // The deleted assistant's last topic is the active one; if the replacement create rejects, the view
+    // must not be left stranded on a topic belonging to the just-deleted assistant.
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.classicLayoutTopics = [
+      { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' }
+    ]
+    homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
+
+    render(<HomePage />)
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete active assistant' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalled())
+    await waitFor(() => expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument())
+  })
+
   it('creates and activates an empty topic after selecting an existing assistant from the classic-layout picker', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
@@ -1778,6 +1803,22 @@ describe('HomePage', () => {
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created'))
     expect(screen.getByTestId('active-topic')).not.toHaveTextContent('topic-empty-modern')
+  })
+
+  it('clears the active topic when the post-delete replacement create fails', async () => {
+    // Delete flow passes `excludeReuseTopicId`; when the replacement create rejects, the active topic
+    // still points at the just-deleted topic, so it must be cleared instead of stranding the view.
+    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
+    homeMocks.classicLayoutTopics = []
+    homeMocks.createTopic.mockRejectedValue(new Error('create failed'))
+
+    render(<HomePage />)
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-initial')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Replace deleted topic for assistant 2' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalled())
+    await waitFor(() => expect(screen.queryByTestId('active-topic')).not.toBeInTheDocument())
   })
 
   it('reuses the current modern-layout empty topic even before the topic source refreshes', async () => {

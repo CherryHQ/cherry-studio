@@ -480,6 +480,15 @@ export function useActiveTopic({
     [passive, setActiveTopicId]
   )
 
+  // Clear the active topic entirely. Both `activeTopicId` and the in-memory `pendingTopic`
+  // fallback must be reset, otherwise `activeTopic` would keep resolving to the stale pending
+  // object. Used by post-delete replacement paths that must not strand the view on a topic that
+  // was just deleted when creating its replacement fails.
+  const clearActiveTopic = useCallback(() => {
+    setPendingTopic(undefined)
+    if (!passive) setActiveTopicId(null)
+  }, [passive, setActiveTopicId])
+
   useEffect(() => {
     if (passive) return
     if (activeTopic) {
@@ -487,5 +496,5 @@ export function useActiveTopic({
     }
   }, [activeTopic, passive])
 
-  return { activeTopic, setActiveTopic, isLoading, topicSource }
+  return { activeTopic, setActiveTopic, clearActiveTopic, isLoading, topicSource }
 }

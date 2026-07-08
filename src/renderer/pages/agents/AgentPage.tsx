@@ -803,15 +803,19 @@ const AgentPage = () => {
   // a real empty session for another agent. Filter by the deleted id so this is
   // correct even before the session cache refetches.
   const handleActiveAgentDeleted = useCallback(
-    (deletedAgentId: string) => {
+    async (deletedAgentId: string) => {
       const nextSession = findLatestUpdated(agentSessions.filter((session) => session.agentId !== deletedAgentId))
       if (nextSession) {
         setActiveSessionAndClearTransient(nextSession.id, nextSession)
         return
       }
-      void createDefaultEmptySession({ excludedAgentIds: [deletedAgentId] })
+      const created = await createDefaultEmptySession({ excludedAgentIds: [deletedAgentId] })
+      // Creation failed → don't leave the view on a session that belonged to the deleted agent.
+      if (!created) {
+        setActiveSessionId(null)
+      }
     },
-    [agentSessions, createDefaultEmptySession, setActiveSessionAndClearTransient]
+    [agentSessions, createDefaultEmptySession, setActiveSessionAndClearTransient, setActiveSessionId]
   )
   const replaceSessionWorkspace = useCallback(
     async (workspaceId: string | null) => {

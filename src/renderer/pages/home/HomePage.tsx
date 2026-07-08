@@ -234,6 +234,7 @@ const HomePage: FC = () => {
   const {
     activeTopic,
     setActiveTopic,
+    clearActiveTopic,
     isLoading: isActiveTopicLoading,
     topicSource: activeTopicSource
   } = useActiveTopic({
@@ -539,10 +540,16 @@ const HomePage: FC = () => {
   )
 
   const handleCreateEmptyTopic = useCallback(
-    (payload?: AddNewTopicPayload) => {
-      void createAndActivateEmptyTopic(payload)
+    async (payload?: AddNewTopicPayload) => {
+      const created = await createAndActivateEmptyTopic(payload)
+      // Post-delete replacement (delete flow passes `excludeReuseTopicId`): if the replacement create
+      // fails, the active topic still points at the just-deleted topic — clear it so the awaiting delete
+      // handler doesn't strand the view on a deleted conversation.
+      if (!created && payload?.excludeReuseTopicId) {
+        clearActiveTopic()
+      }
     },
-    [createAndActivateEmptyTopic]
+    [clearActiveTopic, createAndActivateEmptyTopic]
   )
 
   const handleCreateEmptyTopicForAssistant = useCallback(
@@ -589,7 +596,7 @@ const HomePage: FC = () => {
   // is correct even before the topic cache refetches. If nothing remains, create
   // a real empty topic with another available assistant.
   const handleActiveAssistantDeleted = useCallback(
-    (deletedAssistantId: string) => {
+    async (deletedAssistantId: string) => {
       const nextTopic = findLatestUpdated(allTopics.filter((topic) => topic.assistantId !== deletedAssistantId))
       if (lastUsedAssistantId === deletedAssistantId) {
         setLastUsedAssistantId(null)
@@ -597,10 +604,15 @@ const HomePage: FC = () => {
       if (nextTopic && setActiveTopicAndCloseResourceView(mapApiTopicToRendererTopic(nextTopic))) {
         return
       }
-      void createAndActivateEmptyTopic(undefined, { excludedAssistantIds: [deletedAssistantId] })
+      const created = await createAndActivateEmptyTopic(undefined, { excludedAssistantIds: [deletedAssistantId] })
+      // Creation failed → don't leave the view on a topic that belonged to the deleted assistant.
+      if (!created) {
+        clearActiveTopic()
+      }
     },
     [
       allTopics,
+      clearActiveTopic,
       createAndActivateEmptyTopic,
       lastUsedAssistantId,
       setActiveTopicAndCloseResourceView,
