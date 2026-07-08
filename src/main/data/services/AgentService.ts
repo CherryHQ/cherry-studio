@@ -338,17 +338,17 @@ export class AgentService {
 
     // Handle mcps separately — it lives in the junction table, not the agent row.
     const newMcps = updates.mcps
-    const newSkillIds = updates.skillIds
+    const newSkillUpdates = updates.skillUpdates
 
     // Same two-step validation as createAgent: pre-check each id outside the write
     // tx so a missing skill surfaces as `Skill` not-found (not the Agent FK
     // fallback). The in-tx recheck that closes the delete-after-prevalidation race
-    // lives inside AgentGlobalSkillService.replaceJoinByAgentTx. Resolved via the
+    // lives inside AgentGlobalSkillService.applyJoinUpdatesByAgentTx. Resolved via the
     // registry to keep the service↔service edge out of the static import graph.
-    if (newSkillIds !== undefined) {
-      for (const skillId of newSkillIds) {
-        if (!getDataService('AgentGlobalSkillService').getById(skillId)) {
-          throw DataApiErrorFactory.notFound('Skill', skillId)
+    if (newSkillUpdates !== undefined) {
+      for (const update of newSkillUpdates) {
+        if (!getDataService('AgentGlobalSkillService').getById(update.skillId)) {
+          throw DataApiErrorFactory.notFound('Skill', update.skillId)
         }
       }
     }
@@ -378,8 +378,8 @@ export class AgentService {
                 .run()
             }
           }
-          if (newSkillIds !== undefined) {
-            getDataService('AgentGlobalSkillService').replaceJoinByAgentTx(tx, id, newSkillIds)
+          if (newSkillUpdates !== undefined) {
+            getDataService('AgentGlobalSkillService').applyJoinUpdatesByAgentTx(tx, id, newSkillUpdates)
           }
         }),
       defaultHandlersFor('Agent', id)

@@ -4,7 +4,7 @@ import {
   DEFAULT_HEARTBEAT_INTERVAL,
   normalizePermissionMode
 } from '@renderer/utils/agent/permissionMode'
-import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentSkillUpdateDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -188,8 +188,9 @@ export function diffAgentUpdate(
     dto.mcps = next.mcps
     dirty = true
   }
-  if (!arraysEqual(baseline.skillIds, next.skillIds)) {
-    dto.skillIds = next.skillIds
+  const skillUpdates = diffSkillUpdates(baseline.skillIds, next.skillIds)
+  if (skillUpdates.length > 0) {
+    dto.skillUpdates = skillUpdates
     dirty = true
   }
   if (!arraysEqual(baseline.disabledTools, next.disabledTools)) {
@@ -248,6 +249,21 @@ function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
   return true
+}
+
+function diffSkillUpdates(baselineSkillIds: readonly string[], nextSkillIds: readonly string[]): AgentSkillUpdateDto[] {
+  const baselineSet = new Set(baselineSkillIds)
+  const nextSet = new Set(nextSkillIds)
+  const updates: AgentSkillUpdateDto[] = []
+
+  for (const skillId of baselineSkillIds) {
+    if (!nextSet.has(skillId)) updates.push({ skillId, isEnabled: false })
+  }
+  for (const skillId of nextSkillIds) {
+    if (!baselineSet.has(skillId)) updates.push({ skillId, isEnabled: true })
+  }
+
+  return updates
 }
 
 // ---------------------------------------------------------------------------

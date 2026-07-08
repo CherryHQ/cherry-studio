@@ -32,15 +32,19 @@ describe('useAgentMutationsById', () => {
     })
   })
 
-  it('additionally refreshes /skills only when the PATCH body includes skillIds', () => {
+  it('additionally refreshes /skills only when the PATCH body includes skillUpdates', () => {
     renderHook(() => useAgentMutationsById('agent-1'))
 
     const patchCall = useMutationMock.mock.calls.find(([method]) => method === 'PATCH')
     const refresh = patchCall?.[2].refresh as (ctx: { args?: { body?: object } }) => string[]
 
     expect(refresh({ args: { body: { name: 'Renamed' } } })).toEqual(['/agents', '/agents/*'])
-    expect(refresh({ args: { body: { skillIds: ['skill-1'] } } })).toEqual(['/agents', '/agents/*', '/skills'])
-    expect(refresh({ args: { body: { skillIds: [] } } })).toEqual(['/agents', '/agents/*', '/skills'])
+    expect(refresh({ args: { body: { skillUpdates: [{ skillId: 'skill-1', isEnabled: true }] } } })).toEqual([
+      '/agents',
+      '/agents/*',
+      '/skills'
+    ])
+    expect(refresh({ args: { body: { skillUpdates: [] } } })).toEqual(['/agents', '/agents/*', '/skills'])
     expect(refresh({ args: undefined })).toEqual(['/agents', '/agents/*'])
   })
 })

@@ -23,6 +23,16 @@ export const ModelIdAtomSchema = z.string().min(1)
 export const TimeoutMinutesAtomSchema = z.number().min(1).nullable().optional()
 export const AgentToolNameSetSchema = z.array(z.string()).transform((items) => Array.from(new Set(items)))
 export const AgentSkillIdSetSchema = z.array(z.string().min(1)).transform((items) => Array.from(new Set(items)))
+export const AgentSkillUpdateSchema = z.strictObject({
+  skillId: z.string().min(1),
+  isEnabled: z.boolean()
+})
+export const AgentSkillUpdateListSchema = z.array(AgentSkillUpdateSchema).transform((items) => {
+  const bySkillId = new Map<string, z.infer<typeof AgentSkillUpdateSchema>>()
+  for (const item of items) bySkillId.set(item.skillId, item)
+  return Array.from(bySkillId.values())
+})
+export type AgentSkillUpdateDto = z.infer<typeof AgentSkillUpdateSchema>
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
@@ -185,10 +195,11 @@ export type CreateAgentDto = z.infer<typeof CreateAgentSchema>
 
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
   /**
-   * Full replacement set of enabled global skills for this agent. Omitted means
-   * "leave skills unchanged"; an empty array disables all skills for the agent.
+   * Per-skill enablement changes for this agent. Omitted means "leave skills
+   * unchanged"; an empty array is a no-op. The server applies each update
+   * without replacing unrelated skill rows.
    */
-  skillIds: AgentSkillIdSetSchema.optional()
+  skillUpdates: AgentSkillUpdateListSchema.optional()
 })
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 

@@ -61,10 +61,10 @@ export function useAgentMutationsById(id: string) {
   const path = `/agents/${id}` as const
 
   const { trigger: updateTrigger } = useMutation('PATCH', path, {
-    // skillIds writes the agent_skill join table, which backs `GET /skills?agentId=…`
+    // skillUpdates writes the agent_skill join table, which backs `GET /skills?agentId=…`
     // (per-agent isEnabled projection) — refresh it so those lists don't go stale.
     refresh: ({ args }) =>
-      args?.body?.skillIds !== undefined ? ['/agents', '/agents/*', '/skills'] : ['/agents', '/agents/*']
+      args?.body?.skillUpdates !== undefined ? ['/agents', '/agents/*', '/skills'] : ['/agents', '/agents/*']
   })
   const { trigger: deleteTrigger } = useMutation('DELETE', path, {
     refresh: ['/agents', '/agents/*', '/pins']

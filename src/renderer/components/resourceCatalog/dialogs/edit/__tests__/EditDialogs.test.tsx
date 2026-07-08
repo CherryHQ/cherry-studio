@@ -905,7 +905,7 @@ describe('edit dialogs', () => {
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
-          skillIds: ['skill-1']
+          skillUpdates: [{ skillId: 'skill-1', isEnabled: true }]
         })
       })
     )

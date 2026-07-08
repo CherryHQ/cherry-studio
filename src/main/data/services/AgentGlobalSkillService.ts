@@ -13,6 +13,7 @@ import { agentService } from '@data/services/AgentService'
 import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { AgentSkillUpdateDto } from '@shared/data/api/schemas/agents'
 import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
 import { and, asc, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
 
@@ -176,16 +177,19 @@ export class AgentGlobalSkillService {
     }
   }
 
-  replaceJoinByAgentTx(tx: DbOrTx, agentId: string, skillIds: readonly string[]): void {
-    const uniqueSkillIds = Array.from(new Set(skillIds))
-    this.assertSkillsExistTx(tx, uniqueSkillIds, 'update agent')
+  applyJoinUpdatesByAgentTx(tx: DbOrTx, agentId: string, skillUpdates: readonly AgentSkillUpdateDto[]): void {
+    const bySkillId = new Map<string, AgentSkillUpdateDto>()
+    for (const update of skillUpdates) bySkillId.set(update.skillId, update)
 
-    tx.delete(agentSkillTable).where(eq(agentSkillTable.agentId, agentId)).run()
+    const uniqueUpdates = Array.from(bySkillId.values())
+    this.assertSkillsExistTx(
+      tx,
+      uniqueUpdates.map((update) => update.skillId),
+      'update agent'
+    )
 
-    if (uniqueSkillIds.length > 0) {
-      tx.insert(agentSkillTable)
-        .values(uniqueSkillIds.map((skillId) => ({ agentId, skillId, isEnabled: true })))
-        .run()
+    for (const update of uniqueUpdates) {
+      this.upsertJoinTx(tx, agentId, update.skillId, update.isEnabled)
     }
   }
 

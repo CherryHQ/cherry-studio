@@ -132,10 +132,10 @@ describe('AgentService', () => {
       .onConflictDoNothing()
   }
 
-  async function insertGlobalSkill(id: string, folderName?: string): Promise<void> {
+  async function insertGlobalSkill(id: string, folderName?: string, source: string = 'local'): Promise<void> {
     await dbh.db
       .insert(agentGlobalSkillTable)
-      .values({ id, name: id, folderName: folderName ?? id, source: 'local', contentHash: `hash-${id}` })
+      .values({ id, name: id, folderName: folderName ?? id, source, contentHash: `hash-${id}` })
       .onConflictDoNothing()
   }
 
@@ -300,7 +300,7 @@ describe('AgentService', () => {
     })
   })
 
-  describe('skillIds round-trip', () => {
+  describe('skill enablement round-trip', () => {
     it('enables the provided global skills for the new agent on create', async () => {
       await insertGlobalSkill('skill_a')
       await insertGlobalSkill('skill_b')
@@ -377,7 +377,7 @@ describe('AgentService', () => {
       expect(agents).toHaveLength(0)
     })
 
-    it('leaves skill rows unchanged when update omits skillIds', async () => {
+    it('leaves skill rows unchanged when update omits skillUpdates', async () => {
       await insertGlobalSkill('skill_a')
       const created = agentService.createAgent({
         type: 'claude-code',
@@ -393,7 +393,7 @@ describe('AgentService', () => {
       expect(rows.every((r) => r.isEnabled)).toBe(true)
     })
 
-    it('replaces enabled skill rows when update provides skillIds', async () => {
+    it('applies skillUpdates without replacing omitted skill rows', async () => {
       await insertGlobalSkill('skill_a')
       await insertGlobalSkill('skill_b')
       await insertGlobalSkill('skill_c')
@@ -404,19 +404,65 @@ describe('AgentService', () => {
         skillIds: ['skill_a', 'skill_b']
       })
 
-      agentService.updateAgent(created.id, { skillIds: ['skill_b', 'skill_c', 'skill_b'] })
+      agentService.updateAgent(created.id, {
+        skillUpdates: [
+          { skillId: 'skill_a', isEnabled: false },
+          { skillId: 'skill_c', isEnabled: true }
+        ]
+      })
 
-      let rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
-      expect(rows.map((r) => r.skillId).sort()).toEqual(['skill_b', 'skill_c'])
-      expect(rows.every((r) => r.isEnabled)).toBe(true)
-
-      agentService.updateAgent(created.id, { skillIds: [] })
-
-      rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
-      expect(rows).toHaveLength(0)
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ skillId: 'skill_a', isEnabled: false }),
+          expect.objectContaining({ skillId: 'skill_b', isEnabled: true }),
+          expect.objectContaining({ skillId: 'skill_c', isEnabled: true })
+        ])
+      )
+      expect(rows).toHaveLength(3)
     })
 
-    it('rejects update skillIds when a selected skill does not exist', async () => {
+    it('writes an explicit disabled row when a builtin skill is disabled', async () => {
+      await insertGlobalSkill('skill_builtin', undefined, 'builtin')
+      const created = agentService.createAgent({
+        type: 'claude-code',
+        name: 'Builtin Disable',
+        model: TEST_MODEL_ID
+      })
+
+      agentService.updateAgent(created.id, {
+        skillUpdates: [{ skillId: 'skill_builtin', isEnabled: false }]
+      })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows).toEqual([expect.objectContaining({ skillId: 'skill_builtin', isEnabled: false })])
+    })
+
+    it('preserves disabled builtin rows when applying other skill updates', async () => {
+      await insertGlobalSkill('skill_builtin', undefined, 'builtin')
+      await insertGlobalSkill('skill_regular')
+      const created = agentService.createAgent({
+        type: 'claude-code',
+        name: 'Builtin Preserve',
+        model: TEST_MODEL_ID
+      })
+      await dbh.db.insert(agentSkillTable).values({ agentId: created.id, skillId: 'skill_builtin', isEnabled: false })
+
+      agentService.updateAgent(created.id, {
+        skillUpdates: [{ skillId: 'skill_regular', isEnabled: true }]
+      })
+
+      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ skillId: 'skill_builtin', isEnabled: false }),
+          expect.objectContaining({ skillId: 'skill_regular', isEnabled: true })
+        ])
+      )
+      expect(rows).toHaveLength(2)
+    })
+
+    it('rejects update skillUpdates when a selected skill does not exist', async () => {
       await insertGlobalSkill('skill_a')
       const created = agentService.createAgent({
         type: 'claude-code',
@@ -425,7 +471,9 @@ describe('AgentService', () => {
         skillIds: ['skill_a']
       })
 
-      const error = captureError(() => agentService.updateAgent(created.id, { skillIds: ['missing_skill'] }))
+      const error = captureError(() =>
+        agentService.updateAgent(created.id, { skillUpdates: [{ skillId: 'missing_skill', isEnabled: true }] })
+      )
       expect(error).toMatchObject({ code: ErrorCode.NOT_FOUND })
 
       const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
