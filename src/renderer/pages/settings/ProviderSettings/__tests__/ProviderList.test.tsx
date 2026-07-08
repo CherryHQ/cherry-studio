@@ -15,6 +15,8 @@ const deleteProviderMock = vi.fn()
 const scrollIntoViewMock = vi.fn()
 let providerItemRects: Record<string, { bottom: number; top: number }> = {}
 let scrollerRect = { bottom: 100, top: 0 }
+let providerListScrollerClientHeight = 100
+let providerListMainContentScrollHeight = 120
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<any>()
@@ -170,6 +172,22 @@ describe('ProviderList', () => {
     deleteProviderMock.mockResolvedValue(undefined)
     providerItemRects = {}
     scrollerRect = { bottom: 100, top: 0 }
+    providerListScrollerClientHeight = 100
+    providerListMainContentScrollHeight = 120
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', {
+      configurable: true,
+      get() {
+        return (this as HTMLElement).dataset.testid === 'provider-list-scrollbar' ? providerListScrollerClientHeight : 0
+      }
+    })
+    Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get() {
+        return (this as HTMLElement).hasAttribute('data-provider-list-main-content')
+          ? providerListMainContentScrollHeight
+          : 0
+      }
+    })
     Object.defineProperty(window, 'requestAnimationFrame', {
       configurable: true,
       value: (callback: FrameRequestCallback) => {
@@ -242,7 +260,7 @@ describe('ProviderList', () => {
 
     expect(useReorderMock).toHaveBeenCalledWith('/providers', { revalidateOnSuccess: false })
     expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'false')
-    fireEvent.click(screen.getByRole('button', { name: /添加/i }))
+    fireEvent.click(screen.getAllByRole('button', { name: /添加/i })[0])
     expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'trigger-reorder' }))
@@ -295,23 +313,34 @@ describe('ProviderList', () => {
     expect(screen.getByRole('button', { name: '筛选服务商' })).toBeInTheDocument()
   })
 
-  it('places add above the provider list and filter in the search row', () => {
+  it('keeps add buttons inside the provider list scroller', () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
-    const addButton = screen.getByRole('button', { name: '添加服务商' })
+    const addButtons = screen.getAllByRole('button', { name: '添加服务商' })
+    const [topAddButton, bottomAddButton] = addButtons
     const filterButton = screen.getByRole('button', { name: '筛选服务商' })
     const searchWrap = screen.getByPlaceholderText('搜索模型平台...').closest('div')
     const firstProvider = screen.getByTestId('provider-list-item-openai')
+    const lastProvider = screen.getByTestId('provider-list-item-anthropic')
 
-    expect(filterButton.compareDocumentPosition(addButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(addButton.compareDocumentPosition(firstProvider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(addButton).toHaveClass('h-8', 'w-full', 'border-dashed')
+    expect(addButtons).toHaveLength(2)
+    expect(topAddButton.compareDocumentPosition(firstProvider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(lastProvider.compareDocumentPosition(bottomAddButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(topAddButton).toHaveClass('h-8', 'w-full', 'border-dashed')
+    expect(bottomAddButton).toHaveClass('h-8', 'w-full', 'border-dashed')
     expect(searchWrap).toHaveClass('h-9')
     expect(searchWrap).toContainElement(filterButton)
-    expect(searchWrap).not.toContainElement(addButton)
     expect(filterButton).toHaveClass('size-[22px]')
     expect(filterButton).not.toHaveClass('bg-primary/10')
     expect(filterButton.querySelector('svg')).toHaveClass('text-muted-foreground/60')
+  })
+
+  it('hides the bottom add button when provider list content does not overflow', () => {
+    providerListMainContentScrollHeight = 80
+
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(screen.getAllByRole('button', { name: '添加服务商' })).toHaveLength(1)
   })
 
   it('surfaces reorder persistence errors', async () => {

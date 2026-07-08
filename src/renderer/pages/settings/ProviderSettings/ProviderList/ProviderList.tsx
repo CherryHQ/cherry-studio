@@ -259,6 +259,24 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   }
 
   const handleAddAnother = useCallback((template: Provider) => startAddFrom(template), [startAddFrom])
+  const addProviderButton = (
+    <div className={providerListClasses.addWrap}>
+      <button
+        type="button"
+        aria-label={t('settings.provider.add.button_title')}
+        disabled={dragging}
+        onClick={startAdd}
+        className={providerListClasses.addButton}>
+        <span aria-hidden className={providerListClasses.addButtonLeadingSpacer} />
+        <span className={providerListClasses.addButtonContent}>
+          <span className={providerListClasses.addButtonIconSlot}>
+            <Plus size={14} strokeWidth={2.5} />
+          </span>
+          <span>{t('settings.provider.add.button_title')}</span>
+        </span>
+      </button>
+    </div>
+  )
 
   return (
     <aside className={`${providerListClasses.shell}`}>
@@ -278,17 +296,6 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
           )
         }
       />
-      <div className={providerListClasses.addWrap}>
-        <button
-          type="button"
-          aria-label={t('settings.provider.add.button_title')}
-          disabled={dragging}
-          onClick={startAdd}
-          className={providerListClasses.addButton}>
-          <Plus size={14} strokeWidth={2.5} />
-          <span>{t('settings.provider.add.button_title')}</span>
-        </button>
-      </div>
       <ProviderListContent
         providers={providers}
         visibleProviders={filteredProviders}
@@ -301,6 +308,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         onDragStateChange={handleDragStateChange}
         onReorder={applyReorderedList}
         onReorderError={handleReorderError}
+        addButton={addProviderButton}
         renderItem={renderProviderItem}
       />
       <ProviderEditorDrawer
