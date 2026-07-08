@@ -155,9 +155,12 @@ const HomePage: FC = () => {
   // Modern layout also creates real empty topics now, so it needs the same candidates.
   const assistantTopicsSource = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
   const { topics: allTopics, isLoading: isTopicsFirstPageLoading } = assistantTopicsSource
-  // First-entry selection only needs the most-recently-updated topic, which arrives on the first
-  // page (the server orders topics by `updatedAt DESC`). Gate on the first page landing, not on the
-  // full history finishing pagination, so a large topic history never blocks the initial paint.
+  // First-entry selection wants the most-recently-updated topic. The server pages topics pinned-first
+  // (`pin.orderKey ASC`) then unpinned by `updatedAt DESC`, so the first page already contains the
+  // global latest unless there are ≥200 pinned topics. Gate on the first page landing, not on full
+  // pagination, so a large topic history never blocks the initial paint. Accepted tail case: with
+  // ≥200 pinned topics the first page never reaches the unpinned segment, so a most-recently-updated
+  // unpinned topic won't be the one restored.
   const isTopicListFirstPageReady = isMessageOnlyView || !isTopicsFirstPageLoading
   // Detached windows are single-topic: no topic list, so no sidebar at all.
   const isWindowFrame = useWindowFrame().mode === 'window'

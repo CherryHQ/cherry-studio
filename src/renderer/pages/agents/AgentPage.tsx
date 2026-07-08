@@ -173,9 +173,12 @@ const AgentPage = () => {
   // upper-layer data instead of issuing a second ad-hoc full pagination request.
   const agentSessionsSource = useAgentSessionsSource({ enabled: !isMessageOnlyView })
   const { sessions: agentSessions, isLoading: isAgentSessionsFirstPageLoading = false } = agentSessionsSource
-  // First-entry selection only needs the most-recently-updated session, which lands on the first
-  // page (the server orders sessions by `updatedAt DESC`). Gate on the first page arriving, not on
-  // the full history finishing pagination, so a large session history never blocks the first paint.
+  // First-entry selection wants the most-recently-updated session. The server pages sessions by
+  // `orderKey ASC` with new sessions inserted first (position 'first'), so the first page holds the
+  // newest-created sessions — which, for normal use, is where a recently-active session lives. Gate on
+  // the first page arriving, not on full pagination, so a large history never blocks the first paint.
+  // Accepted tail case: with >200 sessions, a recently-active session created before the newest 200 is
+  // off the first page, so it won't be the one restored.
   const isAgentSessionsFirstPageReady = !isAgentSessionsFirstPageLoading
   const isWindowFrame = useWindowFrame().mode === 'window'
   // Detached windows are single-conversation: no session list, so no sidebar at all.
