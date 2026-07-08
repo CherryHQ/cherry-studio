@@ -669,12 +669,17 @@ export class AgentSessionRuntimeService extends BaseService {
    * Model the session's connection should serve right now. A live turn runs on the model captured
    * when it was created — its assistant row, persistence and trace are already stamped with it, so
    * a model edit landing between turn creation and its stream opening must NOT retarget the
-   * connection (the turn would execute on a different model than it records). Without a live turn
+   * connection (the turn would execute on a different model than it records). A steer roll counts as
+   * live too: at a `steer-boundary` A1a is already terminal while `entry.rolling` stays true and the
+   * same SDK query keeps streaming the post-steer response on A1a's captured model — retargeting in
+   * that gap (e.g. a re-prime re-entering `ensureConnection`) would close the connection and drop the
+   * continuation. Mirrors the live-turn test in `applyAgentModelUpdate`. Without a live turn or roll
    * the connection follows the agent's latest model.
    */
   private connectionTargetModelId(entry: AgentSessionRuntimeEntry): UniqueModelId {
     const turn = entry.currentTurn
-    return turn && !turn.terminalStatus ? turn.modelId : entry.modelId
+    const live = turn && (!turn.terminalStatus || entry.rolling === true)
+    return live ? turn.modelId : entry.modelId
   }
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {

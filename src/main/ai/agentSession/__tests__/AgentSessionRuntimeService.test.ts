@@ -604,6 +604,40 @@ describe('AgentSessionRuntimeService', () => {
     expect(getEntry(service).modelId).toBe(switchedModelId)
   })
 
+  it('does not retarget/close the live connection when ensureConnection re-enters mid-roll after a model edit', async () => {
+    const reconnected = { events: createAsyncQueue<any>().iterable, send: vi.fn(), close: vi.fn() }
+    const connect = vi.fn().mockResolvedValue(reconnected)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+    entry.connection = connection
+    entry.connectionModelId = baseTurnInput.modelId
+
+    // Steer roll in flight: A1a finalised at the boundary (currentTurn terminal), `rolling` still true,
+    // and the model edit has already advanced entry.modelId (applyAgentModelUpdate kept the connection
+    // because rolling counts as live). A re-prime (e.g. a second window) now re-enters ensureConnection.
+    entry.currentTurn.terminalStatus = 'success'
+    entry.rolling = true
+    entry.modelId = switchedModelId
+
+    const connected = await (service as any).ensureConnection(entry)
+
+    // The connection target is pinned to the rolling turn's captured model, so ensureConnection keeps the
+    // still-streaming connection instead of closing it and reconnecting on the edited model (dropping A2).
+    expect(connected).toBe(true)
+    expect(connect).not.toHaveBeenCalled()
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(getEntry(service).connection).toBe(connection)
+  })
+
   it('applies tool-policy updates when disabled tools change', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
