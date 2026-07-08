@@ -450,7 +450,7 @@ export default defineConfig([
   {
     files: ['src/**/*.{ts,tsx}'],
     ignores: [
-      'src/main/services/file/watcher/**',
+      'src/main/services/file/watcher.ts',
       'src/main/services/file/tree/**',
       'src/**/__tests__/**',
       'src/**/__mocks__/**',
