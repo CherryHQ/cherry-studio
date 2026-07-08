@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import type { FileEntry } from '@shared/data/types/file'
@@ -140,7 +141,7 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
       if (failedSourceIds.length > 0) {
         const failed = new Set(failedSourceIds)
         setFiles((prev) => prev.filter((file) => !failed.has(file.fileTokenSourceId)))
-        window.toast?.error(t('paintings.image_file_retry'))
+        toast.error(t('paintings.image_file_retry'))
       }
 
       // Carry through entries that failed to seed so a transient read error can't

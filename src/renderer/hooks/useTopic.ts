@@ -23,6 +23,7 @@ import {
   useQuery
 } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
@@ -270,6 +271,7 @@ export function useTopicById(topicId: string | undefined) {
  */
 export function useTopicMutations() {
   const invalidate = useInvalidateCache()
+  const closeConversationTabs = useCloseConversationTabs()
 
   const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/topics', {
     refresh: ['/topics']
@@ -312,27 +314,30 @@ export function useTopicMutations() {
   const deleteTopic = useCallback(
     async (topicId: string): Promise<void> => {
       await deleteTrigger({ params: { id: topicId } })
+      closeConversationTabs('assistants', [topicId])
       logger.info('Deleted topic', { id: topicId })
     },
-    [deleteTrigger]
+    [closeConversationTabs, deleteTrigger]
   )
 
   const deleteTopics = useCallback(
     async (ids: string[]): Promise<DeleteTopicsResult> => {
       const result = await deleteManyTrigger({ query: { ids: ids.join(',') } })
+      closeConversationTabs('assistants', result.deletedIds)
       logger.info('Deleted topics', { count: result.deletedCount })
       return result
     },
-    [deleteManyTrigger]
+    [closeConversationTabs, deleteManyTrigger]
   )
 
   const deleteTopicsByAssistantId = useCallback(
     async (assistantId: string): Promise<DeleteTopicsResult> => {
       const result = await deleteByAssistantTrigger({ params: { assistantId } })
+      closeConversationTabs('assistants', result.deletedIds)
       logger.info('Deleted assistant topics', { assistantId, count: result.deletedCount })
       return result
     },
-    [deleteByAssistantTrigger]
+    [closeConversationTabs, deleteByAssistantTrigger]
   )
 
   const batchUpdateTopics = useCallback(

@@ -5,6 +5,7 @@ import {
   usePromptMutationsById,
   useSkillMutationsById
 } from '@renderer/hooks/resourceCatalog'
+import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
@@ -79,7 +80,7 @@ const DeleteDialogContent: FC<{ resource: ResourceItem; onClose: () => void; onD
     try {
       await onDelete()
     } catch (error) {
-      window.toast.error(error instanceof Error ? error.message : t('common.delete_failed'))
+      toast.error(error instanceof Error ? error.message : t('common.delete_failed'))
       throw error
     } finally {
       setPending(false)

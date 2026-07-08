@@ -54,7 +54,6 @@ const mocks = vi.hoisted(() => ({
   eventEmit: vi.fn(),
   virtualListScrollToIndex: vi.fn(),
   loggerError: vi.fn(),
-  toastError: vi.fn(),
   activeTab: {
     id: 'chat',
     type: 'route',
@@ -541,6 +540,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+import { toast } from '@renderer/services/toast'
+
 import { GlobalSearchPanel, testOnlyClearRefreshHistory } from '../GlobalSearchPanel'
 import { getGlobalSearchOptionDomId, GLOBAL_MESSAGE_SEARCH_LOAD_MORE_ITEM_ID } from '../useGlobalSearchKeyboard'
 
@@ -592,7 +593,6 @@ describe('GlobalSearchPanel', () => {
       title: 'Chat'
     }
     mocks.keepStaleContentSearchData = false
-    window.toast = { error: mocks.toastError } as unknown as typeof window.toast
     mocks.useQuery.mockImplementation(
       (
         path: string,
@@ -1795,7 +1795,7 @@ describe('GlobalSearchPanel', () => {
         sessionId: 'session-1',
         messageId: 'session-message-1'
       })
-      expect(mocks.toastError).toHaveBeenCalledWith('Failed to open search result')
+      expect(toast.error).toHaveBeenCalledWith('Failed to open search result')
     })
     expect(mocks.onClose).not.toHaveBeenCalled()
   })

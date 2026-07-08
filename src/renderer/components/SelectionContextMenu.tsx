@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { toast } from '@renderer/services/toast'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -83,10 +84,10 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children })
     (text: string) => {
       navigator.clipboard
         .writeText(text)
-        .then(() => window.toast.success(t('message.copied')))
+        .then(() => toast.success(t('message.copied')))
         .catch((error) => {
           logger.error('clipboard write failed', error as Error)
-          window.toast.error(t('message.copy.failed'))
+          toast.error(t('message.copy.failed'))
         })
     },
     [t]

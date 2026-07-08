@@ -1,4 +1,5 @@
 import type * as TranslateHooks from '@renderer/hooks/translate'
+import { toast } from '@renderer/services/toast'
 import type * as TranslateUtils from '@renderer/utils/translate'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
@@ -39,8 +40,6 @@ const translateCoreMock = vi.hoisted(() => ({
 const loggerWarnMock = vi.hoisted(() => vi.fn())
 const loggerErrorMock = vi.hoisted(() => vi.fn())
 const clipboardWriteTextMock = vi.hoisted(() => vi.fn())
-const toastLoadingMock = vi.hoisted(() => vi.fn())
-const toastCloseToastMock = vi.hoisted(() => vi.fn())
 const modelSelectorMock = vi.hoisted(() => vi.fn())
 const exportContentToNotesMock = vi.hoisted(() => vi.fn())
 
@@ -350,8 +349,6 @@ describe('TranslatePage', () => {
     clipboardWriteTextMock.mockReset()
     modelSelectorMock.mockReset()
     clipboardWriteTextMock.mockResolvedValue(undefined)
-    toastLoadingMock.mockReset()
-    toastCloseToastMock.mockReset()
     exportContentToNotesMock.mockReset()
     exportContentToNotesMock.mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
@@ -360,14 +357,6 @@ describe('TranslatePage', () => {
         writeText: clipboardWriteTextMock
       }
     })
-    ;(window as any).toast = {
-      closeToast: toastCloseToastMock,
-      error: vi.fn(),
-      info: vi.fn(),
-      loading: toastLoadingMock,
-      success: vi.fn(),
-      warning: vi.fn()
-    }
     ;(window as any).api = {
       file: {
         readExternal: fileMock.readExternal,
@@ -491,7 +480,7 @@ describe('TranslatePage', () => {
         file: { kind: 'path', path: '/tmp/image.png' }
       })
     )
-    expect(toastLoadingMock).not.toHaveBeenCalled()
+    expect(toast.loading).not.toHaveBeenCalled()
     await waitFor(() =>
       expect(screen.getByTestId('translate-input-ocr-processing')).toHaveTextContent('ocr.processing')
     )
@@ -511,7 +500,7 @@ describe('TranslatePage', () => {
     rerender(<TranslatePage />)
 
     await waitFor(() => expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('recognized image text'))
-    await waitFor(() => expect((window as any).toast.success).toHaveBeenCalledWith('translate.files.ocr_completed'))
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('translate.files.ocr_completed'))
     await waitFor(() => expect(screen.queryByTestId('translate-input-ocr-processing')).not.toBeInTheDocument())
     await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
     rerender(<TranslatePage />)
@@ -526,7 +515,7 @@ describe('TranslatePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
 
     await waitFor(() => expect(fileMock.startJob).toHaveBeenCalledTimes(1))
-    expect(toastLoadingMock).not.toHaveBeenCalled()
+    expect(toast.loading).not.toHaveBeenCalled()
 
     useJobMock.mockReturnValue({
       data: {
@@ -544,8 +533,8 @@ describe('TranslatePage', () => {
       expect.any(Error),
       'translate.files.error.ocr'
     )
-    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.files.error.ocr'))
-    expect(toastCloseToastMock).not.toHaveBeenCalled()
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('translate.files.error.ocr'))
+    expect(toast.closeToast).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
     expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('')
   })
@@ -579,7 +568,7 @@ describe('TranslatePage', () => {
     rerender(<TranslatePage />)
 
     expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('')
-    expect((window as any).toast.success).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('uses readExternal for selected document files', async () => {
@@ -612,11 +601,11 @@ describe('TranslatePage', () => {
       expect(translateCoreMock.formatErrorMessageWithPrefix).toHaveBeenCalledWith(ocrError, 'translate.files.error.ocr')
     )
     await waitFor(() =>
-      expect((window as any).toast.error).toHaveBeenCalledWith(
+      expect(toast.error).toHaveBeenCalledWith(
         'translate.files.error.ocr: Default file processor for image_to_text is not configured'
       )
     )
-    expect(toastLoadingMock).not.toHaveBeenCalled()
+    expect(toast.loading).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
   })
 
@@ -646,8 +635,8 @@ describe('TranslatePage', () => {
     )
     const formattedError = translateCoreMock.formatErrorMessageWithPrefix.mock.calls.at(-1)?.[0] as Error | undefined
     expect(formattedError?.message).toBe('OCR failed')
-    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.files.error.ocr'))
-    expect(toastCloseToastMock).not.toHaveBeenCalled()
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('translate.files.error.ocr'))
+    expect(toast.closeToast).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
   })
 
@@ -672,7 +661,7 @@ describe('TranslatePage', () => {
     )
     const formattedError = translateCoreMock.formatErrorMessageWithPrefix.mock.calls.at(-1)?.[0] as Error | undefined
     expect(formattedError?.message).toBe('job not found')
-    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.files.error.ocr'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('translate.files.error.ocr'))
     await waitFor(() => expect(screen.queryByTestId('translate-input-ocr-processing')).not.toBeInTheDocument())
     await waitFor(() => expect(screen.getByLabelText('translate.input.placeholder')).not.toBeDisabled())
   })
@@ -765,7 +754,7 @@ describe('TranslatePage', () => {
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
-    await waitFor(() => expect((window as any).toast.warning).toHaveBeenCalledWith('translate.language.same'))
+    await waitFor(() => expect(toast.warning).toHaveBeenCalledWith('translate.language.same'))
     expect(translateCoreMock.translateText).not.toHaveBeenCalled()
   })
 
@@ -790,7 +779,7 @@ describe('TranslatePage', () => {
         expect.any(AbortSignal)
       )
     )
-    expect((window as any).toast.error).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
     await waitFor(() =>
       expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
         sourceText: 'hello',
@@ -823,7 +812,7 @@ describe('TranslatePage', () => {
         expect.any(AbortSignal)
       )
     )
-    expect((window as any).toast.error).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
     await waitFor(() =>
       expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
         sourceText: 'hello',
@@ -857,7 +846,7 @@ describe('TranslatePage', () => {
         expect.any(AbortSignal)
       )
     )
-    expect((window as any).toast.warning).not.toHaveBeenCalledWith('translate.language.not_pair')
+    expect(toast.warning).not.toHaveBeenCalledWith('translate.language.not_pair')
     await waitFor(() =>
       expect(translateCoreMock.addHistory).toHaveBeenCalledWith({
         sourceText: 'hello',
@@ -916,7 +905,7 @@ describe('TranslatePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
     await waitFor(() => expect(translateCoreMock.translateText).toHaveBeenCalledTimes(1))
-    expect((window as any).toast.success).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
     expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
   })
 
@@ -936,7 +925,7 @@ describe('TranslatePage', () => {
     rerender(<TranslatePage />)
     fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
 
-    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('translate.error.failed: reason'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('translate.error.failed: reason'))
   })
 
   it('triggers translate on Cmd/Ctrl+Enter keyboard shortcut', async () => {
@@ -1026,7 +1015,7 @@ describe('TranslatePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.stop' }))
 
     expect(signal?.aborted).toBe(true)
-    expect((window as any).toast.info).toHaveBeenCalledWith('translate.info.aborted')
+    expect(toast.info).toHaveBeenCalledWith('translate.info.aborted')
   })
 
   it('keeps streamed translation text when stop is clicked', async () => {
@@ -1066,8 +1055,8 @@ describe('TranslatePage', () => {
     expect(signal?.aborted).toBe(true)
     await waitFor(() => expect(screen.getByTestId('translate-output-content')).toHaveTextContent('partial text'))
     expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('partial text')
-    expect((window as any).toast.info).toHaveBeenCalledWith('translate.info.aborted')
-    expect((window as any).toast.success).not.toHaveBeenCalled()
+    expect(toast.info).toHaveBeenCalledWith('translate.info.aborted')
+    expect(toast.success).not.toHaveBeenCalled()
     expect(translateCoreMock.addHistory).not.toHaveBeenCalled()
     expect(translateCoreMock.setTimeoutTimer).not.toHaveBeenCalledWith('auto-copy', expect.any(Function), 100)
   })
@@ -1096,7 +1085,7 @@ describe('TranslatePage', () => {
         targetLanguage: 'en-us'
       })
     )
-    expect((window as any).toast.success).toHaveBeenCalledWith('translate.complete')
+    expect(toast.success).toHaveBeenCalledWith('translate.complete')
 
     const autoCopyCallback = translateCoreMock.setTimeoutTimer.mock.calls[0]?.[1] as (() => Promise<void>) | undefined
     expect(autoCopyCallback).toBeTypeOf('function')

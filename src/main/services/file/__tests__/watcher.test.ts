@@ -170,8 +170,9 @@ describe('createDirectoryWatcher', () => {
 
     const rootFile = path.join(dir, 'root.txt') as FilePath
     const nestedFile = path.join(nestedDir, 'nested.txt') as FilePath
+    const rootAdd = waitForEvent(w, (e) => e.kind === 'add' && e.path === rootFile)
     await writeFile(rootFile, 'root')
-    await waitForEvent(w, (e) => e.kind === 'add' && e.path === rootFile)
+    await rootAdd
 
     await writeFile(nestedFile, 'nested')
     await new Promise((r) => setTimeout(r, 400))
