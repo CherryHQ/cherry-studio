@@ -11,6 +11,8 @@ import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { usePins } from '@renderer/hooks/usePins'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
@@ -179,7 +181,7 @@ export function AssistantResourceList({
   const handleReorderError = useCallback(
     (error: unknown) => {
       logger.error('Failed to reorder assistant classic-layout rail', { error })
-      window.toast.error(formatErrorMessageWithPrefix(error, t('assistants.reorder.error.failed')))
+      toast.error(formatErrorMessageWithPrefix(error, t('assistants.reorder.error.failed')))
     },
     [t]
   )
@@ -216,7 +218,7 @@ export function AssistantResourceList({
         await refreshAssistants()
       } catch (err) {
         logger.error('Failed to toggle assistant pin from classic-layout rail', { assistantId, err })
-        window.toast.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [isAssistantPinActionDisabled, refreshAssistants, t, toggleAssistantPin]
@@ -231,7 +233,7 @@ export function AssistantResourceList({
 
       setClearingTopicsAssistantId(assistantId)
       try {
-        const confirmed = await window.modal.confirm({
+        const confirmed = await popup.confirm({
           title: t('assistants.clear.title'),
           content: t('assistants.clear.content'),
           okText: t('common.delete'),
@@ -255,10 +257,10 @@ export function AssistantResourceList({
         await refreshTopics()
         await onCreateTopicAfterClear?.(assistantId)
 
-        window.toast.success(t('assistants.clear.success_title', { count: result.deletedCount }))
+        toast.success(t('assistants.clear.success_title', { count: result.deletedCount }))
       } catch (err) {
         logger.error('Failed to clear assistant topics from classic-layout rail', { assistantId, err })
-        window.toast.error(t('chat.topics.manage.delete.error'))
+        toast.error(t('chat.topics.manage.delete.error'))
       } finally {
         setClearingTopicsAssistantId(null)
       }
@@ -279,7 +281,7 @@ export function AssistantResourceList({
 
       setDeletingAssistantId(assistantId)
       try {
-        const confirmed = await window.modal.confirm({
+        const confirmed = await popup.confirm({
           title: t('assistants.delete.title'),
           content: t('assistants.delete.content'),
           okText: t('common.delete'),
@@ -299,10 +301,10 @@ export function AssistantResourceList({
 
         await refreshAssistants()
         await refreshTopics()
-        window.toast.success(t('common.delete_success'))
+        toast.success(t('common.delete_success'))
       } catch (err) {
         logger.error('Failed to delete assistant from classic-layout rail', { assistantId, err })
-        window.toast.error(formatErrorMessageWithPrefix(err, t('common.delete_failed')))
+        toast.error(formatErrorMessageWithPrefix(err, t('common.delete_failed')))
       } finally {
         setDeletingAssistantId(null)
       }

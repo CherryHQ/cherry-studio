@@ -5,6 +5,7 @@ import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
+import { toast } from '@renderer/services/toast'
 import { fileToAvatarDataUrl } from '@renderer/utils/image'
 import { cn, generateColorFromChar, getForegroundColor } from '@renderer/utils/style'
 import { uuid } from '@renderer/utils/uuid'
@@ -176,7 +177,7 @@ export default function ProviderEditorDrawer({
       // fileToAvatarDataUrl can reject on a corrupt or unsupported file
       // (compression or base64 encoding) — tell the user instead of silently doing nothing.
       logger.error('Failed to process uploaded provider logo', error as Error)
-      window.toast.error(t('settings.provider.logo_upload_failed'))
+      toast.error(t('settings.provider.logo_upload_failed'))
     }
   }
 
@@ -271,7 +272,7 @@ export default function ProviderEditorDrawer({
       await onSubmit(payload)
     } catch (error) {
       logger.error('Provider editor submit failed', error as Error)
-      window.toast.error(t('settings.provider.save_failed'))
+      toast.error(t('settings.provider.save_failed'))
     } finally {
       setIsSubmitting(false)
     }

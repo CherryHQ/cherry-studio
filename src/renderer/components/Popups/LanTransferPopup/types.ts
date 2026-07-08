@@ -78,7 +78,3 @@ export interface ProgressIndicatorProps {
 export interface PopupResolveData {
   // Empty for now, can be extended
 }
-
-export interface PopupContainerProps {
-  resolve: (data: PopupResolveData) => void
-}

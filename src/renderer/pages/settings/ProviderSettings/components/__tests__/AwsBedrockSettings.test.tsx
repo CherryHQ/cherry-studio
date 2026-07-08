@@ -1,4 +1,5 @@
 import AwsBedrockSettings from '@renderer/pages/settings/ProviderSettings/ProviderSpecific/AwsBedrockSettings'
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -60,7 +61,6 @@ describe('AwsBedrockSettings', () => {
     vi.clearAllMocks()
     radioGroupPropsSpy.mockClear()
     useProviderAuthConfigMock.mockReturnValue({ data: null })
-    window.toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn() } as any
   })
 
   it('shows IAM credentials when authType is iam-aws', () => {
@@ -147,7 +147,7 @@ describe('AwsBedrockSettings', () => {
     await onValueChange('apiKey')
 
     expect(updateAuthConfigMock).not.toHaveBeenCalled()
-    expect(window.toast.warning).toHaveBeenCalledWith('settings.provider.aws-bedrock.region_required')
+    expect(toast.warning).toHaveBeenCalledWith('settings.provider.aws-bedrock.region_required')
   })
 
   it('does not re-persist an empty region when IAM credentials are saved on blur', () => {
@@ -168,6 +168,6 @@ describe('AwsBedrockSettings', () => {
     fireEvent.blur(accessKey)
 
     expect(updateAuthConfigMock).not.toHaveBeenCalled()
-    expect(window.toast.warning).toHaveBeenCalledWith('settings.provider.aws-bedrock.region_required')
+    expect(toast.warning).toHaveBeenCalledWith('settings.provider.aws-bedrock.region_required')
   })
 })

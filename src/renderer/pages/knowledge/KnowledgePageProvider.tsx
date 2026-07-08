@@ -7,6 +7,7 @@ import {
 } from '@renderer/hooks/useKnowledgeBase'
 import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
@@ -369,7 +370,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       try {
         await updateBase(baseId, { groupId })
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_move')))
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_move')))
       }
     },
     [t, updateBase]
@@ -380,7 +381,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       try {
         await deleteBase(baseId)
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_delete')))
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_delete')))
       }
     },
     [deleteBase, t]
@@ -391,7 +392,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
       try {
         await deleteGroup(groupId)
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.groups.error.failed_to_delete')))
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.groups.error.failed_to_delete')))
       }
     },
     [deleteGroup, t]

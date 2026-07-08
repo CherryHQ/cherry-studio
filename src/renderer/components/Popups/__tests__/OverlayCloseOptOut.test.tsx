@@ -1,28 +1,17 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { PopupHost } from '@renderer/components/PopupHost'
+import { POPUP_EXIT_MS, popupService } from '@renderer/services/popup'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import type * as ReactModule from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   backup: vi.fn(),
-  backupToLanTransfer: vi.fn(),
-  hide: vi.fn(),
-  show: vi.fn()
+  backupToLanTransfer: vi.fn()
 }))
 
-vi.mock('../../TopView/TopView', () => ({
-  TopView: {
-    hide: mocks.hide,
-    show: mocks.show
-  }
-}))
-
-vi.mock('@renderer/components/TopView/TopView', () => ({
-  TopView: {
-    hide: mocks.hide,
-    show: mocks.show
-  }
-}))
+// This suite exercises the real popup store + host, so opt out of the global mock.
+vi.mock('@renderer/services/popup', async (importOriginal) => await importOriginal())
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [false, vi.fn()]
@@ -122,7 +111,7 @@ vi.mock('@cherrystudio/ui', async () => {
 })
 
 import BackupPopup from '../BackupPopup'
-import GeneralPopup from '../GeneralPopup'
+import ContentPopup from '../ContentPopup'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -135,33 +124,51 @@ beforeEach(() => {
   })
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  // Unmount the host first so draining the singleton store fires no React update
+  // on a still-mounted host (which would warn), then settle + flush the exit timers
+  // so the next test starts from an empty store. Fake timers fire the exit phase
+  // synchronously (no wall-clock wait).
+  cleanup()
+  vi.useFakeTimers()
+  for (const entry of [...popupService.getSnapshot()]) {
+    popupService.settle(entry.instanceId, {})
+  }
+  vi.advanceTimersByTime(POPUP_EXIT_MS)
+  vi.useRealTimers()
+})
 
 describe('popup overlay close opt-out', () => {
-  it('keeps GeneralPopup open when maskClosable is false', () => {
-    const afterClose = vi.fn()
-    mocks.show.mockImplementation((element: ReactNode) => render(<>{element}</>))
+  it('keeps ContentPopup open when maskClosable is false', async () => {
+    render(<PopupHost />)
 
-    void GeneralPopup.show({
-      afterClose,
-      content: 'Non dismissable content',
-      maskClosable: false,
-      title: 'Non dismissable'
+    act(() => {
+      void ContentPopup.show({
+        content: 'Non dismissable content',
+        maskClosable: false,
+        title: 'Non dismissable'
+      })
     })
 
+    await screen.findByText('Non dismissable content')
+
     fireEvent.click(screen.getByTestId('dialog-overlay'))
 
-    expect(afterClose).not.toHaveBeenCalled()
-    expect(mocks.hide).not.toHaveBeenCalled()
+    // The overlay click is suppressed, so the popup stays on screen.
+    expect(screen.getByText('Non dismissable content')).toBeInTheDocument()
   })
 
-  it('keeps BackupPopup open when clicking the overlay', () => {
-    mocks.show.mockImplementation((element: ReactNode) => render(<>{element}</>))
+  it('keeps BackupPopup open when clicking the overlay', async () => {
+    render(<PopupHost />)
 
-    void BackupPopup.show()
+    act(() => {
+      void BackupPopup.show()
+    })
+
+    await screen.findByText('backup.content')
 
     fireEvent.click(screen.getByTestId('dialog-overlay'))
 
-    expect(mocks.hide).not.toHaveBeenCalled()
+    expect(screen.getByText('backup.content')).toBeInTheDocument()
   })
 })

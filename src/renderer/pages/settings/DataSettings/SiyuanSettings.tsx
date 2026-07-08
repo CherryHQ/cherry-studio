@@ -9,6 +9,7 @@ import {
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { toast } from '@renderer/services/toast'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -46,7 +47,7 @@ const SiyuanSettings: FC = () => {
   const handleCheckConnection = async () => {
     try {
       if (!siyuanApiUrl || !siyuanToken) {
-        window.toast.error(t('settings.data.siyuan.check.empty_config'))
+        toast.error(t('settings.data.siyuan.check.empty_config'))
         return
       }
 
@@ -59,20 +60,20 @@ const SiyuanSettings: FC = () => {
       })
 
       if (!response.ok) {
-        window.toast.error(t('settings.data.siyuan.check.fail'))
+        toast.error(t('settings.data.siyuan.check.fail'))
         return
       }
 
       const data = await response.json()
       if (data.code !== 0) {
-        window.toast.error(t('settings.data.siyuan.check.fail'))
+        toast.error(t('settings.data.siyuan.check.fail'))
         return
       }
 
-      window.toast.success(t('settings.data.siyuan.check.success'))
+      toast.success(t('settings.data.siyuan.check.success'))
     } catch (error) {
       logger.error('Check Siyuan connection failed:', error as Error)
-      window.toast.error(t('settings.data.siyuan.check.error'))
+      toast.error(t('settings.data.siyuan.check.error'))
     }
   }
 
