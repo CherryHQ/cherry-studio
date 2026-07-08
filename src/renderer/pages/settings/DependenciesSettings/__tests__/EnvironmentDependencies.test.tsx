@@ -117,7 +117,6 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.installTool.mockResolvedValue(undefined)
     ipcMocks.removeTool.mockResolvedValue(undefined)
     ipcMocks.getToolDir.mockResolvedValue('/dir')
-    window.toast = { error: vi.fn(), success: vi.fn() } as unknown as typeof window.toast
   })
 
   it('renders preset tools and the empty custom-tools state', async () => {

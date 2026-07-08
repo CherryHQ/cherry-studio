@@ -1,4 +1,5 @@
 import { useImageTools } from '@renderer/components/ActionTools'
+import { toast } from '@renderer/services/toast'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -43,12 +44,6 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 // Mock navigator.clipboard
 const mockWrite = vi.fn()
 
-// Mock window.toast
-const mockedToast = {
-  success: vi.fn(),
-  error: vi.fn()
-}
-
 // Mock ClipboardItem
 class MockClipboardItem {
   constructor(items: any) {
@@ -65,11 +60,6 @@ describe('useImageTools', () => {
     // Setup global mocks
     Object.defineProperty(global.navigator, 'clipboard', {
       value: { write: mockWrite },
-      writable: true
-    })
-
-    Object.defineProperty(global.window, 'toast', {
-      value: mockedToast,
       writable: true
     })
 
@@ -284,7 +274,7 @@ describe('useImageTools', () => {
 
       expect(mocks.svgToPngBlob).toHaveBeenCalledWith(mockSvg)
       expect(mockWrite).toHaveBeenCalled()
-      expect(mockedToast.success).toHaveBeenCalledWith('message.copy.success')
+      expect(toast.success).toHaveBeenCalledWith('message.copy.success')
     })
 
     it('should download image as PNG and SVG', async () => {
@@ -364,13 +354,13 @@ describe('useImageTools', () => {
       await act(async () => {
         await result.current.copy()
       })
-      expect(mockedToast.error).toHaveBeenCalledWith('message.copy.failed')
+      expect(toast.error).toHaveBeenCalledWith('message.copy.failed')
 
       // 下载失败
       await act(async () => {
         await result.current.download('png')
       })
-      expect(mockedToast.error).toHaveBeenCalledWith('message.download.failed')
+      expect(toast.error).toHaveBeenCalledWith('message.download.failed')
     })
   })
 
@@ -420,7 +410,7 @@ describe('useImageTools', () => {
         await result.current.dialog()
       })
 
-      expect(mockedToast.error).toHaveBeenCalledWith('message.dialog.failed')
+      expect(toast.error).toHaveBeenCalledWith('message.dialog.failed')
     })
 
     it('should do nothing when no element is found', async () => {

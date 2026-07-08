@@ -1,6 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { useModels } from '@renderer/hooks/useModel'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { LocalModelStatus } from '@shared/data/presets/localModel'
 import { Download, Loader2 } from 'lucide-react'
@@ -71,7 +72,7 @@ const LocalEmbeddingDownloadButton = ({ onSelected }: LocalEmbeddingDownloadButt
       // A user-initiated cancel rejects too — don't surface it as a failure.
       if (cancellingRef.current || !mountedRef.current) return
       setStatus('error')
-      window.toast.error(t('knowledge.rag.download_local_embedding_failed'))
+      toast.error(t('knowledge.rag.download_local_embedding_failed'))
     }
   }, [select, t])
 

@@ -14,6 +14,7 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { getBackupSyncState, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
+import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import dayjs from 'dayjs'
 import { FolderOpen, RefreshCw, Save, Trash2 } from 'lucide-react'
@@ -71,21 +72,21 @@ const LocalBackupSettings: React.FC = () => {
     // check new local backup dir is not in app data path
     // if is in app data path, show error
     if (await window.api.isPathInside(resolvedDir, appInfo!.appDataPath)) {
-      window.toast.error(t('settings.data.local.directory.select_error_app_data_path'))
+      toast.error(t('settings.data.local.directory.select_error_app_data_path'))
       return false
     }
 
     // check new local backup dir is not in app install path
     // if is in app install path, show error
     if (await window.api.isPathInside(resolvedDir, appInfo!.installPath)) {
-      window.toast.error(t('settings.data.local.directory.select_error_in_app_install_path'))
+      toast.error(t('settings.data.local.directory.select_error_in_app_install_path'))
       return false
     }
 
     // check new app data path has write permission
     const hasWritePermission = await window.api.hasWritePermission(resolvedDir)
     if (!hasWritePermission) {
-      window.toast.error(t('settings.data.local.directory.select_error_write_permission'))
+      toast.error(t('settings.data.local.directory.select_error_write_permission'))
       return false
     }
 

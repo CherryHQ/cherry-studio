@@ -14,6 +14,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
@@ -117,7 +118,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         return versions
       } catch (error) {
         logger.error('Failed to fetch latest versions', error as Error)
-        if (force) window.toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
+        if (force) toast.error(`${t('settings.dependencies.updateCheckFailed')}: ${formatErrorMessage(error)}`)
         return null
       } finally {
         if (mountedRef.current && requestId === latestRequestIdRef.current) setCheckingUpdates(false)
@@ -150,7 +151,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     })
   })
   useIpcOn('binary.reconcile_failed', (names) => {
-    window.toast.error(`${t('settings.dependencies.installError')}: ${names}`)
+    toast.error(`${t('settings.dependencies.installError')}: ${names}`)
   })
 
   const installTool = async (tool: ManagedBinary) => {
@@ -159,7 +160,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       await ipcApi.request('binary.install_tool', tool)
     } catch (error) {
       logger.error('Failed to install tool', error as Error)
-      window.toast.error(`${t('settings.dependencies.installError')}: ${formatErrorMessage(error)}`)
+      toast.error(`${t('settings.dependencies.installError')}: ${formatErrorMessage(error)}`)
       throw error
     } finally {
       setInstallingTools((prev) => {
@@ -175,13 +176,13 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     try {
       validateManagedBinary(tool)
     } catch {
-      window.toast.error(t('settings.dependencies.invalidTool'))
+      toast.error(t('settings.dependencies.invalidTool'))
       throw new Error('invalid')
     }
 
     const allNames = [...PRESETS_BINARY_TOOLS.map((p) => p.name), ...customTools.map((c) => c.name)]
     if (allNames.includes(tool.name)) {
-      window.toast.error(t('settings.dependencies.duplicateName'))
+      toast.error(t('settings.dependencies.duplicateName'))
       throw new Error('duplicate')
     }
 
@@ -201,7 +202,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       setDeleteTarget(null)
     } catch (error) {
       logger.error('Failed to remove tool', error as Error)
-      window.toast.error(formatErrorMessage(error))
+      toast.error(formatErrorMessage(error))
     }
   }
 

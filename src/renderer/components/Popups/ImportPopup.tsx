@@ -10,10 +10,10 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { importChatGPTConversations } from '@renderer/services/import'
-import { useEffect, useRef, useState } from 'react'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { TopView } from '../TopView/TopView'
 
 const logger = loggerService.withContext('ImportPopup')
 
@@ -21,23 +21,12 @@ interface PopupResult {
   success?: boolean
 }
 
-interface Props {
-  resolve: (data: PopupResult) => void
-}
+type Props = PopupInjectedProps<PopupResult>
 
-const PopupContainer: React.FC<Props> = ({ resolve }) => {
-  const [open, setOpen] = useState(true)
+const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [selecting, setSelecting] = useState(false)
   const [importing, setImporting] = useState(false)
-  const resolvedRef = useRef(false)
   const { t } = useTranslation()
-
-  useEffect(() => {
-    if (open || resolvedRef.current) return
-
-    resolvedRef.current = true
-    resolve({})
-  }, [open, resolve])
 
   const onOk = async () => {
     setSelecting(true)
@@ -62,20 +51,20 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       const result = await importChatGPTConversations(fileContent)
 
       if (result.success) {
-        window.toast.success(
+        toast.success(
           t('import.chatgpt.success', {
             topics: result.topicsCount,
             messages: result.messagesCount
           })
         )
-        setOpen(false)
+        resolve({})
       } else {
-        window.toast.error(result.error || t('import.chatgpt.error.unknown'))
+        toast.error(result.error || t('import.chatgpt.error.unknown'))
       }
     } catch (error) {
       logger.error('ChatGPT import failed:', error as Error)
-      window.toast.error(t('import.chatgpt.error.unknown'))
-      setOpen(false)
+      toast.error(t('import.chatgpt.error.unknown'))
+      resolve({})
     } finally {
       setSelecting(false)
       setImporting(false)
@@ -83,10 +72,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   const onCancel = () => {
-    setOpen(false)
+    resolve({})
   }
-
-  ImportPopup.hide = onCancel
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
@@ -137,24 +124,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   )
 }
 
-const TopViewKey = 'ImportPopup'
+const ImportPopup = createPopup<Record<string, never>, PopupResult>(PopupContainer, { dismissResult: {} })
 
-export default class ImportPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide(TopViewKey)
-  }
-  static show() {
-    return new Promise<PopupResult>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
-    })
-  }
-}
+export default ImportPopup

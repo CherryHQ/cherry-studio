@@ -8,6 +8,7 @@ import {
   Scrollbar
 } from '@cherrystudio/ui'
 import { useEnableKnowledgeBaseEmbedding } from '@renderer/hooks/useKnowledgeBase'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { RotateCcw } from 'lucide-react'
@@ -120,9 +121,9 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
     if (!modelChanged) {
       try {
         await save(submitValues)
-        window.toast.success(t('knowledge.rag.saved'))
+        toast.success(t('knowledge.rag.saved'))
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
       }
       return
     }
@@ -139,7 +140,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
       try {
         dimensions = await fetchDimensions(submitValues.embeddingModelId)
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+        toast.error(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
         return
       }
     }
@@ -148,18 +149,18 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
       try {
         const patch = buildKnowledgeRagConfigPatch(initialValues, submitValues)
         await enableEmbedding(base.id, { ...patch, embeddingModelId: submitValues.embeddingModelId, dimensions })
-        window.toast.success(t('knowledge.rag.saved'))
+        toast.success(t('knowledge.rag.saved'))
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
       }
       return
     }
 
     try {
       await save(submitValues, { embeddingModelId: submitValues.embeddingModelId, dimensions })
-      window.toast.success(t('knowledge.rag.saved'))
+      toast.success(t('knowledge.rag.saved'))
     } catch (error) {
-      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
+      toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
     }
   }
 

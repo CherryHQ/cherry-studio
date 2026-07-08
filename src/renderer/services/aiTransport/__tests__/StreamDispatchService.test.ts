@@ -1,5 +1,6 @@
+import { toast } from '@renderer/services/toast'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { streamDispatchService } from '../StreamDispatchService'
 
@@ -17,14 +18,7 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
-let originalToast: unknown
-
-beforeEach(() => {
-  originalToast = (window as unknown as { toast: unknown }).toast
-  ;(window as unknown as { toast: unknown }).toast = { error: vi.fn() }
-})
 afterEach(() => {
-  ;(window as unknown as { toast: unknown }).toast = originalToast
   vi.clearAllMocks()
 })
 
@@ -88,7 +82,7 @@ describe('StreamDispatchService', () => {
 
     expect(seen).toHaveLength(1)
     expect(seen[0]).toMatchObject({ ok: false, topicId: TOPIC })
-    expect(window.toast.error).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
     off()
   })
 
@@ -102,7 +96,7 @@ describe('StreamDispatchService', () => {
     streamDispatchService.dispatch(TOPIC, req)
     await flush()
 
-    expect(window.toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
+    expect(toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
   })
 
   it('unsubscribe stops further delivery', async () => {

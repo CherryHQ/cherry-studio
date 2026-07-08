@@ -1,6 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { isNewApiProvider } from '@shared/utils/provider'
@@ -86,7 +87,7 @@ export default function AddModelFormPanel({
       const modelId = values.modelId.trim()
 
       if (models.some((model) => model.id.endsWith(`::${modelId}`))) {
-        window.toast.error(t('error.model.exists'))
+        toast.error(t('error.model.exists'))
         return false
       }
 
@@ -154,7 +155,7 @@ export default function AddModelFormPanel({
         onSuccess()
       }
     } catch {
-      window.toast.error(t('settings.models.manage.operation_failed'))
+      toast.error(t('settings.models.manage.operation_failed'))
     } finally {
       setIsSubmitting(false)
     }

@@ -1,6 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { Code, DownloadIcon, Globe, LinkIcon, Sparkles } from 'lucide-react'
@@ -35,7 +36,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
       await window.api.file.openPath(tempPath)
     } catch (error) {
       logger.error('Failed to open HTML artifact externally', error as Error)
-      window.toast.error(formatErrorMessageWithPrefix(error, t('chat.artifacts.preview.openExternal.error.content')))
+      toast.error(formatErrorMessageWithPrefix(error, t('chat.artifacts.preview.openExternal.error.content')))
     }
   }
 
@@ -45,10 +46,10 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
       const savedPath = await window.api.file.save(fileName, htmlContent)
       if (!savedPath) return
 
-      window.toast.success(t('message.download.success'))
+      toast.success(t('message.download.success'))
     } catch (error) {
       logger.error('Failed to download HTML artifact', error as Error)
-      window.toast.error(formatErrorMessageWithPrefix(error, t('message.download.failed')))
+      toast.error(formatErrorMessageWithPrefix(error, t('message.download.failed')))
     }
   }
 

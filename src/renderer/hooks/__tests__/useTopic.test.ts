@@ -6,6 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useTopicMutations } from '../useTopic'
 
+const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useCloseConversationTabs: () => mockCloseConversationTabs
+}))
+
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: { CHANGE_TOPIC: 'change-topic' },
   EventEmitter: { emit: vi.fn() }
@@ -18,6 +24,17 @@ describe('useTopicMutations', () => {
     vi.clearAllMocks()
   })
 
+  it('deletes a topic and closes the matching assistant conversation tab', async () => {
+    const deleteTrigger = vi.fn().mockResolvedValue(undefined)
+    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics/:id', deleteTrigger)
+
+    const { result } = renderHook(() => useTopicMutations())
+    await act(async () => result.current.deleteTopic('topic-a'))
+
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'topic-a' } })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
+  })
+
   it('deletes selected topics through comma-separated query ids', async () => {
     const response = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
     const deleteTrigger = vi.fn().mockResolvedValue(response)
@@ -27,6 +44,20 @@ describe('useTopicMutations', () => {
     const deleted = await act(async () => result.current.deleteTopics(['topic-a', 'topic-b']))
 
     expect(deleteTrigger).toHaveBeenCalledWith({ query: { ids: 'topic-a,topic-b' } })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', response.deletedIds)
+    expect(deleted).toBe(response)
+  })
+
+  it('deletes assistant topics and closes the deleted assistant conversation tabs', async () => {
+    const response = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
+    const deleteTrigger = vi.fn().mockResolvedValue(response)
+    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/assistants/:assistantId/topics', deleteTrigger)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const deleted = await act(async () => result.current.deleteTopicsByAssistantId('assistant-a'))
+
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { assistantId: 'assistant-a' } })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', response.deletedIds)
     expect(deleted).toBe(response)
   })
 

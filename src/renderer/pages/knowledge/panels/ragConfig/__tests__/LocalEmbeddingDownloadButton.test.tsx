@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -46,7 +47,6 @@ describe('LocalEmbeddingDownloadButton', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     progressHandler = undefined
-    Object.assign(window, { toast: { success: vi.fn(), error: vi.fn() } })
   })
 
   it('shows the download button when the model is not downloaded', async () => {
@@ -91,7 +91,7 @@ describe('LocalEmbeddingDownloadButton', () => {
     // as a failure, and must not auto-select the (unfinished) model.
     act(() => rejectDownload?.(new Error('download cancelled')))
     await waitFor(() => expect(screen.getByText('knowledge.rag.download_local_embedding')).toBeInTheDocument())
-    expect(window.toast.error).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
     expect(onSelected).not.toHaveBeenCalled()
   })
 
@@ -128,9 +128,7 @@ describe('LocalEmbeddingDownloadButton', () => {
     render(<LocalEmbeddingDownloadButton onSelected={onSelected} />)
     fireEvent.click(await screen.findByText('knowledge.rag.download_local_embedding'))
 
-    await waitFor(() =>
-      expect(window.toast.error).toHaveBeenCalledWith('knowledge.rag.download_local_embedding_failed')
-    )
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('knowledge.rag.download_local_embedding_failed'))
     expect(onSelected).not.toHaveBeenCalled()
   })
 })

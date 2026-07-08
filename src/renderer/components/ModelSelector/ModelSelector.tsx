@@ -4,6 +4,7 @@ import { loggerService } from '@logger'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { toast } from '@renderer/services/toast'
 import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
@@ -492,7 +493,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       skipNextFocusScroll.current = true
       togglePin(modelId).catch((error) => {
         logger.error('Failed to toggle model pin', error as Error, { modelId })
-        window.toast?.error(t('common.error'))
+        toast.error(t('common.error'))
       })
     },
     [isPinActionDisabled, t, togglePin]

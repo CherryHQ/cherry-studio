@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,12 +25,6 @@ vi.mock('@logger', () => ({
     })
   }
 }))
-
-const mockToast = {
-  success: vi.fn(),
-  error: vi.fn()
-}
-vi.stubGlobal('window', { toast: mockToast })
 
 describe('useChannels', () => {
   beforeEach(() => {
@@ -101,7 +96,7 @@ describe('useChannels', () => {
       )
 
       expect(created).toBeNull()
-      expect(mockToast.error).toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalled()
     })
   })
 
@@ -131,7 +126,7 @@ describe('useChannels', () => {
       const updated = await act(async () => result.current.updateChannel('ch-1', { name: 'Updated Bot' }))
 
       expect(updated).toBeNull()
-      expect(mockToast.error).toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalled()
     })
   })
 
@@ -155,7 +150,7 @@ describe('useChannels', () => {
       const { result } = renderHook(() => useChannels())
       await act(async () => result.current.deleteChannel('ch-1'))
 
-      expect(mockToast.error).toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalled()
     })
   })
 })
