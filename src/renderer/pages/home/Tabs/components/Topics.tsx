@@ -67,7 +67,7 @@ import {
   type TopicImageActionType
 } from '../../messages/topicImageActionBus'
 import TopicImageCaptureHost from '../../messages/TopicImageCaptureHost'
-import type { AddNewTopicPayload } from '../../types'
+import type { AddNewTopicPayload, AddNewTopicWithReusePayload } from '../../types'
 import {
   type AssistantGroupActionContext,
   executeAssistantGroupAction,
@@ -109,7 +109,7 @@ interface Props {
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
   onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
-  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onNewTopic?: (payload?: AddNewTopicWithReusePayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   panePosition?: TopicTabPosition

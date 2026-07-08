@@ -65,7 +65,7 @@ import { parseChatRouteSearch } from './routeSearch'
 import { Topics } from './Tabs/components/Topics'
 import { getTopicAssistantDisplayGroupId } from './Tabs/components/topicsHelpers'
 import HomeTabs from './Tabs/HomeTabs'
-import type { AddNewTopicPayload } from './types'
+import type { AddNewTopicPayload, AddNewTopicWithReusePayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
 const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
@@ -477,7 +477,7 @@ const HomePage: FC = () => {
   )
 
   const createAndActivateEmptyTopic = useCallback(
-    async (payload?: AddNewTopicPayload, options?: NewTopicAssistantTargetOptions): Promise<Topic | null> => {
+    async (payload?: AddNewTopicWithReusePayload, options?: NewTopicAssistantTargetOptions): Promise<Topic | null> => {
       if (isCreatingTopicRef.current) return null
       isCreatingTopicRef.current = true
       try {
@@ -549,7 +549,7 @@ const HomePage: FC = () => {
   )
 
   const handleCreateEmptyTopic = useCallback(
-    async (payload?: AddNewTopicPayload) => {
+    async (payload?: AddNewTopicWithReusePayload) => {
       const created = await createAndActivateEmptyTopic(payload)
       // Post-delete replacement (delete flow passes `excludeReuseTopicId`): if the replacement create
       // fails, the active topic still points at the just-deleted topic — clear it so the awaiting delete

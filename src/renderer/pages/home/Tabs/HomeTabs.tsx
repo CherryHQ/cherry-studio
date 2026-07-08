@@ -8,7 +8,7 @@ import { cn } from '@renderer/utils/style'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { FC, HTMLAttributes } from 'react'
 
-import type { AddNewTopicPayload } from '../types'
+import type { AddNewTopicPayload, AddNewTopicWithReusePayload } from '../types'
 import { Topics } from './components/Topics'
 
 interface Props {
@@ -17,7 +17,7 @@ interface Props {
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
   onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
-  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  onNewTopic?: (payload?: AddNewTopicWithReusePayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   panePosition?: TopicTabPosition
