@@ -8,7 +8,7 @@ import {
 import { COMPOSER_FILE_KIND, FILE_TYPE } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import { Boxes, Braces, FileText, TextQuote, X, Zap } from 'lucide-react'
+import { Boxes, Braces, FileText, Folder, TextQuote, X, Zap } from 'lucide-react'
 import {
   type ComponentType,
   type FocusEvent as ReactFocusEvent,
@@ -36,6 +36,7 @@ const tokenPreviewHeaderClassName =
 const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   skill: <Zap className={tokenIconClassName} />,
   file: <FileText className={tokenIconClassName} />,
+  folder: <Folder className={tokenIconClassName} />,
   knowledge: <Boxes className={tokenIconClassName} />,
   quote: <TextQuote className={tokenIconClassName} />,
   promptVariable: <Braces className={tokenIconClassName} />
@@ -539,6 +540,42 @@ export function FileComposerToken(props: FileComposerTokenProps) {
   )
 }
 
+export function FolderComposerToken(props: ComposerTokenProps) {
+  const title = props.token.promptText ?? props.token.description ?? props.token.label
+  const removeLabel = props.removeLabel ?? 'Remove'
+
+  return (
+    <span
+      className={cn(
+        'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
+        'group-focus-visible:ring-[3px] group-focus-visible:ring-ring/50',
+        'border-border bg-background hover:bg-accent',
+        props.selected && 'border-primary ring-1 ring-ring',
+        props.className
+      )}
+      title={title}
+      data-composer-token-kind={props.token.kind}
+      onMouseDown={props.onMouseDown}>
+      <span
+        className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-[5px] border-0 bg-accent text-muted-foreground leading-none"
+        data-folder-token-icon="">
+        <InlineTokenIconSlot
+          icon={props.token.icon ? props.token.icon : <Folder className={tokenIconClassName} aria-hidden />}
+          removeLabel={removeLabel}
+          onRemove={props.onRemove}
+          removeButtonClassName="size-full rounded-[5px]"
+          removeIconClassName="size-3"
+        />
+      </span>
+      {props.children ?? (
+        <span className={cn('whitespace-nowrap! min-w-0 max-w-full truncate break-normal', props.maxWidthClassName)}>
+          {props.token.label}
+        </span>
+      )}
+    </span>
+  )
+}
+
 export function KnowledgeComposerToken(props: ComposerTokenProps) {
   return renderActiveComposerTokenElement({
     ...props,
@@ -572,6 +609,7 @@ export function PromptVariableComposerToken(props: ComposerTokenProps) {
 export const composerInputTokenComponentByKind = {
   skill: SkillComposerToken,
   file: FileComposerToken,
+  folder: FolderComposerToken,
   knowledge: KnowledgeComposerToken,
   quote: QuoteComposerToken,
   promptVariable: PromptVariableComposerToken

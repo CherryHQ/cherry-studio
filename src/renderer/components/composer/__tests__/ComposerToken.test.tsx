@@ -328,6 +328,32 @@ describe('ComposerToken', () => {
     expect(icon).not.toHaveClass('border', 'border-border', 'bg-background')
   })
 
+  it('renders folder tokens as compact inline chips with the full path as title', () => {
+    const { container } = render(
+      <ComposerToken
+        token={{
+          id: 'folder:1',
+          kind: 'folder',
+          label: 'Project Notes',
+          promptText: '/Users/jd/Notes/Project Notes'
+        }}
+      />
+    )
+
+    const token = container.querySelector('[data-composer-token-kind="folder"]')
+    expect(token).toBeInTheDocument()
+    expect(token).toHaveTextContent('Project Notes')
+    expect(token).toHaveAttribute('title', '/Users/jd/Notes/Project Notes')
+    expect(token).toHaveClass('h-6', 'rounded-md', 'border', 'border-border', 'bg-background', 'hover:bg-accent')
+    expect(token?.querySelector('[data-folder-token-icon]')).toHaveClass(
+      'size-4.5',
+      'rounded-[5px]',
+      'bg-accent',
+      'text-muted-foreground'
+    )
+    expectNoComposerTokenPopover(container)
+  })
+
   it('keeps long file token names clipped to a single line while preserving tooltip text', () => {
     const longLabel = 'temp_file_d1a6ca94-e012-4c9e-831a-24cda5f732f0_pasted_text.txt'
 

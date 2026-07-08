@@ -22,6 +22,7 @@ import {
   readComposerClipboardFragmentFromSessionCache,
   writeComposerClipboardData
 } from '@renderer/utils/message/composerClipboard'
+import { createComposerSecureRandomId } from '@renderer/utils/message/composerFileTokenSource'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import type { ComposerMessageToken } from '@shared/data/types/uiParts'
 import type { EditorOptions, JSONContent } from '@tiptap/core'
@@ -235,6 +236,21 @@ function insertComposerTokenAtCursor(
   }
 
   chain.insertContent(' ').run()
+}
+
+function getPathBaseName(path: string) {
+  const normalized = path.replace(/[\\/]+$/, '')
+  return normalized.split(/[\\/]/).pop() || path
+}
+
+function createFolderComposerToken(path: string): ComposerDraftToken {
+  return {
+    id: createComposerSecureRandomId('folder-token'),
+    kind: 'folder',
+    label: getPathBaseName(path),
+    description: path,
+    promptText: path
+  }
 }
 
 function isComposerSendKeyPressed(event: KeyboardEvent, shortcut: SendMessageShortcut) {
@@ -607,6 +623,11 @@ export default function ComposerSurface({
   const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop, isDragging } = useFileDragDrop({
     supportedExts,
     setFiles,
+    onFolderPathDropped: (path) => {
+      const editor = editorRef.current
+      if (!editor || editor.isDestroyed) return
+      insertComposerTokenAtCursor(editor, createFolderComposerToken(path))
+    },
     onTextDropped: (droppedText) => {
       const editor = editorRef.current
       if (!editor) return
