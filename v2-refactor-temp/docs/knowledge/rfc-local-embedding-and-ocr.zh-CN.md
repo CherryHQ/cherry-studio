@@ -82,8 +82,9 @@ flowchart TD
 ### 4.3 关键工程要点
 
 - **必须用 ONNX community 仓库**：官方 safetensors 不能被 transformers.js 直接本地加载。
-- **下载架构**：HF / ModelScope 镜像表（`modelSource.ts`），按 locale 选默认源 + 另一镜像 fallback，不硬编码 HF URL。
-- **本地加载**：`env.allowRemoteModels=false`，模型目录走 `application.getPath('feature.embedding.models')`（`pathRegistry` 已加该 key，集中式路径，不 ad-hoc 拼接）。
+- **下载架构**（落地已偏离本节初稿，见下）：HF / ModelScope 镜像表（`modelSource.ts`），不硬编码 HF URL。
+- **本地加载**：`env.allowRemoteModels=true`（worker 允许按需拉取，非纯离线本地），模型目录走 `application.getPath('feature.embedding.models')`（`pathRegistry` 已加该 key，集中式路径，不 ad-hoc 拼接）。
+- **落地状态（已实现，替换本节"按 locale 选默认源"的初稿）**：镜像默认源改为 `regionService.isInChina()`（IP 出口地理位置），不是 UI locale——同一信号 `BinaryManager` 也在用，见 `localEmbeddingRuntime.ts` 的 `currentModelSource()`。
 - **推理**：query 侧加 instruction 前缀（`Instruct: {task}\nQuery:{q}`），document 侧不加；**last_token pooling + L2 normalize**。
 - **诚实提醒**：transformers.js 的 feature-extraction 原生 pooling 仅 `mean/cls/none`，**last_token 需 `pooling:'none'` 后手动取末 token + 归一化**——这段后处理 transformers.js 与 DIY 差距不大，落地先用固定样例对相似度趋势。
 
@@ -167,7 +168,9 @@ local-embedding::qwen3-embedding-0.6b
 
 ### 6.3 PDF 依赖治理：升 pdfjs v6 + 移除 pdf-parse
 
-> **已决策（推翻 `pnpm.overrides` 方案）**：不用 override 强压版本，而是从根上对齐——**移除 pdf-parse + 把 pdfjs-dist 升到 v6**。这样 canvas 消费者只剩 pdfjs@6（要 `^1.0.0`）与 ppu-ocv（`^1.0.0`），自然 dedupe 成单份 1.x，无需任何 override。
+> **⚠️ 尚未实现**：以下是设计阶段的决策，不是落地状态——`package.json` 里 `pdf-parse`/`pdfjs-dist`/`@napi-rs/canvas` 均未变动（对应 §9 PR-0 还未开始），见 §8 checklist 仍未勾选。
+>
+> **方案已定（推翻 `pnpm.overrides` 方案）**：不用 override 强压版本，而是从根上对齐——**移除 pdf-parse + 把 pdfjs-dist 升到 v6**。这样 canvas 消费者只剩 pdfjs@6（要 `^1.0.0`）与 ppu-ocv（`^1.0.0`），自然 dedupe 成单份 1.x，无需任何 override。
 
 背景：`pdf-parse@2.4.5`（已是 latest）本质是 pdfjs 薄封装，却把 `@napi-rs/canvas` 硬钉 `0.1.80`，是阻断对齐的元凶；它在 Cherry 仅 `extractPdfText()`（`src/shared/utils/pdf.ts`）调 `getText()` 纯抽文本（IPC `Pdf_ExtractText` + AI PDF 兼容降级 `pdfCompatibility.ts`），**从不渲染**。
 
@@ -220,7 +223,7 @@ local-embedding::qwen3-embedding-0.6b
 - **last_token pooling 正确性**：transformers.js `pooling:'none'` + 手动取末 token，先用固定样例对相似度趋势。
 - **`pnpm why` 实测**：`onnxruntime-node` 单份 1.24.3 + `@napi-rs/canvas` 单份 1.x。
 - **PDF 治理 PR-0**：viewer v6 冒烟（`PDFDocumentProxy.destroy()` → `loadingTask.destroy()`）。
-- **路径 key / 镜像（已定）**：embedding = `feature.embedding.models`、OCR = `feature.ocr.paddleocr`；下载源走 HF / ModelScope 镜像表（`modelSource.ts`），按 locale 选默认。
+- **路径 key / 镜像（已定，已实现，见 §4.3）**：embedding = `feature.embedding.models`、OCR = `feature.ocr.paddleocr`；下载源走 HF / ModelScope 镜像表（`modelSource.ts`），按 IP 出口地理位置（`regionService.isInChina()`）选默认，不是 locale。
 
 ## 11. 参考
 
