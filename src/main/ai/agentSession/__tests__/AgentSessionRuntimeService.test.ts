@@ -522,8 +522,9 @@ describe('AgentSessionRuntimeService', () => {
     const connecting = (service as any).ensureConnection(entry) as Promise<boolean>
     await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce())
 
-    // The agent's model is cleared (its user_model row deleted → agent.model set null). The entry must
-    // be invalidated so the in-flight old-model connect can't install against a now-modelless agent.
+    // An agent update clears the model (explicit `PATCH { model: null }`). The entry must be invalidated
+    // so the in-flight old-model connect can't install against a now-modelless agent. (Deleting the model
+    // nulls agent.model via the FK but emits no agent update, so it does not reach this path.)
     await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
     expect(service.inspect('session-1')).toBeUndefined()
     expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()
@@ -561,8 +562,9 @@ describe('AgentSessionRuntimeService', () => {
     )
     const turn = getEntry(service).currentTurn
 
-    // The agent's model is cleared mid-turn (its user_model row deleted → agent.model set null). The
-    // live turn is paused (the renderer learns it stopped) and the session is fully torn down.
+    // An agent update clears the model mid-turn (explicit `PATCH { model: null }`). The live turn is
+    // paused (the renderer learns it stopped) and the session is fully torn down. (Deleting the model
+    // nulls agent.model via the FK but emits no agent update, so it does not reach this path.)
     await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
 
     expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'agent-model-cleared')
@@ -571,6 +573,32 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.inspect('session-1')).toBeUndefined()
     expect(connect).toHaveBeenCalledTimes(1)
     await reader.cancel().catch(() => undefined)
+  })
+
+  it('keeps the live connection across a steer roll when the agent model changes mid-roll', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    const connection = { close: vi.fn(), send: vi.fn(), events: [] }
+    entry.connection = connection
+    entry.connectionModelId = baseTurnInput.modelId
+
+    // Steer roll in flight: A1a was finalised at a steer-boundary (currentTurn is terminal) but `rolling`
+    // stays true while the same SDK query keeps streaming the post-steer response into A2. A model edit
+    // landing in that gap must NOT close the live connection — that would drop the continuation.
+    entry.currentTurn.terminalStatus = 'success'
+    entry.rolling = true
+
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { model: switchedModelId },
+      { id: 'agent-1', model: switchedModelId }
+    )
+
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(getEntry(service).connection).toBe(connection)
+    // The new model is still recorded; the next fresh turn reconnects to it via ensureConnection.
+    expect(getEntry(service).modelId).toBe(switchedModelId)
   })
 
   it('applies tool-policy updates when disabled tools change', async () => {

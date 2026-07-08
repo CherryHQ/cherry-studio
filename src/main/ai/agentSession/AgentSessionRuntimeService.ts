@@ -414,8 +414,12 @@ export class AgentSessionRuntimeService extends BaseService {
       if (entry.modelId === modelId) continue
       entry.modelId = modelId
 
+      // Treat a steer roll as a live turn: at a `steer-boundary` A1a is marked terminal but `entry.rolling`
+      // stays true while the same SDK query keeps streaming the post-steer response into A2. Closing the
+      // connection in that gap would drop the continuation. Deferring is safe — the roll continuation keeps
+      // A1a's captured model, and the next fresh turn reconnects to the new model via `ensureConnection`.
       const turn = entry.currentTurn
-      const hasLiveTurn = turn && !turn.terminalStatus
+      const hasLiveTurn = (turn && !turn.terminalStatus) || entry.rolling === true
       if (!hasLiveTurn) {
         this.closeConnectionAsync(entry)
       }
@@ -423,14 +427,19 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * The agent's model was cleared — its `user_model` row was deleted (`agent.model` is an FK with
-   * `onDelete: 'set null'`), so the agent can no longer be routed to any model. Fully invalidate the
-   * runtime entry instead of only closing its connection: pause a live turn so the renderer learns it
-   * stopped (the abort then tears the session down via the turn stream's abort listener), then
-   * `closeSession` to settle the turn, drop queued follow-ups, and close the connection. Removing the
-   * entry from the map also self-discards any in-flight old-model connect (its entry is no longer
-   * current, so `connect()` closes the connection it opened instead of installing it) — a modelless
-   * agent must not be left with a stale entry still targeting the previous model.
+   * An agent update cleared the model (`PATCH { model: null }` — `AgentEntitySchema.model` is nullable),
+   * so the agent can no longer be routed to any model. Fully invalidate the runtime entry instead of only
+   * closing its connection: pause a live turn so the renderer learns it stopped (the abort then tears the
+   * session down via the turn stream's abort listener), then `closeSession` to settle the turn, drop queued
+   * follow-ups, and close the connection. Removing the entry from the map also self-discards any in-flight
+   * old-model connect (its entry is no longer current, so `connect()` closes the connection it opened
+   * instead of installing it) — a modelless agent must not be left with a stale entry still targeting the
+   * previous model.
+   *
+   * NOTE: deleting the model's `user_model` row also nulls `agent.model` via the FK (`onDelete: 'set null'`),
+   * but that path (`ModelService.delete`/`bulkDelete`) emits no agent update, so it does NOT reach here — a
+   * live turn there finishes on its captured model and the next message fails fast in the chat context with
+   * "no model configured". Only an explicit model-clearing update runs this invalidation.
    */
   private invalidateModelClearedEntry(entry: AgentSessionRuntimeEntry): void {
     const turn = entry.currentTurn
