@@ -148,6 +148,10 @@ export async function runUserDataRelocationGate(): Promise<RelocationGateResult>
     bootConfigService.flush()
     currentProgress = makeProgress('failed', pending, 0, 0, message)
     relocationWindowManager.sendProgress(currentProgress)
+    if (relocationWindowManager.shouldRestartAfterTerminalFailure()) {
+      logger.warn('Restarting after headless relocation failure')
+      await relocationWindowManager.restartApp()
+    }
   }
 
   return 'handled'

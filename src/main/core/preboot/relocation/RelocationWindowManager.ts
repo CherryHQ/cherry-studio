@@ -35,6 +35,7 @@ export class RelocationWindowManager {
   private window: BrowserWindow | null = null
   private stage: RelocationStage = 'preparing'
   private programmaticClose = false
+  private rendererLostDuringCriticalStage = false
 
   hasWindow(): boolean {
     return this.window !== null && !this.window.isDestroyed()
@@ -49,6 +50,7 @@ export class RelocationWindowManager {
     logger.info('Creating relocation window')
     this.stage = 'preparing'
     this.programmaticClose = false
+    this.rendererLostDuringCriticalStage = false
 
     this.window = new BrowserWindow({
       width: 560,
@@ -84,15 +86,11 @@ export class RelocationWindowManager {
       void this.restartApp()
     })
 
-    // Safety net: if the renderer dies we can't show the completion/
-    // failure button, so force the relaunch ourselves.
     this.window.webContents.on('render-process-gone', (_event, details) => {
-      logger.error('Relocation renderer process gone; forcing relaunch', { reason: details.reason })
-      void this.restartApp()
+      this.handleRendererUnavailable('gone', details.reason)
     })
     this.window.webContents.on('unresponsive', () => {
-      logger.error('Relocation renderer unresponsive; forcing relaunch')
-      void this.restartApp()
+      this.handleRendererUnavailable('unresponsive')
     })
 
     if (process.env['ELECTRON_RENDERER_URL']) {
@@ -130,9 +128,13 @@ export class RelocationWindowManager {
 
   sendProgress(progress: RelocationProgress): void {
     this.stage = progress.stage
-    if (this.hasWindow()) {
+    if (this.hasWindow() && !this.rendererLostDuringCriticalStage) {
       this.window!.webContents.send(RelocationIpcChannels.Progress, progress)
     }
+  }
+
+  shouldRestartAfterTerminalFailure(): boolean {
+    return this.rendererLostDuringCriticalStage
   }
 
   close(): void {
@@ -154,6 +156,21 @@ export class RelocationWindowManager {
     logger.info('Relaunching application after relocation')
     this.close()
     application.relaunch()
+  }
+
+  private handleRendererUnavailable(kind: 'gone' | 'unresponsive', reason?: string): void {
+    if (!isClosable(this.stage)) {
+      this.rendererLostDuringCriticalStage = true
+      logger.error('Relocation renderer unavailable during critical stage; continuing headlessly', {
+        kind,
+        reason,
+        stage: this.stage
+      })
+      return
+    }
+
+    logger.error('Relocation renderer unavailable; forcing relaunch', { kind, reason, stage: this.stage })
+    void this.restartApp()
   }
 }
 

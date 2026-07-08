@@ -20,7 +20,8 @@ const wm = {
   create: vi.fn(),
   waitForReady: vi.fn().mockResolvedValue(undefined),
   sendProgress: vi.fn(),
-  restartApp: vi.fn()
+  restartApp: vi.fn(),
+  shouldRestartAfterTerminalFailure: vi.fn(() => false)
 }
 
 const commitRelocation = vi.fn()
@@ -133,6 +134,7 @@ beforeEach(() => {
   wm.waitForReady.mockReset().mockResolvedValue(undefined)
   wm.sendProgress.mockReset()
   wm.restartApp.mockReset()
+  wm.shouldRestartAfterTerminalFailure.mockReset().mockReturnValue(false)
   commitRelocation.mockReset()
   bootConfigGet.mockReset()
   bootConfigSet.mockReset()
@@ -531,6 +533,40 @@ describe('runUserDataRelocationGate', () => {
     expect(commitRelocation).not.toHaveBeenCalled()
     expect(rm).toHaveBeenCalledWith('/new/data', { recursive: true, force: true })
     expect(rm).toHaveBeenCalledTimes(2)
+  })
+
+  it('copy failure restarts after cleanup when the relocation renderer was lost', async () => {
+    const fileEntry = {
+      name: 'db.sqlite',
+      isSymbolicLink: () => false,
+      isDirectory: () => false,
+      isFile: () => true
+    }
+    const rm = vi.fn(async () => undefined)
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: true })
+    stubFsAndFsp({
+      readdir: vi.fn(async () => [fileEntry]),
+      stat: vi.fn(async () => ({ size: 10 })),
+      rm,
+      copyFile: vi.fn(async () => {
+        throw new Error('copy failed')
+      })
+    })
+    stubDeps()
+    wm.shouldRestartAfterTerminalFailure.mockReturnValue(true)
+
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(rm).toHaveBeenCalledTimes(2)
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      error: 'copy failed'
+    })
+    expect(wm.restartApp).toHaveBeenCalledTimes(1)
   })
 
   it('copy failure reports manual cleanup when partial target removal also fails', async () => {
