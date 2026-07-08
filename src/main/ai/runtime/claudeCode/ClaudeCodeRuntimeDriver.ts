@@ -528,7 +528,9 @@ export function buildAgentUserContent(message: AgentSessionMessageEntity): strin
   return appendAttachmentPaths(text, paths)
 }
 
-async function buildAgentUserSdkContent(message: AgentSessionMessageEntity): Promise<SDKUserMessage['message']['content']> {
+async function buildAgentUserSdkContent(
+  message: AgentSessionMessageEntity
+): Promise<SDKUserMessage['message']['content']> {
   const text = extractMessageText(message)
   const images: ImageBlockParam[] = []
   const pathFallbacks: string[] = []
