@@ -49,6 +49,7 @@ export async function enableProviderWhenModelsAvailable(
     await providerReorder.moveProviderToFirst(provider.id)
     return true
   } catch (error) {
+    await updateProvider({ isEnabled: provider.isEnabled }).catch(() => undefined)
     logger.error('Failed to move enabled provider to the top', {
       providerId: provider.id,
       modelCount,

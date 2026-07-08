@@ -132,7 +132,7 @@ describe('enableProviderWhenModelsAvailable', () => {
     )
   })
 
-  it('does not roll back the enable state when moving the provider to the top fails', async () => {
+  it('rolls back the enable state when moving the provider to the top fails', async () => {
     const moveError = new Error('move failed')
     const updateProvider = vi.fn().mockResolvedValue(undefined)
     const providerReorder = createProviderReorder({
@@ -148,9 +148,10 @@ describe('enableProviderWhenModelsAvailable', () => {
     )
 
     expect(enabled).toBe(false)
-    expect(updateProvider).toHaveBeenCalledOnce()
-    expect(updateProvider).toHaveBeenCalledWith({ isEnabled: true })
+    expect(updateProvider).toHaveBeenCalledTimes(2)
+    expect(updateProvider).toHaveBeenNthCalledWith(1, { isEnabled: true })
     expect(providerReorder.moveProviderToFirst).toHaveBeenCalledWith('cherryin')
+    expect(updateProvider).toHaveBeenNthCalledWith(2, { isEnabled: false })
     expect(loggerErrorSpy).toHaveBeenCalledWith(
       'Failed to move enabled provider to the top',
       expect.objectContaining({ providerId: 'cherryin', modelCount: 2, source: 'test', error: moveError })
