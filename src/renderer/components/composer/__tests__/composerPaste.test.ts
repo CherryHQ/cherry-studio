@@ -219,6 +219,46 @@ describe('composer paste handling', () => {
     })
   })
 
+  it('restores private folder tokens instead of downgrading to fallback text', () => {
+    const folderPath = '/Users/example/Notes/Project Notes'
+    const fragment = readComposerClipboardFragment(
+      JSON.stringify({
+        version: 1,
+        segments: [
+          { type: 'text', text: 'Read ' },
+          {
+            type: 'token',
+            fallbackText: folderPath,
+            token: {
+              id: 'folder:project-notes',
+              kind: 'folder',
+              label: 'Project Notes',
+              promptText: folderPath
+            }
+          },
+          { type: 'text', text: ' now' }
+        ]
+      })
+    )
+
+    expect(getComposerClipboardPasteOverride(fragment, {})).toEqual({
+      content: [
+        { type: 'text', text: 'Read ' },
+        {
+          type: 'composerToken',
+          attrs: {
+            id: 'folder:project-notes',
+            kind: 'folder',
+            label: 'Project Notes',
+            promptText: folderPath
+          }
+        },
+        { type: 'text', text: ' now' }
+      ],
+      files: []
+    })
+  })
+
   it('delegates text longer than the long-text threshold to the file handler', () => {
     expect(getComposerPlainTextPasteOverride('a'.repeat(1501), {})).toBeNull()
   })
