@@ -32,6 +32,7 @@ import { getCommandShortcutLabel } from '@renderer/utils/command'
 import { isMac, platform } from '@renderer/utils/platform'
 import type {
   MenuLocation,
+  MenuPresentationMode,
   NativePopupMenuItem,
   NativePopupMenuModel,
   ResolvedMenuItem,
@@ -702,7 +703,8 @@ export function CommandPopupMenu({
   onOpenChange,
   disabled,
   renderIcon,
-  extraItems = EMPTY_EXTRA_ITEMS
+  extraItems = EMPTY_EXTRA_ITEMS,
+  presentationMode
 }: {
   location: MenuLocation
   children: React.ReactNode
@@ -716,13 +718,14 @@ export function CommandPopupMenu({
   disabled?: boolean
   renderIcon?: CommandIconRenderer
   extraItems?: readonly CommandContextMenuExtraItem[]
+  presentationMode?: MenuPresentationMode
 }): React.ReactNode {
   const preferredMode = useCommandMenuPresentationMode()
   const context = useCommandContextReader()
   const shortcutPreferences = useCommandShortcutPreferences()
   const runtime = useCommandRuntime()
   const model = useResolvedCommandMenu(location)
-  const mode = resolveMenuPresentationMode(location, preferredMode ?? 'cherry')
+  const mode = resolveMenuPresentationMode(location, presentationMode ?? preferredMode ?? 'cherry')
   const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false)
   const currentOpen = open ?? internalOpen
   const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
