@@ -46,12 +46,34 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
   return (
     <>
       <div className="flex items-center gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <ProviderAvatar provider={provider} size={32} className="shrink-0 rounded-xl" />
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          {meta.officialWebsite ? (
+            <a
+              href={meta.officialWebsite}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 rounded-xl"
+              aria-label={`${meta.fancyProviderName} · ${t('settings.provider.api.official_website')}`}>
+              <ProviderAvatar provider={provider} size={32} className="rounded-xl" />
+            </a>
+          ) : (
+            <ProviderAvatar provider={provider} size={32} className="shrink-0 rounded-xl" />
+          )}
           <div className="min-w-0 self-center">
-            <div className="flex min-w-0 flex-wrap items-center gap-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <h1 className="truncate font-semibold text-[16px] text-foreground leading-tight">
-                {meta.fancyProviderName}
+                {meta.officialWebsite ? (
+                  <a
+                    href={meta.officialWebsite}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="truncate"
+                    aria-label={`${meta.fancyProviderName} · ${t('settings.provider.api.official_website')}`}>
+                    {meta.fancyProviderName}
+                  </a>
+                ) : (
+                  meta.fancyProviderName
+                )}
               </h1>
               {meta.docsWebsite && (
                 <Tooltip content={t('common.docs')}>

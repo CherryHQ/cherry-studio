@@ -4,7 +4,7 @@ import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/compon
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
 import type { Provider } from '@shared/data/types/provider'
-import { ChevronRight, Plus } from 'lucide-react'
+import { ChevronRight, GripVertical, Plus } from 'lucide-react'
 import { type ReactNode, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -68,7 +68,12 @@ export default function ProviderListGroup({
         onClick={onToggle}
         className={cn(providerListClasses.groupHeader, headerHighlight && providerListClasses.groupHeaderHasSelected)}>
         <div className={providerListClasses.itemMain}>
-          <span aria-hidden className={providerListClasses.itemDragHandleSpacer} />
+          <span
+            aria-hidden
+            data-testid={`provider-list-group-drag-handle-${presetProviderId}`}
+            className={providerListClasses.itemDragHandle}>
+            <GripVertical size={16} />
+          </span>
           <div className={providerListClasses.itemIdentity}>
             <ProviderAvatar
               provider={{ id: presetProviderId, name: label }}
@@ -76,13 +81,20 @@ export default function ProviderListGroup({
               className={providerListClasses.itemAvatar}
             />
             <span className={cn(providerListClasses.itemLabel, 'text-foreground')}>{label}</span>
-            <span className={providerListClasses.groupCount}>{members.length}</span>
           </div>
         </div>
-        <ChevronRight
-          size={12}
-          className={cn(providerListClasses.groupChevron, expanded && providerListClasses.groupChevronOpen)}
-        />
+        <div className={providerListClasses.groupTrailing}>
+          <span
+            data-testid={`provider-list-group-count-${presetProviderId}`}
+            className={providerListClasses.groupCount}>
+            {members.length}
+          </span>
+          <ChevronRight
+            size={12}
+            data-testid={`provider-list-group-chevron-${presetProviderId}`}
+            className={cn(providerListClasses.groupChevron, expanded && providerListClasses.groupChevronOpen)}
+          />
+        </div>
       </button>
       {expanded && (
         <div

@@ -1,4 +1,3 @@
-import { PageHeader } from '@cherrystudio/ui'
 import { useReorder } from '@data/hooks/useReorder'
 import ConfirmActionPopup from '@renderer/components/Popups/ConfirmActionPopup'
 import { useModels } from '@renderer/hooks/useModel'
@@ -263,19 +262,6 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   return (
     <aside className={`${providerListClasses.shell}`}>
-      <PageHeader
-        title={t('settings.provider.title')}
-        action={
-          <button
-            type="button"
-            aria-label={t('settings.provider.add.title')}
-            disabled={dragging}
-            onClick={startAdd}
-            className={providerListClasses.headerAddButton}>
-            <Plus size={16} strokeWidth={2.5} />
-          </button>
-        }
-      />
       <ProviderListSearchField
         value={searchText}
         disabled={dragging}
@@ -290,6 +276,17 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
           />
         }
       />
+      <div className={providerListClasses.addWrap}>
+        <button
+          type="button"
+          aria-label={t('settings.provider.add.button_title')}
+          disabled={dragging}
+          onClick={startAdd}
+          className={providerListClasses.addButton}>
+          <Plus size={14} strokeWidth={2.5} />
+          <span>{t('settings.provider.add.button_title')}</span>
+        </button>
+      </div>
       <ProviderListContent
         providers={providers}
         visibleProviders={filteredProviders}

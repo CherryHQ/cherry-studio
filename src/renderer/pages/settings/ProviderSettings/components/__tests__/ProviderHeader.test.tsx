@@ -103,12 +103,15 @@ describe('ProviderHeader', () => {
     render(<ProviderHeader providerId="35836b32-9bc1-40ab-9195-8b0b4ea3f342" />)
 
     expect(screen.getByText('反反复')).toBeInTheDocument()
+    expect(screen.getByText('反反复').closest('a')).toBeNull()
+    expect(screen.getByText('provider-avatar').closest('a')).toBeNull()
     expect(screen.queryByText('35836b32-9bc1-40ab-9195-8b0b4ea3f342')).not.toBeInTheDocument()
   })
 
-  it('keeps the provider name as text and makes only the docs icon a link', () => {
+  it('links the provider logo and name to the official website and keeps the docs icon linked to docs', () => {
     useProviderMetaMock.mockReturnValue({
       fancyProviderName: 'OpenAI',
+      officialWebsite: 'https://openai.com/',
       docsWebsite: 'https://platform.openai.com/docs',
       modelsWebsite: 'https://platform.openai.com/docs/models',
       showApiOptionsButton: false
@@ -116,7 +119,10 @@ describe('ProviderHeader', () => {
 
     render(<ProviderHeader providerId="openai" />)
 
-    expect(screen.getByText('OpenAI').closest('a')).toBeNull()
+    const officialLinks = screen.getAllByRole('link', { name: 'OpenAI · settings.provider.api.official_website' })
+    expect(officialLinks).toHaveLength(2)
+    expect(officialLinks[0]).toHaveAttribute('href', 'https://openai.com/')
+    expect(officialLinks[1]).toHaveAttribute('href', 'https://openai.com/')
     const docsLink = screen.getByRole('link', { name: 'OpenAI · common.docs' })
     expect(docsLink).toHaveAttribute('href', 'https://platform.openai.com/docs')
     expect(screen.queryByRole('link', { name: 'OpenAI · settings.models.list_title' })).not.toBeInTheDocument()

@@ -295,15 +295,18 @@ describe('ProviderList', () => {
     expect(screen.getByRole('button', { name: '筛选服务商' })).toBeInTheDocument()
   })
 
-  it('places add in the header and filter in the search row', () => {
+  it('places add above the provider list and filter in the search row', () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
-    const addButton = screen.getByRole('button', { name: /添加/i })
+    const addButton = screen.getByRole('button', { name: '添加服务商' })
     const filterButton = screen.getByRole('button', { name: '筛选服务商' })
     const searchWrap = screen.getByPlaceholderText('搜索模型平台...').closest('div')
+    const firstProvider = screen.getByTestId('provider-list-item-openai')
 
-    expect(addButton.compareDocumentPosition(filterButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(addButton).toHaveClass('size-7', 'text-primary')
+    expect(filterButton.compareDocumentPosition(addButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(addButton.compareDocumentPosition(firstProvider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(addButton).toHaveClass('h-8', 'w-full', 'border-dashed')
+    expect(searchWrap).toHaveClass('h-9')
     expect(searchWrap).toContainElement(filterButton)
     expect(searchWrap).not.toContainElement(addButton)
     expect(filterButton).toHaveClass('size-[22px]')

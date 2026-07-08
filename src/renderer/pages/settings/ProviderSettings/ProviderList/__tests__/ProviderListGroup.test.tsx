@@ -88,6 +88,45 @@ describe('ProviderListGroup', () => {
     expect(screen.getByTestId('provider-list-group-zhipu')).toBeInTheDocument()
   })
 
+  it('renders a drag handle in the group header', () => {
+    render(
+      <ProviderListGroup
+        presetProviderId="zhipu"
+        members={providers}
+        items={providers}
+        expanded={false}
+        containsSelected={false}
+        onToggle={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={() => {}}
+        renderItem={() => null}
+      />
+    )
+
+    expect(screen.getByTestId('provider-list-group-drag-handle-zhipu')).toBeInTheDocument()
+  })
+
+  it('places the group count before the chevron', () => {
+    render(
+      <ProviderListGroup
+        presetProviderId="zhipu"
+        members={providers}
+        items={providers}
+        expanded={false}
+        containsSelected={false}
+        onToggle={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={() => {}}
+        renderItem={() => null}
+      />
+    )
+
+    const count = screen.getByTestId('provider-list-group-count-zhipu')
+    const chevron = screen.getByTestId('provider-list-group-chevron-zhipu')
+
+    expect(count.compareDocumentPosition(chevron) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('stops pointer/key events in the expanded body from reaching the outer drag surface', () => {
     // The expanded body must swallow propagation so in-group row drag coexists
     // with group-block drag — without it, every inner pointerdown would also

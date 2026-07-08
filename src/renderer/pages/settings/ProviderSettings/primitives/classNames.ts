@@ -55,15 +55,13 @@ const providerListItemFrame =
 
 /** Provider list rows + detached menus. */
 export const providerListClasses = {
-  shell: 'flex h-full w-[232px] shrink-0 basis-[232px] flex-col border-border border-r-[0.5px]',
+  shell: 'flex h-full w-[248px] shrink-0 basis-[248px] flex-col border-border border-r-[0.5px]',
   headerIconButton:
     'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
-  headerAddButton:
-    'flex size-7 shrink-0 items-center justify-center rounded-md text-primary transition-colors hover:bg-accent/40 hover:text-primary disabled:pointer-events-none disabled:opacity-30',
   searchInlineAddButton:
     'flex size-[22px] shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent/40 disabled:pointer-events-none disabled:opacity-30',
-  searchRow: 'flex items-center gap-1.5 px-2.5 pb-2.5',
-  searchWrap: 'flex h-8 items-center gap-1 rounded-[10px] border border-border-muted bg-background py-1 pl-2.5 pr-1',
+  searchRow: 'flex items-center gap-1.5 px-2.5 pt-2.5',
+  searchWrap: 'flex h-9 items-center gap-1 rounded-[10px] border border-border-muted bg-background py-1 pl-2.5 pr-1',
   searchIcon: 'size-4 shrink-0 text-muted-foreground/60',
   searchInput:
     'min-w-0 flex-1 bg-transparent text-sm leading-none text-foreground/80 outline-none placeholder:text-muted-foreground/60',
@@ -74,9 +72,9 @@ export const providerListClasses = {
   sectionHeaderAfterEnabled: 'pt-2',
   sectionLabel: 'mb-0.5 text-xs leading-[1.2] text-foreground-muted',
   emptyState: 'flex h-full min-h-40 items-center justify-center px-3 text-center text-foreground-muted text-[14px]',
-  addWrap: 'shrink-0 border-t border-border-muted px-2.5 py-2',
+  addWrap: 'shrink-0 px-2.5 py-2',
   addButton:
-    'flex w-full items-center justify-center gap-1.5 rounded-lg border border-border-muted border-dashed bg-transparent py-[5px] text-xs text-foreground-muted shadow-none transition-colors hover:border-border hover:bg-accent/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
+    'flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-border-muted border-dashed bg-transparent text-xs text-foreground-muted shadow-none transition-colors hover:border-border hover:bg-accent/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
   item: providerListItemFrame,
   itemSelected: 'bg-muted',
   itemIdle: 'hover:bg-muted',
@@ -84,7 +82,6 @@ export const providerListClasses = {
   itemIdentity: 'flex min-w-0 flex-1 items-center gap-2.5',
   itemDragHandle:
     'flex w-2.5 shrink-0 items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[dragging=true]:opacity-100',
-  itemDragHandleSpacer: 'flex w-2.5 shrink-0',
   itemAvatar:
     'shrink-0 rounded-md border border-border/30 [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]',
   itemLabel: 'min-w-0 truncate text-sm leading-[1.35] text-foreground font-[weight:500]',
@@ -93,8 +90,9 @@ export const providerListClasses = {
   itemTrailingSlotIndicatorOnly: 'size-2',
   itemMenuContent: 'w-fit min-w-32 rounded-xl p-1.5',
   itemMenuEntry: 'h-8 rounded-lg px-2.5 text-sm',
-  groupHeader: cn(providerListItemFrame, 'hover:bg-muted'),
+  groupHeader: cn(providerListItemFrame, 'group/row pr-1.5 hover:bg-muted'),
   groupHeaderHasSelected: 'bg-muted',
+  groupTrailing: 'ml-2 flex shrink-0 items-center gap-3',
   groupChevron: 'shrink-0 text-muted-foreground/60 transition-transform duration-150',
   groupChevronOpen: 'rotate-90',
   groupCount: 'shrink-0 text-xs leading-none text-muted-foreground/60 tabular-nums',
@@ -103,7 +101,7 @@ export const providerListClasses = {
     'absolute top-1/2 right-0 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-accent/40 hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100',
   /** Enabled-state dot — shown when `provider.isEnabled` is true; hidden on row hover or focus so the kebab takes the slot. */
   itemEnabledDot:
-    'pointer-events-none absolute top-1/2 right-0.5 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
+    'pointer-events-none absolute top-1/2 right-1.5 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupAddRow:
     'flex w-full items-center gap-2 rounded-[10px] border border-dashed border-border-muted bg-transparent px-2 py-[6px] text-xs leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-border hover:bg-accent/40 hover:text-foreground',
   disclosureToggle:

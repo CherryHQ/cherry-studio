@@ -6864,6 +6864,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "新增服務商",
         "name": {
           "label": "提供者名稱",
           "placeholder": "例如：OpenAI",

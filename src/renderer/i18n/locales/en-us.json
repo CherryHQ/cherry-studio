@@ -6864,6 +6864,7 @@
     },
     "provider": {
       "add": {
+        "button_title": "Add Provider",
         "name": {
           "label": "Provider Name",
           "placeholder": "Example: OpenAI",
