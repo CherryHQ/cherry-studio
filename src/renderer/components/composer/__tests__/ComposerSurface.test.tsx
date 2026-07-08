@@ -7,7 +7,7 @@ import {
   writeComposerRichClipboardContent
 } from '@renderer/utils/message/composerClipboard'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -75,6 +75,11 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
+  Scrollbar: ({ children, className, ...props }: HTMLAttributes<HTMLDivElement>) => (
+    <div {...props} className={className} data-testid="composer-surface-scrollbar">
+      {children}
+    </div>
+  ),
   Popover: ({ children }: { children: ReactNode }) => <>{children}</>,
   PopoverContent: ({ children }: { children: ReactNode }) => <span data-testid="popover-content">{children}</span>,
   PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -2010,9 +2015,8 @@ describe('ComposerSurface', () => {
     )
 
     expect(screen.getByRole('button', { name: 'common.delete' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.delete' })).toHaveClass('size-6', 'rounded-md')
-    expect(screen.getByRole('button', { name: 'common.delete' })).not.toHaveClass('size-7')
-    expect(screen.getByRole('button', { name: 'common.delete' })).not.toHaveClass('rounded-full')
+    expect(screen.getByRole('button', { name: 'common.delete' })).toHaveClass('size-full', 'rounded-[5px]')
+    expect(screen.getByRole('button', { name: 'common.delete' })).toHaveAttribute('data-composer-token-remove')
     expect(screen.queryByRole('button', { name: 'chat.input.paste_text_file' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
@@ -2061,10 +2065,12 @@ describe('ComposerSurface', () => {
     const deleteButton = screen.getByRole('button', { name: 'common.delete' })
     expect(deleteButton).toBeInTheDocument()
     const actionContainer = document.querySelector('[data-file-token-actions]')!
-    expect(actionContainer).toHaveClass('grid', 'grid-cols-[minmax(0,1fr)_auto]', 'gap-y-1')
+    expect(actionContainer).toHaveClass('flex', 'justify-end')
     const actionButtons = Array.from(actionContainer.querySelectorAll('button'))
-    expect(actionButtons[0]).toBe(deleteButton)
-    expect(actionButtons[1]).toBe(showInInputButton)
+    expect(actionButtons).toEqual([showInInputButton])
+    expect(deleteButton).toHaveAttribute('data-composer-token-remove')
+    const textScrollbar = document.querySelector('[data-file-token-text-scrollbar]')
+    expect(textScrollbar).toHaveClass('max-h-44', 'min-h-24', 'overflow-x-hidden')
 
     fireEvent.click(showInInputButton)
 
