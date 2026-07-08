@@ -600,8 +600,10 @@ const ChatComposerInner = ({
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const mentionedModelsRef = useLatest(mentionedModels)
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
+  const skipDraftCacheWriteForHistoryPreviewRef = useRef(false)
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
+      skipDraftCacheWriteForHistoryPreviewRef.current = options.source === 'history'
       setText(historyDraft.text)
       setDraftTokens(historyDraft.tokens.length ? historyDraft.tokens : undefined)
 
@@ -637,6 +639,7 @@ const ChatComposerInner = ({
     (nextText: string) => {
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
+      skipDraftCacheWriteForHistoryPreviewRef.current = false
       setText(nextText)
     },
     [resetHistoryIndex]
@@ -737,6 +740,10 @@ const ChatComposerInner = ({
   useEffect(() => {
     if (!persistedOnceRef.current) {
       persistedOnceRef.current = true
+      return
+    }
+    if (skipDraftCacheWriteForHistoryPreviewRef.current) {
+      skipDraftCacheWriteForHistoryPreviewRef.current = false
       return
     }
     if (editingMessage) return

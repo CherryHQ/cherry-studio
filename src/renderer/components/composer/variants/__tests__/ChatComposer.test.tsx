@@ -1502,6 +1502,46 @@ describe('ChatComposer', () => {
     })
   })
 
+  it('does not overwrite the cached draft while previewing input history', async () => {
+    seedInputHistory(['history entry'])
+    mocks.getDraft.mockImplementation(() => ({
+      text: mocks.surfaceProps?.text ?? '',
+      tokens: []
+    }))
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('real draft')
+    })
+    await waitFor(() => {
+      expect(cacheService.setCasual).toHaveBeenCalledWith(
+        'inputbar-draft',
+        { text: 'real draft', tokens: [], files: [] },
+        expect.any(Number)
+      )
+    })
+    vi.mocked(cacheService.setCasual).mockClear()
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
+
+    expect(cacheService.setCasual).not.toHaveBeenCalled()
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
+    })
+    await waitFor(() => {
+      expect(cacheService.setCasual).toHaveBeenCalledWith(
+        'inputbar-draft',
+        { text: 'real draft', tokens: [], files: [] },
+        expect.any(Number)
+      )
+    })
+  })
+
   it('wires ArrowDown input history navigation to restore the entry draft', async () => {
     seedInputHistory(['history entry'])
 

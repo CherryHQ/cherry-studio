@@ -888,21 +888,15 @@ const AgentComposerInner = ({
   }, [t, userWorkspacePath])
 
   const setText = useCallback(
-    (nextText: string) => {
+    (nextText: string, options: { persist?: boolean } = {}) => {
       clearTimeoutTimer('agentComposerSendMessage')
       textRef.current = nextText
       setTextState(nextText)
-      writeAgentDraftCache(draftCacheKey, nextText, draftTokensRef.current)
+      if (options.persist ?? true) {
+        writeAgentDraftCache(draftCacheKey, nextText, draftTokensRef.current)
+      }
     },
     [clearTimeoutTimer, draftCacheKey]
-  )
-  const previewText = useCallback(
-    (nextText: string) => {
-      clearTimeoutTimer('agentComposerSendMessage')
-      textRef.current = nextText
-      setTextState(nextText)
-    },
-    [clearTimeoutTimer]
   )
   const filesRef = useLatest(files)
   const inputHistoryFilesRef = useRef<ComposerAttachment[] | null>(null)
@@ -910,11 +904,7 @@ const AgentComposerInner = ({
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       const nextSkillTokens = getCachedSkillTokens(historyDraft.tokens)
       const persistDraft = options.source === 'draft'
-      if (persistDraft) {
-        setText(historyDraft.text)
-      } else {
-        previewText(historyDraft.text)
-      }
+      setText(historyDraft.text, { persist: false })
       setDraftTokens(nextSkillTokens)
       draftTokensRef.current = nextSkillTokens
       if (persistDraft) {
@@ -933,7 +923,7 @@ const AgentComposerInner = ({
       if (!savedFiles) return
       setFiles(savedFiles)
     },
-    [draftCacheKey, filesRef, previewText, setFiles, setText]
+    [draftCacheKey, filesRef, setFiles, setText]
   )
   const { navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft
