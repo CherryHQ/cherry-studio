@@ -848,25 +848,34 @@ describe('JobManager integration', () => {
       })
       const db = MockMainDbServiceExport.dbService.getDb() as DbType
 
-      let handle!: JobHandle
-      db.transaction(
-        (tx) => {
-          handle = jobManager.enqueueTx(
-            tx,
-            'tx.delayed' as never,
-            { message: 'later', sleepMs: 5 } as never,
-            {
-              scheduledAt: Date.now() + 150
-            } as never
-          )
-        },
-        { behavior: 'immediate' }
-      )
+      vi.useFakeTimers()
+      try {
+        let handle!: JobHandle
+        db.transaction(
+          (tx) => {
+            handle = jobManager.enqueueTx(
+              tx,
+              'tx.delayed' as never,
+              { message: 'later', sleepMs: 5 } as never,
+              {
+                scheduledAt: Date.now() + 150
+              } as never
+            )
+          },
+          { behavior: 'immediate' }
+        )
 
-      expect(handle.snapshot.status).toBe('delayed')
+        expect(handle.snapshot.status).toBe('delayed')
 
-      const settled = await handle.finished
-      expect(settled.status).toBe('completed')
+        await Promise.resolve()
+        await vi.advanceTimersByTimeAsync(150)
+        await vi.advanceTimersByTimeAsync(5)
+
+        const settled = await handle.finished
+        expect(settled.status).toBe('completed')
+      } finally {
+        vi.useRealTimers()
+      }
 
       await drainAllQueues(jobManager)
       await teardownManager(scheduler, jobManager)
