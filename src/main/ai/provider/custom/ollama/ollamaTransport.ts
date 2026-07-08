@@ -1,3 +1,4 @@
+import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { Agent } from 'undici'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
@@ -18,6 +19,9 @@ import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../im
 // can even start generating routinely exceeds undici's default 300s fetch
 // timeout, which surfaces as an opaque "fetch failed" — give this transport a
 // longer one. Module-level singleton so repeated calls reuse the connection pool.
+// Only applies to the global-fetch fallback below: an injected `fetch` (e.g.
+// Electron's proxy-aware `customFetch`, wired in via `ollamaProvider.ts`) rides
+// on Chromium's network stack, which has no analogous default timeout to trip.
 const IMAGE_GENERATION_TIMEOUT_MS = 15 * 60 * 1000
 const longRunningDispatcher = new Agent({
   headersTimeout: IMAGE_GENERATION_TIMEOUT_MS,
@@ -28,21 +32,26 @@ export interface OllamaTransportSettings {
   /** Already carries the `/api` suffix, matching `ollama-ai-provider-v2`'s own baseURL convention. */
   baseURL: string
   headers?: Record<string, string>
+  /** Caller-injected fetch (e.g. the proxy-aware `customFetch`); falls back to global `fetch` when unset. */
+  fetch?: FetchFunction
 }
 
 class OllamaTransport implements ImageGenerationTransport {
   private baseURL: string
   private headers: Record<string, string>
+  private fetch?: FetchFunction
 
   constructor(settings: OllamaTransportSettings) {
     this.baseURL = settings.baseURL
     this.headers = settings.headers ?? {}
+    this.fetch = settings.fetch
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const [width, height] = input.size?.split('x').map(Number) ?? []
     const steps = input.providerParams.steps
-    const response = await fetch(`${this.baseURL}/generate`, {
+    const fetchImpl = this.fetch ?? fetch
+    const response = await fetchImpl(`${this.baseURL}/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...this.headers },
       body: JSON.stringify({
@@ -54,7 +63,7 @@ class OllamaTransport implements ImageGenerationTransport {
         ...(typeof steps === 'number' && { steps })
       }),
       signal: input.signal,
-      dispatcher: longRunningDispatcher
+      ...(this.fetch ? {} : { dispatcher: longRunningDispatcher })
     } as RequestInit)
 
     if (!response.ok) {

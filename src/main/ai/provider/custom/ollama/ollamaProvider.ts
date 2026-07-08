@@ -21,7 +21,7 @@ export function createOllamaWithImageModel(settings: OllamaProviderSettings = {}
   const provider = createOllama(settings)
 
   const baseURL = withoutTrailingSlash(settings.baseURL) ?? DEFAULT_OLLAMA_BASE_URL
-  const transport = createOllamaTransport({ baseURL, headers: settings.headers })
+  const transport = createOllamaTransport({ baseURL, headers: settings.headers, fetch: settings.fetch })
 
   provider.imageModel = (modelId: string): ImageModelV3 =>
     createImageGenerationModel(modelId, { provider: OLLAMA_PROVIDER_NAME, transport })

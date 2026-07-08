@@ -49,4 +49,14 @@ describe('createOllamaWithImageModel', () => {
     createOllamaWithImageModel({})
     expect(TransportCtor).toHaveBeenCalledWith({ baseURL: 'http://127.0.0.1:11434/api', headers: undefined })
   })
+
+  it('forwards the caller-injected fetch (e.g. the proxy-aware customFetch) to the transport', () => {
+    const injectedFetch = vi.fn()
+    createOllamaWithImageModel({ baseURL: 'http://localhost:11434/api', fetch: injectedFetch })
+    expect(TransportCtor).toHaveBeenCalledWith({
+      baseURL: 'http://localhost:11434/api',
+      headers: undefined,
+      fetch: injectedFetch
+    })
+  })
 })

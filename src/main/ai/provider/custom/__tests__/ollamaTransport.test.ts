@@ -108,6 +108,32 @@ describe('OllamaTransport', () => {
     expect(init.dispatcher).toBeInstanceOf(MockAgent)
   })
 
+  it('prefers an injected fetch (e.g. the proxy-aware customFetch) over global fetch, and skips the dispatcher', async () => {
+    const injectedFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ image: 'QUJD' }), { status: 200 }))
+    const globalFetchSpy = vi.spyOn(globalThis, 'fetch')
+    const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api', fetch: injectedFetch })
+
+    await transport.submit({ ...baseInput, prompt: 'a cat' })
+
+    expect(injectedFetch).toHaveBeenCalledTimes(1)
+    expect(globalFetchSpy).not.toHaveBeenCalled()
+    const init = injectedFetch.mock.calls[0][1] as RequestInit & { dispatcher?: unknown }
+    expect(init.dispatcher).toBeUndefined()
+  })
+
+  it('falls back to global fetch with the long-timeout dispatcher when no fetch is injected', async () => {
+    const transport = createOllamaTransport({ baseURL: 'http://localhost:11434/api' })
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ image: 'QUJD' }), { status: 200 }))
+
+    await transport.submit({ ...baseInput, prompt: 'a cat' })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const init = fetchMock.mock.calls[0][1] as RequestInit & { dispatcher?: unknown }
+    expect(init.dispatcher).toBeInstanceOf(MockAgent)
+  })
+
   it('merges custom headers with Content-Type', async () => {
     const transport = createOllamaTransport({
       baseURL: 'http://localhost:11434/api',

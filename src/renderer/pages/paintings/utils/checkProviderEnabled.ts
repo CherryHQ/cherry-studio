@@ -11,19 +11,25 @@ import type { PaintingProviderRuntime } from '../model/types/paintingProviderRun
  * call doesn't trip on OVMS's local OpenVINO Model Server or a local Ollama
  * instance. An API key stays optional, not disabled — if one is configured
  * (e.g. a reverse-proxied Ollama) it's still sent, this just stops the
- * mandatory pre-flight check from blocking the common keyless case.
+ * mandatory pre-flight check from blocking the common keyless case. This
+ * exempts the API key requirement only — a disabled provider is still
+ * disabled, see `checkProviderEnabled`.
  */
 export const NO_AUTH_PROVIDER_IDS: ReadonlySet<string> = new Set(['ovms', 'ollama'])
+
+/** Matches a provider (or a preset it was copied from, e.g. a duplicated Ollama entry) against `NO_AUTH_PROVIDER_IDS`. */
+export function isNoAuthProvider(provider: Pick<PaintingProviderRuntime, 'id' | 'presetProviderId'>): boolean {
+  return (
+    NO_AUTH_PROVIDER_IDS.has(provider.id) ||
+    (!!provider.presetProviderId && NO_AUTH_PROVIDER_IDS.has(provider.presetProviderId))
+  )
+}
 
 function navigateToProviderSettings(providerId: string) {
   openSettingsTab(`/settings/provider?id=${encodeURIComponent(providerId)}`)
 }
 
 export async function checkProviderEnabled(provider: PaintingProviderRuntime): Promise<string> {
-  if (NO_AUTH_PROVIDER_IDS.has(provider.id)) {
-    return ''
-  }
-
   if (!provider.isEnabled) {
     if (
       await popup.warning({
@@ -36,6 +42,10 @@ export async function checkProviderEnabled(provider: PaintingProviderRuntime): P
       navigateToProviderSettings(provider.id)
     }
     throw 'Provider disabled'
+  }
+
+  if (isNoAuthProvider(provider)) {
+    return ''
   }
 
   const apiKey = await provider.getApiKey()

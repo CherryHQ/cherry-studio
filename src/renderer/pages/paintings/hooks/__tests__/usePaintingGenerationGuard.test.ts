@@ -113,33 +113,51 @@ describe('usePaintingGenerationGuard', () => {
     })
   })
 
-  it('exempts keyless local providers (OVMS) from the enable / API key checks', async () => {
-    // A running OVMS provider is selectable with no API key and may report
-    // `isEnabled: false`; the guard must defer to the model availability check
-    // instead of rejecting it with provider_disabled / no_api_key.
+  it.each([
+    { id: 'ovms', name: 'OpenVINO Model Server', apiHost: 'http://localhost:8000', model: 'ovms-model' },
+    { id: 'ollama', name: 'Ollama', apiHost: 'http://localhost:11434', model: 'x/z-image-turbo:latest' }
+  ])(
+    'still blocks a disabled keyless local provider ($id) with provider_disabled',
+    async ({ id, name, apiHost, model }) => {
+      // Keyless-local status only exempts the API key check — a disabled provider must still block.
+      vi.mocked(usePaintingProviderRuntime).mockReturnValue({
+        provider: { id, name, apiHost, isEnabled: false, getApiKey: vi.fn(async () => '') },
+        isLoading: false
+      })
+      const { result } = renderGuard({
+        painting: { providerId: id, mode: 'generate', model },
+        ensureCurrentCatalog: vi.fn(async () => [{ label: name, value: model }])
+      })
+
+      await expect(result.current.validateBeforeGenerate()).resolves.toEqual({
+        ok: false,
+        reason: 'provider_disabled'
+      })
+    }
+  )
+
+  it.each([
+    { id: 'ovms', name: 'OpenVINO Model Server', apiHost: 'http://localhost:8000', model: 'ovms-model' },
+    { id: 'ollama', name: 'Ollama', apiHost: 'http://localhost:11434', model: 'x/z-image-turbo:latest' }
+  ])('exempts an enabled keyless local provider ($id) from the API key check', async ({ id, name, apiHost, model }) => {
     vi.mocked(usePaintingProviderRuntime).mockReturnValue({
-      provider: {
-        id: 'ovms',
-        name: 'OpenVINO Model Server',
-        apiHost: 'http://localhost:8000',
-        isEnabled: false,
-        getApiKey: vi.fn(async () => '')
-      },
+      provider: { id, name, apiHost, isEnabled: true, getApiKey: vi.fn(async () => '') },
       isLoading: false
     })
     const { result } = renderGuard({
-      painting: { providerId: 'ovms', mode: 'generate', model: 'ovms-model' },
-      ensureCurrentCatalog: vi.fn(async () => [{ label: 'OVMS Model', value: 'ovms-model' }])
+      painting: { providerId: id, mode: 'generate', model },
+      ensureCurrentCatalog: vi.fn(async () => [{ label: name, value: model }])
     })
 
     await expect(result.current.validateBeforeGenerate()).resolves.toEqual({ ok: true })
   })
 
-  it('exempts keyless local providers (Ollama) from the enable / API key checks', async () => {
+  it('still blocks a disabled provider copied from the Ollama preset (matched via presetProviderId, not id) with provider_disabled', async () => {
     vi.mocked(usePaintingProviderRuntime).mockReturnValue({
       provider: {
-        id: 'ollama',
-        name: 'Ollama',
+        id: 'ollama-2',
+        name: 'Ollama (copy)',
+        presetProviderId: 'ollama',
         apiHost: 'http://localhost:11434',
         isEnabled: false,
         getApiKey: vi.fn(async () => '')
@@ -147,7 +165,30 @@ describe('usePaintingGenerationGuard', () => {
       isLoading: false
     })
     const { result } = renderGuard({
-      painting: { providerId: 'ollama', mode: 'generate', model: 'x/z-image-turbo:latest' },
+      painting: { providerId: 'ollama-2', mode: 'generate', model: 'x/z-image-turbo:latest' },
+      ensureCurrentCatalog: vi.fn(async () => [{ label: 'x/z-image-turbo', value: 'x/z-image-turbo:latest' }])
+    })
+
+    await expect(result.current.validateBeforeGenerate()).resolves.toEqual({
+      ok: false,
+      reason: 'provider_disabled'
+    })
+  })
+
+  it('exempts a provider copied from the Ollama preset (matched via presetProviderId, not id) from the API key check', async () => {
+    vi.mocked(usePaintingProviderRuntime).mockReturnValue({
+      provider: {
+        id: 'ollama-2',
+        name: 'Ollama (copy)',
+        presetProviderId: 'ollama',
+        apiHost: 'http://localhost:11434',
+        isEnabled: true,
+        getApiKey: vi.fn(async () => '')
+      },
+      isLoading: false
+    })
+    const { result } = renderGuard({
+      painting: { providerId: 'ollama-2', mode: 'generate', model: 'x/z-image-turbo:latest' },
       ensureCurrentCatalog: vi.fn(async () => [{ label: 'x/z-image-turbo', value: 'x/z-image-turbo:latest' }])
     })
 
