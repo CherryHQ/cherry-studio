@@ -202,6 +202,31 @@ describe('runUserDataRelocationGate', () => {
     expect(wm.restartApp).toHaveBeenCalled()
   })
 
+  it('ready barrier failure persists failed status and restarts headlessly', async () => {
+    stubElectron(true)
+    const store = stubBootConfig({ status: 'pending', from: '/old', to: '/new/data', copy: false })
+    stubFsAndFsp()
+    stubDeps()
+    wm.waitForReady.mockRejectedValue(new Error('Relocation window failed to load: ERR_ABORTED'))
+    wm.shouldRestartAfterTerminalFailure.mockReturnValue(true)
+
+    const { runUserDataRelocationGate } = await loadGate()
+    const result = await runUserDataRelocationGate()
+
+    expect(result).toBe('handled')
+    expect(commitRelocation).not.toHaveBeenCalled()
+    expect(store['temp.user_data_relocation']).toMatchObject({
+      status: 'failed',
+      from: '/old',
+      to: '/new/data',
+      error: expect.stringMatching(/failed to load/i)
+    })
+    expect(wm.sendProgress).toHaveBeenCalledWith(
+      expect.objectContaining({ stage: 'failed', error: expect.stringMatching(/failed to load/i) })
+    )
+    expect(wm.restartApp).toHaveBeenCalledTimes(1)
+  })
+
   it('pending + copy=false: preflight failure persists failed status and no commit', async () => {
     stubElectron(true)
     const store = stubBootConfig({ status: 'pending', from: '/same', to: '/same', copy: false })

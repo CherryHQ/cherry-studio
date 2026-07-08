@@ -91,14 +91,15 @@ export async function runUserDataRelocationGate(): Promise<RelocationGateResult>
   await app.whenReady()
   registerRelocationIpcHandlers()
   relocationWindowManager.create()
-  await relocationWindowManager.waitForReady()
-
-  // Paint the window immediately so the user sees "preparing" before the
-  // (potentially slow) byte-total computation begins.
-  currentProgress = makeProgress('preparing', pending, 0, 0)
-  relocationWindowManager.sendProgress(currentProgress)
 
   try {
+    await relocationWindowManager.waitForReady()
+
+    // Paint the window immediately so the user sees "preparing" before the
+    // (potentially slow) byte-total computation begins.
+    currentProgress = makeProgress('preparing', pending, 0, 0)
+    relocationWindowManager.sendProgress(currentProgress)
+
     preflight(pending.from, pending.to, pending.copy, pending.overwriteExisting ?? false)
 
     if (pending.copy) {

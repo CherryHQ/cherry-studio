@@ -77,6 +77,48 @@ beforeEach(() => {
 })
 
 describe('RelocationWindowManager renderer loss handling', () => {
+  it('rejects waitForReady and marks headless when the window fails to load before ready', async () => {
+    const { RelocationWindowManager } = await loadWindowManager()
+    const manager = new RelocationWindowManager()
+    manager.create()
+
+    const ready = manager.waitForReady()
+    FakeBrowserWindow.lastCreated!.webContents.emit('did-fail-load', {}, -3, 'ERR_ABORTED', 'file://relocation', true)
+
+    await expect(ready).rejects.toThrow(/failed to load/i)
+    expect(manager.shouldRestartAfterTerminalFailure()).toBe(true)
+  })
+
+  it('rejects waitForReady and marks headless when the window closes before ready', async () => {
+    const { RelocationWindowManager } = await loadWindowManager()
+    const manager = new RelocationWindowManager()
+    manager.create()
+
+    const ready = manager.waitForReady()
+    FakeBrowserWindow.lastCreated!.emit('closed')
+
+    await expect(ready).rejects.toThrow(/closed before ready/i)
+    expect(manager.shouldRestartAfterTerminalFailure()).toBe(true)
+  })
+
+  it('rejects waitForReady and marks headless when the window never becomes ready', async () => {
+    vi.useFakeTimers()
+    try {
+      const { RelocationWindowManager } = await loadWindowManager()
+      const manager = new RelocationWindowManager()
+      manager.create()
+
+      const ready = manager.waitForReady()
+      const readyAssertion = expect(ready).rejects.toThrow(/did not become ready/i)
+      await vi.advanceTimersByTimeAsync(30_000)
+
+      await readyAssertion
+      expect(manager.shouldRestartAfterTerminalFailure()).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('continues headlessly instead of relaunching when the renderer process dies during copying', async () => {
     const { RelocationWindowManager } = await loadWindowManager()
     const manager = new RelocationWindowManager()
@@ -105,6 +147,9 @@ describe('RelocationWindowManager renderer loss handling', () => {
     const { RelocationWindowManager } = await loadWindowManager()
     const manager = new RelocationWindowManager()
     manager.create()
+    const ready = manager.waitForReady()
+    FakeBrowserWindow.lastCreated!.webContents.emit('did-finish-load')
+    await ready
     manager.setStage('failed')
 
     FakeBrowserWindow.lastCreated!.webContents.emit('render-process-gone', {}, { reason: 'crashed' })
