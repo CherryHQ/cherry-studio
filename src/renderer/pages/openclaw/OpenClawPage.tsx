@@ -10,6 +10,7 @@ import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { loggerService } from '@renderer/services/LoggerService'
+import { toast } from '@renderer/services/toast'
 import { type Model as SharedModel } from '@shared/data/types/model'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -404,9 +405,9 @@ const OpenClawPage: FC = () => {
                   onClick={async () => {
                     try {
                       await navigator.clipboard.writeText(installPath)
-                      window.toast.success(t('common.copied'))
+                      toast.success(t('common.copied'))
                     } catch (error) {
-                      window.toast.error(t('common.copy_failed'))
+                      toast.error(t('common.copy_failed'))
                       logger.error('Failed to copy install path:', error as Error)
                     }
                   }}>
@@ -471,9 +472,9 @@ const OpenClawPage: FC = () => {
                     onClick={async () => {
                       try {
                         await navigator.clipboard.writeText(error)
-                        window.toast.success(t('common.copied'))
+                        toast.success(t('common.copied'))
                       } catch (err) {
-                        window.toast.error(t('common.copy_failed'))
+                        toast.error(t('common.copy_failed'))
                         logger.error('Failed to copy error message:', err as Error)
                       }
                     }}>

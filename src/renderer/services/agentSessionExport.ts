@@ -1,6 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { exportMarkdownContentAsFile, messagesToMarkdown } from '@renderer/services/ExportService'
+import { toast } from '@renderer/services/toast'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Model } from '@renderer/types/model'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -117,10 +118,10 @@ export async function copyAgentSessionAsMarkdown(
   try {
     const markdown = await agentSessionToMarkdown(session, undefined, undefined, options)
     await navigator.clipboard.writeText(markdown)
-    window.toast.success(i18next.t('message.copy.success'))
+    toast.success(i18next.t('message.copy.success'))
   } catch (error) {
     logger.error('Failed to copy agent session as markdown', error as Error, { sessionId: session.id })
-    window.toast.error(i18next.t('common.copy_failed'))
+    toast.error(i18next.t('common.copy_failed'))
   }
 }
 
@@ -131,10 +132,10 @@ export async function copyAgentSessionAsPlainText(
   try {
     const plainText = await agentSessionToPlainText(session, options)
     await navigator.clipboard.writeText(plainText)
-    window.toast.success(i18next.t('message.copy.success'))
+    toast.success(i18next.t('message.copy.success'))
   } catch (error) {
     logger.error('Failed to copy agent session as plain text', error as Error, { sessionId: session.id })
-    window.toast.error(i18next.t('common.copy_failed'))
+    toast.error(i18next.t('common.copy_failed'))
   }
 }
 
@@ -149,6 +150,6 @@ export async function exportAgentSessionAsMarkdown(
     await exportMarkdownContentAsFile(getAgentSessionExportTitle(session), markdown)
   } catch (error) {
     logger.error('Failed to export agent session as markdown', error as Error, { sessionId: session.id })
-    window.toast.error(i18next.t('chat.topics.export.failed'))
+    toast.error(i18next.t('chat.topics.export.failed'))
   }
 }

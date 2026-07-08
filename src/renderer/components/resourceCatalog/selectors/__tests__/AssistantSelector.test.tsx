@@ -131,6 +131,7 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '@renderer/components/SelectorShell'
+import { toast } from '@renderer/services/toast'
 
 import { AssistantSelector } from '../AssistantSelector'
 
@@ -221,8 +222,6 @@ const ASSISTANTS_RESPONSE = {
   page: 1
 } as const
 
-const toastErrorMock = vi.fn()
-
 beforeAll(() => {
   globalThis.ResizeObserver = class {
     observe() {}
@@ -239,7 +238,6 @@ beforeAll(() => {
     HTMLElement.prototype.setPointerCapture = () => {}
   }
   HTMLElement.prototype.scrollIntoView = () => {}
-  window.toast = { error: toastErrorMock } as unknown as typeof window.toast
 })
 
 beforeEach(() => {
@@ -512,7 +510,7 @@ describe('AssistantSelector', () => {
 
     await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
 
-    expect(toastErrorMock).toHaveBeenCalledWith('Created, but refresh failed')
+    expect(toast.error).toHaveBeenCalledWith('Created, but refresh failed')
     await waitFor(() => expect(screen.getByPlaceholderText('Search assistants')).toBeInTheDocument())
   })
 })

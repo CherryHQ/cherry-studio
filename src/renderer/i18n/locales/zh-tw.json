@@ -1453,7 +1453,7 @@
         "pause": "暫停自動傳送",
         "remove": "移除",
         "resume": "恢復自動傳送",
-        "steer": "插入目前回合",
+        "steer": "插入訊息",
         "title": "排隊中 ({{count}})"
       },
       "generate_image": "產生圖片",

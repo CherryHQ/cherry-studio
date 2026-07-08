@@ -2,6 +2,7 @@ import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@ch
 import { useProvider } from '@renderer/hooks/useProvider'
 import { fieldClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { Check, ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
@@ -51,7 +52,7 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
       try {
         await updateProvider({ endpointConfigs: newEndpointConfigs })
       } catch {
-        window.toast.error(t('settings.provider.save_failed'))
+        toast.error(t('settings.provider.save_failed'))
       }
     },
     [provider?.endpointConfigs, t, updateProvider]

@@ -14,6 +14,7 @@ import { loggerService } from '@logger'
 import LogoAvatar from '@renderer/components/icons/LogoAvatar'
 import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { toast } from '@renderer/services/toast'
 import { compressImage, convertToBase64 } from '@renderer/utils/image'
 import { uuid } from '@renderer/utils/uuid'
 import { MINI_APP_LOGO_MAX_LENGTH, MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
@@ -117,7 +118,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
     } catch (error) {
       if (uploadGenerationRef.current !== uploadGeneration) return
       logger.error('Failed to process uploaded custom mini app logo', error as Error)
-      window.toast.error(t('settings.miniApps.custom.logo_upload_error'))
+      toast.error(t('settings.miniApps.custom.logo_upload_error'))
     } finally {
       if (uploadGenerationRef.current === uploadGeneration) {
         setLogoProcessing(false)
@@ -128,7 +129,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
   const handleSubmit = async () => {
     const trimmedUrl = url.trim()
     if (!MiniAppUrlSchema.safeParse(trimmedUrl).success) {
-      window.toast.error(t('settings.miniApps.custom.url_invalid'))
+      toast.error(t('settings.miniApps.custom.url_invalid'))
       return
     }
 
@@ -150,10 +151,10 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
           logo: logo.trim() || 'application'
         })
       }
-      window.toast.success(t('settings.miniApps.custom.save_success'))
+      toast.success(t('settings.miniApps.custom.save_success'))
       handleClose()
     } catch (error) {
-      window.toast.error(t('settings.miniApps.custom.save_error'))
+      toast.error(t('settings.miniApps.custom.save_error'))
       logger.error('Failed to save custom mini app:', error as Error)
     } finally {
       setSubmitting(false)

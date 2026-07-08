@@ -133,6 +133,16 @@ vi.mock('@renderer/components/Popups/SaveToKnowledgePopup', () => ({
   default: { showForTopic: vi.fn() }
 }))
 
+// The confirm-and-run dialog itself is covered by its own unit test; here we just let it run
+// the gated action (as if the user confirmed).
+const { confirmActionShow } = vi.hoisted(() => ({
+  confirmActionShow: vi.fn(async (options?: { action?: () => unknown }) => {
+    await options?.action?.()
+    return true
+  })
+}))
+vi.mock('@renderer/components/Popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
+
 vi.mock('@renderer/services/copy', () => ({
   copyTopicAsMarkdown: vi.fn(),
   copyTopicAsPlainText: vi.fn()
@@ -319,17 +329,8 @@ function setupAgentHistory({
 describe('HistoryRecordsPage agent mode', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="agent-page"></div><div id="home-page"></div>'
-    Object.assign(window, {
-      modal: {
-        confirm: vi.fn()
-      },
-      toast: {
-        error: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn()
-      }
-    })
     MockCacheUtils.resetMocks()
+    confirmActionShow.mockClear()
     hookMocks.deleteSession.mockReset()
     hookMocks.deleteSession.mockResolvedValue(true)
     hookMocks.deleteSessions.mockReset()
@@ -917,12 +918,9 @@ describe('HistoryRecordsPage agent mode', () => {
       await flushCommandMenuAction()
     })
 
-    expect(window.modal.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete task' }))
-    expect(hookMocks.deleteSession).not.toHaveBeenCalled()
+    expect(confirmActionShow).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete task' }))
 
-    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 
@@ -943,9 +941,7 @@ describe('HistoryRecordsPage agent mode', () => {
       await flushCommandMenuAction()
     })
 
-    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 
@@ -964,9 +960,7 @@ describe('HistoryRecordsPage agent mode', () => {
       await flushCommandMenuAction()
     })
 
-    const confirmOptions = vi.mocked(window.modal.confirm).mock.calls.at(-1)?.[0]
     await act(async () => {
-      await confirmOptions?.onOk?.()
       await flushAnimationFrame()
     })
 
