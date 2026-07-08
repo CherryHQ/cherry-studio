@@ -151,6 +151,85 @@ describe('imageGenerationJobHandler.execute', () => {
     )
   })
 
+  it('legacy submit: falls back to providerParams.modelDescriptor when the typed field is absent', async () => {
+    // Jobs enqueued before modelDescriptor became a typed payload field carried it
+    // inside the vendor bag instead. A job still queued across that upgrade must
+    // still route correctly.
+    const legacyDescriptor = { id: 'qwen-image', endpoint: '/v3/async/qwen-image', isSync: false }
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/legacy.png'] })
+
+    const ctx = createCtx({
+      input: {
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        n: 1,
+        providerParams: { modelDescriptor: legacyDescriptor }
+      }
+    })
+    await imageGenerationJobHandler.execute(ctx)
+
+    const submitArg = submitMock.mock.calls[0][0]
+    expect(submitArg.modelDescriptor).toEqual(legacyDescriptor)
+  })
+
+  it('legacy resume: falls back to providerParams.modelDescriptor for a persisted poll', async () => {
+    const legacyDescriptor = { id: 'qwen-image', endpoint: '/v3/async/qwen-image', isSync: false }
+    pollMock.mockResolvedValue(['https://cdn.example.com/legacy-resume.png'])
+
+    const ctx = createCtx({
+      metadata: { taskId: 'resumed-task' },
+      input: {
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        n: 1,
+        providerParams: { modelDescriptor: legacyDescriptor }
+      }
+    })
+    await imageGenerationJobHandler.execute(ctx)
+
+    expect(pollMock).toHaveBeenCalledWith(
+      'resumed-task',
+      expect.objectContaining({ signal: ctx.signal, modelDescriptor: legacyDescriptor })
+    )
+  })
+
+  it('prefers the typed modelDescriptor field over a stale providerParams copy', async () => {
+    const typedDescriptor = { id: 'qwen-image', endpoint: '/v3/async/qwen-image-typed', isSync: false }
+    const staleLegacyDescriptor = { id: 'qwen-image', endpoint: '/v3/async/qwen-image-stale', isSync: false }
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/typed.png'] })
+
+    const ctx = createCtx({
+      input: {
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        n: 1,
+        modelDescriptor: typedDescriptor,
+        providerParams: { modelDescriptor: staleLegacyDescriptor }
+      }
+    })
+    await imageGenerationJobHandler.execute(ctx)
+
+    const submitArg = submitMock.mock.calls[0][0]
+    expect(submitArg.modelDescriptor).toEqual(typedDescriptor)
+  })
+
+  it('resolves to undefined (not a crash) when neither modelDescriptor location is present', async () => {
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/none.png'] })
+
+    const ctx = createCtx({
+      input: {
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        n: 1,
+        providerParams: {}
+      }
+    })
+    await imageGenerationJobHandler.execute(ctx)
+
+    const submitArg = submitMock.mock.calls[0][0]
+    expect(submitArg.modelDescriptor).toBeUndefined()
+  })
+
   it('sync: submit(imageUrls) → no poll, no patchMetadata', async () => {
     submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/sync.png'] })
 
