@@ -181,7 +181,7 @@ are committed when the model is selected by `computeModelFieldReset`
 
 ### 1. Validate + collapse to one IPC bag (`canonicalGenerate`)
 
-[`.../model/canonicalGenerate.ts`](../../../src/renderer/pages/paintings/model/canonicalGenerate.ts) validates `painting.params` through `buildParamsSchema(support, mode)` (soft-fail to raw on a bad value), drops blanks, composes `customSize_*` → `size`, and ships one canonical **`paramValues`** bag over IPC (`ai.generate_image`, [`src/shared/ipc/schemas/ai.ts`](../../../src/shared/ipc/schemas/ai.ts)). The IPC schema is intentionally loose (`z.record(z.string(), z.unknown())`) — the model is dynamic, and the renderer already validated against the catalog.
+[`.../model/canonicalGenerate.ts`](../../../src/renderer/pages/paintings/model/canonicalGenerate.ts) validates `painting.params` through `buildParamsSchema(support, mode)` (soft-fail to raw on a bad value), drops blanks, composes `customSize_*` → `size`, and ships one canonical **`paramValues`** bag plus `mode` (a request property, not a param — see §5) over IPC (`ai.generate_image`, [`src/shared/ipc/schemas/ai.ts`](../../../src/shared/ipc/schemas/ai.ts)). The IPC schema types `paramValues` as the catalog's `imageParamsSchema` — the router's `safeParse` yields a strict, coerced `ParamValues` (non-catalog keys stripped). Per-model option/range constraints already ran in the renderer's `buildParamsSchema`; this is the value-type gate.
 
 ### 2. Partition in main (`splitParamValues` + `AI_SDK_NATIVE_BINDINGS`)
 
@@ -244,9 +244,6 @@ registry is the source of `vendorTransport`, and main already hosts it (the
 renderer's support fetch is an IPC round-trip to the same service), so the
 descriptor is a pure derivation, not a param.
 
-> **Status / migration.** The descriptor is currently injected by the renderer
-> ([`paintingPipeline.ts`](../../../src/renderer/pages/paintings/model/paintingPipeline.ts) stuffs it into `painting.params.modelDescriptor`), which is why `paramValues` isn't yet a *strict* `ParamValues`. Moving the derivation into `AiService` (add `mode` to the IPC payload — a request property, not a param — and read `vendorTransport` from the registry) is the final step: it removes the only non-canonical key from `paramValues`, lets the bag be parsed to a strict `ParamValues`, and closes the last `Record<string,unknown>` seam. See the [data architecture follow-up](#follow-up--close-the-strict-typing-seam).
-
 ---
 
 ## Recipes
@@ -268,22 +265,6 @@ descriptor is a pure derivation, not a param.
 - OpenAI-compatible → nothing custom: the `DEFAULT_DIFFUSION_REGISTRATION` engine + `@ai-sdk/openai-compatible` cover it.
 - Native SDK (OpenAI/Google) → register a `WireProfile` with the right delivery flags (`dualOpenAI` / `also` / `passthrough`).
 - Bespoke / async wire shape → implement an `ImageGenerationTransport`, register it on the provider's `imageModel(...)`, and read canonical camelCase params + `input.modelDescriptor`.
-
----
-
-## Follow-up — close the strict-typing seam
-
-The param pipeline is fully consolidated (one catalog row → form + validation +
-wire + types; one `wireName`; one engine; transports on canonical camelCase). The
-**one** remaining seam is routing data laundered through the param bag:
-
-1. Add `mode: ImageGenerationModeSchema` to `aiImagePayloadSchema`.
-2. In `AiService.generateImage`, when a transport resolves, derive `modelDescriptor` from `providerRegistryService.getImageGenerationSupport(...)` and pass it as a typed field to `generateImageViaJob` / the transport.
-3. Transports read `input.modelDescriptor` (not `bag.modelDescriptor`).
-4. Delete the `paintingPipeline.ts` descriptor injection.
-
-Then `paramValues` is pure canonical and can be parsed to a strict `ParamValues`
-in main — the last `Record<string,unknown>` in the chain.
 
 ---
 
