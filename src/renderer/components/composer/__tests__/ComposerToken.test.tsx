@@ -1,5 +1,6 @@
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { Editor } from '@tiptap/core'
 import { AllSelection, NodeSelection, Selection } from '@tiptap/pm/state'
 import { EditorContent, useEditor } from '@tiptap/react'
@@ -918,6 +919,52 @@ describe('ComposerToken', () => {
     expect(removeButton).toHaveClass('size-[1em]', 'rounded-[4px]')
 
     fireEvent.click(removeButton)
+    expect(onRemove).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    [
+      'skill',
+      {
+        id: 'skill:pdf',
+        kind: 'skill' as const,
+        label: 'PDF Reader',
+        description: 'Read and summarize PDF files.'
+      }
+    ],
+    [
+      'knowledge',
+      {
+        id: 'knowledge:base-1',
+        kind: 'knowledge' as const,
+        label: 'Product Docs',
+        payload: {
+          description: 'Release notes and product specifications.'
+        }
+      }
+    ],
+    [
+      'folder',
+      {
+        id: 'folder:project-notes',
+        kind: 'folder' as const,
+        label: 'Project Notes',
+        promptText: '/Users/jd/Notes/Project Notes'
+      }
+    ]
+  ])('lets keyboard users focus and activate the inline remove button for %s tokens', async (_label, token) => {
+    const user = userEvent.setup()
+    const onRemove = vi.fn()
+    render(<ComposerToken token={token} onRemove={onRemove} removeLabel="删除" />)
+
+    const removeButton = screen.getByRole('button', { name: '删除' })
+    expect(removeButton).not.toHaveClass('hidden')
+    expect(removeButton).toHaveClass('inline-flex', 'opacity-0', 'focus-visible:opacity-100')
+
+    await user.tab()
+    expect(removeButton).toHaveFocus()
+
+    await user.keyboard('{Enter}')
     expect(onRemove).toHaveBeenCalledTimes(1)
   })
 

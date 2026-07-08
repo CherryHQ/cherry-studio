@@ -91,10 +91,10 @@ function InlineTokenRemoveButton({
       title={label}
       data-composer-token-remove=""
       className={cn(
-        'hidden shrink-0 items-center justify-center border-0 bg-transparent p-0 text-muted-foreground leading-none opacity-80 outline-none transition-[color,opacity]',
+        'pointer-events-none inline-flex shrink-0 items-center justify-center border-0 bg-transparent p-0 text-muted-foreground leading-none opacity-0 outline-none transition-[color,opacity]',
         'hover:text-foreground hover:opacity-100',
-        'focus-visible:text-foreground focus-visible:opacity-100',
-        'group-focus-within/composer-token:inline-flex group-hover/composer-token:inline-flex',
+        'focus-visible:pointer-events-auto focus-visible:text-foreground focus-visible:opacity-100',
+        'group-focus-within/composer-token:pointer-events-auto group-focus-within/composer-token:opacity-100 group-hover/composer-token:pointer-events-auto group-hover/composer-token:opacity-100',
         className
       )}
       onMouseDown={stopTokenActionEvent}
