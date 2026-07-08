@@ -245,6 +245,19 @@
       "description": "List of tools to install via BinaryManager"
     },
     {
+      "targetKey": "feature.binary.install_settings",
+      "type": "PreferenceTypes.BinaryInstallSettings",
+      "defaultValue": {
+        "githubMirror": "",
+        "githubToken": "",
+        "npmRegistry": "",
+        "pipIndexUrl": "",
+        "verifySignatures": true
+      },
+      "status": "classified",
+      "description": "User-configurable mise install knobs (mirror/registry/token/verify) for BinaryManager"
+    },
+    {
       "targetKey": "shortcut.app.fullscreen.exit",
       "type": "PreferenceTypes.PreferenceShortcutType",
       "defaultValue": {

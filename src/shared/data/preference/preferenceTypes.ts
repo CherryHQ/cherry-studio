@@ -360,3 +360,23 @@ export interface ToolInstallState {
 export interface BinaryState {
   tools: Record<string, ToolInstallState>
 }
+
+/**
+ * User-configurable knobs for the mise-based binary install path. Consumed only
+ * by `BinaryManager.buildIsolatedEnv` (the install subprocess), never the shared
+ * execution env that runs installed CLIs. Empty strings mean "don't override":
+ * registry/mirror fields leave today's auto behavior (China auto-mirror) intact,
+ * and an empty token falls back to the `CHERRY_GITHUB_TOKEN` env opt-in.
+ */
+export interface BinaryInstallSettings {
+  /** GitHub mirror host for `github.com`/`api.github.com` rewrites; '' = direct. */
+  githubMirror: string
+  /** npm registry override; '' = keep current auto-China behavior. */
+  npmRegistry: string
+  /** pip index URL override; '' = keep current auto-China behavior. */
+  pipIndexUrl: string
+  /** GitHub token to raise the API rate limit; '' = fall back to CHERRY_GITHUB_TOKEN env. */
+  githubToken: string
+  /** When false, disables mise aqua signature verification (MISE_AQUA_*=false). */
+  verifySignatures: boolean
+}
