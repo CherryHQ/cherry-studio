@@ -188,6 +188,13 @@
       "require": "./dist/icons/index.js",
       "default": "./dist/icons/index.js"
     },
+    "./fluent-emoji": {
+      "types": "./dist/fluent-emoji.d.ts",
+      "react-native": "./dist/fluent-emoji.js",
+      "import": "./dist/fluent-emoji.mjs",
+      "require": "./dist/fluent-emoji.js",
+      "default": "./dist/fluent-emoji.js"
+    },
     "./styles": "./dist/styles/tokens.css",
     "./styles/tokens.css": "./dist/styles/tokens.css",
     "./styles/theme.css": "./dist/styles/theme.css",

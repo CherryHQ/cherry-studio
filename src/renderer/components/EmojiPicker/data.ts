@@ -1,4 +1,4 @@
-import { hasFluentEmojiIcon } from '@cherrystudio/ui/utils'
+import { hasFluentEmojiIcon } from '@cherrystudio/ui/fluent-emoji'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import dataDE from 'emoji-picker-element-data/de/cldr/data.json?url'
 import dataEN from 'emoji-picker-element-data/en/cldr/data.json?url'

@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { emojiToFluentEmojiIconName, hasFluentEmojiIcon } from '@cherrystudio/ui/fluent-emoji'
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { EmojiGlyph, emojiToFluentEmojiIconName, hasFluentEmojiIcon } from '..'
+import { EmojiGlyph } from '..'
 
 afterEach(() => {
   cleanup()

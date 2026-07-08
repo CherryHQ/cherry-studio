@@ -1,5 +1,5 @@
+import { getFluentEmojiIcon, scopeFluentEmojiSvgBody } from '@cherrystudio/ui/fluent-emoji'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { getFluentEmojiIcon, scopeFluentEmojiSvgBody } from '@cherrystudio/ui/utils'
 import { type HTMLAttributes, memo, useId, useMemo } from 'react'
 
 export interface EmojiGlyphProps extends HTMLAttributes<HTMLSpanElement> {
@@ -41,13 +41,6 @@ const EmojiGlyph = ({ emoji, decorative = false, className, ...props }: EmojiGly
 EmojiGlyph.displayName = 'EmojiGlyph'
 
 const MemoizedEmojiGlyph = memo(EmojiGlyph)
-
-export {
-  emojiToFluentEmojiIconName,
-  getFluentEmojiIcon,
-  hasFluentEmojiIcon,
-  scopeFluentEmojiSvgBody
-} from '@cherrystudio/ui/utils'
 
 export { MemoizedEmojiGlyph as EmojiGlyph }
 export default MemoizedEmojiGlyph

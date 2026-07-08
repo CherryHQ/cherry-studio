@@ -28,11 +28,3 @@ export const toNullIfUndefined = <T>(data: T | undefined): T | null => {
   if (data === undefined) return null
   else return data
 }
-
-export type { FluentEmojiIconData } from './fluent-emoji'
-export {
-  emojiToFluentEmojiIconName,
-  getFluentEmojiIcon,
-  hasFluentEmojiIcon,
-  scopeFluentEmojiSvgBody
-} from './fluent-emoji'

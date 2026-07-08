@@ -1,4 +1,4 @@
-import fluentEmojiDataJson from './fluent-emoji-data.json?raw'
+import fluentEmojiDataJson from './fluent-emoji-data.json'
 
 export interface FluentEmojiIconData {
   body: string
@@ -12,7 +12,7 @@ interface FluentEmojiDataset {
 }
 
 const VARIATION_SELECTOR_16 = 'fe0f'
-const fluentEmojiData = JSON.parse(fluentEmojiDataJson) as FluentEmojiDataset
+const fluentEmojiData = fluentEmojiDataJson as unknown as FluentEmojiDataset
 const codepointToIconName = fluentEmojiData.codepointToIconName
 const fluentEmojiIcons = fluentEmojiData.icons
 

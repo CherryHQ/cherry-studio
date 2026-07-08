@@ -14,7 +14,7 @@ interface IconData {
   height?: number
 }
 
-const OUTPUT_FILE = path.join(__dirname, '../src/utils/fluent-emoji-data.json')
+const OUTPUT_FILE = path.join(__dirname, '../src/fluent-emoji-data.json')
 const VARIATION_SELECTOR_16 = 'fe0f'
 
 function toCodepointKeys(emoji: string): string[] {
