@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TopicRightPane } from '../TopicRightPane'
 
 const developerModeEnabled = vi.fn(() => true)
+const topicBranchPanelModuleState = vi.hoisted(() => ({ importCount: 0 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) =>
@@ -64,11 +65,15 @@ vi.mock('@renderer/components/chat/trace/TracePane', () => ({
 }))
 
 vi.mock('../TopicBranchPanel', () => ({
-  default: ({ onLocateMessage }: { onLocateMessage?: (messageId: string) => void }) => (
-    <button type="button" data-testid="branch-pane" onClick={() => onLocateMessage?.('message-1')}>
-      locate current branch message
-    </button>
-  )
+  default: (() => {
+    topicBranchPanelModuleState.importCount += 1
+
+    return ({ onLocateMessage }: { onLocateMessage?: (messageId: string) => void }) => (
+      <button type="button" data-testid="branch-pane" onClick={() => onLocateMessage?.('message-1')}>
+        locate current branch message
+      </button>
+    )
+  })()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -84,7 +89,19 @@ describe('TopicRightPane', () => {
     developerModeEnabled.mockReturnValue(true)
   })
 
-  it('shows a permanent trace tab keyed on the container traceId when developer mode is on', () => {
+  it('defers importing the branch pane until the right pane opens', () => {
+    render(
+      <TopicRightPane>
+        <TopicRightPane.Toggle />
+        <TopicRightPane.Host topicId="topic-a" traceId="trace-a" />
+      </TopicRightPane>
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    expect(topicBranchPanelModuleState.importCount).toBe(0)
+  })
+
+  it('shows a permanent trace tab keyed on the container traceId when developer mode is on', async () => {
     render(
       <TopicRightPane>
         <TopicRightPane.Toggle />
@@ -97,9 +114,10 @@ describe('TopicRightPane', () => {
     expect(screen.getByRole('button', { name: /trace\.label/ })).toBeInTheDocument()
     expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-topic-id', 'topic-a')
     expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-trace-id', 'trace-a')
+    expect(await screen.findByTestId('branch-pane')).toBeInTheDocument()
   })
 
-  it('hides the trace tab when developer mode is off', () => {
+  it('hides the trace tab when developer mode is off', async () => {
     developerModeEnabled.mockReturnValue(false)
 
     render(
@@ -113,7 +131,7 @@ describe('TopicRightPane', () => {
 
     expect(screen.queryByRole('button', { name: /trace\.label/ })).toBeNull()
     expect(screen.queryByTestId('trace-pane')).toBeNull()
-    expect(screen.getByTestId('branch-pane')).toBeInTheDocument()
+    expect(await screen.findByTestId('branch-pane')).toBeInTheDocument()
   })
 
   it('forwards branch-node locate requests without closing the shell', async () => {
@@ -127,7 +145,7 @@ describe('TopicRightPane', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'common.open_sidebar' }))
-    fireEvent.click(screen.getByRole('button', { name: 'locate current branch message' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'locate current branch message' }))
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
 

@@ -1,6 +1,10 @@
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { buildTopicMessageFlowLiveState, type TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
+// eslint-disable-next-line barrel/closed -- Bypass the flow barrel so chat startup does not touch TopicMessageFlowCanvas.
+import {
+  buildTopicMessageFlowLiveState,
+  type TopicMessageFlowLiveState
+} from '@renderer/components/chat/flow/topicMessageFlowLiveTree'
 import {
   type TranslationOverlayEntry,
   type TranslationOverlaySetter
