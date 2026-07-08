@@ -55,24 +55,36 @@ const defaultMigrationPaths = {
 const defaultResolveResult = { paths: defaultMigrationPaths, userDataChanged: false, inaccessibleLegacyPath: null }
 
 function stubMigrationV2() {
-  vi.doMock('@data/migration/v2', () => ({
-    migrationEngine: {
-      initialize: initializeMock,
-      registerMigrators: registerMigratorsMock,
-      needsMigration: needsMigrationMock,
-      close: closeMock,
-      paths: { versionLogFile: '/fake/version.log', userData: '/fake/userData' }
-    },
-    getAllMigrators: getAllMigratorsMock,
-    migrationWindowManager: {
-      create: migrationWindowCreateMock,
-      waitForReady: migrationWindowWaitForReadyMock
-    },
-    registerMigrationIpcHandlers: registerMigrationIpcHandlersMock,
-    unregisterMigrationIpcHandlers: unregisterMigrationIpcHandlersMock,
-    resolveMigrationPaths: resolveMigrationPathsMock,
-    setVersionIncompatible: setVersionIncompatibleMock
-  }))
+  vi.doMock('@data/migration/v2', async () => {
+    // The gate now imports the version-policy fns and isSchemaOutOfSyncError through
+    // the barrel, so they live on this mock. isSchemaOutOfSyncError is a pure predicate —
+    // keep the real implementation so schemaOutOfSyncError() fixtures are still detected.
+    const { isSchemaOutOfSyncError } = (await vi.importActual('@data/migration/v2/core/migrationErrors')) as {
+      isSchemaOutOfSyncError: (error: unknown) => boolean
+    }
+    return {
+      migrationEngine: {
+        initialize: initializeMock,
+        registerMigrators: registerMigratorsMock,
+        needsMigration: needsMigrationMock,
+        close: closeMock,
+        paths: { versionLogFile: '/fake/version.log', userData: '/fake/userData' }
+      },
+      getAllMigrators: getAllMigratorsMock,
+      migrationWindowManager: {
+        create: migrationWindowCreateMock,
+        waitForReady: migrationWindowWaitForReadyMock
+      },
+      registerMigrationIpcHandlers: registerMigrationIpcHandlersMock,
+      unregisterMigrationIpcHandlers: unregisterMigrationIpcHandlersMock,
+      resolveMigrationPaths: resolveMigrationPathsMock,
+      setVersionIncompatible: setVersionIncompatibleMock,
+      checkUpgradePathCompatibility: checkUpgradePathMock,
+      readPreviousVersion: readPreviousVersionMock,
+      getBlockMessage: getBlockMessageMock,
+      isSchemaOutOfSyncError
+    }
+  })
 }
 
 function stubElectron() {
@@ -99,14 +111,6 @@ function stubApplication() {
   }))
 }
 
-function stubVersionPolicy() {
-  vi.doMock('@data/migration/v2/core/versionPolicy', () => ({
-    checkUpgradePathCompatibility: checkUpgradePathMock,
-    readPreviousVersion: readPreviousVersionMock,
-    getBlockMessage: getBlockMessageMock
-  }))
-}
-
 function stubFs() {
   vi.doMock('node:fs', () => ({
     __esModule: true,
@@ -118,7 +122,7 @@ function stubPlatform(isDev: boolean) {
   vi.doMock('@main/core/platform', () => ({ isDev }))
 }
 
-/** Build the wrapped libsql SQLITE_ERROR thrown when a stale DB meets fresh migration SQL. */
+/** Build the wrapped SQLITE_ERROR thrown when a stale DB meets fresh migration SQL. */
 function schemaOutOfSyncError(): Error {
   const inner = Object.assign(new Error('table `agent` already exists'), { code: 'SQLITE_ERROR' })
   return Object.assign(new Error('SQLITE_ERROR: table `agent` already exists'), { code: 'SQLITE_ERROR', cause: inner })
@@ -131,7 +135,7 @@ async function loadModule() {
 beforeEach(() => {
   vi.resetModules()
   resolveMigrationPathsMock.mockReset().mockReturnValue(defaultResolveResult)
-  initializeMock.mockReset().mockResolvedValue(undefined)
+  initializeMock.mockReset().mockReturnValue(undefined)
   registerMigratorsMock.mockReset()
   needsMigrationMock.mockReset()
   closeMock.mockReset()
@@ -206,7 +210,6 @@ describe('runV2MigrationGate', () => {
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubVersionPolicy()
       stubFs()
 
       const { runV2MigrationGate } = await loadModule()
@@ -229,7 +232,9 @@ describe('runV2MigrationGate', () => {
 
   describe('handled path — migration check fails', () => {
     it("returns 'handled', shows an error dialog, and quits when the engine fails to initialize", async () => {
-      initializeMock.mockRejectedValue(new Error('DB unavailable'))
+      initializeMock.mockImplementation(() => {
+        throw new Error('DB unavailable')
+      })
       stubMigrationV2()
       stubElectron()
       stubApplication()
@@ -272,7 +277,9 @@ describe('runV2MigrationGate', () => {
 
   describe('handled path — schema out of sync (dev)', () => {
     it('shows the dev reset dialog with the DB path and quits when running in dev', async () => {
-      initializeMock.mockRejectedValue(schemaOutOfSyncError())
+      initializeMock.mockImplementation(() => {
+        throw schemaOutOfSyncError()
+      })
       stubMigrationV2()
       stubElectron()
       stubApplication()
@@ -290,7 +297,9 @@ describe('runV2MigrationGate', () => {
     })
 
     it('falls back to the neutral production dialog when the schema is out of sync but not in dev', async () => {
-      initializeMock.mockRejectedValue(schemaOutOfSyncError())
+      initializeMock.mockImplementation(() => {
+        throw schemaOutOfSyncError()
+      })
       stubMigrationV2()
       stubElectron()
       stubApplication()
@@ -309,7 +318,9 @@ describe('runV2MigrationGate', () => {
     })
 
     it('shows the dev migration-failed dialog (both causes + DB path) for non-schema errors in dev', async () => {
-      initializeMock.mockRejectedValue(new Error('DB unavailable'))
+      initializeMock.mockImplementation(() => {
+        throw new Error('DB unavailable')
+      })
       stubMigrationV2()
       stubElectron()
       stubApplication()
@@ -342,7 +353,6 @@ describe('runV2MigrationGate', () => {
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubVersionPolicy()
       stubFs()
 
       const { runV2MigrationGate } = await loadModule()
@@ -367,7 +377,6 @@ describe('runV2MigrationGate', () => {
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubVersionPolicy()
       stubFs()
 
       const { runV2MigrationGate } = await loadModule()
@@ -393,7 +402,6 @@ describe('runV2MigrationGate', () => {
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubVersionPolicy()
       stubFs()
 
       const { runV2MigrationGate } = await loadModule()
@@ -430,7 +438,6 @@ describe('runV2MigrationGate', () => {
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubVersionPolicy()
       stubFs()
 
       const { runV2MigrationGate } = await loadModule()
@@ -455,7 +462,6 @@ describe('runV2MigrationGate', () => {
       stubMigrationV2()
       stubElectron()
       stubApplication()
-      stubVersionPolicy()
       stubFs()
 
       const { runV2MigrationGate } = await loadModule()

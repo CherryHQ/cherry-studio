@@ -15,8 +15,8 @@ const mocks = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
-  LoadingIcon: ({ className }: { className?: string }) => <div data-testid="loading-icon" className={className} />
+vi.mock('@renderer/components/icons/LoadingIcon', () => ({
+  default: ({ className }: { className?: string }) => <div data-testid="loading-icon" className={className} />
 }))
 
 vi.mock('lucide-react', () => ({

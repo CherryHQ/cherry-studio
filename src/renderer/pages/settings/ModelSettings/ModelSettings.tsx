@@ -2,12 +2,22 @@ import { Avatar, AvatarFallback, Button, InfoTooltip, PageSidePanel, Tooltip } f
 import { resolveIcon } from '@cherrystudio/ui/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ModelSelector } from '@renderer/components/Selector/model'
-import { getProviderDisplayName } from '@renderer/components/Selector/model/utils'
+import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
+import {
+  SettingContainer,
+  SettingDescription,
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingsContentColumn,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
@@ -18,17 +28,7 @@ import type { FC, ReactNode } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  SettingContainer,
-  SettingDescription,
-  SettingDivider,
-  SettingGroup,
-  SettingRow,
-  SettingRowTitle,
-  SettingsContentColumn,
-  SettingTitle
-} from '..'
-import { TopicNamingSettings } from './QuickModelPopup'
+import { TopicNamingSettings } from './TopicNamingSettings'
 
 const logger = loggerService.withContext('ModelSettings')
 
@@ -150,7 +150,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
       if (!selected) return
       void setDefaultModel(selected).catch((error) => {
         logger.error('Failed to set default model', { modelId: selected.id, error })
-        window.toast.error(t('settings.models.manage.operation_failed'))
+        toast.error(t('settings.models.manage.operation_failed'))
       })
     },
     [setDefaultModel, t]

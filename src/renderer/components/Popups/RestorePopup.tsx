@@ -9,16 +9,12 @@ import {
 } from '@cherrystudio/ui'
 import { getRestoreProgressLabelKey } from '@renderer/i18n/label'
 import { restore } from '@renderer/services/BackupService'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { TopView } from '../TopView'
-import { useTopViewClose } from './useTopViewClose'
-
-interface Props {
-  resolve: (data: any) => void
-}
+type Props = PopupInjectedProps<any>
 
 interface ProgressData {
   stage: string
@@ -26,11 +22,9 @@ interface ProgressData {
   total: number
 }
 
-const PopupContainer: React.FC<Props> = ({ resolve }) => {
-  const [open, setOpen] = useState(true)
+const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [progressData, setProgressData] = useState<ProgressData>()
   const { t } = useTranslation()
-  const close = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(IpcChannel.RestoreProgress, (_, data: ProgressData) => {
@@ -44,11 +38,11 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const onOk = async () => {
     await restore()
-    close({})
+    resolve({})
   }
 
   const onCancel = () => {
-    close({})
+    resolve({})
   }
 
   const getProgressText = () => {
@@ -61,8 +55,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
     return t(getRestoreProgressLabelKey(progressData.stage))
   }
-
-  RestorePopup.hide = onCancel
 
   const isDisabled = progressData ? progressData.stage !== 'completed' : false
 
@@ -101,16 +93,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   )
 }
 
-const TopViewKey = 'RestorePopup'
+const RestorePopup = createPopup<Record<string, never>, any>(PopupContainer, { dismissResult: {} })
 
-export default class RestorePopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide(TopViewKey)
-  }
-  static show() {
-    return new Promise<any>((resolve) => {
-      TopView.show(<PopupContainer resolve={resolve} />, TopViewKey)
-    })
-  }
-}
+export default RestorePopup

@@ -1,7 +1,7 @@
 import type { ActionTool } from '@renderer/components/ActionTools'
 import { TOOL_SPECS } from '@renderer/components/ActionTools'
-import { CopyIcon } from '@renderer/components/Icons'
-import type { BasicPreviewHandles } from '@renderer/components/Preview'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
+import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { Check, Image } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
@@ -30,7 +30,10 @@ export const useCopyTool = ({ showPreviewTools, previewRef, onCopySource }: UseC
 
   const handleCopyImage = useCallback(() => {
     try {
-      void previewRef.current?.copy()
+      const preview = previewRef.current
+      if (!preview) return
+
+      void preview.copy()
       setCopiedImageTemporarily(true)
     } catch (error) {
       setCopiedImageTemporarily(false)

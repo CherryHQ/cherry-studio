@@ -1,5 +1,5 @@
 import { useCopyTool } from '@renderer/components/CodeToolbar/hooks/useCopyTool'
-import type { BasicPreviewHandles } from '@renderer/components/Preview'
+import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 import { act, render, renderHook, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,8 +35,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
-  CopyIcon: ({ className }: { className?: string }) => <div data-testid="copy-icon" className={className} />
+vi.mock('@renderer/components/icons/CopyIcon', () => ({
+  default: ({ className }: { className?: string }) => <div data-testid="copy-icon" className={className} />
 }))
 
 vi.mock('@renderer/components/ActionTools', () => ({
@@ -88,6 +88,19 @@ describe('useCopyTool', () => {
         onClick: expect.any(Function)
       })
     )
+  })
+
+  it('returns copy-source and copy-image tools when preview tools are enabled before previewRef is set', () => {
+    const { result } = renderHook(() =>
+      useCopyTool(
+        createMockProps({
+          showPreviewTools: true,
+          previewRef: { current: null }
+        })
+      )
+    )
+
+    expect(result.current.map((tool) => tool.id)).toEqual(['copy', 'copy-image'])
   })
 
   it('returns copy-source and copy-image tools when preview tools are enabled', () => {
@@ -159,6 +172,24 @@ describe('useCopyTool', () => {
 
     expect(previewHandles.copy).toHaveBeenCalledTimes(1)
     expect(mockSetCopiedImageTemporarily).toHaveBeenCalledWith(true)
+  })
+
+  it('tolerates copy image before the lazy preview ref is set', () => {
+    const { result } = renderHook(() =>
+      useCopyTool(
+        createMockProps({
+          showPreviewTools: true,
+          previewRef: { current: null }
+        })
+      )
+    )
+
+    expect(() => {
+      act(() => {
+        result.current[1].onClick?.()
+      })
+    }).not.toThrow()
+    expect(mockSetCopiedImageTemporarily).not.toHaveBeenCalled()
   })
 
   it('uses temporary success icons for copied source and image states', () => {

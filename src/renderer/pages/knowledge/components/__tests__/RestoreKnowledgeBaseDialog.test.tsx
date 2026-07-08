@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -48,14 +49,29 @@ vi.mock('@cherrystudio/ui', async () => {
 
   return {
     Button: ({ children, loading, ...props }: { children: ReactNode; loading?: boolean; [key: string]: unknown }) => (
-      <button {...props}>{loading ? 'loading' : children}</button>
+      <button type="button" {...props}>
+        {loading ? 'loading' : children}
+      </button>
     ),
     Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
-    DialogContent: ({ children, size, ...props }: { children: ReactNode; size?: string; [key: string]: unknown }) => (
-      <div role="dialog" data-size={size} {...props}>
-        {children}
-      </div>
-    ),
+    DialogContent: ({
+      children,
+      closeOnOverlayClick,
+      size,
+      ...props
+    }: {
+      children: ReactNode
+      closeOnOverlayClick?: boolean
+      size?: string
+      [key: string]: unknown
+    }) => {
+      void closeOnOverlayClick
+      return (
+        <div role="dialog" data-size={size} {...props}>
+          {children}
+        </div>
+      )
+    },
     DialogDescription: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <p {...props}>{children}</p>
     ),
@@ -141,12 +157,9 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   chunkOverlap: 200,
   chunkStrategy: 'structured',
   chunkSeparator: '\\n\\n',
-  threshold: undefined,
   documentCount: undefined,
   status: 'failed',
   error: 'missing_embedding_model',
-  searchMode: 'hybrid',
-  hybridAlpha: undefined,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -162,12 +175,6 @@ describe('RestoreKnowledgeBaseDialog', () => {
       providers: [{ id: 'openai', isEnabled: true }]
     })
     mockEmbedMany.mockResolvedValue({ embeddings: [new Array(1536).fill(0)] })
-    Object.assign(window, {
-      toast: {
-        error: vi.fn(),
-        warning: vi.fn()
-      }
-    })
   })
 
   it('renders the localized backup name and submits restoreBase with the selected embedding model', async () => {
@@ -216,7 +223,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
     expect(onRestored).toHaveBeenCalledWith(restoredBase)
     expect(onOpenChange).toHaveBeenCalledWith(false)
     // Nothing was skipped, so the user is not warned.
-    expect(window.toast.warning).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalled()
   })
 
   it('warns the user when restore skipped items whose source is gone', async () => {
@@ -246,8 +253,8 @@ describe('RestoreKnowledgeBaseDialog', () => {
 
     await waitFor(() => expect(restoreBase).toHaveBeenCalled())
     // The skipped count is surfaced via a warning toast (not silently dropped); the base still restores.
-    expect(window.toast.warning).toHaveBeenCalledTimes(1)
-    expect(window.toast.warning).toHaveBeenCalledWith(expect.stringContaining('2'))
+    expect(toast.warning).toHaveBeenCalledTimes(1)
+    expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('2'))
     expect(onRestored).toHaveBeenCalledWith(restoredBase)
   })
 

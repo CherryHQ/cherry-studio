@@ -1,10 +1,15 @@
 import { Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 const ExportMenuOptions: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -13,6 +18,7 @@ const ExportMenuOptions: FC = () => {
     image: 'data.export.menus.image',
     markdown: 'data.export.menus.markdown',
     markdown_reason: 'data.export.menus.markdown_reason',
+    notes: 'data.export.menus.notes',
     notion: 'data.export.menus.notion',
     yuque: 'data.export.menus.yuque',
     joplin: 'data.export.menus.joplin',
@@ -54,6 +60,12 @@ const ExportMenuOptions: FC = () => {
           checked={exportMenuOptions.markdown_reason}
           onCheckedChange={(checked) => handleToggleOption('markdown_reason', checked)}
         />
+      </SettingRow>
+      <SettingDivider />
+
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.export_menu.notes')}</SettingRowTitle>
+        <Switch checked={exportMenuOptions.notes} onCheckedChange={(checked) => handleToggleOption('notes', checked)} />
       </SettingRow>
       <SettingDivider />
 

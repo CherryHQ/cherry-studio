@@ -1,9 +1,12 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { ActionIconButton } from '@renderer/components/Buttons'
+import ActionIconButton from '@renderer/components/ActionIconButton'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
 import { canModelUseAssistantWebSearch, hasModelBuiltinWebSearch } from '@renderer/utils/model'
 import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
@@ -12,7 +15,7 @@ import { isGemini3Model, isGeminiModel, isGPT5SeriesReasoningModel, isOpenAIWebS
 import { isGeminiWebSearchProvider } from '@shared/utils/provider'
 import { useNavigate } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
-import type { FC } from 'react'
+import type { FC, MouseEventHandler } from 'react'
 import { memo, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -21,11 +24,8 @@ interface Props {
   launcher: ToolLauncherApi
 }
 
-// Mirrors WebSearchProviderSetting.tsx: api-type providers (except fetch /
-// searxng / exa-mcp) authenticate via API key. searxng uses basic auth and
-// fetch / exa-mcp need neither.
-const webSearchProviderRequiresApiKey = (id: WebSearchProviderId): boolean =>
-  id !== 'fetch' && id !== 'searxng' && id !== 'exa-mcp'
+const KEYLESS_PROVIDERS: ReadonlySet<WebSearchProviderId> = new Set(['fetch', 'searxng', 'exa-mcp', 'firecrawl'])
+const webSearchProviderRequiresApiKey = (id: WebSearchProviderId): boolean => !KEYLESS_PROVIDERS.has(id)
 
 const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { t } = useTranslation()
@@ -79,44 +79,62 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
       : undefined
   const isDisabled = Boolean(disabledReason)
 
-  const onClick = useCallback(() => {
-    if (!assistant || !model) {
-      window.toast.error(t('error.model.not_exists'))
-      return
-    }
-    if (enableWebSearch) {
-      void updateAssistant({ settings: { enableWebSearch: false } })
-      return
-    }
+  const onClick = useCallback(
+    async (restoreFocus?: () => void) => {
+      if (!assistant || !model) {
+        toast.error(t('error.model.not_exists'))
+        return
+      }
+      if (enableWebSearch) {
+        void updateAssistant({ settings: { enableWebSearch: false } })
+        return
+      }
 
-    // Built-in web search bypasses the external-provider requirement; the
-    // toggle simply flips the assistant flag and the model handles search.
-    if (!hasBuiltinWebSearch && !activeProviderId) {
-      window.modal.confirm({
-        centered: true,
-        title: t('settings.tool.websearch.search_provider'),
-        content: t('settings.tool.websearch.search_provider_placeholder'),
-        onOk: () => navigate({ to: '/settings/websearch' })
-      })
-      return
-    }
+      // Built-in web search bypasses the external-provider requirement; the
+      // toggle simply flips the assistant flag and the model handles search.
+      if (!hasBuiltinWebSearch && !activeProviderId) {
+        let navigatedAway = false
 
-    if (disabledReason) {
-      return
-    }
+        const confirmed = await popup.confirm({
+          centered: true,
+          title: t('settings.tool.websearch.search_provider'),
+          content: t('settings.tool.websearch.search_provider_placeholder'),
+          // Return focus to the trigger (button or composer input) once the dialog
+          // closes, unless the user navigated to settings. focusOnClose overrides
+          // Radix's default focus-return, so there is no race and no rAF needed.
+          focusOnClose: restoreFocus
+            ? () => {
+                if (!navigatedAway) {
+                  restoreFocus()
+                }
+              }
+            : undefined
+        })
+        if (!confirmed) return
 
-    void updateAssistant({ settings: { enableWebSearch: true } })
-  }, [
-    activeProviderId,
-    assistant,
-    disabledReason,
-    enableWebSearch,
-    hasBuiltinWebSearch,
-    navigate,
-    t,
-    updateAssistant,
-    model
-  ])
+        navigatedAway = true
+        await navigate({ to: '/settings/websearch' })
+        return
+      }
+
+      if (disabledReason) {
+        return
+      }
+
+      void updateAssistant({ settings: { enableWebSearch: true } })
+    },
+    [
+      activeProviderId,
+      assistant,
+      disabledReason,
+      enableWebSearch,
+      hasBuiltinWebSearch,
+      navigate,
+      t,
+      updateAssistant,
+      model
+    ]
+  )
 
   const ariaLabel = enableWebSearch ? t('common.close') : t('chat.input.web_search.label')
   const tooltipTitle = disabledReason ?? ariaLabel
@@ -133,11 +151,12 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
         order: 30,
         label: t('chat.input.web_search.label'),
         description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'chat.input.web_search.label', ['search']),
         icon,
         active: enableWebSearch,
         disabled: isDisabled,
         disabledReason,
-        action: onClick
+        action: ({ inputAdapter }) => onClick(inputAdapter?.focus)
       }
     ])
   }, [disabledReason, enableWebSearch, icon, isDisabled, launcher, onClick, t])
@@ -152,11 +171,18 @@ export const WebSearchToolRuntime: FC<Props> = (props) => {
 
 const WebSearchButton: FC<Props> = (props) => {
   const { ariaLabel, enableWebSearch, icon, isDisabled, onClick, tooltipTitle } = useWebSearchToolController(props)
+  const handleClick = useCallback<MouseEventHandler<HTMLButtonElement>>(
+    (event) => {
+      const trigger = event.currentTarget
+      void onClick(() => trigger.focus())
+    },
+    [onClick]
+  )
 
   return (
     <Tooltip placement="top" content={tooltipTitle}>
       <ActionIconButton
-        onClick={onClick}
+        onClick={handleClick}
         active={enableWebSearch}
         aria-label={ariaLabel}
         aria-pressed={enableWebSearch}

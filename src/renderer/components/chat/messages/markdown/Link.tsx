@@ -1,8 +1,8 @@
-import Favicon from '@renderer/components/Icons/FallbackFavicon'
+import Favicon from '@renderer/components/icons/FallbackFavicon'
 import { parseJSON } from '@renderer/utils/json'
 import { findCitationInChildren } from '@renderer/utils/markdown'
 import { cn } from '@renderer/utils/style'
-import { isEmpty, omit } from 'lodash'
+import { isEmpty, omit } from 'es-toolkit/compat'
 import React, { useMemo } from 'react'
 import type { Node } from 'unist'
 

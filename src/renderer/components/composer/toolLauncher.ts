@@ -28,11 +28,18 @@ export interface ComposerToolLauncher {
    * only the search/list renderer; it is not the tool menu data source.
    */
   sources?: readonly ComposerToolLauncherSource[]
+  /**
+   * Root panel placement. `'trailing'` renders the launcher after caller-provided
+   * additional items (e.g. agent skills) instead of alongside the other command
+   * items. Defaults to leading (with the other command items).
+   */
+  rootPanelPlacement?: 'trailing'
   order?: number
   label: ReactNode | string
   description?: ReactNode | string
   tooltip?: ReactNode | string
   disabledReason?: ReactNode | string
+  searchAliases?: readonly string[]
   icon: ReactNode | string
   suffix?: ReactNode | string
   active?: boolean

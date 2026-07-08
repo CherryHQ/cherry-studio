@@ -1,6 +1,5 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
-import FileManager from '@renderer/services/FileManager'
-import { motion } from 'framer-motion'
+import ImageViewer from '@renderer/components/ImageViewer'
 import { ImageDown, ImageUp, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   type FC,
@@ -16,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { PaintingData } from '../model/types/paintingData'
 import { paintingClasses } from '../paintingPrimitives'
+import { getPaintingFileUrl } from '../utils/paintingFileUrl'
 
 const DEFAULT_IMAGE_SCALE = 1
 const MIN_IMAGE_SCALE = 0.25
@@ -39,27 +39,26 @@ export interface ArtboardProps {
   loadText?: ReactNode
 }
 
-const LoadingStateCard: FC<{ text: ReactNode; onCancel: () => void; cancelLabel: string }> = ({
+const InlineLoadingState: FC<{ text: ReactNode; onCancel: () => void; cancelLabel: string }> = ({
   text,
   onCancel,
   cancelLabel
 }) => {
+  const progressLabel = typeof text === 'string' ? text : undefined
+
   return (
-    <div className="flex min-w-56 flex-col items-center gap-4 rounded-[18px] border border-border-subtle bg-card/96 px-10 py-10 shadow-2xl backdrop-blur-sm">
-      <div className="relative h-12 w-12">
-        <motion.div
-          className="absolute inset-0 rounded-full border-2 border-border"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: 'linear' }}
-        />
-        <motion.div
-          className="absolute inset-1 rounded-full border-2 border-primary border-r-transparent border-b-transparent"
-          animate={{ rotate: -360 }}
-          transition={{ duration: 1.5, repeat: Number.POSITIVE_INFINITY, ease: 'linear' }}
-        />
+    <div
+      className="flex w-full max-w-90 flex-col items-center gap-3 rounded-md bg-card px-5 py-4 text-card-foreground"
+      role="status"
+      aria-live="polite">
+      <div className="text-center font-medium text-[13px] text-foreground leading-5">{text}</div>
+      <div
+        className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+        aria-label={progressLabel}>
+        <span className="animation-migration-backup-progress-indeterminate absolute inset-y-0 left-0 w-1/3 min-w-20 rounded-full bg-linear-to-r from-primary/0 via-primary to-primary/0" />
       </div>
-      <div className="text-center font-medium text-[13px] text-foreground/85">{text}</div>
-      <Button variant="outline" size="sm" onClick={onCancel} className="mt-1 min-w-20">
+      <Button type="button" variant="outline" size="sm" onClick={onCancel} className="min-w-20">
         {cancelLabel}
       </Button>
     </div>
@@ -99,10 +98,8 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
   const displayedImageIndex = painting.files.length > 0 ? Math.min(currentImageIndex, painting.files.length - 1) : 0
   const currentFile = painting.files[displayedImageIndex]
   // TODO(#15353): swap for `cherrystudio://file/internal/${id}.${ext}` once the
-  // custom-protocol handler is registered. Drops the `FileManager.getFileUrl`
-  // dependency and lets us stop synthesizing `FileMetadata.name = id+ext` in
-  // `fileEntryAdapter`.
-  const currentImageUrl = currentFile ? FileManager.getFileUrl(currentFile) : ''
+  // custom-protocol handler is registered and paintings consume `FileEntry` directly.
+  const currentImageUrl = currentFile ? getPaintingFileUrl(currentFile) : undefined
   const loadingText = loadText || t('paintings.generating')
 
   const onPrevImage = useCallback(() => {
@@ -189,9 +186,9 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
     <div className="flex min-h-0 w-full flex-1 flex-col p-2">
       <div
         className={`relative flex min-h-0 flex-1 flex-col items-center justify-center transition-opacity ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
-        {painting.files.length > 0 ? (
+        {painting.files.length > 0 && currentImageUrl ? (
           <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
-            <img
+            <ImageViewer
               alt=""
               className={`max-h-full max-w-full select-none rounded-md bg-secondary object-contain ${
                 isDraggingImage ? 'cursor-grabbing transition-none' : 'cursor-grab transition-transform duration-150'
@@ -201,6 +198,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
               onPointerDown={onImagePointerDown}
               onPointerMove={onImagePointerMove}
               onPointerUp={stopImageDrag}
+              preview={false}
               src={currentImageUrl}
               style={{
                 transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${imageScale}) rotate(${imageRotation}deg)`,
@@ -253,8 +251,8 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
         ) : null}
 
         {isLoading && (
-          <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 z-30">
-            <LoadingStateCard text={loadingText} onCancel={onCancel} cancelLabel={t('common.cancel')} />
+          <div className="-translate-y-1/2 absolute inset-x-4 top-1/2 z-30 flex justify-center">
+            <InlineLoadingState text={loadingText} onCancel={onCancel} cancelLabel={t('common.cancel')} />
           </div>
         )}
       </div>

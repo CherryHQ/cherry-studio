@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { PluginMetadata } from '@shared/types/plugin'
+import type { PluginMetadata } from '@main/utils/plugin'
 import * as crypto from 'crypto'
 import * as fs from 'fs'
 import matter from 'gray-matter'

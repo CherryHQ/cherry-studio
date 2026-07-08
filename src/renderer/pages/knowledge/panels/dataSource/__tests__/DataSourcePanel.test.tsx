@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -286,11 +287,6 @@ describe('DataSourcePanel', () => {
       data: undefined,
       isLoading: false,
       error: undefined
-    })
-    Object.assign(window, {
-      toast: {
-        error: vi.fn()
-      }
     })
   })
 
@@ -653,7 +649,7 @@ describe('DataSourcePanel', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
+      expect(toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
     })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
@@ -701,7 +697,7 @@ describe('DataSourcePanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('重新索引数据源失败: reindex failed')
+      expect(toast.error).toHaveBeenCalledWith('重新索引数据源失败: reindex failed')
     })
     expect(screen.getByText('已选 1 项')).toBeInTheDocument()
   })
@@ -802,7 +798,7 @@ describe('DataSourcePanel', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
+      expect(toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
     })
     expect(screen.getByText('已选 2 项')).toBeInTheDocument()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

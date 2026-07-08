@@ -12,12 +12,12 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 // Direct `Selector/model` path: the `Selector` barrel's nested `export *` isn't
 // resolved by tsgo on main's program (resolves on feat's); transitional, reverts
 // to the barrel once main converges with feat.
-import { ModelSelector } from '@renderer/components/Selector/model'
+import { ModelSelector } from '@renderer/components/ModelSelector'
+import { Navbar, NavbarCenter } from '@renderer/components/Navbar'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useModels } from '@renderer/hooks/useModel'
@@ -29,6 +29,7 @@ import {
   isSiliconAnthropicCompatibleModel
 } from '@renderer/pages/code/codeProviders'
 import { loggerService } from '@renderer/services/LoggerService'
+import { toast } from '@renderer/services/toast'
 import { EFFORT_RATIO } from '@renderer/types/reasoning'
 import { isMac, isWin } from '@renderer/utils/platform'
 import { getThinkingBudget } from '@shared/ai/reasoningBudget'
@@ -37,7 +38,7 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import type { TerminalConfig } from '@shared/types/codeCli'
-import { codeCLI, terminalApps } from '@shared/types/codeCli'
+import { CodeCli, TerminalApp } from '@shared/types/codeCli'
 import {
   isEmbeddingModel,
   isReasoningModel,
@@ -52,17 +53,11 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  CLI_TOOL_PROVIDER_MAP,
-  CLI_TOOLS,
-  generateToolEnvironment,
-  isOpenCodeProvider,
-  OPENAI_CODEX_SUPPORTED_PROVIDERS,
-  parseEnvironmentVariables
-} from '.'
+import { CLI_TOOL_PROVIDER_MAP, CLI_TOOLS, isOpenCodeProvider, OPENAI_CODEX_SUPPORTED_PROVIDERS } from './cliTools'
 import { CodeToolGallery } from './components/CodeToolGallery'
 import { FieldLabel } from './components/FieldLabel'
 import type { CodeToolMeta } from './components/types'
+import { generateToolEnvironment, parseEnvironmentVariables } from './toolEnvironment'
 
 const logger = loggerService.withContext('CodeCliPage')
 
@@ -135,7 +130,7 @@ const CodeCliPage: FC = () => {
       const eps = m.endpointTypes ?? []
       const id = rawModelId(m)
 
-      if (selectedCliTool === codeCLI.claudeCode) {
+      if (selectedCliTool === CodeCli.CLAUDE_CODE) {
         if (eps.length) {
           return eps.includes('anthropic-messages')
         }
@@ -148,14 +143,14 @@ const CodeCliPage: FC = () => {
         return id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.providerId)
       }
 
-      if (selectedCliTool === codeCLI.geminiCli) {
+      if (selectedCliTool === CodeCli.GEMINI_CLI) {
         if (eps.length) {
           return eps.includes('google-generate-content')
         }
         return id.includes('gemini')
       }
 
-      if (selectedCliTool === codeCLI.openaiCodex) {
+      if (selectedCliTool === CodeCli.OPENAI_CODEX) {
         if (eps.length) {
           return eps.includes('openai-chat-completions') || eps.includes('openai-responses')
         }
@@ -165,18 +160,18 @@ const CodeCliPage: FC = () => {
         return id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.providerId)
       }
 
-      if (selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli) {
+      if (selectedCliTool === CodeCli.GITHUB_COPILOT_CLI || selectedCliTool === CodeCli.QODER_CLI) {
         return false
       }
 
-      if (selectedCliTool === codeCLI.qwenCode) {
+      if (selectedCliTool === CodeCli.QWEN_CODE) {
         if (eps.length) {
           return eps.includes('openai-chat-completions') || eps.includes('openai-responses')
         }
         return true
       }
 
-      if (selectedCliTool === codeCLI.openCode) {
+      if (selectedCliTool === CodeCli.OPEN_CODE) {
         if (eps.length) {
           return (
             eps.includes('openai-chat-completions') ||
@@ -307,11 +302,11 @@ const CodeCliPage: FC = () => {
       setIsInstallingBun(true)
       await ipcApi.request('binary.install_tool', { name: 'bun', tool: 'bun' })
       setIsBunInstalled(true)
-      window.toast.success(t('settings.mcp.installSuccess'))
+      toast.success(t('settings.mcp.installSuccess'))
     } catch (error) {
       logger.error('Failed to install bun:', error as Error)
       const message = error instanceof Error ? error.message : String(error)
-      window.toast.error(`${t('settings.mcp.installError')}: ${message}`)
+      toast.error(`${t('settings.mcp.installError')}: ${message}`)
     } finally {
       setIsInstallingBun(false)
       setTimeoutTimer('handleInstallBun', checkBunInstallation, 1000)
@@ -320,7 +315,7 @@ const CodeCliPage: FC = () => {
 
   const validateLaunch = (): { isValid: boolean; message?: string } => {
     // Qoder runs via its `#!/usr/bin/env node` shebang (Node ≥20), not Bun, so it isn't gated on Bun.
-    const needsBun = selectedCliTool !== codeCLI.qoderCli
+    const needsBun = selectedCliTool !== CodeCli.QODER_CLI
     if (!canLaunch || (needsBun && !isBunInstalled)) {
       return {
         isValid: false,
@@ -328,7 +323,7 @@ const CodeCliPage: FC = () => {
       }
     }
 
-    if (!selectedModel && selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli) {
+    if (!selectedModel && selectedCliTool !== CodeCli.GITHUB_COPILOT_CLI && selectedCliTool !== CodeCli.QODER_CLI) {
       return { isValid: false, message: t('code.model_required') }
     }
 
@@ -338,7 +333,7 @@ const CodeCliPage: FC = () => {
   const prepareLaunchEnvironment = async (): Promise<{
     env: Record<string, string>
   } | null> => {
-    if (selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli) {
+    if (selectedCliTool === CodeCli.GITHUB_COPILOT_CLI || selectedCliTool === CodeCli.QODER_CLI) {
       const userEnv = parseEnvironmentVariables(environmentVariables)
       return { env: userEnv }
     }
@@ -399,13 +394,13 @@ const CodeCliPage: FC = () => {
 
   const executeLaunch = async (env: Record<string, string>): Promise<boolean> => {
     const resolvedModel = selectedModel ? resolveModel(selectedModel) : null
-    if (selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli && !resolvedModel) {
+    if (selectedCliTool !== CodeCli.GITHUB_COPILOT_CLI && selectedCliTool !== CodeCli.QODER_CLI && !resolvedModel) {
       logger.warn('Cannot launch: model could not be resolved')
-      window.toast.error(t('code.model_required'))
+      toast.error(t('code.model_required'))
       return false
     }
     const modelId =
-      selectedCliTool === codeCLI.githubCopilotCli || selectedCliTool === codeCLI.qoderCli || !resolvedModel
+      selectedCliTool === CodeCli.GITHUB_COPILOT_CLI || selectedCliTool === CodeCli.QODER_CLI || !resolvedModel
         ? ''
         : (resolvedModel.apiModelId ?? parseUniqueModelId(resolvedModel.id).modelId)
 
@@ -425,14 +420,14 @@ const CodeCliPage: FC = () => {
           },
           2500
         )
-        window.toast.success(t('code.launch.success'))
+        toast.success(t('code.launch.success'))
         return true
       }
-      window.toast.error(result?.message || t('code.launch.error'))
+      toast.error(result?.message || t('code.launch.error'))
       return false
     } catch (error) {
       logger.error('codeTools.run failed:', error as Error)
-      window.toast.error(t('code.launch.error'))
+      toast.error(t('code.launch.error'))
       return false
     }
   }
@@ -451,12 +446,12 @@ const CodeCliPage: FC = () => {
         const path = result[0].path
         await window.api.codeCli.setCustomTerminalPath(terminalId, path)
         setTerminalCustomPaths((prev) => ({ ...prev, [terminalId]: path }))
-        window.toast.success(t('code.custom_path_set'))
+        toast.success(t('code.custom_path_set'))
         void loadAvailableTerminals()
       }
     } catch (error) {
       logger.error('Failed to set custom terminal path:', error as Error)
-      window.toast.error(t('code.custom_path_error'))
+      toast.error(t('code.custom_path_error'))
     }
   }
 
@@ -464,7 +459,7 @@ const CodeCliPage: FC = () => {
     const validation = validateLaunch()
 
     if (!validation.isValid) {
-      window.toast.warning(validation.message || t('code.launch.validation_error'))
+      toast.warning(validation.message || t('code.launch.validation_error'))
       return
     }
 
@@ -473,7 +468,7 @@ const CodeCliPage: FC = () => {
     try {
       const result = await prepareLaunchEnvironment()
       if (!result) {
-        window.toast.error(t('code.model_required'))
+        toast.error(t('code.model_required'))
         setLaunchStatus('idle')
         return
       }
@@ -484,7 +479,7 @@ const CodeCliPage: FC = () => {
       }
     } catch (error) {
       logger.error('start code tools failed:', error as Error)
-      window.toast.error(t('code.launch.error'))
+      toast.error(t('code.launch.error'))
       setLaunchStatus('idle')
     }
   }
@@ -497,13 +492,13 @@ const CodeCliPage: FC = () => {
     void loadAvailableTerminals()
   }, [loadAvailableTerminals])
 
-  const handleSelectTool = async (tool: codeCLI) => {
+  const handleSelectTool = async (tool: CodeCli) => {
     if (tool !== selectedCliTool) {
       try {
         await setCliTool(tool)
       } catch (err) {
         logger.error('Failed to set CLI tool:', err as Error)
-        window.toast.error(t('common.error'))
+        toast.error(t('common.error'))
         return
       }
     }
@@ -519,9 +514,9 @@ const CodeCliPage: FC = () => {
   const needsWindowsCustomPath =
     isWin &&
     !!selectedTerminal &&
-    selectedTerminal !== terminalApps.cmd &&
-    selectedTerminal !== terminalApps.powershell &&
-    selectedTerminal !== terminalApps.windowsTerminal
+    selectedTerminal !== TerminalApp.CMD &&
+    selectedTerminal !== TerminalApp.POWERSHELL &&
+    selectedTerminal !== TerminalApp.WINDOWS_TERMINAL
 
   const activeToolValue = dialogOpen ? selectedCliTool : undefined
   const isLaunching = launchStatus === 'launching'
@@ -546,14 +541,14 @@ const CodeCliPage: FC = () => {
 
         {activeMeta && (
           <Dialog open={dialogOpen} onOpenChange={(next) => !next && setDialogOpen(false)}>
-            <DialogContent aria-describedby={undefined}>
+            <DialogContent closeOnOverlayClick={false} aria-describedby={undefined}>
               <div ref={setModelSelectorPortalContainer} className="contents">
                 <DialogHeader>
                   <DialogTitle>{activeMeta.label}</DialogTitle>
                 </DialogHeader>
 
                 <div className="flex flex-col gap-4">
-                  {selectedCliTool !== codeCLI.githubCopilotCli && selectedCliTool !== codeCLI.qoderCli && (
+                  {selectedCliTool !== CodeCli.GITHUB_COPILOT_CLI && selectedCliTool !== CodeCli.QODER_CLI && (
                     <div>
                       <FieldLabel hint={t('code.model_hint')}>{t('code.model')}</FieldLabel>
                       <ModelSelector
@@ -678,7 +673,7 @@ const CodeCliPage: FC = () => {
                     variant="emphasis"
                     onClick={handleLaunch}
                     loading={isLaunching}
-                    disabled={!canLaunch || (selectedCliTool !== codeCLI.qoderCli && !isBunInstalled) || isLaunching}>
+                    disabled={!canLaunch || (selectedCliTool !== CodeCli.QODER_CLI && !isBunInstalled) || isLaunching}>
                     {launchSuccess ? (
                       <>
                         <Check size={14} />

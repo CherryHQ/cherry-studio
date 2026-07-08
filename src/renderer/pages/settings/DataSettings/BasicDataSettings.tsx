@@ -1,19 +1,27 @@
-import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
-import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
+import { LanTransferPopup } from '@renderer/components/Popups/LanTransferPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
 import { FolderInput, FolderOpen, FolderOutput, Loader2, SaveIcon, Wifi } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 /**
  * @deprecated v1 leftover. v2's preboot relocation copies the entire Electron
@@ -27,6 +35,14 @@ import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTi
  */
 const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']
 
+type MigrationDialogState = {
+  title: React.ReactNode
+  className: string
+  PathsContent: React.FC
+  progress: number
+  status: 'active' | 'success'
+}
+
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
@@ -34,6 +50,8 @@ const BasicDataSettings: React.FC = () => {
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
+  const [migrationDialog, setMigrationDialog] = useState<MigrationDialogState | null>(null)
+  const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
   useEffect(() => {
     void window.api.getAppInfo().then(setAppInfo)
@@ -57,28 +75,28 @@ const BasicDataSettings: React.FC = () => {
     // check new app data path is root path
     const pathParts = newAppDataPath.split(/[/\\]/).filter((part: string) => part !== '')
     if (pathParts.length <= 1) {
-      window.toast.error(t('settings.data.app_data.select_error_root_path'))
+      toast.error(t('settings.data.app_data.select_error_root_path'))
       return
     }
 
     // check new app data path is not in old app data path
     const isInOldPath = await window.api.isPathInside(newAppDataPath, appInfo.appDataPath)
     if (isInOldPath) {
-      window.toast.error(t('settings.data.app_data.select_error_same_path'))
+      toast.error(t('settings.data.app_data.select_error_same_path'))
       return
     }
 
     // check new app data path is not in app install path
     const isInInstallPath = await window.api.isPathInside(newAppDataPath, appInfo.installPath)
     if (isInInstallPath) {
-      window.toast.error(t('settings.data.app_data.select_error_in_app_path'))
+      toast.error(t('settings.data.app_data.select_error_in_app_path'))
       return
     }
 
     // check new app data path has write permission
     const hasWritePermission = await window.api.hasWritePermission(newAppDataPath)
     if (!hasWritePermission) {
-      window.toast.error(t('settings.data.app_data.select_error_write_permission'))
+      toast.error(t('settings.data.app_data.select_error_write_permission'))
       return
     }
 
@@ -89,29 +107,29 @@ const BasicDataSettings: React.FC = () => {
     void showMigrationConfirmModal(appInfo.appDataPath, newAppDataPath, migrationTitle, migrationClassName)
   }
 
-  const doubleConfirmModalBeforeCopyData = (newPath: string) => {
-    window.modal.confirm({
+  const doubleConfirmModalBeforeCopyData = async (newPath: string) => {
+    const confirmed = await popup.confirm({
       title: t('settings.data.app_data.select_not_empty_dir'),
       content: t('settings.data.app_data.select_not_empty_dir_content'),
       centered: true,
       okText: t('common.confirm'),
-      cancelText: t('common.cancel'),
-      onOk: () => {
-        window.toast.info({
-          title: t('settings.data.app_data.restart_notice'),
-          timeout: 2000
-        })
-        setTimeoutTimer(
-          'doubleConfirmModalBeforeCopyData',
-          () => {
-            void window.api.application.relaunch({
-              args: ['--new-data-path=' + newPath]
-            })
-          },
-          500
-        )
-      }
+      cancelText: t('common.cancel')
     })
+    if (!confirmed) return
+
+    toast.info({
+      title: t('settings.data.app_data.restart_notice'),
+      timeout: 2000
+    })
+    setTimeoutTimer(
+      'doubleConfirmModalBeforeCopyData',
+      () => {
+        void window.api.application.relaunch({
+          args: ['--new-data-path=' + newPath]
+        })
+      },
+      500
+    )
   }
 
   // 显示确认迁移的对话框
@@ -151,7 +169,7 @@ const BasicDataSettings: React.FC = () => {
       </div>
     )
 
-    window.modal.confirm({
+    const confirmed = await popup.confirm({
       title,
       className,
       width: 'min(600px, 90vw)',
@@ -173,51 +191,51 @@ const BasicDataSettings: React.FC = () => {
         danger: true
       },
       okText: t('common.confirm'),
-      cancelText: t('common.cancel'),
-      onOk: async () => {
-        try {
-          if (shouldCopyData) {
-            if (await window.api.isNotEmptyDir(newPath)) {
-              doubleConfirmModalBeforeCopyData(newPath)
-              return
-            }
-
-            window.toast.info({
-              title: t('settings.data.app_data.restart_notice'),
-              timeout: 3000
-            })
-            setTimeoutTimer(
-              'showMigrationConfirmModal_1',
-              () => {
-                void window.api.application.relaunch({
-                  args: ['--new-data-path=' + newPath]
-                })
-              },
-              500
-            )
-            return
-          }
-          await window.api.setAppDataPath(newPath)
-          window.toast.success(t('settings.data.app_data.path_changed_without_copy'))
-
-          setAppInfo(await window.api.getAppInfo())
-
-          setTimeoutTimer(
-            'showMigrationConfirmModal_2',
-            () => {
-              window.toast.success(t('settings.data.app_data.select_success'))
-              void window.api.application.relaunch()
-            },
-            500
-          )
-        } catch (error) {
-          window.toast.error({
-            title: t('settings.data.app_data.path_change_failed') + ': ' + error,
-            timeout: 5000
-          })
-        }
-      }
+      cancelText: t('common.cancel')
     })
+    if (!confirmed) return
+
+    try {
+      if (shouldCopyData) {
+        if (await window.api.isNotEmptyDir(newPath)) {
+          void doubleConfirmModalBeforeCopyData(newPath)
+          return
+        }
+
+        toast.info({
+          title: t('settings.data.app_data.restart_notice'),
+          timeout: 3000
+        })
+        setTimeoutTimer(
+          'showMigrationConfirmModal_1',
+          () => {
+            void window.api.application.relaunch({
+              args: ['--new-data-path=' + newPath]
+            })
+          },
+          500
+        )
+        return
+      }
+      await window.api.setAppDataPath(newPath)
+      toast.success(t('settings.data.app_data.path_changed_without_copy'))
+
+      setAppInfo(await window.api.getAppInfo())
+
+      setTimeoutTimer(
+        'showMigrationConfirmModal_2',
+        () => {
+          toast.success(t('settings.data.app_data.select_success'))
+          void window.api.application.relaunch()
+        },
+        500
+      )
+    } catch (error) {
+      toast.error({
+        title: t('settings.data.app_data.path_change_failed') + ': ' + error,
+        timeout: 5000
+      })
+    }
   }
 
   // 显示进度模态框
@@ -225,51 +243,13 @@ const BasicDataSettings: React.FC = () => {
     let currentProgress = 0
     let progressInterval: NodeJS.Timeout | null = null
 
-    const loadingModal = window.modal.info({
-      title,
-      className,
-      width: 'min(600px, 90vw)',
-      style: { minHeight: '400px' },
-      icon: <Loader2 className="animate-spin" size={18} />,
-      content: (
-        <MigrationModalContent>
-          <PathsContent />
-          <MigrationNotice>
-            <p>{t('settings.data.app_data.copying')}</p>
-            <div style={{ marginTop: '12px' }}>
-              <MigrationProgressBar percent={currentProgress} status="active" strokeWidth={8} />
-            </div>
-            <p style={{ color: 'var(--color-warning)', marginTop: '12px', fontSize: '13px' }}>
-              {t('settings.data.app_data.copying_warning')}
-            </p>
-          </MigrationNotice>
-        </MigrationModalContent>
-      ),
-      centered: true,
-      closable: false,
-      maskClosable: false,
-      okButtonProps: { style: { display: 'none' } }
-    })
+    setMigrationDialog({ title, className, PathsContent, progress: 0, status: 'active' })
 
     const updateProgress = (progress: number, status: 'active' | 'success' = 'active') => {
-      loadingModal.update({
-        title,
-        content: (
-          <MigrationModalContent>
-            <PathsContent />
-            <MigrationNotice>
-              <p>{t('settings.data.app_data.copying')}</p>
-              <div style={{ marginTop: '12px' }}>
-                <MigrationProgressBar percent={Math.round(progress)} status={status} strokeWidth={8} />
-              </div>
-              <p style={{ color: 'var(--color-warning)', marginTop: '12px', fontSize: '13px' }}>
-                {t('settings.data.app_data.copying_warning')}
-              </p>
-            </MigrationNotice>
-          </MigrationModalContent>
-        )
-      })
+      setMigrationDialog((prev) => (prev ? { ...prev, progress, status } : prev))
     }
+
+    const loadingModal = { destroy: () => setMigrationDialog(null) }
 
     progressInterval = setInterval(() => {
       if (currentProgress < 95) {
@@ -312,7 +292,7 @@ const BasicDataSettings: React.FC = () => {
           'startMigration_2',
           () => {
             loadingModal.destroy()
-            window.toast.error({
+            toast.error({
               title: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
               timeout: 5000
             })
@@ -331,7 +311,7 @@ const BasicDataSettings: React.FC = () => {
 
     loadingModal.destroy()
 
-    window.toast.success({
+    toast.success({
       title: t('settings.data.app_data.copy_success'),
       timeout: 2000
     })
@@ -373,7 +353,7 @@ const BasicDataSettings: React.FC = () => {
         setTimeoutTimer(
           'handleDataMigration',
           () => {
-            window.toast.success(t('settings.data.app_data.select_success'))
+            toast.success(t('settings.data.app_data.select_success'))
             void window.api.application.allowQuit(holdId)
             void window.api.application.relaunch({
               args: ['--user-data-dir=' + newDataPath]
@@ -383,7 +363,7 @@ const BasicDataSettings: React.FC = () => {
         )
       } catch (error) {
         void window.api.application.allowQuit(holdId)
-        window.toast.error({
+        toast.error({
           title: t('settings.data.app_data.copy_failed') + ': ' + error,
           timeout: 5000
         })
@@ -409,26 +389,26 @@ const BasicDataSettings: React.FC = () => {
     }
   }
 
-  const handleClearCache = () => {
-    window.modal.confirm({
+  const handleClearCache = async () => {
+    const confirmed = await popup.confirm({
       title: t('settings.data.clear_cache.title'),
       content: t('settings.data.clear_cache.confirm'),
       okText: t('settings.data.clear_cache.button'),
       centered: true,
       okButtonProps: {
         danger: true
-      },
-      onOk: async () => {
-        try {
-          await window.api.clearCache()
-          await window.api.trace.cleanLocalData()
-          await window.api.getCacheSize().then(setCacheSize)
-          window.toast.success(t('settings.data.clear_cache.success'))
-        } catch (error) {
-          window.toast.error(t('settings.data.clear_cache.error'))
-        }
       }
     })
+    if (!confirmed) return
+
+    try {
+      await window.api.clearCache()
+      await window.api.trace.cleanLocalData()
+      await window.api.getCacheSize().then(setCacheSize)
+      toast.success(t('settings.data.clear_cache.success'))
+    } catch (error) {
+      toast.error(t('settings.data.clear_cache.error'))
+    }
   }
 
   const onSkipBackupFilesChange = (value: boolean) => {
@@ -437,6 +417,7 @@ const BasicDataSettings: React.FC = () => {
 
   return (
     <>
+      {migrationDialog && <MigrationDialog state={migrationDialog} />}
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.title')}</SettingTitle>
         <SettingDivider />
@@ -447,7 +428,7 @@ const BasicDataSettings: React.FC = () => {
               <SaveIcon size={14} />
               {t('settings.general.backup.button')}
             </Button>
-            <Button onClick={RestorePopup.show} variant="outline">
+            <Button onClick={() => RestorePopup.show()} variant="outline">
               <FolderOpen size={14} />
               {t('settings.general.restore.button')}
             </Button>
@@ -468,7 +449,7 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.data.export_to_phone.lan.title')}</SettingRowTitle>
           <RowFlex className="justify-between gap-1.25">
-            <Button onClick={LanTransferPopup.show} variant="outline">
+            <Button onClick={() => LanTransferPopup.show()} variant="outline">
               <Wifi size={14} />
               {t('settings.data.export_to_phone.lan.button')}
             </Button>
@@ -544,6 +525,19 @@ const BasicDataSettings: React.FC = () => {
           </RowFlex>
         </SettingRow>
       </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.privacy.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.privacy.enable_privacy_mode')}</SettingRowTitle>
+          <Switch
+            checked={enableDataCollection}
+            onCheckedChange={(v) => {
+              void setEnableDataCollection(v)
+            }}
+          />
+        </SettingRow>
+      </SettingGroup>
     </>
   )
 }
@@ -616,5 +610,43 @@ const MigrationPathValue = ({ className, ...props }: React.ComponentPropsWithout
     {...props}
   />
 )
+
+// Blocking migration-progress dialog, declared inline (its open state is owned by
+// BasicDataSettings). closable:false / no overlay-dismiss are preserved; the quit
+// guard lives in handleDataMigration (preventQuit/allowQuit).
+const MigrationDialog = ({ state }: { state: MigrationDialogState }) => {
+  const { t } = useTranslation()
+  const { PathsContent } = state
+
+  return (
+    <Dialog open>
+      <DialogContent
+        showCloseButton={false}
+        closeOnOverlayClick={false}
+        onInteractOutside={(event) => event.preventDefault()}
+        className={cn('gap-5', state.className)}
+        style={{ width: 'min(600px, 90vw)', maxWidth: 'calc(100vw - 2rem)', minHeight: '400px' }}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Loader2 className="animate-spin" size={18} />
+            {state.title}
+          </DialogTitle>
+        </DialogHeader>
+        <MigrationModalContent>
+          <PathsContent />
+          <MigrationNotice>
+            <p>{t('settings.data.app_data.copying')}</p>
+            <div style={{ marginTop: '12px' }}>
+              <MigrationProgressBar percent={Math.round(state.progress)} status={state.status} strokeWidth={8} />
+            </div>
+            <p style={{ color: 'var(--color-warning)', marginTop: '12px', fontSize: '13px' }}>
+              {t('settings.data.app_data.copying_warning')}
+            </p>
+          </MigrationNotice>
+        </MigrationModalContent>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 export default BasicDataSettings

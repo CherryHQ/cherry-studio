@@ -1,13 +1,14 @@
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import { checkModelsHealth } from '@renderer/pages/settings/ProviderSettings/ModelList/checkModelsHealth'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { getModelHealthCheckSkipReason } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
+import { toast } from '@renderer/services/toast'
 import { splitApiKeyString } from '@renderer/utils/api'
-import { isEmpty } from 'lodash'
+import { isEmpty } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
@@ -80,7 +81,7 @@ export const useHealthCheck = (providerId: string) => {
       }))
 
       if (isEmpty(modelCheckEntries)) {
-        window.toast.error({
+        toast.error({
           timeout: 5000,
           title: i18n.t('settings.provider.no_models_for_check')
         })
@@ -157,7 +158,7 @@ export const useHealthCheck = (providerId: string) => {
 
         if (runIdRef.current === runId) {
           logger.error('Model health check run failed', { providerId: provider.id, runId, error })
-          window.toast.error(i18n.t('settings.models.check.failed_to_start'))
+          toast.error(i18n.t('settings.models.check.failed_to_start'))
         }
       } finally {
         if (runIdRef.current === runId) {

@@ -1,10 +1,9 @@
 import { application } from '@application'
-import { dispatchHandle } from '@main/services/file/internal/dispatch'
-import { getMetadataByPath } from '@main/services/file/utils/metadata'
+import { dispatchHandle, getMetadataByPath, safeOpen, showInFolder as showPathInFolder } from '@main/services/file'
+import type { FileHandle } from '@shared/data/types/file'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import type { FileHandle } from '@shared/types/file'
-import type { CreateInternalEntryIpcParams } from '@shared/types/file/ipc'
+import type { CreateInternalEntryIpcParams } from '@shared/types/file'
 
 /**
  * Thin adapters for FileManager-backed file routes. Pure SQL file-entry reads stay
@@ -34,7 +33,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     const pairs = await Promise.all(
       ids.map(async (id) => {
         try {
-          return [id, await fileManager.getPhysicalPath(id)] as const
+          return [id, fileManager.getPhysicalPath(id)] as const
         } catch {
           return [id, null] as const
         }
@@ -48,7 +47,14 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   'file.batch_trash': async ({ ids }) => application.get('FileManager').batchTrash(ids),
   'file.batch_restore': async ({ ids }) => application.get('FileManager').batchRestore(ids),
   'file.batch_permanent_delete': async ({ ids }) => application.get('FileManager').batchPermanentDelete(ids),
+  'file.empty_trash': async () => application.get('FileManager').emptyTrash(),
   'file.rename': async ({ id, newName }) => application.get('FileManager').rename(id, newName),
-  'file.open': async ({ id }) => application.get('FileManager').open(id),
-  'file.show_in_folder': async ({ id }) => application.get('FileManager').showInFolder(id)
+  'file.open': async (handle) => {
+    const fileManager = application.get('FileManager')
+    return dispatchHandle(handle as FileHandle, (entryId) => fileManager.open(entryId), safeOpen)
+  },
+  'file.show_in_folder': async (handle) => {
+    const fileManager = application.get('FileManager')
+    return dispatchHandle(handle as FileHandle, (entryId) => fileManager.showInFolder(entryId), showPathInFolder)
+  }
 }

@@ -80,7 +80,8 @@ vi.mock('node:util', async (importOriginal) => {
 })
 
 const { BinaryManager, validateManagedBinary } = await import('../BinaryManager')
-const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/process')
+const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
+const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
 
 describe('binary execution env split', () => {
   // The shared execution env runs the launched CLIs (claude/codex/gemini/qwen)
@@ -106,6 +107,7 @@ describe('binary execution env split', () => {
 describe('BinaryManager', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockMainCacheServiceUtils.resetMocks()
     mockExecFileAsync.mockReset()
     mockFs.existsSync.mockReset().mockReturnValue(false)
     mockFs.readFileSync.mockReset()
@@ -283,6 +285,47 @@ describe('BinaryManager', () => {
       expect(result.failed[0].name).toBe('fd')
       expect(result.failed[0].error).toContain('not runnable')
     })
+
+    it('skips a leading-v pin that matches the stored bare version (normalized compare)', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ tools: { fd: { tool: 'github:sharkdp/fd', version: '1.2.3' } } })
+      )
+
+      mockExecFileAsync.mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (ready)
+
+      const result = await service.reconcile([{ name: 'fd', tool: 'github:sharkdp/fd', version: 'v1.2.3' }])
+
+      expect(result.skipped).toEqual(['fd'])
+      expect(result.installed).toHaveLength(0)
+    })
+
+    it('upgrades when a leading-v pin resolves higher than the stored version', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({ tools: { fd: { tool: 'github:sharkdp/fd', version: '1.2.2' } } })
+      )
+
+      mockExecFileAsync
+        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (skip-path ready check)
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
+        .mockResolvedValueOnce({ stdout: JSON.stringify({ 'github:sharkdp/fd': [{ version: '1.2.3' }] }), stderr: '' }) // ls --json
+        .mockResolvedValueOnce({ stdout: '/mock/mise/shims/fd\n', stderr: '' }) // which fd (post-install ready)
+
+      const result = await service.reconcile([{ name: 'fd', tool: 'github:sharkdp/fd', version: 'v1.2.3' }])
+
+      expect(result.installed).toEqual(['fd'])
+      expect(result.skipped).toHaveLength(0)
+      const savedState = JSON.parse(mockFs.writeFileSync.mock.calls.at(-1)![1])
+      expect(savedState.tools.fd.version).toBe('1.2.3')
+    })
   })
 
   describe('removeTool', () => {
@@ -410,7 +453,10 @@ describe('BinaryManager', () => {
       ;(service as any).isolatedEnv = {}
 
       mockExecFileAsync.mockResolvedValue({
-        stdout: 'fd   github:sharkdp/fd\nrg   github:BurntSushi/ripgrep\n',
+        stdout: JSON.stringify([
+          { short: 'fd', backends: ['github:sharkdp/fd'] },
+          { short: 'rg', backends: ['github:BurntSushi/ripgrep'] }
+        ]),
         stderr: ''
       })
 
@@ -418,6 +464,212 @@ describe('BinaryManager', () => {
       await service.searchRegistry('rg')
 
       expect(mockExecFileAsync).toHaveBeenCalledTimes(1)
+    })
+
+    it('rejects when the registry command fails (e.g. mise too old for --json)', async () => {
+      // Must propagate, not swallow to []: the renderer's search-error UI only
+      // fires on the IPC rejection; a resolved [] would render as a silently
+      // empty dropdown reading "no such tool".
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockExecFileAsync.mockRejectedValue(new Error('unexpected argument --json'))
+
+      await expect(service.searchRegistry('fd')).rejects.toThrow('unexpected argument --json')
+    })
+
+    it('rejects when the registry returns malformed JSON', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockExecFileAsync.mockResolvedValue({ stdout: 'not json', stderr: '' })
+
+      await expect(service.searchRegistry('fd')).rejects.toThrow()
+    })
+  })
+
+  describe('getLatestVersions', () => {
+    const setupManaged = (tools: Record<string, { tool: string; version: string }>) => {
+      mockFs.readFileSync.mockImplementation(() => JSON.stringify({ tools }))
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      return service
+    }
+
+    const latestCalls = () =>
+      mockExecFileAsync.mock.calls.filter((c: any[]) => c[1]?.[0] === 'latest').map((c: any[]) => c[1])
+
+    it('returns empty map when mise binary is not available', async () => {
+      const service = new BinaryManager()
+
+      const result = await service.getLatestVersions()
+
+      expect(result).toEqual({})
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+    })
+
+    it('returns the shared cache snapshot without running mise when force is false', async () => {
+      MockMainCacheServiceUtils.setSharedCacheValue('feature.binary.latest_versions', { fd: '10.1.0' })
+      const service = setupManaged({ fd: { tool: 'github:sharkdp/fd', version: '10.0.0' } })
+
+      const result = await service.getLatestVersions()
+
+      expect(result).toEqual({ fd: '10.1.0' })
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+    })
+
+    it('returns empty map on cache miss when force is false without running mise', async () => {
+      const service = setupManaged({
+        fd: { tool: 'github:sharkdp/fd', version: '10.0.0' }
+      })
+
+      const result = await service.getLatestVersions()
+
+      expect(result).toEqual({})
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+    })
+
+    it('returns empty map when no tools are managed', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockFs.readFileSync.mockImplementation(() => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+      })
+
+      const result = await service.getLatestVersions(true)
+
+      expect(result).toEqual({})
+      expect(mockExecFileAsync).not.toHaveBeenCalled()
+    })
+
+    it('queries the latest version for every managed tool via mise latest', async () => {
+      const service = setupManaged({
+        fd: { tool: 'github:sharkdp/fd', version: '10.0.0' },
+        rg: { tool: 'github:BurntSushi/ripgrep', version: '15.0.0' }
+      })
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'latest')
+          return { stdout: `${args[1] === 'github:sharkdp/fd' ? '10.1.0' : '15.1.0'}\n`, stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      const result = await service.getLatestVersions(true)
+
+      expect(result).toEqual({ fd: '10.1.0', rg: '15.1.0' })
+      expect(latestCalls()).toContainEqual(['latest', 'github:sharkdp/fd'])
+      expect(latestCalls()).toContainEqual(['latest', 'github:BurntSushi/ripgrep'])
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.latest_versions')).toEqual({
+        fd: '10.1.0',
+        rg: '15.1.0'
+      })
+    })
+
+    it('omits tools whose latest-version lookup fails', async () => {
+      const service = setupManaged({
+        fd: { tool: 'github:sharkdp/fd', version: '10.0.0' },
+        rg: { tool: 'github:BurntSushi/ripgrep', version: '15.0.0' }
+      })
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] !== 'latest') return { stdout: '', stderr: '' }
+        if (args[1] === 'github:BurntSushi/ripgrep') throw new Error('rate limited')
+        return { stdout: '10.1.0\n', stderr: '' }
+      })
+
+      const result = await service.getLatestVersions(true)
+
+      // Failed lookup is omitted, not reported as an error.
+      expect(result).toEqual({ fd: '10.1.0' })
+    })
+
+    it('stores the result in shared cache so the second non-force call reads it without re-running mise latest', async () => {
+      const service = setupManaged({ fd: { tool: 'github:sharkdp/fd', version: '10.0.0' } })
+      mockExecFileAsync.mockResolvedValue({ stdout: '10.1.0\n', stderr: '' })
+
+      await service.getLatestVersions(true)
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.latest_versions')).toEqual({
+        fd: '10.1.0'
+      })
+      const callsAfterFirst = latestCalls().length
+
+      await service.getLatestVersions()
+      expect(latestCalls().length).toBe(callsAfterFirst)
+    })
+
+    it('re-runs mise latest when force is true even with a shared cache snapshot', async () => {
+      MockMainCacheServiceUtils.setSharedCacheValue('feature.binary.latest_versions', { fd: '10.0.5' })
+      const service = setupManaged({ fd: { tool: 'github:sharkdp/fd', version: '10.0.0' } })
+      mockExecFileAsync.mockResolvedValue({ stdout: '10.1.0\n', stderr: '' })
+
+      const callsBefore = latestCalls().length
+      await service.getLatestVersions(true)
+      expect(latestCalls().length).toBeGreaterThan(callsBefore)
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.latest_versions')).toEqual({
+        fd: '10.1.0'
+      })
+    })
+
+    it('clears the shared cache on state mutation so the next non-force call is empty', async () => {
+      const service = setupManaged({ fd: { tool: 'github:sharkdp/fd', version: '10.0.0' } })
+      mockExecFileAsync.mockResolvedValue({ stdout: '10.1.0\n', stderr: '' })
+
+      await service.getLatestVersions(true)
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.latest_versions')).toEqual({
+        fd: '10.1.0'
+      })
+
+      ;(service as any).saveState({ tools: { fd: { tool: 'github:sharkdp/fd', version: '10.0.0' } } })
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.latest_versions')).toBeUndefined()
+
+      const callsAfterFirst = latestCalls().length
+      const cached = await service.getLatestVersions()
+      expect(cached).toEqual({})
+      expect(latestCalls().length).toBe(callsAfterFirst)
+    })
+
+    it('deduplicates concurrent forced latest-version checks', async () => {
+      const service = setupManaged({ fd: { tool: 'github:sharkdp/fd', version: '10.0.0' } })
+      mockExecFileAsync.mockImplementation(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1))
+        return { stdout: '10.1.0\n', stderr: '' }
+      })
+
+      const [first, second] = await Promise.all([service.getLatestVersions(true), service.getLatestVersions(true)])
+
+      expect(first).toEqual({ fd: '10.1.0' })
+      expect(second).toEqual({ fd: '10.1.0' })
+      expect(latestCalls()).toHaveLength(1)
+    })
+
+    it('drops the result when the managed set changes during the batch (race guard)', async () => {
+      const service = setupManaged({ fd: { tool: 'github:sharkdp/fd', version: '10.0.0' } })
+      mockExecFileAsync.mockResolvedValue({ stdout: '10.1.0\n', stderr: '' })
+      await service.getLatestVersions(true)
+      expect(MockMainCacheServiceUtils.getSharedCacheValue('feature.binary.latest_versions')).toEqual({
+        fd: '10.1.0'
+      })
+
+      const setSharedAfterFirst = MockMainCacheServiceUtils.getMockCallCounts().setShared
+
+      mockExecFileAsync.mockImplementationOnce(async () => {
+        mockFs.readFileSync.mockReturnValue(
+          JSON.stringify({
+            tools: {
+              fd: { tool: 'github:sharkdp/fd', version: '10.0.0' },
+              rg: { tool: 'github:BurntSushi/ripgrep', version: '15.0.0' }
+            }
+          })
+        )
+        return { stdout: '10.1.0\n', stderr: '' }
+      })
+
+      const result = await service.getLatestVersions(true)
+
+      expect(result).toEqual({})
+      expect(MockMainCacheServiceUtils.getMockCallCounts().setShared).toBe(setSharedAfterFirst)
     })
   })
 
@@ -514,6 +766,24 @@ describe('BinaryManager', () => {
       }
     })
 
+    it('composes PATH as mise shims → mise dir → inherited PATH, in that order', async () => {
+      // Pins the extraPathPrefixes contract: buildIsolatedEnv folds its
+      // [MISE_SHIMS_DIR, miseDir, existing] merge into mergeBinaryExecutionEnv,
+      // and the shims-first / mise-dir-second ordering is load-bearing so a
+      // re-exec'd child mise resolves against the isolated shims.
+      const original = { ...process.env }
+      try {
+        process.env['PATH'] = '/usr/bin:/bin'
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/bin/mise'
+        const env = await (service as any).buildIsolatedEnv()
+
+        expect(env['PATH'].split(':')).toEqual(['/mock/feature.binary.data/shims', '/mock/bin', '/usr/bin', '/bin'])
+      } finally {
+        process.env = original
+      }
+    })
+
     it('relocates HOME/XDG into the isolated data dir so mise cannot read user-level config/creds', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -558,9 +828,29 @@ describe('BinaryManager', () => {
         timeout: 120_000
       })
     })
+
+    it('normalizes a leading-v pin to a bare version when mise ls cannot resolve it', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockExecFileAsync
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
+        .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
+        .mockResolvedValueOnce({ stdout: 'not json', stderr: '' }) // ls --json -> parse fails, hit fallback
+
+      // semverValid normalizes 'v1.2.3' -> '1.2.3' so the persisted version
+      // round-trips against mise's bare resolved version (no reinstall loop).
+      const version = await (service as any).installWithMise({
+        name: 'fd',
+        tool: 'github:sharkdp/fd',
+        version: 'v1.2.3'
+      })
+      expect(version).toBe('1.2.3')
+    })
   })
 
-  describe('withStateLock concurrency', () => {
+  describe('state mutex concurrency', () => {
     it('serializes concurrent installTool calls', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
@@ -640,10 +930,10 @@ describe('BinaryManager', () => {
 
       mockExecFileAsync.mockResolvedValueOnce({ stdout: 'ok\n', stderr: '' })
 
-      await (service as any).runMise(['which', 'fd'], '/custom/cwd')
+      await (service as any).runMise(['which', 'fd'])
 
       expect(mockExecFileAsync).toHaveBeenCalledWith('/mock/mise', ['which', 'fd'], {
-        cwd: '/custom/cwd',
+        cwd: '/tmp',
         env: isolatedEnv,
         timeout: 120_000
       })
@@ -652,7 +942,7 @@ describe('BinaryManager', () => {
     it('throws when mise binary is null', async () => {
       const service = new BinaryManager()
 
-      await expect((service as any).runMise(['which', 'fd'], '/tmp')).rejects.toThrow('mise binary not available')
+      await expect((service as any).runMise(['which', 'fd'])).rejects.toThrow('mise binary not available')
     })
   })
 
@@ -670,7 +960,7 @@ describe('BinaryManager', () => {
       expect(regionService.isInChina).not.toHaveBeenCalled()
 
       mockExecFileAsync.mockResolvedValue({ stdout: 'ok\n', stderr: '' })
-      await (service as any).runMise(['which', 'fd'], '/tmp')
+      await (service as any).runMise(['which', 'fd'])
 
       expect(regionService.isInChina).toHaveBeenCalledTimes(1)
       expect((service as any).isolatedEnv).not.toBeNull()
@@ -682,10 +972,7 @@ describe('BinaryManager', () => {
       ;(service as any).miseBin = '/mock/mise'
 
       mockExecFileAsync.mockResolvedValue({ stdout: 'ok\n', stderr: '' })
-      await Promise.all([
-        (service as any).runMise(['registry'], '/tmp'),
-        (service as any).runMise(['registry'], '/tmp')
-      ])
+      await Promise.all([(service as any).runMise(['registry']), (service as any).runMise(['registry'])])
 
       // Memoized in-flight promise → a single build and a single region lookup.
       expect(regionService.isInChina).toHaveBeenCalledTimes(1)

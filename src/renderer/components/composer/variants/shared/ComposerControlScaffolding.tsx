@@ -1,4 +1,5 @@
 import { ComposerActiveToolControls, ComposerToolMenu } from '@renderer/components/composer/ComposerToolRuntime'
+import type { ComposerUnifiedPanelControl } from '@renderer/components/composer/quickPanel'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { cn } from '@renderer/utils/style'
 import type { ReactNode } from 'react'
@@ -15,29 +16,49 @@ export const COMPOSER_ICON_ONLY_LABEL_CLASS = 'sr-only'
 type RenderContextControls = (args: { side: 'top' | 'bottom'; iconOnly: boolean }) => ReactNode
 
 /** The shared "+" tool menu plus the active-tool controls rendered on the composer's left. */
-export const ComposerToolMenuControls = ({ inputAdapter }: { inputAdapter?: QuickPanelInputAdapter }) => {
+export const ComposerToolMenuControls = ({
+  inputAdapter,
+  unifiedPanelControl
+}: {
+  inputAdapter?: QuickPanelInputAdapter
+  unifiedPanelControl?: ComposerUnifiedPanelControl
+}) => {
   return (
     <>
-      <ComposerToolMenu inputAdapter={inputAdapter} />
+      <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
       <ComposerActiveToolControls inputAdapter={inputAdapter} />
     </>
   )
 }
 
-/** Toolbar (top) layout: tool menu + the variant-specific context controls. */
+/** Toolbar (top) layout: variant-specific context controls + the shared tool menu. */
 export const ComposerToolbarControls = ({
   inputAdapter,
-  renderContextControls
+  renderContextControls,
+  unifiedPanelControl,
+  toolMenuPlacement = 'afterContext'
 }: {
   inputAdapter?: QuickPanelInputAdapter
   renderContextControls: RenderContextControls
+  unifiedPanelControl?: ComposerUnifiedPanelControl
+  toolMenuPlacement?: 'beforeContext' | 'afterContext'
 }) => {
   const { iconOnly, toolbarRef } = useComposerBottomToolbarIconOnly()
+  const contextControls = renderContextControls({ side: 'top', iconOnly })
+
+  if (toolMenuPlacement === 'beforeContext') {
+    return (
+      <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
+        <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
+        {contextControls}
+      </div>
+    )
+  }
 
   return (
     <div ref={toolbarRef} className={cn(COMPOSER_TOOLBAR_CLASS, 'w-full')}>
-      <ComposerToolMenuControls inputAdapter={inputAdapter} />
-      {renderContextControls({ side: 'top', iconOnly })}
+      {contextControls}
+      <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
     </div>
   )
 }

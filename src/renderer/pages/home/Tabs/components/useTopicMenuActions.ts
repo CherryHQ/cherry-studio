@@ -2,9 +2,8 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { getTopicMessages } from '@renderer/hooks/useTopic'
+import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/services/copy'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Topic } from '@renderer/types/topic'
-import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
@@ -13,8 +12,11 @@ import {
   exportTopicToNotes,
   exportTopicToNotion,
   topicToMarkdown
-} from '@renderer/utils/export'
+} from '@renderer/services/ExportService'
+import { toast } from '@renderer/services/toast'
+import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
+import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import type { TFunction } from 'i18next'
 import { useCallback, useMemo } from 'react'
 
@@ -40,7 +42,9 @@ export interface TopicMenuActionOptions {
   onOpenInNewTab?: TopicMenuHandler
   onOpenInNewWindow?: TopicMenuHandler
   onPinTopic: TopicMenuHandler
+  onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   onStartRename: TopicMenuHandler
+  panePosition?: TopicTabPosition
   t: TFunction
   topic: Topic
   topicsLength: number
@@ -59,7 +63,9 @@ export function createTopicActionContext({
   onOpenInNewTab,
   onOpenInNewWindow,
   onPinTopic,
+  onSetPanePosition,
   onStartRename,
+  panePosition,
   t,
   topic,
   topicsLength
@@ -102,18 +108,20 @@ export function createTopicActionContext({
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    onSetPanePosition,
     onSaveToKnowledge: async (topic) => {
       try {
         const result = await SaveToKnowledgePopup.showForTopic(topic)
         if (result?.success) {
-          window.toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
+          toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
         }
       } catch {
-        window.toast.error(t('chat.save.topic.knowledge.error.save_failed'))
+        toast.error(t('chat.save.topic.knowledge.error.save_failed'))
       }
     },
     onSaveToNotes: (topic) => exportTopicToNotes(topic, notesPath),
     onStartRename,
+    panePosition,
     t,
     topic,
     topicsLength
@@ -186,7 +194,9 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     onOpenInNewTab,
     onOpenInNewWindow,
     onPinTopic,
+    onSetPanePosition,
     onStartRename,
+    panePosition,
     t,
     topic,
     topicsLength
@@ -206,7 +216,9 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
         onOpenInNewTab,
         onOpenInNewWindow,
         onPinTopic,
+        onSetPanePosition,
         onStartRename,
+        panePosition,
         t,
         topic,
         topicsLength
@@ -224,13 +236,15 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
       onOpenInNewTab,
       onOpenInNewWindow,
       onPinTopic,
+      onSetPanePosition,
       onStartRename,
+      panePosition,
       t,
       topic,
       topicsLength
     ]
   )
-  const menuActions = useMemo(() => getTopicMenuActions(actionContext), [actionContext])
+  const getMenuActions = useCallback(() => getTopicMenuActions(actionContext), [actionContext])
   const handleMenuAction = useCallback(
     async (action: ResolvedAction<TopicActionContext>) => {
       await runTopicMenuAction(action, actionContext)
@@ -238,5 +252,5 @@ export function useTopicMenuActions(options: TopicMenuActionOptions) {
     [actionContext]
   )
 
-  return { actionContext, menuActions, handleMenuAction }
+  return { actionContext, getMenuActions, handleMenuAction }
 }

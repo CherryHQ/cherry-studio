@@ -1,24 +1,25 @@
-import { getMiniAppsLogo } from '@renderer/components/Icons/miniAppsLogo'
+import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC } from 'react'
 
 interface Props {
-  app: MiniApp
-  appearance?: 'avatar' | 'plain'
-  sidebar?: boolean
+  app: Pick<MiniApp, 'logo' | 'name' | 'background'>
+  /** `avatar` keeps the bordered Avatar chrome; `plain` strips it from icon logos; `bare` also strips it from image logos. */
+  appearance?: 'avatar' | 'plain' | 'bare'
   size?: number
   style?: React.CSSProperties
 }
 
-const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style, sidebar = false }) => {
+const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style }) => {
   // Preset-derived apps already include seeded display fields.
   if (app.logo) {
     const logo = getMiniAppsLogo(app.logo)
+    const chromeless = appearance === 'plain' || appearance === 'bare'
 
     // CompoundIcon: default usages keep the Avatar wrapper; Launchpad-style tiles render the logo itself.
     if (logo && typeof logo !== 'string') {
       const Icon = logo
-      if (appearance === 'plain') {
+      if (chromeless) {
         return (
           <span
             className="flex shrink-0 items-center justify-center"
@@ -40,6 +41,18 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style, 
       return <Icon.Avatar size={size} className="select-none border border-border" shape="rounded" />
     }
 
+    if (appearance === 'bare') {
+      return (
+        <img
+          src={typeof logo === 'string' ? logo : app.logo}
+          className="shrink-0 select-none object-contain"
+          style={{ width: `${size}px`, height: `${size}px`, userSelect: 'none', ...style }}
+          draggable={false}
+          alt={app.name || 'MiniApp Icon'}
+        />
+      )
+    }
+
     return (
       <img
         src={typeof logo === 'string' ? logo : app.logo}
@@ -49,7 +62,6 @@ const MiniAppIcon: FC<Props> = ({ app, appearance = 'avatar', size = 48, style, 
           height: `${size}px`,
           backgroundColor: app.background,
           userSelect: 'none',
-          ...(sidebar ? {} : undefined),
           ...style
         }}
         draggable={false}

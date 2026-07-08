@@ -1,8 +1,9 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { EditIcon } from '@renderer/components/Icons'
+import EditIcon from '@renderer/components/icons/EditIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { TopView } from '@renderer/components/TopView'
+import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { Check, Copy, Minus, Plus, X } from 'lucide-react'
@@ -72,14 +73,14 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
     try {
       const result = await onUpdate(editValue)
       if (!result.isValid) {
-        window.toast.warning(result.error)
+        toast.warning(result.error)
         return
       }
 
       setIsEditing(false)
     } catch (error) {
       logger.error('Failed to save file processing API key', error as Error)
-      window.toast.error(t('settings.tool.file_processing.errors.save_failed'))
+      toast.error(t('settings.tool.file_processing.errors.save_failed'))
     }
   }
 
@@ -96,15 +97,15 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
   const handleCopy = () => {
     navigator.clipboard
       .writeText(item.key)
-      .then(() => window.toast.success(t('common.copied')))
+      .then(() => toast.success(t('common.copied')))
       .catch((error) => {
         logger.error('Failed to copy file processing API key', error as Error)
-        window.toast.error(t('common.copy_failed'))
+        toast.error(t('common.copy_failed'))
       })
   }
 
   const handleRemove = async () => {
-    const confirmed = await window.modal.confirm({
+    const confirmed = await popup.confirm({
       title: t('common.delete_confirm'),
       centered: true,
       okText: t('common.confirm'),
@@ -116,7 +117,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
         await onRemove()
       } catch (error) {
         logger.error('Failed to remove file processing API key', error as Error)
-        window.toast.error(t('settings.tool.file_processing.errors.save_failed'))
+        toast.error(t('settings.tool.file_processing.errors.save_failed'))
       }
     }
   }
@@ -248,28 +249,14 @@ interface ShowParams extends FileProcessingApiKeyListProps {
   title?: string
 }
 
-interface PopupProps extends ShowParams {
-  resolve: (value: unknown) => void
-}
+type PopupProps = ShowParams & PopupInjectedProps<null>
 
-const PopupContainer: FC<PopupProps> = ({ processorId, apiKeys, onSetApiKeys, title, resolve }) => {
-  const [open, setOpen] = useState(true)
+const PopupContainer: FC<PopupProps> = ({ processorId, apiKeys, onSetApiKeys, title, open, resolve }) => {
   const { t } = useTranslation()
-  const resolvedRef = useRef(false)
-
-  const closePopup = () => {
-    if (resolvedRef.current) {
-      return
-    }
-
-    resolvedRef.current = true
-    setOpen(false)
-    resolve(null)
-  }
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? setOpen(true) : closePopup())}>
-      <DialogContent className="sm:max-w-150">
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && resolve(null)}>
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-150">
         <DialogHeader>
           <DialogTitle className="text-sm">{title || t('settings.provider.api.key.list.title')}</DialogTitle>
         </DialogHeader>
@@ -279,21 +266,4 @@ const PopupContainer: FC<PopupProps> = ({ processorId, apiKeys, onSetApiKeys, ti
   )
 }
 
-const TopViewKey = 'FileProcessingApiKeyListPopup'
-
-export class FileProcessingApiKeyListPopup {
-  static show(props: ShowParams) {
-    return new Promise<unknown>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(value) => {
-            resolve(value)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
-    })
-  }
-}
+export const FileProcessingApiKeyListPopup = createPopup<ShowParams, null>(PopupContainer, { dismissResult: null })

@@ -64,12 +64,13 @@ describe('Topic Knowledge Functions', () => {
       // This test verifies that the knowledge functions can be imported
       // without causing circular dependency issues
       const knowledgeModule = await import('../knowledge')
+      const knowledgeContentModule = await import('@renderer/services/knowledgeContent')
 
-      expect(knowledgeModule).toHaveProperty('analyzeTopicContent')
-      expect(knowledgeModule).toHaveProperty('processTopicContent')
+      expect(knowledgeContentModule).toHaveProperty('analyzeTopicContent')
+      expect(knowledgeContentModule).toHaveProperty('processTopicContent')
       expect(knowledgeModule).toHaveProperty('CONTENT_TYPES')
-      expect(typeof knowledgeModule.analyzeTopicContent).toBe('function')
-      expect(typeof knowledgeModule.processTopicContent).toBe('function')
+      expect(typeof knowledgeContentModule.analyzeTopicContent).toBe('function')
+      expect(typeof knowledgeContentModule.processTopicContent).toBe('function')
     })
 
     it('should handle getTopicMessages mock correctly', async () => {

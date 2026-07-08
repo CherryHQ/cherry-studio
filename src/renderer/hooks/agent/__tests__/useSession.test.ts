@@ -1,10 +1,22 @@
+import { toast } from '@renderer/services/toast'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
+import {
+  MockUseDataApiUtils,
+  mockUseInfiniteQuery,
+  mockUseInvalidateCache,
+  mockUseMutation
+} from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useActiveSession, useSessions, useUpdateSession } from '../useSession'
+import { useActiveSession, useAgentSessionAutoRenameSync, useSessions, useUpdateSession } from '../useSession'
+
+const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useCloseConversationTabs: () => mockCloseConversationTabs
+}))
 
 const buildInfiniteReturn = (overrides: Record<string, unknown> = {}) => ({
   pages: [] as Array<{ items: Array<{ id: string; name: string }>; nextCursor?: string }>,
@@ -39,9 +51,6 @@ vi.mock('@data/DataApiService', () => ({
   dataApiService: { get: vi.fn() }
 }))
 
-const mockToast = { success: vi.fn(), error: vi.fn() }
-vi.stubGlobal('window', { toast: mockToast })
-
 const workspace = {
   id: 'workspace-1',
   name: 'Workspace',
@@ -62,7 +71,8 @@ const createSession = (overrides: Partial<AgentSessionEntity> = {}): AgentSessio
   orderKey: 'a0',
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-01T00:00:00Z',
-  ...overrides
+  ...overrides,
+  isNameManuallyEdited: overrides.isNameManuallyEdited ?? false
 })
 
 describe('useActiveSession', () => {
@@ -312,6 +322,18 @@ describe('useSessions', () => {
     expect(created).toBe(mockSession)
   })
 
+  it('deletes a session and closes the matching agent conversation tab', async () => {
+    const deleteTrigger = vi.fn().mockResolvedValue(undefined)
+    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agent-sessions/:sessionId', deleteTrigger)
+
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const deleted = await act(async () => result.current.deleteSession('session-a'))
+
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { sessionId: 'session-a' } })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('agents', ['session-a'])
+    expect(deleted).toBe(true)
+  })
+
   it('deletes selected sessions through comma-separated query ids', async () => {
     const response = { deletedIds: ['session-a', 'session-b'], deletedCount: 2 }
     const deleteTrigger = vi.fn().mockResolvedValue(response)
@@ -321,6 +343,7 @@ describe('useSessions', () => {
     const deleted = await act(async () => result.current.deleteSessions(['session-a', 'session-b']))
 
     expect(deleteTrigger).toHaveBeenCalledWith({ query: { ids: 'session-a,session-b' } })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('agents', response.deletedIds)
     expect(deleted).toBe(response)
   })
 
@@ -360,7 +383,7 @@ describe('useSessions', () => {
 
     expect(refresh).toHaveBeenCalledTimes(1)
     expect(created).toBe(mockSession)
-    expect(mockToast.error).toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
   })
 
   it('shows an error toast and returns null when DataApi session creation fails', async () => {
@@ -374,7 +397,7 @@ describe('useSessions', () => {
     )
 
     expect(created).toBeNull()
-    expect(mockToast.error).toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
   })
 })
 
@@ -406,7 +429,7 @@ describe('useUpdateSession', () => {
       body: { agentId: 'agent-2' }
     })
     expect(updated).toBe(mockResult)
-    expect(mockToast.success).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('updates when called with no agentId (composer path) — only an explicit null gates', async () => {
@@ -473,7 +496,55 @@ describe('useUpdateSession', () => {
       body: { name: 'New name' }
     })
     expect(updated).toBeDefined()
-    expect(mockToast.success).toHaveBeenCalledWith('common.update_success')
+    expect(toast.success).toHaveBeenCalledWith('common.update_success')
+  })
+
+  it('keeps the session PATCH refresh scoped to session caches', () => {
+    renderHook(() => useUpdateSession())
+
+    const updateMutationCall = mockUseMutation.mock.calls.find(
+      ([method, path]) => method === 'PATCH' && path === '/agent-sessions/:sessionId'
+    )
+    const refresh = updateMutationCall?.[2]?.refresh as (context: {
+      args: { params: { sessionId: string }; body?: Record<string, unknown> }
+      result: AgentSessionEntity
+    }) => string[]
+
+    expect(
+      refresh({
+        args: { params: { sessionId: 'session-1' }, body: { name: 'Renamed session' } },
+        result: createSession()
+      })
+    ).toEqual(['/agent-sessions', '/agent-sessions/session-1'])
+  })
+
+  it('refreshes workspaces through the dedicated workspace mutation', async () => {
+    const mockResult = createSession()
+    const setWorkspaceTrigger = vi.fn().mockResolvedValue(mockResult)
+    MockUseDataApiUtils.mockMutationWithTrigger('PUT', '/agent-sessions/:sessionId/workspace', setWorkspaceTrigger)
+
+    const { result } = renderHook(() => useUpdateSession())
+    const updated = await act(async () =>
+      result.current.setSessionWorkspace('session-1', { type: 'user', workspaceId: 'workspace-1' })
+    )
+
+    expect(setWorkspaceTrigger).toHaveBeenCalledWith({
+      params: { sessionId: 'session-1' },
+      body: { type: 'user', workspaceId: 'workspace-1' }
+    })
+    expect(updated).toBe(mockResult)
+
+    const workspaceMutationCall = mockUseMutation.mock.calls.find(
+      ([method, path]) => method === 'PUT' && path === '/agent-sessions/:sessionId/workspace'
+    )
+    const refresh = workspaceMutationCall?.[2]?.refresh as (context: {
+      args: { params: { sessionId: string } }
+    }) => string[]
+    expect(refresh({ args: { params: { sessionId: 'session-1' } } })).toEqual([
+      '/agent-sessions',
+      '/agent-sessions/session-1',
+      '/agent-workspaces'
+    ])
   })
 
   it('does not show success toast when showSuccessToast is false', async () => {
@@ -491,7 +562,7 @@ describe('useUpdateSession', () => {
     const { result } = renderHook(() => useUpdateSession())
     await act(async () => result.current.updateSession({ id: 'session-1' }, { showSuccessToast: false }))
 
-    expect(mockToast.success).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('shows error toast and returns undefined on failure', async () => {
@@ -502,6 +573,40 @@ describe('useUpdateSession', () => {
     const updated = await act(async () => result.current.updateSession({ id: 'session-1' }))
 
     expect(updated).toBeUndefined()
-    expect(mockToast.error).toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
+  })
+})
+
+describe('useAgentSessionAutoRenameSync', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+    ;(window as unknown as { api?: unknown }).api = undefined
+  })
+
+  it('invalidates agent session list and detail caches when a session is auto-renamed', () => {
+    const unsubscribe = vi.fn()
+    let emitAutoRenamed: ((payload: { sessionId: string }) => void) | undefined
+    const onAutoRenamed = vi.fn((callback: (payload: { sessionId: string }) => void) => {
+      emitAutoRenamed = callback
+      return unsubscribe
+    })
+    const invalidate = vi.fn().mockResolvedValue(undefined)
+    mockUseInvalidateCache.mockReturnValue(invalidate)
+    ;(window as unknown as { api: { agentSession: { onAutoRenamed: typeof onAutoRenamed } } }).api = {
+      agentSession: { onAutoRenamed }
+    }
+
+    const { unmount } = renderHook(() => useAgentSessionAutoRenameSync())
+
+    expect(onAutoRenamed).toHaveBeenCalledOnce()
+    act(() => {
+      emitAutoRenamed?.({ sessionId: 'session-1' })
+    })
+
+    expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-sessions/session-1'])
+
+    unmount()
+    expect(unsubscribe).toHaveBeenCalledOnce()
   })
 })

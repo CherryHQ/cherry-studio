@@ -1,5 +1,5 @@
 import { useDownloadTool } from '@renderer/components/CodeToolbar/hooks/useDownloadTool'
-import type { BasicPreviewHandles } from '@renderer/components/Preview'
+import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -31,7 +31,7 @@ vi.mock('lucide-react', () => ({
   FileCode: () => <div data-testid="file-code-icon" />
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
+vi.mock('@renderer/components/icons/FileIcons', () => ({
   FilePngIcon: () => <div data-testid="file-png-icon" />,
   FileSvgIcon: () => <div data-testid="file-svg-icon" />
 }))
@@ -84,6 +84,26 @@ describe('useDownloadTool', () => {
     })
 
     expect(mockOnDownloadSource).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns a download menu when preview tools are enabled before previewRef is set', () => {
+    const { result } = renderHook(() =>
+      useDownloadTool(
+        createMockProps({
+          showPreviewTools: true,
+          previewRef: { current: null }
+        })
+      )
+    )
+
+    expect(result.current).toEqual(
+      expect.objectContaining({
+        id: 'download',
+        tooltip: undefined,
+        children: expect.any(Array)
+      })
+    )
+    expect(result.current.children?.map((tool) => tool.id)).toEqual(['download', 'download-svg', 'download-png'])
   })
 
   it('returns a download menu with source, svg, and png actions when preview tools are enabled', () => {

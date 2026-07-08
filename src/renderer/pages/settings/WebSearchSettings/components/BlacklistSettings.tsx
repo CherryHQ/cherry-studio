@@ -1,12 +1,13 @@
 import { Alert, Button, Textarea } from '@cherrystudio/ui'
+import { SettingDivider, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
+import { toast } from '@renderer/services/toast'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingTitle } from '../..'
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { parseWebSearchBlacklistInput } from '../utils/webSearchBlacklist'
 
@@ -40,7 +41,7 @@ const BlacklistSettings: FC = () => {
 
       setBlacklistInput(nextBlacklistInput)
       setBlacklistBaseline(nextBlacklistInput)
-      window.toast.info({
+      toast.info({
         title: t('message.save.success.title'),
         timeout: 4000,
         icon: <Info className="size-4" />

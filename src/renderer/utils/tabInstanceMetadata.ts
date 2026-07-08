@@ -1,5 +1,5 @@
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
+import type { SidebarFavorite } from '@shared/data/preference/preferenceTypes'
 import {
   TAB_INSTANCE_METADATA_APP_ID,
   TAB_INSTANCE_METADATA_KEY,
@@ -47,11 +47,11 @@ export function getTabInstanceAppId(tab: Pick<Tab, 'metadata'>): TabInstanceAppI
   return normalizeTabInstanceMetadata(tab.metadata)?.[TAB_INSTANCE_METADATA_APP_ID]
 }
 
-export function hasTabInstanceMetadataForApp(tab: Pick<Tab, 'metadata'>, appId: SidebarIcon): boolean {
+export function hasTabInstanceMetadataForApp(tab: Pick<Tab, 'metadata'>, appId: SidebarFavorite): boolean {
   return getTabInstanceAppId(tab) === appId
 }
 
-export function getTabInstanceKey(tab: Pick<Tab, 'metadata'>, appId: SidebarIcon): string | undefined {
+export function getTabInstanceKey(tab: Pick<Tab, 'metadata'>, appId: SidebarFavorite): string | undefined {
   const metadata = normalizeTabInstanceMetadata(tab.metadata)
   if (!metadata) return undefined
 

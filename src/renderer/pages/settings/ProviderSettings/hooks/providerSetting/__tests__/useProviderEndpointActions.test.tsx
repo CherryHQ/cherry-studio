@@ -1,4 +1,5 @@
-import { DataApiErrorFactory } from '@shared/data/api'
+import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -41,9 +42,6 @@ describe('useProviderEndpointActions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
-    window.toast = {
-      error: vi.fn()
-    } as any
   })
 
   afterEach(() => {
@@ -139,7 +137,7 @@ describe('useProviderEndpointActions', () => {
     expect(saved).toBe(true)
     expect(patchProviderMock).toHaveBeenCalledTimes(1)
     expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
-    expect(window.toast.error).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('does not patch the same host twice when blur happens after the debounced save', async () => {
@@ -196,7 +194,7 @@ describe('useProviderEndpointActions', () => {
 
     expect(setApiHostMock).toHaveBeenCalledWith('https://api.openai.com')
 
-    expect(window.toast.error).toHaveBeenCalledWith('settings.provider.api_host_no_valid')
+    expect(toast.error).toHaveBeenCalledWith('settings.provider.api_host_no_valid')
     expect(patchProviderMock).not.toHaveBeenCalled()
   })
 
@@ -273,6 +271,6 @@ describe('useProviderEndpointActions', () => {
       await flushEndpointAction()
     })
 
-    expect(window.toast.error).toHaveBeenCalledWith('Unsupported API version')
+    expect(toast.error).toHaveBeenCalledWith('Unsupported API version')
   })
 })

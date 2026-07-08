@@ -3,7 +3,8 @@ import { usePreference } from '@data/hooks/usePreference'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { useTranslate } from '@renderer/hooks/translate'
 import { useDefaultModel } from '@renderer/hooks/useModel'
-import { isEmpty } from 'lodash'
+import { toast } from '@renderer/services/toast'
+import { isEmpty } from 'es-toolkit/compat'
 import { ArrowLeftRight } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -36,7 +37,7 @@ const Translate: FC<Props> = ({ text }) => {
 
   useHotkeys('c', () => {
     void navigator.clipboard.writeText(result)
-    window.toast.success(t('message.copy.success'))
+    toast.success(t('message.copy.success'))
   })
 
   return (

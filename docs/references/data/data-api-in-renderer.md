@@ -61,6 +61,12 @@ const { trigger } = useMutation('POST', '/topics', {
 })
 ```
 
+Functions returned by data hooks (`trigger`, `invalidate`, `refetch`, `nextPage`,
+`prevPage`, `reset`, ...) keep stable identity across re-renders, consistent with
+SWR's own `mutate`/`trigger`, changing only when a meaningful input changes
+(e.g. `nextPage` when page availability flips). `useMutation`'s `trigger` reads
+its options through a ref, so inline `options` objects never churn its identity.
+
 ### useInfiniteQuery (Cursor-based Infinite Scroll)
 
 For infinite scroll UIs with "Load More" pattern. The hook exposes `pages` —
@@ -292,7 +298,7 @@ function TopicList() {
 ### With Try-Catch
 
 ```typescript
-import { DataApiError, ErrorCode } from '@shared/data/api'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 
 try {
   await dataApiService.post('/topics', { body: data })
@@ -448,3 +454,4 @@ const { data: topic } = useQuery('/topics/abc123')
 6. **Revalidate after mutations**: Use `refresh` option to keep the UI in sync
 7. **Use conditional fetching**: Set `enabled: false` to skip queries when dependencies aren't ready
 8. **Batch related operations**: Consider using transactions for multiple updates
+9. **Returned functions are dependency-safe**: put `trigger`, `invalidate`, `refetch`, etc. directly in `useCallback`/`useEffect` dependency arrays — never re-wrap them in refs or omit them from deps to dodge identity churn

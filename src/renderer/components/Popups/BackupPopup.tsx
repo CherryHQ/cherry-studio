@@ -11,19 +11,18 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { getBackupProgressLabelKey } from '@renderer/i18n/label'
 import { backup, backupToLanTransfer } from '@renderer/services/BackupService'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { TopView } from '../TopView'
-import { useTopViewClose } from './useTopViewClose'
-
 const logger = loggerService.withContext('BackupPopup')
 
-interface Props {
-  resolve: (data: any) => void
+interface OwnProps {
   backupType?: 'direct' | 'lan-transfer'
 }
+
+type Props = OwnProps & PopupInjectedProps<any>
 
 type ProgressStageType = 'preparing' | 'copying_database' | 'copying_files' | 'compressing' | 'completed'
 
@@ -33,12 +32,10 @@ interface ProgressData {
   total: number
 }
 
-const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => {
-  const [open, setOpen] = useState(true)
+const PopupContainer: React.FC<Props> = ({ backupType = 'direct', open, resolve }) => {
   const [progressData, setProgressData] = useState<ProgressData>()
   const { t } = useTranslation()
   const [skipBackupFile] = usePreference('data.backup.general.skip_backup_file')
-  const close = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(IpcChannel.BackupProgress, (_, data: ProgressData) => {
@@ -58,11 +55,11 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
     } else {
       await backup(skipBackupFile)
     }
-    close({})
+    resolve({})
   }
 
   const onCancel = () => {
-    close({})
+    resolve({})
   }
 
   const getProgressText = () => {
@@ -75,8 +72,6 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
     }
     return t(getBackupProgressLabelKey(progressData.stage))
   }
-
-  BackupPopup.hide = onCancel
 
   const isDisabled = progressData ? progressData.stage !== 'completed' : false
   const isLanTransferMode = backupType === 'lan-transfer'
@@ -120,16 +115,15 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
   )
 }
 
-const TopViewKey = 'BackupPopup'
+const BackupPopupImpl = createPopup<OwnProps, any>(PopupContainer, { dismissResult: {} })
 
-export default class BackupPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide(TopViewKey)
-  }
-  static show(backupType: 'direct' | 'lan-transfer' = 'direct') {
-    return new Promise<any>((resolve) => {
-      TopView.show(<PopupContainer backupType={backupType} resolve={resolve} />, TopViewKey)
-    })
-  }
+/**
+ * Preserve the legacy positional `show(backupType)` API — call sites pass
+ * `'lan-transfer'` or nothing — on top of createPopup's props-object handle.
+ */
+const BackupPopup = {
+  show: (backupType: 'direct' | 'lan-transfer' = 'direct'): Promise<any> => BackupPopupImpl.show({ backupType }),
+  hide: (): void => BackupPopupImpl.hide()
 }
+
+export default BackupPopup

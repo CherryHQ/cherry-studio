@@ -1,6 +1,7 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
+import { toast } from '@renderer/services/toast'
 import { Bolt, BookOpen } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,7 +31,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
       try {
         await toggleProviderEnabled(enabled)
       } catch {
-        window.toast.error(t('settings.provider.save_failed'))
+        toast.error(t('settings.provider.save_failed'))
       } finally {
         setIsTogglingEnabled(false)
       }

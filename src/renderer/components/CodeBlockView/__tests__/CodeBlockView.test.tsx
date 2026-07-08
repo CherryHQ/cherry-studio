@@ -3,7 +3,7 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CodeBlockView } from '../view'
+import { CodeBlockView } from '../CodeBlockView'
 
 const mocks = vi.hoisted(() => ({
   useCopyTool: vi.fn(),
@@ -118,6 +118,78 @@ describe('CodeBlockView', () => {
       expect.objectContaining({
         enabled: true
       })
+    )
+  })
+
+  it('renders a streaming editable code block with the viewer and highlighting disabled', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.collapsible': true
+    })
+
+    render(
+      <CodeBlockView language="javascript" editable onSave={vi.fn()} isStreaming>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument()
+    expect(mocks.CodeViewer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        autoScrollToBottom: true,
+        expanded: false,
+        options: {
+          highlight: false
+        }
+      }),
+      undefined
+    )
+    expect(mocks.useSaveTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enabled: false
+      })
+    )
+  })
+
+  it('enables viewer auto-scroll while a streaming readonly code block is collapsed', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.collapsible': true
+    })
+
+    render(
+      <CodeBlockView language="javascript" editable={false} onSave={vi.fn()} isStreaming>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    expect(mocks.CodeViewer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        autoScrollToBottom: true,
+        expanded: false,
+        options: {
+          highlight: false
+        }
+      }),
+      undefined
+    )
+  })
+
+  it('leaves internal auto-scroll disabled when the streaming code block is expanded', () => {
+    render(
+      <CodeBlockView language="javascript" editable onSave={vi.fn()} isStreaming>
+        const value = 1
+      </CodeBlockView>
+    )
+
+    expect(mocks.CodeEditor).not.toHaveBeenCalled()
+    expect(mocks.CodeViewer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        autoScrollToBottom: false,
+        expanded: true,
+        options: {
+          highlight: false
+        }
+      }),
+      undefined
     )
   })
 

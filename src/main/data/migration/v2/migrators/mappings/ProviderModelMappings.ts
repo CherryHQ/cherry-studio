@@ -12,7 +12,7 @@ import {
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
-import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@main/data/migration/v2/legacyTypes'
+import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
 import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
 import type {
   ApiFeatures,
@@ -117,9 +117,7 @@ const SYSTEM_PROVIDER_IDS = new Set([
   'qiniu',
   'dmxapi',
   'burncloud',
-  'tokenflux',
   '302ai',
-  'cephalon',
   'lanyun',
   'ph8',
   'openrouter',
@@ -170,7 +168,8 @@ const SYSTEM_PROVIDER_IDS = new Set([
   'mimo',
   'gitee-ai',
   'minimax-global',
-  'zai'
+  'zai',
+  'opencode'
 ])
 
 const TYPE_TO_PRESET_PROVIDER_ID: Partial<Record<LegacyProvider['type'], string>> = {
