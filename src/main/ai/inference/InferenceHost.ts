@@ -54,8 +54,10 @@ interface Pending {
  * Lifecycle-managed: the worker is a real OS thread that must not outlive a
  * clean shutdown. Spawning stays fully lazy (on first `send()`), so `onInit()`
  * has nothing to do — only `onStop()`/`onDestroy()` are meaningful, both
- * releasing the worker via the same idempotent `terminate()`. A loaded model
- * (up to 600MB+) is also released after a period of inactivity, mirroring
+ * releasing the worker via the same `terminateThen`-guarded teardown, which
+ * also blocks a request already queued behind the terminated one from
+ * respawning a worker before shutdown finishes. A loaded model (up to
+ * 600MB+) is also released after a period of inactivity, mirroring
  * {@link TesseractRuntimeService}'s idle-release timer.
  *
  * Requests are also serialized one-at-a-time through the shared worker (same
@@ -265,10 +267,13 @@ abstract class InferenceHostBase extends BaseService {
   }
 
   /** Swallow-and-log (mirrors TesseractRuntimeService's disposeWorkerSafely) so a
-   * rejecting terminate() can't leave this service's lifecycle state stuck mid-shutdown. */
+   * rejecting terminate() can't leave this service's lifecycle state stuck mid-shutdown.
+   * Goes through terminateThen (not a bare terminate()) so the `closing` guard covers the
+   * whole shutdown: a request queued behind the one terminate() rejects would otherwise
+   * dequeue right after, see `this.worker === null`, and respawn a worker mid-shutdown. */
   private async terminateSafely(): Promise<void> {
     try {
-      await this.terminate()
+      await this.terminateThen(async () => {})
     } catch (error) {
       this.logger.warn('failed to terminate inference worker during shutdown', error as Error)
     }

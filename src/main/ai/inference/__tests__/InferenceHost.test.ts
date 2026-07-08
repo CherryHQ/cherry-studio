@@ -384,6 +384,30 @@ describe('InferenceHost terminateThen', () => {
     worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
     await expect(pending).resolves.toEqual([[0.1]])
   })
+
+  it('lifecycle shutdown (onStop) also blocks a queued request from respawning a worker', async () => {
+    const first = embeddingInferenceHost.embed(['a'], SOURCE, 'org/model', 'q8')
+    const worker = fakeWorkers.at(-1)!
+    // Queued behind `first` (concurrency: 1) — not yet dispatched to any worker.
+    const second = embeddingInferenceHost.embed(['b'], SOURCE, 'org/model', 'q8')
+
+    const stopped = (embeddingInferenceHost as any).onStop()
+
+    // A bare terminate() (the pre-fix shutdown path) only rejects `first` — this
+    // asserts `second` also rejects instead of silently respawning a worker.
+    await expect(first).rejects.toThrow(/terminated/)
+    await expect(second).rejects.toThrow(/shutting down/)
+    expect(fakeWorkers).toHaveLength(1)
+
+    await stopped
+
+    // Normal service resumes once shutdown settles.
+    const third = embeddingInferenceHost.embed(['c'], SOURCE, 'org/model', 'q8')
+    const newWorker = fakeWorkers.at(-1)!
+    expect(newWorker).not.toBe(worker)
+    newWorker.emit('message', { type: 'result', id: lastRequestId(newWorker), embeddings: [[0.3]] })
+    await expect(third).resolves.toEqual([[0.3]])
+  })
 })
 
 describe('InferenceHost abort listener cleanup', () => {
