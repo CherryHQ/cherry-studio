@@ -192,6 +192,25 @@ function shouldShowFileTokenPopover(file: ComposerAttachment | undefined) {
   return file?.type === FILE_TYPE.IMAGE || file?.composerFileKind === COMPOSER_FILE_KIND.PASTED_TEXT
 }
 
+function shouldShowFileTokenPathTooltip(file: ComposerAttachment | undefined) {
+  return Boolean(file?.path) && !shouldShowFileTokenPopover(file)
+}
+
+function TokenPathTooltipContent({ path, sizeLabel }: { path: string; sizeLabel?: string }) {
+  return (
+    <span className="inline-flex max-w-full items-start gap-2.5 text-left" data-token-path-tooltip="">
+      <span className="min-w-0 break-all" data-token-path="">
+        {path}
+      </span>
+      {sizeLabel && (
+        <span className="shrink-0 text-neutral-300" data-token-size="">
+          {sizeLabel}
+        </span>
+      )}
+    </span>
+  )
+}
+
 function PastedTextTokenPreviewCard({
   file,
   secondaryAction
@@ -500,7 +519,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
         props.selected && 'border-primary ring-1 ring-ring',
         props.className
       )}
-      title={title}
+      title={shouldShowFileTokenPathTooltip(file) ? undefined : title}
       data-composer-token-kind={props.token.kind}
       data-file-token-variant={presentation.variant}
       onMouseDown={props.onMouseDown}>
@@ -526,6 +545,20 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     </span>
   )
 
+  if (file && shouldShowFileTokenPathTooltip(file)) {
+    const sizeLabel = typeof file.size === 'number' ? formatFileSize(file.size) : undefined
+
+    return (
+      <NormalTooltip
+        content={<TokenPathTooltipContent path={file.path} sizeLabel={sizeLabel} />}
+        side="top"
+        sideOffset={6}
+        delayDuration={300}>
+        {chipElement}
+      </NormalTooltip>
+    )
+  }
+
   if (!shouldShowFileTokenPopover(file)) return chipElement
 
   return (
@@ -542,9 +575,10 @@ export function FileComposerToken(props: FileComposerTokenProps) {
 
 export function FolderComposerToken(props: ComposerTokenProps) {
   const title = props.token.promptText ?? props.token.description ?? props.token.label
+  const path = props.token.promptText ?? props.token.description
   const removeLabel = props.removeLabel ?? 'Remove'
 
-  return (
+  const chipElement = (
     <span
       className={cn(
         'group/composer-token mx-0.5 my-0.5 inline-flex h-6 max-w-[calc(100%_-_0.25rem)] select-none items-center gap-1 overflow-hidden rounded-md border px-1.5 align-baseline font-medium text-foreground text-xs leading-[inherit] transition-[color,box-shadow,border-color]',
@@ -553,7 +587,7 @@ export function FolderComposerToken(props: ComposerTokenProps) {
         props.selected && 'border-primary ring-1 ring-ring',
         props.className
       )}
-      title={title}
+      title={path ? undefined : title}
       data-composer-token-kind={props.token.kind}
       onMouseDown={props.onMouseDown}>
       <span
@@ -573,6 +607,14 @@ export function FolderComposerToken(props: ComposerTokenProps) {
         </span>
       )}
     </span>
+  )
+
+  if (!path) return chipElement
+
+  return (
+    <NormalTooltip content={<TokenPathTooltipContent path={path} />} side="top" sideOffset={6} delayDuration={300}>
+      {chipElement}
+    </NormalTooltip>
   )
 }
 

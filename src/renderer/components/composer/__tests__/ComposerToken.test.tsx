@@ -294,6 +294,25 @@ function expectFileTokenVariant(container: HTMLElement, variant: string, iconCla
   return token
 }
 
+function expectTokenPathTooltip(container: HTMLElement, path: string, sizeLabel?: string) {
+  expectNoComposerTokenPopover(container)
+
+  const tooltipContent = screen.getByTestId('composer-token-tooltip-content')
+  const pathTooltip = tooltipContent.querySelector('[data-token-path-tooltip]')
+  const pathText = tooltipContent.querySelector('[data-token-path]')
+  const sizeText = tooltipContent.querySelector('[data-token-size]')
+
+  expect(pathTooltip).toHaveClass('inline-flex', 'max-w-full', 'items-start', 'gap-2.5')
+  expect(pathText).toHaveTextContent(path)
+  expect(pathText).toHaveClass('break-all')
+  if (sizeLabel) {
+    expect(sizeText).toHaveTextContent(sizeLabel)
+    expect(sizeText).toHaveClass('shrink-0', 'text-neutral-300')
+  } else {
+    expect(sizeText).toBeNull()
+  }
+}
+
 describe('ComposerToken', () => {
   it('maps active composer token kinds to explicit components', () => {
     expect(Object.keys(composerInputTokenComponentByKind).toSorted()).toEqual(
@@ -328,7 +347,7 @@ describe('ComposerToken', () => {
     expect(icon).not.toHaveClass('border', 'border-border', 'bg-background')
   })
 
-  it('renders folder tokens as compact inline chips with the full path as title', () => {
+  it('renders folder tokens as compact inline chips with the full path in a tooltip', () => {
     const { container } = render(
       <ComposerToken
         token={{
@@ -343,7 +362,7 @@ describe('ComposerToken', () => {
     const token = container.querySelector('[data-composer-token-kind="folder"]')
     expect(token).toBeInTheDocument()
     expect(token).toHaveTextContent('Project Notes')
-    expect(token).toHaveAttribute('title', '/Users/jd/Notes/Project Notes')
+    expect(token).not.toHaveAttribute('title')
     expect(token).toHaveClass('h-6', 'rounded-md', 'border', 'border-border', 'bg-background', 'hover:bg-accent')
     expect(token?.querySelector('[data-folder-token-icon]')).toHaveClass(
       'size-4.5',
@@ -351,7 +370,7 @@ describe('ComposerToken', () => {
       'bg-accent',
       'text-muted-foreground'
     )
-    expectNoComposerTokenPopover(container)
+    expectTokenPathTooltip(container, '/Users/jd/Notes/Project Notes')
   })
 
   it('keeps long file token names clipped to a single line while preserving tooltip text', () => {
@@ -432,7 +451,7 @@ describe('ComposerToken', () => {
     expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
     expect(token).not.toHaveClass('border-destructive', 'bg-[var(--color-error-bg)]')
     expect(token?.querySelector('[data-file-token-icon="pdf"]')).not.toHaveClass('border-destructive', 'bg-background')
-    expectNoComposerTokenPopover(container)
+    expectTokenPathTooltip(container, '/tmp/report-q2-final.pdf', '2 KB')
   })
 
   it('renders office file tokens with dedicated variants and colors', () => {
@@ -517,7 +536,7 @@ describe('ComposerToken', () => {
     expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
     expect(token).not.toHaveClass('border-info', 'bg-[var(--color-info-bg)]')
     expect(token?.querySelector('[data-file-token-icon="code"]')).not.toHaveClass('border-info', 'bg-background')
-    expectNoComposerTokenPopover(container)
+    expectTokenPathTooltip(container, '/tmp/config.schema.ts', '3 KB')
   })
 
   it('shows pasted text preview with a right-aligned restore action', async () => {
@@ -748,7 +767,7 @@ describe('ComposerToken', () => {
     expect(tooltipBody.className).toContain('[-webkit-line-clamp:4]')
   })
 
-  it('does not render a popover for ordinary file tokens', () => {
+  it('does not render a popover for file tokens without an attachment path', () => {
     const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} />)
 
     expectNoComposerTokenPopover(container)
