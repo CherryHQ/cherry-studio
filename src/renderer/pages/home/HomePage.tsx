@@ -104,10 +104,15 @@ function findReusableEmptyTopic<
     isNameManuallyEdited?: boolean
     updatedAt?: string
   }
->(topics: readonly T[], assistantId: string | undefined): T | undefined {
-  if (!assistantId) return undefined
+>(topics: readonly T[], assistantId: string | null | undefined): T | undefined {
+  // `undefined` → no reuse target (e.g. runtime fallback with no assistants). `null` → the
+  // default/unassigned group: match empty topics that likewise have no assistant, so repeated "new
+  // topic" there reopens the placeholder instead of stacking blanks. `!topic.assistantId` covers every
+  // "no assistant" encoding (undefined / null / '').
+  if (assistantId === undefined) return undefined
+  const matchesTarget = (topic: T) => (assistantId === null ? !topic.assistantId : topic.assistantId === assistantId)
   // `findLatestUpdated` only ranks the already-confirmed-empty matches; it never decides emptiness.
-  return findLatestUpdated(topics.filter((topic) => topic.assistantId === assistantId && isReusableEmptyTopic(topic)))
+  return findLatestUpdated(topics.filter((topic) => matchesTarget(topic) && isReusableEmptyTopic(topic)))
 }
 
 function mergeReusableTopicCandidates(apiTopics: readonly ApiTopic[], visibleTopic?: Topic): Topic[] {
@@ -477,12 +482,16 @@ const HomePage: FC = () => {
       isCreatingTopicRef.current = true
       try {
         const selection = resolveNewTopicAssistantTarget(payload?.assistantId, options)
+        // The explicit default/unassigned group (`payload.assistantId === null`) resolves to no target
+        // assistant, but its empty placeholders must still be reused rather than restacked — mark it with
+        // `null` so `findReusableEmptyTopic` matches "no assistant" topics.
+        const reuseTargetAssistantId = selection.assistantId ?? (payload?.assistantId === null ? null : undefined)
         // Drop the topic being replaced (post-delete): a stale candidate list still holds it, and
         // reusing it would reactivate the just-deleted topic instead of opening a fresh one.
         const reuseCandidates = payload?.excludeReuseTopicId
           ? topicReuseCandidates.filter((topic) => topic.id !== payload.excludeReuseTopicId)
           : topicReuseCandidates
-        const reusableTopic = findReusableEmptyTopic(reuseCandidates, selection.assistantId)
+        const reusableTopic = findReusableEmptyTopic(reuseCandidates, reuseTargetAssistantId)
         const rendererTopic =
           reusableTopic ??
           mapApiTopicToRendererTopic(

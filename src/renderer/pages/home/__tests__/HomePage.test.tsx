@@ -1124,6 +1124,40 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
+  it('reuses the default/unassigned empty topic instead of stacking a new blank', async () => {
+    // Regression: the default group resolves to no target assistant, so its empty placeholder was never
+    // matched and repeated "new topic" for it stacked duplicate blanks.
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.classicLayoutTopics = [
+      // Latest overall (has a conversation) → auto-selected on entry, never reusable.
+      {
+        ...historyTopic,
+        id: 'topic-real',
+        assistantId: 'assistant-1',
+        activeNodeId: 'node-1',
+        updatedAt: '2026-01-08T00:00:00.000Z'
+      },
+      // Empty placeholder with no assistant (the default/unassigned group).
+      {
+        ...historyTopic,
+        id: 'topic-default-empty',
+        assistantId: undefined,
+        name: '',
+        activeNodeId: undefined,
+        updatedAt: '2026-01-06T00:00:00.000Z'
+      }
+    ]
+
+    render(<HomePage />)
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-real'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create default assistant topic' }))
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-default-empty'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
   it('excludes the deleted active assistant when creating a fallback topic after deletion', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
     homeMocks.assistants = [{ id: 'assistant-1' }, { id: 'assistant-2' }]
