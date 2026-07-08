@@ -526,7 +526,6 @@ export class KnowledgeService extends BaseService {
       const topResults = this.trimToTopK(visibleSearchResults, resolvedTopK, baseId)
       return withSearchRanks(applyRelevanceThreshold(topResults, base.threshold))
     }
-  
   }
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {
