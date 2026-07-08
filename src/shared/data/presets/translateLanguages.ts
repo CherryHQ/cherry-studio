@@ -37,7 +37,8 @@ export const BUILTIN_LANGUAGE = {
   idID: { langCode: parseBuiltinLangCode('id-id'), value: 'Indonesian', emoji: '🇮🇩' },
   urPK: { langCode: parseBuiltinLangCode('ur-pk'), value: 'Urdu', emoji: '🇵🇰' },
   msMY: { langCode: parseBuiltinLangCode('ms-my'), value: 'Malay', emoji: '🇲🇾' },
-  ukUA: { langCode: parseBuiltinLangCode('uk-ua'), value: 'Ukrainian', emoji: '🇺🇦' }
+  ukUA: { langCode: parseBuiltinLangCode('uk-ua'), value: 'Ukrainian', emoji: '🇺🇦' },
+  faIR: { langCode: parseBuiltinLangCode('fa-ir'), value: 'Persian', emoji: '🇮🇷' }
 } as const satisfies Record<string, { langCode: PersistedLangCode; value: string; emoji: string }>
 
 type BuiltinLangCode<T> = T extends { readonly __builtinLangCode: infer Code extends string } ? Code : never
@@ -69,6 +70,7 @@ export const langCodeToI18nKey = new Map(
     'ur-pk': 'languages.urdu',
     'ms-my': 'languages.malay',
     'uk-ua': 'languages.ukrainian',
+    'fa-ir': 'languages.persian',
     unknown: 'languages.unknown'
   } satisfies Record<BuiltinTranslateLangCode | 'unknown', string>)
 )
