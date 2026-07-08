@@ -503,6 +503,76 @@ describe('AgentSessionRuntimeService', () => {
     await reader.cancel().catch(() => undefined)
   })
 
+  it('invalidates an entry with an in-flight connect when the agent model is cleared', async () => {
+    const connection = { events: createAsyncQueue<any>().iterable, send: vi.fn(), close: vi.fn() }
+    const pendingConnect = createDeferred<any>()
+    const connect = vi.fn().mockReturnValue(pendingConnect.promise)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    // Turn-less entry (primed / idle-warm) with an in-flight old-model connect.
+    entry.currentTurn = undefined
+    const connecting = (service as any).ensureConnection(entry) as Promise<boolean>
+    await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce())
+
+    // The agent's model is cleared (its user_model row deleted → agent.model set null). The entry must
+    // be invalidated so the in-flight old-model connect can't install against a now-modelless agent.
+    await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
+    expect(service.inspect('session-1')).toBeUndefined()
+    expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()
+
+    // The stale connect resolves after the invalidation: it must close the connection it opened and
+    // resolve false (not install), leaving no entry behind.
+    pendingConnect.resolve(connection)
+    await expect(connecting).resolves.toBe(false)
+    await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
+    expect(getEntry(service)).toBeUndefined()
+    expect(connect).toHaveBeenCalledTimes(1)
+  })
+
+  it('pauses a live turn and tears the session down when the agent model is cleared', async () => {
+    const connection = { events: createAsyncQueue<any>().iterable, send: vi.fn(), close: vi.fn() }
+    const connect = vi.fn().mockResolvedValue(connection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() =>
+      expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: false })
+    )
+    const turn = getEntry(service).currentTurn
+
+    // The agent's model is cleared mid-turn (its user_model row deleted → agent.model set null). The
+    // live turn is paused (the renderer learns it stopped) and the session is fully torn down.
+    await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
+
+    expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'agent-model-cleared')
+    expect(turn.terminalStatus).toBe('paused')
+    await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
+    expect(service.inspect('session-1')).toBeUndefined()
+    expect(connect).toHaveBeenCalledTimes(1)
+    await reader.cancel().catch(() => undefined)
+  })
+
   it('applies tool-policy updates when disabled tools change', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)

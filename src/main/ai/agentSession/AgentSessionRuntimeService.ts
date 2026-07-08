@@ -407,7 +407,7 @@ export class AgentSessionRuntimeService extends BaseService {
       if (entry.agentId !== agentId) continue
 
       if (!modelId) {
-        this.closeConnectionAsync(entry)
+        this.invalidateModelClearedEntry(entry)
         continue
       }
 
@@ -420,6 +420,24 @@ export class AgentSessionRuntimeService extends BaseService {
         this.closeConnectionAsync(entry)
       }
     }
+  }
+
+  /**
+   * The agent's model was cleared — its `user_model` row was deleted (`agent.model` is an FK with
+   * `onDelete: 'set null'`), so the agent can no longer be routed to any model. Fully invalidate the
+   * runtime entry instead of only closing its connection: pause a live turn so the renderer learns it
+   * stopped (the abort then tears the session down via the turn stream's abort listener), then
+   * `closeSession` to settle the turn, drop queued follow-ups, and close the connection. Removing the
+   * entry from the map also self-discards any in-flight old-model connect (its entry is no longer
+   * current, so `connect()` closes the connection it opened instead of installing it) — a modelless
+   * agent must not be left with a stale entry still targeting the previous model.
+   */
+  private invalidateModelClearedEntry(entry: AgentSessionRuntimeEntry): void {
+    const turn = entry.currentTurn
+    if (turn && !turn.terminalStatus) {
+      application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-model-cleared')
+    }
+    this.closeSession(entry.sessionId)
   }
 
   openTurnStream(input: OpenAgentSessionTurnStreamInput): ReadableStream<UIMessageChunk> {
