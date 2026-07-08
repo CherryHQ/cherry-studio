@@ -99,6 +99,7 @@ describe('useProviderAutoModelSync', () => {
       provider: {
         id: 'ollama',
         isEnabled: false,
+        authOptional: true,
         defaultChatEndpoint: 'ollama_chat',
         endpointConfigs: {
           ollama_chat: { baseUrl: 'http://localhost:11434' }
@@ -120,6 +121,7 @@ describe('useProviderAutoModelSync', () => {
       provider: {
         id: 'ollama',
         isEnabled: false,
+        authOptional: true,
         defaultChatEndpoint: 'ollama_chat',
         endpointConfigs: {
           ollama_chat: { baseUrl: 'http://localhost:11434' }
@@ -151,6 +153,7 @@ describe('useProviderAutoModelSync', () => {
       provider: {
         id: 'ollama',
         isEnabled: false,
+        authOptional: true,
         defaultChatEndpoint: 'ollama_chat',
         endpointConfigs: {
           ollama_chat: { baseUrl: 'http://localhost:11434' }

@@ -26,6 +26,8 @@ const providerWithHost = (baseUrl: string, providerId = 'openai') => {
   return {
     provider: {
       id: providerId,
+      // ollama is credential-free — carried on the merged Provider from the registry
+      authOptional: providerId === 'ollama',
       defaultChatEndpoint: endpoint,
       endpointConfigs: { [endpoint]: { baseUrl } }
     }
