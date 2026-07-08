@@ -128,6 +128,24 @@ export class BinaryManager extends BaseService {
 
   protected override onAllReady() {
     const prefService = application.get('PreferenceService')
+
+    // buildIsolatedEnv() reads feature.binary.install_settings and snapshots the
+    // process.env proxy vars, then getIsolatedEnv() memoizes the result for the
+    // app's lifetime. Drop the cache when either input changes so the next mise
+    // run rebuilds with fresh mirror/registry/token/verify + proxy values, instead
+    // of applying them only after a restart. Subscribe in onAllReady (not
+    // onInit/onReady): BinaryManager is Phase.Background and must not race the
+    // BeforeReady PreferenceService (codex R3).
+    this.registerDisposable(
+      prefService.subscribeMultipleChanges(
+        ['feature.binary.install_settings', 'app.proxy.mode', 'app.proxy.url', 'app.proxy.bypass_rules'],
+        () => {
+          this.isolatedEnv = null
+          this.isolatedEnvPromise = null
+        }
+      )
+    )
+
     const predefinedNames = new Set(PRESETS_BINARY_TOOLS.map((t) => t.name))
     const tools = prefService.get('feature.binary.tools')
     const cleaned = tools.filter((t) => !predefinedNames.has(t.name))
@@ -284,6 +302,21 @@ export class BinaryManager extends BaseService {
       }
     }
 
+    // User-configured install knobs (mirror/registry/token/verify). All applied
+    // here in the install-only env, never the shared execution env (D7), so a
+    // token or mirror can't leak into the launched agent CLIs.
+    const installSettings = application.get('PreferenceService').get('feature.binary.install_settings')
+
+    // Explicit registry overrides win over both the ambient shell values (passed
+    // through above) and the China auto-mirror below — set before the China block
+    // so an empty field still falls back to auto-China.
+    if (installSettings.npmRegistry) {
+      env['NPM_CONFIG_REGISTRY'] = installSettings.npmRegistry
+    }
+    if (installSettings.pipIndexUrl) {
+      env['PIP_INDEX_URL'] = installSettings.pipIndexUrl
+    }
+
     // Opt-in GitHub token: users who hit the 60 req/hr unauthenticated API
     // limit (shared NATs, CI, Codespaces) can set CHERRY_GITHUB_TOKEN to
     // raise it to 5000 req/hr. We deliberately do NOT pick up the ambient
@@ -293,6 +326,11 @@ export class BinaryManager extends BaseService {
     if (cherryGhToken) {
       env['GITHUB_TOKEN'] = cherryGhToken
     }
+    // A token set in settings supersedes the CHERRY_GITHUB_TOKEN env opt-in; an
+    // empty field keeps the env fallback so existing users don't regress.
+    if (installSettings.githubToken) {
+      env['GITHUB_TOKEN'] = installSettings.githubToken
+    }
 
     // Install `pipx:` tools via the bundled uv/uvx instead of a `pipx` binary the
     // user may not have. mise's default is already true, but only "if uv is on
@@ -300,6 +338,29 @@ export class BinaryManager extends BaseService {
     // missing `pipx` can't fail the install (#16719). Install-only: this must not
     // leak into the shared execution env that runs the launched CLIs.
     env['MISE_PIPX_UVX'] = '1'
+
+    // GitHub mirror (proxy-prefix form, e.g. https://ghfast.top): rewrite BOTH the
+    // release-asset host (github.com) and the API host (api.github.com — used by
+    // `mise latest` version resolution; rewriting only github.com leaves it
+    // broken). MISE_URL_REPLACEMENTS takes a JSON object of from→to prefix rules
+    // (format verified empirically against the bundled mise).
+    if (installSettings.githubMirror) {
+      const prefix = installSettings.githubMirror.replace(/\/+$/, '')
+      env['MISE_URL_REPLACEMENTS'] = JSON.stringify({
+        'https://github.com': `${prefix}/https://github.com`,
+        'https://api.github.com': `${prefix}/https://api.github.com`
+      })
+    }
+
+    // Escape hatch (default off, D4): disable aqua's Sigstore/SLSA/minisign
+    // verification for users whose network can't complete it. The Windows
+    // cache-dir fix (B2) is the primary unblock; this only flips when the user
+    // explicitly opts out of supply-chain verification.
+    if (!installSettings.verifySignatures) {
+      env['MISE_AQUA_COSIGN'] = 'false'
+      env['MISE_AQUA_SLSA'] = 'false'
+      env['MISE_AQUA_MINISIGN'] = 'false'
+    }
 
     const inChina = await regionService.isInChina().catch(() => false)
     if (inChina) {
@@ -355,16 +416,20 @@ export class BinaryManager extends BaseService {
       return Promise.resolve(this.isolatedEnv)
     }
     if (!this.isolatedEnvPromise) {
-      this.isolatedEnvPromise = this.buildIsolatedEnv().then(
+      const building = this.buildIsolatedEnv().then(
         (env) => {
-          this.isolatedEnv = env
+          // Only cache if this build is still the current one. An invalidation
+          // (settings/proxy change) mid-build nulls isolatedEnvPromise; a stale
+          // resolve must not repopulate isolatedEnv with pre-change values.
+          if (this.isolatedEnvPromise === building) this.isolatedEnv = env
           return env
         },
         (err) => {
-          this.isolatedEnvPromise = null
+          if (this.isolatedEnvPromise === building) this.isolatedEnvPromise = null
           throw err
         }
       )
+      this.isolatedEnvPromise = building
     }
     return this.isolatedEnvPromise
   }

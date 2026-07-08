@@ -18,7 +18,17 @@ const { mockExecFileAsync, mockFs, mockPreferenceService } = vi.hoisted(() => ({
     renameSync: vi.fn(),
     constants: { F_OK: 0, X_OK: 1 }
   },
-  mockPreferenceService: { get: vi.fn(() => []) }
+  mockPreferenceService: {
+    // Keyed so buildIsolatedEnv reads a well-formed install_settings object
+    // (verifySignatures:true by default) rather than the `[]` fallback, which
+    // would make !verifySignatures truthy and spuriously disable aqua checks.
+    get: vi.fn((key: string) =>
+      key === 'feature.binary.install_settings'
+        ? { githubMirror: '', githubToken: '', npmRegistry: '', pipIndexUrl: '', verifySignatures: true }
+        : []
+    ),
+    subscribeMultipleChanges: vi.fn(() => ({ dispose: vi.fn() }))
+  }
 }))
 
 vi.mock('@application', async () => {
@@ -111,7 +121,27 @@ describe('BinaryManager', () => {
     mockExecFileAsync.mockReset()
     mockFs.existsSync.mockReset().mockReturnValue(false)
     mockFs.readFileSync.mockReset()
+    // Restore the keyed default so a per-test override can't leak forward
+    // (clearAllMocks wipes call history but keeps mockImplementation overrides).
+    mockPreferenceService.get.mockImplementation((key: string) =>
+      key === 'feature.binary.install_settings' ? { ...DEFAULT_INSTALL_SETTINGS } : []
+    )
+    mockPreferenceService.subscribeMultipleChanges.mockReturnValue({ dispose: vi.fn() })
   })
+
+  // Mirrors the generated default for feature.binary.install_settings; tests
+  // spread over it to vary one field at a time.
+  const DEFAULT_INSTALL_SETTINGS = {
+    githubMirror: '',
+    githubToken: '',
+    npmRegistry: '',
+    pipIndexUrl: '',
+    verifySignatures: true
+  }
+  const setInstallSettings = (partial: Partial<typeof DEFAULT_INSTALL_SETTINGS>) =>
+    mockPreferenceService.get.mockImplementation((key: string) =>
+      key === 'feature.binary.install_settings' ? { ...DEFAULT_INSTALL_SETTINGS, ...partial } : []
+    )
 
   describe('decorators', () => {
     it('is registered as Background phase', () => {
@@ -802,6 +832,161 @@ describe('BinaryManager', () => {
       const env = await (service as any).buildIsolatedEnv()
 
       expect(env['MISE_PIPX_UVX']).toBe('1')
+    })
+  })
+
+  describe('buildIsolatedEnv install settings', () => {
+    const buildEnv = async (): Promise<Record<string, string>> => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      return (service as any).buildIsolatedEnv()
+    }
+
+    it('maps githubMirror to MISE_URL_REPLACEMENTS with both github.com and api.github.com rules', async () => {
+      setInstallSettings({ githubMirror: 'https://ghfast.top/' })
+      const env = await buildEnv()
+
+      // Trailing slash trimmed; the API host is rewritten too so `mise latest`
+      // version resolution goes through the mirror, not only asset downloads.
+      const rules = JSON.parse(env['MISE_URL_REPLACEMENTS'])
+      expect(rules['https://github.com']).toBe('https://ghfast.top/https://github.com')
+      expect(rules['https://api.github.com']).toBe('https://ghfast.top/https://api.github.com')
+    })
+
+    it('leaves MISE_URL_REPLACEMENTS unset when no mirror is configured', async () => {
+      const env = await buildEnv()
+      expect(env['MISE_URL_REPLACEMENTS']).toBeUndefined()
+    })
+
+    it('lets an explicit npm/pip registry override the China auto-mirror', async () => {
+      const { regionService } = await import('@main/services/RegionService')
+      ;(regionService.isInChina as any).mockResolvedValueOnce(true)
+      setInstallSettings({ npmRegistry: 'https://my.npm/', pipIndexUrl: 'https://my.pip/simple' })
+
+      const env = await buildEnv()
+      expect(env['NPM_CONFIG_REGISTRY']).toBe('https://my.npm/')
+      expect(env['PIP_INDEX_URL']).toBe('https://my.pip/simple')
+    })
+
+    it('keeps the China auto-mirror when registries are left empty', async () => {
+      const { regionService } = await import('@main/services/RegionService')
+      ;(regionService.isInChina as any).mockResolvedValueOnce(true)
+
+      const env = await buildEnv()
+      expect(env['NPM_CONFIG_REGISTRY']).toBe('https://registry.npmmirror.com')
+      expect(env['PIP_INDEX_URL']).toBe('https://pypi.tuna.tsinghua.edu.cn/simple')
+    })
+
+    it('lets a settings token supersede the CHERRY_GITHUB_TOKEN env opt-in', async () => {
+      const original = { ...process.env }
+      try {
+        process.env['CHERRY_GITHUB_TOKEN'] = 'ghp_env'
+        setInstallSettings({ githubToken: 'ghp_settings' })
+        const env = await buildEnv()
+        expect(env['GITHUB_TOKEN']).toBe('ghp_settings')
+      } finally {
+        process.env = original
+      }
+    })
+
+    it('falls back to the CHERRY_GITHUB_TOKEN env when the settings token is empty', async () => {
+      const original = { ...process.env }
+      try {
+        process.env['CHERRY_GITHUB_TOKEN'] = 'ghp_env'
+        const env = await buildEnv()
+        expect(env['GITHUB_TOKEN']).toBe('ghp_env')
+      } finally {
+        process.env = original
+      }
+    })
+
+    it('disables the aqua signature checks only when verifySignatures is off', async () => {
+      const on = await buildEnv()
+      expect(on['MISE_AQUA_COSIGN']).toBeUndefined()
+      expect(on['MISE_AQUA_SLSA']).toBeUndefined()
+      expect(on['MISE_AQUA_MINISIGN']).toBeUndefined()
+
+      setInstallSettings({ verifySignatures: false })
+      const off = await buildEnv()
+      expect(off['MISE_AQUA_COSIGN']).toBe('false')
+      expect(off['MISE_AQUA_SLSA']).toBe('false')
+      expect(off['MISE_AQUA_MINISIGN']).toBe('false')
+    })
+
+    it('never leaks install-only vars into the shared execution env (D7)', async () => {
+      // Even with every knob set, getBinaryExecutionEnv (which runs the launched
+      // CLIs) must stay free of token/registry/mirror/aqua/pipx vars.
+      setInstallSettings({
+        githubMirror: 'https://ghfast.top',
+        npmRegistry: 'https://my.npm',
+        pipIndexUrl: 'https://my.pip',
+        githubToken: 'ghp_secret',
+        verifySignatures: false
+      })
+      await buildEnv()
+
+      const execEnv = getBinaryExecutionEnv()
+      for (const key of [
+        'GITHUB_TOKEN',
+        'NPM_CONFIG_REGISTRY',
+        'PIP_INDEX_URL',
+        'MISE_URL_REPLACEMENTS',
+        'MISE_PIPX_UVX',
+        'MISE_AQUA_COSIGN',
+        'MISE_AQUA_SLSA',
+        'MISE_AQUA_MINISIGN'
+      ]) {
+        expect(execEnv[key]).toBeUndefined()
+      }
+    })
+  })
+
+  describe('install-env cache invalidation', () => {
+    it('subscribes to install settings + proxy prefs and drops the memoized env on change', () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).onAllReady()
+
+      const [keys, cb] = mockPreferenceService.subscribeMultipleChanges.mock.calls[0] as unknown as [
+        string[],
+        () => void
+      ]
+      expect(keys).toEqual(
+        expect.arrayContaining([
+          'feature.binary.install_settings',
+          'app.proxy.mode',
+          'app.proxy.url',
+          'app.proxy.bypass_rules'
+        ])
+      )
+
+      ;(service as any).isolatedEnv = { stale: '1' }
+      ;(service as any).isolatedEnvPromise = Promise.resolve({})
+      cb()
+      expect((service as any).isolatedEnv).toBeNull()
+      expect((service as any).isolatedEnvPromise).toBeNull()
+    })
+
+    it('does not repopulate the cache from a build that resolved after an invalidation', async () => {
+      const { regionService } = await import('@main/services/RegionService')
+      let release!: () => void
+      ;(regionService.isInChina as any).mockReturnValueOnce(
+        new Promise<boolean>((resolve) => {
+          release = () => resolve(false)
+        })
+      )
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+
+      const inFlight = (service as any).getIsolatedEnv()
+      // Invalidate while the build is blocked on the region lookup.
+      ;(service as any).isolatedEnv = null
+      ;(service as any).isolatedEnvPromise = null
+      release()
+      await inFlight
+
+      // The stale resolve must not repopulate isolatedEnv (generation guard).
+      expect((service as any).isolatedEnv).toBeNull()
     })
   })
 
