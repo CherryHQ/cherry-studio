@@ -204,9 +204,10 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
     openExternalUrl: actions?.openExternalUrl ?? providerActions?.openExternalUrl
   }
   const shouldFetchPreview = Boolean(previewUrl) && !inlineContent && !isXPost
+  const shouldFetchOembed = isXPost && Boolean(previewUrl) && !inlineContent
 
   const { data: oembedData, isLoading: isOembedLoading } = useSWRImmutable(
-    isXPost && previewUrl ? xOembedKey(previewUrl) : null,
+    shouldFetchOembed ? xOembedKey(previewUrl) : null,
     () => fetchXOEmbed(previewUrl),
     { shouldRetryOnError: false }
   )
@@ -214,7 +215,7 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
   const { data: rawContent, isLoading } = useSWRImmutable(
     shouldFetchPreview ? `webContent/${previewUrl}` : null,
     async () => {
-      const res = await ipcApi.request('web_search.fetch_urls', { providerId: 'fetch', urls: [previewUrl] })
+      const res = await ipcApi.request('web_search.fetch_urls', { urls: [previewUrl] })
       const content = res.results[0]?.content ?? ''
       // Graceful degrade: the fetch pipeline swallows failures into `noContent`, so
       // suppress it to render no snippet rather than placeholder text.
@@ -232,6 +233,7 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
 
   const displayTitle = isXPost && oembedData?.author ? `@${oembedData.author}` : citation.title
   const titleContent = displayTitle || citation.hostname || citation.content || citation.url
+  const linkTitleContent = displayTitle || citation.hostname || citation.url
   const isPreviewLoading = isXPost && !inlineContent ? isOembedLoading : isLoading
 
   return (
@@ -246,7 +248,7 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
               className="flex-1 text-nowrap text-foreground text-sm leading-[1.6] no-underline"
               href={citation.url}
               onClick={(e) => handleLinkClick(citation.url, e, linkActions)}>
-              {displayTitle || <span className="text-primary">{citation.hostname}</span>}
+              {displayTitle || <span className="text-primary">{linkTitleContent}</span>}
             </a>
           ) : (
             <span className="flex-1 text-nowrap text-foreground text-sm leading-[1.6]">{titleContent}</span>

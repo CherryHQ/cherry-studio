@@ -34,6 +34,16 @@ describe('webSearch input utils', () => {
     )
   })
 
+  it.each([
+    'https://user:pass@example.com/file',
+    'http://localhost:3000/file',
+    'http://127.0.0.1/file',
+    'http://10.0.0.1/file',
+    'http://169.254.169.254/latest/meta-data/'
+  ])('throws for unsafe remote URLs before provider dispatch: %s', (url) => {
+    expect(() => normalizeWebSearchUrls([url])).toThrow(/Unsafe remote url/)
+  })
+
   it('throws when URL count exceeds the per-request limit', () => {
     expect(() =>
       normalizeWebSearchUrls(

@@ -219,11 +219,32 @@ describe('CitationsList', () => {
 
     await waitFor(() =>
       expect(ipcMocks.request).toHaveBeenCalledWith('web_search.fetch_urls', {
-        providerId: 'fetch',
         urls: ['https://example.com']
       })
     )
     expect(await screen.findByText('web preview content')).toBeInTheDocument()
+  })
+
+  it('lets the web-search service resolve the default URL fetch provider for panel previews', async () => {
+    const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
+
+    render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, { wrapper })
+
+    await waitFor(() =>
+      expect(ipcMocks.request).toHaveBeenCalledWith('web_search.fetch_urls', {
+        urls: ['https://example.com']
+      })
+    )
+  })
+
+  it('renders URL-only web citations with visible link text', async () => {
+    const url = 'https://example.com/path'
+    const citations: Citation[] = [{ number: 1, url, type: 'websearch' }]
+
+    render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, { wrapper })
+
+    expect(screen.getByRole('link', { name: url })).toBeInTheDocument()
+    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalled())
   })
 
   it('falls back to the fetched preview when inline content cleans to empty', async () => {
@@ -366,6 +387,26 @@ describe('CitationsList', () => {
 
     const rowKeys = screen.getAllByTestId(/virtual-row-/).map((row) => row.getAttribute('data-virtual-key'))
     expect(new Set(rowKeys).size).toBe(rowKeys.length)
+  })
+
+  it('does not fetch X oEmbed when inline citation content already exists', async () => {
+    fetchMocks.isXPostUrl.mockReturnValue(true)
+    const citations: Citation[] = [
+      {
+        number: 1,
+        url: 'https://x.com/cherry/status/123',
+        title: 'X',
+        content: 'existing x content',
+        type: 'websearch'
+      }
+    ]
+
+    render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, { wrapper })
+
+    expect(screen.getByRole('link', { name: 'X' })).toBeInTheDocument()
+    expect(screen.getByText('existing x content')).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(fetchMocks.fetchXOEmbed).not.toHaveBeenCalled()
   })
 
   it('dedupes X post oEmbed fetches between title and preview content', async () => {

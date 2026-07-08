@@ -414,6 +414,14 @@ describe('WebSearchService', () => {
     await expect(webSearchService.fetchUrls({ urls: ['not a url'] })).rejects.toThrow('Invalid URL format: not a url')
   })
 
+  it('rejects unsafe URL inputs before resolving an explicit fetch provider', async () => {
+    await expect(
+      webSearchService.fetchUrls({ providerId: 'jina', urls: ['http://169.254.169.254/latest/meta-data/'] })
+    ).rejects.toThrow('Unsafe remote url: local or private addresses are not allowed')
+
+    expect(createWebSearchProviderMock).not.toHaveBeenCalled()
+  })
+
   it('logs and throws when a default provider is not configured', async () => {
     setWebSearchPreferences({ defaultSearchKeywordsProvider: null })
 
