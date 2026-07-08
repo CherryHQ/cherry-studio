@@ -94,6 +94,7 @@ Main process 其他 service 可根据实际需求直接调 ops.ts 或 FileManage
 | `File_CheckFileName`                  | sanitize → shared 纯函数，冲突 → service 内部    |
 | `File_GetDirectoryStructure`          | → DataApi `GET /files/entries/:id/children`      |
 | `File_StartWatcher/Stop/Pause/Resume` | FileManager 内部管理，不暴露 IPC                 |
+| `App_Copy`                            | userData relocation 改由 preboot relocation gate 执行 |
 
 ## 不属于 File Module 的 IPC
 
@@ -102,7 +103,6 @@ Main process 其他 service 可根据实际需求直接调 ops.ts 或 FileManage
 | `getPathForFile`                | preload utils | 同步方法，不经过 IPC                    |
 | `Open_Website`                  | App 层        | `shell.openExternal(url)`               |
 | `Pdf_ExtractText`               | 保持独立      | 纯内容处理（传 buffer），不依赖文件系统 |
-| `App_Copy`                      | 数据迁移模块  | userData 递归复制，专用场景             |
 | `FileService_*`                 | Provider 模块 | AI Provider 远程文件 API                |
 | `Gemini_*File`                  | Provider 模块 | Gemini 专用                             |
 | `Export_Word`                   | Export 模块   |                                         |
@@ -120,6 +120,6 @@ Main process 其他 service 可根据实际需求直接调 ops.ts 或 FileManage
 | 其中纯 Entry 操作        | —   | 9 → FileManager                    |
 | 其中纯 Path 操作         | —   | 8 → ops.ts                         |
 | 其中双态（handler 分派） | —   | 5 → FileManager or ops.ts          |
-| 已移除                   | —   | 10                                 |
-| 归属其他模块             | —   | 10                                 |
+| 已移除                   | —   | 11                                 |
+| 归属其他模块             | —   | 9                                  |
 | 新增（v1 无）            | —   | 7 (trash/restore/batch + 路径工具) |
