@@ -7,7 +7,7 @@ import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { getRandomTagColor } from '@renderer/utils/resourceCatalog'
 import { Copy, Download, MoreHorizontal, Tag, Trash2 } from 'lucide-react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('ResourceCardMenu')
@@ -35,6 +35,7 @@ export function useResourceCardMenuItems({
   allTagNames
 }: Omit<ResourceCardMenuProps, 'triggerClassName'>): readonly CommandContextMenuExtraItem[] {
   const { t } = useTranslation()
+  const resourceTag = resource.type === 'assistant' ? (resource.tag ?? null) : null
   const [localTag, setLocalTag] = useState<string | null>(() =>
     resource.type === 'assistant' ? (resource.tag ?? null) : null
   )
@@ -47,6 +48,11 @@ export function useResourceCardMenuItems({
   const canDuplicate = canDuplicateResource(resource)
   const canExport = resource.type === 'assistant'
   const hasActionsBeforeDelete = canBindTags || canDuplicate || canExport
+
+  useEffect(() => {
+    if (bindingPendingRef.current) return
+    setLocalTag(resourceTag)
+  }, [resource.id, resourceTag])
 
   const persistTag = useCallback(
     async (nextName: string | null, previousName: string | null) => {

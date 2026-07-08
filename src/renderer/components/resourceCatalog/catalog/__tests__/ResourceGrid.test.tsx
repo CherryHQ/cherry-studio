@@ -807,6 +807,29 @@ describe('ResourceCardMenu tag binding', () => {
     expect(screen.getByRole('menuitem', { name: 'beta' })).not.toHaveAttribute('aria-disabled')
   })
 
+  it('refreshes the disabled assistant tag when the resource tag changes', async () => {
+    const user = userEvent.setup()
+    const menuProps = {
+      onClose: vi.fn(),
+      onDuplicate: vi.fn(),
+      onDelete: vi.fn(),
+      onExport: vi.fn(),
+      allTagNames: ['alpha', 'beta']
+    }
+
+    const { rerender } = render(
+      <ResourceCardMenu resource={createAssistantResource({ tag: 'alpha' })} {...menuProps} />
+    )
+
+    rerender(<ResourceCardMenu resource={createAssistantResource({ tag: 'beta' })} {...menuProps} />)
+
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
+    await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
+
+    expect(screen.getByRole('menuitem', { name: 'alpha' })).not.toHaveAttribute('aria-disabled')
+    expect(screen.getByRole('menuitem', { name: 'beta' })).toHaveAttribute('aria-disabled', 'true')
+  })
+
   it('replaces the current assistant tag when a different tag is selected', async () => {
     const user = userEvent.setup()
     ensureTagsMock.mockResolvedValueOnce([{ id: 'tag-beta', name: 'beta' }])
@@ -831,45 +854,24 @@ describe('ResourceCardMenu tag binding', () => {
     expect(updateAssistantMock).toHaveBeenCalledWith({ tagIds: ['tag-beta'] })
   })
 
-  it('does not expose tag management for agent, skill, or prompt resources', () => {
-    const { rerender } = render(
-      <ResourceCardMenu
-        resource={createAgentResource()}
-        onClose={vi.fn()}
-        onDuplicate={vi.fn()}
-        onDelete={vi.fn()}
-        onExport={vi.fn()}
-        allTagNames={['alpha', 'beta']}
-      />
-    )
+  it('does not expose tag management for agent, skill, or prompt resources', async () => {
+    const user = userEvent.setup()
+    const menuProps = {
+      onClose: vi.fn(),
+      onDuplicate: vi.fn(),
+      onDelete: vi.fn(),
+      onExport: vi.fn(),
+      allTagNames: ['alpha', 'beta']
+    }
 
-    expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
+    for (const resource of [createAgentResource(), createSkillResource(), createPromptResource()]) {
+      const { unmount } = render(<ResourceCardMenu resource={resource} {...menuProps} />)
 
-    rerender(
-      <ResourceCardMenu
-        resource={createSkillResource()}
-        onClose={vi.fn()}
-        onDuplicate={vi.fn()}
-        onDelete={vi.fn()}
-        onExport={vi.fn()}
-        allTagNames={['alpha', 'beta']}
-      />
-    )
+      await user.click(screen.getByRole('button', { name: /common.more/ }))
+      expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
 
-    expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
-
-    rerender(
-      <ResourceCardMenu
-        resource={createPromptResource()}
-        onClose={vi.fn()}
-        onDuplicate={vi.fn()}
-        onDelete={vi.fn()}
-        onExport={vi.fn()}
-        allTagNames={['alpha', 'beta']}
-      />
-    )
-
-    expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
+      unmount()
+    }
   })
 
   it('keeps uninstall available for skill resources without extra menu actions', async () => {
