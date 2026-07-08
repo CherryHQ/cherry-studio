@@ -346,6 +346,7 @@ const ChatComposerPersistentToolShortcuts = ({
             reasoningLauncher?.active && 'bg-accent'
           )}
           aria-label={reasoningLabel}
+          aria-haspopup="menu"
           disabled={reasoningDisabled}
           data-active={reasoningLauncher?.active || undefined}
           onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking', searchText: reasoningLabel })}>

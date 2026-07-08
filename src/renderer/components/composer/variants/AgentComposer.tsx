@@ -608,6 +608,7 @@ const AgentComposerQuickPanelShortcuts = ({
             reasoningLauncher?.active && 'bg-accent'
           )}
           aria-label={reasoningLabel}
+          aria-haspopup="menu"
           disabled={reasoningDisabled}
           data-active={reasoningLauncher?.active || undefined}
           onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking', searchText: reasoningLabel })}>
@@ -621,6 +622,7 @@ const AgentComposerQuickPanelShortcuts = ({
           size="icon-sm"
           className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, 'disabled:pointer-events-none disabled:opacity-40')}
           aria-label={skillLabel}
+          aria-haspopup="menu"
           disabled={panelDisabled}
           onClick={() => unifiedPanelControl?.open({ searchText: skillLabel })}>
           <Sparkles size={18} aria-hidden />
