@@ -35,6 +35,7 @@ import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import { isSoulModeEnabled } from '@renderer/utils/agent/agentConfiguration'
@@ -173,17 +174,19 @@ const AgentComposerRoot = ({
   const { agent } = useAgent(agentId)
   const { model: sessionModel } = useModelById((agent?.model ?? '') as UniqueModelId)
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
-  const [sessionLayout] = usePreference('agent.layout')
+  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
+  const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const handleNewSessionShortcut = useCallback(() => {
-    if (sessionLayout === 'classic' && onCreateEmptySession) {
+    if (isClassicSessionLayout && onCreateEmptySession) {
       void onCreateEmptySession()
       return
     }
 
     void onNewSessionDraft?.()
-  }, [onCreateEmptySession, onNewSessionDraft, sessionLayout])
-  const hasNewSessionShortcutAction =
-    sessionLayout === 'classic' ? Boolean(onCreateEmptySession || onNewSessionDraft) : Boolean(onNewSessionDraft)
+  }, [isClassicSessionLayout, onCreateEmptySession, onNewSessionDraft])
+  const hasNewSessionShortcutAction = isClassicSessionLayout
+    ? Boolean(onCreateEmptySession || onNewSessionDraft)
+    : Boolean(onNewSessionDraft)
 
   const isActiveTab = useIsActiveTab()
   useCommandHandler('topic.create', handleNewSessionShortcut, {
@@ -672,7 +675,8 @@ const AgentComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [sessionLayout] = usePreference('agent.layout')
+  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
+  const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const { t } = useTranslation()
   const modelProviderName = useProviderDisplayName(model?.providerId)
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
@@ -836,7 +840,7 @@ const AgentComposerInner = ({
 
     const label = t('agent.session.new')
 
-    if (sessionLayout === 'classic') {
+    if (isClassicSessionLayout) {
       if (!onCreateEmptySession) return []
 
       return [
@@ -867,7 +871,7 @@ const AgentComposerInner = ({
         }
       }
     ]
-  }, [agentBase, handleCreateEmptySession, onCreateEmptySession, onNewSessionDraft, sessionLayout, t])
+  }, [agentBase, handleCreateEmptySession, isClassicSessionLayout, onCreateEmptySession, onNewSessionDraft, t])
 
   const toolsSession = useMemo(() => {
     if (!sessionData) return undefined
@@ -969,7 +973,7 @@ const AgentComposerInner = ({
     isFulfilled: sessionFulfilled,
     markSeen: markSessionSeen,
     onDrain: sendQueuedPayload,
-    onDrainFailed: () => window.toast?.error(t('chat.input.send_failed'))
+    onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
 
   // Edit a queued item = restore the draft (text + files + skills) into the live composer, then drop
@@ -987,11 +991,11 @@ const AgentComposerInner = ({
     (draft: ComposerSerializedDraft) => {
       if (sendDisabled) return
       if (!model) {
-        window.toast?.error(t('code.model_required'))
+        toast.error(t('code.model_required'))
         return
       }
       if (workspaceWarning) {
-        window.toast?.error(workspaceWarning)
+        toast.error(workspaceWarning)
         return
       }
       const payload = buildQueuedPayload(draft)
@@ -1020,7 +1024,7 @@ const AgentComposerInner = ({
           setDraftTokens(previousDraftTokens)
           draftTokensRef.current = previousDraftTokens
           writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
-          window.toast?.error(t('chat.input.send_failed'))
+          toast.error(t('chat.input.send_failed'))
         }
       })
     },
@@ -1073,7 +1077,7 @@ const AgentComposerInner = ({
     selectModelLabel: t('button.select_model'),
     agentChanging,
     shouldAutoSelectCreatedAgent: Boolean(onAgentChange),
-    showAgentTrigger: sessionLayout !== 'classic',
+    showAgentTrigger: !isClassicSessionLayout,
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
@@ -1119,7 +1123,7 @@ const AgentComposerInner = ({
                 // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
                 const sent = await sendQueuedPayload(item.payload)
                 if (sent) removeFollowup(id)
-                else window.toast?.error(t('chat.input.send_failed'))
+                else toast.error(t('chat.input.send_failed'))
               }}
               onEdit={(id) => {
                 const item = queuedFollowups.find((entry) => entry.id === id)
@@ -1180,7 +1184,8 @@ const MissingAgentHomeComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const [sessionLayout] = usePreference('agent.layout')
+  const [sessionDisplayMode] = usePreference('agent.session.display_mode')
+  const isClassicSessionLayout = sessionDisplayMode === 'agent'
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const selectAgentMessage = t('chat.alerts.select_agent')
@@ -1201,7 +1206,7 @@ const MissingAgentHomeComposerInner = ({
     [onAgentChange, text]
   )
   const handleBlockedSend = useCallback(() => {
-    window.toast?.error(selectAgentMessage)
+    toast.error(selectAgentMessage)
   }, [selectAgentMessage])
   const placeholderText = t('agent.input.placeholder', {
     key: getSendMessageShortcutLabel(sendMessageShortcut)
@@ -1214,7 +1219,7 @@ const MissingAgentHomeComposerInner = ({
     selectModelLabel: t('button.select_model'),
     agentChanging,
     shouldAutoSelectCreatedAgent: true,
-    showAgentTrigger: sessionLayout !== 'classic',
+    showAgentTrigger: !isClassicSessionLayout,
     canChangeModel: false,
     onAgentChange: handleAgentChange,
     onModelSelect: () => undefined

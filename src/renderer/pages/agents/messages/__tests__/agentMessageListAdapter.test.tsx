@@ -1,4 +1,5 @@
-import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
+import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
+import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
@@ -149,19 +150,16 @@ vi.mock('@renderer/services/ExportService', () => ({
 }))
 
 const { useAgentMessageListProviderValue } = await import('../agentMessageListAdapter')
+const {
+  clearPendingAgentSessionImageActionsForTest,
+  consumePendingAgentSessionImageActions,
+  requestAgentSessionImageAction
+} = await import('../agentSessionImageActionBus')
 
 describe('useAgentMessageListProviderValue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.defineProperty(window, 'toast', {
-      configurable: true,
-      writable: true,
-      value: {
-        error: vi.fn(),
-        success: vi.fn(),
-        warning: vi.fn()
-      }
-    })
+    clearPendingAgentSessionImageActionsForTest()
     window.api.file.openPath = vi.fn()
     window.api.file.showInFolder = vi.fn()
     window.api.file.isDirectory = vi.fn().mockResolvedValue(false)
@@ -444,9 +442,91 @@ describe('useAgentMessageListProviderValue', () => {
     await value?.actions.saveSelectedMessages?.(['user-1'])
 
     expect(exportActionsMock.saveTextFile).toHaveBeenCalled()
-    expect(window.toast.error).not.toHaveBeenCalled()
-    expect(window.toast.success).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
     expect(cacheHookMocks.setMultiSelectMode).not.toHaveBeenCalled()
     expect(cacheHookMocks.setSelectedMessageIds).not.toHaveBeenCalled()
+  })
+
+  it('keeps capture-scoped session image actions away from the visible runtime', async () => {
+    const topic = {
+      id: 'agent-session:session-a',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const messages = [
+      {
+        id: 'user-1',
+        role: 'user',
+        parts: [{ type: 'text', text: 'hello' }],
+        metadata: { createdAt: '2026-01-01T00:00:00.000Z' }
+      }
+    ] as CherryUIMessage[]
+    let visibleValue: MessageListProviderValue | undefined
+    let captureValue: MessageListProviderValue | undefined
+
+    const VisibleProbe = () => {
+      visibleValue = useAgentMessageListProviderValue({
+        topic,
+        messages,
+        partsByMessageId: { 'user-1': messages[0].parts ?? [] },
+        assistantId: 'agent-1',
+        modelFallback: undefined,
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+
+    const CaptureProbe = () => {
+      captureValue = useAgentMessageListProviderValue({
+        topic,
+        messages,
+        partsByMessageId: { 'user-1': messages[0].parts ?? [] },
+        assistantId: 'agent-1',
+        modelFallback: undefined,
+        isLoading: false,
+        imageActionConsumer: 'capture',
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+
+    render(<VisibleProbe />)
+
+    const visibleRuntime: MessageListRuntime = {
+      copyTopicImage: vi.fn().mockResolvedValue(undefined),
+      exportTopicImage: vi.fn().mockResolvedValue(undefined),
+      locateMessage: vi.fn(),
+      scrollToBottom: vi.fn()
+    }
+    const unbindVisible = visibleValue?.actions.bindRuntime?.(visibleRuntime)
+    const request = requestAgentSessionImageAction('copy', { id: 'session-a', name: 'Session A' })
+    const unbindVisibleRebound = visibleValue?.actions.bindRuntime?.(visibleRuntime)
+
+    expect(visibleRuntime.copyTopicImage).not.toHaveBeenCalled()
+
+    const listenerCountBeforeCaptureBind = eventMocks.on.mock.calls.length
+    render(<CaptureProbe />)
+
+    const captureRuntime: MessageListRuntime = {
+      copyTopicImage: vi.fn().mockResolvedValue(undefined),
+      exportTopicImage: vi.fn().mockResolvedValue(undefined),
+      locateMessage: vi.fn(),
+      scrollToBottom: vi.fn()
+    }
+    const unbindCapture = captureValue?.actions.bindRuntime?.(captureRuntime)
+
+    await expect(request.promise).resolves.toBeUndefined()
+    expect(captureRuntime.copyTopicImage).toHaveBeenCalledTimes(1)
+    expect(eventMocks.on.mock.calls.length).toBe(listenerCountBeforeCaptureBind)
+    expect(consumePendingAgentSessionImageActions('session-a')).toEqual([])
+
+    unbindCapture?.()
+    unbindVisibleRebound?.()
+    unbindVisible?.()
   })
 })

@@ -249,6 +249,7 @@ export interface MessageListState {
   partsByMessageId: Record<string, CherryMessagePart[]>
   beforeList?: ReactNode
   isInitialLoading?: boolean
+  isMessagesStale?: boolean
   hasOlder?: boolean
   messageNavigation: string
   estimateSize: number

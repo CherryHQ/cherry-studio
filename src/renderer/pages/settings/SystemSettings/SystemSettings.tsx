@@ -11,6 +11,8 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isValidProxyUrl } from '@renderer/utils/url'
 import type { FC } from 'react'
@@ -70,7 +72,7 @@ const SystemSettings: FC = () => {
 
   const onSetProxyUrl = () => {
     if (proxyUrl && !isValidProxyUrl(proxyUrl)) {
-      window.toast.error(t('message.error.invalid.proxy.url'))
+      toast.error(t('message.error.invalid.proxy.url'))
       return
     }
 
@@ -81,30 +83,30 @@ const SystemSettings: FC = () => {
     void _setProxyBypassRules(proxyBypassRules)
   }
 
-  const handleHardwareAccelerationChange = (checked: boolean) => {
-    void window.modal.confirm({
+  const handleHardwareAccelerationChange = async (checked: boolean) => {
+    const confirmed = await popup.confirm({
       title: t('settings.hardware_acceleration.confirm.title'),
       content: t('settings.hardware_acceleration.confirm.content'),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
-      centered: true,
-      async onOk() {
-        try {
-          await setDisableHardwareAcceleration(checked)
-        } catch (error) {
-          window.toast.error(formatErrorMessage(error))
-          throw error
-        }
-
-        setTimeoutTimer(
-          'handleHardwareAccelerationChange',
-          () => {
-            void window.api.application.relaunch()
-          },
-          500
-        )
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    try {
+      await setDisableHardwareAcceleration(checked)
+    } catch (error) {
+      toast.error(formatErrorMessage(error))
+      throw error
+    }
+
+    setTimeoutTimer(
+      'handleHardwareAccelerationChange',
+      () => {
+        void window.api.application.relaunch()
+      },
+      500
+    )
   }
 
   return (

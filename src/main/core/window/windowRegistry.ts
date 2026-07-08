@@ -101,6 +101,35 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
+  // Hidden one-shot print surface. PrintService owns loading generated paper HTML
+  // and closes the window after print / PDF export.
+  [WindowType.Print]: {
+    type: WindowType.Print,
+    lifecycle: 'default',
+    htmlPath: '',
+    preload: '',
+    showMode: 'manual',
+    windowOptions: {
+      skipTaskbar: true,
+      autoHideMenuBar: true,
+      frame: false,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webSecurity: false
+      }
+    },
+    behavior: {
+      // Hidden helper window: do not bring the macOS Dock icon back in tray mode.
+      macShowInDock: false
+    }
+  },
+
   // Detached tab window — multi-instance, one per user-detached Tab.
   // Placed adjacent to Main because a SubWindow is logically a Main spin-off
   // (a Tab dragged out of Main becomes its own BrowserWindow here; drag back

@@ -7,6 +7,7 @@ import {
   Button,
   Scrollbar
 } from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { RotateCcw } from 'lucide-react'
@@ -103,25 +104,25 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
         try {
           dimensions = await fetchDimensions(values.embeddingModelId)
         } catch (error) {
-          window.toast.error(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+          toast.error(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
           return
         }
       }
 
       try {
         await save(values, { embeddingModelId: values.embeddingModelId, dimensions })
-        window.toast.success(t('knowledge.rag.saved'))
+        toast.success(t('knowledge.rag.saved'))
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
       }
       return
     }
 
     try {
       await save(values)
-      window.toast.success(t('knowledge.rag.saved'))
+      toast.success(t('knowledge.rag.saved'))
     } catch (error) {
-      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
+      toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
     }
   }
 

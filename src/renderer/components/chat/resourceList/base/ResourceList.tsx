@@ -119,7 +119,7 @@ type HeaderProps = ComponentProps<'div'> & {
 
 function Header({ actions, children, className, count, icon, ref, title, ...props }: HeaderProps) {
   return (
-    <div ref={ref} className={cn('flex shrink-0 flex-col gap-2.5 pb-1', className)} {...props}>
+    <div ref={ref} className={cn('flex shrink-0 flex-col gap-2.5', className)} {...props}>
       {(title || actions) && (
         <div className="flex h-5 items-center gap-1.5">
           {icon && (

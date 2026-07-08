@@ -22,13 +22,21 @@ import type {
   MessageListState,
   MessageRuntime
 } from '@renderer/components/chat/messages/types'
+import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
+import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
+
+import {
+  consumePendingAgentSessionImageActions,
+  rejectPendingAgentSessionImageActions,
+  settleAgentSessionImageActionRequest
+} from './agentSessionImageActionBus'
 
 const agentMessageListRuntimes = new Map<string, MessageListRuntime>()
 
@@ -55,6 +63,8 @@ interface AgentMessageListParams {
     avatar?: string
   }
   assistantId?: string
+  /** Model shown for snapshot-less rows (export/image-capture only; the live chat path omits it). */
+  modelFallback?: ModelSnapshot
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
@@ -63,6 +73,7 @@ interface AgentMessageListParams {
   openArtifactFile?: MessageListActions['openArtifactFile']
   deleteMessage?: MessageListActions['deleteMessage']
   respondToolApproval?: MessageListActions['respondToolApproval']
+  imageActionConsumer?: 'capture'
   messageNavigation: string
   workspacePath?: string
 }
@@ -86,6 +97,7 @@ export function useAgentMessageListProviderValue({
   partsByMessageId,
   assistantProfile,
   assistantId,
+  modelFallback,
   isLoading,
   hasOlder = false,
   loadOlder,
@@ -94,10 +106,12 @@ export function useAgentMessageListProviderValue({
   openArtifactFile,
   deleteMessage,
   respondToolApproval,
+  imageActionConsumer,
   messageNavigation,
   workspacePath
 }: AgentMessageListParams): MessageListProviderValue {
   const navigate = useNavigate()
+  const sessionId = useMemo(() => extractAgentSessionIdFromTopicId(topic.id), [topic.id])
   const visibleMessages = useMemo(
     () =>
       messages.filter((message) => {
@@ -112,10 +126,11 @@ export function useAgentMessageListProviderValue({
       visibleMessages.map((message) =>
         toMessageListItem(message, {
           assistantId: assistantId ?? topic.assistantId,
-          topicId: topic.id
+          topicId: topic.id,
+          modelFallback
         })
       ),
-    [assistantId, visibleMessages, topic.assistantId, topic.id]
+    [assistantId, modelFallback, visibleMessages, topic.assistantId, topic.id]
   )
 
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
@@ -126,6 +141,7 @@ export function useAgentMessageListProviderValue({
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
+  const normalInteractionsEnabled = imageActionConsumer !== 'capture'
   const selectionController = useMessageSelectionController({
     topicId: topic.id,
     messages: messageItems,
@@ -172,8 +188,25 @@ export function useAgentMessageListProviderValue({
     [navigate]
   )
 
+  useEffect(() => {
+    if (imageActionConsumer !== 'capture') return
+
+    return () => rejectPendingAgentSessionImageActions(sessionId, new Error('Agent session image export was cancelled'))
+  }, [imageActionConsumer, sessionId])
+
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
+      if (imageActionConsumer === 'capture') {
+        return bindCaptureMessageImageRuntime({
+          cancelMessage: 'Agent session image export was cancelled',
+          consumePendingActions: consumePendingAgentSessionImageActions,
+          rejectPendingActions: rejectPendingAgentSessionImageActions,
+          runtime,
+          settleActionRequest: settleAgentSessionImageActionRequest,
+          targetId: sessionId
+        })
+      }
+
       agentMessageListRuntimes.set(topic.id, runtime)
 
       return () => {
@@ -182,22 +215,32 @@ export function useAgentMessageListProviderValue({
         }
       }
     },
-    [topic.id]
+    [imageActionConsumer, sessionId, topic.id]
   )
 
-  const bindMessageRuntime = useCallback((messageId: string, runtime: MessageRuntime) => {
-    const unsubscribes = [EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, runtime.locateMessage)]
+  const bindMessageRuntime = useCallback(
+    (messageId: string, runtime: MessageRuntime) => {
+      if (!normalInteractionsEnabled) return () => {}
 
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [])
+      const unsubscribes = [EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, runtime.locateMessage)]
 
-  const bindMessageGroupRuntime = useCallback((messageIds: string[], runtime: MessageGroupRuntime) => {
-    const unsubscribes = messageIds.map((messageId) =>
-      EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, () => runtime.locateMessage(messageId))
-    )
+      return () => unsubscribes.forEach((unsub) => unsub())
+    },
+    [normalInteractionsEnabled]
+  )
 
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [])
+  const bindMessageGroupRuntime = useCallback(
+    (messageIds: string[], runtime: MessageGroupRuntime) => {
+      if (!normalInteractionsEnabled) return () => {}
+
+      const unsubscribes = messageIds.map((messageId) =>
+        EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, () => runtime.locateMessage(messageId))
+      )
+
+      return () => unsubscribes.forEach((unsub) => unsub())
+    },
+    [normalInteractionsEnabled]
+  )
 
   const locateMessage = useCallback(
     (messageId: string, highlight?: boolean) => {
@@ -300,9 +343,10 @@ export function useAgentMessageListProviderValue({
     () => ({
       selectionLayer: true,
       userProfile: headerCapabilities.userProfile,
-      assistantProfile
+      assistantProfile,
+      imageExportFileName: topic.name
     }),
-    [assistantProfile, headerCapabilities.userProfile]
+    [assistantProfile, headerCapabilities.userProfile, topic.name]
   )
 
   return useMemo(() => ({ state, actions, meta }), [actions, meta, state])

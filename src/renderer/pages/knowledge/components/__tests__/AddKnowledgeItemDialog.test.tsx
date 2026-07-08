@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -225,7 +226,6 @@ describe('AddKnowledgeItemDialog', () => {
         readExternal: mockReadExternal
       }
     }
-    ;(window as any).toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn() }
   })
 
   const setPendingAddSource = (pendingAddSource: 'file' | 'note' | 'directory' | 'url') => {
@@ -266,7 +266,7 @@ describe('AddKnowledgeItemDialog', () => {
       await waitFor(() => {
         expect(onOpenChange).toHaveBeenCalledWith(false)
       })
-      expect(window.toast.error).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
     })
 
     it('closes without submitting when the picker is cancelled', async () => {
@@ -290,7 +290,7 @@ describe('AddKnowledgeItemDialog', () => {
           'detect'
         )
       })
-      expect(window.toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
+      expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
     })
 
     it('submits page-level pending files without opening the picker', async () => {
@@ -304,7 +304,7 @@ describe('AddKnowledgeItemDialog', () => {
         )
       })
       expect(mockFileSelect).not.toHaveBeenCalled()
-      expect(window.toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
+      expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
     })
 
     it('warns and skips submit when the pick exceeds the per-batch limit', async () => {
@@ -314,7 +314,7 @@ describe('AddKnowledgeItemDialog', () => {
       render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
 
       await waitFor(() => {
-        expect(window.toast.warning).toHaveBeenCalledWith('单次最多添加 20 个数据源，请减少选择后重试')
+        expect(toast.warning).toHaveBeenCalledWith('单次最多添加 20 个数据源，请减少选择后重试')
       })
       expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
       await waitFor(() => {
@@ -331,7 +331,7 @@ describe('AddKnowledgeItemDialog', () => {
         expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
       })
       expect(mockSubmitKnowledgeItems.mock.calls[0][0]).toHaveLength(20)
-      expect(window.toast.warning).not.toHaveBeenCalled()
+      expect(toast.warning).not.toHaveBeenCalled()
     })
 
     it('toasts and closes when the submit rejects (no panel to fall back to)', async () => {
@@ -341,7 +341,7 @@ describe('AddKnowledgeItemDialog', () => {
       render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
 
       await waitFor(() => {
-        expect(window.toast.error).toHaveBeenCalledWith('添加数据源失败: create failed')
+        expect(toast.error).toHaveBeenCalledWith('添加数据源失败: create failed')
       })
       await waitFor(() => {
         expect(onOpenChange).toHaveBeenCalledWith(false)
@@ -501,7 +501,7 @@ describe('AddKnowledgeItemDialog', () => {
 
       const alert = await screen.findByRole('alert')
       expect(alert).toHaveTextContent('添加数据源失败: create failed')
-      expect(window.toast.error).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
       expect(onOpenChange).not.toHaveBeenCalledWith(false)
     })
   })

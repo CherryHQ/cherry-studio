@@ -1,6 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { useSharedCache } from '@data/hooks/useCache'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
+import { toast } from '@renderer/services/toast'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -53,12 +54,12 @@ export const useApiGateway = () => {
       const result = await window.api.apiGateway.start()
       if (result.success) {
         setApiGatewayEnabled(true)
-        window.toast.success(t('apiGateway.messages.startSuccess'))
+        toast.success(t('apiGateway.messages.startSuccess'))
       } else {
-        window.toast.error(t('apiGateway.messages.startError') + result.error)
+        toast.error(t('apiGateway.messages.startError') + result.error)
       }
     } catch (error: any) {
-      window.toast.error(t('apiGateway.messages.startError') + (error.message || error))
+      toast.error(t('apiGateway.messages.startError') + (error.message || error))
     } finally {
       setApiGatewayLoading(false)
     }
@@ -71,12 +72,12 @@ export const useApiGateway = () => {
       const result = await window.api.apiGateway.stop()
       if (result.success) {
         setApiGatewayEnabled(false)
-        window.toast.success(t('apiGateway.messages.stopSuccess'))
+        toast.success(t('apiGateway.messages.stopSuccess'))
       } else {
-        window.toast.error(t('apiGateway.messages.stopError') + result.error)
+        toast.error(t('apiGateway.messages.stopError') + result.error)
       }
     } catch (error: any) {
-      window.toast.error(t('apiGateway.messages.stopError') + (error.message || error))
+      toast.error(t('apiGateway.messages.stopError') + (error.message || error))
     } finally {
       setApiGatewayLoading(false)
     }
@@ -89,12 +90,12 @@ export const useApiGateway = () => {
       const result = await window.api.apiGateway.restart()
       if (result.success) {
         setApiGatewayEnabled(result.success)
-        window.toast.success(t('apiGateway.messages.restartSuccess'))
+        toast.success(t('apiGateway.messages.restartSuccess'))
       } else {
-        window.toast.error(t('apiGateway.messages.restartError') + result.error)
+        toast.error(t('apiGateway.messages.restartError') + result.error)
       }
     } catch (error) {
-      window.toast.error(t('apiGateway.messages.restartFailed') + (error as Error).message)
+      toast.error(t('apiGateway.messages.restartFailed') + (error as Error).message)
     } finally {
       setApiGatewayLoading(false)
     }

@@ -44,7 +44,7 @@ describe('AgentEntitySchema', () => {
     expect(UpdateAgentSchema.parse({ disabledTools: ['Read', 'Read'] }).disabledTools).toEqual(['Read'])
   })
 
-  it('deduplicates create-only skillIds at the API parse boundary', () => {
+  it('deduplicates create skillIds at the API parse boundary', () => {
     expect(
       CreateAgentSchema.parse({
         type: 'claude-code',
@@ -53,5 +53,21 @@ describe('AgentEntitySchema', () => {
         skillIds: ['skill-a', 'skill-b', 'skill-a']
       }).skillIds
     ).toEqual(['skill-a', 'skill-b'])
+    expect(UpdateAgentSchema.safeParse({ skillIds: ['skill-b'] }).success).toBe(false)
+  })
+
+  it('deduplicates update skillUpdates at the API parse boundary', () => {
+    expect(
+      UpdateAgentSchema.parse({
+        skillUpdates: [
+          { skillId: 'skill-a', isEnabled: true },
+          { skillId: 'skill-b', isEnabled: true },
+          { skillId: 'skill-a', isEnabled: false }
+        ]
+      }).skillUpdates
+    ).toEqual([
+      { skillId: 'skill-a', isEnabled: false },
+      { skillId: 'skill-b', isEnabled: true }
+    ])
   })
 })

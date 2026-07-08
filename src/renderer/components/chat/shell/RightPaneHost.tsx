@@ -4,7 +4,7 @@ import { useResizeDrag } from '@renderer/hooks/useResizeDrag'
 import { cn } from '@renderer/utils/style'
 import { AnimatePresence, motion } from 'motion/react'
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -54,16 +54,69 @@ function useRightPaneResize({
   const [storedWidth, setStoredWidth] = usePersistCache(cacheKey)
   const paneRef = useRef<HTMLDivElement>(null)
   const paneRightRef = useRef(0)
-  const paneWidth = clampRightPaneWidth(storedWidth ?? defaultWidth, minWidth, maxWidth)
+
+  // Drag-local width shown while actively dragging; null when not dragging,
+  // in which case paneWidth falls back to the persisted storedWidth.
+  const [liveWidth, setLiveWidth] = useState<number | null>(null)
+
+  // Latest clamped width computed from the most recent mousemove — a plain
+  // ref write, so recording it costs nothing per pixel of movement.
+  const pendingWidthRef = useRef<number | null>(null)
+
+  // Whether an rAF flush is already scheduled. This is a dedicated flag set
+  // BEFORE calling requestAnimationFrame and cleared INSIDE its callback —
+  // deliberately not derived from requestAnimationFrame's return value.
+  // Tests install a synchronous rAF mock that invokes the callback before
+  // requestAnimationFrame() itself returns; under that mock, gating on the
+  // return value would leave the flag permanently "scheduled" after the
+  // first call, since the callback's reset happens before the assignment
+  // that would otherwise set it. This ref sidesteps that ordering entirely.
+  const rafScheduledRef = useRef(false)
+  // Only used to cancelAnimationFrame on early teardown (unmount/blur/etc.).
+  const rafIdRef = useRef<number | null>(null)
+
+  const paneWidth = clampRightPaneWidth(liveWidth ?? storedWidth ?? defaultWidth, minWidth, maxWidth)
+
+  const cancelPendingRaf = useCallback(() => {
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current)
+      rafIdRef.current = null
+    }
+    rafScheduledRef.current = false
+  }, [])
 
   const handleMouseMove = useCallback(
     (moveEvent: MouseEvent) => {
-      setStoredWidth(clampRightPaneWidth(paneRightRef.current - moveEvent.clientX, minWidth, maxWidth))
+      pendingWidthRef.current = clampRightPaneWidth(paneRightRef.current - moveEvent.clientX, minWidth, maxWidth)
+
+      if (rafScheduledRef.current) return
+      rafScheduledRef.current = true
+      rafIdRef.current = requestAnimationFrame(() => {
+        rafScheduledRef.current = false
+        rafIdRef.current = null
+        setLiveWidth(pendingWidthRef.current)
+      })
     },
-    [maxWidth, minWidth, setStoredWidth]
+    [maxWidth, minWidth]
   )
 
-  const { isResizing, startResizing: startResizeDrag } = useResizeDrag({ onMove: handleMouseMove })
+  const handleResizeEnd = useCallback(() => {
+    cancelPendingRaf()
+    if (pendingWidthRef.current !== null) {
+      setStoredWidth(pendingWidthRef.current)
+      pendingWidthRef.current = null
+    }
+    setLiveWidth(null)
+  }, [cancelPendingRaf, setStoredWidth])
+
+  const { isResizing, startResizing: startResizeDrag } = useResizeDrag({
+    onMove: handleMouseMove,
+    onEnd: handleResizeEnd
+  })
+
+  // Belt-and-braces: cancel any in-flight rAF if the component unmounts
+  // mid-drag, so a stray frame never calls setLiveWidth after unmount.
+  useEffect(() => cancelPendingRaf, [cancelPendingRaf])
 
   const startResizing = useCallback(
     (event: ReactMouseEvent) => {
@@ -73,6 +126,8 @@ function useRightPaneResize({
     [paneWidth, startResizeDrag]
   )
 
+  // Keyboard/a11y path (arrow keys via splitterA11y): discrete single calls,
+  // committed immediately — no rAF batching needed or wanted here.
   const setPaneWidth = useCallback(
     (nextWidth: number) => setStoredWidth(clampRightPaneWidth(nextWidth, minWidth, maxWidth)),
     [maxWidth, minWidth, setStoredWidth]
@@ -157,11 +212,20 @@ export function RightPaneHost({
           data-resizing={isResizing || undefined}
           className={cn(
             'group/right-pane h-full min-h-0 shrink-0 overflow-hidden',
-            resizable && 'relative bg-card [border-left:0.5px_solid_var(--color-border)]',
+            resizable && 'relative [border-left:0.5px_solid_var(--color-border)]',
             className
           )}
           style={constrainedStyle}>
-          <ErrorBoundary>{children}</ErrorBoundary>
+          {/* Mouse events over an iframe (e.g. the HTML preview tab) never reach this
+              document's mousemove/mouseup listeners — the browser routes them to the
+              iframe's own document instead. Shrinking the pane moves the cursor into
+              space the (not-yet-resized) content still occupies, so without this the
+              drag looks "stuck" as soon as the cursor crosses into an iframe. Disabling
+              pointer-events on the pane content for the duration of the drag keeps every
+              mousemove/mouseup routed to the document-level listeners in useResizeDrag. */}
+          <div className="h-full min-h-0 group-data-[resizing=true]/right-pane:pointer-events-none">
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </div>
           {resizable && (
             <div
               data-right-pane-resize-handle

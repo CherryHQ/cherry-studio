@@ -1,6 +1,6 @@
 import type { ObsidianProcessingMethod } from '@renderer/components/ObsidianExportDialog'
 import { PopupContainer } from '@renderer/components/ObsidianExportDialog'
-import { TopView } from '@renderer/components/TopView/TopView'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import type { Topic } from '@renderer/types/topic'
 
@@ -13,29 +13,12 @@ interface ObsidianExportOptions {
   rawContent?: string
 }
 
-export default class ObsidianExportPopup {
-  static hide() {
-    TopView.hide('ObsidianExportPopup')
-  }
-  static show(options: ObsidianExportOptions): Promise<boolean> {
-    return new Promise((resolve) => {
-      TopView.show(
-        <PopupContainer
-          title={options.title}
-          processingMethod={options.processingMethod}
-          topic={options.topic}
-          message={options.message}
-          messages={options.messages}
-          rawContent={options.rawContent}
-          obsidianTags={''}
-          open={true}
-          resolve={(v) => {
-            resolve(v)
-            ObsidianExportPopup.hide()
-          }}
-        />,
-        'ObsidianExportPopup'
-      )
-    })
-  }
-}
+const ObsidianExportPopupContainer: React.FC<ObsidianExportOptions & PopupInjectedProps<boolean>> = (props) => (
+  <PopupContainer {...props} obsidianTags="" />
+)
+
+const ObsidianExportPopup = createPopup<ObsidianExportOptions, boolean>(ObsidianExportPopupContainer, {
+  dismissResult: false
+})
+
+export default ObsidianExportPopup
