@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   consumeWarmQuery: vi.fn(),
   prepareTrace: vi.fn(),
   createClaudeQuery: vi.fn(),
+  materializeNativeFilePart: vi.fn(),
   adapterInstances: [] as any[]
 }))
 
@@ -20,6 +21,10 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 
 vi.mock('../agentSessionWarmup', () => ({
   buildClaudeCodeQueryRequestForAgentSession: mocks.buildRequest
+}))
+
+vi.mock('@main/ai/messages/fileProcessor', () => ({
+  materializeNativeFilePart: mocks.materializeNativeFilePart
 }))
 
 vi.mock('../streamAdapter', () => ({
@@ -127,6 +132,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
     mocks.prepareTrace.mockResolvedValue(undefined)
+    mocks.materializeNativeFilePart.mockResolvedValue(null)
     mocks.buildRequest.mockResolvedValue({
       key: 'warm-key',
       options: { model: 'sonnet' },
@@ -154,7 +160,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
 
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
 
     await expect(nextInput).resolves.toMatchObject({
       value: {
@@ -164,6 +170,56 @@ describe('ClaudeCodeRuntimeDriver', () => {
       },
       done: false
     })
+    void connection.close()
+  })
+
+  it('sends supported image attachments as native Claude SDK image blocks', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.materializeNativeFilePart.mockResolvedValueOnce({
+      type: 'file',
+      url: 'data:image/png;base64,QUJD',
+      mediaType: 'image/png'
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' },
+            { type: 'file', url: 'file:///tmp/spec.pdf', mediaType: 'application/pdf', filename: 'spec.pdf' }
+          ]
+        }
+      } as any
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/spec.pdf'
+            },
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
+          ]
+        }
+      },
+      done: false
+    })
+    expect(mocks.materializeNativeFilePart).toHaveBeenCalledOnce()
     void connection.close()
   })
 
@@ -202,7 +258,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: { type: 'resume-token', token: 'resume-init' }
     })
 
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'chunk', chunk: { type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } } }
     })
@@ -493,7 +549,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
     await events.next() // resume-token
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     await events.next() // response-metadata chunk
     queryQueue.push({ type: 'stream_event', event: {}, session_id: 'resume-init' })
     await events.next() // buffered text-delta
@@ -525,7 +581,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
     await events.next()
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     await events.next()
 
     queryQueue.push({ type: 'result', subtype: 'error_during_execution', session_id: 'resume-init', usage: {} })
@@ -637,7 +693,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(steerHolder.pending).toHaveLength(0)
 
     // A turn is now live → redirect stashes the steer in the shared holder for the PreToolUse hook.
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     expect(connection.redirect?.({ message: userMessage() })).toBe(true)
     expect(steerHolder.pending).toHaveLength(1)
 
@@ -669,7 +725,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
     await events.next() // resume-token
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     await events.next() // metadata chunk (init replayed on send)
 
     // A message_start BEFORE injection (the pre-steer assistant message) must NOT roll.
@@ -711,7 +767,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     const events = connection.events[Symbol.asyncIterator]()
 
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     steerHolder.onInjected([{ message: userMessage() }])
 
     // Turn ends (result) with no following top-level message_start → no boundary, just a clean turn end.
@@ -750,7 +806,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     const events = connection.events[Symbol.asyncIterator]()
 
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     approvalEmitter.emit({
       type: 'tool-approval-request',
       approvalId: 'approval-1',
@@ -792,7 +848,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const events = connection.events[Symbol.asyncIterator]()
 
     // Turn 1 runs to completion.
-    void connection.send({ message: userMessage() })
+    await connection.send({ message: userMessage() })
     queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-1', usage: { output_tokens: 1 } })
     let evt = await events.next()
     while (evt.value?.type !== 'turn-complete') evt = await events.next()

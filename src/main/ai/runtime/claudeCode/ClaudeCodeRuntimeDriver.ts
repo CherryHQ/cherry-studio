@@ -11,12 +11,14 @@ import {
   type SDKSystemMessage,
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
+import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
 type BetaUsage = SDKResultMessage['usage']
 type SDKRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
 type SDKCompactionSystemMessage = SDKCompactBoundaryMessage | SDKStatusMessage
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -210,7 +212,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return application.get('ClaudeCodeTraceBridgeService').prepareTrace(this.input.trace)
   }
 
-  send(input: AgentRuntimeUserInput): void {
+  async send(input: AgentRuntimeUserInput): Promise<void> {
     this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
 
     if (this.pendingInitMessage) {
@@ -218,7 +220,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.pendingInitMessage = undefined
     }
 
-    this.sdkInputQueue.push(toSdkUserMessage(input.message, this.resumeToken, input.systemReminder))
+    this.sdkInputQueue.push(await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder))
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -492,28 +494,69 @@ function isCompactionSystemMessage(message: SDKRuntimeSystemMessage): message is
   return message.subtype === 'status' || message.subtype === 'compact_boundary'
 }
 
-function toSdkUserMessage(
+async function toSdkUserMessage(
   message: AgentSessionMessageEntity,
   resumeToken?: string,
   systemReminder = false
-): SDKUserMessage {
-  const content = buildAgentUserContent(message)
+): Promise<SDKUserMessage> {
+  let content = await buildAgentUserSdkContent(message)
+  if (systemReminder) {
+    content = Array.isArray(content)
+      ? content.map((part) =>
+          part.type === 'text' && part.text.trim() ? { ...part, text: wrapSteerReminder(part.text) } : part
+        )
+      : content.trim()
+        ? wrapSteerReminder(content)
+        : content
+  }
+
   return {
     type: 'user',
-    message: { role: 'user', content: systemReminder && content.trim() ? wrapSteerReminder(content) : content },
+    message: { role: 'user', content },
     parent_tool_use_id: null,
     session_id: resumeToken ?? ''
   }
 }
 
 /**
- * Build the user-turn content sent to the agent SDK. The agent is a filesystem agent
- * (it has no native multimodal channel here), so attached files are forwarded as their
- * absolute paths appended to the text — the agent reads them with its own tools.
+ * Build the text fallback for agent attachments. Non-native files are forwarded
+ * as paths so the filesystem agent can inspect them with tools.
  */
 export function buildAgentUserContent(message: AgentSessionMessageEntity): string {
   const text = extractMessageText(message)
   const paths = extractAttachmentPaths(message)
+  return appendAttachmentPaths(text, paths)
+}
+
+async function buildAgentUserSdkContent(message: AgentSessionMessageEntity): Promise<SDKUserMessage['message']['content']> {
+  const text = extractMessageText(message)
+  const images: ImageBlockParam[] = []
+  const pathFallbacks: string[] = []
+
+  for (const part of message.data?.parts ?? []) {
+    if (part.type !== 'file') continue
+    const mediaType = toClaudeImageMediaType(part.mediaType)
+    if (mediaType) {
+      const match = (await materializeNativeFilePart(part))?.url.match(/^data:[^;,]+;base64,(.*)$/s)
+      if (match) {
+        images.push({
+          type: 'image',
+          source: { type: 'base64', media_type: mediaType, data: match[1] }
+        })
+        continue
+      }
+    }
+    if (part.url.startsWith('file://')) {
+      pathFallbacks.push(fileURLToPath(part.url))
+    }
+  }
+
+  const textContent = appendAttachmentPaths(text, pathFallbacks)
+  if (images.length === 0) return textContent
+  return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
+}
+
+function appendAttachmentPaths(text: string, paths: string[]): string {
   if (paths.length === 0) return text
 
   const list = paths.map((path) => `- ${path}`).join('\n')
@@ -539,6 +582,22 @@ function extractAttachmentPaths(message: AgentSessionMessageEntity): string[] {
     paths.push(fileURLToPath(part.url))
   }
   return paths
+}
+
+function toClaudeImageMediaType(value: string | undefined) {
+  switch (value?.toLowerCase()) {
+    case 'image/jpg':
+    case 'image/jpeg':
+      return 'image/jpeg'
+    case 'image/png':
+      return 'image/png'
+    case 'image/gif':
+      return 'image/gif'
+    case 'image/webp':
+      return 'image/webp'
+    default:
+      return null
+  }
 }
 
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
