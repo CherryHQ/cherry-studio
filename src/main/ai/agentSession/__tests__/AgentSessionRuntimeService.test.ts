@@ -134,6 +134,9 @@ describe('AgentSessionRuntimeService', () => {
     mocks.findPendingAssistantMessageIds.mockReturnValue([])
     mocks.markMessagesError.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
+    // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
+    // the deleted-model path override it with `{ model: null }`.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
         return {
@@ -2017,6 +2020,33 @@ describe('AgentSessionRuntimeService', () => {
         modelId: switchedModelId
       })
     )
+  })
+
+  it('does not drain a queued turn onto a stale deleted model; surfaces an error and settles', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    entry.pendingTurns.push(userMessage('user-2'))
+
+    // The model was deleted while user-2 sat queued: its `user_model` row is gone and `agent.model` is
+    // FK-nulled, but no agent update fires — the entry still caches the deleted model. The drain must
+    // re-read the live model and bail, not stamp/start a turn with the stale deleted `entry.modelId`.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: null })
+    mocks.saveMessage.mockClear()
+    mocks.startRuntimeTurn.mockClear()
+
+    await (service as any).startNextTurn(entry)
+
+    // No assistant turn is saved or started on the stale model, the renderer learns the queued
+    // follow-up can't run, and the queue is drained (its user rows stay resendable).
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    expect(mocks.broadcastTopicError).toHaveBeenCalledWith(
+      'agent-session:session-1',
+      baseTurnInput.modelId,
+      expect.anything()
+    )
+    expect(getEntry(service).pendingTurns).toEqual([])
   })
 
   it('surfaces the error and settles the turn when the next-turn placeholder save rejects (R3)', async () => {

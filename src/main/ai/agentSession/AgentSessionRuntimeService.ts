@@ -443,9 +443,10 @@ export class AgentSessionRuntimeService extends BaseService {
    * previous model.
    *
    * NOTE: deleting the model's `user_model` row also nulls `agent.model` via the FK (`onDelete: 'set null'`),
-   * but that path (`ModelService.delete`/`bulkDelete`) emits no agent update, so it does NOT reach here — a
-   * live turn there finishes on its captured model and the next message fails fast in the chat context with
-   * "no model configured". Only an explicit model-clearing update runs this invalidation.
+   * but that path (`ModelService.delete`/`bulkDelete`) emits no agent update, so it does NOT reach this
+   * update-driven handler. The deleted-model runtime is covered elsewhere instead: a live turn finishes on
+   * its captured model; a queued follow-up is caught by `startNextTurn`'s model re-check before it can start
+   * on the stale model; and a fresh dispatch fails fast in the chat context with "no model configured".
    */
   private invalidateModelClearedEntry(entry: AgentSessionRuntimeEntry): void {
     const turn = entry.currentTurn
@@ -1000,6 +1001,25 @@ export class AgentSessionRuntimeService extends BaseService {
     const nextMessage = entry.pendingTurns.shift()
     if (!nextMessage) {
       this.refreshIdleTimer(entry)
+      return
+    }
+
+    // A queued follow-up can outlive the agent's model: deleting the model nulls `agent.model` via the FK
+    // (`onDelete: 'set null'`) without emitting an agent update, so `applyAgentModelUpdate` never ran and
+    // `entry.modelId` still caches the deleted model. Re-read the live model before draining — starting the
+    // turn here would stamp an assistant row with the stale deleted model and then fail to connect. If the
+    // model is gone, surface the failure to the renderer, drop the queue (its rows stay resendable) and
+    // settle instead of starting a doomed turn.
+    if (!agentService.getAgent(entry.agentId)?.model) {
+      application
+        .get('AiStreamManager')
+        .broadcastTopicError(
+          entry.topicId,
+          entry.modelId,
+          serializeError(new Error(`Agent ${entry.agentId} has no model configured`))
+        )
+      entry.pendingTurns = []
+      this.markTurnTerminal(entry.sessionId, 'error')
       return
     }
 
