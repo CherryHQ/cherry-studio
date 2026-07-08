@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
  * "coming soon" notice. Flip this to `true` (or remove the `BackupUnavailableGate`
  * usages) once v2 backup lands.
  */
-const BACKUP_V2_READY: boolean = false
+export const BACKUP_V2_READY: boolean = false
 
 const BackupUnavailableNotice: FC = () => {
   const { t } = useTranslation()

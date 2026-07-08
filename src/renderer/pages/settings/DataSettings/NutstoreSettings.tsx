@@ -34,7 +34,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type FileStat } from 'webdav'
 
-import { BackupUnavailableGate } from './BackupUnavailableGate'
+import { BACKUP_V2_READY, BackupUnavailableGate } from './BackupUnavailableGate'
 
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
@@ -78,7 +78,8 @@ const NutstoreSettings: FC = () => {
         if (decrypted) {
           setNutstoreUsername(decrypted.username)
           setNutstorePass(decrypted.access_token)
-          if (!nutstorePath) {
+          // Don't seed the v1 Nutstore path default while v2 backup is gated (silent v1 pref write)
+          if (!nutstorePath && BACKUP_V2_READY) {
             void setNutstorePath('/cherry-studio')
             // setStoragePath('/cherry-studio')
           }
