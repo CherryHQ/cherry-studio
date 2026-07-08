@@ -58,13 +58,15 @@ const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {
     }
     return groups
   }, [emojis])
+  const allowedEmojiSet = useMemo(() => new Set(emojis.map((record) => record.emoji)), [emojis])
+  const filteredRecent = recent.filter((emoji) => allowedEmojiSet.has(emoji))
 
   const handleEmojiPick = (emoji: string) => {
     pushRecent(emoji)
     onEmojiClick(emoji)
   }
 
-  const showRecentSection = recent.length > 0
+  const showRecentSection = filteredRecent.length > 0
 
   return (
     <div className="flex h-88 max-h-[min(22rem,calc(100vh-6rem))] w-80 max-w-[calc(100vw-2rem)] flex-col rounded-lg bg-card text-card-foreground">
@@ -72,7 +74,7 @@ const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {
         {showRecentSection ? (
           <EmojiSection
             title={t(RECENT_CATEGORY_LABEL_KEY)}
-            emojis={recent.map((emoji) => ({ emoji }))}
+            emojis={filteredRecent.map((emoji) => ({ emoji }))}
             onPick={handleEmojiPick}
           />
         ) : null}

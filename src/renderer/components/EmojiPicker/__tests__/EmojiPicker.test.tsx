@@ -79,6 +79,10 @@ describe('EmojiPicker', () => {
   it('calls onEmojiClick when a recent emoji is picked', async () => {
     const { MockUseCacheUtils } = await import('../../../../../tests/__mocks__/renderer/useCache')
     MockUseCacheUtils.setPersistCacheValue('ui.emoji.recently_used', ['🧠', '📁'])
+    loadEmojiDataMock.mockResolvedValue([
+      { emoji: '🧠', annotation: 'brain', group: 0, order: 1, version: 1 },
+      { emoji: '📁', annotation: 'folder', group: 0, order: 2, version: 1 }
+    ])
 
     const handleClick = vi.fn()
     render(<EmojiPicker onEmojiClick={handleClick} />)
@@ -88,9 +92,25 @@ describe('EmojiPicker', () => {
     expect(handleClick).toHaveBeenCalledWith('🧠')
   })
 
+  it('filters persisted recent emojis against loaded emoji data', async () => {
+    const { MockUseCacheUtils } = await import('../../../../../tests/__mocks__/renderer/useCache')
+    MockUseCacheUtils.setPersistCacheValue('ui.emoji.recently_used', ['🙂', '🫠'])
+    loadEmojiDataMock.mockResolvedValue([{ emoji: '🙂', annotation: 'smile', group: 0, order: 1, version: 1 }])
+
+    render(<EmojiPicker onEmojiClick={vi.fn()} />)
+    await act(async () => {})
+
+    expect(screen.getByRole('button', { name: '🙂' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '🫠' })).not.toBeInTheDocument()
+  })
+
   it('promotes a picked recent emoji to the front', async () => {
     const { MockUseCacheUtils } = await import('../../../../../tests/__mocks__/renderer/useCache')
     MockUseCacheUtils.setPersistCacheValue('ui.emoji.recently_used', ['🧠', '📁'])
+    loadEmojiDataMock.mockResolvedValue([
+      { emoji: '🧠', annotation: 'brain', group: 0, order: 1, version: 1 },
+      { emoji: '📁', annotation: 'folder', group: 0, order: 2, version: 1 }
+    ])
 
     render(<EmojiPicker onEmojiClick={vi.fn()} />)
     await act(async () => {})
