@@ -142,19 +142,10 @@ export function AssistantResourceList({
               },
               defaultModelId
             ),
-            reorderable: false,
-            trailingAction: (
-              <Tooltip title={t('chat.conversation.new')} delay={500}>
-                <ResourceList.GroupHeaderActionButton
-                  type="button"
-                  aria-label={t('chat.conversation.new')}
-                  onClick={() => {
-                    void handleCreateTopic(DEFAULT_ASSISTANT_ENTITY_ID)
-                  }}>
-                  <SquarePen className="block" />
-                </ResourceList.GroupHeaderActionButton>
-              </Tooltip>
-            )
+            reorderable: false
+            // No "new topic" action: the default group is only a display bucket for legacy
+            // assistant-less topics. A null-assistant create can't reuse an empty placeholder
+            // (findReusableEmptyTopic bails without an assistantId), so it would stack blanks.
           }
         ]
       : []

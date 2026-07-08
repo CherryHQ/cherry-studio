@@ -480,7 +480,7 @@ describe('classic layout entity resource list actions', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('keeps the default assistant visible in the classic assistant rail', () => {
+  it('keeps the default assistant visible in the classic assistant rail without a create action', () => {
     assistantDataMocks.topics = [
       { id: 'topic-default', name: 'Default topic' },
       { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }
@@ -503,8 +503,9 @@ describe('classic layout entity resource list actions', () => {
       'assistants.clear.menu_title'
     )
 
-    fireEvent.click(within(defaultAssistantRegion).getByRole('button', { name: 'chat.conversation.new' }))
-    expect(onCreateTopic).toHaveBeenCalledWith(null)
+    // The default group is a display-only bucket for legacy assistant-less topics: no "new topic"
+    // action, since a null-assistant create can't reuse an empty placeholder and would stack blanks.
+    expect(within(defaultAssistantRegion).queryByRole('button', { name: 'chat.conversation.new' })).toBeNull()
   })
 
   it('creates a fresh topic after clearing the only classic assistant topics', async () => {
