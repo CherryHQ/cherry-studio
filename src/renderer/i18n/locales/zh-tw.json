@@ -339,6 +339,9 @@
     "home": {
       "welcome_title": "今天我們該談些什麼？"
     },
+    "icon": {
+      "type": "智能體圖示"
+    },
     "input": {
       "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 搜尋路徑或指令",
       "soul_placeholder": "幫我連接微信"
@@ -347,6 +350,9 @@
       "error": {
         "failed": "無法列出 Agent。"
       }
+    },
+    "manage": {
+      "title": "管理智能體"
     },
     "pin": {
       "title": "圖釘代理"
@@ -499,6 +505,7 @@
         "label": "預先授權工具",
         "placeholder": "選擇預先授權的工具"
       },
+      "auto_rename": "產生任務名",
       "create": {
         "error": {
           "failed": "無法新增工作階段"
@@ -519,7 +526,7 @@
         "workdir": "工作目錄"
       },
       "edit": {
-        "title": "編輯工作階段"
+        "title": "編輯任務名"
       },
       "empty": {
         "description": "開始任務後，任務記錄會顯示在這裡。",
@@ -784,6 +791,11 @@
       }
     },
     "sidebar_title": "Agents",
+    "skill": {
+      "manage": {
+        "title": "管理技能"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1085,8 +1097,9 @@
   "assistants": {
     "abbr": "助手",
     "clear": {
-      "content": "清空對話會刪除助手下所有對話和檔案，確定要繼續嗎？",
-      "menu_title": "刪除助手下所有對話",
+      "content": "清空話題會刪除助手下所有話題，確定要繼續嗎？",
+      "menu_title": "清空話題",
+      "success_title": "已清空 {{count}} 個話題",
       "title": "清空對話"
     },
     "copy": {
@@ -1440,7 +1453,7 @@
         "pause": "暫停自動傳送",
         "remove": "移除",
         "resume": "恢復自動傳送",
-        "steer": "插入目前回合",
+        "steer": "插入訊息",
         "title": "排隊中 ({{count}})"
       },
       "generate_image": "產生圖片",
@@ -1712,6 +1725,7 @@
               "tip": "對話將以包含完整上下文的形式儲存到知識庫"
             }
           },
+          "source_fallback": "對話",
           "success": "對話已成功儲存到知識庫（{{count}} 項內容）",
           "title": "儲存對話到知識庫"
         }
@@ -3049,7 +3063,7 @@
             "skills_coming_soon": "Skill 綁定即將支援",
             "skills_require_save": "儲存後才能啟用技能",
             "tab": {
-              "mcp": "MCP Server",
+              "mcp": "MCP",
               "skills": "Skills",
               "tools": "內建工具"
             },
@@ -3135,6 +3149,7 @@
           "avatar_aria": "選擇頭像",
           "back": "上一步",
           "capability": {
+            "builtin_badge": "預設啟用",
             "import": "匯入技能",
             "no_skills": "未安裝技能",
             "search": "搜尋技能"
@@ -3753,6 +3768,7 @@
       "approvalRequired": "工具 \"{{tool}}\" 需要審批",
       "autoApproveEnabled": "此工具已啟用自動批准",
       "cancelled": "已取消",
+      "collapse": "收合",
       "completed": "已完成",
       "error": "發生錯誤",
       "groupHeader": "{{count}} 次工具呼叫",
@@ -3797,6 +3813,7 @@
         "usingTools": "正在處理任務"
       },
       "preview": "預覽",
+      "processed": "已處理",
       "raw": "原始碼",
       "runningCount": "{{count}} 個工具正在運行",
       "runningHeader": "執行中…",
@@ -4048,10 +4065,13 @@
     "drop_markdown_hint": "拖曳 .md 檔案或資料夾到此處匯入",
     "empty": "暫無筆記",
     "expand": "展開",
+    "exportToPDF": "匯出為 PDF",
     "exportToWord": "匯出為 Word",
     "export_failed": "匯出至知識庫失敗",
     "export_knowledge": "匯出筆記至知識庫",
     "export_success": "成功匯出至知識庫",
+    "export_to_pdf_failed": "匯出為 PDF 失敗",
+    "export_to_pdf_success": "已匯出為 PDF",
     "export_to_word_failed": "匯出為 Word 失敗",
     "folder": "資料夾",
     "load_failed": "筆記載入失敗",
@@ -4068,6 +4088,8 @@
     "no_valid_files": "沒有上傳有效的檔案",
     "open_folder": "開啟外部資料夾",
     "open_outside": "從外部開啟",
+    "print": "列印",
+    "print_failed": "列印筆記失敗",
     "rename": "重新命名",
     "rename_changed": "基於安全性考量，檔名已從 {{original}} 變更為 {{final}}",
     "rename_failed": "重新命名筆記失敗",
@@ -5331,6 +5353,13 @@
       "auto_switch_to_topics": "自動切換到對話",
       "title": "進階設定"
     },
+    "agent": {
+      "position": {
+        "label": "會話位置",
+        "left": "左側",
+        "right": "右側"
+      }
+    },
     "appearance": {
       "title": "外觀"
     },
@@ -5967,6 +5996,7 @@
     "dependencies": {
       "addTool": "新增工具",
       "addToolDescription": "使用 mise 工具鍵新增工具（例如 github:sharkdp/fd、uv、bun）。",
+      "checkUpdates": "檢查更新",
       "coreDepsMissing": "核心依賴未安裝",
       "customTools": "自訂工具",
       "customToolsEmpty": "尚無自訂工具。請新增一個以開始使用。",
@@ -6004,7 +6034,8 @@
         "rtk": "CLI 代理工具，透過壓縮終端輸出來減少 LLM token 消耗。",
         "uv": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
       },
-      "update": "更新到最新版本"
+      "update": "更新到最新版本",
+      "updateCheckFailed": "檢查更新失敗"
     },
     "developer": {
       "enable_developer_mode": "啟用開發者模式",
@@ -7266,6 +7297,7 @@
       "open_tab_in_new_window": "在新視窗中開啟分頁",
       "pin_tab": "切換釘選分頁",
       "press_shortcut": "按下快捷鍵",
+      "print": "列印",
       "quick_assistant": "快捷助手",
       "rename_topic": "重新命名對話",
       "reset": "重設",
@@ -7596,6 +7628,7 @@
   },
   "title": {
     "apps": "小程式",
+    "chat": "對話",
     "code": "程式碼",
     "files": "檔案",
     "home": "首頁",

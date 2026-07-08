@@ -33,7 +33,7 @@ const logger = loggerService.withContext('VersionPolicy')
  * supports upgrading from the final v1 release.
  * TODO: Update this value once the final v1 version is determined (expected ~1.9.x).
  */
-export const V1_REQUIRED_VERSION = '1.9.0'
+export const V1_REQUIRED_VERSION = '1.9.12'
 
 /** v2 migration gateway version — must not be skipped. */
 export const V2_GATEWAY_VERSION = '2.0.0'

@@ -7,6 +7,7 @@ import type { SelectorShellMountStrategy, SelectorShellProps } from '@renderer/c
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { usePins } from '@renderer/hooks/usePins'
+import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
@@ -110,7 +111,7 @@ export function AgentSelector(props: AgentSelectorProps) {
         await togglePin(id)
       } catch (error) {
         logger.error('Failed to toggle agent pin', error as Error, { id })
-        window.toast?.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [isPinActionDisabled, togglePin, t]
@@ -180,7 +181,7 @@ export function AgentSelector(props: AgentSelectorProps) {
         await refetch()
       } catch (error) {
         logger.warn('Failed to refresh agents after selector create', { error })
-        window.toast?.error(t('selector.create_dialog.refresh_failed'))
+        toast.error(t('selector.create_dialog.refresh_failed'))
       }
       if (autoSelectOnCreate) {
         if (props.selectionType === 'item') {
@@ -208,7 +209,7 @@ export function AgentSelector(props: AgentSelectorProps) {
       await refetch()
     } catch (error) {
       logger.warn('Failed to refresh agents after selector edit', { error })
-      window.toast?.error(t('selector.edit_dialog.refresh_failed'))
+      toast.error(t('selector.edit_dialog.refresh_failed'))
     }
   }, [refetch, t])
 

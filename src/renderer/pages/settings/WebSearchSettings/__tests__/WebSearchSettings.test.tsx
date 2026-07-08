@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
@@ -10,9 +11,6 @@ import type * as WebSearchApiKeyListHook from '../hooks/useWebSearchApiKeyList'
 import WebSearchSettings from '../WebSearchSettings'
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
-const toastSuccessMock = vi.fn()
-const toastErrorMock = vi.fn()
-const toastInfoMock = vi.fn()
 const mocks = vi.hoisted(() => ({
   useWebSearchApiKeyList: vi.fn()
 }))
@@ -123,14 +121,6 @@ describe('WebSearchSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockUsePreferenceUtils.resetMocks()
-    Object.assign(window, {
-      toast: {
-        ...window.toast,
-        success: toastSuccessMock,
-        error: toastErrorMock,
-        info: toastInfoMock
-      }
-    })
     ipcRequestMock.mockResolvedValue({ results: [] })
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'tavily')
@@ -385,7 +375,7 @@ describe('WebSearchSettings', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.provider_overrides')).toMatchObject({
       tavily: { apiKeys: ['tavily-key'] }
     })
-    expect(toastSuccessMock).toHaveBeenCalledWith('settings.tool.websearch.check_success')
+    expect(toast.success).toHaveBeenCalledWith('settings.tool.websearch.check_success')
   })
 
   it('keeps local API key drafts when provider overrides change externally', () => {
@@ -428,7 +418,7 @@ describe('WebSearchSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.tool.websearch.check' }))
 
     await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.check_failed: check failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.tool.websearch.check_failed: check failed')
     })
   })
 
@@ -444,7 +434,7 @@ describe('WebSearchSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.tool.websearch.check' }))
 
     await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.errors.save_failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.tool.websearch.errors.save_failed')
     })
     expect(ipcRequestMock).not.toHaveBeenCalled()
   })

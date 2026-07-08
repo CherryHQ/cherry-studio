@@ -1,4 +1,5 @@
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
+import { toast } from '@renderer/services/toast'
 import type { AgentDetail, ResourceItem, ResourceType, TagItem } from '@renderer/types/resourceCatalog'
 import { serializeAssistantForExport } from '@renderer/utils/assistantTransfer'
 import { DEFAULT_TAG_COLOR, getRandomTagColor } from '@renderer/utils/resourceTags'
@@ -145,7 +146,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
           await duplicateAssistant(resource.raw)
           refetch()
         } catch (error) {
-          window.toast.error(error instanceof Error ? error.message : t('library.duplicate_assistant_failed'))
+          toast.error(error instanceof Error ? error.message : t('library.duplicate_assistant_failed'))
         }
       }
     },
@@ -164,7 +165,7 @@ export function useResourceCatalogController(resourceType: ResourceCatalogContro
           filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
         })
       } catch (error) {
-        window.toast.error(error instanceof Error ? error.message : t('library.export_assistant_failed'))
+        toast.error(error instanceof Error ? error.message : t('library.export_assistant_failed'))
       }
     },
     [t]

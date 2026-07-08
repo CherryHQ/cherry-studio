@@ -49,7 +49,8 @@ export class AgentGlobalSkillService {
    * List skills with optional search + per-agent `isEnabled` projection.
    *
    * When `query.agentId` is provided each row's `isEnabled` reflects the
-   * `agent_skill` join state; otherwise it is forced to `false`.
+   * `agent_skill` join state, defaulting to enabled for builtin skills when no
+   * join row exists yet; otherwise it is forced to `false`.
    */
   list(query: ListSkillsQuery = {}): InstalledSkill[] {
     const conditions: SQL[] = []
@@ -82,7 +83,7 @@ export class AgentGlobalSkillService {
     }
 
     const enabledMap = this.loadEnabledMap(query.agentId)
-    return skills.map((s) => ({ ...s, isEnabled: enabledMap.get(s.id) ?? false }))
+    return skills.map((s) => ({ ...s, isEnabled: enabledMap.get(s.id) ?? s.source === 'builtin' }))
   }
 
   /** Every row from `agent_global_skill`, ordered by createdAt. Used to seed new agents with builtins. */

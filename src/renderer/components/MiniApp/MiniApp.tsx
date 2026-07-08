@@ -8,6 +8,7 @@ import MarqueeText from '@renderer/components/MarqueeText'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
+import { toast } from '@renderer/services/toast'
 import { ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { FC, KeyboardEvent } from 'react'
@@ -81,10 +82,10 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     const e = toDataApiError(err)
     if (isDataApiError(e)) {
       logger.error('mutation failed', { code: e.code, message: e.message })
-      window.toast.error(e.message || t(fallbackKey))
+      toast.error(e.message || t(fallbackKey))
     } else {
       logger.error('mutation failed', err as Error)
-      window.toast.error(t(fallbackKey))
+      toast.error(t(fallbackKey))
     }
   }
 
@@ -115,12 +116,12 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isL
     setRemovingCustom(true)
     try {
       await removeCustomMiniApp(app.appId)
-      window.toast.success(t('settings.miniApps.custom.remove_success'))
+      toast.success(t('settings.miniApps.custom.remove_success'))
     } catch (error) {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-        window.toast.warning(t('miniApp.error.not_found'))
+        toast.warning(t('miniApp.error.not_found'))
       } else {
-        window.toast.error(t('settings.miniApps.custom.remove_error'))
+        toast.error(t('settings.miniApps.custom.remove_error'))
       }
       logger.error('Failed to remove custom mini app:', error as Error)
     } finally {

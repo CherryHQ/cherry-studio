@@ -16,6 +16,7 @@ import {
 import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { isMac } from '@renderer/utils/platform'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
@@ -217,14 +218,14 @@ function reportMutationFailures(
   message: string
 ): void {
   if (warnMutationFailures(action, result)) {
-    window.toast?.error(message)
+    toast.error(message)
   }
 }
 
 function reportImportFailures(result: { failed: Array<{ sourceRef: string; error: string }> }, message: string): void {
   if (result.failed.length > 0) {
     logger.warn('file import partially failed', { failed: result.failed })
-    window.toast?.error(message)
+    toast.error(message)
   }
 }
 
@@ -567,7 +568,7 @@ function FilesPage() {
   const handleOpen = useCallback(
     (file: FileItem) => {
       void safeOpen(createFileEntryHandle(file.id)).catch(() => {
-        window.toast?.error(t('files.preview.error'))
+        toast.error(t('files.preview.error'))
       })
     },
     [t]
@@ -589,7 +590,7 @@ function FilesPage() {
         await refetchFiles()
       } catch (error) {
         logger.error('Failed to import files', error as Error)
-        window.toast?.error(t('files.error.import_failed'))
+        toast.error(t('files.error.import_failed'))
       }
     },
     [refetchFiles, t]
@@ -607,7 +608,7 @@ function FilesPage() {
       await handleImportPaths(paths)
     } catch (error) {
       logger.error('Failed to select files for import', error as Error)
-      window.toast?.error(t('files.error.import_failed'))
+      toast.error(t('files.error.import_failed'))
     }
   }, [handleImportPaths, t])
 
@@ -712,7 +713,7 @@ function FilesPage() {
           const trashFailed = warnMutationFailures('file trash', trashResult)
           const removeFailed = warnMutationFailures('file remove external entries', removeResult)
           if (trashFailed || removeFailed) {
-            window.toast?.error(t('files.error.delete_partial_failed'))
+            toast.error(t('files.error.delete_partial_failed'))
           }
         }
 
@@ -720,7 +721,7 @@ function FilesPage() {
         await refetchFiles()
       } catch (error) {
         logger.error('Failed to delete files', error as Error)
-        window.toast?.error(t('files.error.delete_failed'))
+        toast.error(t('files.error.delete_failed'))
       }
     },
     [files, isTrash, refetchFiles, t]
@@ -750,7 +751,7 @@ function FilesPage() {
       await refetchFiles()
     } catch (error) {
       logger.error('Failed to empty trash', error as Error)
-      window.toast?.error(t('files.error.delete_failed'))
+      toast.error(t('files.error.delete_failed'))
     }
   }, [refetchFiles, t])
 
@@ -780,7 +781,7 @@ function FilesPage() {
         await refetchFiles()
       } catch (error) {
         logger.error('Failed to restore files', error as Error)
-        window.toast?.error(t('files.error.restore_failed'))
+        toast.error(t('files.error.restore_failed'))
       }
     },
     [refetchFiles, t]
@@ -810,7 +811,7 @@ function FilesPage() {
         await refetchFiles()
       } catch (error) {
         logger.error('Failed to rename file', error as Error)
-        window.toast?.error(t('files.error.rename_failed'))
+        toast.error(t('files.error.rename_failed'))
         setRenamingId(null)
       }
     },

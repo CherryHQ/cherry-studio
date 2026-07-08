@@ -19,6 +19,7 @@ import ImageViewer from '@renderer/components/ImageViewer'
 import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { pyodideService } from '@renderer/services/PyodideService'
+import { toast } from '@renderer/services/toast'
 import { getExtensionByLanguage } from '@renderer/utils/codeLanguage'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
@@ -155,10 +156,10 @@ export const CodeBlockView: React.FC<Props> = memo((props) => {
       // Prioritize getting content from editor, fallback to children
       const content = sourceViewRef.current?.getContent?.() ?? children
       await navigator.clipboard.writeText(content.trimEnd())
-      window.toast.success(t('code_block.copy.success'))
+      toast.success(t('code_block.copy.success'))
     } catch (error) {
       logger.error('Failed to copy to clipboard:', { error })
-      window.toast.error(t('code_block.copy.failed'))
+      toast.error(t('code_block.copy.failed'))
     }
   }, [children, t])
   // Note: sourceViewRef not in deps because it's a stable ref,

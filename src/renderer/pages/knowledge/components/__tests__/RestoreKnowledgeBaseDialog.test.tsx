@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -174,12 +175,6 @@ describe('RestoreKnowledgeBaseDialog', () => {
       providers: [{ id: 'openai', isEnabled: true }]
     })
     mockEmbedMany.mockResolvedValue({ embeddings: [new Array(1536).fill(0)] })
-    Object.assign(window, {
-      toast: {
-        error: vi.fn(),
-        warning: vi.fn()
-      }
-    })
   })
 
   it('renders the localized backup name and submits restoreBase with the selected embedding model', async () => {
@@ -228,7 +223,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
     expect(onRestored).toHaveBeenCalledWith(restoredBase)
     expect(onOpenChange).toHaveBeenCalledWith(false)
     // Nothing was skipped, so the user is not warned.
-    expect(window.toast.warning).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalled()
   })
 
   it('warns the user when restore skipped items whose source is gone', async () => {
@@ -258,8 +253,8 @@ describe('RestoreKnowledgeBaseDialog', () => {
 
     await waitFor(() => expect(restoreBase).toHaveBeenCalled())
     // The skipped count is surfaced via a warning toast (not silently dropped); the base still restores.
-    expect(window.toast.warning).toHaveBeenCalledTimes(1)
-    expect(window.toast.warning).toHaveBeenCalledWith(expect.stringContaining('2'))
+    expect(toast.warning).toHaveBeenCalledTimes(1)
+    expect(toast.warning).toHaveBeenCalledWith(expect.stringContaining('2'))
     expect(onRestored).toHaveBeenCalledWith(restoredBase)
   })
 
