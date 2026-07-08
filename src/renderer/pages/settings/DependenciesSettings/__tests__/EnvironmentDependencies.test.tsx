@@ -105,13 +105,9 @@ vi.mock('@cherrystudio/ui', () => {
     DialogHeader: passthrough('div'),
     DialogTitle: passthrough('div'),
     Input: passthrough('input'),
-    // Install-settings section primitives. Accordion/Field wrappers just render
-    // children (collapse is a visual concern verified manually); the interactive
-    // stubs preserve the props the tests drive.
-    Accordion: childrenOnly,
-    AccordionItem: childrenOnly,
-    AccordionTrigger: childrenOnly,
-    AccordionContent: passthrough('div'),
+    // Install-settings primitives. Field wrappers just render children; the
+    // interactive stubs preserve the props the tests drive. The dialog is the
+    // childrenOnly Dialog stub above, so fields render without opening it.
     Field: passthrough('div'),
     FieldLabel: passthrough('label'),
     FieldDescription: passthrough('div'),

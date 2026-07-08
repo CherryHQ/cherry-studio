@@ -1,8 +1,4 @@
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
   Badge,
   Button,
   ConfirmDialog,
@@ -49,6 +45,7 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Settings2,
   SquareArrowOutUpRight,
   Terminal,
   Trash2,
@@ -94,6 +91,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
   const [customTools, setCustomTools] = usePreference('feature.binary.tools')
   const [showAddDialog, setShowAddDialog] = useState(false)
+  const [showInstallSettings, setShowInstallSettings] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   // Retain the last target name so the confirm dialog keeps its message during the close animation.
   const deleteNameRef = useRef('')
@@ -271,11 +269,17 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
               <RefreshCw className="size-3" />
             )}
           </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground/50 hover:text-foreground"
+            onClick={() => setShowInstallSettings(true)}
+            title={t('settings.dependencies.installSettings.title')}>
+            <Settings2 className="size-3" />
+          </Button>
         </div>
         <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.dependencies.description')}</p>
       </div>
-
-      <InstallSettingsSection />
 
       <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PRESETS_BINARY_TOOLS.map((tool) => {
@@ -344,6 +348,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       )}
 
       <AddToolDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdd={handleAddCustomTool} />
+
+      <InstallSettingsDialog open={showInstallSettings} onOpenChange={setShowInstallSettings} />
 
       <ConfirmDialog
         open={!!deleteTarget}
@@ -761,10 +767,10 @@ const isValidUrl = (value: string): boolean => {
   }
 }
 
-// Free-text URL field with a preset picker beside it. The Input is the source of
-// truth (accepts any value); the dropdown just fills it on pick. The dropdown
-// shows the matching preset's label when the current value is one, else the
-// "presets" placeholder.
+// Free-text URL field with a preset picker beside it. The full-width Input is the
+// source of truth (accepts any value and always shows the actual URL); the picker
+// is a fixed-width dropdown that fills the Input on pick. Each preset row shows its
+// full address under the label so the user can confirm what they're selecting.
 const UrlPresetField: FC<{
   label: string
   description: string
@@ -776,8 +782,7 @@ const UrlPresetField: FC<{
   onChange: (value: string) => void
 }> = ({ label, description, invalidHint, placeholder, presetLabel, value, presets, onChange }) => {
   const invalid = value.trim() !== '' && !isValidUrl(value.trim())
-  const items = presets.map((p) => ({ id: p.url, label: p.label }))
-  const selectedId = items.some((i) => i.id === value) ? value : null
+  const items = presets.map((p) => ({ id: p.url, url: p.url, label: p.label }))
 
   return (
     <Field>
@@ -787,16 +792,23 @@ const UrlPresetField: FC<{
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
-          className={cn('flex-1', invalid && 'border-destructive')}
+          className={cn('min-w-0 flex-1', invalid && 'border-destructive')}
         />
-        <SelectDropdown
-          items={items}
-          selectedId={selectedId}
-          onSelect={onChange}
-          placeholder={presetLabel}
-          renderSelected={(item) => <span className="truncate">{item.label}</span>}
-          renderItem={(item) => <span>{item.label}</span>}
-        />
+        <div className="w-44 shrink-0">
+          <SelectDropdown
+            items={items}
+            selectedId={null}
+            onSelect={onChange}
+            placeholder={presetLabel}
+            renderSelected={() => null}
+            renderItem={(item) => (
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate text-foreground text-sm">{item.label}</span>
+                <span className="break-all text-muted-foreground text-xs">{item.url}</span>
+              </div>
+            )}
+          />
+        </div>
       </div>
       <FieldDescription className={cn(invalid && 'text-destructive')}>
         {invalid ? invalidHint : description}
@@ -805,10 +817,13 @@ const UrlPresetField: FC<{
   )
 }
 
-// Advanced, collapsed-by-default knobs for the mise install path. Writes each
-// field straight to the feature.binary.install_settings preference; the main
-// process rebuilds its isolated install env on change (see BinaryManager).
-const InstallSettingsSection: FC = () => {
+// Advanced knobs for the mise install path, opened from the header gear icon.
+// Writes each field straight to the feature.binary.install_settings preference;
+// the main process rebuilds its isolated install env on change (see BinaryManager).
+const InstallSettingsDialog: FC<{ open: boolean; onOpenChange: (open: boolean) => void }> = ({
+  open,
+  onOpenChange
+}) => {
   const { t } = useTranslation()
   const [settings, setSettings] = usePreference('feature.binary.install_settings')
   const [showToken, setShowToken] = useState(false)
@@ -818,79 +833,78 @@ const InstallSettingsSection: FC = () => {
   }
 
   return (
-    <Accordion type="single" collapsible className="rounded-xl border border-border bg-card px-4">
-      <AccordionItem value="install-settings" className="border-0">
-        <AccordionTrigger className="py-3 font-medium text-foreground text-sm hover:no-underline">
-          {t('settings.dependencies.installSettings.title')}
-        </AccordionTrigger>
-        <AccordionContent className="pt-0 pb-4">
-          <div className="flex flex-col gap-4">
-            <UrlPresetField
-              label={t('settings.dependencies.installSettings.githubMirror.label')}
-              description={t('settings.dependencies.installSettings.githubMirror.help')}
-              invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
-              placeholder={t('settings.dependencies.installSettings.githubMirror.placeholder')}
-              presetLabel={t('settings.dependencies.installSettings.presets')}
-              value={settings.githubMirror}
-              presets={GITHUB_MIRROR_PRESETS}
-              onChange={(v) => update('githubMirror', v)}
-            />
-            <UrlPresetField
-              label={t('settings.dependencies.installSettings.npmRegistry.label')}
-              description={t('settings.dependencies.installSettings.npmRegistry.help')}
-              invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
-              placeholder={t('settings.dependencies.installSettings.npmRegistry.placeholder')}
-              presetLabel={t('settings.dependencies.installSettings.presets')}
-              value={settings.npmRegistry}
-              presets={NPM_REGISTRY_PRESETS}
-              onChange={(v) => update('npmRegistry', v)}
-            />
-            <UrlPresetField
-              label={t('settings.dependencies.installSettings.pipIndexUrl.label')}
-              description={t('settings.dependencies.installSettings.pipIndexUrl.help')}
-              invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
-              placeholder={t('settings.dependencies.installSettings.pipIndexUrl.placeholder')}
-              presetLabel={t('settings.dependencies.installSettings.presets')}
-              value={settings.pipIndexUrl}
-              presets={PIP_INDEX_PRESETS}
-              onChange={(v) => update('pipIndexUrl', v)}
-            />
-            <Field>
-              <FieldLabel>{t('settings.dependencies.installSettings.githubToken.label')}</FieldLabel>
-              <InputGroup>
-                <InputGroupInput
-                  type={showToken ? 'text' : 'password'}
-                  autoComplete="off"
-                  placeholder="ghp_…"
-                  value={settings.githubToken}
-                  onChange={(e) => update('githubToken', e.target.value)}
-                />
-                <InputGroupAddon align="inline-end">
-                  <InputGroupButton
-                    size="icon-xs"
-                    onClick={() => setShowToken((s) => !s)}
-                    aria-label={t(
-                      showToken
-                        ? 'settings.dependencies.installSettings.githubToken.hide'
-                        : 'settings.dependencies.installSettings.githubToken.show'
-                    )}>
-                    {showToken ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                  </InputGroupButton>
-                </InputGroupAddon>
-              </InputGroup>
-              <FieldDescription>{t('settings.dependencies.installSettings.githubToken.help')}</FieldDescription>
-            </Field>
-            <DescriptionSwitch
-              size="sm"
-              label={t('settings.dependencies.installSettings.verifySignatures.label')}
-              description={t('settings.dependencies.installSettings.verifySignatures.help')}
-              checked={settings.verifySignatures}
-              onCheckedChange={(checked) => update('verifySignatures', checked)}
-            />
-          </div>
-        </AccordionContent>
-      </AccordionItem>
-    </Accordion>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('settings.dependencies.installSettings.title')}</DialogTitle>
+          <DialogDescription>{t('settings.dependencies.installSettings.description')}</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-4 py-2">
+          <UrlPresetField
+            label={t('settings.dependencies.installSettings.githubMirror.label')}
+            description={t('settings.dependencies.installSettings.githubMirror.help')}
+            invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
+            placeholder={t('settings.dependencies.installSettings.githubMirror.placeholder')}
+            presetLabel={t('settings.dependencies.installSettings.presets')}
+            value={settings.githubMirror}
+            presets={GITHUB_MIRROR_PRESETS}
+            onChange={(v) => update('githubMirror', v)}
+          />
+          <UrlPresetField
+            label={t('settings.dependencies.installSettings.npmRegistry.label')}
+            description={t('settings.dependencies.installSettings.npmRegistry.help')}
+            invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
+            placeholder={t('settings.dependencies.installSettings.npmRegistry.placeholder')}
+            presetLabel={t('settings.dependencies.installSettings.presets')}
+            value={settings.npmRegistry}
+            presets={NPM_REGISTRY_PRESETS}
+            onChange={(v) => update('npmRegistry', v)}
+          />
+          <UrlPresetField
+            label={t('settings.dependencies.installSettings.pipIndexUrl.label')}
+            description={t('settings.dependencies.installSettings.pipIndexUrl.help')}
+            invalidHint={t('settings.dependencies.installSettings.invalidUrl')}
+            placeholder={t('settings.dependencies.installSettings.pipIndexUrl.placeholder')}
+            presetLabel={t('settings.dependencies.installSettings.presets')}
+            value={settings.pipIndexUrl}
+            presets={PIP_INDEX_PRESETS}
+            onChange={(v) => update('pipIndexUrl', v)}
+          />
+          <Field>
+            <FieldLabel>{t('settings.dependencies.installSettings.githubToken.label')}</FieldLabel>
+            <InputGroup>
+              <InputGroupInput
+                type={showToken ? 'text' : 'password'}
+                autoComplete="off"
+                placeholder="ghp_…"
+                value={settings.githubToken}
+                onChange={(e) => update('githubToken', e.target.value)}
+              />
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  size="icon-xs"
+                  onClick={() => setShowToken((s) => !s)}
+                  aria-label={t(
+                    showToken
+                      ? 'settings.dependencies.installSettings.githubToken.hide'
+                      : 'settings.dependencies.installSettings.githubToken.show'
+                  )}>
+                  {showToken ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+            <FieldDescription>{t('settings.dependencies.installSettings.githubToken.help')}</FieldDescription>
+          </Field>
+          <DescriptionSwitch
+            size="sm"
+            label={t('settings.dependencies.installSettings.verifySignatures.label')}
+            description={t('settings.dependencies.installSettings.verifySignatures.help')}
+            checked={settings.verifySignatures}
+            onCheckedChange={(checked) => update('verifySignatures', checked)}
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

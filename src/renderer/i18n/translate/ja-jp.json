@@ -6006,6 +6006,7 @@
       "install": "インストール",
       "installError": "Failed to install tool",
       "installSettings": {
+        "description": "[to be translated]:Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
         "githubMirror": {
           "help": "[to be translated]:Proxy prefix for GitHub downloads and the GitHub API (e.g. https://ghfast.top). Leave empty for direct access.",
           "label": "[to be translated]:GitHub mirror",
