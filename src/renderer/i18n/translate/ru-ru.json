@@ -556,6 +556,7 @@
       "list": {
         "title": "Задачи"
       },
+      "new": "Новое задание",
       "pin": {
         "title": "Закрепить задачу"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Поисковые задачи"
+        "placeholder": "Поисковые задачи",
+        "title": "Поиск задач"
       },
       "unpin": {
         "title": "Открепить задачу"
@@ -602,9 +604,7 @@
         "select_failed": "Не удалось выбрать папку."
       },
       "workspace_status": {
-        "inaccessible": "Путь к рабочей области недоступен: {{path}}",
-        "missing": "Путь к рабочей области не существует: {{path}}",
-        "not_directory": "Путь к рабочей области не является каталогом: {{path}}"
+        "inaccessible": "Путь к рабочей области недоступен: {{path}}"
       }
     },
     "settings": {
@@ -935,6 +935,10 @@
           "description": "Выполняет shell-команды в вашей среде",
           "label": "Баш"
         },
+        "CherryKbManage": {
+          "description": "Добавляет, удаляет или обновляет документы в ваших базах знаний",
+          "label": "Управление знаниями"
+        },
         "CherryKbSearch": {
           "description": "Ищет в ваших базах знаний",
           "label": "Поиск знаний"
@@ -1077,41 +1081,6 @@
       "stopped": "Остановлен"
     },
     "title": "API Сервер"
-  },
-  "appMenu": {
-    "about": "О",
-    "close": "Закрыть окно",
-    "copy": "Копировать",
-    "cut": "Резать",
-    "delete": "Удалить",
-    "documentation": "Документация",
-    "edit": "Редактировать",
-    "feedback": "Обратная связь",
-    "file": "Файл",
-    "forceReload": "Принудительная перезагрузка",
-    "front": "Показать все поверх других",
-    "help": "Помощь",
-    "hide": "Скрыть",
-    "hideOthers": "Скрыть остальные",
-    "minimize": "Минимизировать",
-    "paste": "Вставить",
-    "quit": "Выйти",
-    "redo": "Переделать",
-    "releases": "Релизы",
-    "reload": "Перезагрузка",
-    "resetZoom": "Настоящий размер",
-    "selectAll": "Выбрать все",
-    "services": "Услуги",
-    "toggleDevTools": "Переключить инструменты разработчика",
-    "toggleFullscreen": "Переключить полноэкранный режим",
-    "undo": "Отменить",
-    "unhide": "Показать все",
-    "view": "Вид",
-    "website": "Веб-сайт",
-    "window": "Окно",
-    "zoom": "Zoom",
-    "zoomIn": "Увеличить",
-    "zoomOut": "Отдалить"
   },
   "assistants": {
     "abbr": "Ассистент",
@@ -1327,12 +1296,14 @@
       "add": "Добавить тег",
       "delete": "Удалить тег",
       "deleteConfirm": "Вы уверены, что хотите удалить этот тег?",
+      "group_by": "Группировать по тегу",
       "manage": "Управление тегами",
       "modify": "Изменить тег",
       "none": "Нет тегов",
       "settings": {
         "title": "Настройки тегов"
       },
+      "ungroup": "Отключить группировку тегов",
       "untagged": "Несгруппированные метки"
     },
     "title": "Ассистенты",
@@ -1489,6 +1460,7 @@
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
       "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
+      "resize_height": "Изменить высоту ввода",
       "resource_panel": {
         "categories": {
           "agents": "Агенты",
@@ -1507,6 +1479,7 @@
         },
         "title": "Ресурсы"
       },
+      "restore": "Восстановить",
       "send": "Отправить",
       "send_failed": "Не удалось отправить сообщение",
       "settings": "Настройки",
@@ -1515,8 +1488,7 @@
           "clear": "Очистить историю разговора",
           "compact": "Компактный разговор с опциональными инструкциями по фокусировке",
           "context": "Визуализируйте текущее использование контекста в виде цветной сетки",
-          "cost": "Показать статистику использования токенов (см. руководство по отслеживанию затрат для получения подробной информации по подписке)",
-          "todos": "Список текущих задач"
+          "usage": "Показывать стоимость сеанса, лимиты использования плана и статистику активности"
         },
         "description": "Слэш-команды сеанса агента",
         "title": "Слэш-команды"
@@ -1593,6 +1565,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "Кэш {{hit_rate}}%",
+        "tooltip": "Чтение кэша {{cache_read}} / запись кэша {{cache_write}} / без кэша {{no_cache}} · сэкономлено {{saved}} входных токенов"
+      },
       "editing_current": "Это сообщение редактируется в композере",
       "flow": {
         "branches": "ветви",
@@ -1610,6 +1586,11 @@
       "new": {
         "branch": {
           "created": "Новая ветка создана",
+          "disabled": {
+            "active": "Этот узел уже выбран. Продолжайте ввод, чтобы расширить ветвь отсюда.",
+            "latest": "Вы уже находитесь в конце этой ветки. Продолжайте вводить текст, чтобы расширить её.",
+            "no_follow_up": "После этого сообщения пока нет продолжения. Переключитесь на этот узел и продолжайте вводить текст."
+          },
           "label": "Новая ветка"
         },
         "context": "Новый контекст"
@@ -1640,6 +1621,13 @@
       "top": "Вернуться наверх"
     },
     "resend": "Переотправить",
+    "resource_view": {
+      "menu": {
+        "agent": "Агенты",
+        "assistant": "Ассистенты",
+        "skill": "Навыки"
+      }
+    },
     "save": {
       "file": {
         "title": "Сохранить в локальный файл"
@@ -2055,7 +2043,6 @@
     "copy_failed": "Не удалось скопировать",
     "create_success": "Успешно создано",
     "current": "Текущий",
-    "cut": "Вырезать",
     "default": "По умолчанию",
     "delete": "Удалить",
     "delete_confirm": "Вы уверены, что хотите удалить?",
@@ -2087,13 +2074,13 @@
     "generate_random_seed": "Сгенерировать случайное зерно",
     "get_embedding_dimension": "Получить размерность вложения",
     "go_to_settings": "Перейти в настройки",
+    "help": "Помощь",
     "html_preview": "Предпросмотр HTML",
     "i_know": "Я понял",
     "ignore": "Игнорировать",
     "image_preview": "Предпросмотр изображения",
     "image_url": "URL изображения",
     "image_url_or_upload": "Введите URL изображения или загрузите файл",
-    "inspect": "Осмотреть",
     "invalid_value": "недопустимое значение",
     "knowledge_base": "База знаний",
     "language": "Язык",
@@ -2114,7 +2101,6 @@
     "open_in": "Открыть в {{name}}",
     "open_in_new_tab": "Открыть в новой вкладке",
     "open_sidebar": "Открыть боковую панель",
-    "paste": "Вставить",
     "placeholders": {
       "select": {
         "model": "Выбор модели"
@@ -2169,18 +2155,6 @@
     "warning": "Предупреждение",
     "yesterday": "Вчера",
     "you": "Вы"
-  },
-  "dialog": {
-    "all_files": "Все файлы",
-    "html_files": "Файлы HTML",
-    "open_file": "Открыть файл",
-    "pdf_files": "Файлы PDF",
-    "png_image": "PNG-изображение",
-    "save_as_html": "Сохранить как HTML",
-    "save_as_pdf": "Сохранить как PDF",
-    "save_file": "Сохранить файл",
-    "select_folder": "Выбрать папку",
-    "word_document": "Документ Word"
   },
   "docs": {
     "title": "Документация"
@@ -2370,6 +2344,7 @@
       "no_match_description": "Ни один файл не соответствует текущим фильтрам",
       "no_match_title": "Совпадающие файлы не найдены"
     },
+    "empty_trash": "Очистить корзину",
     "error": {
       "delete_failed": "Не удалось удалить файлы",
       "delete_partial_failed": "Некоторые файлы не удалось удалить",
@@ -2387,6 +2362,7 @@
     "missing": "Отсутствует",
     "modified_at": "Изменено",
     "name": "Имя",
+    "no_actions": "Нет доступных действий",
     "open": "Открыть",
     "other": "Другое",
     "permanent_delete": "Удалить навсегда",
@@ -2400,13 +2376,18 @@
     "remove_from_library": "Удалить из библиотеки",
     "rename": "Переименовать",
     "restore": "Восстановить",
+    "select_all": "Выбрать видимые файлы",
+    "select_all_short": "Выбрать все",
+    "select_file": "Выбрать {{name}}",
     "selected_count": "{{count}} файлов выбрано",
+    "selected_missing_hint": "Некоторые выбранные файлы отсутствуют. Найдите их или удалите их записи.",
     "show_in_folder": "Показать в папке",
     "size": "Размер",
     "text": "Текст",
     "title": "Файлы",
     "trash": "Мусор",
     "type": "Тип",
+    "upload": "Загрузить файлы",
     "video": "Видео"
   },
   "globalSearch": {
@@ -2790,7 +2771,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} источников",
-      "documents_count": "{{count}} документов",
       "updated_at": "Обновлено {{time}}"
     },
     "name_required": "Требуется название базы знаний",
@@ -2819,15 +2799,11 @@
         "chunk_size": "Целевое количество токенов для каждого фрагмента документа. Это влияет на гранулярность извлечения и длину контекста.",
         "document_count": "Максимальное количество фрагментов документа, возвращаемых для каждого поиска. Более высокие значения охватывают больше контента, но используют больше контекста.",
         "embedding_model": "Используется для преобразования содержимого базы знаний в векторы. Смена модели обычно требует переиндексации существующего содержимого.",
-        "hybrid_alpha": "Вес векторной оценки в гибридном поиске. Более высокие значения делают приоритетнее семантическое соответствие.",
         "processor": "Парсер, используемый при импорте файлов для извлечения основного текста, таблиц и связанного контента.",
         "rerank_model": "Модель, используемая для повторного ранжирования первоначальных результатов поиска и повышения релевантности финальных фрагментов.",
-        "search_mode": "Выберите режим поиска: векторный поиск для семантического соответствия, полнотекстовый поиск по ключевым словам или гибридный поиск, объединяющий оба подхода.",
         "smart_chunking": "Автоматически разбивать по структуре Markdown (заголовки, блоки кода, абзацы) и никогда не разбивать внутри блока кода. Отключите, чтобы разбивать исключительно по разделителю.",
-        "threshold": "Порог схожести для фильтрации фрагментов с низкой релевантностью. Более высокие значения делают поиск строже.",
-        "threshold_disabled": "Этот режим извлечения возвращает упорядоченные результаты и не использует порог сходства."
+        "threshold": "Порог схожести для фильтрации фрагментов с низкой релевантностью. Более высокие значения делают поиск строже."
       },
-      "hybrid_alpha": "Гибридный Альфа",
       "processor": "Поставщик обработки",
       "rerank_disabled": "Отключено",
       "rerank_model": "Переупорядочивающая модель",
@@ -2836,12 +2812,6 @@
       "retrieval": "Параметры извлечения",
       "save_action": "Сохранить",
       "saved": "Сохранено",
-      "search_mode": {
-        "bm25": "Полнотекстовый поиск",
-        "hybrid": "Гибридный поиск (рекомендуется)",
-        "title": "Режим поиска",
-        "vector": "Векторный поиск"
-      },
       "separator_rule": "Правило разделителя",
       "smart_chunking": "Умное разбиение на фрагменты",
       "threshold": "Порог сходства",
@@ -2950,7 +2920,8 @@
       "preview_description": "Обзор",
       "preview_prompt": "Промпт",
       "scroll_left": "Прокрутить категории влево",
-      "scroll_right": "Прокрутите категории вправо"
+      "scroll_right": "Прокрутите категории вправо",
+      "title": "Библиотека помощников"
     },
     "badge": {
       "update": "Обновить"
@@ -3162,12 +3133,22 @@
           "agent_title": "Новый агент",
           "assistant_title": "Новый ассистент",
           "avatar_aria": "Выберите аватар",
+          "back": "Назад",
+          "capability": {
+            "import": "Импортировать навык",
+            "no_skills": "Навыки не установлены",
+            "search": "Навыки поиска"
+          },
           "description_placeholder": "Опиши, для чего это нужно...",
-          "dialog_description": "Создайте лёгкого ассистента или агента.",
-          "model_placeholder": "Выберите модель",
-          "model_required": "Пожалуйста, выберите модель",
+          "guided_progress": "Пошаговая настройка · Шаг {{current}} из {{total}}",
           "name_placeholder": "Введите имя",
-          "name_required": "Пожалуйста, введите имя",
+          "next": "Следующий",
+          "step": {
+            "basic": "Основная информация",
+            "capability": "Навыки",
+            "knowledge": "Знание",
+            "persona": "Персона"
+          },
           "submit": "Создать",
           "submit_failed": "Создание не удалось"
         },
@@ -3375,6 +3356,10 @@
       "tags": "Теги",
       "title": "Библиотека"
     },
+    "skill_add": {
+      "local_import": "Локальный импорт",
+      "online_search": "Онлайн-поиск"
+    },
     "skill_detail": {
       "created_at": "Создано",
       "delete_description": "Удалить этот навык и всю его конфигурацию. Это действие нельзя отменить.",
@@ -3385,6 +3370,15 @@
       "no_description": "Нет описания",
       "source_files": "Исходные файлы",
       "updated_at": "Недавно обновлено"
+    },
+    "skill_marketplace": {
+      "empty_description": "Поищите в онлайн-реестрах навыки, которые можно установить.",
+      "empty_title": "Поиск навыков",
+      "no_results_description": "Попробуйте другое ключевое слово или импортируйте локальный ZIP-архив или папку.",
+      "no_results_title": "Навыки не найдены",
+      "search_failed_description": "Поиск не удался. Пожалуйста, попробуйте позже.",
+      "search_placeholder": "Навыки поиска...",
+      "title": "Поиск навыков онлайн"
     },
     "sort": {
       "created": "Сортировать по дате создания",
@@ -4710,10 +4704,10 @@
     "baichuan": "Baichuan",
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "Код Клода",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -4726,6 +4720,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
@@ -4749,6 +4744,8 @@
     "ollama": "Ollama",
     "open-mineru": "Открыть MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -4766,7 +4763,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Тессеракт",
     "together": "Together",
-    "tokenflux": "TokenFlux",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "State Cloud Xirang",
@@ -5258,6 +5255,7 @@
     "assistant": {
       "create_new": "Новый ассистент",
       "empty_text": "Пока нет ассистентов",
+      "filter": "Фильтровать помощников",
       "multi_hint": "(взаимоисключающий с многомодельным)",
       "multi_label": "Многопомощниковый параллелизм",
       "search_placeholder": "Поиск ассистентов…"
@@ -5333,6 +5331,9 @@
       "auto_switch_to_topics": "Автоматически переключаться на топик",
       "title": "Расширенные настройки"
     },
+    "appearance": {
+      "title": "Внешний вид"
+    },
     "assistant": {
       "icon": {
         "type": {
@@ -5401,6 +5402,7 @@
         "cloud_storage": "Настройки облачного резервирования",
         "export_settings": "Настройки экспорта",
         "import_settings": "Импорт настроек",
+        "note_export": "Экспорт заметок",
         "third_party": "Сторонние подключения"
       },
       "export_menu": {
@@ -5962,6 +5964,48 @@
         "token_placeholder": "Введите токен Yuque"
       }
     },
+    "dependencies": {
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Пользовательских инструментов пока нет. Добавьте один, чтобы начать.",
+      "description": "Управляйте бинарными инструментами и зависимостями среды выполнения, необходимыми приложению.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Установить",
+      "installError": "Failed to install tool",
+      "installing": "Установка...",
+      "invalidTool": "Неверное имя или ключ инструмента",
+      "notInstalled": "Не установлено",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
+      "title": "Зависимости окружения",
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
+    },
     "developer": {
       "enable_developer_mode": "Включить разработчик",
       "help": "После включения режима разработчика можно использовать функцию трассировки вызовов для просмотра потока данных в процессе вызова модели.",
@@ -6022,7 +6066,7 @@
       },
       "title": "Настройки отображения",
       "topic": {
-        "title": "Настройки топиков"
+        "title": "Настройки вида диалога"
       },
       "zoom": {
         "title": "Настройки масштаба"
@@ -6228,6 +6272,9 @@
         "button": "Получить серверы",
         "success": "Успешно получены MCP-серверы"
       },
+      "filter": {
+        "label": "Фильтр"
+      },
       "findMore": "Найти больше MCP",
       "headers": "Заголовки",
       "headersTooltip": "Пользовательские заголовки для HTTP-запросов",
@@ -6268,6 +6315,7 @@
       "noDescriptionAvailable": "Описание отсутствует",
       "noLogs": "Логов пока нет",
       "noServers": "Серверы не настроены",
+      "notInstalled": "Не установлено",
       "not_support": "Модель не поддерживается",
       "npx_list": {
         "actions": "Действия",
@@ -6281,12 +6329,6 @@
         "search_error": "Ошибка поиска",
         "usage": "Использование",
         "version": "Версия"
-      },
-      "oauth": {
-        "callback": {
-          "message": "Вы можете закрыть эту страницу и вернуться в Cherry Studio",
-          "title": "Аутентификация Успешна"
-        }
       },
       "prompts": {
         "arguments": "Аргументы",
@@ -6303,6 +6345,7 @@
         "title": "Запускать внешний MCP?"
       },
       "provider": "Провайдер",
+      "providerNotFound": "Провайдер MCP не найден",
       "providerPlaceholder": "Имя провайдера",
       "providerUrl": "URL провайдера",
       "providers": "Поставщики",
@@ -6349,13 +6392,6 @@
         "getToken": "Получить API токен",
         "getTokenDescription": "Получите персональный API токен из вашей учетной записи",
         "noServersAvailable": "Нет доступных серверов MCP",
-        "providerDescriptions": {
-          "302ai": "302.Сервис MCP Платформы AI",
-          "bailian": "Сервис MCP платформы Alibaba Cloud Bailian",
-          "lanyun": "Lanyun Technology Cloud Platform MCP Service",
-          "mcprouter": "Платформа маршрутизатора MCP Сервис MCP",
-          "modelscope": "Служба MCP платформы ModelScope"
-        },
         "selectProvider": "Выберите провайдера:",
         "setToken": "Введите ваш токен",
         "success": "Синхронизация серверов MCP успешна",
@@ -6412,10 +6448,11 @@
       "user": "Пользователь"
     },
     "menuGroups": {
-      "appSettings": "Настройки приложения",
-      "integrations": "Модели",
-      "productivity": "Производительность",
-      "services": "Плагины",
+      "automation": "Автоматизация",
+      "capabilities": "Возможности и инструменты",
+      "models": "Модели",
+      "personal": "Личный",
+      "quickAccess": "Быстрый доступ",
       "system": "Система"
     },
     "messages": {
@@ -6436,6 +6473,12 @@
         "send_shortcuts": "Горячие клавиши для отправки",
         "show_estimated_tokens": "Показывать затраты токенов",
         "title": "Настройки ввода"
+      },
+      "layout": {
+        "classic": "Классический",
+        "conversation": "Вид разговора",
+        "modern": "Современный",
+        "work": "Вид работы"
       },
       "markdown_rendering_input_message": "Отображение ввода в формате Markdown",
       "metrics": "{{time_first_token_millsec}}ms до первого токена | {{token_speed}} tok/sec",
@@ -6465,6 +6508,8 @@
         "logo_upload_label": "Загрузить логотип",
         "name": "Имя",
         "name_placeholder": "Введите имя",
+        "remove_confirm_description": "Удалить пользовательское мини-приложение \"{{name}}\"? Это действие нельзя отменить.",
+        "remove_confirm_title": "Удалить пользовательский мини-приложение?",
         "remove_error": "Не удалось удалить мини-приложение.",
         "remove_success": "Мини-приложение успешно удалено.",
         "save_error": "Не удалось сохранить пользовательское мини-приложение.",
@@ -6493,6 +6538,7 @@
         "title": "Фильтрация по регионам в мини-программе"
       },
       "reset_tooltip": "Сбросить до значения по умолчанию",
+      "title": "Настройки Mini Apps",
       "visible": "Отображаемые мини-приложения"
     },
     "model": "Модель по умолчанию",
@@ -6644,6 +6690,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Некоторые модели используются как модели по умолчанию и не могут быть удалены.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6722,7 +6769,7 @@
       "assistant": "Сообщение ассистента",
       "backup": "Резервное сообщение",
       "knowledge_embed": "Сообщение базы знаний",
-      "title": "Настройки уведомлений"
+      "title": "Уведомления"
     },
     "openai": {
       "service_tier": {
@@ -6758,48 +6805,6 @@
       }
     },
     "parameter_settings": "Параметры настройки",
-    "plugins": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Пользовательских инструментов пока нет. Добавьте один, чтобы начать.",
-      "description": "Управляйте бинарными инструментами и зависимостями среды выполнения, необходимыми приложению.",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Установить",
-      "installError": "Failed to install tool",
-      "installing": "Установка...",
-      "invalidTool": "Неверное имя или ключ инструмента",
-      "notInstalled": "Не установлено",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
-      "source": {
-        "bundled": "bundled"
-      },
-      "title": "Зависимости окружения",
-      "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
-      },
-      "update": "Update to latest version"
-    },
     "power": {
       "prevent_sleep_when_busy": "Не давайте системе переходить в спящий режим, пока выполняются задачи."
     },
@@ -6821,6 +6826,7 @@
         "reorderFailed": "Не удалось изменить порядок подсказок",
         "updateFailed": "Не удалось обновить подсказку"
       },
+      "manage": "Управление подсказками",
       "title": "Управление промптами",
       "titleLabel": "Заголовок",
       "titlePlaceholder": "Введите заголовок промпта",
@@ -6965,9 +6971,29 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Домен ускорения",
-          "backup": "Резервный домен",
           "international": "Международный домен"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "Провайдер Claude Code доступен только для Агентов — его нельзя использовать в чате или ассистентах.",
+        "description": "Войдите с помощью подписки Claude",
+        "description_detail": "Этот провайдер использует авторизацию Claude Code CLI (Claude Pro/Max) и доступен только для агентов. Откройте терминал и выполните `claude /login` для входа.",
+        "launch_failed": "Не удалось открыть терминал. Выполните `claude /login` вручную для входа в систему.",
+        "legal_link": "Правовые вопросы и соответствие требованиям",
+        "logged_in": "Вошли в Claude Code",
+        "logged_in_detail": "Агенты будут использовать учетные данные вашей подписки Claude Code CLI.",
+        "open_terminal": "Откройте терминал для входа в систему",
+        "recheck": "Перепроверить"
+      },
+      "codex": {
+        "account": "Аккаунт: {{accountId}}",
+        "description": "Войдите с помощью подписки ChatGPT",
+        "description_detail": "Этот провайдер использует ваш логин ChatGPT Plus/Pro (OAuth) для доступа к моделям OpenAI Codex. Ваш браузер откроется для завершения входа.",
+        "logged_in": "Вошли в OpenAI Codex",
+        "sign_in_button": "Войти с помощью ChatGPT",
+        "sign_in_failed": "Ошибка входа. Пожалуйста, попробуйте снова.",
+        "sign_in_success": "Выполнен вход в OpenAI Codex",
+        "signing_in": "Ожидание браузера…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7043,6 +7069,15 @@
       },
       "filter_agent": "Поддерживаемые поставщики агента фильтрации",
       "get_api_key": "Получить ключ API",
+      "grok_cli": {
+        "description": "Войдите с помощью вашей подписки SuperGrok",
+        "description_detail": "Этот провайдер использует вашу учетную запись xAI SuperGrok (OAuth) для доступа к моделям Grok CLI (Grok Build, Composer). Ваш браузер откроется для завершения входа.",
+        "logged_in": "Выполнен вход в Grok CLI",
+        "sign_in_button": "Войти с помощью xAI",
+        "sign_in_failed": "Ошибка входа. Пожалуйста, попробуйте снова.",
+        "sign_in_success": "Вход выполнен в Grok CLI",
+        "signing_in": "Ожидание браузера…"
+      },
       "logo_upload_failed": "Не удалось обработать выбранное изображение",
       "misc": "другие",
       "more_endpoints": {
@@ -7207,6 +7242,7 @@
       "all_enable": "Включить все",
       "bind_first_to_enable": "Сначала назначьте сочетание клавиш, чтобы изменить его состояние включения.",
       "categories": {
+        "all": "Все",
         "assistant": "Инструменты ИИ-ассистента",
         "chat": "Взаимодействие с сообщениями",
         "general": "Глобальное и Окно",
@@ -7222,6 +7258,7 @@
       "empty": "В этой группе нет доступных ярлыков",
       "enabled": "Включить",
       "exit_fullscreen": "Выйти из полноэкранного режима",
+      "filter": "Фильтр",
       "label": "Клавиша",
       "move_tab_to_first": "Переместить вкладку в начало",
       "new_topic": "Новый топик",
@@ -7258,6 +7295,9 @@
     },
     "skills": {
       "author": "Автор",
+      "batchInstallComplete": "Установлено {{count}} навыков",
+      "batchInstallPartialFailed": "Установлено {{success}}/{{total}} навыков, {{failed}} не удалось",
+      "batchInstallQueued": "В очереди",
       "batchUninstallSuccess": "{{count}} навыков удалено",
       "builtin": "Встроенный",
       "confirmBatchUninstall": "Вы уверены, что хотите удалить выбранные навыки ({{count}})?",
@@ -7290,6 +7330,9 @@
       "uninstallSuccess": "Навык удалён: {{name}}",
       "viewSource": "Посмотреть исходный код",
       "zip": "ЗИП"
+    },
+    "system": {
+      "title": "Система"
     },
     "theme": {
       "color_primary": "Цвет темы",
@@ -7438,6 +7481,7 @@
           "exa": "API нейропоиска для ИИ-приложений, оптимизированный для семантического поиска в вебе.",
           "exa_mcp": "Предоставьте агентам доступ к поиску Exa через сервер Exa MCP.",
           "fetch": "Встроенный поставщик извлечения URL. Извлекает содержимое веб-страницы по URL для обогащения результатов поиска.",
+          "firecrawl": "Сервис краулинга и поиска Firecrawl, оптимизированный для преобразования веб-сайтов в Markdown.",
           "jina": "API Jina Reader для поиска и чтения для получения чистого веб-контента.",
           "querit": "Поисковый сервис для приложений ИИ с результатами веб-поиска.",
           "searxng": "Самостоятельно размещаемый бесплатный интернет-метапоисковик по множеству источников.",
@@ -7562,7 +7606,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Рисунки",
     "settings": "Настройки",
-    "store": "Библиотека помощников",
     "translate": "Перевод",
     "work": "Работа"
   },
@@ -7757,11 +7800,6 @@
     "tooltip": {
       "newline": "Перевести"
     }
-  },
-  "tray": {
-    "quit": "Выйти",
-    "show_quick_assistant": "Быстрый помощник",
-    "show_window": "Показать окно"
   },
   "update": {
     "install": "Установить",

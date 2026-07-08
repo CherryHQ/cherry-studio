@@ -556,6 +556,7 @@
       "list": {
         "title": "Aufgaben"
       },
+      "new": "Neue Aufgabe",
       "pin": {
         "title": "Aufgabe anheften"
       },
@@ -565,7 +566,8 @@
         }
       },
       "search": {
-        "placeholder": "Suchaufgaben"
+        "placeholder": "Suchaufgaben",
+        "title": "Aufgaben suchen"
       },
       "unpin": {
         "title": "Aufgabe lösen"
@@ -602,9 +604,7 @@
         "select_failed": "Ordnerauswahl fehlgeschlagen."
       },
       "workspace_status": {
-        "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",
-        "missing": "Arbeitsbereichspfad existiert nicht: {{path}}",
-        "not_directory": "Der Workspace-Pfad ist kein Verzeichnis: {{path}}"
+        "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}"
       }
     },
     "settings": {
@@ -935,6 +935,10 @@
           "description": "Führt Shell-Befehle in deiner Umgebung aus",
           "label": "Bash"
         },
+        "CherryKbManage": {
+          "description": "Fügt Dokumente zu Ihren Wissensdatenbanken hinzu, löscht sie oder aktualisiert sie",
+          "label": "Wissen verwalten"
+        },
         "CherryKbSearch": {
           "description": "Durchsucht Ihre Wissensdatenbanken",
           "label": "Wissenskontrolle"
@@ -1077,41 +1081,6 @@
       "stopped": "Gestoppt"
     },
     "title": "API-Server"
-  },
-  "appMenu": {
-    "about": "Über",
-    "close": "Fenster schließen",
-    "copy": "Kopieren",
-    "cut": "Schneiden",
-    "delete": "Löschen",
-    "documentation": "Dokumentation",
-    "edit": "Bearbeiten",
-    "feedback": "Rückmeldung",
-    "file": "Datei",
-    "forceReload": "Neu laden erzwingen",
-    "front": "Alle in den Vordergrund bringen",
-    "help": "Hilfe",
-    "hide": "Verstecken",
-    "hideOthers": "Andere ausblenden",
-    "minimize": "Minimieren",
-    "paste": "Einfügen",
-    "quit": "Aufhören",
-    "redo": "Wiederholen",
-    "releases": "Veröffentlichungen",
-    "reload": "Neu laden",
-    "resetZoom": "Tatsächliche Größe",
-    "selectAll": "Alle auswählen",
-    "services": "Dienstleistungen",
-    "toggleDevTools": "Entwicklertools ein-/ausblenden",
-    "toggleFullscreen": "Vollbild umschalten",
-    "undo": "Rückgängig machen",
-    "unhide": "Alle anzeigen",
-    "view": "Ansicht",
-    "website": "Website",
-    "window": "Fenster",
-    "zoom": "Zoom",
-    "zoomIn": "Heranzoomen",
-    "zoomOut": "Herauszoomen"
   },
   "assistants": {
     "abbr": "Assistent",
@@ -1327,12 +1296,14 @@
       "add": "Tag hinzufügen",
       "delete": "Tag löschen",
       "deleteConfirm": "Möchten Sie diesen Tag wirklich löschen?",
+      "group_by": "Nach Tag gruppieren",
       "manage": "Tags verwalten",
       "modify": "Tag ändern",
       "none": "Keine Tags vorhanden",
       "settings": {
         "title": "Tag-Einstellungen"
       },
+      "ungroup": "Tag-Gruppierung ausschalten",
       "untagged": "Nicht gruppiert"
     },
     "title": "Assistent",
@@ -1489,6 +1460,7 @@
       "pause": "Pause",
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
+      "resize_height": "Eingabehöhe ändern",
       "resource_panel": {
         "categories": {
           "agents": "Agenten",
@@ -1507,6 +1479,7 @@
         },
         "title": "Ressourcen"
       },
+      "restore": "Wiederherstellen",
       "send": "Senden",
       "send_failed": "Nachricht konnte nicht gesendet werden",
       "settings": "Einstellungen",
@@ -1515,8 +1488,7 @@
           "clear": "Konversationsverlauf löschen",
           "compact": "Kompakte Unterhaltung mit optionalen Fokusanweisungen",
           "context": "Visualisieren Sie die aktuelle Kontextnutzung als farbiges Raster",
-          "cost": "Token-Nutzungsstatistiken anzeigen (siehe Leitfaden zur Kostenverfolgung für abonnementspezifische Details)",
-          "todos": "Aktuelle To-do-Einträge auflisten"
+          "usage": "Sitzungskosten, Plannutzungslimits und Aktivitätsstatistiken anzeigen"
         },
         "description": "Agent-Session-Slash-Befehle",
         "title": "Schrägstrich-Befehle"
@@ -1593,6 +1565,10 @@
       }
     },
     "message": {
+      "cache_stats": {
+        "inline": "Cache {{hit_rate}}%",
+        "tooltip": "Cache-Lesen {{cache_read}} / Schreiben {{cache_write}} / kein Cache {{no_cache}} · {{saved}} Eingabe-Token gespeichert"
+      },
       "editing_current": "Diese Nachricht wird im Composer bearbeitet",
       "flow": {
         "branches": "Zweige",
@@ -1610,6 +1586,11 @@
       "new": {
         "branch": {
           "created": "Neuer Branch erstellt",
+          "disabled": {
+            "active": "Dieser Knoten ist bereits ausgewählt. Tippen Sie weiter, um den Zweig von hier aus zu erweitern.",
+            "latest": "Sie sind bereits am Ende dieses Zweigs. Tippen Sie weiter, um ihn zu erweitern.",
+            "no_follow_up": "Es gibt noch keine Nachfolge nach dieser Nachricht. Wechsle zu diesem Knoten und tippe stattdessen weiter."
+          },
           "label": "Branch"
         },
         "context": "Kontext löschen"
@@ -1640,6 +1621,13 @@
       "top": "Nach oben scrollen"
     },
     "resend": "Erneut senden",
+    "resource_view": {
+      "menu": {
+        "agent": "Agenten",
+        "assistant": "Assistenten",
+        "skill": "Fähigkeiten"
+      }
+    },
     "save": {
       "file": {
         "title": "In lokale Datei speichern"
@@ -2055,7 +2043,6 @@
     "copy_failed": "Kopieren fehlgeschlagen",
     "create_success": "Erfolgreich erstellt",
     "current": "Aktuell",
-    "cut": "Ausschneiden",
     "default": "Standard",
     "delete": "Löschen",
     "delete_confirm": "Möchten Sie wirklich löschen?",
@@ -2087,13 +2074,13 @@
     "generate_random_seed": "Zufälligen Seed generieren",
     "get_embedding_dimension": "Abruf der Einbettungsdimension",
     "go_to_settings": "Zu Einstellungen",
+    "help": "Hilfe",
     "html_preview": "HTML-Vorschau",
     "i_know": "Verstanden",
     "ignore": "Ignorieren",
     "image_preview": "Bildvorschau",
     "image_url": "Bild-URL",
     "image_url_or_upload": "Gib Bild-URL ein oder lade Datei hoch",
-    "inspect": "Prüfen",
     "invalid_value": "Ungültiger Wert",
     "knowledge_base": "Wissensdatenbank",
     "language": "Sprache",
@@ -2114,7 +2101,6 @@
     "open_in": "In {{name}} öffnen",
     "open_in_new_tab": "In neuem Tab öffnen",
     "open_sidebar": "Seitenleiste öffnen",
-    "paste": "Einfügen",
     "placeholders": {
       "select": {
         "model": "Modell auswählen"
@@ -2169,18 +2155,6 @@
     "warning": "Warnung",
     "yesterday": "Gestern",
     "you": "Sie"
-  },
-  "dialog": {
-    "all_files": "Alle Dateien",
-    "html_files": "HTML-Dateien",
-    "open_file": "Datei öffnen",
-    "pdf_files": "PDF-Dateien",
-    "png_image": "PNG-Bild",
-    "save_as_html": "Als HTML speichern",
-    "save_as_pdf": "Als PDF speichern",
-    "save_file": "Datei speichern",
-    "select_folder": "Ordner auswählen",
-    "word_document": "Word-Dokument"
   },
   "docs": {
     "title": "Hilfedokumentation"
@@ -2370,6 +2344,7 @@
       "no_match_description": "Keine Dateien entsprechen den aktuellen Filtern",
       "no_match_title": "Keine passenden Dateien gefunden"
     },
+    "empty_trash": "Papierkorb leeren",
     "error": {
       "delete_failed": "Fehler beim Löschen der Dateien",
       "delete_partial_failed": "Einige Dateien konnten nicht gelöscht werden",
@@ -2387,6 +2362,7 @@
     "missing": "Fehlt",
     "modified_at": "Geändert am",
     "name": "Dateiname",
+    "no_actions": "Keine Aktionen verfügbar",
     "open": "Öffnen",
     "other": "Andere",
     "permanent_delete": "Dauerhaft löschen",
@@ -2400,13 +2376,18 @@
     "remove_from_library": "Aus der Bibliothek entfernen",
     "rename": "Umbenennen",
     "restore": "Wiederherstellen",
+    "select_all": "Sichtbare Dateien auswählen",
+    "select_all_short": "Alle auswählen",
+    "select_file": "{{name}} auswählen",
     "selected_count": "{{count}} Dateien ausgewählt",
+    "selected_missing_hint": "Einige ausgewählte Dateien fehlen. Suchen Sie sie oder entfernen Sie ihre Einträge.",
     "show_in_folder": "Im Ordner anzeigen",
     "size": "Größe",
     "text": "Text",
     "title": "Dateien",
     "trash": "Müll",
     "type": "Typ",
+    "upload": "Dateien hochladen",
     "video": "Video"
   },
   "globalSearch": {
@@ -2790,7 +2771,6 @@
     },
     "meta": {
       "data_sources_count": "{{count}} Quellen",
-      "documents_count": "{{count}} Dokumente",
       "updated_at": "Aktualisiert {{time}}"
     },
     "name_required": "Wissensbasis-Name ist erforderlich",
@@ -2819,15 +2799,11 @@
         "chunk_size": "Ziel-Token-Anzahl für jedes Dokument-Chunk. Dies beeinflusst die Granularität der Abrufe und die Kontextlänge.",
         "document_count": "Maximale Anzahl der Dokumentblöcke, die für jede Abfrage zurückgegeben werden. Höhere Werte decken mehr Inhalt ab, verbrauchen jedoch mehr Kontext.",
         "embedding_model": "Wird verwendet, um Inhalte der Wissensdatenbank in Vektoren zu konvertieren. Eine Änderung des Modells erfordert in der Regel eine erneute Indizierung der vorhandenen Inhalte.",
-        "hybrid_alpha": "Vektor-Bewertungsgewicht in der hybriden Suche. Höhere Werte bevorzugen semantische Übereinstimmung.",
         "processor": "Parser, der beim Import von Dateien verwendet wird, um Fließtext, Tabellen und verwandte Inhalte zu extrahieren.",
         "rerank_model": "Modell zur Neusortierung der anfänglichen Abrufergebnisse und zur Verbesserung der Relevanz der endgültigen Blöcke.",
-        "search_mode": "Wählen Sie einen Abrufmodus: Vektorsuche für semantisches Matching, Volltextsuche für Schlüsselwörter oder hybride Suche für beides.",
         "smart_chunking": "Automatisch entlang der Markdown-Struktur (Überschriften, Codeblöcke, Absätze) aufteilen und niemals innerhalb eines Codeblocks aufteilen. Ausschalten, um rein nach dem Trennzeichen zu unterteilen.",
-        "threshold": "Ähnlichkeitsschwelle zum Filtern von wenig relevanten Chunks. Höhere Werte machen die Abfrage strenger.",
-        "threshold_disabled": "Dieser Abrufmodus liefert geordnete Ergebnisse und verwendet keinen Ähnlichkeitsschwellenwert."
+        "threshold": "Ähnlichkeitsschwelle zum Filtern von wenig relevanten Chunks. Höhere Werte machen die Abfrage strenger."
       },
-      "hybrid_alpha": "Hybrid Alpha",
       "processor": "Verarbeitungsanbieter",
       "rerank_disabled": "Deaktiviert",
       "rerank_model": "Rerank-Modell",
@@ -2836,12 +2812,6 @@
       "retrieval": "Abrufeinstellungen",
       "save_action": "Speichern",
       "saved": "G",
-      "search_mode": {
-        "bm25": "Volltextsuche",
-        "hybrid": "Hybrid-Suche (empfohlen)",
-        "title": "Suchmodus",
-        "vector": "Vektorsuche"
-      },
       "separator_rule": "Trennregel",
       "smart_chunking": "Intelligentes Chunking",
       "threshold": "Ähnlichkeitsschwelle",
@@ -2950,7 +2920,8 @@
       "preview_description": "Übersicht",
       "preview_prompt": "Aufforderung",
       "scroll_left": "Kategorien nach links scrollen",
-      "scroll_right": "Kategorien nach rechts scrollen"
+      "scroll_right": "Kategorien nach rechts scrollen",
+      "title": "Assistenten-Bibliothek"
     },
     "badge": {
       "update": "Aktualisierung"
@@ -3162,12 +3133,22 @@
           "agent_title": "Neuer Agent",
           "assistant_title": "Neuer Assistent",
           "avatar_aria": "Avatar auswählen",
+          "back": "Zurück",
+          "capability": {
+            "import": "Fertigkeit importieren",
+            "no_skills": "Keine Fähigkeiten installiert",
+            "search": "Suchfähigkeiten"
+          },
           "description_placeholder": "Beschreibe, wofür es ist...",
-          "dialog_description": "Erstelle einen leichtgewichtigen Assistenten oder Agenten.",
-          "model_placeholder": "Wählen Sie ein Modell",
-          "model_required": "Bitte wählen Sie ein Modell",
+          "guided_progress": "Geführte Einrichtung · Schritt {{current}} von {{total}}",
           "name_placeholder": "Geben Sie einen Namen ein",
-          "name_required": "Bitte geben Sie einen Namen ein",
+          "next": "Nächste",
+          "step": {
+            "basic": "Grundinformationen",
+            "capability": "Fähigkeiten",
+            "knowledge": "Wissen",
+            "persona": "Persona"
+          },
           "submit": "Erstellen",
           "submit_failed": "Erstellen fehlgeschlagen"
         },
@@ -3375,6 +3356,10 @@
       "tags": "Tags",
       "title": "Bibliothek"
     },
+    "skill_add": {
+      "local_import": "Lokaler Import",
+      "online_search": "Online-Suche"
+    },
     "skill_detail": {
       "created_at": "Erstellt",
       "delete_description": "Entferne diese Fähigkeit und ihre gesamte Konfiguration. Diese Aktion kann nicht rückgängig gemacht werden.",
@@ -3385,6 +3370,15 @@
       "no_description": "Keine Beschreibung",
       "source_files": "Quelldateien",
       "updated_at": "Kürzlich aktualisiert"
+    },
+    "skill_marketplace": {
+      "empty_description": "Suchen Sie in Online-Registern nach installierbaren Skills.",
+      "empty_title": "Nach Fähigkeiten suchen",
+      "no_results_description": "Versuchen Sie ein anderes Stichwort oder importieren Sie eine lokale ZIP-Datei oder ein Verzeichnis.",
+      "no_results_title": "Keine Fähigkeiten gefunden",
+      "search_failed_description": "Suche fehlgeschlagen. Bitte versuchen Sie es später erneut.",
+      "search_placeholder": "Suchkompetenzen...",
+      "title": "Online-Skill-Suche"
     },
     "sort": {
       "created": "Nach Erstellungsdatum sortieren",
@@ -4710,10 +4704,10 @@
     "baichuan": "Baichuan",
     "baidu-cloud": "Baidu Cloud Qianfan",
     "burncloud": "BurnCloud",
-    "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
+    "claude-code": "Claude Code",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud Bailian",
     "deepseek": "DeepSeek",
@@ -4726,6 +4720,7 @@
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
+    "grok-cli": "Grok CLI",
     "groq": "Groq",
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
@@ -4749,6 +4744,8 @@
     "ollama": "Ollama",
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
+    "openai-codex": "OpenAI Codex",
+    "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
@@ -4766,7 +4763,7 @@
     "tencent-cloud-ti": "Tencent Cloud TI",
     "tesseract": "Tesseract",
     "together": "Together",
-    "tokenflux": "TokenFlux",
+    "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
     "xirang": "China Telecom Cloud Xirang",
@@ -5258,6 +5255,7 @@
     "assistant": {
       "create_new": "Neuer Assistent",
       "empty_text": "Noch keine Assistenten",
+      "filter": "Filter-Assistenten",
       "multi_hint": "(gegenseitig ausschließend mit Multi-Modell)",
       "multi_label": "Multi-Assistent-Parallel",
       "search_placeholder": "Suchassistenten…"
@@ -5333,6 +5331,9 @@
       "auto_switch_to_topics": "Automatisch zu Themenansicht wechseln",
       "title": "Erweiterte Einstellungen"
     },
+    "appearance": {
+      "title": "Erscheinung"
+    },
     "assistant": {
       "icon": {
         "type": {
@@ -5401,6 +5402,7 @@
         "cloud_storage": "Cloud-Backup-Einstellungen",
         "export_settings": "Export-Einstellungen",
         "import_settings": "Importeinstellungen",
+        "note_export": "Notiz-Export",
         "third_party": "Drittanbieter-Verbindungen"
       },
       "export_menu": {
@@ -5962,6 +5964,48 @@
         "token_placeholder": "Bitte Yuque-Token eingeben"
       }
     },
+    "dependencies": {
+      "addTool": "Add Tool",
+      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "coreDepsMissing": "Core dependencies not installed",
+      "customTools": "Custom Tools",
+      "customToolsEmpty": "Noch keine benutzerdefinierten Tools. Fügen Sie eines hinzu, um loszulegen.",
+      "description": "Verwalten Sie binäre Tools und Laufzeitabhängigkeiten, die von der App benötigt werden.",
+      "duplicateName": "A tool with the same name already exists",
+      "fieldVersion": "Version (optional, defaults to latest)",
+      "install": "Installieren",
+      "installError": "Failed to install tool",
+      "installing": "Installiere...",
+      "invalidTool": "Ungültiger Tool-Name oder Schlüssel",
+      "notInstalled": "Nicht installiert",
+      "openBinariesDir": "Open binaries directory",
+      "remove": "Remove tool",
+      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmTitle": "Remove Tool",
+      "searchFailed": "Search failed, check logs",
+      "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
+      "title": "Umgebungsabhängigkeiten",
+      "tools": {
+        "bun": "JavaScript runtime used by MCP services and related toolchains.",
+        "claude": "Anthropic's agentic coding tool for the terminal.",
+        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
+        "fd": "Fast file finder, alternative to find.",
+        "gh": "GitHub CLI for repository and workflow management.",
+        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
+        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
+        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
+        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
+        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
+        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
+        "rg": "Fast text search tool (ripgrep), alternative to grep.",
+        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
+        "uv": "Python package manager for MCP services and dependency installation."
+      },
+      "update": "Update to latest version"
+    },
     "developer": {
       "enable_developer_mode": "Entwicklermodus aktivieren",
       "help": "Nach Aktivierung des Entwicklermodus kann die Aufrufkette zur Ansicht des Datenflusses verwendet werden.",
@@ -6022,7 +6066,7 @@
       },
       "title": "Anzeigeeinstellungen",
       "topic": {
-        "title": "Themen-Einstellungen"
+        "title": "Konversationsansicht-Einstellungen"
       },
       "zoom": {
         "title": "Zoom-Einstellungen"
@@ -6228,6 +6272,9 @@
         "button": "Server abrufen",
         "success": "MCP-Server erfolgreich abgerufen"
       },
+      "filter": {
+        "label": "Filter"
+      },
       "findMore": "Mehr MCP",
       "headers": "Request-Header",
       "headersTooltip": "Benutzerdefinierte Request-Header für HTTP-Anfragen",
@@ -6268,6 +6315,7 @@
       "noDescriptionAvailable": "Keine Beschreibung",
       "noLogs": "Noch keine Protokolle",
       "noServers": "Server nicht konfiguriert",
+      "notInstalled": "Nicht installiert",
       "not_support": "Modell nicht unterstützt",
       "npx_list": {
         "actions": "Aktionen",
@@ -6281,12 +6329,6 @@
         "search_error": "Suche fehlgeschlagen",
         "usage": "Verwendung",
         "version": "Version"
-      },
-      "oauth": {
-        "callback": {
-          "message": "Sie können diese Seite schließen und zu Cherry Studio zurückkehren",
-          "title": "Authentifizierung erfolgreich"
-        }
       },
       "prompts": {
         "arguments": "Parameter",
@@ -6303,6 +6345,7 @@
         "title": "Externes MCP ausführen?"
       },
       "provider": "Anbieter",
+      "providerNotFound": "MCP-Anbieter nicht gefunden",
       "providerPlaceholder": "Anbietername",
       "providerUrl": "Anbieter-Website",
       "providers": "Anbieter",
@@ -6349,13 +6392,6 @@
         "getToken": "API-Token abrufen",
         "getTokenDescription": "Persönlichen API-Token aus Ihrem Konto abrufen",
         "noServersAvailable": "Keine MCP-Server verfügbar",
-        "providerDescriptions": {
-          "302ai": "302.AI-Plattform MCP-Dienst",
-          "bailian": "Alibaba Cloud Bailian Platform MCP-Dienst",
-          "lanyun": "Lanyun Technology Cloud Platform MCP-Dienst",
-          "mcprouter": "MCP-Router-Plattform MCP-Service",
-          "modelscope": "ModelScope-Plattform MCP-Dienst"
-        },
         "selectProvider": "Anbieter auswählen:",
         "setToken": "Ihren Token eingeben",
         "success": "MCP-Server erfolgreich synchronisiert",
@@ -6412,10 +6448,11 @@
       "user": "Benutzer"
     },
     "menuGroups": {
-      "appSettings": "App-Einstellungen",
-      "integrations": "Modelle",
-      "productivity": "Produktivität",
-      "services": "Plugins",
+      "automation": "Automatisierung",
+      "capabilities": "Fähigkeiten & Tools",
+      "models": "Modelle",
+      "personal": "Persönlich",
+      "quickAccess": "Schneller Zugriff",
       "system": "System"
     },
     "messages": {
@@ -6436,6 +6473,12 @@
         "send_shortcuts": "Senden-Shortcut",
         "show_estimated_tokens": "Geschätzte Token-Anzahl anzeigen",
         "title": "Eingabeeinstellungen"
+      },
+      "layout": {
+        "classic": "Klassisch",
+        "conversation": "Unterhaltungsansicht",
+        "modern": "Modern",
+        "work": "Arbeitsansicht"
       },
       "markdown_rendering_input_message": "Markdown-Rendering-Eingabenachricht",
       "metrics": "Erste Zeichen-Verzögerung {{time_first_token_millsec}} ms | pro Sekunde {{token_speed}} Token",
@@ -6465,6 +6508,8 @@
         "logo_upload_label": "Logo hochladen",
         "name": "Name",
         "name_placeholder": "Bitte Namen eingeben",
+        "remove_confirm_description": "Benutzerdefinierte Mini-App „{{name}}“ löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+        "remove_confirm_title": "Benutzerdefinierte Mini-App löschen?",
         "remove_error": "Löschen der benutzerdefinierten Mini-App fehlgeschlagen",
         "remove_success": "Benutzerdefinierte Mini-App erfolgreich gelöscht",
         "save_error": "Benutzerdefinierte Mini-App-Speicherung fehlgeschlagen",
@@ -6493,6 +6538,7 @@
         "title": "Bereichsfilterung für Mini-Programme"
       },
       "reset_tooltip": "Zurücksetzen auf Standardwert",
+      "title": "Mini-Apps-Einstellungen",
       "visible": "Angezeigte Mini-Apps"
     },
     "model": "Standardmodell",
@@ -6644,6 +6690,7 @@
         "sync_added_metric": "{{count}} new models",
         "sync_added_section": "New models",
         "sync_apply_changes": "Apply changes",
+        "sync_apply_default_in_use": "Einige Modelle sind als Standardmodell in Gebrauch und können nicht entfernt werden.",
         "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
         "sync_empty_added": "No new upstream models were found.",
         "sync_empty_missing": "No unavailable local models were found.",
@@ -6722,7 +6769,7 @@
       "assistant": "Assistenten-Nachrichten",
       "backup": "Backup",
       "knowledge_embed": "Wissensdatenbank",
-      "title": "Benachrichtigungseinstellungen"
+      "title": "Benachrichtigungen"
     },
     "openai": {
       "service_tier": {
@@ -6758,48 +6805,6 @@
       }
     },
     "parameter_settings": "Parametereinstellungen",
-    "plugins": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
-      "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Noch keine benutzerdefinierten Tools. Fügen Sie eines hinzu, um loszulegen.",
-      "description": "Verwalten Sie binäre Tools und Laufzeitabhängigkeiten, die von der App benötigt werden.",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Installieren",
-      "installError": "Failed to install tool",
-      "installing": "Installiere...",
-      "invalidTool": "Ungültiger Tool-Name oder Schlüssel",
-      "notInstalled": "Nicht installiert",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
-      "source": {
-        "bundled": "bundled"
-      },
-      "title": "Umgebungsabhängigkeiten",
-      "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
-      },
-      "update": "Update to latest version"
-    },
     "power": {
       "prevent_sleep_when_busy": "Halten Sie das System wach, während Aufgaben ausgeführt werden"
     },
@@ -6821,6 +6826,7 @@
         "reorderFailed": "Fehler beim Neuanordnen der Eingabeaufforderungen",
         "updateFailed": "Fehler beim Aktualisieren der Eingabeaufforderung"
       },
+      "manage": "Prompts verwalten",
       "title": "Prompt-Verwaltung",
       "titleLabel": "Titel",
       "titlePlaceholder": "Geben Sie einen Titel für den Prompt ein",
@@ -6965,9 +6971,29 @@
       "cherryin": {
         "api_host": {
           "acceleration": "Beschleunigungsdomäne",
-          "backup": "Sicherungsdomäne",
           "international": "Internationale Domäne"
         }
+      },
+      "claude_code": {
+        "agent_only_note": "Der Claude Code-Provider ist nur für Agents verfügbar – er kann nicht in Chat oder Assistenten verwendet werden.",
+        "description": "Melden Sie sich mit Ihrem Claude-Abonnement an",
+        "description_detail": "Dieser Anbieter verwendet die Claude Code CLI-Anmeldung (Claude Pro/Max) und ist nur für Agents verfügbar. Öffnen Sie ein Terminal und führen Sie `claude /login` aus, um sich anzumelden.",
+        "launch_failed": "Terminal konnte nicht geöffnet werden. Führen Sie `claude /login` manuell aus, um sich anzumelden.",
+        "legal_link": "Recht & Compliance",
+        "logged_in": "Angemeldet bei Claude Code",
+        "logged_in_detail": "Agents werden Ihre Claude Code CLI-Abonnement-Anmeldedaten verwenden.",
+        "open_terminal": "Terminal öffnen, um sich anzumelden",
+        "recheck": "Nachprüfung"
+      },
+      "codex": {
+        "account": "Konto: {{accountId}}",
+        "description": "Melden Sie sich mit Ihrem ChatGPT-Abonnement an",
+        "description_detail": "Dieser Anbieter verwendet Ihren ChatGPT Plus/Pro-Login (OAuth), um auf OpenAI Codex-Modelle zuzugreifen. Ihr Browser wird geöffnet, um die Anmeldung abzuschließen.",
+        "logged_in": "Bei OpenAI Codex angemeldet",
+        "sign_in_button": "Mit ChatGPT anmelden",
+        "sign_in_failed": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+        "sign_in_success": "Angemeldet bei OpenAI Codex",
+        "signing_in": "Warte auf Browser…"
       },
       "copilot": {
         "add_request_header": "Add header",
@@ -7043,6 +7069,15 @@
       },
       "filter_agent": "Von Filter-Agent unterstützte Anbieter",
       "get_api_key": "Hier klicken um Schlüssel zu erhalten",
+      "grok_cli": {
+        "description": "Melden Sie sich mit Ihrem SuperGrok-Abonnement an",
+        "description_detail": "Dieser Anbieter verwendet Ihren xAI SuperGrok-Login (OAuth), um auf Grok CLI-Modelle (Grok Build, Composer) zuzugreifen. Ihr Browser wird geöffnet, um die Anmeldung abzuschließen.",
+        "logged_in": "Bei Grok CLI angemeldet",
+        "sign_in_button": "Mit xAI anmelden",
+        "sign_in_failed": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
+        "sign_in_success": "Bei Grok CLI angemeldet",
+        "signing_in": "Warte auf Browser…"
+      },
       "logo_upload_failed": "Verarbeitung des ausgewählten Bildes fehlgeschlagen",
       "misc": "Sonstige",
       "more_endpoints": {
@@ -7207,6 +7242,7 @@
       "all_enable": "Alle aktivieren",
       "bind_first_to_enable": "Weisen Sie zunächst eine Tastenkombination zu, um ihren aktivierten Zustand zu ändern.",
       "categories": {
+        "all": "Alle",
         "assistant": "KI-Assistenten-Tools",
         "chat": "Nachrichteninteraktion",
         "general": "Global und Fenster",
@@ -7222,6 +7258,7 @@
       "empty": "In dieser Gruppe sind keine Verknüpfungen verfügbar.",
       "enabled": "Aktivieren",
       "exit_fullscreen": "Vollbildmodus beenden",
+      "filter": "Filter",
       "label": "Taste",
       "move_tab_to_first": "Tab an erste Stelle verschieben",
       "new_topic": "Neues Thema",
@@ -7258,6 +7295,9 @@
     },
     "skills": {
       "author": "Autor",
+      "batchInstallComplete": "{{count}} Fähigkeiten installiert",
+      "batchInstallPartialFailed": "{{success}}/{{total}} Fähigkeiten installiert, {{failed}} fehlgeschlagen",
+      "batchInstallQueued": "In Warteschlange",
       "batchUninstallSuccess": "{{count}} Fähigkeiten deinstalliert",
       "builtin": "Integriert",
       "confirmBatchUninstall": "Sind Sie sicher, dass Sie {{count}} ausgewählte Fähigkeiten deinstallieren möchten?",
@@ -7290,6 +7330,9 @@
       "uninstallSuccess": "Skill deinstalliert: {{name}}",
       "viewSource": "Quelltext anzeigen",
       "zip": "PLZ"
+    },
+    "system": {
+      "title": "System"
     },
     "theme": {
       "color_primary": "Theme-Farbe",
@@ -7438,6 +7481,7 @@
           "exa": "Neural Search-API für KI-Anwendungen, optimiert für die semantische Webabfrage.",
           "exa_mcp": "Stelle Exa-Suche Agenten über den Exa MCP Server zur Verfügung.",
           "fetch": "Integrierter URL-Abruf-Provider. Ruft Webseiteninhalte von einer URL ab, um Suchergebnisse zu erweitern.",
+          "firecrawl": "Firecrawl Crawler- und Suchdienst, optimiert zur Umwandlung von Websites in Markdown.",
           "jina": "Jina Reader-Such- und Lese-APIs zum Abrufen von sauberem Webinhalt.",
           "querit": "Suchdienst für KI-Anwendungen mit Web-Abruf-Ergebnissen.",
           "searxng": "Selbst hostbare kostenlose Internet-Metasuchmaschine über viele Quellen.",
@@ -7562,7 +7606,6 @@
     "openclaw": "OpenClaw",
     "paintings": "Zeichnen",
     "settings": "Einstellungen",
-    "store": "Assistenten-Bibliothek",
     "translate": "Übersetzen",
     "work": "Arbeit"
   },
@@ -7757,11 +7800,6 @@
     "tooltip": {
       "newline": "Zeilenumbruch"
     }
-  },
-  "tray": {
-    "quit": "Beenden",
-    "show_quick_assistant": "Schnellassistent",
-    "show_window": "Fenster anzeigen"
   },
   "update": {
     "install": "Jetzt installieren",

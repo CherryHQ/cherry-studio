@@ -1,7 +1,7 @@
 import type {
   ResourceListGroupReorderPayload,
   ResourceListItemReorderPayload
-} from '@renderer/components/chat/resources'
+} from '@renderer/components/chat/resourceList/base'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { describe, expect, it } from 'vitest'
@@ -66,7 +66,8 @@ function createSession(overrides: Partial<AgentSessionEntity & { pinned: boolean
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     pinned: false,
-    ...overrides
+    ...overrides,
+    isNameManuallyEdited: overrides.isNameManuallyEdited ?? false
   } satisfies AgentSessionEntity & { pinned: boolean }
 }
 

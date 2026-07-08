@@ -1,5 +1,6 @@
-import { defineTool, registerTool, TopicType } from '@renderer/components/composer/tools/types'
-import { isGenerateImageModel } from '@renderer/config/models'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import { defineTool, TopicType } from '@renderer/components/composer/tools/types'
+import { isGenerateImageModel } from '@renderer/utils/model'
 import { Image } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
@@ -22,6 +23,7 @@ const useGenerateImageToolController = (context) => {
         order: 20,
         label: t('chat.input.generate_image'),
         description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'chat.input.generate_image', ['generate image']),
         disabledReason: t('chat.input.generate_image_not_supported'),
         icon: <Image size={18} />,
         active: enabled && isSupported,
@@ -47,7 +49,5 @@ const generateImageTool = defineTool({
     runtime: ({ context }) => <GenerateImageComposerRuntime context={context} />
   }
 })
-
-registerTool(generateImageTool)
 
 export default generateImageTool

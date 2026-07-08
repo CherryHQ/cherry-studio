@@ -1,6 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { isMac } from '@renderer/config/constant'
+import { isMac } from '@renderer/utils/platform'
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
 import { Minus, X } from 'lucide-react'
 import type React from 'react'

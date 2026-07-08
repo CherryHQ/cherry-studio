@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { MessageKnowledgeSearchToolTitle } from '../MessageKnowledgeSearch'
 
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: {
     t: (key: string, params?: Record<string, number>) => {
       if (key === 'message.searching') return 'Searching'
@@ -44,8 +44,7 @@ describe('MessageKnowledgeSearchToolTitle', () => {
     const title = screen.getByText('1 search results').closest('span')
     expect(title).toHaveClass('flex items-center gap-1.5 py-0.5 text-[13px] leading-5 text-foreground-secondary')
     expect(title).not.toHaveClass('text-sm')
-    expect(screen.getByTestId('file-search-icon')).toHaveAttribute('data-size', '14')
-    expect(screen.getByTestId('file-search-icon')).toHaveClass('shrink-0 text-foreground-muted')
+    expect(screen.queryByTestId('file-search-icon')).toBeNull()
 
     fireEvent.click(screen.getByRole('button'))
     expect(screen.getByTestId('collapse-content-tool-call-1')).toHaveClass('rounded-xl bg-muted px-4 py-3')

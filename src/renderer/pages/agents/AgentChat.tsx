@@ -1,16 +1,20 @@
 import { usePreference } from '@data/hooks/usePreference'
-import {
-  type ChatPanePosition,
-  ConversationCenterState,
-  ConversationShell,
-  EmptyState
-} from '@renderer/components/chat'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
+import {
+  type ResourcePaneConfig,
+  ResourcePaneCountButton,
+  type ResourcePaneCountButtonProps
+} from '@renderer/components/chat/panes/Shell'
+import { EmptyState } from '@renderer/components/chat/primitives'
+import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
+import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
-import type { AgentSessionSource } from '@renderer/hooks/agents/useSession'
+import { useAgent } from '@renderer/hooks/agent/useAgent'
+import type { AgentSessionSource } from '@renderer/hooks/agent/useSession'
 import {
   type ConversationHistoryAdapter,
   useConversationTurnController
@@ -28,7 +32,7 @@ import { useTranslation } from 'react-i18next'
 
 import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
-import AgentChatNavbar from './components/AgentChatNavbar'
+import { AgentChatNavbar } from './components/AgentChatNavbar'
 import { AgentRightPane } from './components/AgentRightPane'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { DraftAgentSession, DraftAgentSessionDefaults, EnsurePersistentSession } from './types'
@@ -72,17 +76,26 @@ interface AgentChatProps {
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
+  onPaneAutoCollapseChange?: (collapsed: boolean) => void
   draftConversation?: DraftAgentSession | null
   missingAgentDraft?: boolean
   onStartDraftSession?: (defaults: DraftAgentSessionDefaults) => void | Promise<void>
+  onCreateEmptySession?: () => void | Promise<void>
   onMissingAgentDraftAgentChange?: (agentId: string | null) => void | Promise<void>
   onEnsurePersistentSession?: EnsurePersistentSession
   onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
   onDraftWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
+  onSessionWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
   onVisibleAgentChange?: (agentId: string) => void
   onVisibleWorkspaceChange?: (workspaceId: string) => void
   replacingDraftAgent?: boolean
   replacingDraftWorkspace?: boolean
+  replacingSessionWorkspace?: boolean
+  resourcePane?: ResourcePaneConfig | null
+  resourcePaneCount?: ResourcePaneCountButtonProps
+  resourcePaneRevealRequest?: ResourceListRevealRequest
+  sessionPaneOpen?: boolean
+  onSessionPaneOpenChange?: (open: boolean) => void
 }
 
 const AgentChat = ({
@@ -100,17 +113,26 @@ const AgentChat = ({
   locateMessageId,
   onLocateMessageHandled,
   onPaneCollapse,
+  onPaneAutoCollapseChange,
   draftConversation,
   missingAgentDraft = false,
   onStartDraftSession,
+  onCreateEmptySession,
   onMissingAgentDraftAgentChange,
   onEnsurePersistentSession,
   onDraftAgentChange,
   onDraftWorkspaceChange,
+  onSessionWorkspaceChange,
   onVisibleAgentChange,
   onVisibleWorkspaceChange,
   replacingDraftAgent,
-  replacingDraftWorkspace
+  replacingDraftWorkspace,
+  replacingSessionWorkspace,
+  resourcePane,
+  resourcePaneCount,
+  resourcePaneRevealRequest,
+  sessionPaneOpen,
+  onSessionPaneOpenChange
 }: AgentChatProps) => {
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
@@ -143,6 +165,13 @@ const AgentChat = ({
   const visibleWorkspace = sessionSnapshot?.workspace ?? draftAgentConversation?.workspace ?? null
   const { agent: activeAgent } = useAgent(visibleAgentId)
   const draftConversationKey = draftAgentConversation ? getDraftConversationKey(draftAgentConversation) : null
+  const resourcePaneTopRightTool = resourcePane ? (
+    <>
+      {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
+      <AgentRightPane.Shortcuts />
+      <AgentRightPane.FilesToggle />
+    </>
+  ) : undefined
 
   useEffect(() => {
     const conversationId = draftConversationKey
@@ -212,16 +241,26 @@ const AgentChat = ({
   if (isInitializing) {
     return (
       <AgentRightPane
+        filesEnabled={false}
+        statusEnabled={false}
+        workspaceId={visibleWorkspaceId ?? undefined}
         workspacePath={draftAgentConversation?.workspace?.path}
         messages={EMPTY_MESSAGES}
-        partsByMessageId={EMPTY_PARTS}>
+        partsByMessageId={EMPTY_PARTS}
+        defaultOpen={sessionPaneOpen}
+        onOpenChange={onSessionPaneOpenChange}
+        resourcePane={resourcePane}
+        revealRequest={resourcePaneRevealRequest}>
         <ConversationShell
           className={messageStyle}
           pane={pane}
           paneOpen={paneOpen}
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
+          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+          topRightTool={resourcePaneTopRightTool}
           center={<ConversationCenterState state="loading" />}
+          centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
           rightPane={<AgentRightPane.Host />}
         />
       </AgentRightPane>
@@ -237,6 +276,7 @@ const AgentChat = ({
           paneOpen={paneOpen}
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
+          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           center={<EmptyState compact className="h-full" title={t('agent.session.get.error.not_found')} />}
         />
       )
@@ -250,6 +290,7 @@ const AgentChat = ({
             paneOpen={paneOpen}
             panePosition={panePosition}
             onPaneCollapse={onPaneCollapse}
+            onPaneAutoCollapseChange={onPaneAutoCollapseChange}
             topBar={
               <AgentChatNavbar
                 activeAgent={activeAgent ?? null}
@@ -285,6 +326,7 @@ const AgentChat = ({
           onWorkspaceChange={onDraftWorkspaceChange}
           workspaceChanging={replacingDraftWorkspace}
           showWorkspaceSelector
+          onCreateEmptySession={onCreateEmptySession}
           onNewSessionDraft={() =>
             onStartDraftSession?.({
               agentId: draftAgentConversation.agentId,
@@ -294,13 +336,14 @@ const AgentChat = ({
         />
       ) : undefined
 
-      return (
+      const shell = (
         <ConversationShell
           className={messageStyle}
           pane={pane}
           paneOpen={paneOpen}
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
+          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           topBar={
             <AgentChatNavbar
               activeAgent={activeAgent ?? null}
@@ -309,6 +352,7 @@ const AgentChat = ({
               onSidebarToggle={onSidebarToggle}
             />
           }
+          topRightTool={resourcePaneTopRightTool}
           center={
             <ConversationStageCenter
               placement="home"
@@ -317,7 +361,27 @@ const AgentChat = ({
               homeWelcomeText={t('agent.home.welcome_title')}
             />
           }
+          centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
+          rightPane={resourcePane ? <AgentRightPane.Host /> : undefined}
         />
+      )
+      if (!resourcePane) return shell
+      return (
+        <AgentRightPane
+          filesEnabled={false}
+          statusEnabled={false}
+          workspacePath={draftAgentConversation.workspace?.path}
+          messages={EMPTY_MESSAGES}
+          partsByMessageId={EMPTY_PARTS}
+          agentId={draftAgentConversation.agentId}
+          agentName={activeAgent?.name}
+          agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+          defaultOpen={sessionPaneOpen}
+          onOpenChange={onSessionPaneOpenChange}
+          resourcePane={resourcePane}
+          revealRequest={resourcePaneRevealRequest}>
+          {shell}
+        </AgentRightPane>
       )
     }
     if (missingAgentDraft) {
@@ -325,13 +389,14 @@ const AgentChat = ({
         <MissingAgentHomeComposer onAgentChange={onMissingAgentDraftAgentChange} agentChanging={replacingDraftAgent} />
       ) : undefined
 
-      return (
+      const shell = (
         <ConversationShell
           className={messageStyle}
           pane={pane}
           paneOpen={paneOpen}
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
+          onPaneAutoCollapseChange={onPaneAutoCollapseChange}
           topBar={
             <AgentChatNavbar
               activeAgent={null}
@@ -340,6 +405,7 @@ const AgentChat = ({
               onSidebarToggle={onSidebarToggle}
             />
           }
+          topRightTool={resourcePaneTopRightTool}
           center={
             <ConversationStageCenter
               placement="home"
@@ -348,7 +414,23 @@ const AgentChat = ({
               homeWelcomeText={t('agent.home.welcome_title')}
             />
           }
+          centerOverlay={resourcePane ? <AgentRightPane.MaximizedOverlay /> : undefined}
+          rightPane={resourcePane ? <AgentRightPane.Host /> : undefined}
         />
+      )
+      if (!resourcePane) return shell
+      return (
+        <AgentRightPane
+          filesEnabled={false}
+          statusEnabled={false}
+          messages={EMPTY_MESSAGES}
+          partsByMessageId={EMPTY_PARTS}
+          defaultOpen={sessionPaneOpen}
+          onOpenChange={onSessionPaneOpenChange}
+          resourcePane={resourcePane}
+          revealRequest={resourcePaneRevealRequest}>
+          {shell}
+        </AgentRightPane>
       )
     }
     return (
@@ -358,6 +440,7 @@ const AgentChat = ({
         paneOpen={paneOpen}
         panePosition={panePosition}
         onPaneCollapse={onPaneCollapse}
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
         center={<ConversationCenterState state="empty" />}
       />
     )
@@ -407,6 +490,15 @@ const AgentChat = ({
       locateMessageId={locateMessageId}
       onLocateMessageHandled={onLocateMessageHandled}
       onPaneCollapse={onPaneCollapse}
+      onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+      resourcePane={resourcePane}
+      resourcePaneCount={resourcePaneCount}
+      resourcePaneRevealRequest={resourcePaneRevealRequest}
+      sessionPaneOpen={sessionPaneOpen}
+      onSessionPaneOpenChange={onSessionPaneOpenChange}
+      showWorkspaceSelector={Boolean(onSessionWorkspaceChange)}
+      onWorkspaceChange={onSessionWorkspaceChange}
+      workspaceChanging={replacingSessionWorkspace}
       onNewSessionDraft={
         sessionAgentId && onStartDraftSession
           ? () =>
@@ -416,6 +508,7 @@ const AgentChat = ({
               })
           : undefined
       }
+      onCreateEmptySession={onCreateEmptySession}
       sidePanel={
         <CitationsPanel
           open={citationsPanelOpen}
@@ -452,7 +545,17 @@ interface AgentChatSessionFrameProps {
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
+  onPaneAutoCollapseChange?: (collapsed: boolean) => void
   onNewSessionDraft?: () => void | Promise<void>
+  onCreateEmptySession?: () => void | Promise<void>
+  showWorkspaceSelector?: boolean
+  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
+  workspaceChanging?: boolean
+  resourcePane?: ResourcePaneConfig | null
+  resourcePaneCount?: ResourcePaneCountButtonProps
+  resourcePaneRevealRequest?: ResourceListRevealRequest
+  sessionPaneOpen?: boolean
+  onSessionPaneOpenChange?: (open: boolean) => void
 }
 
 const AgentChatSessionFrame = ({
@@ -478,7 +581,17 @@ const AgentChatSessionFrame = ({
   locateMessageId,
   onLocateMessageHandled,
   onPaneCollapse,
-  onNewSessionDraft
+  onPaneAutoCollapseChange,
+  onNewSessionDraft,
+  onCreateEmptySession,
+  showWorkspaceSelector = false,
+  onWorkspaceChange,
+  workspaceChanging,
+  resourcePane,
+  resourcePaneCount,
+  resourcePaneRevealRequest,
+  sessionPaneOpen,
+  onSessionPaneOpenChange
 }: AgentChatSessionFrameProps) => {
   const runtime = useAgentChatRuntimeState({
     session,
@@ -489,6 +602,10 @@ const AgentChatSessionFrame = ({
   })
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(runtime.sessionId), [runtime.sessionId])
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
+  const isEmptyConversation =
+    !runtime.isLoading && !runtime.isPending && !dockedStreaming && !runtime.hasOlder && runtime.uiMessages.length === 0
+  const canChangeWorkspace = Boolean(onWorkspaceChange && isEmptyConversation)
+  const canChangeModel = isEmptyConversation
 
   useEffect(() => {
     if (!locateMessageId) {
@@ -539,6 +656,12 @@ const AgentChatSessionFrame = ({
       isStreaming={dockedStreaming || runtime.isPending}
       sendDisabled={dockedSendDisabled}
       onNewSessionDraft={onNewSessionDraft}
+      onCreateEmptySession={onCreateEmptySession}
+      workspaceId={session.workspace?.type === 'system' ? null : session.workspaceId}
+      onWorkspaceChange={canChangeWorkspace ? onWorkspaceChange : undefined}
+      workspaceChanging={workspaceChanging}
+      showWorkspaceSelector={showWorkspaceSelector}
+      canChangeModel={canChangeModel}
       composerContext={runtime.composerContext}
     />
   )
@@ -564,6 +687,7 @@ const AgentChatSessionFrame = ({
 
   return (
     <AgentRightPane
+      workspaceId={session.workspaceId}
       workspacePath={session.workspace?.path}
       messages={runtime.uiMessages}
       partsByMessageId={runtime.partsByMessageId}
@@ -573,13 +697,18 @@ const AgentChatSessionFrame = ({
       agentId={agentId ?? session.agentId ?? undefined}
       agentName={activeAgent?.name}
       agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
-      modelFallback={runtime.fallbackSnapshot}>
+      modelFallback={runtime.fallbackSnapshot}
+      defaultOpen={sessionPaneOpen}
+      onOpenChange={onSessionPaneOpenChange}
+      resourcePane={resourcePane}
+      revealRequest={resourcePaneRevealRequest}>
       <ConversationShell
         className={className}
         pane={pane}
         paneOpen={paneOpen}
         panePosition={panePosition}
         onPaneCollapse={onPaneCollapse}
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
         topBar={
           <AgentChatNavbar
             className="min-w-0"
@@ -591,11 +720,11 @@ const AgentChatSessionFrame = ({
         }
         topRightTool={
           <>
-            <AgentRightPane.InfoCard />
+            {resourcePaneCount && <ResourcePaneCountButton {...resourcePaneCount} />}
+            <AgentRightPane.Shortcuts />
             <AgentRightPane.FilesToggle />
           </>
         }
-        topRightToolReserve="double"
         center={
           <ConversationStageCenter
             placement="docked"

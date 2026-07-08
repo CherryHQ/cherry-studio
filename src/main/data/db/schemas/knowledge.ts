@@ -4,8 +4,7 @@ import {
   type KnowledgeChunkStrategy,
   type KnowledgeItemData,
   type KnowledgeItemStatus,
-  type KnowledgeItemType,
-  type KnowledgeSearchMode
+  type KnowledgeItemType
 } from '@shared/data/types/knowledge'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
@@ -39,13 +38,10 @@ export const knowledgeBaseTable = sqliteTable(
     chunkSeparator: text().notNull().default('\\n\\n'),
     threshold: real(),
     documentCount: integer(),
-    searchMode: text().$type<KnowledgeSearchMode>().notNull(),
-    hybridAlpha: real(),
 
     ...createUpdateTimestamps
   },
   (t) => [
-    check('knowledge_base_search_mode_check', sql`${t.searchMode} IN ('vector', 'bm25', 'hybrid')`),
     check('knowledge_base_chunk_strategy_check', sql`${t.chunkStrategy} IN ('structured', 'delimiter')`),
     check('knowledge_base_status_check', sql`${t.status} IN ('completed', 'failed')`),
     check(
@@ -53,10 +49,18 @@ export const knowledgeBaseTable = sqliteTable(
       sql`
         (
           ${t.status} = 'completed'
-          AND ${t.embeddingModelId} IS NOT NULL
-          AND ${t.dimensions} IS NOT NULL
-          AND ${t.dimensions} > 0
           AND ${t.error} IS NULL
+          AND (
+            (
+              ${t.embeddingModelId} IS NOT NULL
+              AND ${t.dimensions} IS NOT NULL
+              AND ${t.dimensions} > 0
+            )
+            OR (
+              ${t.embeddingModelId} IS NULL
+              AND ${t.dimensions} IS NULL
+            )
+          )
         )
         OR (
           ${t.status} = 'failed'

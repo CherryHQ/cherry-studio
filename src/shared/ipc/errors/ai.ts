@@ -1,6 +1,6 @@
 import type { SerializedError } from '@shared/types/error'
 
-import { IpcError } from './index'
+import { IpcError } from './IpcError'
 
 /**
  * AI domain IpcApi error codes (SCREAMING_SNAKE_CASE, `as const`, mirroring

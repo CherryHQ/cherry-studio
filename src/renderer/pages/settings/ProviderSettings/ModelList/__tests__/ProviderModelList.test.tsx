@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -119,9 +120,6 @@ vi.mock('../useProviderModelList', () => ({
 describe('ProviderModelList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(window as any).toast = {
-      error: vi.fn()
-    }
     onToggleVisibleModelsMock.mockResolvedValue(undefined)
   })
 
@@ -150,7 +148,7 @@ describe('ProviderModelList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.bulk_disable' }))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
     })
     expect(loggerErrorMock).toHaveBeenCalledWith(
       'Failed to disable visible provider models',

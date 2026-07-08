@@ -53,9 +53,8 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
-  OverlayHost: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  ConversationShell: ({
+vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
+  default: ({
     topBar,
     topRightTool,
     sidePanel,
@@ -122,6 +121,11 @@ vi.mock('../components/ChatNavbar', () => ({
 
 vi.mock('../components/TopicRightPane', () => {
   const TopicRightPane = Object.assign(({ children }: PropsWithChildren) => <div>{children}</div>, {
+    Shortcuts: ({ topicId }: { topicId?: string }) => (
+      <button type="button" data-topic-id={topicId ?? ''}>
+        branch shortcuts
+      </button>
+    ),
     Toggle: ({ disabled }: { disabled?: boolean }) => (
       <button type="button" disabled={disabled}>
         branch toggle

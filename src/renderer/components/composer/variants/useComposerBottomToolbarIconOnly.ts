@@ -5,6 +5,8 @@ const OVERFLOW_RELEASE_WIDTH_BUFFER = 24
 export function useComposerBottomToolbarIconOnly() {
   const toolbarRef = useRef<HTMLDivElement | null>(null)
   const overflowActivationWidthRef = useRef<number | null>(null)
+  const iconOnlyRef = useRef(false)
+  const skipNextCompactReleaseRef = useRef(false)
   const [iconOnly, setIconOnly] = useState(false)
 
   const update = useCallback((measuredWidth?: number) => {
@@ -16,26 +18,35 @@ export function useComposerBottomToolbarIconOnly() {
 
     const scrollWidth = toolbar.scrollWidth || clientWidth
 
-    setIconOnly((currentIconOnly) => {
-      const hasOverflow = scrollWidth > clientWidth + 1
+    const currentIconOnly = iconOnlyRef.current
+    const hasOverflow = scrollWidth > clientWidth + 1
 
-      if (!currentIconOnly && hasOverflow) {
-        overflowActivationWidthRef.current = clientWidth
-      }
+    if (!currentIconOnly && hasOverflow) {
+      overflowActivationWidthRef.current = clientWidth
+      skipNextCompactReleaseRef.current = true
+    }
 
-      const overflowActivationWidth = overflowActivationWidthRef.current
-      const shouldKeepOverflowCompact =
-        currentIconOnly &&
-        overflowActivationWidth != null &&
-        clientWidth <= overflowActivationWidth + OVERFLOW_RELEASE_WIDTH_BUFFER
-      const nextIconOnly = hasOverflow || shouldKeepOverflowCompact
+    if (currentIconOnly && !hasOverflow && skipNextCompactReleaseRef.current) {
+      overflowActivationWidthRef.current = Math.max(overflowActivationWidthRef.current ?? clientWidth, clientWidth)
+      skipNextCompactReleaseRef.current = false
+    }
 
-      if (!nextIconOnly) {
-        overflowActivationWidthRef.current = null
-      }
+    const overflowActivationWidth = overflowActivationWidthRef.current
+    const shouldKeepOverflowCompact =
+      currentIconOnly &&
+      overflowActivationWidth != null &&
+      clientWidth <= overflowActivationWidth + OVERFLOW_RELEASE_WIDTH_BUFFER
+    const nextIconOnly = hasOverflow || shouldKeepOverflowCompact
 
-      return currentIconOnly === nextIconOnly ? currentIconOnly : nextIconOnly
-    })
+    if (!nextIconOnly) {
+      overflowActivationWidthRef.current = null
+      skipNextCompactReleaseRef.current = false
+    }
+
+    if (currentIconOnly === nextIconOnly) return
+
+    iconOnlyRef.current = nextIconOnly
+    setIconOnly(nextIconOnly)
   }, [])
 
   useLayoutEffect(() => {

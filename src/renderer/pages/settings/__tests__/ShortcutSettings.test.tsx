@@ -1,5 +1,5 @@
-import type * as RendererConstantModule from '@renderer/config/constant'
 import type { ShortcutListItem } from '@renderer/hooks/command/useCommandShortcuts'
+import type * as RendererConstantModule from '@renderer/utils/platform'
 import { type CommandId, commandShortcutPreferenceKey } from '@shared/utils/command'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -31,7 +31,7 @@ vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
-vi.mock('@renderer/config/constant', async (importOriginal) => {
+vi.mock('@renderer/utils/platform', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof RendererConstantModule
 
   return {
@@ -167,16 +167,6 @@ describe('ShortcutSettings shortcut recorder', () => {
         onRegistrationConflict: registrationConflictMock
       }
     } as unknown as typeof window.api
-    window.modal = {
-      confirm: vi.fn()
-    } as unknown as typeof window.modal
-    window.toast = {
-      error: vi.fn(),
-      success: vi.fn(),
-      warning: vi.fn(),
-      info: vi.fn(),
-      loading: vi.fn()
-    } as unknown as typeof window.toast
   })
 
   it('uses a non-text focus target while recording shortcuts', () => {

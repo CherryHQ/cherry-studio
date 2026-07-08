@@ -7,11 +7,12 @@ import {
   buildTopicMessageFlowGraph,
   layoutTopicMessageFlowGraph,
   mergeTopicMessageFlowLiveTree,
-  TopicMessageFlowCanvas
-} from '@renderer/components/chat/messages/flow'
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
+  TopicMessageFlowCanvas,
+  type TopicMessageFlowLiveState
+} from '@renderer/components/chat/flow'
 import { CommandContextMenu } from '@renderer/components/command'
-import { DataApiError, ErrorCode } from '@shared/data/api'
+import { toast } from '@renderer/services/toast'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
 import { CopyPlus, GitBranch } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
@@ -120,7 +121,7 @@ const TopicBranchPanel: FC<Props> = ({
           return
         }
         logger.error('Failed to set active branch from topic flow', err as Error)
-        window.toast.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [activeDraftAnchorId, graph.nodes, onCancelBranchDraft, onLocateMessage, refetch, setActiveNode, t, topicId]
@@ -140,14 +141,14 @@ const TopicBranchPanel: FC<Props> = ({
 
       try {
         await onStartBranchDraft(messageId)
-        window.toast.success(t('chat.message.new.branch.created'))
+        toast.success(t('chat.message.new.branch.created'))
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('startMessageBranch from topic flow on missing message', { messageId, topicId })
           return
         }
         logger.error('Failed to start message branch from topic flow', err as Error)
-        window.toast.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [graph.activeNodeId, graph.nodes, onStartBranchDraft, t, topicId]
@@ -160,14 +161,14 @@ const TopicBranchPanel: FC<Props> = ({
           params: { id: topicId },
           body: { nodeId: messageId }
         })
-        window.toast.success(t('chat.message.flow.copy_topic.created'))
+        toast.success(t('chat.message.flow.copy_topic.created'))
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('copyBranchToNewTopic from topic flow on missing message', { messageId, topicId })
           return
         }
         logger.error('Failed to copy topic branch from topic flow', err as Error)
-        window.toast.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [copyBranchToNewTopic, t, topicId]
@@ -183,11 +184,15 @@ const TopicBranchPanel: FC<Props> = ({
       contextMenuMessageIdRef.current = null
       if (!messageId) return []
       const selectedNode = graph.nodes.find((node) => node.data.messageId === messageId)
+      const canShowStartBranch = !!onStartBranchDraft && selectedNode?.data.role === 'assistant'
       const canStartBranch =
-        !!onStartBranchDraft &&
-        selectedNode?.data.role === 'assistant' &&
-        !!selectedNode.data.hasAssistantDescendant &&
-        messageId !== graph.activeNodeId
+        canShowStartBranch && !!selectedNode.data.hasAssistantDescendant && messageId !== graph.activeNodeId
+      const startBranchDisabledReason =
+        canShowStartBranch && !canStartBranch
+          ? messageId === graph.activeNodeId
+            ? t('chat.message.new.branch.disabled.active')
+            : t('chat.message.new.branch.disabled.no_follow_up')
+          : undefined
 
       const actions: ResolvedAction[] = [
         {
@@ -198,8 +203,9 @@ const TopicBranchPanel: FC<Props> = ({
           group: 'branch',
           danger: false,
           availability: {
-            visible: canStartBranch,
-            enabled: true
+            visible: canShowStartBranch,
+            enabled: canStartBranch,
+            reason: startBranchDisabledReason
           },
           children: []
         },
@@ -236,7 +242,7 @@ const TopicBranchPanel: FC<Props> = ({
   }, [])
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden text-card-foreground">
       <div className="flex min-h-10 shrink-0 items-center gap-2 border-border-subtle border-b px-3 text-xs">
         {topicName && (
           <>

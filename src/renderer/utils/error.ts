@@ -8,7 +8,7 @@ import type {
   SerializedAiSdkNoSuchToolError,
   SerializedError
 } from '@renderer/types/error'
-import { isSerializedAiSdkAPICallError } from '@renderer/types/error'
+import { isSerializedAiSdkApiCallError } from '@renderer/types/error'
 import { aiErrorDetail } from '@shared/ipc/errors/ai'
 import { safeSerialize } from '@shared/utils/serialize'
 import type { NoSuchToolError } from 'ai'
@@ -319,7 +319,7 @@ export function formatAiSdkError(error: SerializedAiSdkError): string {
   if (error.cause) {
     text += `${t('error.cause')}: ${error.cause}\n`
   }
-  if (isSerializedAiSdkAPICallError(error)) {
+  if (isSerializedAiSdkApiCallError(error)) {
     if (error.statusCode) {
       text += `${t('error.statusCode')}: ${error.statusCode}\n`
     }

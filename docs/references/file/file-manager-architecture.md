@@ -96,7 +96,7 @@ When a rule change additionally collapses previously-distinct strings to the sam
 
 **Losers' dependents** (executed in the same Drizzle transaction as the merge):
 
-- `file_ref.fileEntryId = loser.id` → update to `winner.id`. No deduplication inside the `UNIQUE(fileEntryId, sourceType, sourceId, role)` constraint is expected because each `(sourceType, sourceId, role)` triple originally referenced only one entry; if violations occur, the update conflicts and the migration fails loudly (do not silently `ON CONFLICT DO NOTHING` — investigate).
+- Association rows with `fileEntryId = loser.id` → update to `winner.id`. No deduplication inside each table's `UNIQUE(fileEntryId, sourceId, role)` constraint is expected because each `(sourceId, role)` pair originally referenced only one entry; if violations occur, the update conflicts and the migration fails loudly (do not silently `ON CONFLICT DO NOTHING` — investigate).
 - `file_entry.id = loser.id` → delete.
 - Any downstream consumer of `loser.id` (future `file_upload.fileEntryId`, business-service caches keyed by entryId) MUST be enumerated and updated in the same migration. If you add a new table that references `file_entry.id`, the canonicalization migration procedure expands — document the expansion alongside the table's schema.
 
@@ -157,20 +157,19 @@ For external entries the row stores only identity + stable projections. `name` /
 
 ### 1.3 FileRef (Business Reference)
 
-Business objects polymorphically associate with FileEntry via FileRef:
+Business objects associate with FileEntry through source-owned ref tables plus a shared FileRef projection:
 
 ```
-FileRef
+chat_message_file_ref / painting_file_ref / ...
 ├── fileEntryId → FileEntry (FK, CASCADE delete)
-├── sourceType: registered by each business module (polymorphic, no FK on sourceId)
-├── sourceId: business object ID
-├── role: business-semantic reference role (defined by business module)
-└── UNIQUE(fileEntryId, sourceType, sourceId, role)
+├── sourceId → owning source row (FK, CASCADE delete)
+├── role: business-semantic reference role (defined by the source module)
+└── UNIQUE(fileEntryId, sourceId, role)
 ```
 
-The enum values of `sourceType` / `role` are declared by each business module when registering their `SourceTypeChecker`, and are compile-time-closed (Layer 3 orphan scanning depends on this closure; see §7).
+`FileRefService` aggregates these source-owned tables into the shared `FileRef` discriminated union for DataApi reads, ref counts, and sweep reporting. It does not own persistent ref writes. The only mutable refs stored by `FileRefService` are `temp_session` refs, backed by main-process `CacheService` memory.
 
-When a business object is deleted, the business Service is responsible for cleaning up the corresponding FileRef (Section 7).
+When a persistent business object is deleted, SQLite FK cascade removes its association rows. Relationship replacement (for example, replacing a painting's complete file set) is handled directly by the owning business service.
 
 ### 1.4 FileHandle / FileInfo — see `architecture.md §2`
 
@@ -230,7 +229,7 @@ src/main/services/file/
 │     ├── system/
 │     │    ├── shell.ts        — open / showInFolder
 │     │    └── tempCopy.ts     — withTempCopy
-│     └── orphanSweep.ts       — on-demand orphan-ref scan + FS-level orphan sweep
+│     └── orphanSweep.ts       — temp-session ref prune + FS-level orphan sweep
 └── versionCache.ts       ← LRU type definition
 ```
 
@@ -252,7 +251,6 @@ export interface FileManagerDeps {
   readonly fileRefService: FileRefService
   readonly danglingCache: DanglingCache
   readonly versionCache: VersionCache
-  readonly orphanRegistry: OrphanCheckerRegistry
 }
 
 // internal/entry/create.ts — two APIs, corresponding to two public methods on the FileManager facade
@@ -287,8 +285,7 @@ export class FileManager extends BaseService implements IFileManager {
     fileEntryService,
     fileRefService,
     danglingCache,
-    versionCache: this._versionCache,
-    orphanRegistry: orphanCheckerRegistry
+    versionCache: this._versionCache
   }
 
   // Public API: thin delegates. Internal modules export entry-flavoured
@@ -444,7 +441,7 @@ class FileManager extends BaseService {
 | `createWriteStream` | On stream `'finish'` → emit. On `'abort'` / `'error'` / `.destroy()` → no emit. |
 | `rename` | After DB commit (and FS rename for external) → `onEntryRowChanged { kind: 'updated' }`. |
 | `trash` / `restore` / batch | After DB update commits → `onEntryRowChanged { kind: 'updated' }` per affected id. |
-| `permanentDelete` / batch | After DB delete commits (internal: FS unlink runs first; external: FS untouched per §1.2) → `onEntryRowChanged { kind: 'deleted' }`. CASCADE-dropped `file_ref` rows emit no extra events — the renderer invalidates `['fileManager', 'entries']` and refetches. |
+| `permanentDelete` / batch | After DB delete commits (internal: FS unlink runs first; external: FS untouched per §1.2) → `onEntryRowChanged { kind: 'deleted' }`. CASCADE-dropped association rows emit no extra events — the renderer invalidates `['fileManager', 'entries']` and refetches. |
 | `copy` | Creates a new internal entry → emit `onEntryRowChanged { kind: 'created' }` for the new id only (source is untouched). |
 
 **Atomicity & crash semantics**: emits are plain `Emitter.fire()` calls, **not** part of the DB transaction. A process crash between `commit` and `fire` loses the event. This is acceptable because:
@@ -543,7 +540,7 @@ When an external file does not exist on disk (or is inaccessible), the correspon
 - **Active push**: when a business module creates a watcher via `createDirectoryWatcher()`, the factory auto-wires add/unlink events into DanglingCache
 - **Side effect**: FileManager's own read/stat/write operations also update the cache on success/failure
 
-**UI semantics**: dangling entries show a failed style in the UI (grayscale, icon marker), but are **not auto-cleaned**—the file_ref chain is preserved; the user can explicitly "Remove from library" or attempt to re-point.
+**UI semantics**: dangling entries show a failed style in the UI (grayscale, icon marker), but are **not auto-cleaned**—the ref association chain is preserved; the user can explicitly "Remove from library" or attempt to re-point.
 
 ---
 
@@ -701,21 +698,21 @@ Three layers of protection, with each layer as a fallback for the next:
 ```
 +-------------------------------------------------------+
 | Layer 1: fileEntryId CASCADE                          |
-| FileEntry deleted -> file_ref auto-cascaded           |
+| FileEntry deleted -> ref rows auto-cascaded           |
 | file_upload auto-cascaded                             |
 | (DB FK constraint, zero app code)                     |
 +-------------------------------------------------------+
-| Layer 2: business delete hooks                        |
-| business entity deleted -> cleanup file_ref           |
-| (called in each Service's delete method)              |
+| Layer 2: source FK cascade / relationship replacement |
+| business entity deleted -> source-FK cascade          |
+| relationship replaced -> explicit cleanup+insert      |
 +-------------------------------------------------------+
 | Layer 3: on-demand DB orphan sweep                    |
-| scan file_ref with missing sourceId when runSweep runs|
-| compile-time enforced: Record<FileRefSourceType, ...> |
+| prune temp-session refs whose file_entry is missing   |
+| report active file_entry rows with zero refs          |
 +-------------------------------------------------------+
 ```
 
-Layer 3 enforces "every sourceType must have a checker" via the `Record<FileRefSourceType, OrphanChecker>` type constraint. Adding a sourceType without registering → compile error.
+Layer 3 is not a generic persistent-source reconciler. Persistent association rows are FK-constrained and should disappear through Layer 1 / Layer 2 cascades; the sweep only handles the non-persistent `temp_session` cache and reporting.
 
 ### 7.1 No-Reference Entry Policy
 
@@ -730,7 +727,7 @@ There are **no automatic deletion exceptions**. Even an external entry that is c
 | `internal` | n/a (always `'present'`) | any | **Preserve** — user may re-link via UI; only user-initiated cleanup |
 | `external` | `'present'` | any | **Preserve** — file still exists, fully re-attachable |
 | `external` | `'unknown'` | any | **Preserve** — not yet observed; treated as still-live until proven otherwise |
-| `external` | `'missing'` | >0 | **Preserve** — business objects still reference this entry. Automatic deletion would CASCADE-drop `file_ref` rows and silently mutate user data (messages' attachment count drops, UI state shifts). The business service owning those refs is the right layer to decide replacement / removal policy, not the file module. Reference-oriented UI surfaces (§3.4 UI convention) show these as "file missing" so the user can act. |
+| `external` | `'missing'` | >0 | **Preserve** — business objects still reference this entry. Automatic deletion would CASCADE-drop association rows and silently mutate user data (messages' attachment count drops, UI state shifts). The business service owning those refs is the right layer to decide replacement / removal policy, not the file module. Reference-oriented UI surfaces (§3.4 UI convention) show these as "file missing" so the user can act. |
 | `external` | `'missing'` | 0 | **Preserve + report** — no refs remain, but the row is still user-visible library state. FilesPage / cleanup UI may show "missing" and offer "Remove from library"; no time-based auto-delete. |
 
 ### 7.2 No Automatic Dangling-External Cleanup
@@ -752,7 +749,7 @@ Consequences:
 - No persisted "missing since" timestamp or time-based cleanup query.
 - No cleanup-verification bypass around DanglingCache TTL.
 - No cleanup-specific observability event.
-- No `('external', 'missing', 0)` automatic deletion branch in Layer 3. Layer 3 remains orphan-ref cleanup plus orphan-entry reporting.
+- No `('external', 'missing', 0)` automatic deletion branch in Layer 3. Layer 3 remains temp-session ref pruning plus orphan-entry reporting.
 
 ---
 
@@ -942,18 +939,18 @@ async runSweep(): Promise<OrphanReport> {
   // Two concurrent passes:
   //   1. FS-level file sweep (§10): scan {userData}/Data/Files/* for
   //      orphans not present in the file_entry snapshot.
-  //   2. DB-level orphan-ref / entry sweep (§7 Layer 3): scan file_ref
-  //      against business sourceType checkers and report unreferenced
-  //      entries.
-  // Each branch settles independently with its own error capture. The
-  // FS sweep's outcome is logged but does not bleed into the returned
-  // report — DB-only state is what the cleanup UI consumes.
+  //   2. DB-level temp-session ref prune + entry report (§7 Layer 3):
+  //      prune cache refs whose file_entry is missing, then report
+  //      unreferenced active entries.
+  // Each branch settles independently with its own error capture. A DB
+  // failure dominates as `failed`; FS-side partial/aborted/failed outcomes
+  // degrade the umbrella report to `partial` via `fsSweepIssue`.
 }
 ```
 
 **Rationale for user-triggered (vs. startup auto-run)**:
 - Cleanup is a user-domain concern. The user opening the cleanup UI is the trigger; running it implicitly at boot consumes resources for an action the user did not request.
-- The earlier startup variant existed in part to suppress noise during the v1→v2 transition window (when consumer migrators Batches A-E had not yet wired their `file_ref` rows). That noise was scaffolding for a one-time event — once Batch A-E land the noise self-resolves, and outside the transition window the sweep's findings are exactly the signal the cleanup UI wants to surface.
+- The earlier startup variant existed in part to suppress noise during the v1→v2 transition window (when consumer migrators Batches A-E had not yet wired their file association rows). That noise was scaffolding for a one-time event — once Batch A-E land the noise self-resolves, and outside the transition window the sweep's findings are exactly the signal the cleanup UI wants to surface.
 - No persistent state machine. Each invocation runs end-to-end and returns its own report; FileManager no longer holds `lastDbSweepReport` / `lastDbSweepRanAt`. UIs that want "last scan" timing should hold the previously-returned `OrphanReport.lastRunAt` themselves.
 
 **A note on `initVersionCache`**: an earlier draft of this section bundled a synchronous `initVersionCache()` call into `onInit`. It didn't survive implementation — version cache is per-FileManager-instance and constructs at field-init time (no boot step), so there is no separate init call to make. `registerIpcHandlers()` *did* survive and is the convention used across lifecycle services for the same reason it surfaces in [lifecycle-migration-guide.md](../lifecycle/lifecycle-migration-guide.md): keeps `onInit` a narrow init→register sequence and gives a single spot for Phase 2 channels to land.
@@ -1059,7 +1056,7 @@ Every sweep run emits one structured log record through `loggerService` — `inf
 }
 ```
 
-The DB-side sweep emits a parallel record under `event: 'orphan-sweep'` — same outcome union (minus `'aborted'`, which only applies to the FS sweep's safety threshold) and `errorsByType: Partial<Record<FileRefSourceType, string>>` on the `'partial'` branch (per-sourceType isolation, so one checker throwing does not abort the whole run).
+The DB-side sweep emits a parallel record under `event: 'orphan-sweep'`. Its current outcomes are `completed` or `failed`: it prunes temp-session refs whose `file_entry` is missing, then reports active entries with zero refs. The shared `partial` wire branch remains for compatibility, but there is no generic per-source checker pass.
 
 These two records are the single source of truth for post-hoc diagnosis. No separate metrics pipeline is needed — at most two records per user-triggered sweep run is a trivial volume for log aggregation.
 

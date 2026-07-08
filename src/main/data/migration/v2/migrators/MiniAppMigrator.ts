@@ -182,10 +182,10 @@ export class MiniAppMigrator extends BaseMigrator {
       let processed = 0
 
       const BATCH_SIZE = 100
-      await ctx.db.transaction(async (tx) => {
+      ctx.db.transaction((tx) => {
         for (let i = 0; i < this.preparedRows.length; i += BATCH_SIZE) {
           const batch = this.preparedRows.slice(i, i + BATCH_SIZE)
-          await tx.insert(miniAppTable).values(batch)
+          tx.insert(miniAppTable).values(batch).run()
           processed += batch.length
         }
       })
@@ -210,7 +210,7 @@ export class MiniAppMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const result = await ctx.db.select({ count: sql<number>`count(*)` }).from(miniAppTable).get()
+      const result = ctx.db.select({ count: sql<number>`count(*)` }).from(miniAppTable).get()
       const appCount = result?.count ?? 0
       const errors: { key: string; message: string }[] = []
 
@@ -222,7 +222,7 @@ export class MiniAppMigrator extends BaseMigrator {
       }
 
       // All rows must have non-empty appId, name, and url.
-      const badRows = await ctx.db
+      const badRows = ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(miniAppTable)
         .where(sql`${miniAppTable.appId} = '' OR ${miniAppTable.name} = '' OR ${miniAppTable.url} = ''`)

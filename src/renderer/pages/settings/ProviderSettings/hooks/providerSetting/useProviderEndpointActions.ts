@@ -1,11 +1,12 @@
 import { loggerService } from '@logger'
-import { PROVIDER_URLS } from '@renderer/config/providers'
+import { PROVIDER_URLS } from '@renderer/pages/settings/ProviderSettings/providerUrls'
+import { toast } from '@renderer/services/toast'
 import { validateApiHost } from '@renderer/utils/api'
-import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api'
+import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isVertexProvider } from '@shared/utils/provider'
-import { debounce, trim } from 'lodash'
+import { debounce, trim } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -170,7 +171,7 @@ export function useProviderEndpointActions({
         const trimmedApiHost = trim(raw)
         if (!validateApiHost(trimmedApiHost)) {
           setApiHost(providerApiHost)
-          window.toast.error(t('settings.provider.api_host_no_valid'))
+          toast.error(t('settings.provider.api_host_no_valid'))
           return false
         }
 
@@ -197,7 +198,7 @@ export function useProviderEndpointActions({
         return true
       } catch (error) {
         logger.error('Failed to commit provider API host', { providerId: provider?.id, error })
-        window.toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+        toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
         return false
       }
     },
@@ -245,7 +246,7 @@ export function useProviderEndpointActions({
         return true
       } catch (error) {
         logger.error('Failed to commit Anthropic API host', { providerId: provider?.id, error })
-        window.toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+        toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
         return false
       }
     },
@@ -267,7 +268,7 @@ export function useProviderEndpointActions({
       return true
     } catch (error) {
       logger.error('Failed to commit API version', { providerId: provider.id, error })
-      window.toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+      toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
       return false
     }
   }, [apiVersion, patchProvider, provider, t])
@@ -293,7 +294,7 @@ export function useProviderEndpointActions({
       return true
     } catch (error) {
       logger.error('Failed to reset provider API host', { providerId: provider.id, error })
-      window.toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+      toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
       return false
     }
   }, [

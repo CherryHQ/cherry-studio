@@ -7,10 +7,10 @@ import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import type { BrowserWindow } from 'electron'
 import { app, nativeImage, nativeTheme, shell } from 'electron'
-import windowStateKeeper from 'electron-window-state'
 import path, { join } from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
@@ -33,7 +33,6 @@ export class MainWindowService extends BaseService {
   // should NOT touch this field — use WindowManager.broadcastToType() / showMainWindow()
   // / getWindowsByType().
   private mainWindow: BrowserWindow | null = null
-  private stateKeeper: ReturnType<typeof windowStateKeeper> | undefined
   private lastRendererProcessCrashTime: number = 0
 
   constructor() {
@@ -161,39 +160,20 @@ export class MainWindowService extends BaseService {
     this.ipcHandle(IpcChannel.Notification_OnClick, (_, notification) => {
       application.get('WindowManager').broadcastToType(WindowType.Main, 'notification-click', notification)
     })
-
-    // Dev-only: force a renderer crash to test render-process-gone recovery
-    // (see the render-process-gone handler in setupMainWindowMonitor).
-    if (isDev) {
-      this.ipcHandle(IpcChannel.MainWindow_CrashRenderProcess, () => {
-        this.mainWindow?.webContents.forcefullyCrashRenderer()
-      })
-    }
   }
 
   /**
    * Open the main window via WindowManager.
    * Singleton lifecycle: reuses an existing main window if present (show + focus),
-   * otherwise constructs a fresh one. Dynamic options (windowStateKeeper bounds,
-   * theme-driven backgroundColor / titleBarOverlay / backgroundMaterial / Linux
-   * frame and icon, zoom factor) are injected here at the call site, since the
-   * registry only carries static defaults.
+   * otherwise constructs a fresh one. Dynamic options (theme-driven
+   * backgroundColor / titleBarOverlay / backgroundMaterial / Linux frame and
+   * icon, zoom factor) are injected here at the call site, since the registry
+   * only carries static defaults. Position/size are restored by WindowManager
+   * (rememberBounds), not injected here.
    */
-  private openMainWindow(): void {
+  private openMainWindow(initData?: MainWindowInitData): void {
     const preferenceService = application.get('PreferenceService')
     const windowManager = application.get('WindowManager')
-
-    // stateKeeper is initialized once per service lifetime. The internal window
-    // listeners are (re)attached in setupMainWindow via stateKeeper.manage(window),
-    // and old listeners die with the previous BrowserWindow on destroy.
-    if (!this.stateKeeper) {
-      this.stateKeeper = windowStateKeeper({
-        defaultWidth: MIN_WINDOW_WIDTH,
-        defaultHeight: MIN_WINDOW_HEIGHT,
-        fullScreen: false,
-        maximize: false
-      })
-    }
 
     const windowsBackgroundMaterial = getWindowsBackgroundMaterial()
     let mainWindowBackgroundColor: string | undefined
@@ -204,11 +184,8 @@ export class MainWindowService extends BaseService {
     // onWindowCreatedByType fires synchronously during open() on fresh-create,
     // and does nothing on singleton reuse (where this.mainWindow is already set).
     windowManager.open(WindowType.Main, {
+      initData,
       options: {
-        x: this.stateKeeper.x,
-        y: this.stateKeeper.y,
-        width: this.stateKeeper.width,
-        height: this.stateKeeper.height,
         darkTheme: nativeTheme.shouldUseDarkColors,
         ...(isLinux && {
           frame: preferenceService.get('app.use_system_title_bar'),
@@ -224,10 +201,11 @@ export class MainWindowService extends BaseService {
   }
 
   private setupMainWindow(mainWindow: BrowserWindow) {
-    if (this.stateKeeper) {
-      this.stateKeeper.manage(mainWindow)
-      this.setupMaximize(mainWindow, this.stateKeeper.isMaximized)
-    }
+    // Position/size are restored declaratively by WindowManager (rememberBounds);
+    // re-apply the saved maximized state here, on our own show schedule (tray
+    // launch defers it to first show — see setupMaximize).
+    const saved = application.get('WindowManager').peekWindowBounds(WindowType.Main)
+    this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
 
     this.setupContextMenu(mainWindow)
     this.setupSpellCheck(mainWindow)
@@ -289,7 +267,7 @@ export class MainWindowService extends BaseService {
     // Dangerous API
     if (isDev) {
       mainWindow.webContents.on('will-attach-webview', (_, webPreferences) => {
-        webPreferences.preload = join(__dirname, '../preload/index.js')
+        webPreferences.preload = join(__dirname, '../preload/preload.js')
       })
     }
   }
@@ -357,9 +335,9 @@ export class MainWindowService extends BaseService {
         'https://account.siliconflow.cn/oauth',
         'https://cloud.siliconflow.cn/bills',
         'https://cloud.siliconflow.cn/expensebill',
-        'https://console.aihubmix.com/token',
-        'https://console.aihubmix.com/topup',
-        'https://console.aihubmix.com/statistics',
+        'https://console.inferera.com/token',
+        'https://console.inferera.com/topup',
+        'https://console.inferera.com/statistics',
         'https://dash.302.ai/sso/login',
         'https://dash.302.ai/charge',
         'https://maas.aiionly.com/login'
@@ -466,7 +444,7 @@ export class MainWindowService extends BaseService {
     // No 'closed' handler — WM emits onWindowDestroyedByType which clears this.mainWindow.
   }
 
-  public showMainWindow() {
+  public showMainWindow(initData?: MainWindowInitData) {
     // Lift any close-to-tray override so the Dock icon reappears as the user
     // brings the main window back. Idempotent when the app is not currently
     // in tray mode — WM deduplicates via its dockShouldBeVisible flag.
@@ -476,6 +454,7 @@ export class MainWindowService extends BaseService {
     if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) {
         mainWindow.restore()
+        this.pushMainWindowInitData(initData)
         return
       }
 
@@ -496,6 +475,7 @@ export class MainWindowService extends BaseService {
             w.focus()
           }
         })
+        this.pushMainWindowInitData(initData)
         return
       }
 
@@ -530,11 +510,18 @@ export class MainWindowService extends BaseService {
       if (!isLinux) {
         mainWindow.setVisibleOnAllWorkspaces(false)
       }
+      this.pushMainWindowInitData(initData)
     } else {
       // Singleton: WM creates a fresh window when none exists; openMainWindow re-injects
       // the dynamic options (windowState bounds, theme, zoom) since the registry only carries statics.
-      this.openMainWindow()
+      this.openMainWindow(initData)
     }
+  }
+
+  private pushMainWindowInitData(initData?: MainWindowInitData) {
+    if (!initData) return
+
+    application.get('WindowManager').pushInitDataToType(WindowType.Main, initData)
   }
 
   public toggleMainWindow() {

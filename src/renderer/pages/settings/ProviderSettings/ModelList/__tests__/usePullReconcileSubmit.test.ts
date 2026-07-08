@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import type { Model } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,7 +22,7 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 
-vi.mock('../modelSync', () => ({
+vi.mock('../../utils/modelSync', () => ({
   toCreateModelDto: (providerId: string, model: Model) => ({
     providerId,
     modelId: model.apiModelId ?? model.id.split('::').at(-1) ?? model.id,
@@ -48,11 +49,6 @@ describe('usePullReconcileSubmit', () => {
       provider: { id: 'cherryin', isEnabled: true },
       updateProvider: updateProviderMock
     })
-    window.toast = {
-      success: vi.fn(),
-      error: vi.fn(),
-      warning: vi.fn()
-    } as unknown as typeof window.toast
   })
 
   it('applies pull reconcile through a single reconcile call with the full diff', async () => {
@@ -91,8 +87,8 @@ describe('usePullReconcileSubmit', () => {
       }
     })
     expect(onApplyCommitted).toHaveBeenCalled()
-    expect(window.toast.success).toHaveBeenCalled()
-    expect(window.toast.error).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('enables a disabled provider when pull reconcile leaves at least one model', async () => {
@@ -158,7 +154,7 @@ describe('usePullReconcileSubmit', () => {
 
     expect(reconcileTriggerMock).toHaveBeenCalled()
     expect(onApplyCommitted).not.toHaveBeenCalled()
-    expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
+    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
   })
 
   it('keeps the drawer dirty on rejection of a large payload — no partial commit', async () => {
@@ -201,8 +197,8 @@ describe('usePullReconcileSubmit', () => {
     })
     expect(reconcileTriggerMock.mock.calls[0][0].body.toAdd).toHaveLength(1200)
     expect(onApplyCommitted).not.toHaveBeenCalled()
-    expect(window.toast.success).not.toHaveBeenCalled()
-    expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith('settings.models.manage.sync_pull_failed')
   })
 
   it('shows a warning toast when models are skipped because they are in use as defaults', async () => {
@@ -220,7 +216,7 @@ describe('usePullReconcileSubmit', () => {
     })
 
     expect(onApplyCommitted).toHaveBeenCalled()
-    expect(window.toast.success).not.toHaveBeenCalled()
-    expect(window.toast.warning).toHaveBeenCalledWith('settings.models.manage.sync_apply_default_in_use')
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(toast.warning).toHaveBeenCalledWith('settings.models.manage.sync_apply_default_in_use')
   })
 })

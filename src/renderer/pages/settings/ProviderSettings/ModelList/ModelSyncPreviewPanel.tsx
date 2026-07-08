@@ -1,5 +1,5 @@
 import { Alert, Button, Checkbox } from '@cherrystudio/ui'
-import { getModelLogo } from '@renderer/config/models'
+import { getModelLogo } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { CheckCircle2, Plus, Trash2 } from 'lucide-react'
@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 
 import ModelTagsWithLabel, { type ModelTagsWithLabelModel } from '../components/ModelTagsWithLabel'
 import { modelSyncClasses } from '../primitives/ProviderSettingsPrimitives'
-import type { ModelSyncPreviewResponse } from './modelSyncPreviewTypes'
+import type { ModelSyncPreviewResponse } from '../types/modelSyncPreviewTypes'
 import type { useModelListSyncSelections } from './useModelListSyncSelections'
 
 export type ModelSyncPreviewSelections = ReturnType<typeof useModelListSyncSelections>
@@ -36,7 +36,7 @@ function ModelGlyph({ model }: { model: Model }) {
   if (Icon) {
     return <Icon.Avatar size={24} />
   }
-  const letter = (model.name || model.apiModelId || '?').slice(0, 1).toUpperCase()
+  const letter = (modelIdLine(model.id, model.apiModelId) || '?').slice(0, 1).toUpperCase()
   return <div className={modelSyncClasses.fetchAvatar}>{letter}</div>
 }
 
@@ -136,7 +136,6 @@ export default function ModelSyncPreviewPanel({
                   </span>
                   <ModelGlyph model={model} />
                   <div className="min-w-0 flex-1">
-                    <p className={modelSyncClasses.fetchRowTitle}>{model.name}</p>
                     <p className={modelSyncClasses.fetchRowId}>{modelIdLine(model.id, model.apiModelId)}</p>
                   </div>
                   <div className={modelSyncClasses.fetchCapabilityStrip}>
@@ -211,7 +210,6 @@ export default function ModelSyncPreviewPanel({
                   </span>
                   <ModelGlyph model={item.model} />
                   <div className="min-w-0 flex-1">
-                    <p className={modelSyncClasses.fetchRowTitleStrike}>{item.model.name}</p>
                     <p className={modelSyncClasses.fetchRowIdStrike}>
                       {modelIdLine(item.model.id, item.model.apiModelId)}
                     </p>

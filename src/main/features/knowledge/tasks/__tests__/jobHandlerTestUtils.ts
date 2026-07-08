@@ -31,7 +31,8 @@ const mocks = vi.hoisted(() => ({
   captureUrlSnapshotFileMock: vi.fn(),
   captureNoteSnapshotFileMock: vi.fn(),
   rebuildMaterialMock: vi.fn(),
-  deleteMaterialMock: vi.fn(),
+  deleteMaterialsMock: vi.fn(),
+  reclaimSpaceMock: vi.fn(),
   listExistingEmbeddingHashesMock: vi.fn(),
   embedKnowledgeTextsMock: vi.fn(),
   loggerWarnMock: vi.fn(),
@@ -63,7 +64,8 @@ export const {
   captureUrlSnapshotFileMock,
   captureNoteSnapshotFileMock,
   rebuildMaterialMock,
-  deleteMaterialMock,
+  deleteMaterialsMock,
+  reclaimSpaceMock,
   listExistingEmbeddingHashesMock,
   embedKnowledgeTextsMock,
   loggerWarnMock,
@@ -196,9 +198,7 @@ export function createBase(): KnowledgeBase {
     chunkOverlap: 200,
     chunkStrategy: 'structured',
     chunkSeparator: '\\n\\n',
-    threshold: undefined,
     documentCount: 10,
-    searchMode: 'vector',
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
@@ -283,6 +283,7 @@ export function createCtx<TInput>(input: TInput, jobId = 'job-1'): JobContext<TI
     jobId,
     input,
     attempt: 1,
+    parentId: null,
     signal: new AbortController().signal,
     metadata: {},
     patchMetadata: vi.fn().mockResolvedValue(undefined),
@@ -346,17 +347,17 @@ beforeEach(() => {
   knowledgeLockManager.withBaseMutationLock.mockImplementation(
     async (_baseId: string, task: () => Promise<unknown>) => await task()
   )
-  knowledgeBaseGetByIdMock.mockResolvedValue(createBase())
-  knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem())
-  knowledgeItemGetSubtreeItemsMock.mockResolvedValue([])
-  knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([])
-  knowledgeItemSetSubtreeStatusMock.mockResolvedValue([])
-  knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem())
+  knowledgeBaseGetByIdMock.mockReturnValue(createBase())
+  knowledgeItemGetByIdMock.mockReturnValue(createNoteItem())
+  knowledgeItemGetSubtreeItemsMock.mockReturnValue([])
+  knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
+  knowledgeItemSetSubtreeStatusMock.mockReturnValue([])
+  knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem())
   fetchKnowledgeWebPageMock.mockResolvedValue('# Example page\n\nbody text')
   captureUrlSnapshotFileMock.mockResolvedValue('example-page.md')
   captureNoteSnapshotFileMock.mockResolvedValue('note-snapshot.md')
   knowledgeItemUpdateSnapshotRelativePathMock.mockImplementation(
-    async (id: string, type: 'url' | 'note', relativePath: string) =>
+    (id: string, type: 'url' | 'note', relativePath: string) =>
       type === 'url' ? createUrlItem(id, relativePath) : createNoteItem(id, null, 'processing', relativePath)
   )
   loadKnowledgeItemDocumentsMock.mockResolvedValue([
@@ -368,13 +369,15 @@ beforeEach(() => {
   prepareKnowledgeItemMock.mockResolvedValue([createNoteItem('leaf-1', 'dir-1')])
   const indexStore = {
     rebuildMaterial: rebuildMaterialMock,
-    deleteMaterial: deleteMaterialMock,
+    deleteMaterials: deleteMaterialsMock,
+    reclaimSpace: reclaimSpaceMock,
     listExistingEmbeddingHashes: listExistingEmbeddingHashesMock
   }
   getIndexStoreMock.mockResolvedValue(indexStore)
   getIndexStoreIfExistsMock.mockResolvedValue(indexStore)
   rebuildMaterialMock.mockResolvedValue(undefined)
-  deleteMaterialMock.mockResolvedValue(undefined)
+  deleteMaterialsMock.mockResolvedValue(undefined)
+  reclaimSpaceMock.mockResolvedValue({ vacuumed: false, reclaimedBytes: 0 })
   // No vectors stored yet by default → every chunk is embedded (prior behavior).
   listExistingEmbeddingHashesMock.mockResolvedValue(new Set<string>())
   embedKnowledgeTextsMock.mockImplementation(async (_base: KnowledgeBase, values: string[]) =>
@@ -383,8 +386,8 @@ beforeEach(() => {
   listMock.mockResolvedValue([])
   getJobMock.mockResolvedValue(null)
   enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })
-  knowledgeItemUpdateIndexedRelativePathMock.mockResolvedValue(createFileItem())
-  deleteItemsByIdsMock.mockResolvedValue(undefined)
+  knowledgeItemUpdateIndexedRelativePathMock.mockReturnValue(createFileItem())
+  deleteItemsByIdsMock.mockReturnValue(undefined)
   deleteKnowledgeItemFilesBestEffortMock.mockResolvedValue(undefined)
   probeKnowledgeFileMock.mockResolvedValue('readable')
   probeKnowledgeSourcePathMock.mockResolvedValue('readable')

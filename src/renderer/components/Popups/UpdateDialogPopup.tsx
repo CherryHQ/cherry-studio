@@ -1,29 +1,25 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { TopView } from '@renderer/components/TopView'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { ipcApi } from '@renderer/ipc'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { ReleaseNoteInfo, UpdateInfo } from 'builder-util-runtime'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Streamdown } from 'streamdown'
 
 const logger = loggerService.withContext('UpdateDialog')
-const CLOSE_ANIMATION_MS = 200
 
 interface ShowParams {
   releaseInfo: UpdateInfo | null
 }
 
-interface Props extends ShowParams {
-  resolve: (data: any) => void
-}
+type Props = ShowParams & PopupInjectedProps<Record<string, never>>
 
-const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ releaseInfo, open, resolve }) => {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(true)
   const [isInstalling, setIsInstalling] = useState(false)
-  const resolvedRef = useRef(false)
   const { updateAppUpdateState } = useAppUpdateState()
   useEffect(() => {
     if (releaseInfo) {
@@ -31,35 +27,28 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
     }
   }, [releaseInfo])
 
-  const closePopup = () => {
-    if (resolvedRef.current) return
-    resolvedRef.current = true
-    setOpen(false)
-    window.setTimeout(() => resolve({}), CLOSE_ANIMATION_MS)
-  }
-
   const handleInstall = async () => {
     setIsInstalling(true)
     try {
       // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
       // await handleSaveData()
       await ipcApi.request('app.updater.quit_and_install')
-      closePopup()
+      resolve({})
     } catch (error) {
       logger.error('Failed to save data before update', error as Error)
       setIsInstalling(false)
-      window.toast.error(t('update.saveDataError'))
+      toast.error(t('update.saveDataError'))
     }
   }
 
   const onCancel = () => {
     updateAppUpdateState({ manualCheck: false })
-    closePopup()
+    resolve({})
   }
 
   const onIgnore = () => {
     updateAppUpdateState({ ignore: true, manualCheck: false })
-    closePopup()
+    resolve({})
   }
 
   const onOpenChange = (nextOpen: boolean) => {
@@ -67,8 +56,6 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
       onCancel()
     }
   }
-
-  UpdateDialogPopup.hide = onCancel
 
   const releaseNotes = releaseInfo?.releaseNotes
   const releaseNotesText =
@@ -108,25 +95,6 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
   )
 }
 
-const TopViewKey = 'UpdateDialogPopup'
+const UpdateDialogPopup = createPopup<ShowParams, Record<string, never>>(PopupContainer, { dismissResult: {} })
 
-export default class UpdateDialogPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide(TopViewKey)
-  }
-  static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
-    })
-  }
-}
+export default UpdateDialogPopup
