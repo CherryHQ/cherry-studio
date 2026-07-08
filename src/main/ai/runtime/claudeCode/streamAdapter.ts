@@ -186,7 +186,6 @@ function normalizeMcpContentBlock(block: unknown): JSONObject {
 
 function normalizeMcpToolContent(value: unknown): JSONValue[] {
   const content = getContentArray(value)
-  if (content?.every(isMcpContentBlock)) return content
   if (content) return content.map(normalizeMcpContentBlock)
 
   return [{ type: 'text', text: stringifyJsonValue(value) }]
@@ -1199,7 +1198,7 @@ export class ClaudeCodeStreamAdapter {
   private buildToolOutput(
     result: NonNullable<JSONValue>,
     state: ToolStreamState,
-    rawContent?: unknown
+    rawContent?: ClaudeToolResultBlock['content']
   ): NonNullable<JSONValue> {
     if (state.toolType !== 'mcp') return result
     return {
