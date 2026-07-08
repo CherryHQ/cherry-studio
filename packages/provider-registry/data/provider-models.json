@@ -11590,6 +11590,9 @@
     },
     {
       "apiModelId": "x/flux2-klein",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -11615,6 +11618,9 @@
     },
     {
       "apiModelId": "x/z-image-turbo",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
       "imageGeneration": {
         "modes": {
           "generate": {

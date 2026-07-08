@@ -30,6 +30,7 @@ export default defineProvider({
       modelId: 'x/z-image-turbo',
       apiModelId: 'x/z-image-turbo',
       name: 'Z-Image Turbo',
+      capabilities: { force: ['image-generation'] },
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
@@ -53,6 +54,7 @@ export default defineProvider({
       modelId: 'x/flux2-klein',
       apiModelId: 'x/flux2-klein',
       name: 'FLUX.2 Klein',
+      capabilities: { force: ['image-generation'] },
       inputModalities: ['text'],
       outputModalities: ['image'],
       imageGeneration: {
