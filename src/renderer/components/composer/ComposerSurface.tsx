@@ -528,7 +528,17 @@ export default function ComposerSurface({
   const promptVariableEditRef = useRef<{ tokenId: string; started: boolean } | null>(null)
   const promptVariableCompositionRef = useRef<{ tokenId: string; text: string } | null>(null)
   const promptVariableSkipTextInputRef = useRef<{ tokenId: string; text: string } | null>(null)
+  const isExpandedRef = useRef(isExpanded)
+  const filesCountRef = useRef(filesCount)
   const managedTokenKindSet = useMemo(() => new Set(managedTokenKinds), [managedTokenKinds])
+
+  useEffect(() => {
+    isExpandedRef.current = isExpanded
+  }, [isExpanded])
+
+  useEffect(() => {
+    filesCountRef.current = filesCount
+  }, [filesCount])
   const editingHighlightKey = editingState?.highlightKey
 
   useEffect(() => {
@@ -597,12 +607,17 @@ export default function ComposerSurface({
     [applyComposerText]
   )
 
-  const { handlePaste } = usePasteHandler(text, setText, {
-    supportedExts,
-    setFiles,
-    onResize: () => undefined,
-    t
-  })
+  const pasteHandlerOptions = useMemo(
+    () => ({
+      supportedExts,
+      setFiles,
+      onResize: undefined,
+      t
+    }),
+    [supportedExts, setFiles, t]
+  )
+
+  const { handlePaste } = usePasteHandler(text, setText, pasteHandlerOptions)
 
   const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop, isDragging } = useFileDragDrop({
     supportedExts,
@@ -1161,12 +1176,8 @@ export default function ComposerSurface({
     [activeSuggestionSources, placeholder, renderComposerToken]
   )
 
-  const editor = useRichTextEditorKernel({
-    extensions: editorExtensions,
-    content: createComposerEditorContent(text, draftTokens),
-    editable,
-    enableSpellCheck,
-    editorProps: {
+  const memoizedEditorProps = useMemo(
+    () => ({
       attributes: {
         class: cn(
           'composer-tiptap after:hidden! box-border flex w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
@@ -1175,14 +1186,15 @@ export default function ComposerSurface({
         ),
         style: editorStyle
       },
-      handleKeyDown: (_view, event) => {
+      handleKeyDown: (_view: any, event: KeyboardEvent) => {
         if (
           ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter', 'Escape'].includes(event.key)
         ) {
-          const handled = quickPanel.dispatchKeyDown(event)
+          const qp = quickPanelRef.current
+          const handled = qp.dispatchKeyDown(event)
           if (handled) return true
           if (
-            quickPanel.isVisible &&
+            qp.isVisible &&
             event.key === 'Enter' &&
             event.shiftKey &&
             !event.ctrlKey &&
@@ -1193,13 +1205,13 @@ export default function ComposerSurface({
           }
         }
 
-        if (event.key === 'Escape' && isExpanded) {
+        if (event.key === 'Escape' && isExpandedRef.current) {
           event.stopPropagation()
           toggleEditorExpanded(false)
           return true
         }
 
-        if (event.key === 'Tab' && !event.isComposing && !quickPanel.isVisible) {
+        if (event.key === 'Tab' && !event.isComposing && !quickPanelRef.current.isVisible) {
           const targetToken = editorRef.current
             ? selectPromptVariableToken(editorRef.current, event.shiftKey ? -1 : 1)
             : null
@@ -1227,7 +1239,7 @@ export default function ComposerSurface({
         if (
           event.key === 'Backspace' &&
           textRef.current.trim().length === 0 &&
-          filesCount > 0 &&
+          filesCountRef.current > 0 &&
           (!editorRef.current || !hasComposerTokenBeforeSelection(editorRef.current))
         ) {
           setFiles((prev) => prev.slice(0, -1))
@@ -1335,8 +1347,12 @@ export default function ComposerSurface({
           return true
         }
       }
-    },
-    handlePaste: (_view, event) => {
+    }),
+    [hasCustomHeight, editorStyle]
+  )
+
+  const memoizedHandlePaste = useCallback(
+    (_view: any, event: ClipboardEvent) => {
       const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
       const pastedHtml = event.clipboardData?.getData('text/html') || ''
       const editor = editorRef.current
@@ -1422,6 +1438,16 @@ export default function ComposerSurface({
       void handlePaste(event)
       return false
     },
+    [handlePaste, resolveSkillMarker, resolveKnowledgeBaseMarker]
+  )
+
+  const editor = useRichTextEditorKernel({
+    extensions: editorExtensions,
+    content: createComposerEditorContent(text, draftTokens),
+    editable,
+    enableSpellCheck,
+    editorProps: memoizedEditorProps,
+    handlePaste: memoizedHandlePaste,
     onUpdate: ({ editor: updatedEditor }) => {
       if (tokenizePromptVariablesInEditor(updatedEditor)) return
 
