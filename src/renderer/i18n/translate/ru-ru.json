@@ -339,6 +339,9 @@
     "home": {
       "welcome_title": "О чём мы поговорим сегодня?"
     },
+    "icon": {
+      "type": "Иконка агента"
+    },
     "input": {
       "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду",
       "soul_placeholder": "Помогите мне подключиться к Telegram"
@@ -347,6 +350,9 @@
       "error": {
         "failed": "Не удалось получить список агентов."
       }
+    },
+    "manage": {
+      "title": "Управление агентами"
     },
     "pin": {
       "title": "Пин-агент"
@@ -499,6 +505,7 @@
         "label": "Предварительно одобренные инструменты",
         "placeholder": "Выберите предварительно одобренные инструменты"
       },
+      "auto_rename": "Сгенерировать название задачи",
       "create": {
         "error": {
           "failed": "Не удалось добавить сеанс"
@@ -784,6 +791,11 @@
       }
     },
     "sidebar_title": "Агенты",
+    "skill": {
+      "manage": {
+        "title": "Управление навыками"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1087,6 +1099,7 @@
     "clear": {
       "content": "Очистка топика удалит все топики и файлы в ассистенте. Вы уверены, что хотите продолжить?",
       "menu_title": "Удалить все разговоры с ассистентом",
+      "success_title": "Очищено {{count}} тем",
       "title": "Очистить топики"
     },
     "copy": {
@@ -1712,6 +1725,7 @@
               "tip": "Тема будет сохранена в базе знаний с полным контекстом диалога"
             }
           },
+          "source_fallback": "Разговор",
           "success": "Тема успешно сохранена в базе знаний ({{count}} элементов)",
           "title": "Сохранить тему в базу знаний"
         }
@@ -3753,6 +3767,7 @@
       "approvalRequired": "Инструмент \"{{tool}}\" требует одобрения",
       "autoApproveEnabled": "Для этого инструмента включен автоматический одобрен",
       "cancelled": "Отменено",
+      "collapse": "Коллапс",
       "completed": "Завершено",
       "error": "Произошла ошибка",
       "groupHeader": "{{count}} вызовов инструментов",
@@ -3797,6 +3812,7 @@
         "usingTools": "Работа над задачей"
       },
       "preview": "Предпросмотр",
+      "processed": "Обработано",
       "raw": "Исходный",
       "runningCount": "{{count}} инструментов запущено",
       "runningHeader": "Работаю…",
@@ -4048,10 +4064,13 @@
     "drop_markdown_hint": "Перетащите сюда файлы или папки .md для импорта",
     "empty": "заметок пока нет",
     "expand": "развернуть",
+    "exportToPDF": "Экспорт в PDF",
     "exportToWord": "Экспорт в Word",
     "export_failed": "Экспорт в базу знаний не выполнен",
     "export_knowledge": "Экспортировать заметки в базу знаний",
     "export_success": "Успешно экспортировано в базу знаний",
+    "export_to_pdf_failed": "Не удалось экспортировать в PDF",
+    "export_to_pdf_success": "Экспортировано в PDF",
     "export_to_word_failed": "Не удалось экспортировать в Word",
     "folder": "папка",
     "load_failed": "Не удалось загрузить заметку",
@@ -4068,6 +4087,8 @@
     "no_valid_files": "Не загружен действительный файл",
     "open_folder": "Откройте внешнюю папку",
     "open_outside": "открыть снаружи",
+    "print": "Печать",
+    "print_failed": "Не удалось напечатать заметку",
     "rename": "переименовать",
     "rename_changed": "В связи с политикой безопасности имя файла было изменено с {{Original}} на {{final}}",
     "rename_failed": "Не удалось переименовать заметку",
@@ -5331,6 +5352,13 @@
       "auto_switch_to_topics": "Автоматически переключаться на топик",
       "title": "Расширенные настройки"
     },
+    "agent": {
+      "position": {
+        "label": "Позиция сессии",
+        "left": "Влево",
+        "right": "Правильно"
+      }
+    },
     "appearance": {
       "title": "Внешний вид"
     },
@@ -5967,6 +5995,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "Проверить наличие обновлений",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Пользовательских инструментов пока нет. Добавьте один, чтобы начать.",
@@ -6004,7 +6033,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "Не удалось проверить наличие обновлений"
     },
     "developer": {
       "enable_developer_mode": "Включить разработчик",
@@ -7266,6 +7296,7 @@
       "open_tab_in_new_window": "Открыть вкладку в новом окне",
       "pin_tab": "Закрепить вкладку",
       "press_shortcut": "Нажмите сочетание клавиш",
+      "print": "Печать",
       "quick_assistant": "Быстрый помощник",
       "rename_topic": "Переименовать топик",
       "reset": "Сброс",
@@ -7596,6 +7627,7 @@
   },
   "title": {
     "apps": "Приложения",
+    "chat": "Чат",
     "code": "Code",
     "files": "Файлы",
     "home": "Главная",

@@ -339,6 +339,9 @@
     "home": {
       "welcome_title": "Sobre o que vamos falar hoje?"
     },
+    "icon": {
+      "type": "Ícone do Agente"
+    },
     "input": {
       "placeholder": "Digite sua mensagem aqui, envie com {{key}} - @ selecionar caminho, / selecionar comando",
       "soul_placeholder": "Ajude-me a conectar ao Telegram"
@@ -347,6 +350,9 @@
       "error": {
         "failed": "Falha ao listar agentes."
       }
+    },
+    "manage": {
+      "title": "Gerenciar Agentes"
     },
     "pin": {
       "title": "Agente Pin"
@@ -499,6 +505,7 @@
         "label": "Ferramentas pré-aprovadas",
         "placeholder": "Selecionar ferramentas pré-aprovadas"
       },
+      "auto_rename": "Gerar nome da tarefa",
       "create": {
         "error": {
           "failed": "Falha ao adicionar uma sessão"
@@ -784,6 +791,11 @@
       }
     },
     "sidebar_title": "Agentes",
+    "skill": {
+      "manage": {
+        "title": "Gerenciar habilidades"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1087,6 +1099,7 @@
     "clear": {
       "content": "Limpar o tópico removerá todos os tópicos e arquivos do assistente. Tem certeza de que deseja continuar?",
       "menu_title": "Apagar todas as conversas com o assistente",
+      "success_title": "Limpo {{count}} tópicos",
       "title": "Limpar Tópico"
     },
     "copy": {
@@ -1712,6 +1725,7 @@
               "tip": "O tópico será guardado na base de conhecimento com o contexto completo da conversa."
             }
           },
+          "source_fallback": "Conversa",
           "success": "O tópico foi guardado com sucesso na base de conhecimento ({{count}} itens de conteúdo)",
           "title": "Guardar tópico na base de conhecimento"
         }
@@ -3753,6 +3767,7 @@
       "approvalRequired": "Ferramenta \"{{tool}}\" requer aprovação",
       "autoApproveEnabled": "Esta ferramenta tem aprovação automática ativada",
       "cancelled": "Cancelado",
+      "collapse": "Colapso",
       "completed": "Completo",
       "error": "Ocorreu um erro",
       "groupHeader": "{{count}} chamadas de ferramenta",
@@ -3797,6 +3812,7 @@
         "usingTools": "Trabalhando na tarefa"
       },
       "preview": "Pré-visualização",
+      "processed": "Processado",
       "raw": "Bruto",
       "runningCount": "{{count}} ferramentas em execução",
       "runningHeader": "Trabalhando…",
@@ -4048,10 +4064,13 @@
     "drop_markdown_hint": "Arraste e solte arquivos ou pastas .md aqui para importar",
     "empty": "Ainda não existem notas",
     "expand": "expandir",
+    "exportToPDF": "Exportar para PDF",
     "exportToWord": "Exportar para Word",
     "export_failed": "Falha ao exportar para a base de conhecimento",
     "export_knowledge": "exportar anotações para a base de conhecimento",
     "export_success": "exportado com sucesso para a base de conhecimento",
+    "export_to_pdf_failed": "Falha ao exportar para PDF",
+    "export_to_pdf_success": "Exportado para PDF",
     "export_to_word_failed": "Falha ao exportar para Word",
     "folder": "pasta",
     "load_failed": "Falha ao carregar a nota",
@@ -4068,6 +4087,8 @@
     "no_valid_files": "Nenhum arquivo válido foi carregado",
     "open_folder": "Abrir pasta externa",
     "open_outside": "Abrir externamente",
+    "print": "Imprimir",
+    "print_failed": "Falha ao imprimir nota",
     "rename": "renomear",
     "rename_changed": "Devido às políticas de segurança, o nome do arquivo foi alterado de {{original}} para {{final}}",
     "rename_failed": "Falha ao renomear a nota",
@@ -5331,6 +5352,13 @@
       "auto_switch_to_topics": "Alternar automaticamente para tópicos",
       "title": "Configurações avançadas"
     },
+    "agent": {
+      "position": {
+        "label": "Posição da sessão",
+        "left": "Esquerda",
+        "right": "Certo"
+      }
+    },
     "appearance": {
       "title": "Aparência"
     },
@@ -5967,6 +5995,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "Verificar atualizações",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Ainda não há ferramentas personalizadas. Adicione uma para começar.",
@@ -6004,7 +6033,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "Falha ao verificar atualizações"
     },
     "developer": {
       "enable_developer_mode": "Ativar modo de desenvolvedor",
@@ -7266,6 +7296,7 @@
       "open_tab_in_new_window": "Abrir aba em nova janela",
       "pin_tab": "Alternar Fixação de Aba",
       "press_shortcut": "Pressionar atalho",
+      "print": "Imprimir",
       "quick_assistant": "Atalho de assistente",
       "rename_topic": "Renomear tópico",
       "reset": "Redefinir",
@@ -7596,6 +7627,7 @@
   },
   "title": {
     "apps": "Miniaplicativos",
+    "chat": "Chat",
     "code": "Código",
     "files": "Arquivos",
     "home": "Página Inicial",

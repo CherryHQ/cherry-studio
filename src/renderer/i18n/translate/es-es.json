@@ -339,6 +339,9 @@
     "home": {
       "welcome_title": "¿De qué hablaremos hoy?"
     },
+    "icon": {
+      "type": "Icono de Agente"
+    },
     "input": {
       "placeholder": "Introduce tu mensaje aquí, envía con {{key}} - @ seleccionar ruta, / seleccionar comando",
       "soul_placeholder": "Ayúdame a conectarme a Telegram"
@@ -347,6 +350,9 @@
       "error": {
         "failed": "Error al listar agentes."
       }
+    },
+    "manage": {
+      "title": "Gestionar Agentes"
     },
     "pin": {
       "title": "Agente Pin"
@@ -499,6 +505,7 @@
         "label": "Herramientas preaprobadas",
         "placeholder": "Seleccionar herramientas preaprobadas"
       },
+      "auto_rename": "Generar nombre de tarea",
       "create": {
         "error": {
           "failed": "Error al añadir una sesión"
@@ -784,6 +791,11 @@
       }
     },
     "sidebar_title": "Agentes",
+    "skill": {
+      "manage": {
+        "title": "Gestionar habilidades"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1087,6 +1099,7 @@
     "clear": {
       "content": "Vaciar el tema eliminará todos los temas y archivos del asistente. ¿Está seguro de que desea continuar?",
       "menu_title": "Eliminar todas las conversaciones con el asistente",
+      "success_title": "Borrados {{count}} temas",
       "title": "Vaciar Tema"
     },
     "copy": {
@@ -1712,6 +1725,7 @@
               "tip": "El tema se guardará en la base de conocimientos en forma de contexto de conversación completo."
             }
           },
+          "source_fallback": "Conversación",
           "success": "El tema se ha guardado correctamente en la base de conocimiento ({{count}} elementos)",
           "title": "Guardar tema en la base de conocimientos"
         }
@@ -3753,6 +3767,7 @@
       "approvalRequired": "La herramienta \"{{tool}}\" requiere aprobación",
       "autoApproveEnabled": "Esta herramienta tiene habilitada la aprobación automática",
       "cancelled": "Cancelado",
+      "collapse": "Colapsar",
       "completed": "Completado",
       "error": "Se ha producido un error",
       "groupHeader": "{{count}} llamadas a herramientas",
@@ -3797,6 +3812,7 @@
         "usingTools": "Trabajando en la tarea"
       },
       "preview": "Vista previa",
+      "processed": "Procesado",
       "raw": "Crudo",
       "runningCount": "{{count}} herramientas en ejecución",
       "runningHeader": "Trabajando…",
@@ -4048,10 +4064,13 @@
     "drop_markdown_hint": "Arrastre y suelte archivos o carpetas de .md aquí para importar",
     "empty": "Sin notas por el momento",
     "expand": "expandir",
+    "exportToPDF": "Exportar a PDF",
     "exportToWord": "Exportar a Word",
     "export_failed": "Exportación a la base de conocimientos fallida",
     "export_knowledge": "exportar notas a la base de conocimientos",
     "export_success": "Exportado con éxito a la base de conocimientos",
+    "export_to_pdf_failed": "Error al exportar a PDF",
+    "export_to_pdf_success": "Exportado a PDF",
     "export_to_word_failed": "Error al exportar a Word",
     "folder": "carpeta",
     "load_failed": "Error al cargar la nota",
@@ -4068,6 +4087,8 @@
     "no_valid_files": "No se ha cargado un archivo válido",
     "open_folder": "abrir carpeta externa",
     "open_outside": "Abrir desde el exterior",
+    "print": "Imprimir",
+    "print_failed": "Error al imprimir la nota",
     "rename": "renombrar",
     "rename_changed": "Debido a políticas de seguridad, el nombre del archivo ha cambiado de {{original}} a {{final}}",
     "rename_failed": "Error al renombrar la nota",
@@ -5331,6 +5352,13 @@
       "auto_switch_to_topics": "Cambiar automáticamente a temas",
       "title": "Configuración avanzada"
     },
+    "agent": {
+      "position": {
+        "label": "Posición de sesión",
+        "left": "Izquierda",
+        "right": "Derecha"
+      }
+    },
     "appearance": {
       "title": "Apariencia"
     },
@@ -5967,6 +5995,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "Buscar actualizaciones",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Aún no hay herramientas personalizadas. Agrega una para comenzar.",
@@ -6004,7 +6033,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "Error al comprobar actualizaciones"
     },
     "developer": {
       "enable_developer_mode": "Habilitar modo de desarrollador",
@@ -7266,6 +7296,7 @@
       "open_tab_in_new_window": "Abrir pestaña en nueva ventana",
       "pin_tab": "Alternar fijación de pestaña",
       "press_shortcut": "Presionar atajo",
+      "print": "Imprimir",
       "quick_assistant": "Asistente rápido",
       "rename_topic": "Renombrar tema",
       "reset": "Restablecer",
@@ -7596,6 +7627,7 @@
   },
   "title": {
     "apps": "Aplicaciones",
+    "chat": "Chat",
     "code": "Código",
     "files": "Archivos",
     "home": "Inicio",

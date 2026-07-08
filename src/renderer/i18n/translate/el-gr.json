@@ -339,6 +339,9 @@
     "home": {
       "welcome_title": "Τι θα συζητήσουμε σήμερα;"
     },
+    "icon": {
+      "type": "Εικονίδιο Πράκτορα"
+    },
     "input": {
       "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή",
       "soul_placeholder": "Βοηθήστε με να συνδεθώ στο Telegram"
@@ -347,6 +350,9 @@
       "error": {
         "failed": "Αποτυχία καταχώρησης πρακτόρων."
       }
+    },
+    "manage": {
+      "title": "Διαχείριση Πρακτόρων"
     },
     "pin": {
       "title": "Προσάρτησε Πράκτορα"
@@ -499,6 +505,7 @@
         "label": "Προεγκεκριμένα εργαλεία",
         "placeholder": "Επιλέξτε προεγκεκριμένα εργαλεία"
       },
+      "auto_rename": "Δημιούργησε όνομα εργασίας",
       "create": {
         "error": {
           "failed": "Αποτυχία προσθήκης συνεδρίας"
@@ -784,6 +791,11 @@
       }
     },
     "sidebar_title": "Πράκτορες",
+    "skill": {
+      "manage": {
+        "title": "Διαχείριση δεξιοτήτων"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1087,6 +1099,7 @@
     "clear": {
       "content": "Η διαγραφή του θέματος θα διαγράψει όλα τα θέματα και τα αρχεία του βοηθού. Είστε σίγουροι πως θέλετε να συνεχίσετε;",
       "menu_title": "Διαγραφή όλων των συνομιλιών με τον βοηθό",
+      "success_title": "Διαγράφηκαν {{count}} θέματα",
       "title": "Διαγραφή θέματος"
     },
     "copy": {
@@ -1712,6 +1725,7 @@
               "tip": "Τα θέματα θα αποθηκευτούν στη βάση γνώσεων σε μορφή που περιλαμβάνει το πλήρες συμφραζόμενο της συνομιλίας"
             }
           },
+          "source_fallback": "Συζήτηση",
           "success": "Το θέμα αποθηκεύτηκε με επιτυχία στη βάση γνώσεων ({{count}} στοιχεία περιεχομένου)",
           "title": "Αποθήκευση θέματος στη βάση γνώσεων"
         }
@@ -3753,6 +3767,7 @@
       "approvalRequired": "Το εργαλείο \"{{tool}}\" απαιτεί έγκριση",
       "autoApproveEnabled": "Αυτό το εργαλείο έχει ενεργοποιημένη την αυτόματη έγκριση",
       "cancelled": "Ακυρώθηκε",
+      "collapse": "Σύμπτυξη",
       "completed": "Ολοκληρώθηκε",
       "error": "Προέκυψε σφάλμα",
       "groupHeader": "{{count}} κλήσεις εργαλείων",
@@ -3797,6 +3812,7 @@
         "usingTools": "Δουλεύω πάνω στην εργασία"
       },
       "preview": "Προεπισκόπηση",
+      "processed": "Επεξεργάστηκε",
       "raw": "Ακατέργαστο",
       "runningCount": "{{count}} εργαλεία εκτελούνται",
       "runningHeader": "Εργάζεται…",
@@ -4048,10 +4064,13 @@
     "drop_markdown_hint": "Σύρετε και αποθέστε αρχεία ή φακέλους .md εδώ για εισαγωγή",
     "empty": "δεν υπάρχει σημείωση για τώρα",
     "expand": "να ανοίξει",
+    "exportToPDF": "Εξαγωγή σε PDF",
     "exportToWord": "Εξαγωγή σε Word",
     "export_failed": "Εξαγωγή στη βάση γνώσης απέτυχε",
     "export_knowledge": "εξαγωγή σημειώσεων στη βάση γνώσης",
     "export_success": "Επιτυχής εξαγωγή στην βάση γνώσης",
+    "export_to_pdf_failed": "Αποτυχία εξαγωγής σε PDF",
+    "export_to_pdf_success": "Εξαγωγή σε PDF",
     "export_to_word_failed": "Αποτυχία εξαγωγής στο Word",
     "folder": "φάκελος",
     "load_failed": "Αποτυχία φόρτωσης σημείωσης",
@@ -4068,6 +4087,8 @@
     "no_valid_files": "Δεν ανέβηκε έγκυρο αρχείο",
     "open_folder": "Άνοιγμα εξωτερικού φακέλου",
     "open_outside": "Από το εξωτερικό",
+    "print": "Εκτύπωση",
+    "print_failed": "Αποτυχία εκτύπωσης σημείωσης",
     "rename": "μετονομασία",
     "rename_changed": "Λόγω πολιτικής ασφάλειας, το όνομα του αρχείου έχει αλλάξει από {{original}} σε {{final}}",
     "rename_failed": "Αποτυχία μετονομασίας σημείωσης",
@@ -5331,6 +5352,13 @@
       "auto_switch_to_topics": "Αυτόματη μετάβαση σε θέματα",
       "title": "Ρυθμίσεις Ανώτερου Νiveau"
     },
+    "agent": {
+      "position": {
+        "label": "Θέση συνεδρίας",
+        "left": "Αριστερά",
+        "right": "Σωστά"
+      }
+    },
     "appearance": {
       "title": "Εμφάνιση"
     },
@@ -5967,6 +5995,7 @@
     "dependencies": {
       "addTool": "Add Tool",
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "checkUpdates": "Έλεγχος για ενημερώσεις",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
       "customToolsEmpty": "Δεν υπάρχουν ακόμα προσαρμοσμένα εργαλεία. Προσθέστε ένα για να ξεκινήσετε.",
@@ -6004,7 +6033,8 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "update": "Update to latest version"
+      "update": "Update to latest version",
+      "updateCheckFailed": "Αποτυχία ελέγχου για ενημερώσεις"
     },
     "developer": {
       "enable_developer_mode": "Ενεργοποίηση λειτουργίας προγραμματιστή",
@@ -7266,6 +7296,7 @@
       "open_tab_in_new_window": "Άνοιγμα καρτέλας σε νέο παράθυρο",
       "pin_tab": "Εναλλαγή Καρφίτσωμα Καρτέλας",
       "press_shortcut": "Πάτησε το συντομού πλήκτρου",
+      "print": "Εκτύπωση",
       "quick_assistant": "Συντομεύστε επιχειρηματικά",
       "rename_topic": "Μετονομασία θέματος",
       "reset": "Επαναφορά",
@@ -7596,6 +7627,7 @@
   },
   "title": {
     "apps": "Εφαρμογές",
+    "chat": "Συνομιλία",
     "code": "Κώδικας",
     "files": "Αρχεία",
     "home": "Αρχική Σελίδα",
