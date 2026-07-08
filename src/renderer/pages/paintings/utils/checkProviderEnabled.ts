@@ -8,10 +8,12 @@ import type { PaintingProviderRuntime } from '../model/types/paintingProviderRun
 /**
  * Providers that run without an API key (local servers). Short-circuits the
  * apiKey check so canonicalGenerate's unconditional `checkProviderEnabled`
- * call doesn't trip on OVMS's local OpenVINO Model Server. Vendor adapter
- * knows not to attach an Authorization header.
+ * call doesn't trip on OVMS's local OpenVINO Model Server or a local Ollama
+ * instance. An API key stays optional, not disabled — if one is configured
+ * (e.g. a reverse-proxied Ollama) it's still sent, this just stops the
+ * mandatory pre-flight check from blocking the common keyless case.
  */
-export const NO_AUTH_PROVIDER_IDS: ReadonlySet<string> = new Set(['ovms'])
+export const NO_AUTH_PROVIDER_IDS: ReadonlySet<string> = new Set(['ovms', 'ollama'])
 
 function navigateToProviderSettings(providerId: string) {
   openSettingsTab(`/settings/provider?id=${encodeURIComponent(providerId)}`)

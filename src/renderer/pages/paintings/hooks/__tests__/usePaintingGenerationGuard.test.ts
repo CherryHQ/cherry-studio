@@ -135,6 +135,25 @@ describe('usePaintingGenerationGuard', () => {
     await expect(result.current.validateBeforeGenerate()).resolves.toEqual({ ok: true })
   })
 
+  it('exempts keyless local providers (Ollama) from the enable / API key checks', async () => {
+    vi.mocked(usePaintingProviderRuntime).mockReturnValue({
+      provider: {
+        id: 'ollama',
+        name: 'Ollama',
+        apiHost: 'http://localhost:11434',
+        isEnabled: false,
+        getApiKey: vi.fn(async () => '')
+      },
+      isLoading: false
+    })
+    const { result } = renderGuard({
+      painting: { providerId: 'ollama', mode: 'generate', model: 'x/z-image-turbo:latest' },
+      ensureCurrentCatalog: vi.fn(async () => [{ label: 'x/z-image-turbo', value: 'x/z-image-turbo:latest' }])
+    })
+
+    await expect(result.current.validateBeforeGenerate()).resolves.toEqual({ ok: true })
+  })
+
   it('allows a selected model that resolves through the current catalog load', async () => {
     const { result } = renderGuard({
       painting: {

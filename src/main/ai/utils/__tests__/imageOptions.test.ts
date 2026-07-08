@@ -167,6 +167,18 @@ describe('buildImageProviderOptions', () => {
     expect(result).toEqual({ dmxapi: { negative_prompt: 'x' } })
   })
 
+  it('ollama maps numInferenceSteps to steps and omits everything else (size/seed reach the transport via standard call options)', () => {
+    const result = buildImageProviderOptions(
+      'ollama',
+      params({ numInferenceSteps: 9, seed: '42', negativePrompt: 'no blur', quality: 'hd' })
+    )
+    expect(result).toEqual({ ollama: { steps: 9 } })
+  })
+
+  it('ollama returns {} when numInferenceSteps is unset', () => {
+    expect(buildImageProviderOptions('ollama', params())).toEqual({})
+  })
+
   it('dashscope forwards the vendor bag (modelDescriptor / langs) the submit transport needs, mapped fields winning', () => {
     // Regression: without bag-forwarding, modelDescriptor is dropped and
     // dashscopeTransport.submit throws "Missing modelDescriptor".

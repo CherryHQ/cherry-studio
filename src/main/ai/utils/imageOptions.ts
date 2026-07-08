@@ -189,6 +189,12 @@ const dmxapi: Emitter = (_id, p, seed) => {
 const diffusion: Emitter = (id, p, seed) =>
   under(id, { ...jsonBagFields(p.providerOptions?.[id]), ...diffusionBody(p, seed) })
 
+// Ollama's native `/api/generate` imagegen fields don't match the diffusion
+// fallback's snake_case names (`steps`, not `num_inference_steps`). `size`/`seed`
+// already reach `ollamaTransport` via the standard AI SDK call options
+// (`input.size`/`input.seed`), so only `numInferenceSteps` needs mapping here.
+const ollama: Emitter = (id, p) => under(id, compact({ steps: p.numInferenceSteps }))
+
 /**
  * Provider id → emitter. Unlisted ids fall through to {@link diffusion}.
  * Adding a provider with bespoke wire fields = one row + one emitter.
@@ -205,7 +211,8 @@ const EMITTERS: Record<string, Emitter> = {
   dashscope,
   dmxapi,
   google,
-  'google-vertex': google
+  'google-vertex': google,
+  ollama
 }
 
 /**

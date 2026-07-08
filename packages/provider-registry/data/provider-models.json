@@ -11589,6 +11589,62 @@
       "providerId": "nvidia"
     },
     {
+      "apiModelId": "x/flux2-klein",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["512x512", "768x768", "1024x1024"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "x/flux2-klein",
+      "name": "FLUX.2 Klein",
+      "outputModalities": ["image"],
+      "providerId": "ollama"
+    },
+    {
+      "apiModelId": "x/z-image-turbo",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "numInferenceSteps": {
+                "default": 9,
+                "max": 20,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["512x512", "768x768", "1024x1024"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "x/z-image-turbo",
+      "name": "Z-Image Turbo",
+      "outputModalities": ["image"],
+      "providerId": "ollama"
+    },
+    {
       "apiModelId": "gpt-5.3-codex-spark",
       "endpointTypes": ["openai-responses"],
       "modelId": "gpt-5-3-codex-spark",
