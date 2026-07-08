@@ -56,6 +56,7 @@ const homeMocks = vi.hoisted(() => ({
     id: string
     assistantId?: string
     name: string
+    activeNodeId?: string
     createdAt?: string
     updatedAt: string
   }>,
@@ -1161,11 +1162,12 @@ describe('HomePage', () => {
         createdAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z'
       },
-      // Touched (updatedAt > createdAt) → not an untouched placeholder, never reused.
+      // Has an active node (a started conversation) → not an empty placeholder, never reused.
       {
         id: 'topic-real-older',
         assistantId: 'assistant-2',
         name: 'Real chat',
+        activeNodeId: 'node-real',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T01:00:00.000Z'
       }
@@ -1238,6 +1240,7 @@ describe('HomePage', () => {
         id: 'topic-real-latest',
         assistantId: 'assistant-1',
         name: 'Real chat',
+        activeNodeId: 'node-real',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z'
       }
@@ -1259,14 +1262,17 @@ describe('HomePage', () => {
 
   it('creates a new topic when the assistant latest topic is chatted-in with a blank name (auto-naming off) in the classic-layout picker', async () => {
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
-    // Auto-naming off keeps the name blank, but updatedAt has moved past createdAt — this is a real
-    // conversation that must NOT be reopened as a reusable empty placeholder (#16434).
+    // Auto-naming off keeps the name blank, but `activeNodeId` points at a real message — this is a
+    // chatted-in conversation that must NOT be reopened as a reusable empty placeholder (#16434).
+    // Timestamps are equal here on purpose: emptiness is decided by `activeNodeId`, not by them, so a
+    // migrated row whose createdAt === updatedAt is still excluded when it carries messages.
     homeMocks.classicLayoutTopics = [
       {
         id: 'topic-chatted-blank',
         assistantId: 'assistant-2',
         name: '',
-        createdAt: '2026-01-01T00:00:00.000Z',
+        activeNodeId: 'node-chatted',
+        createdAt: '2026-01-03T00:00:00.000Z',
         updatedAt: '2026-01-03T00:00:00.000Z'
       }
     ]
@@ -1278,6 +1284,29 @@ describe('HomePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
 
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+  })
+
+  it('reuses an empty topic whose updatedAt was bumped past createdAt with no active node in the classic-layout picker', async () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    // A non-message write (e.g. a group/trace update) can move updatedAt past createdAt while the topic
+    // stays empty. Emptiness is decided by `activeNodeId`, not the timestamp, so this is still reused.
+    homeMocks.classicLayoutTopics = [
+      {
+        id: 'topic-empty-bumped',
+        assistantId: 'assistant-2',
+        name: '',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-03T00:00:00.000Z'
+      }
+    ]
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open assistant picker' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select my assistant' }))
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-empty-bumped'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
   it('ignores a rapid double-click on the classic-layout composer new-topic action', () => {

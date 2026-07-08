@@ -60,6 +60,7 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
     name: t.name ?? '',
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
+    activeNodeId: t.activeNodeId,
     orderKey: t.orderKey,
     traceId: t.traceId,
     messages: [],

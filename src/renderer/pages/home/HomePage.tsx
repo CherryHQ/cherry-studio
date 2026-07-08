@@ -36,7 +36,7 @@ import type { ResourceListRevealPayload } from '@renderer/services/resourceListR
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { findLatestUpdated, isUntouchedSinceCreation } from '@renderer/utils/resourceEntity'
+import { findLatestUpdated } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
@@ -75,21 +75,33 @@ type NewTopicAssistantTargetOptions = {
   excludedAssistantIds?: readonly string[]
 }
 
-// Reuse the assistant's latest *empty* placeholder topic instead of stacking a new one. The empty
-// topic only exists to surface the assistant in the classic-layout rail, so on repeated adds we reopen the
+// A topic is a reusable empty placeholder when it is structurally empty *and* not a deliberately
+// named one. Emptiness is read straight from `activeNodeId`: a fresh topic starts with no active node
+// and the first real message points it at one (the virtual root can never be the active node), so
+// `!activeNodeId` provably means "no conversation started". This is authoritative and migration-safe —
+// unlike an `updatedAt`-vs-`createdAt` timestamp proxy, which reads persisted / migrated rows as
+// "untouched" even when they already carry messages, and so would reopen a real conversation (#16434).
+// The name guard mirrors the agent-session `isUntitledPlaceholderSession`: it keeps a placeholder the
+// user manually renamed from being silently repurposed on the next "new topic".
+function isReusableEmptyTopic(topic: { activeNodeId?: string; name: string; isNameManuallyEdited?: boolean }): boolean {
+  return !topic.activeNodeId && !topic.name.trim() && !topic.isNameManuallyEdited
+}
+
+// Reuse the assistant's latest empty placeholder topic instead of stacking a new one. The empty topic
+// only exists to surface the assistant in the classic-layout rail, so on repeated adds we reopen the
 // existing placeholder rather than pile up blanks.
-//
-// Emptiness is detected via `isUntouchedSinceCreation` (updatedAt === createdAt), not a blank name:
-// with auto-naming off a chatted-in topic keeps a blank name forever, so a name test would reopen it
-// instead of starting a new conversation. See isUntouchedSinceCreation for the full rationale.
-function findReusableEmptyTopic<T extends { assistantId?: string; createdAt?: string; updatedAt?: string }>(
-  topics: readonly T[],
-  assistantId: string | undefined
-): T | undefined {
+function findReusableEmptyTopic<
+  T extends {
+    assistantId?: string
+    activeNodeId?: string
+    name: string
+    isNameManuallyEdited?: boolean
+    updatedAt?: string
+  }
+>(topics: readonly T[], assistantId: string | undefined): T | undefined {
   if (!assistantId) return undefined
-  return findLatestUpdated(
-    topics.filter((topic) => topic.assistantId === assistantId && isUntouchedSinceCreation(topic))
-  )
+  // `findLatestUpdated` only ranks the already-confirmed-empty matches; it never decides emptiness.
+  return findLatestUpdated(topics.filter((topic) => topic.assistantId === assistantId && isReusableEmptyTopic(topic)))
 }
 
 function mergeReusableTopicCandidates(apiTopics: readonly ApiTopic[], visibleTopic?: Topic): Topic[] {
@@ -98,7 +110,9 @@ function mergeReusableTopicCandidates(apiTopics: readonly ApiTopic[], visibleTop
   for (const topic of apiTopics) {
     byId.set(topic.id, mapApiTopicToRendererTopic(topic))
   }
-  if (visibleTopic?.id && !visibleTopic.name.trim()) {
+  // The in-memory active topic may be a just-created placeholder not yet in the persisted source;
+  // include it (only while still empty) so it is reusable before the topic list refetches.
+  if (visibleTopic?.id && isReusableEmptyTopic(visibleTopic)) {
     byId.set(visibleTopic.id, visibleTopic)
   }
 
