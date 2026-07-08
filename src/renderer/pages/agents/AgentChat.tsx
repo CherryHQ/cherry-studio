@@ -381,7 +381,7 @@ const AgentChatSessionFrame = ({
   const isEmptyConversation =
     !runtime.isLoading && !runtime.isPending && !runtime.hasOlder && runtime.uiMessages.length === 0
   const canChangeWorkspace = Boolean(onWorkspaceChange && isEmptyConversation)
-  const canChangeModel = isEmptyConversation
+  const canChangeModel = isEmptyConversation || activeAgent?.model === null
 
   useEffect(() => {
     if (!locateMessageId) {

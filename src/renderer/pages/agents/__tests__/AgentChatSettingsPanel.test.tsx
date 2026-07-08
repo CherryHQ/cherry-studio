@@ -406,6 +406,26 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'false')
   })
 
+  it('keeps the model selector editable after messages are present when the agent has no model', () => {
+    partsByMessageIdMock.value = {
+      'message-1': [{ type: 'text', text: 'hello' }]
+    }
+    activeAgentMock.value = { id: 'agent-1', model: null }
+
+    renderAgentChat({
+      activeSession: {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspaceId: 'workspace-1',
+        workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
+      } as any,
+      onSessionWorkspaceChange: vi.fn()
+    })
+
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-workspace', 'false')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-can-change-model', 'true')
+  })
+
   it('replaces the agent inputbar with AskUserQuestionComposer for pending requests', () => {
     partsByMessageIdMock.value = {
       'message-1': [

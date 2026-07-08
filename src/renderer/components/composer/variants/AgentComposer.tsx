@@ -48,7 +48,7 @@ import { cn } from '@renderer/utils/style'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { LocalSkill } from '@shared/types/skill'
 import {
   Bot,
@@ -183,7 +183,7 @@ const AgentComposerRoot = ({
   const { session: loadedSession } = useSession(sessionOverride ? null : sessionId)
   const session = sessionOverride ?? loadedSession
   const { agent } = useAgent(agentId)
-  const { model: sessionModel } = useModelById((agent?.model ?? '') as UniqueModelId)
+  const { model: sessionModel } = useModelById(agent?.model)
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
   const handleNewSessionShortcut = useCallback(() => {
     void onCreateEmptySession?.()
