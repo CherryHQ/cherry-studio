@@ -32,6 +32,7 @@ const TOKEN_POPOVER_CLOSE_DELAY_MS = 160
 type TokenPopoverOpenReason = 'keyboard' | 'pointer'
 const tokenPreviewHeaderClassName =
   'flex h-20 items-center justify-center border-border-subtle border-b bg-[repeating-linear-gradient(135deg,var(--color-border-subtle)_0,var(--color-border-subtle)_1px,transparent_1px,transparent_8px)] bg-muted'
+const pastedTextPreviewCache = new Map<string, Promise<string>>()
 
 const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   skill: <Zap className={tokenIconClassName} />,
@@ -196,6 +197,18 @@ function shouldShowFileTokenPathTooltip(file: ComposerAttachment | undefined) {
   return Boolean(file?.path) && !shouldShowFileTokenPopover(file)
 }
 
+function readPastedTextPreview(path: string) {
+  let request = pastedTextPreviewCache.get(path)
+  if (!request) {
+    request = window.api.fs.readText(path).catch((error) => {
+      pastedTextPreviewCache.delete(path)
+      throw error
+    })
+    pastedTextPreviewCache.set(path, request)
+  }
+  return request
+}
+
 function TokenPathTooltipContent({ path, sizeLabel }: { path: string; sizeLabel?: string }) {
   return (
     <span className="inline-flex max-w-full items-start gap-2.5 text-left" data-token-path-tooltip="">
@@ -224,8 +237,7 @@ function PastedTextTokenPreviewCard({
     if (!file?.path) return
 
     let disposed = false
-    void window.api.fs
-      .readText(file.path)
+    void readPastedTextPreview(file.path)
       .then((text) => {
         if (!disposed) setPreviewText(text)
       })

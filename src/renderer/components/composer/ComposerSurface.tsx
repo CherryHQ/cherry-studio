@@ -1,6 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
+import { getPathBasename } from '@renderer/components/chat/panes/artifactPanePath'
 import type {
   QuickPanelInputAdapter,
   QuickPanelInputEvent,
@@ -238,16 +239,11 @@ function insertComposerTokenAtCursor(
   chain.insertContent(' ').run()
 }
 
-function getPathBaseName(path: string) {
-  const normalized = path.replace(/[\\/]+$/, '')
-  return normalized.split(/[\\/]/).pop() || path
-}
-
 function createFolderComposerToken(path: string): ComposerDraftToken {
   return {
     id: createComposerSecureRandomId('folder-token'),
     kind: 'folder',
-    label: getPathBaseName(path),
+    label: getPathBasename(path),
     description: path,
     promptText: path
   }
