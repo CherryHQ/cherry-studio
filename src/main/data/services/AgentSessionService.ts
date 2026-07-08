@@ -169,6 +169,27 @@ export class AgentSessionService {
     return rowToSession(row)
   }
 
+  /**
+   * The single most-recently-updated session, or `null` when there are none.
+   *
+   * First-entry restore resumes the last-touched session. It cannot read the
+   * regular first page of `listByCursor` for this: that pages by `orderKey ASC`
+   * (creation/manual order, newest-created first), so a recently-active session
+   * created before the newest page is off it. This `updatedAt DESC LIMIT 1`
+   * proves global latest independent of the rail's ordering.
+   */
+  getLatestUpdated(): AgentSessionEntity | null {
+    const db = application.get('DbService').getDb()
+    const [row] = db
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .limit(1)
+      .all()
+    return row ? rowToSession(row) : null
+  }
+
   ensureTraceId(sessionId: string): string {
     return application.get('DbService').withWriteTx((tx) => {
       const [row] = tx

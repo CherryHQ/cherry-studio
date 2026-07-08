@@ -62,6 +62,26 @@ export const useSession = (sessionId: string | null) => {
   return { session, error, isLoading, mutate }
 }
 
+/**
+ * The globally most-recently-updated session, for first-entry restore.
+ *
+ * Backed by a dedicated `updatedAt DESC LIMIT 1` server query, so it resumes the
+ * last-touched session without waiting for the full session history to paginate
+ * in and without depending on the `orderKey`-paged `/agent-sessions` list order.
+ * `latestSession` is `undefined` while loading and when there are no sessions;
+ * gate the restore decision on `isLoading`.
+ */
+export function useLatestSession(opts?: { enabled?: boolean }) {
+  const { data, isLoading, refetch, mutate } = useQuery('/agent-sessions/latest', { enabled: opts?.enabled })
+
+  return {
+    latestSession: data?.session ?? undefined,
+    isLoading,
+    refetch,
+    mutate
+  }
+}
+
 export interface UseActiveSessionOptions {
   /** External source of truth for the active session id (e.g. URL search). */
   activeSessionId: string | null
@@ -143,7 +163,7 @@ export const useSessions = (
   }, [hasMore, isLoadingMore, loadNext])
 
   const { trigger: createTrigger } = useMutation('POST', '/agent-sessions', {
-    refresh: ['/agent-sessions', '/agent-workspaces']
+    refresh: ['/agent-sessions', '/agent-sessions/latest', '/agent-workspaces']
   })
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
@@ -176,10 +196,11 @@ export const useSessions = (
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId', {
-    refresh: ['/agent-sessions']
+    // Refresh `/agent-sessions/latest` so first-entry restore never resumes a just-deleted session.
+    refresh: ['/agent-sessions', '/agent-sessions/latest']
   })
   const { trigger: deleteManyTrigger } = useMutation('DELETE', '/agent-sessions', {
-    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
+    refresh: ['/agent-sessions', '/agent-sessions/latest', '/agent-workspaces', '/pins', '/agent-channels']
   })
   const deleteSession = useCallback(
     async (id: string): Promise<boolean> => {

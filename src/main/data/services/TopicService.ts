@@ -168,6 +168,30 @@ export class TopicService {
     return rowToTopic(row)
   }
 
+  /**
+   * The single most-recently-updated non-deleted topic across all assistants, or
+   * `null` when the library is empty.
+   *
+   * First-entry restore resumes the last-touched conversation. It cannot read the
+   * regular first page of `listByCursor` for this: that page is pinned-first then
+   * unpinned-by-`updatedAt`, so with ≥200 pinned topics the globally latest
+   * unpinned topic never lands on it. This `updatedAt DESC LIMIT 1` proves global
+   * latest independent of how the rail happens to page.
+   */
+  getLatestUpdated(): Topic | null {
+    const db = application.get('DbService').getDb()
+
+    const [row] = db
+      .select()
+      .from(topicTable)
+      .where(isNull(topicTable.deletedAt))
+      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .limit(1)
+      .all()
+
+    return row ? rowToTopic(row) : null
+  }
+
   ensureTraceId(topicId: string): string {
     return application.get('DbService').withWriteTx((tx) => {
       const [row] = tx

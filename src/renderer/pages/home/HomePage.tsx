@@ -29,7 +29,13 @@ import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } fr
 import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
-import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
+import {
+  mapApiTopicToRendererTopic,
+  useActiveTopic,
+  useLatestTopic,
+  useTopicById,
+  useTopicMutations
+} from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
@@ -154,14 +160,13 @@ const HomePage: FC = () => {
   // Shared full-topics source for classic history selection and persisted empty-topic reuse.
   // Modern layout also creates real empty topics now, so it needs the same candidates.
   const assistantTopicsSource = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
-  const { topics: allTopics, isLoading: isTopicsFirstPageLoading } = assistantTopicsSource
-  // First-entry selection wants the most-recently-updated topic. The server pages topics pinned-first
-  // (`pin.orderKey ASC`) then unpinned by `updatedAt DESC`, so the first page already contains the
-  // global latest unless there are ≥200 pinned topics. Gate on the first page landing, not on full
-  // pagination, so a large topic history never blocks the initial paint. Accepted tail case: with
-  // ≥200 pinned topics the first page never reaches the unpinned segment, so a most-recently-updated
-  // unpinned topic won't be the one restored.
-  const isTopicListFirstPageReady = isMessageOnlyView || !isTopicsFirstPageLoading
+  const { topics: allTopics } = assistantTopicsSource
+  // First-entry selection resumes the most-recently-updated topic. A dedicated `updatedAt DESC LIMIT 1`
+  // query proves the global latest, so it neither waits for the full topic history to paginate in nor
+  // depends on the pinned-first `/topics` list order (which would miss the latest unpinned topic when
+  // ≥200 pinned topics fill the first page).
+  const { latestTopic, isLoading: isLatestTopicLoading } = useLatestTopic({ enabled: !isMessageOnlyView })
+  const isLatestTopicReady = isMessageOnlyView || !isLatestTopicLoading
   // Detached windows are single-topic: no topic list, so no sidebar at all.
   const isWindowFrame = useWindowFrame().mode === 'window'
   const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar && !autoCollapsedResourceList
@@ -551,19 +556,16 @@ const HomePage: FC = () => {
     if (!shouldAutoCreateTopic || initialTopicStartStateRef.current.firstLaunchStarted || state?.topic) return
     if (activeTopic || isActiveTopicLoading) return
     if (!isAssistantListResolved) return
-    if (!isTopicListFirstPageReady) return
+    if (!isLatestTopicReady) return
 
     initialTopicStartStateRef.current.firstLaunchStarted = true
 
-    // Both layouts resume the most-recently-updated topic on entry; only a genuinely empty library
-    // falls through to creating a blank. A deep link that pins an assistant (`routeAssistantId`)
+    // Both layouts resume the globally most-recently-updated topic on entry; only a genuinely empty
+    // library falls through to creating a blank. A deep link that pins an assistant (`routeAssistantId`)
     // skips resume and opens a fresh topic for that assistant instead.
-    if (!routeAssistantId) {
-      const latestTopic = findLatestUpdated(allTopics)
-      if (latestTopic) {
-        setActiveTopic(mapApiTopicToRendererTopic(latestTopic))
-        return
-      }
+    if (!routeAssistantId && latestTopic) {
+      setActiveTopic(mapApiTopicToRendererTopic(latestTopic))
+      return
     }
 
     void createAndActivateEmptyTopic(routeAssistantId ? { assistantId: routeAssistantId } : undefined).then((topic) => {
@@ -571,11 +573,11 @@ const HomePage: FC = () => {
     })
   }, [
     activeTopic,
-    allTopics,
     createAndActivateEmptyTopic,
     isActiveTopicLoading,
     isAssistantListResolved,
-    isTopicListFirstPageReady,
+    isLatestTopicReady,
+    latestTopic,
     routeAssistantId,
     setActiveTopic,
     shouldAutoCreateTopic,

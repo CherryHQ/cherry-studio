@@ -107,6 +107,11 @@ export interface DeleteTopicsResult {
   deletedCount: number
 }
 
+/** Response for `GET /topics/latest` — the globally most-recently-updated topic, or `null` when empty. */
+export interface LatestTopicResponse {
+  topic: Topic | null
+}
+
 const DeleteTopicsIdsQueryValueSchema = z
   .string()
   .transform((value) =>
@@ -170,6 +175,22 @@ export type TopicSchemas = {
     DELETE: {
       query: DeleteTopicsQuery
       response: DeleteTopicsResult
+    }
+  }
+
+  /**
+   * Most-recently-updated topic across all assistants.
+   *
+   * First-entry restore reads this to resume the last-touched conversation.
+   * Declared before `/topics/:id` and matched exactly by the server router, so
+   * `latest` is never mistaken for a topic id. Proves global latest via
+   * `updatedAt DESC LIMIT 1`, unlike the pinned-first `/topics` first page.
+   *
+   * @example GET /topics/latest
+   */
+  '/topics/latest': {
+    GET: {
+      response: LatestTopicResponse
     }
   }
 

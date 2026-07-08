@@ -64,6 +64,10 @@ const homeMocks = vi.hoisted(() => ({
   isTopicsFirstPageLoading: false,
   isTopicsLoadingAll: false,
   isTopicsFullyLoaded: true,
+  isLatestTopicLoading: false,
+  // `undefined` → derive the latest from `classicLayoutTopics`; `null` → empty; a topic → that exact topic
+  // (used to prove first-entry restore reads the dedicated latest query, not the paged list).
+  latestTopicOverride: undefined as Topic | null | undefined,
   assistants: [{ id: 'assistant-default' }] as Array<{ id: string; name?: string }>,
   assistantsError: undefined as Error | undefined,
   assistantsLoaded: true,
@@ -296,9 +300,19 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
 
 vi.mock('@renderer/hooks/useTopic', async () => {
   const React = await import('react')
+  const { findLatestUpdated } = await import('@renderer/utils/resourceEntity')
 
   return {
     mapApiTopicToRendererTopic: (topic: Topic) => topic,
+    useLatestTopic: (options: { enabled?: boolean } = {}) => {
+      const derived = findLatestUpdated(homeMocks.classicLayoutTopics) as Topic | undefined
+      const latest =
+        homeMocks.latestTopicOverride === undefined ? derived : (homeMocks.latestTopicOverride ?? undefined)
+      return {
+        latestTopic: options.enabled === false ? undefined : latest,
+        isLoading: homeMocks.isLatestTopicLoading
+      }
+    },
     useTopicMutations: () => ({
       createTopic: homeMocks.createTopic,
       refreshTopics: homeMocks.refreshTopics
@@ -689,6 +703,8 @@ describe('HomePage', () => {
     homeMocks.isTopicsFirstPageLoading = false
     homeMocks.isTopicsLoadingAll = false
     homeMocks.isTopicsFullyLoaded = true
+    homeMocks.isLatestTopicLoading = false
+    homeMocks.latestTopicOverride = undefined
     homeMocks.assistantsError = undefined
     homeMocks.assistantsLoaded = true
     homeMocks.assistantsLoading = false
@@ -1027,11 +1043,11 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
-  it('resumes the latest topic in modern layout as soon as the first page lands, without waiting for full history', async () => {
+  it('resumes the latest topic in modern layout from the dedicated latest query, without waiting for full history', async () => {
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
-    // First page is in, but the full history is still paginating in the background.
-    homeMocks.isTopicsFirstPageLoading = false
+    // The paged history is still loading in the background; the dedicated latest query has resolved.
+    homeMocks.isTopicsFirstPageLoading = true
     homeMocks.isTopicsLoadingAll = true
     homeMocks.isTopicsFullyLoaded = false
     homeMocks.classicLayoutTopics = [
@@ -1045,6 +1061,20 @@ describe('HomePage', () => {
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
   })
 
+  it('restores the topic reported by the latest query even when it is outside the loaded first page', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    // The loaded page holds only other topics; the dedicated latest query surfaces the true latest,
+    // proving first-entry restore reads the query, not `findLatestUpdated` over the paged list.
+    homeMocks.classicLayoutTopics = [{ ...historyTopic, id: 'topic-on-page', updatedAt: '2026-01-01T00:00:00.000Z' }]
+    homeMocks.latestTopicOverride = { ...historyTopic, id: 'topic-off-page', updatedAt: '2026-01-09T00:00:00.000Z' }
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-off-page'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
   it('creates an empty topic on modern first entry only when the topic library is empty', async () => {
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
@@ -1055,12 +1085,10 @@ describe('HomePage', () => {
     await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledTimes(1))
   })
 
-  it('does not create a topic on modern first entry while the first page is still loading', async () => {
+  it('does not create a topic on modern first entry while the latest query is still loading', async () => {
     homeMocks.locationState = undefined
     homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
-    homeMocks.isTopicsFirstPageLoading = true
-    homeMocks.isTopicsLoadingAll = true
-    homeMocks.isTopicsFullyLoaded = false
+    homeMocks.isLatestTopicLoading = true
     homeMocks.classicLayoutTopics = []
 
     render(<HomePage />)

@@ -268,6 +268,26 @@ export function useTopicById(topicId: string | undefined) {
 }
 
 /**
+ * The globally most-recently-updated topic, for first-entry restore.
+ *
+ * Backed by a dedicated `updatedAt DESC LIMIT 1` server query, so it resumes the
+ * last-touched conversation without waiting for the full topic history to
+ * paginate in and without depending on the pinned-first `/topics` list order.
+ * `latestTopic` is `undefined` while loading and when the library is empty;
+ * gate the restore decision on `isLoading`.
+ */
+export function useLatestTopic(opts?: { enabled?: boolean }) {
+  const { data, isLoading, refetch, mutate } = useQuery('/topics/latest', { enabled: opts?.enabled })
+
+  return {
+    latestTopic: data?.topic ?? undefined,
+    isLoading,
+    refetch,
+    mutate
+  }
+}
+
+/**
  * Topic mutations (create / update / delete) backed by DataApi.
  */
 export function useTopicMutations() {
@@ -275,21 +295,22 @@ export function useTopicMutations() {
   const closeConversationTabs = useCloseConversationTabs()
 
   const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/topics', {
-    refresh: ['/topics']
+    refresh: ['/topics', '/topics/latest']
   })
   const { trigger: updateTrigger, isLoading: isUpdating } = useMutation('PATCH', '/topics/:id', {
     refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
   })
   const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id', {
-    // After delete, only invalidate the list — refreshing `/topics/:id`
-    // would trigger a fetch that 404s and caches an error in SWR.
-    refresh: ['/topics']
+    // After delete, only invalidate the list + latest — refreshing `/topics/:id`
+    // would trigger a fetch that 404s and caches an error in SWR. Refreshing
+    // `/topics/latest` keeps first-entry restore from resuming a just-deleted topic.
+    refresh: ['/topics', '/topics/latest']
   })
   const { trigger: deleteManyTrigger, isLoading: isDeletingMany } = useMutation('DELETE', '/topics', {
-    refresh: ['/topics', '/pins']
+    refresh: ['/topics', '/topics/latest', '/pins']
   })
   const { trigger: deleteByAssistantTrigger } = useMutation('DELETE', '/assistants/:assistantId/topics', {
-    refresh: ['/topics', '/pins']
+    refresh: ['/topics', '/topics/latest', '/pins']
   })
 
   const refreshTopics = useCallback(() => invalidate('/topics'), [invalidate])

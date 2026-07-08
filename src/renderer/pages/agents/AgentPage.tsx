@@ -23,7 +23,7 @@ import {
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgent, useAgents } from '@renderer/hooks/agent/useAgent'
-import { useActiveSession, useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useActiveSession, useLatestSession, useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import {
@@ -172,14 +172,13 @@ const AgentPage = () => {
   // Shared full-list source for the session UI and the composer reuse path. Reuse must read this
   // upper-layer data instead of issuing a second ad-hoc full pagination request.
   const agentSessionsSource = useAgentSessionsSource({ enabled: !isMessageOnlyView })
-  const { sessions: agentSessions, isLoading: isAgentSessionsFirstPageLoading = false } = agentSessionsSource
-  // First-entry selection wants the most-recently-updated session. The server pages sessions by
-  // `orderKey ASC` with new sessions inserted first (position 'first'), so the first page holds the
-  // newest-created sessions — which, for normal use, is where a recently-active session lives. Gate on
-  // the first page arriving, not on full pagination, so a large history never blocks the first paint.
-  // Accepted tail case: with >200 sessions, a recently-active session created before the newest 200 is
-  // off the first page, so it won't be the one restored.
-  const isAgentSessionsFirstPageReady = !isAgentSessionsFirstPageLoading
+  const { sessions: agentSessions } = agentSessionsSource
+  // First-entry selection resumes the most-recently-updated session. A dedicated `updatedAt DESC LIMIT 1`
+  // query proves the global latest, so it neither waits for the full session history to paginate in nor
+  // depends on the `orderKey`-paged `/agent-sessions` list order (which holds the newest-created, not the
+  // most-recently-active, sessions on its first page).
+  const { latestSession, isLoading: isLatestSessionLoading } = useLatestSession({ enabled: !isMessageOnlyView })
+  const isLatestSessionReady = isMessageOnlyView || !isLatestSessionLoading
   const isWindowFrame = useWindowFrame().mode === 'window'
   // Detached windows are single-conversation: no session list, so no sidebar at all.
   const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar && !autoCollapsedResourceList
@@ -745,11 +744,10 @@ const AgentPage = () => {
       return
     }
 
-    // Resume the most-recently-updated session as soon as the first page is in — both layouts, so
-    // switching layout never changes what you land on. Only a genuinely empty list falls through.
-    if (!isAgentSessionsFirstPageReady) return
+    // Resume the globally most-recently-updated session — both layouts, so switching layout never
+    // changes what you land on. Only a genuinely empty list falls through.
+    if (!isLatestSessionReady) return
 
-    const latestSession = findLatestUpdated(agentSessions)
     if (latestSession) {
       initialEmptySessionEvaluatedRef.current = true
       setPendingLocateMessageId(undefined)
@@ -775,12 +773,12 @@ const AgentPage = () => {
     void createDefaultEmptySession()
   }, [
     activeSessionId,
-    agentSessions,
     agents,
     createDefaultEmptySession,
     isAgentsLoading,
-    isAgentSessionsFirstPageReady,
+    isLatestSessionReady,
     isMessageOnlyView,
+    latestSession,
     missingAgentSelection,
     setActiveSessionId
   ])

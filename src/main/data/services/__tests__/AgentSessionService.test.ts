@@ -125,6 +125,49 @@ describe('AgentSessionService', () => {
     expect(result[0]).not.toHaveProperty('workspace')
   })
 
+  describe('getLatestUpdated', () => {
+    it('returns the globally most-recently-updated session, independent of orderKey ordering', async () => {
+      const workspace = await createWorkspace('latest')
+      // `active-latest` has the largest orderKey (oldest-created → last under `orderKey ASC` paging) yet
+      // the highest updatedAt, so returning it proves the query ranks by updatedAt, not list position.
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'created-newest',
+          agentId: 'agent-session-test',
+          name: 'A',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          updatedAt: 100
+        },
+        {
+          id: 'mid',
+          agentId: 'agent-session-test',
+          name: 'B',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          updatedAt: 200
+        },
+        {
+          id: 'active-latest',
+          agentId: 'agent-session-test',
+          name: 'C',
+          workspaceId: workspace.id,
+          orderKey: 'a2',
+          updatedAt: 300
+        }
+      ])
+
+      const latest = agentSessionService.getLatestUpdated()
+      expect(latest?.id).toBe('active-latest')
+      // Fully hydrated (workspace joined), matching getById.
+      expect(latest?.workspace.id).toBe(workspace.id)
+    })
+
+    it('returns null when there are no sessions', () => {
+      expect(agentSessionService.getLatestUpdated()).toBeNull()
+    })
+  })
+
   it('binds a session to an explicit workspace', async () => {
     const workspace = await createWorkspace('explicit')
 
