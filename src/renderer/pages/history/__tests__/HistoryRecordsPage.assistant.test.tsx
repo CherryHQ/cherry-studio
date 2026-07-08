@@ -448,7 +448,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     const alphaRow = screen.getByText('Alpha topic').closest('[role="row"]') as HTMLElement
     const alphaCells = within(alphaRow).getAllByRole('cell')
     expect(within(alphaCells[1]).queryByText('A')).not.toBeInTheDocument()
-    expect(within(alphaCells[2]).getByText('A')).toBeInTheDocument()
+    expect(within(alphaCells[2]).getAllByText('A').length).toBeGreaterThan(0)
     expect(within(alphaCells[2]).getByText('Alpha assistant')).toBeInTheDocument()
     expect(screen.queryByTestId('history-open-button')).not.toBeInTheDocument()
 

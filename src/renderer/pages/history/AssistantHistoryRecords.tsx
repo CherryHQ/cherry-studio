@@ -3,9 +3,10 @@ import type {
   TopicActionContext,
   TopicExportMenuOptions
 } from '@renderer/components/chat/actions/topicContextMenuActions'
+import { renderAssistantEntityIcon } from '@renderer/components/chat/resourceList/base'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useMultiplePreferences } from '@renderer/data/hooks/usePreference'
+import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/hooks/chat/useTopicMenuActions'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
@@ -24,6 +25,7 @@ import { toast } from '@renderer/services/toast'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import { sortTopicsForDisplayGroups } from '@renderer/utils/chat/topicsHelpers'
+import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { Bot } from 'lucide-react'
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
@@ -65,6 +67,8 @@ const AssistantHistoryRecords = ({
 
   const { topics: rawTopics, isLoading: isTopicsLoading } = useTopics({ loadAll: true })
   const { assistants } = useAssistants()
+  const [assistantIconType] = usePreference('assistant.icon_type')
+  const [defaultModelId] = usePreference('chat.default_model_id')
   const [renamingTopics] = useCache('topic.renaming')
   const { notesPath } = useNotesSettings()
   const { updateTopic: patchTopic, deleteTopic: deleteTopicById, deleteTopics, batchUpdateTopics } = useTopicMutations()
@@ -363,7 +367,17 @@ const AssistantHistoryRecords = ({
       (topic.assistantId ? assistantById.get(topic.assistantId)?.name : undefined) ?? unlinkedAssistantLabel,
     renderAvatar: (topic) => {
       const assistant = topic.assistantId ? assistantById.get(topic.assistantId) : undefined
-      return assistant?.emoji ? <span aria-hidden>{assistant.emoji}</span> : <Bot size={14} />
+      return (
+        renderAssistantEntityIcon(
+          assistantIconType,
+          {
+            emoji: assistant?.emoji ?? DEFAULT_ASSISTANT_EMOJI,
+            modelId: assistant?.modelId ?? defaultModelId,
+            modelName: assistant?.modelName
+          },
+          defaultModelId
+        ) ?? <Bot size={14} />
+      )
     },
     rowHeight: 32,
     getSelectLabel: (topic) => `${t('common.select')} ${topic.name || t('chat.default.topic.name')}`,

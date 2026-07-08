@@ -15,7 +15,7 @@ const historyTableClassName = 'min-w-[760px] rounded-none border-0 bg-card shado
 export const historyTableGridClassName =
   'grid min-w-[760px] grid-cols-[44px_minmax(280px,2.5fr)_minmax(180px,1fr)_100px_84px]'
 const historyHeaderClassName =
-  'sticky top-0 z-10 border-border-muted border-b bg-card text-foreground-secondary text-xs leading-4'
+  'sticky top-0 z-10 border-border-muted border-b bg-card text-foreground-secondary text-sm leading-5'
 const historyHeaderCellClassName = 'flex h-8 min-w-0 items-center px-3 py-1.5 font-semibold'
 // The row itself paints no hover/selection fill: each cell paints its own `muted` layer instead. This keeps
 // the fixed action column's fill from stacking on top of a row-level fill (which, with alpha `muted`, read
@@ -485,7 +485,7 @@ export const HistoryRecordRow = ({
     </div>
     <div className={historyBodyCellClassName} role="cell">
       <RowFlex className="min-w-0 items-center gap-2">
-        <span className="flex size-5 shrink-0 items-center justify-center text-foreground text-sm leading-none">
+        <span className="flex size-6 shrink-0 items-center justify-center text-foreground text-sm leading-none">
           {avatar}
         </span>
         <span className="truncate text-foreground text-xs">{sourceLabel}</span>
