@@ -32,6 +32,7 @@ interface ElectronStubOptions {
 interface FsStubOptions {
   existsSyncImpl?: (p: string) => boolean
   accessSyncImpl?: (p: string, mode?: number) => void
+  statSyncImpl?: (p: string) => { isDirectory: () => boolean; isFile: () => boolean }
   cpSyncImpl?: (src: string, dst: string, opts?: unknown) => void
 }
 
@@ -107,13 +108,16 @@ function stubBootConfig(store: BootConfigStore = {}) {
 function stubFs(opts: FsStubOptions = {}) {
   const existsSync = vi.fn(opts.existsSyncImpl ?? (() => true))
   const accessSync = vi.fn(opts.accessSyncImpl ?? (() => undefined))
+  // isUsableDataDir() gates on statSync().isDirectory(); default to a directory.
+  const statSync = vi.fn(opts.statSyncImpl ?? (() => ({ isDirectory: () => true, isFile: () => false })))
   cpSyncMock.mockImplementation(opts.cpSyncImpl ?? (() => undefined))
   vi.doMock('node:fs', () => {
     const fsMock = {
       existsSync,
       accessSync,
+      statSync,
       cpSync: cpSyncMock,
-      constants: { W_OK: 2 },
+      constants: { R_OK: 4, W_OK: 2, X_OK: 1 },
       promises: {
         access: vi.fn(),
         readFile: vi.fn(),
@@ -208,6 +212,67 @@ describe('getNormalizedExecutablePath', () => {
   })
 })
 
+describe('isUsableDataDir', () => {
+  async function loadWithFs(opts: FsStubOptions = {}) {
+    stubConstants({ isLinux: false, isWin: false, isPortable: false })
+    stubElectron()
+    stubBootConfig()
+    stubFs(opts)
+    return (await loadModule()).isUsableDataDir
+  }
+
+  it('returns true for a directory that is readable, writable and searchable', async () => {
+    const isUsableDataDir = await loadWithFs() // default statSync → directory, accessSync → ok
+    expect(isUsableDataDir('/some/dir')).toBe(true)
+  })
+
+  it('requests read, write, and execute permission together', async () => {
+    let requestedMode: number | undefined
+    const isUsableDataDir = await loadWithFs({
+      accessSyncImpl: (_p, mode) => {
+        requestedMode = mode
+      }
+    })
+    expect(isUsableDataDir('/some/dir')).toBe(true)
+    // R_OK(4) | W_OK(2) | X_OK(1) = 7
+    expect(requestedMode).toBe(7)
+  })
+
+  it('returns false when the path is a file, not a directory', async () => {
+    const isUsableDataDir = await loadWithFs({
+      statSyncImpl: () => ({ isDirectory: () => false, isFile: () => true })
+    })
+    expect(isUsableDataDir('/some/file')).toBe(false)
+  })
+
+  it('returns false when the directory is not read-writable (accessSync throws)', async () => {
+    const isUsableDataDir = await loadWithFs({
+      accessSyncImpl: () => {
+        throw new Error('EACCES')
+      }
+    })
+    expect(isUsableDataDir('/readonly/dir')).toBe(false)
+  })
+
+  it('returns false when the directory lacks search (X_OK) permission', async () => {
+    const isUsableDataDir = await loadWithFs({
+      accessSyncImpl: (_p, mode) => {
+        if (typeof mode === 'number' && mode & 1 /* X_OK */) throw new Error('EACCES')
+      }
+    })
+    expect(isUsableDataDir('/no-exec/dir')).toBe(false)
+  })
+
+  it('returns false when the path does not exist (statSync throws)', async () => {
+    const isUsableDataDir = await loadWithFs({
+      statSyncImpl: () => {
+        throw new Error('ENOENT: no such file or directory')
+      }
+    })
+    expect(isUsableDataDir('/missing')).toBe(false)
+  })
+})
+
 describe('resolveUserDataLocation', () => {
   describe('normal resolution (no pending relocation)', () => {
     it('app.isPackaged=false: appends Dev suffix and ignores BootConfig', async () => {
@@ -259,11 +324,25 @@ describe('resolveUserDataLocation', () => {
       expect(setPathMock).toHaveBeenCalledTimes(1)
     })
 
-    it('BootConfig has matching exe but path is invalid (existsSync false): falls through, no setPath', async () => {
+    it('BootConfig has matching exe but path is missing (statSync throws): falls through, no setPath', async () => {
       stubConstants({ isLinux: false, isWin: false, isPortable: false })
       stubElectron({ exePath: '/mock/exe' })
       stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
-      stubFs({ existsSyncImpl: () => false })
+      stubFs({
+        statSyncImpl: () => {
+          throw new Error('ENOENT: no such file or directory')
+        }
+      })
+      const { resolveUserDataLocation } = await loadModule()
+      resolveUserDataLocation()
+      expect(setPathMock).not.toHaveBeenCalled()
+    })
+
+    it('BootConfig has matching exe but path is a file, not a directory: falls through, no setPath', async () => {
+      stubConstants({ isLinux: false, isWin: false, isPortable: false })
+      stubElectron({ exePath: '/mock/exe' })
+      stubBootConfig({ 'app.user_data_path': { '/mock/exe': '/custom/data' } })
+      stubFs({ statSyncImpl: () => ({ isDirectory: () => false, isFile: () => true }) })
       const { resolveUserDataLocation } = await loadModule()
       resolveUserDataLocation()
       expect(setPathMock).not.toHaveBeenCalled()
