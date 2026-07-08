@@ -11,6 +11,7 @@ import type { AddNewTopicPayload } from '../types'
 import { Topics } from './components/Topics'
 
 interface Props {
+  activeDraftAssistantId?: string | null
   activeTopic?: Topic
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
@@ -26,6 +27,7 @@ interface Props {
 }
 
 const HomeTabs: FC<Props> = ({
+  activeDraftAssistantId,
   activeTopic,
   onActiveAssistantDeleted,
   onAddAssistant,
@@ -43,6 +45,7 @@ const HomeTabs: FC<Props> = ({
     <Container style={style} className="home-tabs">
       <TabContent className="home-tabs-content">
         <Topics
+          activeDraftAssistantId={activeDraftAssistantId}
           activeTopic={activeTopic}
           onActiveAssistantDeleted={onActiveAssistantDeleted}
           onAddAssistant={onAddAssistant}

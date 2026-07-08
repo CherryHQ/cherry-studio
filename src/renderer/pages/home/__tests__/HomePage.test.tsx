@@ -599,12 +599,14 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     activeAssistantId,
     onAddAssistant,
     onActiveAssistantDeleted,
+    onCreateTopicAfterClear,
     onSelectedAssistantClick,
     resourceMenuItems
   }: {
     activeAssistantId?: string | null
     onAddAssistant?: () => void | Promise<void>
     onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
+    onCreateTopicAfterClear?: (assistantId: string) => void | Promise<void>
     onSelectedAssistantClick?: () => void | Promise<void>
     resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => (
@@ -614,6 +616,9 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
       </button>
       <button type="button" onClick={() => void onActiveAssistantDeleted?.(activeAssistantId ?? '')}>
         Delete active assistant
+      </button>
+      <button type="button" onClick={() => void onCreateTopicAfterClear?.('assistant-b')}>
+        Clear assistant-b topics
       </button>
       <button type="button" onClick={() => void onSelectedAssistantClick?.()}>
         Toggle selected assistant pane
@@ -998,6 +1003,23 @@ describe('HomePage', () => {
     expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('assistant-b')
     expect(screen.queryByTestId('draft-composer')).not.toBeInTheDocument()
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('does not create a fresh topic when clearing a background assistant in classic layout', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.classicLayoutTopics = [
+      { ...historyTopic, id: 'topic-a', assistantId: 'assistant-a', updatedAt: '2026-01-05T00:00:00.000Z' },
+      { ...historyTopic, id: 'topic-b', assistantId: 'assistant-b', updatedAt: '2026-01-01T00:00:00.000Z' }
+    ]
+
+    render(<HomePage />)
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-a'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear assistant-b topics' }))
+
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-a')
   })
 
   it('excludes the deleted active assistant when falling back to a draft after deletion', async () => {

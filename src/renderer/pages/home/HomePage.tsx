@@ -823,7 +823,9 @@ const HomePage: FC = () => {
         }}
         onOpenHistoryRecords={openHistoryRecords}
         onSelectTopic={setActiveTopicAndDiscardDraft}
-        onCreateTopicAfterClear={(assistantId) => createAndActivateFreshTopic({ assistantId })}
+        onCreateTopicAfterClear={(assistantId) =>
+          visibleAssistantId === assistantId ? createAndActivateFreshTopic({ assistantId }) : undefined
+        }
         onSelectedAssistantClick={() => setTopicPaneOpen(!topicPaneOpen)}
         onStartDraftAssistant={(assistantId) => startDraftAssistantSelection({ assistantId })}
         resourceMenuItems={resourceMenuItems}
@@ -831,6 +833,7 @@ const HomePage: FC = () => {
       />
     ) : (
       <HomeTabs
+        activeDraftAssistantId={draftAssistantSelectionSnapshot?.assistantId ?? null}
         activeTopic={visibleTopic}
         onActiveAssistantDeleted={handleActiveAssistantDeleted}
         onAddAssistant={() => {
@@ -855,6 +858,7 @@ const HomePage: FC = () => {
           label: t('chat.topics.title'),
           node: (
             <Topics
+              activeDraftAssistantId={draftAssistantSelectionSnapshot?.assistantId ?? null}
               presentation="right-panel"
               activeTopic={visibleTopic}
               assistantIdFilter={visibleAssistantId ?? null}

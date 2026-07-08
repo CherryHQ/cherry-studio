@@ -1,4 +1,6 @@
+import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { getSidebarApp, getSidebarAppTabInstanceKey, type SidebarAppId, tabBelongsToApp } from '@renderer/utils/sidebar'
+import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import { useCallback } from 'react'
 
 import { useOptionalTabsContext } from './useTabsContext'
@@ -16,17 +18,37 @@ export function useCloseConversationTabs() {
       if (!app?.instanceKey) return
 
       const keySet = new Set(keys)
-      const tabIds: string[] = []
+      const appTabs: typeof tabsContext.tabs = []
+      const matchingTabs: typeof tabsContext.tabs = []
       for (const tab of tabsContext.tabs) {
         if (tab.type !== 'route' || !tabBelongsToApp(app, tab.url)) continue
 
+        appTabs.push(tab)
         const key = getSidebarAppTabInstanceKey(app, tab)
         if (key && keySet.has(key)) {
-          tabIds.push(tab.id)
+          matchingTabs.push(tab)
         }
       }
+      if (matchingTabs.length === 0) return
 
-      tabsContext.closeTabs(tabIds)
+      const activeMatchingTab = matchingTabs.find((tab) => tab.id === tabsContext.activeTabId)
+      if (activeMatchingTab || matchingTabs.length === appTabs.length) {
+        const fallbackTab = activeMatchingTab ?? matchingTabs[0]
+        tabsContext.updateTab(fallbackTab.id, {
+          url: app.routePrefix,
+          title: getDefaultRouteTitle(app.routePrefix),
+          icon: undefined,
+          metadata: clearTabInstanceMetadata(fallbackTab.metadata)
+        })
+
+        const remainingTabIds = matchingTabs.filter((tab) => tab.id !== fallbackTab.id).map((tab) => tab.id)
+        if (remainingTabIds.length > 0) {
+          tabsContext.closeTabs(remainingTabIds)
+        }
+        return
+      }
+
+      tabsContext.closeTabs(matchingTabs.map((tab) => tab.id))
     },
     [tabsContext]
   )

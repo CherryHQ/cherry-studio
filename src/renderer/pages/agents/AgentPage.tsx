@@ -721,6 +721,9 @@ const AgentPage = () => {
   // this is correct even before the session cache refetches.
   const handleActiveAgentDeleted = useCallback(
     (deletedAgentId: string) => {
+      if (lastUsedAgentId === deletedAgentId) {
+        setLastUsedAgentId(null)
+      }
       const nextSession = findLatestUpdated(
         classicLayoutSessions.filter((session) => session.agentId !== deletedAgentId)
       )
@@ -728,13 +731,34 @@ const AgentPage = () => {
         setActiveSessionAndDiscardDraft(nextSession.id, nextSession)
         return
       }
+      // No sessions remaining for other agents: start a draft (exclude the just-deleted agent).
+      closeResourceView()
       setPendingLocateMessageId(undefined)
-      setMissingAgentDraft(false)
-      setDraftSessionState(null)
       pendingSelectedSessionRef.current = null
-      setActiveSessionId(null)
+
+      const remainingAgents = agents.filter((agent) => agent.id !== deletedAgentId)
+      if (remainingAgents.length === 0) {
+        setDraftSessionState(null)
+        setActiveSessionId(null)
+        setMissingAgentDraft(true)
+        return
+      }
+
+      const rememberedAgent = remainingAgents.find((agent) => agent.id === lastUsedAgentId)
+      const defaultAgent = rememberedAgent ?? remainingAgents[0]
+      void startDraftSession({ agentId: defaultAgent.id })
     },
-    [classicLayoutSessions, setActiveSessionAndDiscardDraft, setActiveSessionId, setDraftSessionState]
+    [
+      agents,
+      classicLayoutSessions,
+      closeResourceView,
+      lastUsedAgentId,
+      setActiveSessionAndDiscardDraft,
+      setActiveSessionId,
+      setDraftSessionState,
+      setLastUsedAgentId,
+      startDraftSession
+    ]
   )
 
   const ensurePersistentSession = useCallback(
@@ -1006,6 +1030,7 @@ const AgentPage = () => {
       />
     ) : (
       <AgentSidePanel
+        activeDraftAgentId={visibleDraftSession?.agentId ?? null}
         activeSessionId={activeSessionId}
         onActiveAgentDeleted={handleActiveAgentDeleted}
         onAddAgent={() => {
@@ -1030,6 +1055,7 @@ const AgentPage = () => {
           label: t('agent.session.list.title'),
           node: (
             <Sessions
+              activeDraftAgentId={visibleDraftSession?.agentId ?? null}
               presentation="right-panel"
               activeSessionId={activeSessionId}
               agentIdFilter={activeResourceAgentId}

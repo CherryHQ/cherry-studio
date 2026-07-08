@@ -9,6 +9,7 @@ import Sessions from './components/Sessions'
 import type { DraftAgentSessionDefaults } from './types'
 
 interface AgentSidePanelProps {
+  activeDraftAgentId?: string | null
   activeSessionId: string | null
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
@@ -23,6 +24,7 @@ interface AgentSidePanelProps {
 }
 
 const AgentSidePanel = ({
+  activeDraftAgentId,
   activeSessionId,
   onActiveAgentDeleted,
   onAddAgent,
@@ -44,6 +46,7 @@ const AgentSidePanel = ({
       }}>
       <div className="flex flex-1 flex-col overflow-hidden">
         <Sessions
+          activeDraftAgentId={activeDraftAgentId}
           activeSessionId={activeSessionId}
           setActiveSessionId={setActiveSessionId}
           onActiveAgentDeleted={onActiveAgentDeleted}

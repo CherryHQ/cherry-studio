@@ -103,6 +103,7 @@ const TOPIC_ASSISTANT_TAG_SECTION_PREFIX = 'topic:section:assistant-tag:'
 const TOPIC_ASSISTANT_UNTAGGED_SECTION_ID = `${TOPIC_ASSISTANT_TAG_SECTION_PREFIX}untagged`
 
 interface Props {
+  activeDraftAssistantId?: string | null
   activeTopic?: Topic
   assistantIdFilter?: string | null
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
@@ -232,6 +233,7 @@ function AssistantGroupMoreMenu({
 }
 
 export function Topics({
+  activeDraftAssistantId,
   activeTopic,
   assistantIdFilter,
   onActiveAssistantDeleted,
@@ -523,10 +525,8 @@ export function Topics({
         return
       }
 
-      // No neighbour left: only the classic panel auto-creates a fresh topic for the scoped assistant.
-      if (isRightPanel && selectionList.length <= 1) {
-        await onNewTopic?.({ assistantId: assistantIdFilter ?? topic.assistantId ?? null })
-      }
+      // No neighbour left: start a draft for the same assistant.
+      await onNewTopic?.({ assistantId: assistantIdFilter ?? topic.assistantId ?? null })
     },
     [activeTopic?.id, assistantIdFilter, isRightPanel, onNewTopic, removeTopic, setActiveTopic, t, topics]
   )
@@ -776,9 +776,14 @@ export function Topics({
         )
         if (latestTargetTopicIds.size === 0) return
 
+        const shouldCreateFallbackTopic =
+          activeTopic?.assistantId === assistantId || activeDraftAssistantId === assistantId
+
         const result = await deleteTopicsByAssistantId(assistantId)
         await refreshTopics()
-        await onCreateTopicAfterClear?.({ assistantId })
+        if (shouldCreateFallbackTopic) {
+          await onCreateTopicAfterClear?.({ assistantId })
+        }
         toast.success(t('chat.topics.manage.delete.success', { count: result.deletedCount }))
       } catch (err) {
         logger.error('Failed to delete assistant topics', { assistantId, err })
@@ -788,7 +793,14 @@ export function Topics({
         setDeletingAssistantGroupId(null)
       }
     },
-    [deleteTopicsByAssistantId, onCreateTopicAfterClear, refreshTopics, t]
+    [
+      activeDraftAssistantId,
+      activeTopic?.assistantId,
+      deleteTopicsByAssistantId,
+      onCreateTopicAfterClear,
+      refreshTopics,
+      t
+    ]
   )
 
   const handleDeleteAssistant = useCallback(
@@ -811,7 +823,7 @@ export function Topics({
 
         const result = await deleteAssistant(assistantId, { deleteTopics: true })
         closeConversationTabs('assistants', result.deletedTopicIds ?? [])
-        if (activeTopic?.assistantId === assistantId) {
+        if (activeTopic?.assistantId === assistantId || activeDraftAssistantId === assistantId) {
           await onActiveAssistantDeleted?.(assistantId)
         }
 
@@ -827,6 +839,7 @@ export function Topics({
     },
     [
       activeTopic?.assistantId,
+      activeDraftAssistantId,
       closeConversationTabs,
       deleteAssistant,
       deletingAssistantId,

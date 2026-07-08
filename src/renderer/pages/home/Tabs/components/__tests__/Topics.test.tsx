@@ -501,6 +501,7 @@ function createAssistant(overrides: Record<string, unknown> = {}) {
 type OnNewTopicMock = Mock<(payload?: { assistantId?: string | null }) => void>
 
 function renderTopicList({
+  activeDraftAssistantId,
   activeTopic = createRendererTopic(),
   assistantIdFilter,
   onActiveAssistantDeleted,
@@ -514,6 +515,7 @@ function renderTopicList({
   revealRequest,
   resourceMenuItems
 }: {
+  activeDraftAssistantId?: string | null
   activeTopic?: Topic
   assistantIdFilter?: string | null
   onActiveAssistantDeleted?: ComponentProps<typeof Topics>['onActiveAssistantDeleted']
@@ -530,6 +532,7 @@ function renderTopicList({
   const setActiveTopic = vi.fn()
   const renderNode = (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) => (
     <Topics
+      activeDraftAssistantId={activeDraftAssistantId}
       activeTopic={nextActiveTopic}
       assistantIdFilter={assistantIdFilter}
       onActiveAssistantDeleted={onActiveAssistantDeleted}
@@ -2396,6 +2399,48 @@ describe('Topics', () => {
     expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1')
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
     expect(toast.success).toHaveBeenCalledWith('Deleted')
+  })
+
+  it('runs the active assistant delete fallback when the current draft uses that assistant', async () => {
+    const onActiveAssistantDeleted = vi.fn()
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+
+    renderTopicList({ activeDraftAssistantId: 'assistant-1', activeTopic: undefined, onActiveAssistantDeleted })
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    expect(assistantHeader).toBeInTheDocument()
+
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete Assistant' }))
+
+    await vi.waitFor(() => expect(assistantMutationMocks.deleteAssistant).toHaveBeenCalled())
+    expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1')
+  })
+
+  it("does not create a fallback topic when clearing a background assistant's topics", async () => {
+    const onCreateTopicAfterClear = vi.fn()
+    MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    topicDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({
+      deletedIds: ['topic-a', 'topic-b'],
+      deletedCount: 2
+    })
+
+    renderTopicList({
+      activeTopic: createRendererTopic({ id: 'topic-c', assistantId: 'assistant-2', name: 'Gamma topic' }),
+      onCreateTopicAfterClear
+    })
+
+    const assistantHeader = screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')
+    expect(assistantHeader).toBeInTheDocument()
+
+    fireEvent.click(within(assistantHeader as HTMLElement).getByRole('button', { name: 'More' }))
+    fireEvent.click(
+      within(assistantHeader as HTMLElement).getByRole('button', { name: 'Delete all assistant conversations' })
+    )
+
+    await vi.waitFor(() => expect(topicDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
+    await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalled())
+    expect(onCreateTopicAfterClear).not.toHaveBeenCalled()
   })
 
   it('blocks concurrent assistant group delete confirmations', async () => {

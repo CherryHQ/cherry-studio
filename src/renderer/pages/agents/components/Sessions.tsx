@@ -116,6 +116,7 @@ import {
 } from './workdirGroupActions'
 
 type SessionsBaseProps = {
+  activeDraftAgentId?: string | null
   agentIdFilter?: string | null
   onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
@@ -297,6 +298,7 @@ export function findLatestCreateSessionSeed(
 }
 
 const Sessions = ({
+  activeDraftAgentId,
   activeSessionId,
   agentIdFilter,
   onActiveAgentDeleted,
@@ -663,12 +665,7 @@ const Sessions = ({
         return
       }
 
-      if (!isRightPanel) {
-        setActiveSessionId(null)
-        return
-      }
-
-      // Classic layout scoped to a single agent and now empty: start a fresh draft session for it.
+      // Find the deleted session to start a draft for the same agent.
       const deletedSession =
         filteredGroupedSessions.find((session) => session.id === id) ??
         sessionItemsRef.current.find((session) => session.id === id)
@@ -698,16 +695,7 @@ const Sessions = ({
         setActiveSessionId(null)
       }
     },
-    [
-      activeSessionId,
-      agentIdFilter,
-      deleteSession,
-      filteredGroupedSessions,
-      isRightPanel,
-      onStartDraftSession,
-      setActiveSessionId,
-      t
-    ]
+    [activeSessionId, agentIdFilter, deleteSession, filteredGroupedSessions, onStartDraftSession, setActiveSessionId, t]
   )
 
   const handleRenameSession = useCallback(
@@ -1022,13 +1010,8 @@ const Sessions = ({
 
         const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
         closeConversationTabs('agents', result.deletedSessionIds ?? [])
-        if (currentActiveSession?.agentId === agentId) {
-          if (onActiveAgentDeleted) {
-            await onActiveAgentDeleted(agentId)
-          } else {
-            const remaining = sessionItemsRef.current.find((session) => session.agentId !== agentId)
-            setActiveSessionId(remaining?.id ?? null)
-          }
+        if (currentActiveSession?.agentId === agentId || activeDraftAgentId === agentId) {
+          await onActiveAgentDeleted?.(agentId)
         }
 
         await refetchAgents()
@@ -1044,13 +1027,13 @@ const Sessions = ({
     },
     [
       closeConversationTabs,
+      activeDraftAgentId,
       deleteAgent,
       deletingAgentId,
       onActiveAgentDeleted,
       refetchAgents,
       refetchWorkspaces,
       reload,
-      setActiveSessionId,
       t
     ]
   )
