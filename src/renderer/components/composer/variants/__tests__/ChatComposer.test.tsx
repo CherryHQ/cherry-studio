@@ -717,7 +717,9 @@ describe('ChatComposer', () => {
     const webSearchButton = within(leftControls).getByRole('button', { name: 'chat.input.web_search.label' })
 
     expect(reasoningButton).toHaveAttribute('data-active', 'true')
+    expect(reasoningButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(webSearchButton).toHaveAttribute('aria-pressed', 'false')
+    expect(webSearchButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
 
     fireEvent.click(reasoningButton)
     expect(mocks.unifiedPanelOpen).toHaveBeenCalledWith({
@@ -1065,6 +1067,7 @@ describe('ChatComposer', () => {
     const newTopicButton = within(leftControls).getByRole('button', { name: 'chat.conversation.new' })
     const modelButton = within(leftControls).getByRole('button', { name: /Model A/ })
     expect(newTopicButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(newTopicButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
     expect(
       within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })

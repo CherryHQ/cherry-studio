@@ -605,7 +605,7 @@ const AgentComposerQuickPanelShortcuts = ({
           className={cn(
             COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
             'disabled:pointer-events-none disabled:opacity-40',
-            reasoningLauncher?.active && 'bg-accent text-foreground [&_svg]:text-primary'
+            reasoningLauncher?.active && 'bg-accent'
           )}
           aria-label={reasoningLabel}
           disabled={reasoningDisabled}

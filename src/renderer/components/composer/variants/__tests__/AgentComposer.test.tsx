@@ -675,6 +675,7 @@ describe('AgentComposer', () => {
     const newSessionButton = within(leftControls).getByRole('button', { name: 'agent.session.new' })
     const modelButton = within(leftControls).getByRole('button', { name: /Claude Sonnet 4.5/ })
     expect(newSessionButton.compareDocumentPosition(modelButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(newSessionButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(within(leftControls).queryByRole('button', { name: 'tool menu' })).not.toBeInTheDocument()
     expect(
       within(screen.getByTestId('composer-send-accessory')).getByRole('button', { name: 'tool menu' })
@@ -762,7 +763,9 @@ describe('AgentComposer', () => {
     const agentButton = within(leftControls).getByRole('button', { name: /Agent/ })
 
     expect(reasoningButton.compareDocumentPosition(skillButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(reasoningButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
     expect(skillButton.compareDocumentPosition(agentButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(skillButton).toHaveClass('text-foreground/70!', 'hover:bg-accent/60', 'hover:text-foreground!')
 
     fireEvent.click(reasoningButton)
     expect(mocks.quickPanelOpen).toHaveBeenCalledWith({
@@ -826,7 +829,7 @@ describe('AgentComposer', () => {
       name: 'assistants.settings.reasoning_effort.label'
     })
     expect(reasoningButton).toHaveAttribute('data-active', 'true')
-    expect(reasoningButton).toHaveClass('bg-accent', 'text-foreground')
+    expect(reasoningButton).toHaveClass('bg-accent', 'data-[active=true]:text-primary!')
     expect(within(reasoningButton).getByTestId('thinking-active-icon')).toBeInTheDocument()
   })
 
