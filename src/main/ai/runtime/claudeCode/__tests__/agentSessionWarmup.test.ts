@@ -130,7 +130,14 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     )
 
     expect(request?.sdkModelId).toBe('model-2-api')
-    expect(request?.settings.env?.ANTHROPIC_MODEL).toBe('model-2-api')
+    // The whole route follows the override — the unset plan/small defaults must pin to the captured
+    // model too, not fall back to the agent's latest `provider-1::model-1`.
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'model-2-api',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'model-2-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'model-2-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'model-2-api'
+    })
   })
 
   it('uses the provider Anthropic endpoint directly when all selected models belong to that provider', async () => {

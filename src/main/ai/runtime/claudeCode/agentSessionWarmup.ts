@@ -104,8 +104,12 @@ async function resolveClaudeCodeRuntimeRoute(
     provider: primaryProvider
   }
   const opusRef = primaryRef
-  const sonnetRef = resolveRuntimeModelRef(agent.planModel ?? agent.model, primaryRef)
-  const haikuRef = resolveRuntimeModelRef(agent.smallModel ?? agent.model, primaryRef)
+  // Unset plan/small models fall back to `primaryRef` (the effective connection model), NOT `agent.model`:
+  // for a live turn the connection is pinned to the model captured at turn creation, and `agent.model` may
+  // already be a mid-window edit ahead of it. Defaulting to the primary keeps the whole route on the pinned
+  // model (consistent env values, no spurious gateway switch when the edit points at another provider).
+  const sonnetRef = resolveRuntimeModelRef(agent.planModel, primaryRef)
+  const haikuRef = resolveRuntimeModelRef(agent.smallModel, primaryRef)
   const modelRefs = [primaryRef, opusRef, sonnetRef, haikuRef]
 
   const geminiRef = modelRefs.find((ref) => ref.provider && isGeminiProvider(ref.provider))
