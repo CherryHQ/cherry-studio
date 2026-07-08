@@ -8,11 +8,12 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
  * that service). These routes act on shared service state, not the caller's window, so
  * they ignore `IpcContext`.
  *
- * Both routes are `output: z.void()` — the renderer only awaits success/failure (the
- * settings "check" flow), so the adapters await the service call (propagating errors)
- * and discard the WebSearchResponse. The service methods accept an optional
- * `httpOptions` second argument for in-process (abort-aware) callers; IPC callers never
- * pass it, so the adapters forward only the parsed request.
+ * The settings "check" routes are `output: z.void()` — the renderer only awaits
+ * success/failure, so those adapters await the service call (propagating errors) and
+ * discard the WebSearchResponse. Citation preview uses the same fetch service but
+ * returns the first result so the renderer can load page bodies on demand. The service
+ * methods accept an optional `httpOptions` second argument for in-process (abort-aware)
+ * callers; IPC callers never pass it, so the adapters forward only the parsed request.
  */
 export const webSearchHandlers: IpcHandlersFor<typeof webSearchRequestSchemas> = {
   'web_search.search_keywords': async (request) => {
@@ -20,5 +21,16 @@ export const webSearchHandlers: IpcHandlersFor<typeof webSearchRequestSchemas> =
   },
   'web_search.fetch_urls': async (request) => {
     await application.get('WebSearchService').fetchUrls(request)
+  },
+  'web_search.fetch_url_preview': async ({ url }) => {
+    const response = await application.get('WebSearchService').fetchUrls({ urls: [url] })
+    return (
+      response.results[0] ?? {
+        title: url,
+        url,
+        content: '',
+        sourceInput: url
+      }
+    )
   }
 }

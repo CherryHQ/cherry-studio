@@ -20,13 +20,22 @@ const mocks = vi.hoisted(() => ({
 }))
 
 const fetchMocks = vi.hoisted(() => ({
-  fetchWebContent: vi.fn(),
   fetchXOEmbed: vi.fn(),
   isXPostUrl: vi.fn()
 }))
 
+const ipcMocks = vi.hoisted(() => ({
+  request: vi.fn()
+}))
+
 vi.mock('../../MessageListProvider', () => ({
   useOptionalMessageListActions: () => mocks.messageListActions
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: ipcMocks.request
+  }
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -43,14 +52,12 @@ vi.mock('@cherrystudio/ui', () => ({
   Skeleton: () => <div />
 }))
 
-// Real SWR drives the web-content / oEmbed reads now (react-query is gone); mock the
-// fetch utilities so no network happens and we can drive degrade / dedup behavior.
+// Real SWR drives oEmbed reads now (react-query is gone); mock the fetch utilities
+// so no network happens.
 vi.mock('@renderer/utils/fetch', () => ({
-  fetchWebContent: fetchMocks.fetchWebContent,
   fetchXOEmbed: fetchMocks.fetchXOEmbed,
   isXPostUrl: fetchMocks.isXPostUrl,
-  noContent: 'No content found',
-  xOembedKey: (url: string) => `xOembed/${url}`
+  noContent: 'No content found'
 }))
 
 vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
@@ -62,6 +69,8 @@ vi.mock('@renderer/components/SelectionContextMenu', () => ({
 }))
 
 vi.mock('lucide-react', () => ({
+  ChevronDown: () => <span>expand</span>,
+  ChevronUp: () => <span>collapse</span>,
   Check: () => <span>check</span>,
   Copy: () => <span>copy</span>,
   FileSearch: () => <span>file</span>
@@ -83,10 +92,11 @@ describe('CitationsList', () => {
     vi.clearAllMocks()
     fetchMocks.isXPostUrl.mockReturnValue(false)
     fetchMocks.fetchXOEmbed.mockResolvedValue(null)
-    fetchMocks.fetchWebContent.mockResolvedValue({
+    ipcMocks.request.mockResolvedValue({
       title: 'Example',
       url: 'https://example.com',
-      content: 'web preview content'
+      content: 'web preview content',
+      sourceInput: 'https://example.com'
     })
     mocks.messageListActions = {
       openCitationsPanel: mocks.openCitationsPanel,
@@ -109,16 +119,16 @@ describe('CitationsList', () => {
     expect(mocks.openCitationsPanel).toHaveBeenCalledWith({ citations })
   })
 
-  it('lets the panel content fill the side panel body', async () => {
+  it('lets the panel content fill the side panel body', () => {
     const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
 
     render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, { wrapper })
 
     expect(screen.getByTestId('citations-scrollbar')).toHaveClass('min-h-0', 'flex-1')
-    await waitFor(() => expect(fetchMocks.fetchWebContent).toHaveBeenCalled())
+    expect(ipcMocks.request).not.toHaveBeenCalled()
   })
 
-  it('opens panel web citations through the supplied external URL action', async () => {
+  it('opens panel web citations through the supplied external URL action', () => {
     const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
     const openExternalUrl = vi.fn()
 
@@ -130,7 +140,7 @@ describe('CitationsList', () => {
 
     expect(openExternalUrl).toHaveBeenCalledTimes(1)
     expect(openExternalUrl).toHaveBeenCalledWith('https://example.com')
-    await waitFor(() => expect(fetchMocks.fetchWebContent).toHaveBeenCalled())
+    expect(ipcMocks.request).not.toHaveBeenCalled()
   })
 
   it('renders web citations without a url as non-links', () => {
@@ -143,8 +153,7 @@ describe('CitationsList', () => {
     const title = screen.getByText('No URL Source')
     expect(title).toBeInTheDocument()
     expect(title.closest('a')).toBeNull()
-    // Empty url → null SWR key → no fetch.
-    expect(fetchMocks.fetchWebContent).not.toHaveBeenCalled()
+    expect(ipcMocks.request).not.toHaveBeenCalled()
   })
 
   it('uses injected copy actions when rendered without a message list provider', async () => {
@@ -170,35 +179,47 @@ describe('CitationsList', () => {
     expect(await screen.findByText('check')).toBeInTheDocument()
   })
 
-  it('renders the fetched web-content preview snippet', async () => {
+  it('loads the web-content preview snippet on demand', async () => {
     const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
 
     render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, { wrapper })
 
+    expect(screen.queryByText('web preview content')).not.toBeInTheDocument()
+    expect(ipcMocks.request).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.expand' }))
+
+    await waitFor(() =>
+      expect(ipcMocks.request).toHaveBeenCalledWith('web_search.fetch_url_preview', { url: 'https://example.com' })
+    )
     expect(await screen.findByText('web preview content')).toBeInTheDocument()
   })
 
   it('hides the preview snippet when web-content fetch degrades to noContent', async () => {
-    fetchMocks.fetchWebContent.mockResolvedValue({
+    ipcMocks.request.mockResolvedValue({
       title: 'Example',
       url: 'https://example.com',
-      content: 'No content found'
+      content: 'No content found',
+      sourceInput: 'https://example.com'
     })
     const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
 
     render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, { wrapper })
 
-    await waitFor(() => expect(fetchMocks.fetchWebContent).toHaveBeenCalled())
+    fireEvent.click(screen.getByRole('button', { name: 'common.expand' }))
+
+    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalled())
     // Graceful degrade: only the title/link remain, no "No content found" placeholder snippet.
     expect(screen.queryByText('No content found')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Example' })).toBeInTheDocument()
   })
 
   it('copies the truncated preview snippet, not the full content', async () => {
-    fetchMocks.fetchWebContent.mockResolvedValue({
+    ipcMocks.request.mockResolvedValue({
       title: 'Example',
       url: 'https://example.com',
-      content: 'A'.repeat(250)
+      content: 'A'.repeat(250),
+      sourceInput: 'https://example.com'
     })
     const copyText = vi.fn().mockResolvedValue(undefined)
     mocks.messageListActions = { copyText, notifyError: mocks.notifyError }
@@ -206,6 +227,7 @@ describe('CitationsList', () => {
 
     render(<CitationsPanelContent citations={citations} />, { wrapper })
 
+    fireEvent.click(screen.getByRole('button', { name: 'common.expand' }))
     fireEvent.click(await screen.findByText('copy'))
 
     expect(copyText).toHaveBeenCalledTimes(1)
@@ -215,10 +237,15 @@ describe('CitationsList', () => {
   })
 
   it('dedupes web-content fetches for the same URL via the shared SWR cache', async () => {
-    // Two consumers of the same URL share one fetch — the mechanism the citation
-    // tooltip relies on to reuse the panel's already-fetched oEmbed result.
+    // Two consumers of the same URL share one preview fetch through SWR.
     const a: Citation = { number: 1, url: 'https://dup.com', title: 'A', type: 'websearch' }
     const b: Citation = { number: 2, url: 'https://dup.com', title: 'B', type: 'websearch' }
+    let resolvePreview: (value: { title: string; url: string; content: string; sourceInput: string }) => void = vi.fn()
+    ipcMocks.request.mockReturnValue(
+      new Promise((resolve) => {
+        resolvePreview = resolve
+      })
+    )
 
     render(
       <>
@@ -229,6 +256,17 @@ describe('CitationsList', () => {
     )
 
     await waitFor(() => expect(screen.getByRole('link', { name: 'B' })).toBeInTheDocument())
-    expect(fetchMocks.fetchWebContent).toHaveBeenCalledTimes(1)
+    const expandButtons = screen.getAllByRole('button', { name: 'common.expand' })
+    fireEvent.click(expandButtons[0])
+    fireEvent.click(expandButtons[1])
+
+    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalledTimes(1))
+    resolvePreview({
+      title: 'Duplicate',
+      url: 'https://dup.com',
+      content: 'duplicate preview',
+      sourceInput: 'https://dup.com'
+    })
+    expect(await screen.findAllByText('duplicate preview')).toHaveLength(2)
   })
 })

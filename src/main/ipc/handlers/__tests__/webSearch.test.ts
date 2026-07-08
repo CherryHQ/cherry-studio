@@ -53,6 +53,46 @@ describe('webSearchHandlers', () => {
     expect(result).toBeUndefined()
   })
 
+  it('fetch_url_preview returns the first fetched URL result', async () => {
+    const request = { url: 'https://example.com/article' }
+    const firstResult = {
+      title: 'Example Article',
+      url: 'https://example.com/article',
+      content: 'article body',
+      sourceInput: 'https://example.com/article'
+    }
+    webSearchService.fetchUrls.mockResolvedValue({
+      providerId: 'fetch',
+      capability: 'fetchUrls',
+      inputs: ['https://example.com/article'],
+      results: [firstResult]
+    })
+
+    const result = await webSearchHandlers['web_search.fetch_url_preview'](request, ctx)
+
+    expect(webSearchService.fetchUrls).toHaveBeenCalledWith({ urls: ['https://example.com/article'] })
+    expect(result).toEqual(firstResult)
+  })
+
+  it('fetch_url_preview falls back to an empty result when fetch produces no content', async () => {
+    const request = { url: 'https://empty.example.com' }
+    webSearchService.fetchUrls.mockResolvedValue({
+      providerId: 'fetch',
+      capability: 'fetchUrls',
+      inputs: ['https://empty.example.com'],
+      results: []
+    })
+
+    const result = await webSearchHandlers['web_search.fetch_url_preview'](request, ctx)
+
+    expect(result).toEqual({
+      title: 'https://empty.example.com',
+      url: 'https://empty.example.com',
+      content: '',
+      sourceInput: 'https://empty.example.com'
+    })
+  })
+
   // The renderer's "check" flow relies on the IPC call REJECTING to show a failure
   // toast; the void output must not turn a failing service call into a false success.
   // These pin the adapter's `await` (a fire-and-forget regression would swallow it).

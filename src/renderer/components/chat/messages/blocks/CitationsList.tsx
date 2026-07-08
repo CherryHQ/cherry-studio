@@ -2,11 +2,12 @@ import { Button, Scrollbar, Skeleton } from '@cherrystudio/ui'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+import { ipcApi } from '@renderer/ipc'
 import type { Citation } from '@renderer/types/message'
-import { fetchWebContent, fetchXOEmbed, isXPostUrl, noContent, xOembedKey } from '@renderer/utils/fetch'
+import { fetchXOEmbed, isXPostUrl, noContent } from '@renderer/utils/fetch'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
-import { Check, Copy, FileSearch } from 'lucide-react'
-import React, { useMemo } from 'react'
+import { Check, ChevronDown, ChevronUp, Copy, FileSearch } from 'lucide-react'
+import React, { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWRImmutable from 'swr/immutable'
 
@@ -168,37 +169,45 @@ const CopyButton: React.FC<{ content: string; actions?: CitationCopyActions }> =
 
 const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelActions }> = ({ citation, actions }) => {
   const isXPost = Boolean(citation.url && isXPostUrl(citation.url))
+  const { t } = useTranslation()
+  const previewUrl = citation.url || ''
+  const inlineContent = useMemo(() => {
+    if (!citation.content || citation.content === noContent) return undefined
+    return cleanMarkdownContent(citation.content)
+  }, [citation.content])
+  const [isPreviewOpen, setIsPreviewOpen] = useState(Boolean(inlineContent))
   const providerActions = useOptionalMessageListActions()
   const linkActions = {
     openPath: actions?.openPath ?? providerActions?.openPath,
     openExternalUrl: actions?.openExternalUrl ?? providerActions?.openExternalUrl
   }
+  const canTogglePreview = Boolean(previewUrl || inlineContent)
+  const shouldFetchPreview = isPreviewOpen && Boolean(previewUrl) && !inlineContent
 
   const { data: rawContent, isLoading } = useSWRImmutable(
-    citation.url ? `webContent/${citation.url}` : null,
+    shouldFetchPreview ? `webContent/${previewUrl}` : null,
     async () => {
       if (isXPost) {
-        const oembed = await fetchXOEmbed(citation.url)
+        const oembed = await fetchXOEmbed(previewUrl)
         return oembed ? `@${oembed.author}: ${oembed.text}` : ''
       }
-      const res = await fetchWebContent(citation.url, 'markdown')
-      // Graceful degrade: fetchWebContent swallows failures into `noContent`, so
-      // suppress it to render no snippet (just title + link) rather than placeholder text.
+      const res = await ipcApi.request('web_search.fetch_url_preview', { url: previewUrl })
+      // Graceful degrade: the fetch pipeline swallows failures into `noContent`, so
+      // suppress it to render no snippet rather than placeholder text.
       if (res.content === noContent) return ''
       return cleanMarkdownContent(res.content)
     },
     { shouldRetryOnError: false }
   )
-  const fetchedContent = useMemo(() => (rawContent ? truncateText(rawContent, 100) : undefined), [rawContent])
-
-  const { data: oembedData } = useSWRImmutable(
-    isXPost && citation.url ? xOembedKey(citation.url) : null,
-    () => fetchXOEmbed(citation.url),
-    { shouldRetryOnError: false }
+  const previewContent = inlineContent ?? rawContent
+  const fetchedContent = useMemo(
+    () => (previewContent ? truncateText(previewContent, 100) : undefined),
+    [previewContent]
   )
 
-  const displayTitle = isXPost && oembedData?.author ? `@${oembedData.author}` : citation.title
+  const displayTitle = citation.title
   const titleContent = displayTitle || citation.hostname || citation.content || citation.url
+  const togglePreviewLabel = t(isPreviewOpen ? 'common.collapse' : 'common.expand')
 
   return (
     <SelectionContextMenu>
@@ -218,17 +227,28 @@ const WebSearchCitation: React.FC<{ citation: Citation; actions?: CitationPanelA
             <span className="flex-1 text-nowrap text-foreground text-sm leading-[1.6]">{titleContent}</span>
           )}
 
+          {canTogglePreview && (
+            <button
+              type="button"
+              aria-label={togglePreviewLabel}
+              title={togglePreviewLabel}
+              className="flex size-5 shrink-0 items-center justify-center rounded text-foreground-secondary transition-colors hover:bg-muted hover:text-foreground"
+              onClick={() => setIsPreviewOpen((open) => !open)}>
+              {isPreviewOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          )}
           <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] text-primary leading-[1.6] opacity-100 transition-opacity duration-300 group-hover:opacity-0">
             {citation.number}
           </div>
-          {fetchedContent && <CopyButton content={fetchedContent} actions={actions} />}
+          {isPreviewOpen && fetchedContent && <CopyButton content={fetchedContent} actions={actions} />}
         </div>
-        {isLoading ? (
+        {isPreviewOpen && isLoading ? (
           <div className="space-y-1">
             <Skeleton className="h-3 w-full" />
             <Skeleton className="h-3 w-2/3" />
           </div>
         ) : (
+          isPreviewOpen &&
           fetchedContent && (
             <div className="selectable-text cursor-text select-text break-all text-[13px] text-foreground-secondary leading-[1.6]">
               {fetchedContent}
