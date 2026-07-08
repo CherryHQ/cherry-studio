@@ -38,63 +38,24 @@ describe('webSearchHandlers', () => {
     expect(result).toBeUndefined()
   })
 
-  it('fetch_urls forwards the request and resolves void (the response is not surfaced over IPC)', async () => {
+  it('fetch_urls forwards the request and returns the service response', async () => {
     const request = { providerId: 'fetch' as const, urls: ['https://example.com'] }
-    webSearchService.fetchUrls.mockResolvedValue({
+    const response = {
       providerId: 'fetch',
       capability: 'fetchUrls',
       inputs: ['https://example.com'],
       results: []
-    })
+    }
+    webSearchService.fetchUrls.mockResolvedValue(response)
 
     const result = await webSearchHandlers['web_search.fetch_urls'](request, ctx)
 
     expect(webSearchService.fetchUrls).toHaveBeenCalledWith(request)
-    expect(result).toBeUndefined()
-  })
-
-  it('fetch_url_preview returns the first fetched URL result', async () => {
-    const request = { url: 'https://example.com/article' }
-    const firstResult = {
-      title: 'Example Article',
-      url: 'https://example.com/article',
-      content: 'article body',
-      sourceInput: 'https://example.com/article'
-    }
-    webSearchService.fetchUrls.mockResolvedValue({
-      providerId: 'fetch',
-      capability: 'fetchUrls',
-      inputs: ['https://example.com/article'],
-      results: [firstResult]
-    })
-
-    const result = await webSearchHandlers['web_search.fetch_url_preview'](request, ctx)
-
-    expect(webSearchService.fetchUrls).toHaveBeenCalledWith({ urls: ['https://example.com/article'] })
-    expect(result).toEqual(firstResult)
-  })
-
-  it('fetch_url_preview falls back to an empty result when fetch produces no content', async () => {
-    const request = { url: 'https://empty.example.com' }
-    webSearchService.fetchUrls.mockResolvedValue({
-      providerId: 'fetch',
-      capability: 'fetchUrls',
-      inputs: ['https://empty.example.com'],
-      results: []
-    })
-
-    const result = await webSearchHandlers['web_search.fetch_url_preview'](request, ctx)
-
-    expect(result).toEqual({
-      title: 'https://empty.example.com',
-      url: 'https://empty.example.com',
-      content: '',
-      sourceInput: 'https://empty.example.com'
-    })
+    expect(result).toBe(response)
   })
 
   // The renderer's "check" flow relies on the IPC call REJECTING to show a failure
-  // toast; the void output must not turn a failing service call into a false success.
+  // toast; the returned response must not turn a failing service call into a false success.
   // These pin the adapter's `await` (a fire-and-forget regression would swallow it).
   it('search_keywords rejects when the service throws (failure surfaces as an IPC rejection)', async () => {
     const request = { providerId: 'tavily' as const, keywords: ['hello'] }

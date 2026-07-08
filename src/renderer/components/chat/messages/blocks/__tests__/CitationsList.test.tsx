@@ -57,7 +57,8 @@ vi.mock('@cherrystudio/ui', () => ({
 vi.mock('@renderer/utils/fetch', () => ({
   fetchXOEmbed: fetchMocks.fetchXOEmbed,
   isXPostUrl: fetchMocks.isXPostUrl,
-  noContent: 'No content found'
+  noContent: 'No content found',
+  xOembedKey: (url: string) => `xOembed/${url}`
 }))
 
 vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
@@ -69,8 +70,6 @@ vi.mock('@renderer/components/SelectionContextMenu', () => ({
 }))
 
 vi.mock('lucide-react', () => ({
-  ChevronDown: () => <span>expand</span>,
-  ChevronUp: () => <span>collapse</span>,
   Check: () => <span>check</span>,
   Copy: () => <span>copy</span>,
   FileSearch: () => <span>file</span>
@@ -93,10 +92,17 @@ describe('CitationsList', () => {
     fetchMocks.isXPostUrl.mockReturnValue(false)
     fetchMocks.fetchXOEmbed.mockResolvedValue(null)
     ipcMocks.request.mockResolvedValue({
-      title: 'Example',
-      url: 'https://example.com',
-      content: 'web preview content',
-      sourceInput: 'https://example.com'
+      providerId: 'fetch',
+      capability: 'fetchUrls',
+      inputs: ['https://example.com'],
+      results: [
+        {
+          title: 'Example',
+          url: 'https://example.com',
+          content: 'web preview content',
+          sourceInput: 'https://example.com'
+        }
+      ]
     })
     mocks.messageListActions = {
       openCitationsPanel: mocks.openCitationsPanel,
@@ -119,16 +125,16 @@ describe('CitationsList', () => {
     expect(mocks.openCitationsPanel).toHaveBeenCalledWith({ citations })
   })
 
-  it('lets the panel content fill the side panel body', () => {
+  it('lets the panel content fill the side panel body', async () => {
     const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
 
     render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, { wrapper })
 
     expect(screen.getByTestId('citations-scrollbar')).toHaveClass('min-h-0', 'flex-1')
-    expect(ipcMocks.request).not.toHaveBeenCalled()
+    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalled())
   })
 
-  it('opens panel web citations through the supplied external URL action', () => {
+  it('opens panel web citations through the supplied external URL action', async () => {
     const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
     const openExternalUrl = vi.fn()
 
@@ -140,7 +146,7 @@ describe('CitationsList', () => {
 
     expect(openExternalUrl).toHaveBeenCalledTimes(1)
     expect(openExternalUrl).toHaveBeenCalledWith('https://example.com')
-    expect(ipcMocks.request).not.toHaveBeenCalled()
+    await waitFor(() => expect(ipcMocks.request).toHaveBeenCalled())
   })
 
   it('renders web citations without a url as non-links', () => {
@@ -179,34 +185,37 @@ describe('CitationsList', () => {
     expect(await screen.findByText('check')).toBeInTheDocument()
   })
 
-  it('loads the web-content preview snippet on demand', async () => {
+  it('loads the web-content preview snippet with the original panel layout', async () => {
     const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
 
     render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, { wrapper })
 
-    expect(screen.queryByText('web preview content')).not.toBeInTheDocument()
-    expect(ipcMocks.request).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.expand' }))
+    expect(screen.queryByRole('button', { name: 'common.expand' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.collapse' })).not.toBeInTheDocument()
 
     await waitFor(() =>
-      expect(ipcMocks.request).toHaveBeenCalledWith('web_search.fetch_url_preview', { url: 'https://example.com' })
+      expect(ipcMocks.request).toHaveBeenCalledWith('web_search.fetch_urls', { urls: ['https://example.com'] })
     )
     expect(await screen.findByText('web preview content')).toBeInTheDocument()
   })
 
   it('hides the preview snippet when web-content fetch degrades to noContent', async () => {
     ipcMocks.request.mockResolvedValue({
-      title: 'Example',
-      url: 'https://example.com',
-      content: 'No content found',
-      sourceInput: 'https://example.com'
+      providerId: 'fetch',
+      capability: 'fetchUrls',
+      inputs: ['https://example.com'],
+      results: [
+        {
+          title: 'Example',
+          url: 'https://example.com',
+          content: 'No content found',
+          sourceInput: 'https://example.com'
+        }
+      ]
     })
     const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Example', type: 'websearch' }]
 
     render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, { wrapper })
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.expand' }))
 
     await waitFor(() => expect(ipcMocks.request).toHaveBeenCalled())
     // Graceful degrade: only the title/link remain, no "No content found" placeholder snippet.
@@ -216,10 +225,17 @@ describe('CitationsList', () => {
 
   it('copies the truncated preview snippet, not the full content', async () => {
     ipcMocks.request.mockResolvedValue({
-      title: 'Example',
-      url: 'https://example.com',
-      content: 'A'.repeat(250),
-      sourceInput: 'https://example.com'
+      providerId: 'fetch',
+      capability: 'fetchUrls',
+      inputs: ['https://example.com'],
+      results: [
+        {
+          title: 'Example',
+          url: 'https://example.com',
+          content: 'A'.repeat(250),
+          sourceInput: 'https://example.com'
+        }
+      ]
     })
     const copyText = vi.fn().mockResolvedValue(undefined)
     mocks.messageListActions = { copyText, notifyError: mocks.notifyError }
@@ -227,7 +243,6 @@ describe('CitationsList', () => {
 
     render(<CitationsPanelContent citations={citations} />, { wrapper })
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.expand' }))
     fireEvent.click(await screen.findByText('copy'))
 
     expect(copyText).toHaveBeenCalledTimes(1)
@@ -240,7 +255,12 @@ describe('CitationsList', () => {
     // Two consumers of the same URL share one preview fetch through SWR.
     const a: Citation = { number: 1, url: 'https://dup.com', title: 'A', type: 'websearch' }
     const b: Citation = { number: 2, url: 'https://dup.com', title: 'B', type: 'websearch' }
-    let resolvePreview: (value: { title: string; url: string; content: string; sourceInput: string }) => void = vi.fn()
+    let resolvePreview: (value: {
+      providerId: string
+      capability: string
+      inputs: string[]
+      results: Array<{ title: string; url: string; content: string; sourceInput: string }>
+    }) => void = vi.fn()
     ipcMocks.request.mockReturnValue(
       new Promise((resolve) => {
         resolvePreview = resolve
@@ -256,17 +276,32 @@ describe('CitationsList', () => {
     )
 
     await waitFor(() => expect(screen.getByRole('link', { name: 'B' })).toBeInTheDocument())
-    const expandButtons = screen.getAllByRole('button', { name: 'common.expand' })
-    fireEvent.click(expandButtons[0])
-    fireEvent.click(expandButtons[1])
-
     await waitFor(() => expect(ipcMocks.request).toHaveBeenCalledTimes(1))
     resolvePreview({
-      title: 'Duplicate',
-      url: 'https://dup.com',
-      content: 'duplicate preview',
-      sourceInput: 'https://dup.com'
+      providerId: 'fetch',
+      capability: 'fetchUrls',
+      inputs: ['https://dup.com'],
+      results: [
+        {
+          title: 'Duplicate',
+          url: 'https://dup.com',
+          content: 'duplicate preview',
+          sourceInput: 'https://dup.com'
+        }
+      ]
     })
     expect(await screen.findAllByText('duplicate preview')).toHaveLength(2)
+  })
+
+  it('dedupes X post oEmbed fetches between title and preview content', async () => {
+    fetchMocks.isXPostUrl.mockReturnValue(true)
+    fetchMocks.fetchXOEmbed.mockResolvedValue({ author: 'Cherry', text: 'shared oembed content' })
+    const citations: Citation[] = [{ number: 1, url: 'https://x.com/cherry/status/123', title: 'X', type: 'websearch' }]
+
+    render(<CitationsPanelContent citations={citations} actions={{ openPath: vi.fn() }} />, { wrapper })
+
+    expect(await screen.findByRole('link', { name: '@Cherry' })).toBeInTheDocument()
+    expect(await screen.findByText('@Cherry: shared oembed content')).toBeInTheDocument()
+    expect(fetchMocks.fetchXOEmbed).toHaveBeenCalledTimes(1)
   })
 })

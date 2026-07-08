@@ -1,6 +1,7 @@
-import { WebSearchProviderIdSchema } from '@shared/data/presets/webSearchProviders'
+import { WebSearchCapabilitySchema, WebSearchProviderIdSchema } from '@shared/data/presets/webSearchProviders'
 import type {
   WebSearchFetchUrlsRequest,
+  WebSearchResponse,
   WebSearchResult,
   WebSearchSearchKeywordsRequest
 } from '@shared/data/types/webSearch'
@@ -16,13 +17,9 @@ import { defineRoute } from '../define'
  * parsed). The web-search domain pushes nothing main→renderer, so there is no Event
  * block (unlike window.ts/selection.ts).
  *
- * The provider-check routes return `output: z.void()`: the sole renderer caller
- * (useWebSearchProviderCheck) only awaits success/failure and never reads the
- * WebSearchResponse, and the code that does consume a response (webLookup.ts) calls
- * WebSearchService in-process, not over IPC — so the result is meaningless to IPC
- * callers (see ipc-migration-guide.md, "Return Values: void When Meaningless").
- * Citation preview is different: the renderer asks for one URL's fetched body on
- * demand, so that route returns a single WebSearchResult.
+ * `search_keywords` is used only by provider checks and returns `output:
+ * z.void()`. `fetch_urls` is also used by citation preview, so it returns the
+ * service WebSearchResponse while settings callers can still ignore the value.
  *
  * The request TS types live in `@shared/data/types/webSearch` as plain types (no
  * canonical zod), so each input schema is bound to its type with `z.ZodType<X>` — a
@@ -42,10 +39,6 @@ const fetchUrlsRequestSchema: z.ZodType<WebSearchFetchUrlsRequest> = z.object({
   urls: z.array(z.string())
 })
 
-const fetchUrlPreviewRequestSchema = z.object({
-  url: z.string()
-})
-
 const webSearchResultSchema: z.ZodType<WebSearchResult> = z.object({
   title: z.string(),
   content: z.string(),
@@ -53,9 +46,16 @@ const webSearchResultSchema: z.ZodType<WebSearchResult> = z.object({
   sourceInput: z.string()
 })
 
+const webSearchResponseSchema: z.ZodType<WebSearchResponse> = z.object({
+  query: z.string().optional(),
+  providerId: WebSearchProviderIdSchema,
+  capability: WebSearchCapabilitySchema,
+  inputs: z.array(z.string()),
+  results: z.array(webSearchResultSchema)
+})
+
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const webSearchRequestSchemas = {
   'web_search.search_keywords': defineRoute({ input: searchKeywordsRequestSchema, output: z.void() }),
-  'web_search.fetch_urls': defineRoute({ input: fetchUrlsRequestSchema, output: z.void() }),
-  'web_search.fetch_url_preview': defineRoute({ input: fetchUrlPreviewRequestSchema, output: webSearchResultSchema })
+  'web_search.fetch_urls': defineRoute({ input: fetchUrlsRequestSchema, output: webSearchResponseSchema })
 }
