@@ -1,4 +1,4 @@
-import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel/symbols'
+import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { describe, expect, it, vi } from 'vitest'

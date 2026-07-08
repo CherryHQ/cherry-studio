@@ -9,7 +9,7 @@ import { CircleChevronDown } from 'lucide-react'
 import { type FC, type Ref, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { usePartsMap } from '../blocks'
+import { usePartsMap } from '../blocks/MessagePartsContext'
 import { useMessageListActions, useMessageListMeta, useMessageRenderConfig } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel, getMessageListItemModelName } from '../utils/messageListItem'
@@ -35,6 +35,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
   const userName = renderConfig.userName
   const assistantProfile = meta.assistantProfile
   const avatar = meta.userProfile?.avatar ?? ''
+  const { updateMessageUiState } = actions
   const { setTimeoutTimer } = useTimer()
 
   const messagesListRef = useRef<HTMLDivElement>(null)
@@ -101,7 +102,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
       const groupMessages = messages.filter((m) => m.parentId === message.parentId)
       if (groupMessages.length > 1) {
         for (const m of groupMessages) {
-          actions.updateMessageUiState?.(m.id, { foldSelected: m.id === message.id })
+          updateMessageUiState?.(m.id, { foldSelected: m.id === message.id })
         }
 
         setTimeoutTimer(
@@ -116,7 +117,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
         )
       }
     },
-    [actions.updateMessageUiState, messages, setTimeoutTimer]
+    [messages, setTimeoutTimer, updateMessageUiState]
   )
 
   const scrollToMessage = useCallback(
@@ -125,7 +126,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
         const siblings = messages.filter((m) => m.role === 'assistant' && m.parentId === message.parentId)
         if (siblings.length > 1) {
           for (const sibling of siblings) {
-            actions.updateMessageUiState?.(sibling.id, { foldSelected: sibling.id === message.id })
+            updateMessageUiState?.(sibling.id, { foldSelected: sibling.id === message.id })
           }
         }
       }
@@ -146,7 +147,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
       }
       scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
     },
-    [actions, messages, scrollToMessageId, setSelectedMessage]
+    [messages, scrollToMessageId, setSelectedMessage, updateMessageUiState]
   )
 
   const scrollToBottom = useCallback(() => {
@@ -328,14 +329,14 @@ const MessageLineContainer = ({
   <div
     ref={ref}
     className={[
-      'group fixed right-[13px] z-999 flex w-[14px] translate-y-[-50%] select-none items-center justify-end overflow-hidden text-[5px] hover:w-[500px] hover:overflow-y-hidden hover:overflow-x-visible',
+      'group absolute right-3.25 z-20 flex w-3.5 translate-y-[-50%] select-none items-center justify-end overflow-hidden text-[5px] hover:w-125 hover:overflow-y-hidden hover:overflow-x-visible',
       className
     ]
       .filter(Boolean)
       .join(' ')}
     style={{
-      top: 'calc(50% - var(--status-bar-height) - 10px)',
-      maxHeight: $height ? `${$height - 20}px` : 'calc(100% - var(--status-bar-height) * 2 - 20px)',
+      top: '50%',
+      maxHeight: $height ? `${$height - 20}px` : 'calc(100% - 20px)',
       ...style
     }}
     {...props}

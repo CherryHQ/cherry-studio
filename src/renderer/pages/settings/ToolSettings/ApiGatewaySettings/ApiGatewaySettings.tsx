@@ -1,14 +1,21 @@
 import { Button, ButtonGroup, IndicatorLight, Input, Tooltip } from '@cherrystudio/ui'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingsContentColumn,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { Copy, ExternalLink, Play, RotateCcw, Server, Square, TriangleAlert } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
-
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '../..'
 
 const API_SERVER_DEFAULTS = {
   HOST: '127.0.0.1',
@@ -54,11 +61,11 @@ const ApiGatewaySettings: FC = () => {
     if (!apiKey) return
     try {
       await navigator.clipboard.writeText(apiKey)
-      window.toast.success(t('apiGateway.messages.apiKeyCopied'))
+      toast.success(t('apiGateway.messages.apiKeyCopied'))
     } catch {
       // Clipboard write can be denied (permissions / insecure context); don't
       // report a copy that didn't happen.
-      window.toast.error(t('apiGateway.messages.operationFailed'))
+      toast.error(t('apiGateway.messages.operationFailed'))
     }
   }
 
@@ -68,7 +75,7 @@ const ApiGatewaySettings: FC = () => {
 
   const regenerateApiKey = () => {
     void setApiGatewayConfig({ apiKey: generateApiKey() })
-    window.toast.success(t('apiGateway.messages.apiKeyRegenerated'))
+    toast.success(t('apiGateway.messages.apiKeyRegenerated'))
   }
 
   const handlePortChange = (value: string) => {

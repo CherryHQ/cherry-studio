@@ -16,9 +16,7 @@ export const createKnowledgeRagConfigFormValues = (base: KnowledgeBase): Knowled
   embeddingModelId: base.embeddingModelId,
   rerankModelId: base.rerankModelId ?? null,
   documentCount: base.documentCount ?? DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
-  threshold: base.threshold ?? DEFAULT_KNOWLEDGE_THRESHOLD,
-  searchMode: base.searchMode,
-  hybridAlpha: base.hybridAlpha ?? null
+  threshold: base.threshold ?? DEFAULT_KNOWLEDGE_THRESHOLD
 })
 
 export const buildKnowledgeRagConfigPatch = (
@@ -57,14 +55,6 @@ export const buildKnowledgeRagConfigPatch = (
 
   if (currentValues.threshold !== initialValues.threshold) {
     patch.threshold = currentValues.threshold
-  }
-
-  if (currentValues.searchMode !== initialValues.searchMode) {
-    patch.searchMode = currentValues.searchMode
-  }
-
-  if (currentValues.searchMode === 'hybrid' && currentValues.hybridAlpha !== initialValues.hybridAlpha) {
-    patch.hybridAlpha = currentValues.hybridAlpha ?? undefined
   }
 
   return patch

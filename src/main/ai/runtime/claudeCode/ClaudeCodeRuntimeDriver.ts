@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url'
+
 import {
   type Options,
   type Query,
@@ -13,6 +15,7 @@ import {
 type BetaUsage = SDKResultMessage['usage']
 type SDKRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
 type SDKCompactionSystemMessage = SDKCompactBoundaryMessage | SDKStatusMessage
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
@@ -21,9 +24,9 @@ import {
   descriptorToTool,
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
-import { application } from '@main/core/application'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -246,6 +249,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  async getSupportedCommands(): Promise<AgentSessionSlashCommand[] | null> {
+    if (!this.query) return null
+    try {
+      return await this.query.supportedCommands()
+    } catch (error) {
+      logger.warn('getSupportedCommands failed', { sessionId: this.input.sessionId, error })
+      return null
+    }
+  }
+
   close(): void {
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
@@ -271,6 +284,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           isCompactionSystemMessage(message) &&
           this.handleSystemControlMessage(message)
         ) {
+          continue
+        }
+
+        // Mid-session command catalog push (skills discovered in a subdirectory, etc.). Handle it
+        // ahead of the no-adapter drop so a primed (turn-less) connection still refreshes its cache.
+        if (message.type === 'system' && message.subtype === 'commands_changed') {
+          this.eventQueue.push({ type: 'supported-commands', commands: message.commands })
           continue
         }
 
@@ -328,6 +348,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // adapter emits the buffered text + a `truncated` finish through the sink)
       // instead of dropping the partial response and surfacing an error.
       const salvaged = this.adapter?.handleTruncationError(error) ?? false
+      if (!salvaged && !this.abortController.signal.aborted) {
+        logger.error('Claude Code query loop failed', {
+          sessionId: this.input.sessionId,
+          modelId: this.adapterModelId ?? this.input.modelId,
+          error
+        })
+      }
       this.adapter = undefined
       // The query stream ended (errored) → the connection is dead; tear the whole session down here
       // rather than relying on a later close() to dispose the steer holder / snapshot.
@@ -380,6 +407,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const promptTokens = v3Usage.inputTokens.total ?? 0
     const completionTokens = v3Usage.outputTokens.total ?? 0
     const reasoningTokens = v3Usage.outputTokens.reasoning
+    const noCacheTokens = v3Usage.inputTokens.noCache
+    const cacheReadTokens = v3Usage.inputTokens.cacheRead
+    const cacheWriteTokens = v3Usage.inputTokens.cacheWrite
     this.eventQueue.push({
       type: 'chunk',
       chunk: {
@@ -388,7 +418,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           totalTokens: promptTokens + completionTokens,
           promptTokens,
           completionTokens,
-          ...(reasoningTokens !== undefined ? { thoughtsTokens: reasoningTokens } : {})
+          ...(reasoningTokens !== undefined ? { thoughtsTokens: reasoningTokens } : {}),
+          ...(noCacheTokens !== undefined ? { noCacheTokens } : {}),
+          ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
+          ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {})
         }
       }
     })
@@ -452,13 +485,28 @@ function toSdkUserMessage(
   resumeToken?: string,
   systemReminder = false
 ): SDKUserMessage {
-  const text = extractMessageText(message)
+  const content = buildAgentUserContent(message)
   return {
     type: 'user',
-    message: { role: 'user', content: systemReminder && text.trim() ? wrapSteerReminder(text) : text },
+    message: { role: 'user', content: systemReminder && content.trim() ? wrapSteerReminder(content) : content },
     parent_tool_use_id: null,
     session_id: resumeToken ?? ''
   }
+}
+
+/**
+ * Build the user-turn content sent to the agent SDK. The agent is a filesystem agent
+ * (it has no native multimodal channel here), so attached files are forwarded as their
+ * absolute paths appended to the text — the agent reads them with its own tools.
+ */
+export function buildAgentUserContent(message: AgentSessionMessageEntity): string {
+  const text = extractMessageText(message)
+  const paths = extractAttachmentPaths(message)
+  if (paths.length === 0) return text
+
+  const list = paths.map((path) => `- ${path}`).join('\n')
+  const section = `Attached files (read them with your tools using these absolute paths):\n${list}`
+  return text.trim() ? `${text}\n\n${section}` : section
 }
 
 function extractMessageText(message: AgentSessionMessageEntity): string {
@@ -468,6 +516,17 @@ function extractMessageText(message: AgentSessionMessageEntity): string {
       .map((part) => part.text)
       .join('\n') ?? ''
   )
+}
+
+/** Absolute local paths of `file://`-backed attachment parts (composer attachments). */
+function extractAttachmentPaths(message: AgentSessionMessageEntity): string[] {
+  const paths: string[] = []
+  for (const part of message.data?.parts ?? []) {
+    // `parts` is a typed `CherryMessagePart[]`, so `type === 'file'` narrows to `FileUIPart`.
+    if (part.type !== 'file' || !part.url.startsWith('file://')) continue
+    paths.push(fileURLToPath(part.url))
+  }
+  return paths
 }
 
 export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {

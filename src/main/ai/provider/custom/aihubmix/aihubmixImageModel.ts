@@ -23,9 +23,10 @@ import type { ImageModelV3, ImageModelV3CallOptions, JSONValue } from '@ai-sdk/p
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { loggerService } from '@logger'
+import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
-import { readErrorMessage } from '@shared/ai/readErrorMessage'
 
+import { readErrorMessage } from '../readErrorMessage'
 import { createAihubmixFluxTransport } from './aihubmixFlux'
 
 const logger = loggerService.withContext('AihubmixImageModel')
@@ -346,7 +347,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         })
 
         if (!response.ok) {
-          const message = await readErrorMessage(response, 'paintings.generate_failed')
+          const message = await readErrorMessage(response, t('paintings.generate_failed'))
           logger.error('V3 API error:', { message })
           throw createPaintingGenerateError('REMOTE_ERROR', { message })
         }
@@ -398,7 +399,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         })
 
         if (!response.ok) {
-          const message = await readErrorMessage(response, 'paintings.image_mix_failed')
+          const message = await readErrorMessage(response, t('paintings.image_mix_failed'))
           logger.error('V3 Remix API error:', { message })
           throw createPaintingGenerateError('REMOTE_ERROR', { message })
         }
@@ -495,7 +496,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
     const response = await fetchImpl(url, { method: 'POST', headers: reqHeaders, body, signal: abortSignal })
 
     if (!response.ok) {
-      const message = await readErrorMessage(response, 'paintings.generate_failed')
+      const message = await readErrorMessage(response, t('paintings.generate_failed'))
       logger.error('API error:', { message })
       throw createPaintingGenerateError('REMOTE_ERROR', { message })
     }

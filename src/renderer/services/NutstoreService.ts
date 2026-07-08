@@ -6,7 +6,9 @@
  */
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import type { WebDavConfig } from '@shared/types/backup'
 import { NUTSTORE_HOST } from '@shared/utils/nutstore'
 import dayjs from 'dayjs'
@@ -29,7 +31,7 @@ async function getNutstoreToken() {
   const nutstoreToken = await preferenceService.get('data.backup.nutstore.token')
 
   if (!nutstoreToken) {
-    window.toast.error(i18n.t('message.error.invalid.nutstore_token'))
+    toast.error(i18n.t('message.error.invalid.nutstore_token'))
     return null
   }
   return nutstoreToken
@@ -172,15 +174,15 @@ export async function backupToNutstore({
 
     if (isSuccess) {
       setNutstoreSyncState({ lastSyncError: null })
-      showMessage && window.toast.success(i18n.t('message.backup.success'))
+      showMessage && toast.success(i18n.t('message.backup.success'))
     } else {
       setNutstoreSyncState({ lastSyncError: 'Backup failed' })
-      window.toast.error(i18n.t('message.backup.failed'))
+      toast.error(i18n.t('message.backup.failed'))
     }
   } catch (error) {
     setNutstoreSyncState({ lastSyncError: 'Backup failed' })
     logger.error('[Nutstore] Backup failed:', error as Error)
-    window.toast.error(i18n.t('message.backup.failed'))
+    toast.error(i18n.t('message.backup.failed'))
   } finally {
     setNutstoreSyncState({ lastSyncTime: Date.now(), syncing: false })
     isManualBackupRunning = false
@@ -204,7 +206,7 @@ export async function restoreFromNutstore(fileName?: string) {
     data = await window.api.backup.restoreFromWebdav({ ...config, fileName })
   } catch (error: any) {
     logger.error('[backup] restoreFromWebdav: Error downloading file from WebDAV:', error as Error)
-    window.modal.error({
+    void popup.error({
       title: i18n.t('message.restore.failed'),
       content: error.message
     })
@@ -214,7 +216,7 @@ export async function restoreFromNutstore(fileName?: string) {
     await handleData(JSON.parse(data))
   } catch (error) {
     logger.error('[backup] Error downloading file from WebDAV:', error as Error)
-    window.toast.error(i18n.t('error.backup.file_format'))
+    toast.error(i18n.t('error.backup.file_format'))
   }
 }
 

@@ -1,5 +1,6 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { Model } from '@shared/data/types/model'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -86,7 +87,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
 
       void onToggleModels(groupModels, enabled).catch((error) => {
         logger.error('Failed to toggle provider model group', { groupName, enabled, error })
-        window.toast.error(t('settings.models.manage.operation_failed'))
+        toast.error(t('settings.models.manage.operation_failed'))
       })
     },
     [canToggleGroupModels, groupModels, groupName, onToggleModels, t]
@@ -95,10 +96,11 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   const handleDeleteGroupModels = useCallback(() => {
     void onDeleteModels(groupModels).catch((error) => {
       logger.error('Failed to delete provider model group', { groupName, error })
-      window.toast.error(
+      toast.error(
         getModelOperationErrorMessage(error, {
           fallback: t('settings.models.manage.operation_failed'),
-          modelInUseByKnowledgeBase: t('settings.models.manage.model_in_use_by_knowledge_base')
+          modelInUseByKnowledgeBase: t('settings.models.manage.model_in_use_by_knowledge_base'),
+          modelInUseAsDefault: t('settings.models.manage.sync_apply_default_in_use')
         })
       )
     })

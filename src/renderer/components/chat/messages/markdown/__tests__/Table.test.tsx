@@ -29,8 +29,8 @@ const mocks = vi.hoisted(() => {
 })
 
 // Mock dependencies
-vi.mock('@renderer/components/Icons', () => ({
-  CopyIcon: ({ size }: { size: number }) => <div data-testid="copy-icon" style={{ width: size, height: size }} />
+vi.mock('@renderer/components/icons/CopyIcon', () => ({
+  default: ({ size }: { size: number }) => <div data-testid="copy-icon" style={{ width: size, height: size }} />
 }))
 
 vi.mock('lucide-react', () => ({

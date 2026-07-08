@@ -156,9 +156,9 @@ class WorkspaceMemoryServer {
     })
   }
 
-  private async getWorkspacePath(): Promise<string> {
+  private getWorkspacePath(): string {
     // Deliberate existence check: memory writes must stop once the owning agent is gone.
-    const agent = await agentService.getAgent(this.agentId)
+    const agent = agentService.getAgent(this.agentId)
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
     return this.workspacePath
   }
@@ -167,7 +167,7 @@ class WorkspaceMemoryServer {
     const content = args.content
     if (!content) throw new McpError(ErrorCode.InvalidParams, "'content' is required for update action")
 
-    const workspace = await this.getWorkspacePath()
+    const workspace = this.getWorkspacePath()
     const memoryDir = path.join(workspace, 'memory')
     const factPath = await resolveFileCI(memoryDir, 'FACT.md')
 
@@ -196,7 +196,7 @@ class WorkspaceMemoryServer {
       }
     }
 
-    const workspace = await this.getWorkspacePath()
+    const workspace = this.getWorkspacePath()
     const memoryDir = path.join(workspace, 'memory')
 
     await mkdir(memoryDir, { recursive: true })
@@ -222,7 +222,7 @@ class WorkspaceMemoryServer {
     const tagFilter = args.tag ?? ''
     const limit = Math.max(1, parseInt(args.limit ?? '20', 10) || 20)
 
-    const workspace = await this.getWorkspacePath()
+    const workspace = this.getWorkspacePath()
     const memoryDir = path.join(workspace, 'memory')
     const journalPath = await resolveFileCI(memoryDir, 'JOURNAL.jsonl')
 

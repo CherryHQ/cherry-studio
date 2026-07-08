@@ -13,11 +13,24 @@
 import { useProviders } from '@renderer/hooks/useProvider'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
-import { isNonChatModel } from '@shared/utils/model'
-import { isGeminiProvider } from '@shared/utils/provider'
-import { useCallback, useMemo } from 'react'
+import { isAgentRuntimeSupportedModel, isNonChatModel } from '@shared/utils/model'
+import { useMemo } from 'react'
 
 const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
+
+/**
+ * Marks a model filter as an *agent* picker, which is allowed to surface
+ * agent-only providers (e.g. `claude-code`). General/chat selectors leave their
+ * filter unmarked, so `useModelSelectorData` hides those providers from them.
+ */
+const AGENT_ONLY_FILTER = Symbol('agentModelFilter')
+
+type AgentModelFilter = ((model: Model) => boolean) & { [AGENT_ONLY_FILTER]?: true }
+
+/** True when `filter` came from {@link useAgentModelFilter} (may include agent-only providers). */
+export function modelFilterIncludesAgentOnlyProviders(filter?: (model: Model) => boolean): boolean {
+  return Boolean((filter as AgentModelFilter | undefined)?.[AGENT_ONLY_FILTER])
+}
 
 /**
  * Returns a memoized `(model) => boolean` predicate that matches the agent's
@@ -26,24 +39,17 @@ const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 export function useAgentModelFilter(agentType: AgentType | undefined): (model: Model) => boolean {
   const { providers } = useProviders()
 
-  const geminiProviderIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const provider of providers) {
-      if (isGeminiProvider(provider)) {
-        ids.add(provider.id)
-      }
-    }
-    return ids
-  }, [providers])
+  const providersById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
 
-  return useCallback(
-    (model: Model) => {
+  return useMemo<AgentModelFilter>(() => {
+    const predicate: AgentModelFilter = (model: Model) => {
       if (!baseAgentFilter(model)) return false
       if (agentType === 'claude-code') {
-        return !geminiProviderIds.has(model.providerId)
+        return isAgentRuntimeSupportedModel(model, providersById.get(model.providerId))
       }
       return true
-    },
-    [agentType, geminiProviderIds]
-  )
+    }
+    predicate[AGENT_ONLY_FILTER] = true
+    return predicate
+  }, [agentType, providersById])
 }

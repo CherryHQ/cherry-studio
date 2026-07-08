@@ -1,6 +1,6 @@
 import { Scrollbar, Sortable, Tooltip } from '@cherrystudio/ui'
-import { LogoAvatar } from '@renderer/components/Icons'
-import { getMiniAppsLogo } from '@renderer/components/Icons/miniAppsLogo'
+import LogoAvatar from '@renderer/components/icons/LogoAvatar'
+import { getMiniAppsLogo } from '@renderer/components/icons/miniAppsLogo'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { ArrowLeftToLine, ArrowRightToLine } from 'lucide-react'
 import type { FC } from 'react'
@@ -52,7 +52,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
               const displayName = app.nameKey ? t(app.nameKey) : app.name
 
               return (
-                <Tooltip content={displayName} placement="left" classNames={{ placeholder: 'block w-full' }}>
+                <Tooltip content={displayName} placement="left" fullWidthTrigger>
                   <div
                     className="flex w-full items-center gap-1.5 rounded-md px-2 py-0.5 transition-colors hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                     role="button"

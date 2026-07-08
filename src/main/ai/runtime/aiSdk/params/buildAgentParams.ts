@@ -1,6 +1,7 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
+import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
@@ -20,7 +21,7 @@ import { resolveAssistantMcpToolIds } from '../../../tools/adapters/aiSdk/mcp/re
 import { registry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
-import type { AiBaseRequest, CallOverrides } from '../../../types/requests'
+import type { AiBaseRequest, CallOverrides } from '../../../types'
 import { filterStandardParams } from '../../../utils/modelParameters'
 import {
   buildCapabilityProviderOptions,
@@ -28,15 +29,17 @@ import {
   mergeCustomProviderParameters
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
-import type { AgentLoopHooks, AgentOptions } from '../loop'
+import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
 import { resolveCapabilities } from './capabilities'
 import { collectFromFeatures } from './collectFromFeatures'
 import type { RequestFeature } from './feature'
-import { INTERNAL_FEATURES } from './features'
+import { INTERNAL_FEATURES } from './features/internalFeatures'
 import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSupport'
 import type { RequestScope, SdkConfig } from './scope'
+
+const logger = loggerService.withContext('buildAgentParams')
 
 export interface BuildAgentParamsInput {
   request: AiBaseRequest & {
@@ -72,8 +75,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   applyHttpTrace(sdkConfig, request.chatId, model)
   const fileAttachments = collectFileAttachments(request.messages)
   const hasFileAttachments = fileAttachments.length > 0
+  const knowledgeBaseIds = resolveKnowledgeBaseIds(assistant, request.knowledgeBaseIds)
   const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
-    ? await resolveTools(request, assistant, model, hasFileAttachments)
+    ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
 
@@ -86,7 +90,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     topicId: request.chatId,
     assistant,
     abortSignal: signal,
-    fileAttachments
+    fileAttachments,
+    knowledgeBaseIds
   }
 
   const scope: RequestScope = {
@@ -102,7 +107,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     aiSdkProviderId,
     requestContext,
     mcpToolIds,
-    hasFileAttachments
+    hasFileAttachments,
+    knowledgeBaseIds
   }
 
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
@@ -158,11 +164,12 @@ function canModelConsumeTools(model: Model): boolean {
  * sync the MCP entries into the registry, then materialise the active
  * `ToolSet` via `applies` predicates and defer exposition.
  */
-async function resolveTools(
+export async function resolveTools(
   request: BuildAgentParamsInput['request'],
   assistant: Assistant | undefined,
   model: Model,
-  hasFileAttachments: boolean
+  hasFileAttachments: boolean,
+  knowledgeBaseIds: readonly string[]
 ): Promise<{
   tools: ToolSet | undefined
   deferredEntries: ToolEntry[]
@@ -180,7 +187,14 @@ async function resolveTools(
     await syncMcpToolsToRegistry(undefined, { selectedToolIds: mcpToolIds })
   }
 
-  const activeEntries = registry.selectActive({ assistant, mcpToolIds, hasFileAttachments })
+  const hasAnyKnowledgeBase = resolveHasAnyKnowledgeBase()
+  const activeEntries = registry.selectActive({
+    assistant,
+    mcpToolIds,
+    hasFileAttachments,
+    hasAnyKnowledgeBase,
+    knowledgeBaseIds
+  })
   let tools: ToolSet | undefined
   if (activeEntries.length > 0) {
     tools = {}
@@ -191,10 +205,41 @@ async function resolveTools(
   // path instead of being mutated onto raw SDK params.
   const clientTools = request.callOverrides?.tools
   if (clientTools && Object.keys(clientTools).length > 0) {
-    tools = { ...tools, ...clientTools }
+    tools = {
+      ...tools,
+      ...clientTools
+    }
   }
   const exposed = applyDeferExposition(tools, registry, model.contextWindow)
   return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, mcpToolIds }
+}
+
+/**
+ * Whether the user has any knowledge base, used to gate the `kb_*` tools in `selectActive`. Fail-open:
+ * a transient count error must not suppress the KB tools for users who do have bases (the tools
+ * themselves steer gracefully when a lookup fails), so an error is treated as "present".
+ */
+function resolveHasAnyKnowledgeBase(): boolean {
+  try {
+    return application.get('KnowledgeService').hasAnyBase()
+  } catch (error) {
+    logger.warn('Failed to check for knowledge bases during tool resolution; treating as present', { error })
+    return true
+  }
+}
+
+/**
+ * Effective knowledge base scope for this request. When the assistant has its own static binding,
+ * that binding IS the scope — the composer's per-turn selection can never expand it, since main
+ * cannot trust a renderer/IPC-supplied id list to stay within the assistant's configured bases (the
+ * composer UI happens to restrict picks to that set today, but that's a UI nicety, not a security
+ * boundary). Only an assistant with no static binding lets the per-turn selection define the scope —
+ * which is the actual gap this resolves: composer-only, ad-hoc knowledge base use.
+ */
+export function resolveKnowledgeBaseIds(assistant: Assistant | undefined, requestIds: string[] | undefined): string[] {
+  const assistantIds = assistant?.knowledgeBaseIds ?? []
+  if (assistantIds.length > 0) return assistantIds
+  return Array.from(new Set(requestIds ?? []))
 }
 
 /**

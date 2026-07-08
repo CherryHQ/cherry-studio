@@ -1,12 +1,11 @@
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 
-import { createClient } from '@libsql/client'
+import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@main/utils/file', () => ({
+vi.mock('@main/utils/legacyFile', () => ({
   sanitizeFilename: (value: string) => value
 }))
 
@@ -30,36 +29,42 @@ async function createLegacyVectorDb(
     vector: number[]
   }>
 ) {
-  const client = createClient({ url: pathToFileURL(dbPath).toString() })
+  const db = new Database(dbPath)
 
-  await client.execute(`
+  // The legacy embedjs `vector` column stored raw little-endian float32 bytes (libsql's
+  // F32_BLOB / vector32() is just a typed view over those bytes), so a plain BLOB holding
+  // the same bytes reproduces an on-disk-identical fixture.
+  db.exec(`
     CREATE TABLE vectors (
       id TEXT PRIMARY KEY,
       pageContent TEXT UNIQUE,
       uniqueLoaderId TEXT NOT NULL,
       source TEXT NOT NULL,
-      vector F32_BLOB(2),
+      vector BLOB,
       metadata TEXT
     )
   `)
 
+  const insert = db.prepare(
+    `INSERT INTO vectors (id, pageContent, uniqueLoaderId, source, vector, metadata) VALUES (?, ?, ?, ?, ?, '{}')`
+  )
   for (const row of rows) {
-    await client.execute({
-      sql: `
-        INSERT INTO vectors (id, pageContent, uniqueLoaderId, source, vector, metadata)
-        VALUES (?, ?, ?, ?, vector32(?), '{}')
-      `,
-      args: [row.id, row.pageContent, row.uniqueLoaderId, row.source, `[${row.vector.join(',')}]`]
-    })
+    insert.run(
+      row.id,
+      row.pageContent,
+      row.uniqueLoaderId,
+      row.source,
+      Buffer.from(Float32Array.from(row.vector).buffer)
+    )
   }
 
-  client.close()
+  db.close()
 }
 
 async function createLegacyVectorDbWithRawVector(dbPath: string, vectorColumnType: string, vectorValue: unknown) {
-  const client = createClient({ url: pathToFileURL(dbPath).toString() })
+  const db = new Database(dbPath)
 
-  await client.execute(`
+  db.exec(`
     CREATE TABLE vectors (
       id TEXT PRIMARY KEY,
       pageContent TEXT UNIQUE,
@@ -70,12 +75,12 @@ async function createLegacyVectorDbWithRawVector(dbPath: string, vectorColumnTyp
     )
   `)
   const encodedValue = vectorValue == null ? 'NULL' : `'${String(vectorValue).replaceAll("'", "''")}'`
-  await client.execute(`
+  db.exec(`
     INSERT INTO vectors (id, pageContent, uniqueLoaderId, source, vector, metadata)
     VALUES ('legacy-row-1', 'hello vector', 'loader-1', '/tmp/file.md', ${encodedValue}, '{}')
   `)
 
-  client.close()
+  db.close()
 }
 
 describe('KnowledgeVectorSourceReader', () => {
@@ -161,14 +166,101 @@ describe('KnowledgeVectorSourceReader', () => {
   it('returns not_embedjs for non-embedjs sqlite files', async () => {
     const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
     const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
-    const client = createClient({ url: pathToFileURL(dbPath).toString() })
-
-    await client.execute(`CREATE TABLE something_else (id TEXT PRIMARY KEY)`)
-    client.close()
+    const db = new Database(dbPath)
+    db.exec(`CREATE TABLE something_else (id TEXT PRIMARY KEY)`)
+    db.close()
 
     await expect(reader.loadBase('kb-1')).resolves.toEqual({
       status: 'not_embedjs',
       dbPath
+    })
+  })
+
+  describe('loadBaseLoaderSources', () => {
+    it('reads only the uniqueLoaderId/source columns and never the pageContent or vector', async () => {
+      const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
+      const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
+
+      await createLegacyVectorDb(dbPath, [
+        { id: 'r1', pageContent: 'a', uniqueLoaderId: 'loader-a', source: '/docs/a.md', vector: [1, 2] },
+        { id: 'r2', pageContent: 'b', uniqueLoaderId: 'loader-b', source: '/docs/b.md', vector: [3, 4] }
+      ])
+
+      await expect(reader.loadBaseLoaderSources('kb-1')).resolves.toEqual({
+        status: 'ok',
+        dbPath,
+        rows: [
+          { uniqueLoaderId: 'loader-a', source: '/docs/a.md' },
+          { uniqueLoaderId: 'loader-b', source: '/docs/b.md' }
+        ]
+      })
+    })
+
+    it('does not decode the vector column, so an unreadable vector blob is irrelevant', async () => {
+      // A garbage TEXT vector would decode to `unsupported_encoding` in loadBase; the lighter read
+      // must never touch that column, so this base still loads its loader/source pair cleanly. This
+      // is the regression guard that the vector BLOB is not read or float32-decoded here.
+      const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
+      const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
+
+      await createLegacyVectorDbWithRawVector(dbPath, 'TEXT', 'not-a-vector')
+
+      await expect(reader.loadBaseLoaderSources('kb-1')).resolves.toEqual({
+        status: 'ok',
+        dbPath,
+        rows: [{ uniqueLoaderId: 'loader-1', source: '/tmp/file.md' }]
+      })
+    })
+
+    it('returns one row per distinct loader/source pair, not one per chunk', async () => {
+      // A single folder/file is stored as many chunk rows under the same loader; the caller only
+      // needs the unique loader→source pairs, so the reader must dedup in SQL rather than hand the
+      // map builder one JS object per chunk.
+      const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
+      const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
+
+      await createLegacyVectorDb(dbPath, [
+        { id: 'r1', pageContent: 'chunk-1', uniqueLoaderId: 'loader-a', source: '/docs/a.md', vector: [1, 2] },
+        { id: 'r2', pageContent: 'chunk-2', uniqueLoaderId: 'loader-a', source: '/docs/a.md', vector: [3, 4] },
+        { id: 'r3', pageContent: 'chunk-3', uniqueLoaderId: 'loader-a', source: '/docs/a.md', vector: [5, 6] },
+        { id: 'r4', pageContent: 'chunk-4', uniqueLoaderId: 'loader-b', source: '/docs/b.md', vector: [7, 8] }
+      ])
+
+      await expect(reader.loadBaseLoaderSources('kb-1')).resolves.toEqual({
+        status: 'ok',
+        dbPath,
+        rows: [
+          { uniqueLoaderId: 'loader-a', source: '/docs/a.md' },
+          { uniqueLoaderId: 'loader-b', source: '/docs/b.md' }
+        ]
+      })
+    })
+
+    it('shares the missing / directory / not_embedjs outcomes with loadBase', async () => {
+      const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
+
+      await expect(reader.loadBaseLoaderSources('kb-absent')).resolves.toEqual({
+        status: 'missing',
+        dbPath: path.join(tempRoot, 'KnowledgeBase', 'kb-absent')
+      })
+
+      const directoryPath = path.join(tempRoot, 'KnowledgeBase', 'kb-dir')
+      fs.mkdirSync(directoryPath)
+
+      await expect(reader.loadBaseLoaderSources('kb-dir')).resolves.toEqual({
+        status: 'directory',
+        dbPath: directoryPath
+      })
+
+      const notEmbedjsPath = path.join(tempRoot, 'KnowledgeBase', 'kb-other')
+      const db = new Database(notEmbedjsPath)
+      db.exec(`CREATE TABLE something_else (id TEXT PRIMARY KEY)`)
+      db.close()
+
+      await expect(reader.loadBaseLoaderSources('kb-other')).resolves.toEqual({
+        status: 'not_embedjs',
+        dbPath: notEmbedjsPath
+      })
     })
   })
 })

@@ -9,7 +9,14 @@ import {
   SelectValue,
   Tooltip
 } from '@cherrystudio/ui'
-import { ResetIcon } from '@renderer/components/Icons'
+import ResetIcon from '@renderer/components/icons/ResetIcon'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
@@ -17,10 +24,9 @@ import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { useWebSearchProviderLists } from '../hooks/useWebSearchProviderLists'
-import CompressionSettings from './CompressionSettings'
+import { CompressionSettings } from './CompressionSettings'
 import { WebSearchProviderOption } from './WebSearchProviderOption'
 
 const settingRowClassName = 'items-center justify-between gap-6 py-1'

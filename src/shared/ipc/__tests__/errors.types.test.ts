@@ -1,6 +1,6 @@
 import { describe, expectTypeOf, it } from 'vitest'
 
-import { IpcErrorCode } from '../errors'
+import { IpcErrorCode } from '../errors/IpcError'
 
 /**
  * Type-level contract for the open error-code enum. Runtime values are covered in

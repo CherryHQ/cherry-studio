@@ -2,40 +2,41 @@ import { preferenceService } from '@data/PreferenceService'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
+import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
-import TopViewContainer from '@renderer/components/TopView'
+import ToastHost from '@renderer/components/ToastHost'
+import { useAppInit } from '@renderer/hooks/useAppInit'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 void preferenceService.preloadAll()
 
-// Create React Query client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false
-    }
-  }
-})
+// Behavior leaf inside the providers: runs the shared per-window init and mounts
+// the popup/toast hosts. The subWindow has no window-specific init hooks.
+function SubWindowRuntime(): React.ReactElement {
+  useAppInit()
+
+  return (
+    <>
+      <PopupHost />
+      <ToastHost />
+    </>
+  )
+}
 
 function SubWindowApp(): React.ReactElement {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <CodeStyleProvider>
-          <CommandContextKeyProvider>
-            <CommandProvider>
-              <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
-                <TopViewContainer>
-                  <SubWindowAppShell />
-                </TopViewContainer>
-              </TabsProvider>
-            </CommandProvider>
-          </CommandContextKeyProvider>
-        </CodeStyleProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <CodeStyleProvider>
+        <CommandContextKeyProvider>
+          <CommandProvider>
+            <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
+              <SubWindowAppShell />
+              <SubWindowRuntime />
+            </TabsProvider>
+          </CommandProvider>
+        </CommandContextKeyProvider>
+      </CodeStyleProvider>
+    </ThemeProvider>
   )
 }
 

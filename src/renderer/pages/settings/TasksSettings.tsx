@@ -30,12 +30,24 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ListItem from '@renderer/components/ListItem'
+import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import Scrollbar from '@renderer/components/Scrollbar'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingsContentColumn,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { dataApiService } from '@renderer/data/DataApiService'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { useCreateTask, useDeleteTask, useRunTask, useTaskLogs, useUpdateTask } from '@renderer/hooks/agent/useTasks'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { toast } from '@renderer/services/toast'
+import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type {
   AgentEntity,
@@ -47,8 +59,11 @@ import type {
 import {
   AlertTriangle,
   CalendarClock,
+  ChevronDown,
+  CircleSlash,
   Clock,
   ExternalLink,
+  Folder,
   History,
   Maximize2,
   MoreHorizontal,
@@ -60,8 +75,6 @@ import {
 } from 'lucide-react'
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
 
 const logger = loggerService.withContext('TasksSettings')
 
@@ -170,7 +183,7 @@ const TaskScheduleControls: FC<{
               min={1}
               value={value.value}
               onChange={(e) => onChange({ ...value, value: e.target.value })}
-              onBlur={() => commitTrigger()}
+              onBlur={() => commitTrigger('interval', value.value)}
               placeholder={t('agent.cherryClaw.tasks.intervalPlaceholder')}
               disabled={disabled}
               className="w-24"
@@ -200,7 +213,7 @@ const TaskScheduleControls: FC<{
           <UIInput
             value={value.value}
             onChange={(e) => onChange({ ...value, value: e.target.value })}
-            onBlur={() => commitTrigger()}
+            onBlur={() => commitTrigger('cron', value.value)}
             placeholder={t('agent.cherryClaw.tasks.cronPlaceholder')}
             disabled={disabled}
             className="w-72 max-w-full"
@@ -324,6 +337,15 @@ const TaskDetail: FC<{
     timeoutMinutes: task.timeoutMinutes?.toString() ?? ''
   })
   const [channelIds, setChannelIds] = useState<string[]>(task.channelIds ?? [])
+  const [workspaceId, setWorkspaceId] = useState<string | null>(
+    task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null
+  )
+  const { data: workspaces } = useQuery('/agent-workspaces')
+
+  const isSystemWorkspace = workspaceId === null
+  const workspaceLabel = isSystemWorkspace
+    ? t('agent.session.workspace_selector.no_project')
+    : (workspaces?.find((w) => w.id === workspaceId)?.name ?? workspaceId)
 
   const toggleStatusLabel =
     task.status === 'active' ? t('agent.cherryClaw.tasks.pause') : t('agent.cherryClaw.tasks.resume')
@@ -337,6 +359,7 @@ const TaskDetail: FC<{
     const next = triggerToFormState(task.trigger)
     setSchedule({ ...next, timeoutMinutes: task.timeoutMinutes?.toString() ?? '' })
     setChannelIds(task.channelIds ?? [])
+    setWorkspaceId(task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null)
   }, [task])
 
   const saveField = useCallback(
@@ -528,6 +551,36 @@ const TaskDetail: FC<{
             }}
             disabled={isCompleted}
           />
+
+          {/* Workspace is a secondary detail — scheduled tasks default to "No work directory". */}
+          <div className="flex items-center gap-1.5 text-foreground-muted text-xs">
+            <span>{t('agent.session.display.workdir')}</span>
+            <WorkspaceSelector
+              value={workspaceId}
+              onChange={(nextWorkspaceId) => {
+                setWorkspaceId(nextWorkspaceId)
+                saveField({
+                  workspace:
+                    nextWorkspaceId === null
+                      ? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+                      : { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: nextWorkspaceId }
+                })
+              }}
+              disabled={isCompleted}
+              align="start"
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 px-1.5 text-foreground-muted"
+                  disabled={isCompleted}>
+                  {isSystemWorkspace ? <CircleSlash className="size-3.5" /> : <Folder className="size-3.5" />}
+                  <span className="max-w-40 truncate">{workspaceLabel}</span>
+                  <ChevronDown className="size-3.5" />
+                </Button>
+              }
+            />
+          </div>
         </div>
       </SettingGroup>
 
@@ -539,7 +592,7 @@ const TaskDetail: FC<{
       </SettingGroup>
 
       <Dialog open={promptModalOpen} onOpenChange={handlePromptModalOpenChange}>
-        <DialogContent className="sm:max-w-160">
+        <DialogContent closeOnOverlayClick={false} className="sm:max-w-160">
           <DialogHeader>
             <DialogTitle>{t('agent.cherryClaw.tasks.prompt.label')}</DialogTitle>
           </DialogHeader>
@@ -783,14 +836,20 @@ const CreateForm: FC<{
   const [promptModalOpen, setPromptModalOpen] = useState(false)
   const [schedule, setSchedule] = useState<ScheduleFormState>({ kind: 'interval', value: '', timeoutMinutes: '' })
   const [channelIds, setChannelIds] = useState<string[]>([])
-  // TODO(agent-workspace-picker): wire the workspace picker before re-enabling task creation.
-  const [workspaceSource] = useState<CreateTaskRequest['workspace'] | null>(null)
+  // `null` = "No work directory" (system workspace); a string binds the task to that user workspace.
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null)
+  const { data: workspaces } = useQuery('/agent-workspaces')
   const [saving, setSaving] = useState(false)
 
-  const isValid = agentId && name.trim() && prompt.trim() && schedule.value.trim() && workspaceSource
+  const isSystemWorkspace = workspaceId === null
+  const workspaceLabel = isSystemWorkspace
+    ? t('agent.session.workspace_selector.no_project')
+    : (workspaces?.find((w) => w.id === workspaceId)?.name ?? workspaceId)
+
+  const isValid = agentId && name.trim() && prompt.trim() && schedule.value.trim()
 
   const handleCreate = useCallback(async () => {
-    if (!agentId || !name.trim() || !prompt.trim() || !schedule.value.trim() || !workspaceSource) return
+    if (!agentId || !name.trim() || !prompt.trim() || !schedule.value.trim()) return
     const trigger = formStateToTrigger(schedule.kind, schedule.value.trim())
     if (!trigger) return
     setSaving(true)
@@ -800,14 +859,17 @@ const CreateForm: FC<{
         name: name.trim(),
         prompt: prompt.trim(),
         trigger,
-        workspace: workspaceSource,
+        workspace:
+          workspaceId === null
+            ? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+            : { type: AGENT_WORKSPACE_TYPE.USER, workspaceId },
         timeoutMinutes: timeout && timeout > 0 ? timeout : undefined,
         channelIds: channelIds.length > 0 ? channelIds : undefined
       })
     } finally {
       setSaving(false)
     }
-  }, [agentId, name, prompt, schedule, workspaceSource, channelIds, onCreate])
+  }, [agentId, name, prompt, schedule, workspaceId, channelIds, onCreate])
 
   return (
     <SettingsContentColumn theme={theme}>
@@ -863,7 +925,7 @@ const CreateForm: FC<{
           </SettingRow>
 
           <Dialog open={promptModalOpen} onOpenChange={setPromptModalOpen}>
-            <DialogContent className="sm:max-w-160">
+            <DialogContent closeOnOverlayClick={false} className="sm:max-w-160">
               <DialogHeader>
                 <DialogTitle>{t('agent.cherryClaw.tasks.prompt.label')}</DialogTitle>
               </DialogHeader>
@@ -879,6 +941,23 @@ const CreateForm: FC<{
 
           <TaskScheduleControls value={schedule} onChange={setSchedule} />
           <TaskChannelSelector channels={channels} channelIds={channelIds} onChange={setChannelIds} />
+
+          {/* Workspace is a secondary detail — scheduled tasks default to "No work directory". */}
+          <div className="flex items-center gap-1.5 text-foreground-muted text-xs">
+            <span>{t('agent.session.display.workdir')}</span>
+            <WorkspaceSelector
+              value={workspaceId}
+              onChange={setWorkspaceId}
+              align="start"
+              trigger={
+                <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-foreground-muted">
+                  {isSystemWorkspace ? <CircleSlash className="size-3.5" /> : <Folder className="size-3.5" />}
+                  <span className="max-w-40 truncate">{workspaceLabel}</span>
+                  <ChevronDown className="size-3.5" />
+                </Button>
+              }
+            />
+          </div>
 
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={onCancel}>
@@ -948,7 +1027,7 @@ const TasksSettings: FC = () => {
       )
     } catch (error) {
       logger.error('Failed to load tasks settings', error as Error)
-      window.toast.error(t('agent.cherryClaw.tasks.error.loadFailed'))
+      toast.error(t('agent.cherryClaw.tasks.error.loadFailed'))
     } finally {
       setLoading(false)
     }

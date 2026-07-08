@@ -61,7 +61,7 @@ async function listTools(server: SkillsServerInstance) {
 describe('SkillsServer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockSkillToggle.mockResolvedValue({ id: 'skill-1', isEnabled: true })
+    mockSkillToggle.mockReturnValue({ id: 'skill-1', isEnabled: true })
   })
 
   it('should expose only the skills tool', async () => {
@@ -154,7 +154,7 @@ describe('SkillsServer', () => {
         folderName: 'gh-create-pr',
         isEnabled: false
       })
-      mockSkillToggle.mockResolvedValue(null)
+      mockSkillToggle.mockReturnValue(null)
 
       const server = createServer('agent_1')
       const result = await callTool(server, { action: 'install', identifier: 'owner/repo/gh-create-pr' })
@@ -391,7 +391,7 @@ describe('SkillsServer', () => {
         folderName: 'my-skill',
         isEnabled: false
       })
-      mockSkillToggle.mockResolvedValue(null)
+      mockSkillToggle.mockReturnValue(null)
 
       const server = createServer()
       const result = await callTool(server, { action: 'register', name: 'my-skill' })

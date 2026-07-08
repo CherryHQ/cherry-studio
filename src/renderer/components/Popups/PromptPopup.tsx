@@ -1,10 +1,9 @@
 import { Box, Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Textarea } from '@cherrystudio/ui'
+import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
 import { X } from 'lucide-react'
 import type { ComponentProps, CSSProperties, KeyboardEvent, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { TopView } from '../TopView'
 
 type PromptTextAreaProps = Omit<
   ComponentProps<typeof Textarea.Input>,
@@ -26,9 +25,7 @@ interface PromptPopupShowParams {
   extraNode?: ReactNode
 }
 
-interface Props extends PromptPopupShowParams {
-  resolve: (value: any) => void
-}
+type Props = PromptPopupShowParams & PopupInjectedProps<string | null>
 
 const PromptPopupContainer: React.FC<Props> = ({
   title,
@@ -37,11 +34,10 @@ const PromptPopupContainer: React.FC<Props> = ({
   inputPlaceholder = '',
   inputProps = {},
   extraNode = null,
+  open,
   resolve
 }) => {
   const [value, setValue] = useState(defaultValue)
-  const [open, setOpen] = useState(true)
-  const resolvedRef = useRef(false)
   const textAreaRef = useRef<HTMLTextAreaElement>(null)
   const { t } = useTranslation()
   const {
@@ -69,22 +65,8 @@ const PromptPopupContainer: React.FC<Props> = ({
     })
   }, [open])
 
-  const settle = (result: string | null) => {
-    if (resolvedRef.current) return
-
-    resolvedRef.current = true
-    resolve(result)
-    setOpen(false)
-    window.setTimeout(() => TopView.hide(TopViewKey), 200)
-  }
-
-  const onOk = () => {
-    settle(value)
-  }
-
-  const onCancel = () => {
-    settle(null)
-  }
+  const onOk = () => resolve(value)
+  const onCancel = () => resolve(null)
 
   const onOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -114,11 +96,9 @@ const PromptPopupContainer: React.FC<Props> = ({
     }
   }
 
-  PromptPopup.hide = onCancel
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
@@ -163,16 +143,6 @@ const PromptPopupContainer: React.FC<Props> = ({
   )
 }
 
-const TopViewKey = 'PromptPopup'
+const PromptPopup = createPopup<PromptPopupShowParams, string | null>(PromptPopupContainer, { dismissResult: null })
 
-export default class PromptPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide(TopViewKey)
-  }
-  static show(props: PromptPopupShowParams) {
-    return new Promise<string>((resolve) => {
-      TopView.show(<PromptPopupContainer {...props} resolve={resolve} />, 'PromptPopup')
-    })
-  }
-}
+export default PromptPopup

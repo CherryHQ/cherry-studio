@@ -39,10 +39,7 @@ vi.mock('../ConnectionSettings/AuthenticationSection', () => ({
 }))
 
 vi.mock('../ModelList', () => ({
-  ModelList: ({ providerId }: any) => <div>{`model-list-${providerId}`}</div>
-}))
-
-vi.mock('../ModelList/modelListHealthContext', () => ({
+  ModelList: ({ providerId }: any) => <div>{`model-list-${providerId}`}</div>,
   ModelListHealthProvider: ({ children }: any) => <>{children}</>,
   useModelListHealth: () => ({
     openHealthCheck: openHealthCheckMock

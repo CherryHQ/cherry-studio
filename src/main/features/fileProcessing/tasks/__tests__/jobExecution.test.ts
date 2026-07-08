@@ -50,7 +50,7 @@ vi.mock('../../processors/registry', () => ({
   processorRegistry: processorRegistryMock
 }))
 
-vi.mock('@main/utils/file/fs', () => ({
+vi.mock('@main/utils/file', () => ({
   stat: fsStatMock
 }))
 

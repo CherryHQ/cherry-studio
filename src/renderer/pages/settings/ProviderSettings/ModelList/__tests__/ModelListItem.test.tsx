@@ -1,4 +1,5 @@
-import { DataApiErrorFactory } from '@shared/data/api'
+import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -68,9 +69,6 @@ describe('ModelListItem', () => {
         writeText: vi.fn().mockResolvedValue(undefined)
       }
     })
-    ;(window as any).toast = {
-      error: vi.fn()
-    }
   })
 
   it('shows an error toast when toggling a model fails', async () => {
@@ -97,7 +95,7 @@ describe('ModelListItem', () => {
 
     expect(onToggleEnabled).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }), false)
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
     })
   })
 
@@ -207,7 +205,7 @@ describe('ModelListItem', () => {
 
     expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }))
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
     })
   })
 
@@ -238,7 +236,7 @@ describe('ModelListItem', () => {
     fireEvent.click(screen.getByLabelText('settings.models.manage.remove_model'))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.model_in_use_by_knowledge_base')
+      expect(toast.error).toHaveBeenCalledWith('settings.models.manage.model_in_use_by_knowledge_base')
     })
   })
 })

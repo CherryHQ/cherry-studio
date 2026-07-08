@@ -56,9 +56,15 @@ vi.mock('@renderer/components/chat/messages/hooks/useMessagePlatformActions', ()
   useMessagePlatformActions: () => ({})
 }))
 
-vi.mock('@renderer/components/chat/messages', () => ({
-  MessageContentProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  MessageContent: () => <div data-testid="message-content" />,
+vi.mock('@renderer/components/chat/messages/MessageContentProvider', () => ({
+  MessageContentProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
+}))
+
+vi.mock('@renderer/components/chat/messages/frame/MessageContent', () => ({
+  default: () => <div data-testid="message-content" />
+}))
+
+vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
   toMessageListItem: (message: unknown) => message
 }))
 
