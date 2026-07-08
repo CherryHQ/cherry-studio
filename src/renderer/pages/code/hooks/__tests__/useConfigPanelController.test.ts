@@ -39,6 +39,7 @@ vi.mock('../../cliConfig/parser', () => ({ extractConnectionFromCliConfigDraft: 
 // Keep the real registry so any transitive importer of `adapters` (getAdapter/CLI_CONFIG_ADAPTERS)
 // still resolves; override only the sanitizer this test asserts on.
 vi.mock('../../cliConfig/adapters', async (importOriginal) => ({
+  // oxlint-disable-next-line consistent-type-imports
   ...(await importOriginal<typeof import('../../cliConfig/adapters')>()),
   sanitizeCliConfigBlob: mocks.sanitizeCliConfigBlob
 }))

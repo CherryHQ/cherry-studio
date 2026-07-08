@@ -1,5 +1,5 @@
 import { CodeCli } from '@shared/types/codeCli'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', () => ({
   application: {
@@ -236,11 +236,21 @@ describe('CodeCliService', () => {
   // Reviewer A4: the launch directory is interpolated into a shell string (macOS: wrapped again by
   // AppleScript). It must be single-quoted so a path with spaces / $() / backticks can't inject.
   describe('run (launch command shell-quotes the directory)', () => {
+    const originalPlatform = process.platform
+
     beforeEach(async () => {
+      // The command-assembly switch branches on the real `process.platform` (separately from the
+      // `isMac`/`isWin` mock above, which only governs terminal *config* selection), so it must be
+      // pinned to darwin here regardless of the OS actually running the test (e.g. Linux CI).
+      Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
       const fs = (await import('node:fs')).default
       vi.mocked(fs.existsSync).mockReturnValue(true)
       const resolver = await import('@main/utils/binaryResolver')
       vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
+    })
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
     })
 
     it('single-quotes a directory containing spaces and $() in the assembled command', async () => {
