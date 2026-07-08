@@ -51,7 +51,19 @@ export function buildParamsSchema(
   mode: ImageGenerationMode = 'generate'
 ): z.ZodType<Record<string, unknown>> {
   const supports = resolveModeSupports(support, mode)
-  if (!supports) return z.object({}).loose()
+  if (!supports) {
+    // No per-model constraints (custom/unregistered model — computeModelFieldReset
+    // also skips clearing in this case, so a stale value from the previous model
+    // can still be present). Still run every canonical key through the catalog's
+    // OWN coercion + `.catch(undefined)`, so a bad/legacy value degrades to "drop
+    // that key" here instead of riding raw into the strict IPC-boundary schema
+    // (`imageParamsSchema`, which has no `.catch`) and rejecting the whole submit.
+    const catalogShape: Record<string, z.ZodTypeAny> = {}
+    for (const [key, entry] of Object.entries(IMAGE_PARAM_CATALOG)) {
+      catalogShape[key] = (entry.schema as z.ZodTypeAny).catch(undefined)
+    }
+    return z.object(catalogShape).loose()
+  }
 
   const shape: Record<string, z.ZodTypeAny> = {}
   for (const [key, spec] of Object.entries(supports) as [CanonicalParamKey, SupportSpec][]) {

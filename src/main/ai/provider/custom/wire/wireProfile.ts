@@ -181,7 +181,17 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   azure: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   'azure-responses': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   huggingface: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
-  cherryin: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
+  // passthrough: CherryIn's own Google-image wrapper (@cherrystudio/ai-sdk-provider)
+  // reads raw camelCase personGeneration/imageResolution off this key — those aren't
+  // OPENAI_WIRE_PROFILE fields, so without passthrough they're silently dropped.
+  cherryin: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
+  // The provider resolver upgrades cherryin's default chat endpoint to this variant
+  // (provider/config.ts), so 'cherryin-chat' — not 'cherryin' — is the id AiService
+  // actually looks up for the common image-generation path. But the wrapper above
+  // reads providerOptions['cherryin'] (its own fixed internal key, independent of
+  // our providerId variant), so deliver under 'cherryin' here too — mirroring
+  // google-vertex → vertex below.
+  'cherryin-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true, key: 'cherryin', passthrough: true },
   newapi: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   google: { profile: GOOGLE_WIRE_PROFILE },
   // Vertex reuses the google body but delivers under `vertex` (the key the

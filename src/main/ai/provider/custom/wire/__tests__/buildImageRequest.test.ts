@@ -83,6 +83,27 @@ describe('buildVendorProviderOptions — OpenAI image family (dual-keyed)', () =
   })
 })
 
+describe('buildVendorProviderOptions — cherryin-chat (delivers under the cherryin key, not its own id)', () => {
+  it('routes the openai body under openai + cherryin (not cherryin-chat) — the AI SDK provider id AiService actually resolves for CherryIn is cherryin-chat, but its Google-image wrapper reads providerOptions.cherryin', () => {
+    const paramValues = { quality: 'high', background: 'transparent', moderation: 'low', style: 'vivid' }
+    expect(engine('cherryin-chat', paramValues)).toEqual({
+      openai: { quality: 'high', background: 'transparent', moderation: 'low', style: 'vivid' },
+      cherryin: { quality: 'high', background: 'transparent', moderation: 'low', style: 'vivid' }
+    })
+  })
+
+  it.each(['cherryin', 'cherryin-chat'])(
+    'forwards personGeneration/imageResolution (not OpenAI-profile fields) under cherryin via passthrough, for %s',
+    (providerId) => {
+      const paramValues = { personGeneration: 'allow_adult', imageResolution: '2K', quality: 'high' }
+      expect(engine(providerId, paramValues)).toEqual({
+        openai: { quality: 'high' },
+        cherryin: { quality: 'high', personGeneration: 'allow_adult', imageResolution: '2K' }
+      })
+    }
+  )
+})
+
 describe('buildVendorProviderOptions — Google native image family (contribute / nested imageConfig)', () => {
   const cases: Array<[string, Record<string, unknown>, Record<string, Record<string, unknown>>]> = [
     [

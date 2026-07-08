@@ -24,17 +24,16 @@ export function createDefaultPainting(providerId: string): PaintingData {
 /**
  * Generic painting generate dispatch — the same flow for every provider:
  *
- *   1. Look up the model's `imageGeneration` block via DataApi.
- *   2. If the model declares per-mode `vendorTransport` (PPIO async
- *      endpoints, future custom-transport vendors), inject the descriptor
- *      into `painting.params.modelDescriptor` so the AI SDK image-model
- *      can read it from `providerOptions[providerId]`.
- *   3. Hand off to `canonicalGenerate` (with the mode's `requirePrompt`
- *      flag when the registry declares one).
+ *   1. Look up the model's `imageGeneration` block (support + effective mode +
+ *      `requirePrompt`) via DataApi.
+ *   2. Hand off to `canonicalGenerate`, which validates/coerces `painting.params`
+ *      against that support + the central catalog. Backend routing data
+ *      (`modelDescriptor` — per-model transport endpoint/isSync) is derived in
+ *      main from the registry, not here; see `AiService.generateImage`.
  *
  * Vendor wire-format quirks live in the aiCore image-model adapters
  * (`aihubmix/aihubmixImageModel.ts`, `{ppio,dmxapi,ovms,modelscope}/<vendor>Transport.ts`),
- * not here. This function only does the registry → bag injection.
+ * not here.
  */
 export async function paintingGenerate(input: GenerateInput): Promise<FileMetadata[]> {
   const modelId = input.painting.model
@@ -60,7 +59,7 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
             : undefined
       requirePrompt = effectiveMode && modes ? modes[effectiveMode]?.requirePrompt : undefined
     } catch (error) {
-      logger.warn('Failed to prefetch vendorTransport', {
+      logger.warn('Failed to prefetch image-generation support', {
         providerId: input.provider.id,
         modelId,
         mode: canonicalMode,

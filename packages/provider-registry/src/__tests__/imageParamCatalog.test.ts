@@ -70,7 +70,18 @@ describe('buildParamsSchema', () => {
     expect(schema.parse({ somethingLegacy: 'x' })).toMatchObject({ somethingLegacy: 'x' })
   })
 
-  it('returns an empty loose object when the model declares no image support', () => {
+  it('passes non-catalog keys through untouched when the model declares no image support', () => {
     expect(buildParamsSchema(undefined).parse({ anything: 1 })).toMatchObject({ anything: 1 })
+  })
+
+  it('still coerces/catches catalog keys with no per-model support block (custom/unregistered model)', () => {
+    // A stale value carried over from a previous model (computeModelFieldReset
+    // skips clearing when the new model has no registry block) must not ride raw
+    // into the strict IPC-boundary schema and reject the whole ai.generate_image
+    // request — the catalog's own `.catch(undefined)` still applies.
+    const parsed = buildParamsSchema(undefined).parse({ seed: 'abc', numImages: '2', anything: 1 })
+    expect(parsed.seed).toBeUndefined()
+    expect(parsed.numImages).toBe(2)
+    expect(parsed.anything).toBe(1)
   })
 })
