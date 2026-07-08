@@ -780,8 +780,7 @@ describe('AgentComposer', () => {
       />
     )
 
-    const workspaceButton = (screen.getByText('Workspace 1').closest('button') ||
-      screen.getByText('Workspace 1').closest('[role="button"]'))!
+    const workspaceButton = screen.getByText('Workspace 1').closest('button')!
     const indicator = screen.getByLabelText('agent.right_pane.info.context_usage 42%')
     expect(workspaceButton.compareDocumentPosition(indicator)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(indicator).toBeInTheDocument()
@@ -930,6 +929,25 @@ describe('AgentComposer', () => {
 
     fireEvent.click(clearButton)
     expect(onWorkspaceChange).toHaveBeenCalledWith(null)
+  })
+
+  it('keeps the workspace selector trigger as a native button without nested interactive roles', () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+        onWorkspaceChange={vi.fn()}
+        showWorkspaceSelector
+      />
+    )
+
+    const workspaceButton = screen.getByText('Workspace 1').closest('button')
+    expect(workspaceButton).toBeInTheDocument()
+    expect(workspaceButton).toHaveAttribute('type', 'button')
+    expect(within(workspaceButton!).queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('marks already selected workspace resources as disabled', async () => {
@@ -1887,8 +1905,7 @@ describe('AgentComposer', () => {
 
     expect(screen.getByText('Agent').closest('button')).toHaveClass('h-8', 'rounded-lg')
     expect(screen.getByText('Claude Sonnet 4.5 | Anthropic').closest('button')).toHaveClass('h-8', 'rounded-lg')
-    const workspaceButton =
-      screen.getByText('Workspace 1').closest('button') || screen.getByText('Workspace 1').closest('[role="button"]')
+    const workspaceButton = screen.getByText('Workspace 1').closest('button')
     expect(workspaceButton).toHaveClass('h-8', 'rounded-lg')
 
     const belowText = belowControls.textContent ?? ''

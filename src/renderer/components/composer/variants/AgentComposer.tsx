@@ -508,11 +508,12 @@ const AgentComposerWorkspaceControl = ({
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
     : (workspace?.name ?? selectWorkspaceLabel)
+  const canQuickClearWorkspace = Boolean(onWorkspaceChange && workspace && !iconOnly)
   const trigger = (
     <Button
-      asChild
       variant="ghost"
       size="sm"
+      type="button"
       className={cn(
         baseTriggerClassName,
         !menuOpen && 'group',
@@ -521,68 +522,52 @@ const AgentComposerWorkspaceControl = ({
         hasWarning && 'text-warning hover:text-warning'
       )}
       disabled={!onWorkspaceChange || workspaceChanging}
-      aria-label={workspaceWarning}>
-      <div
-        role="button"
-        tabIndex={!onWorkspaceChange || workspaceChanging ? -1 : 0}
-        aria-disabled={!onWorkspaceChange || workspaceChanging}>
-        {hasWarning ? (
-          <TriangleAlert size={14} aria-hidden />
-        ) : isSystemWorkspace ? (
-          <CircleSlash size={14} aria-hidden className="text-muted-foreground" />
-        ) : (
-          <div className="relative flex size-4 shrink-0 items-center justify-center">
-            <Folder
-              size={14}
+      aria-label={workspaceWarning}
+      onClick={(event) => {
+        const target = event.target as Element | null
+        if (!canQuickClearWorkspace || !target?.closest('[data-clear-workspace-button]')) {
+          return
+        }
+
+        event.preventDefault()
+        event.stopPropagation()
+        if (!workspaceChanging) void onWorkspaceChange?.(null)
+      }}>
+      {hasWarning ? (
+        <TriangleAlert size={14} aria-hidden />
+      ) : isSystemWorkspace ? (
+        <CircleSlash size={14} aria-hidden className="text-muted-foreground" />
+      ) : (
+        <span className="relative flex size-4 shrink-0 items-center justify-center">
+          <Folder
+            size={14}
+            aria-hidden
+            className={cn(
+              'shrink-0 text-muted-foreground transition-all duration-200',
+              canQuickClearWorkspace && !menuOpen && 'group-hover:scale-75 group-hover:opacity-0'
+            )}
+          />
+          {canQuickClearWorkspace && (
+            <span
+              data-clear-workspace-button
+              data-testid="clear-workspace-button"
               aria-hidden
               className={cn(
-                'shrink-0 text-muted-foreground transition-all duration-200',
-                onWorkspaceChange && !menuOpen && !iconOnly && 'group-hover:scale-75 group-hover:opacity-0'
+                'pointer-events-none absolute inset-0 z-10 flex scale-75 items-center justify-center rounded-full bg-transparent text-muted-foreground/95 opacity-0 transition-all duration-200 hover:bg-muted-foreground/25 hover:text-foreground active:scale-95',
+                !menuOpen && 'group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100',
+                workspaceChanging && 'cursor-not-allowed opacity-50'
               )}
-            />
-            {/* R8: 仅在有有效工作目录且非 iconOnly 时渲染清除按钮 */}
-            {onWorkspaceChange && workspace && !iconOnly && (
-              <div
-                className={cn(
-                  'pointer-events-none absolute inset-0 z-10 flex scale-75 items-center justify-center opacity-0 transition-all duration-200',
-                  !menuOpen && 'group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100'
-                )}>
-                <Tooltip content={t('agent.session.workspace_selector.no_project')}>
-                  <span
-                    role="button"
-                    data-testid="clear-workspace-button"
-                    tabIndex={workspaceChanging ? -1 : 0}
-                    aria-disabled={workspaceChanging}
-                    aria-hidden={menuOpen || !onWorkspaceChange || iconOnly}
-                    className={cn(
-                      'flex size-4 items-center justify-center rounded-full bg-transparent text-muted-foreground/95 transition-all hover:bg-muted-foreground/25 hover:text-foreground active:scale-95',
-                      workspaceChanging && 'cursor-not-allowed opacity-50'
-                    )}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (!workspaceChanging) void onWorkspaceChange(null)
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        if (!workspaceChanging) void onWorkspaceChange(null)
-                      }
-                    }}>
-                    <X size={10} className="stroke-[2.5]" />
-                  </span>
-                </Tooltip>
-              </div>
-            )}
-          </div>
-        )}
-        <span className={cn('max-w-40 truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{workspaceLabel}</span>
-        {onWorkspaceChange ? (
-          <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
-        ) : null}
-      </div>
+              onMouseDown={(e) => e.preventDefault()}
+              onPointerDown={(e) => e.preventDefault()}>
+              <X size={10} className="stroke-[2.5]" />
+            </span>
+          )}
+        </span>
+      )}
+      <span className={cn('max-w-40 truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)}>{workspaceLabel}</span>
+      {onWorkspaceChange ? (
+        <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
+      ) : null}
     </Button>
   )
   const selector = onWorkspaceChange ? (
