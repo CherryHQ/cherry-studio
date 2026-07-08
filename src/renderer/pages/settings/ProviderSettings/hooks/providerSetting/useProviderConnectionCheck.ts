@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -73,6 +72,7 @@ export function useProviderConnectionCheck(providerId: string) {
       return
     }
 
+    setApiKeyConnectivity({ kind: 'idle', status: HealthStatus.NOT_CHECKED, checking: false })
     setConnectionCheckOpen(true)
   }, [checkableApiKeys, i18n, provider])
 
@@ -148,10 +148,12 @@ export function useProviderConnectionCheck(providerId: string) {
             error
           })
         }
-        toast.error({
-          timeout: 8000,
-          title: i18n.t(didCommitApiKey ? 'message.api.connection.failed' : 'settings.provider.api_key.save_failed')
-        })
+        if (!didCommitApiKey) {
+          toast.error({
+            timeout: 8000,
+            title: i18n.t('settings.provider.api_key.save_failed')
+          })
+        }
 
         setApiKeyConnectivity({
           kind: 'failed',
@@ -160,7 +162,6 @@ export function useProviderConnectionCheck(providerId: string) {
           model,
           error: serializeHealthCheckError(error)
         })
-        setConnectionCheckOpen(false)
       }
     },
     [abortInFlightCheck, checkableModels.length, commitInputApiKeyNow, i18n, provider, setTimeoutTimer, updateProvider]
@@ -187,12 +188,6 @@ export function useProviderConnectionCheck(providerId: string) {
     })
   }, [checkableApiKeys, checkableModels, i18n, startConnectionCheck, t])
 
-  const showApiKeyError = useCallback(() => {
-    if (apiKeyConnectivity.error) {
-      showErrorDetailPopup({ error: apiKeyConnectivity.error })
-    }
-  }, [apiKeyConnectivity.error])
-
   useEffect(() => {
     // Provider / host / apiKey changed mid-flight: abort the in-flight check so
     // its late then/catch doesn't land on the new credentials.
@@ -212,7 +207,6 @@ export function useProviderConnectionCheck(providerId: string) {
     openConnectionCheck,
     closeConnectionCheck,
     startConnectionCheck,
-    showApiKeyError,
     resetApiKeyConnectivity
   }
 }

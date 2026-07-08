@@ -26,7 +26,7 @@ export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-medium')
 /** Authentication section layout: slot stack only; fields provide their own surfaces. */
 export const authConnectionClasses = {
   shell: '',
-  body: 'flex flex-col gap-2'
+  body: 'flex flex-col gap-5'
 } as const
 
 /**
@@ -186,7 +186,8 @@ export const modelListClasses = {
   sectionTitle: cn(sectionHeadingBase, 'shrink-0 whitespace-nowrap font-semibold'),
   titleHelpRow: 'flex min-w-0 flex-wrap items-center gap-x-1 self-center text-foreground-muted',
   titleHelpText: 'shrink-0 opacity-60',
-  titleHelpLink: 'mx-0 inline-flex shrink-0 items-center leading-[1.3] text-primary hover:underline',
+  titleHelpLink:
+    'mx-0 inline-flex shrink-0 items-center leading-[1.3] !text-foreground-muted/60 hover:!text-primary hover:underline',
   titleHelpSeparator: 'inline-flex shrink-0 items-center leading-[1.3] text-foreground-muted/50',
   countMeta: 'text-xs leading-tight text-foreground-muted tabular-nums',
   toolbarGhost:

@@ -1,4 +1,4 @@
-import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip, WarnTooltip } from '@cherrystudio/ui'
+import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { ApiKeyConnectivity } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { Activity, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
@@ -15,16 +15,10 @@ import ProviderApiKeyListDrawer from './ProviderApiKeyListDrawer'
 interface ApiKeyProps {
   providerId: string
   apiKeyConnectivity: ApiKeyConnectivity
-  onShowApiKeyError: () => void
   onOpenConnectionCheck: () => void
 }
 
-export default function ApiKey({
-  providerId,
-  apiKeyConnectivity,
-  onShowApiKeyError,
-  onOpenConnectionCheck
-}: ApiKeyProps) {
+export default function ApiKey({ providerId, apiKeyConnectivity, onOpenConnectionCheck }: ApiKeyProps) {
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const meta = useProviderMeta(providerId)
@@ -83,14 +77,6 @@ export default function ApiKey({
                       {showApiKey ? <EyeOff size={12} /> : <Eye size={12} />}
                     </button>
                   </Tooltip>
-                </InputGroupAddon>
-              )}
-              {apiKeyConnectivity.status === 'failed' && !apiKeyConnectivity.checking && (
-                <InputGroupAddon align="inline-end">
-                  <WarnTooltip
-                    content={apiKeyConnectivity.error?.message || t('settings.models.check.failed')}
-                    onClick={onShowApiKeyError}
-                  />
                 </InputGroupAddon>
               )}
             </InputGroup>

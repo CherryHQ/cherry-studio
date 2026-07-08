@@ -13,7 +13,6 @@ const useProviderEndpointsMock = vi.fn()
 const checkApiMock = vi.fn()
 const updateProviderMock = vi.fn()
 const commitInputApiKeyNowMock = vi.fn()
-const showErrorDetailPopupMock = vi.fn()
 const { loggerErrorMock } = vi.hoisted(() => ({
   loggerErrorMock: vi.fn()
 }))
@@ -52,10 +51,6 @@ vi.mock('../useProviderEndpoints', () => ({
 
 vi.mock('@renderer/pages/settings/ProviderSettings/utils/healthCheck', () => ({
   checkApi: (...args: any[]) => checkApiMock(...args)
-}))
-
-vi.mock('@renderer/components/ErrorDetailModal', () => ({
-  showErrorDetailPopup: (...args: any[]) => showErrorDetailPopupMock(...args)
 }))
 
 vi.mock('@logger', () => ({
@@ -224,6 +219,10 @@ describe('useProviderConnectionCheck', () => {
     checkApiMock.mockRejectedValueOnce(new Error('timeout'))
     const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
 
+    act(() => {
+      result.current.openConnectionCheck()
+    })
+
     await act(async () => {
       await result.current.startConnectionCheck({
         model: result.current.checkableModels[0],
@@ -236,6 +235,8 @@ describe('useProviderConnectionCheck', () => {
       modelId: 'cherryin::claude-4-sonnet',
       error: expect.any(Error)
     })
-    expect(toast.error).toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(result.current.connectionCheckOpen).toBe(true)
+    expect(result.current.apiKeyConnectivity.error?.message).toBe('timeout')
   })
 })

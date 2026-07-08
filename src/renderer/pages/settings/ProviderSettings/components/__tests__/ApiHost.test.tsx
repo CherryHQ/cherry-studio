@@ -219,6 +219,7 @@ describe('ApiHost', () => {
 
     const addEndpointButton = screen.getByRole('button', { name: /^添加端点$|^Add Endpoint$/i })
     expect(addEndpointButton).toHaveTextContent(/^添加端点$|^Add Endpoint$/i)
+    expect(addEndpointButton).toHaveClass('font-normal')
     fireEvent.click(addEndpointButton)
 
     expect(screen.getByTestId('request-config-drawer')).toHaveAttribute('data-provider', 'openai')

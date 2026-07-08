@@ -17,7 +17,7 @@ function ApiHostEndpointButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       aria-label={label}
-      className="h-auto rounded px-0 py-0 text-primary text-xs leading-5 shadow-none hover:text-primary/80"
+      className="h-auto rounded px-0 py-0 font-normal text-primary text-xs leading-5 shadow-none hover:text-primary/80"
       onClick={onClick}>
       {label}
     </button>

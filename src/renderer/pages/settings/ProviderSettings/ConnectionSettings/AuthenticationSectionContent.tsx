@@ -30,7 +30,6 @@ export function AuthenticationSectionContent({
       <ApiKey
         providerId={providerId}
         apiKeyConnectivity={connectionCheck.apiKeyConnectivity}
-        onShowApiKeyError={connectionCheck.showApiKeyError}
         onOpenConnectionCheck={connectionCheck.openConnectionCheck}
       />
       <ApiHost providerId={providerId} />
@@ -38,6 +37,7 @@ export function AuthenticationSectionContent({
         open={connectionCheck.connectionCheckOpen}
         models={connectionCheck.checkableModels}
         apiKeys={connectionCheck.checkableApiKeys}
+        connectionError={connectionCheck.apiKeyConnectivity.error}
         isSubmitting={connectionCheck.apiKeyConnectivity.checking ?? false}
         onClose={connectionCheck.closeConnectionCheck}
         onStart={connectionCheck.startConnectionCheck}

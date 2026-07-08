@@ -88,10 +88,10 @@ describe('ModelListHeader', () => {
       />
     )
 
-    expect(screen.getByRole('link', { name: 'settings.models.docs' })).toHaveAttribute(
-      'href',
-      'https://github.com/marketplace/models'
-    )
+    const docsLink = screen.getByRole('link', { name: 'settings.models.docs' })
+
+    expect(docsLink).toHaveAttribute('href', 'https://github.com/marketplace/models')
+    expect(docsLink).toHaveClass('!text-foreground-muted/60', 'hover:!text-primary', 'hover:underline')
     expect(screen.getAllByRole('link')).toHaveLength(1)
     expect(screen.queryByText('settings.provider.docs_check')).not.toBeInTheDocument()
     expect(screen.queryByText('settings.provider.docs_more_details')).not.toBeInTheDocument()
