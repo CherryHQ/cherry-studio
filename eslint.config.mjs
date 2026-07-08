@@ -442,15 +442,13 @@ export default defineConfig([
   // (build via the canonicalizeFilePath() factory). A forged
   // `as CanonicalFilePath` silently bypasses canonicalization and can write a
   // ghost-duplicate key, so the stronger brand is guarded too.
-  // Exemptions: test fixtures; and two deliberate raw-OS-path regimes — the
-  // directory watcher (watcher/**) and the tree builder (tree/**) hold raw
-  // chokidar/OS event paths that are compared byte-for-byte against event
-  // paths and are trusted as-is, so they `as FilePath` rather than routing
-  // through validation.
+  // Exemptions: test fixtures; and one deliberate raw-OS-path regime — the
+  // tree builder (tree/**) holds raw chokidar/OS event paths that are compared
+  // byte-for-byte against event paths and are trusted as-is, so they `as FilePath`
+  // rather than routing through validation.
   {
     files: ['src/**/*.{ts,tsx}'],
     ignores: [
-      'src/main/services/file/watcher.ts',
       'src/main/services/file/tree/**',
       'src/**/__tests__/**',
       'src/**/__mocks__/**',
