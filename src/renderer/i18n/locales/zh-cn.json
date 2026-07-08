@@ -6006,6 +6006,8 @@
       "fieldVersion": "版本（可选，默认为最新）",
       "install": "安装",
       "installError": "工具安装失败",
+      "installManaged": "安装托管版本",
+      "installManagedHint": "此工具已可用。仅当你想要一份由 Cherry 托管、可固定并独立更新的版本时才需要安装。",
       "installSettings": {
         "description": "微调内置 CLI 工具的安装方式。所有字段均为可选，留空则保持默认。",
         "githubMirror": {
@@ -6037,7 +6039,6 @@
           "label": "校验工具签名"
         }
       },
-      "installViaMise": "通过 mise 安装",
       "installing": "安装中...",
       "invalidTool": "工具名称或标识无效",
       "notInstalled": "未安装",

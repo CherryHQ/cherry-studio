@@ -17,12 +17,12 @@ import {
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
+  NormalTooltip,
   SelectDropdown
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
-import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -107,7 +107,6 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   if (deleteTarget) deleteNameRef.current = deleteTarget
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { setCliTool } = useCodeCli()
   const mountedRef = useRef(true)
   const latestRequestIdRef = useRef(0)
 
@@ -245,11 +244,10 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     void ipcApi.request('binary.get_tool_dir', toolName).then((dir) => window.api.openPath(dir))
   }
 
-  // Pre-select the agent in the Code Tools launcher, then jump there — closes the
-  // "installed it but don't know how to run it" gap.
-  const openInCodeTools = async (codeCli: CodeCli) => {
-    await setCliTool(codeCli)
-    navigate({ to: '/app/code' })
+  // Deep-link to the Code Tools launcher with the agent's launch dialog already
+  // open — closes the "installed it but don't know how to run it" gap.
+  const openInCodeTools = (codeCli: CodeCli) => {
+    navigate({ to: '/app/code', search: { launch: codeCli } })
   }
 
   const renderPresetCard = (tool: BinaryToolPreset) => {
@@ -279,7 +277,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
         onOpenPath={() => openToolDir(tool.name)}
         onRemove={() => setDeleteTarget(tool.name)}
-        onOpen={codeCli && source !== 'none' ? () => void openInCodeTools(codeCli) : undefined}
+        onOpen={codeCli && source !== 'none' ? () => openInCodeTools(codeCli) : undefined}
       />
     )
   }
@@ -340,19 +338,19 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
       <div className="min-w-0">
         <h2 className="mb-3 font-semibold text-[15px] text-foreground leading-6">
-          {t('settings.dependencies.codingAgents')}
+          {t('settings.dependencies.toolsGroup')}
         </h2>
         <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {AGENT_TOOLS.map(renderPresetCard)}
+          {GENERAL_TOOLS.map(renderPresetCard)}
         </div>
       </div>
 
       <div className="min-w-0">
         <h2 className="mb-3 font-semibold text-[15px] text-foreground leading-6">
-          {t('settings.dependencies.toolsGroup')}
+          {t('settings.dependencies.codingAgents')}
         </h2>
         <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {GENERAL_TOOLS.map(renderPresetCard)}
+          {AGENT_TOOLS.map(renderPresetCard)}
         </div>
       </div>
 
@@ -522,6 +520,28 @@ const BinaryToolPresetCard: FC<{
             </Button>
           </div>
         )}
+
+        {/* Already available (bundled or system): the tool works as-is, so the
+            optional mise-managed copy is a low-key icon action, not a CTA that
+            would read as "not installed". The tooltip explains why an install
+            still shows up for an already-available tool. */}
+        {(isBundled || isSystem) && (
+          <NormalTooltip content={t('settings.dependencies.installManagedHint')} side="top" align="end">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 text-foreground/40 hover:text-foreground"
+              onClick={onInstall}
+              disabled={installing}
+              aria-label={t('settings.dependencies.installManaged')}>
+              {installing ? (
+                <Loader2 className="size-3.5 motion-safe:animate-spin" />
+              ) : (
+                <Download className="size-3.5" />
+              )}
+            </Button>
+          </NormalTooltip>
+        )}
       </div>
 
       <p className="mt-2.5 line-clamp-2 text-muted-foreground text-xs leading-4" title={description}>
@@ -557,9 +577,11 @@ const BinaryToolPresetCard: FC<{
         )}
       </div>
 
-      {(source === 'none' || isBundled || isSystem || onOpen) && (
+      {/* The bottom bar is reserved for a real action: run an available agent, or
+          install a tool that's genuinely missing. Available non-agent tools show
+          no bar — their status badges already say everything. */}
+      {(source === 'none' || onOpen) && (
         <div className="mt-3 flex items-center gap-2 border-border border-t pt-3">
-          {/* Available coding agent → guide the user to actually run it. */}
           {onOpen && (
             <Button variant="default" size="sm" className="h-7 flex-1 gap-1 font-medium text-xs" onClick={onOpen}>
               <Terminal className="size-3.5" />
@@ -576,20 +598,6 @@ const BinaryToolPresetCard: FC<{
               loading={installing}>
               {!installing && <Download className="size-3.5" />}
               {installing ? t('settings.dependencies.installing') : t('settings.dependencies.install')}
-            </Button>
-          )}
-          {/* Available already (bundled or system): mise install is an optional
-              Cherry-managed/pinned copy, not a prerequisite — keep it low-key. */}
-          {(isBundled || isSystem) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1 px-2 text-muted-foreground text-xs hover:text-foreground"
-              onClick={onInstall}
-              disabled={installing}
-              loading={installing}>
-              {!installing && <Download className="size-3.5" />}
-              {installing ? t('settings.dependencies.installing') : t('settings.dependencies.installViaMise')}
             </Button>
           )}
         </div>

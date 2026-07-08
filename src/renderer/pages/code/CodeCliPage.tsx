@@ -48,9 +48,10 @@ import {
   isTextToImageModel
 } from '@shared/utils/model'
 import { isAnthropicProvider, isOpenAIProvider } from '@shared/utils/provider'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Check, ChevronDown, FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CLI_TOOL_PROVIDER_MAP, CLI_TOOLS, isOpenCodeProvider, OPENAI_CODEX_SUPPORTED_PROVIDERS } from './cliTools'
@@ -98,6 +99,9 @@ const CodeCliPage: FC = () => {
     selectFolder
   } = useCodeCli()
   const { setTimeoutTimer } = useTimer()
+  const navigate = useNavigate()
+  const { launch } = useSearch({ from: '/app/code' })
+  const launchHandledRef = useRef(false)
 
   const { maxTokens, reasoning_effort } = DEFAULT_ASSISTANT_SETTINGS
 
@@ -504,6 +508,18 @@ const CodeCliPage: FC = () => {
     }
     setDialogOpen(true)
   }
+
+  // Deep-link entry: another page navigated here with `?launch=<tool>` (see the
+  // route's validateSearch). Open that tool's launch dialog once, then strip the
+  // param so closing the dialog or navigating back doesn't reopen it.
+  useEffect(() => {
+    if (!launch || launchHandledRef.current) return
+    launchHandledRef.current = true
+    void handleSelectTool(launch)
+    void navigate({ to: '/app/code', search: {}, replace: true })
+    // handleSelectTool is a stable closure for this purpose; guarding via ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [launch, navigate])
 
   const activeTool = useMemo<CliToolOption | undefined>(
     () => CLI_TOOLS.find((ti) => ti.value === selectedCliTool),

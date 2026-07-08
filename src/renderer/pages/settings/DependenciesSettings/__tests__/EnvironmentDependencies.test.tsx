@@ -12,7 +12,6 @@ const installSettingsRef = vi.hoisted(() => ({
 }))
 const setInstallSettingsMock = vi.hoisted(() => vi.fn())
 const navigateMock = vi.hoisted(() => vi.fn())
-const setCliToolMock = vi.hoisted(() => vi.fn())
 
 const ipcMocks = vi.hoisted(() => ({
   getState: vi.fn(),
@@ -63,10 +62,6 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock
 }))
 
-vi.mock('@renderer/hooks/useCodeCli', () => ({
-  useCodeCli: () => ({ setCliTool: setCliToolMock })
-}))
-
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) =>
     key === 'feature.binary.install_settings'
@@ -107,6 +102,8 @@ vi.mock('@cherrystudio/ui', () => {
       title?: string
     }) => React.createElement('button', { onClick, 'aria-label': ariaLabel, disabled, title }, children),
     ConfirmDialog: childrenOnly,
+    // Render the trigger (its child) directly; the tooltip content is irrelevant here.
+    NormalTooltip: ({ children }: { children?: React.ReactNode }) => children,
     Dialog: childrenOnly,
     DialogContent: passthrough('div'),
     DialogDescription: passthrough('div'),
@@ -228,31 +225,31 @@ describe('EnvironmentDependencies', () => {
     expect(screen.queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
-  it('marks a system-PATH preset tool as available and offers only the mise install', async () => {
-    // uv found on the user's PATH (source 'system') → "System" badge, and the
-    // install action is the low-key "install via mise", not the prominent "install".
+  it('marks a system-PATH preset tool as available with only the low-key managed install', async () => {
+    // uv found on the user's PATH (source 'system') → "System" badge and a low-key
+    // icon action to pull in a Cherry-managed copy — never the prominent install CTA.
     ipcMocks.probeSystem.mockResolvedValue({ uv: '/usr/local/bin/uv' })
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(ipcMocks.probeSystem).toHaveBeenCalled())
     const uvCard = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
     expect(within(uvCard).getByText('settings.dependencies.source.system')).toBeInTheDocument()
-    expect(within(uvCard).getByText('settings.dependencies.installViaMise')).toBeInTheDocument()
-    // The already-available uv card must not show the prominent "install".
+    expect(within(uvCard).getByLabelText('settings.dependencies.installManaged')).toBeInTheDocument()
     expect(within(uvCard).queryByText('settings.dependencies.install')).not.toBeInTheDocument()
   })
 
   it('opens an installed coding agent in the Code Tools launcher', async () => {
     // claude is mise-managed → the coding-agents card offers "Open in Code Tools",
-    // which pre-selects the matching launcher id and navigates to /app/code.
+    // which deep-links to /app/code with the launcher's dialog auto-opened.
     ipcMocks.getState.mockResolvedValue({ tools: { claude: { version: '1.0.0' } } })
     render(<EnvironmentDependencies />)
 
     await waitFor(() => expect(ipcMocks.getState).toHaveBeenCalled())
     fireEvent.click(await screen.findByText('settings.dependencies.openInCodeTools'))
 
-    await waitFor(() => expect(setCliToolMock).toHaveBeenCalledWith('claude-code'))
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith({ to: '/app/code' }))
+    await waitFor(() =>
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/app/code', search: { launch: 'claude-code' } })
+    )
   })
 
   it('does not offer Open for a coding agent that is not installed', async () => {

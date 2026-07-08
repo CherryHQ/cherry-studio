@@ -6006,6 +6006,8 @@
       "fieldVersion": "版本（選填，預設為最新）",
       "install": "安裝",
       "installError": "工具安裝失敗",
+      "installManaged": "安裝託管版本",
+      "installManagedHint": "此工具已可用。僅當你想要一份由 Cherry 託管、可固定並獨立更新的版本時才需要安裝。",
       "installSettings": {
         "description": "[to be translated]:Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
         "githubMirror": {
@@ -6037,7 +6039,6 @@
           "label": "[to be translated]:Verify tool signatures"
         }
       },
-      "installViaMise": "[to be translated]:Install via mise",
       "installing": "安裝中...",
       "invalidTool": "工具名稱或識別碼無效",
       "notInstalled": "未安裝",

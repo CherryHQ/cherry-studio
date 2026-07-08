@@ -6006,6 +6006,8 @@
       "fieldVersion": "Version (optional, defaults to latest)",
       "install": "Εγκατάσταση",
       "installError": "Failed to install tool",
+      "installManaged": "[to be translated]:Install a managed copy",
+      "installManagedHint": "[to be translated]:Already available. Install a separate Cherry-managed copy only if you want a pinned version that updates independently.",
       "installSettings": {
         "description": "[to be translated]:Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
         "githubMirror": {
@@ -6037,7 +6039,6 @@
           "label": "[to be translated]:Verify tool signatures"
         }
       },
-      "installViaMise": "[to be translated]:Install via mise",
       "installing": "Εγκατάσταση...",
       "invalidTool": "Μη έγκυρο όνομα ή κλειδί εργαλείου",
       "notInstalled": "Δεν έχει εγκατασταθεί",

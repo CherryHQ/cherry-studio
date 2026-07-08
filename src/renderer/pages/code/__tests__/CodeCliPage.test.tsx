@@ -19,7 +19,8 @@ const testState = vi.hoisted(() => ({
   setTimeoutTimer: vi.fn(),
   providers: [] as Provider[],
   models: [] as Model[],
-  modelSelectorProps: [] as any[]
+  modelSelectorProps: [] as any[],
+  launchSearch: undefined as string | undefined
 }))
 
 import CodeCliPage from '../CodeCliPage'
@@ -146,6 +147,11 @@ vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: testState.setTimeoutTimer })
 }))
 
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => vi.fn(),
+  useSearch: () => ({ launch: testState.launchSearch })
+}))
+
 vi.mock('@renderer/services/LoggerService', () => ({
   loggerService: {
     withContext: () => ({
@@ -198,6 +204,7 @@ beforeEach(() => {
   testState.providers = []
   testState.models = []
   testState.modelSelectorProps = []
+  testState.launchSearch = undefined
   Object.assign(window, {
     api: {
       isBinaryExist: vi.fn().mockResolvedValue(true),
@@ -253,6 +260,16 @@ function latestModelSelectorProps() {
 }
 
 describe('CodeCliPage', () => {
+  it('auto-opens the launch dialog when deep-linked via the launch search param', async () => {
+    // Settings > Dependencies navigates here with ?launch=<tool>; the dialog must
+    // open on mount without a tool-card click.
+    testState.launchSearch = CodeCli.QWEN_CODE
+
+    render(<CodeCliPage />)
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+  })
+
   it('uses the shared model selector for non-copilot tools and writes selected ids back', async () => {
     testState.selectedCliTool = CodeCli.QWEN_CODE
 

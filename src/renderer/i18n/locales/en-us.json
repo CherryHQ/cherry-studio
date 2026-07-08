@@ -6006,6 +6006,8 @@
       "fieldVersion": "Version (optional, defaults to latest)",
       "install": "Install",
       "installError": "Failed to install tool",
+      "installManaged": "Install a managed copy",
+      "installManagedHint": "Already available. Install a separate Cherry-managed copy only if you want a pinned version that updates independently.",
       "installSettings": {
         "description": "Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
         "githubMirror": {
@@ -6037,7 +6039,6 @@
           "label": "Verify tool signatures"
         }
       },
-      "installViaMise": "Install via mise",
       "installing": "Installing...",
       "invalidTool": "Invalid tool name or key",
       "notInstalled": "Not installed",
