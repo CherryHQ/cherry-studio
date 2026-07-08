@@ -2,6 +2,21 @@ import { application } from '@application'
 import { requestRelocation } from '@main/core/preboot/userDataLocation'
 import type { appRequestSchemas } from '@shared/ipc/schemas/app'
 import type { IpcHandlersFor } from '@shared/ipc/types'
+import { BrowserWindow, type Session, session } from 'electron'
+
+async function flushAppDataSessions(): Promise<void> {
+  const sessions = new Set<Session>([session.defaultSession, session.fromPartition('persist:webview')])
+
+  for (const window of BrowserWindow.getAllWindows()) {
+    sessions.add(window.webContents.session)
+  }
+
+  for (const electronSession of sessions) {
+    electronSession.flushStorageData()
+    await electronSession.cookies.flushStore()
+    await electronSession.closeAllConnections()
+  }
+}
 
 /**
  * Thin adapters for the app request routes: each delegates to `AppUpdaterService`,
@@ -22,6 +37,10 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     application.get('AppUpdaterService').quitAndInstall()
   },
   'app.set_user_data_path': async ({ path, copyData = false, overwriteExisting = false }) => {
+    if (copyData) {
+      await flushAppDataSessions()
+    }
+
     requestRelocation(application.getPath('app.userdata'), path, copyData, overwriteExisting)
   }
 }

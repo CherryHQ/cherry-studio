@@ -1,13 +1,47 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, appGetPathMock, requestRelocationMock } = vi.hoisted(() => ({
-  appGetMock: vi.fn(),
-  appGetPathMock: vi.fn(),
-  requestRelocationMock: vi.fn()
-}))
+const {
+  appGetMock,
+  appGetPathMock,
+  browserWindowGetAllWindowsMock,
+  defaultSessionMock,
+  requestRelocationMock,
+  webviewSessionMock,
+  windowSessionMock
+} = vi.hoisted(() => {
+  const createSessionMock = () => ({
+    flushStorageData: vi.fn(),
+    cookies: {
+      flushStore: vi.fn().mockResolvedValue(undefined)
+    },
+    closeAllConnections: vi.fn().mockResolvedValue(undefined)
+  })
+
+  return {
+    appGetMock: vi.fn(),
+    appGetPathMock: vi.fn(),
+    browserWindowGetAllWindowsMock: vi.fn(),
+    defaultSessionMock: createSessionMock(),
+    requestRelocationMock: vi.fn(),
+    webviewSessionMock: createSessionMock(),
+    windowSessionMock: createSessionMock()
+  }
+})
 vi.mock('@application', () => ({ application: { get: appGetMock, getPath: appGetPathMock } }))
 vi.mock('@main/core/preboot/userDataLocation', () => ({
   requestRelocation: requestRelocationMock
+}))
+vi.mock('electron', () => ({
+  BrowserWindow: {
+    getAllWindows: browserWindowGetAllWindowsMock
+  },
+  session: {
+    defaultSession: defaultSessionMock,
+    fromPartition: vi.fn((partition: string) => {
+      if (partition === 'persist:webview') return webviewSessionMock
+      throw new Error(`Unexpected session.fromPartition(${partition})`)
+    })
+  }
 }))
 
 import { appHandlers } from '../app'
@@ -19,6 +53,7 @@ const appUpdaterService = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  browserWindowGetAllWindowsMock.mockReturnValue([])
   appGetPathMock.mockImplementation((name: string) => {
     if (name === 'app.userdata') return '/current/user/data'
     throw new Error(`Unexpected application.getPath(${name})`)
@@ -79,6 +114,41 @@ describe('appHandlers', () => {
 
     expect(result).toBeUndefined()
     expect(requestRelocationMock).toHaveBeenCalledWith('/current/user/data', targetPath, true, false)
+  })
+
+  it('set_user_data_path copyData=true flushes app data sessions before requesting copy relocation', async () => {
+    const targetPath = '/new/user/data-copy'
+    browserWindowGetAllWindowsMock.mockReturnValue([{ webContents: { session: windowSessionMock } }])
+
+    await appHandlers['app.set_user_data_path']({ path: targetPath, copyData: true }, ctx)
+
+    expect(defaultSessionMock.flushStorageData).toHaveBeenCalledTimes(1)
+    expect(defaultSessionMock.cookies.flushStore).toHaveBeenCalledTimes(1)
+    expect(defaultSessionMock.closeAllConnections).toHaveBeenCalledTimes(1)
+    expect(webviewSessionMock.flushStorageData).toHaveBeenCalledTimes(1)
+    expect(webviewSessionMock.cookies.flushStore).toHaveBeenCalledTimes(1)
+    expect(webviewSessionMock.closeAllConnections).toHaveBeenCalledTimes(1)
+    expect(windowSessionMock.flushStorageData).toHaveBeenCalledTimes(1)
+    expect(windowSessionMock.cookies.flushStore).toHaveBeenCalledTimes(1)
+    expect(windowSessionMock.closeAllConnections).toHaveBeenCalledTimes(1)
+
+    expect(windowSessionMock.closeAllConnections.mock.invocationCallOrder[0]).toBeLessThan(
+      requestRelocationMock.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('set_user_data_path copyData=false skips app data session flush', async () => {
+    const targetPath = '/new/user/data'
+
+    await appHandlers['app.set_user_data_path']({ path: targetPath, copyData: false }, ctx)
+
+    expect(defaultSessionMock.flushStorageData).not.toHaveBeenCalled()
+    expect(defaultSessionMock.cookies.flushStore).not.toHaveBeenCalled()
+    expect(defaultSessionMock.closeAllConnections).not.toHaveBeenCalled()
+    expect(webviewSessionMock.flushStorageData).not.toHaveBeenCalled()
+    expect(webviewSessionMock.cookies.flushStore).not.toHaveBeenCalled()
+    expect(webviewSessionMock.closeAllConnections).not.toHaveBeenCalled()
+    expect(browserWindowGetAllWindowsMock).not.toHaveBeenCalled()
   })
 
   it('set_user_data_path preserves explicit overwrite confirmation for copy relocation', async () => {
