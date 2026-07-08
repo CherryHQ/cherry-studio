@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { EMOJI_CATEGORIES, RECENT_CATEGORY_LABEL_KEY } from './categories'
-import { type EmojiRecord, loadEmojiData } from './data'
+import { type EmojiRecord, loadStableEmojiOptions } from './data'
 import { useRecentEmojis } from './useRecentEmojis'
 
 const logger = loggerService.withContext('EmojiPicker')
@@ -25,14 +25,14 @@ const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {
 
   useEffect(() => {
     let cancelled = false
-    void loadEmojiData(locale)
+    void loadStableEmojiOptions(locale)
       .catch((error) => {
         logger.error('Failed to load emoji data', error)
         if (locale === defaultLanguage) {
           return []
         }
 
-        return loadEmojiData(defaultLanguage as LanguageVarious)
+        return loadStableEmojiOptions(defaultLanguage as LanguageVarious)
       })
       .catch((error) => {
         logger.error('Failed to load fallback emoji data', error)

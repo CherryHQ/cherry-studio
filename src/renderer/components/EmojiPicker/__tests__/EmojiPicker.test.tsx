@@ -5,11 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { EmojiPicker } from '..'
 
-const loadEmojiDataMock = vi.hoisted(() => vi.fn())
+const loadStableEmojiOptionsMock = vi.hoisted(() => vi.fn())
 const i18nLanguageMock = vi.hoisted(() => ({ value: 'en-US' }))
 
 vi.mock('../data', () => ({
-  loadEmojiData: loadEmojiDataMock
+  loadStableEmojiOptions: loadStableEmojiOptionsMock
 }))
 
 vi.mock('react-i18next', () => ({
@@ -35,8 +35,8 @@ afterEach(async () => {
 describe('EmojiPicker', () => {
   beforeEach(() => {
     i18nLanguageMock.value = defaultLanguage
-    loadEmojiDataMock.mockReset()
-    loadEmojiDataMock.mockResolvedValue([])
+    loadStableEmojiOptionsMock.mockReset()
+    loadStableEmojiOptionsMock.mockResolvedValue([])
   })
 
   it('renders without the search controls or bottom category tabs', async () => {
@@ -54,7 +54,7 @@ describe('EmojiPicker', () => {
 
     expect(container.firstElementChild).toHaveClass(
       'h-88',
-      'w-72',
+      'w-80',
       'max-h-[min(22rem,calc(100vh-6rem))]',
       'max-w-[calc(100vw-2rem)]'
     )
@@ -94,15 +94,15 @@ describe('EmojiPicker', () => {
     const error = new Error('locale load failed')
     const loggerSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     i18nLanguageMock.value = 'zh-CN'
-    loadEmojiDataMock.mockRejectedValueOnce(error)
-    loadEmojiDataMock.mockResolvedValueOnce([{ emoji: '🙂', annotation: 'smile', group: 0, order: 1 }])
+    loadStableEmojiOptionsMock.mockRejectedValueOnce(error)
+    loadStableEmojiOptionsMock.mockResolvedValueOnce([{ emoji: '🙂', annotation: 'smile', group: 0, order: 1 }])
 
     render(<EmojiPicker onEmojiClick={vi.fn()} />)
     await act(async () => {})
 
     expect(loggerSpy).toHaveBeenCalledWith('Failed to load emoji data', error)
-    expect(loadEmojiDataMock).toHaveBeenNthCalledWith(1, 'zh-CN')
-    expect(loadEmojiDataMock).toHaveBeenNthCalledWith(2, defaultLanguage)
+    expect(loadStableEmojiOptionsMock).toHaveBeenNthCalledWith(1, 'zh-CN')
+    expect(loadStableEmojiOptionsMock).toHaveBeenNthCalledWith(2, defaultLanguage)
     expect(screen.getByRole('button', { name: 'smile' })).toBeInTheDocument()
   })
 })

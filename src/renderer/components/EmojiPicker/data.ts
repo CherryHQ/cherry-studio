@@ -1,3 +1,4 @@
+import { hasFluentEmojiIcon } from '@cherrystudio/ui/utils'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import dataDE from 'emoji-picker-element-data/de/cldr/data.json?url'
 import dataEN from 'emoji-picker-element-data/en/cldr/data.json?url'
@@ -33,11 +34,11 @@ const DATA_URL_MAP: Record<LanguageVarious, string> = {
   'vi-VN': dataEN
 }
 
-const dataCache = new Map<string, Promise<EmojiRecord[]>>()
+const stableOptionsCache = new Map<string, Promise<EmojiRecord[]>>()
 
-export const loadEmojiData = (locale: LanguageVarious): Promise<EmojiRecord[]> => {
+export const loadStableEmojiOptions = (locale: LanguageVarious): Promise<EmojiRecord[]> => {
   const url = DATA_URL_MAP[locale] ?? dataEN
-  const cached = dataCache.get(url)
+  const cached = stableOptionsCache.get(url)
   if (cached) return cached
 
   const promise = fetch(url)
@@ -48,12 +49,12 @@ export const loadEmojiData = (locale: LanguageVarious): Promise<EmojiRecord[]> =
 
       return response.json() as Promise<EmojiRecord[]>
     })
-    .then((records) => records.filter((record) => record.group < 9))
+    .then((records) => records.filter((record) => record.group < 9 && hasFluentEmojiIcon(record.emoji)))
     .catch((error) => {
-      dataCache.delete(url)
+      stableOptionsCache.delete(url)
       throw error
     })
 
-  dataCache.set(url, promise)
+  stableOptionsCache.set(url, promise)
   return promise
 }

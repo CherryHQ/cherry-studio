@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const loadFreshEmojiData = async () => {
   vi.resetModules()
-  const { loadEmojiData } = await import('../data')
-  return loadEmojiData
+  const { loadStableEmojiOptions } = await import('../data')
+  return loadStableEmojiOptions
 }
 
-describe('loadEmojiData', () => {
+describe('loadStableEmojiOptions', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
   })
@@ -14,7 +14,7 @@ describe('loadEmojiData', () => {
   it('rejects failed responses and retries the next load instead of keeping the rejected cache entry', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
-    const loadEmojiData = await loadFreshEmojiData()
+    const loadStableEmojiOptions = await loadFreshEmojiData()
 
     fetchMock.mockResolvedValueOnce({
       ok: false,
@@ -27,15 +27,17 @@ describe('loadEmojiData', () => {
       json: vi.fn().mockResolvedValue([{ emoji: '🙂', annotation: 'smile', group: 0, order: 1 }])
     })
 
-    await expect(loadEmojiData('en-US')).rejects.toThrow('Failed to load emoji data')
-    await expect(loadEmojiData('en-US')).resolves.toEqual([{ emoji: '🙂', annotation: 'smile', group: 0, order: 1 }])
+    await expect(loadStableEmojiOptions('en-US')).rejects.toThrow('Failed to load emoji data')
+    await expect(loadStableEmojiOptions('en-US')).resolves.toEqual([
+      { emoji: '🙂', annotation: 'smile', group: 0, order: 1 }
+    ])
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('retries after json parsing failures instead of keeping the rejected cache entry', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
-    const loadEmojiData = await loadFreshEmojiData()
+    const loadStableEmojiOptions = await loadFreshEmojiData()
 
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -49,15 +51,17 @@ describe('loadEmojiData', () => {
       ])
     })
 
-    await expect(loadEmojiData('en-US')).rejects.toThrow('invalid json')
-    await expect(loadEmojiData('en-US')).resolves.toEqual([{ emoji: '🙂', annotation: 'smile', group: 0, order: 1 }])
+    await expect(loadStableEmojiOptions('en-US')).rejects.toThrow('invalid json')
+    await expect(loadStableEmojiOptions('en-US')).resolves.toEqual([
+      { emoji: '🙂', annotation: 'smile', group: 0, order: 1 }
+    ])
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
-  it('keeps loaded avatar emoji data even when Fluent artwork is unavailable', async () => {
+  it('returns only stable avatar emoji options covered by Fluent artwork', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
-    const loadEmojiData = await loadFreshEmojiData()
+    const loadStableEmojiOptions = await loadFreshEmojiData()
 
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -69,9 +73,8 @@ describe('loadEmojiData', () => {
       ])
     })
 
-    await expect(loadEmojiData('en-US')).resolves.toEqual([
+    await expect(loadStableEmojiOptions('en-US')).resolves.toEqual([
       { emoji: '😀', annotation: 'grinning face', group: 0, order: 1, version: 1 },
-      { emoji: '👨‍👩‍👧‍👦', annotation: 'family', group: 0, order: 2, version: 2 },
       { emoji: '🫠', annotation: 'melting face', group: 0, order: 3, version: 14 }
     ])
   })
