@@ -49,7 +49,8 @@ export class AgentGlobalSkillService {
    * List skills with optional search + per-agent `isEnabled` projection.
    *
    * When `query.agentId` is provided each row's `isEnabled` reflects the
-   * `agent_skill` join state; otherwise it is forced to `false`.
+   * `agent_skill` join state, defaulting to enabled for builtin skills when no
+   * join row exists yet; otherwise it is forced to `false`.
    */
   list(query: ListSkillsQuery = {}): InstalledSkill[] {
     const conditions: SQL[] = []
@@ -82,24 +83,13 @@ export class AgentGlobalSkillService {
     }
 
     const enabledMap = this.loadEnabledMap(query.agentId)
-    return skills.map((s) => ({ ...s, isEnabled: enabledMap.get(s.id) ?? false }))
+    return skills.map((s) => ({ ...s, isEnabled: enabledMap.get(s.id) ?? s.source === 'builtin' }))
   }
 
   /** Every row from `agent_global_skill`, ordered by createdAt. Used to seed new agents with builtins. */
   listAll(): InstalledSkill[] {
     const rows = this.db.select().from(agentGlobalSkillTable).orderBy(asc(agentGlobalSkillTable.createdAt)).all()
     return rows.map((row) => this.rowToInstalledSkill(row))
-  }
-
-  /** Built-in skill ids, ordered by createdAt. Used to seed new agents. */
-  listBuiltinIds(): string[] {
-    const rows = this.db
-      .select({ id: agentGlobalSkillTable.id })
-      .from(agentGlobalSkillTable)
-      .where(eq(agentGlobalSkillTable.source, 'builtin'))
-      .orderBy(asc(agentGlobalSkillTable.createdAt))
-      .all()
-    return rows.map((row) => row.id)
   }
 
   insert(values: InsertAgentGlobalSkillRow): AgentGlobalSkillRow {
@@ -176,36 +166,6 @@ export class AgentGlobalSkillService {
       this.upsertJoinTx(tx, agent.id, skillId, isEnabled)
     }
     return agents.map((a) => a.id)
-  }
-
-  /**
-   * Insert enabled join rows for agents that do not yet have this skill.
-   * Existing rows are left untouched so user per-agent choices survive startup
-   * healing and app upgrades.
-   */
-  insertMissingEnabledJoinForAllAgents(skillId: string): string[] {
-    return application.get('DbService').withWriteTx((tx) => this.insertMissingEnabledJoinForAllAgentsTx(tx, skillId))
-  }
-
-  insertMissingEnabledJoinForAllAgentsTx(tx: DbOrTx, skillId: string): string[] {
-    const agents = tx.select({ id: agentTable.id }).from(agentTable).all()
-    if (agents.length === 0) return []
-
-    const existingRows = tx
-      .select({ agentId: agentSkillTable.agentId })
-      .from(agentSkillTable)
-      .where(eq(agentSkillTable.skillId, skillId))
-      .all()
-    const existingAgentIds = new Set(existingRows.map((row) => row.agentId))
-    const missingAgents = agents.filter((agent) => !existingAgentIds.has(agent.id))
-    if (missingAgents.length === 0) return []
-
-    tx.insert(agentSkillTable)
-      .values(missingAgents.map((agent) => ({ agentId: agent.id, skillId, isEnabled: true })))
-      .onConflictDoNothing()
-      .run()
-
-    return missingAgents.map((agent) => agent.id)
   }
 
   /**

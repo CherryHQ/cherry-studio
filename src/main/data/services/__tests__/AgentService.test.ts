@@ -132,10 +132,10 @@ describe('AgentService', () => {
       .onConflictDoNothing()
   }
 
-  async function insertGlobalSkill(id: string, folderName?: string, source: string = 'local'): Promise<void> {
+  async function insertGlobalSkill(id: string, folderName?: string): Promise<void> {
     await dbh.db
       .insert(agentGlobalSkillTable)
-      .values({ id, name: id, folderName: folderName ?? id, source, contentHash: `hash-${id}` })
+      .values({ id, name: id, folderName: folderName ?? id, source: 'local', contentHash: `hash-${id}` })
       .onConflictDoNothing()
   }
 
@@ -317,7 +317,7 @@ describe('AgentService', () => {
       expect(rows.every((r) => r.isEnabled)).toBe(true)
     })
 
-    it('writes no skill rows when skillIds is omitted or empty and there are no builtin skills', async () => {
+    it('writes no skill rows when skillIds is omitted or empty', async () => {
       const omitted = agentService.createAgent({ type: 'claude-code', name: 'No Skills', model: TEST_MODEL_ID })
       const empty = agentService.createAgent({
         type: 'claude-code',
@@ -330,40 +330,6 @@ describe('AgentService', () => {
         const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, id))
         expect(rows).toHaveLength(0)
       }
-    })
-
-    it('enables builtin skills on create when skillIds is omitted or empty', async () => {
-      await insertGlobalSkill('skill_builtin', undefined, 'builtin')
-
-      const omitted = agentService.createAgent({ type: 'claude-code', name: 'No Skills', model: TEST_MODEL_ID })
-      const empty = agentService.createAgent({
-        type: 'claude-code',
-        name: 'Empty Skills',
-        model: TEST_MODEL_ID,
-        skillIds: []
-      })
-
-      for (const id of [omitted.id, empty.id]) {
-        const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, id))
-        expect(rows.map((r) => r.skillId)).toEqual(['skill_builtin'])
-        expect(rows.every((r) => r.isEnabled)).toBe(true)
-      }
-    })
-
-    it('unions builtin skills with explicitly requested skills, deduped', async () => {
-      await insertGlobalSkill('skill_builtin', undefined, 'builtin')
-      await insertGlobalSkill('skill_a')
-
-      const created = agentService.createAgent({
-        type: 'claude-code',
-        name: 'Skill Union',
-        model: TEST_MODEL_ID,
-        skillIds: ['skill_a', 'skill_builtin']
-      })
-
-      const rows = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.agentId, created.id))
-      expect(rows.map((r) => r.skillId).sort()).toEqual(['skill_a', 'skill_builtin'])
-      expect(rows.every((r) => r.isEnabled)).toBe(true)
     })
 
     it('rejects with NOT_FOUND and persists no agent when a skillId does not exist', async () => {

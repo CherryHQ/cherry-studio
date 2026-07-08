@@ -18,9 +18,10 @@ const VERSION_FILE = '.version'
  *
  * Storage:  {userData}/Data/Skills/{folderName}/
  *
- * Per-agent enablement is handled separately by `SkillService`: every builtin
- * is present in `agent_skill` for existing agents, while existing join rows are
- * left untouched so user per-agent choices survive startup healing and upgrades.
+ * Per-agent enablement needs no work here: `AgentGlobalSkillService.list()`
+ * defaults a builtin skill to enabled for every agent until a user explicitly
+ * disables it, so a synced `agent_global_skill` row is enabled everywhere
+ * without any `agent_skill` rows.
  *
  * Each installed skill gets a `.version` file recording the app version that
  * installed it. On subsequent launches the bundled version is compared with

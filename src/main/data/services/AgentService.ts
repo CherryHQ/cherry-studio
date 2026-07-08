@@ -118,7 +118,7 @@ export class AgentService {
     const id = uuidv4()
     const mcps = req.mcps ?? []
     const globalSkillService = getDataService('AgentGlobalSkillService')
-    const skillIds = Array.from(new Set([...globalSkillService.listBuiltinIds(), ...(req.skillIds ?? [])]))
+    const skillIds = Array.from(new Set(req.skillIds ?? []))
 
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
