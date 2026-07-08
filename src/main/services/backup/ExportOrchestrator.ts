@@ -79,12 +79,7 @@ export interface ExportBackupOptions {
  * Guards the temp-copy + staging paths against caller-controlled `restoreId` traversal.
  */
 const isSafeBasename = (id: string): boolean =>
-  id.length > 0 &&
-  !id.includes('/') &&
-  !id.includes('\\') &&
-  !id.includes('\0') &&
-  id !== '.' &&
-  id !== '..'
+  id.length > 0 && !id.includes('/') && !id.includes('\\') && !id.includes('\0') && id !== '.' && id !== '..'
 
 export interface ExportBackupResult {
   readonly archivePath: string
@@ -126,8 +121,7 @@ const EXPORT_STRATEGY: ConflictStrategy = 'SKIP'
  * rows survive; restore runs the 'rebuild' command instead.
  * See export-orchestrator.md "ALWAYS_STRIP_TABLES global strip".
  */
-const ALWAYS_STRIP_DB_TABLES: readonly DbTableName[] =
-  ALWAYS_STRIP_PHYSICAL_TABLES as readonly DbTableName[]
+const ALWAYS_STRIP_DB_TABLES: readonly DbTableName[] = ALWAYS_STRIP_PHYSICAL_TABLES as readonly DbTableName[]
 
 /**
  * Export orchestrator. Pure class (no lifecycle wiring) — BackupService constructs
@@ -216,9 +210,7 @@ export class ExportOrchestrator {
       // with backup.sqlite (the archive's DB). Rows deleted on live between copyTo()
       // and collect cannot desync the archived DB from its blobs.
       snapshotDb = new Database(backupDbPath, { readonly: true })
-      const snapshotReadonly = new BackupReadonlyDb(
-        drizzle({ client: snapshotDb, casing: 'snake_case' })
-      )
+      const snapshotReadonly = new BackupReadonlyDb(drizzle({ client: snapshotDb, casing: 'snake_case' }))
       const fileStager = new SqliteFileStager(snapshotReadonly, filesRoot, knowledgeRoot)
 
       // 4. collectFileResources per domain (transaction-free, spec §flow step 4).

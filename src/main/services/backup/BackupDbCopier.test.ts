@@ -1,12 +1,12 @@
 // Unit tests for BackupDbCopier — db.backup() online copy consistency.
-import Database from 'better-sqlite3'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 
-import { SqliteBackupCopier, StubBackupCopier, type BackupDbCopier } from './BackupDbCopier'
+import { type BackupDbCopier, SqliteBackupCopier, StubBackupCopier } from './BackupDbCopier'
 
 describe('SqliteBackupCopier', () => {
   it('copies a live DB to dest with all rows + integrity_check ok (source stays open)', async () => {

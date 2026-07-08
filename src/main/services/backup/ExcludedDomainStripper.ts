@@ -25,9 +25,8 @@
 // are left dangling. VACUUM after strip purges freelist pages (no stripped-data
 // recovery via raw page).
 
-import Database from 'better-sqlite3'
-
 import { DB_TABLES, type DbTableName } from '@main/data/db/backup/dbSchemaRefs'
+import Database from 'better-sqlite3'
 
 /** Trusted-table whitelist (codegen-derived) — every strip target MUST be in it. */
 const DB_TABLES_SET: ReadonlySet<DbTableName> = new Set(DB_TABLES)

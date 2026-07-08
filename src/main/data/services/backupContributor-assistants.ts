@@ -74,7 +74,11 @@ export const ASSISTANTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // assistant.settings holds assistant-level config knobs — no embedded
     // fileId/entityId soft refs. Declared so finalize #12 exhaustiveness passes.
     exemptJsonCols: [
-      { table: table('assistant'), column: column('settings'), reason: 'no soft refs — holds assistant UI/model settings' }
+      {
+        table: table('assistant'),
+        column: column('settings'),
+        reason: 'no soft refs — holds assistant UI/model settings'
+      }
     ]
   },
   backupPolicy: {},

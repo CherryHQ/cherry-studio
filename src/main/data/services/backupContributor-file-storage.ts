@@ -32,10 +32,7 @@ import { isNull } from 'drizzle-orm'
  * missing/unreadable rather than failing the whole export.
  */
 export async function collectFileEntryIds(liveDb: BackupReadonlyDb): Promise<Set<string>> {
-  const rows = await liveDb
-    .select()
-    .from(fileEntryTable)
-    .where(isNull(fileEntryTable.deletedAt))
+  const rows = await liveDb.select().from(fileEntryTable).where(isNull(fileEntryTable.deletedAt))
   return new Set(rows.map((r) => r.id))
 }
 

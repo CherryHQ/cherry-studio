@@ -39,10 +39,7 @@ export const ALWAYS_STRIP_PHYSICAL_TABLES: readonly string[] = ['app_state', 'jo
  * - message_fts: message full-text index (external-content, content='message').
  * - agent_session_message_fts: agent-session message full-text index.
  */
-export const ALWAYS_STRIP_FTS_VIRTUAL_TABLES: readonly string[] = [
-  'message_fts',
-  'agent_session_message_fts'
-]
+export const ALWAYS_STRIP_FTS_VIRTUAL_TABLES: readonly string[] = ['message_fts', 'agent_session_message_fts']
 
 /**
  * Union of physical + FTS virtual tables stripped from every backup.

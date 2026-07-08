@@ -1,11 +1,11 @@
 // Unit tests for manifest serialization — pure round-trip (no DB).
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { BACKUP_FORMAT_VERSION, type BackupManifest,readManifest, writeManifest } from './manifest'
+import { BACKUP_FORMAT_VERSION, type BackupManifest, readManifest, writeManifest } from './manifest'
 
 const SAMPLE: BackupManifest = {
   backupFormatVersion: BACKUP_FORMAT_VERSION,
@@ -76,6 +76,23 @@ describe('manifest round-trip', () => {
       // Act — parse the file directly (independent of readManifest)
       const raw = await readFile(p, 'utf8')
       expect(JSON.parse(raw)).toEqual(SAMPLE)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('readManifest rejects an unknown domain outside BACKUP_DOMAINS', async () => {
+    // Arrange — craft a manifest whose domains include a value outside the 14
+    // known domains. z.enum(BACKUP_DOMAINS) must reject it at the archive boundary
+    // so a corrupted/tampered archive fails loud at parse, not deep in restore.
+    const dir = await mkdtemp(join(tmpdir(), 'cs-manifest-'))
+    try {
+      const p = join(dir, 'manifest.json')
+      const bad = { ...SAMPLE, domains: ['PREFERENCES', 'NOT_A_DOMAIN'] as readonly string[] }
+      await writeFile(p, `${JSON.stringify(bad, null, 2)}\n`, 'utf8')
+
+      // Act + Assert — parse rejects the unknown domain.
+      await expect(readManifest(p)).rejects.toThrow()
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

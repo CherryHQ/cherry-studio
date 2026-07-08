@@ -39,7 +39,11 @@ export const SKILLS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // agent_global_skill.tags holds freeform tag strings — no embedded
     // fileId/entityId soft refs. Declared so finalize #12 exhaustiveness passes.
     exemptJsonCols: [
-      { table: table('agent_global_skill'), column: column('tags'), reason: 'no soft refs — holds freeform skill tag strings' }
+      {
+        table: table('agent_global_skill'),
+        column: column('tags'),
+        reason: 'no soft refs — holds freeform skill tag strings'
+      }
     ]
   },
   backupPolicy: {},

@@ -985,10 +985,16 @@ export default defineConfig([
   // (table()/column() in @main/data/db/backup/dbSchemaRefs) so a typo fails at
   // compile time; a cast bypasses that guarantee. Tests are exempt — they
   // deliberately synthesize invalid literals to assert the finalize invariants.
-  // See openspec/.../modular-backup-contributor/{codegen,types-contracts}.md.
+  // See docs/references/backup/contributor-spec.md (codegen + types-contracts).
   {
-    files: ['src/main/services/backup/contributors/**/*.{ts,tsx}'],
-    ignores: ['src/main/services/backup/contributors/**/*.test.*'],
+    files: [
+      // Contributor framework (Manager / finalize / registry).
+      'src/main/services/backup/contributors/**/*.{ts,tsx}',
+      // Per-domain contributor implementations — data/services, data root
+      // (preferences), and the translate contributor.
+      'src/main/**/backupContributor*.{ts,tsx}'
+    ],
+    ignores: ['src/main/**/*.test.*', 'src/main/**/__tests__/**'],
     rules: {
       'no-restricted-syntax': [
         process.env.CI ? 'error' : 'warn',
@@ -996,7 +1002,7 @@ export default defineConfig([
           selector:
             'TSAsExpression > TSTypeReference > Identifier[name=/^(DbTableName|DbColumnName)$/]',
           message:
-            'Do not cast to DbTableName/DbColumnName — build identifiers via the codegen helpers (table()/column()) so typos fail at compile time. See openspec/.../modular-backup-contributor/types-contracts.md.'
+            'Do not cast to DbTableName/DbColumnName — build identifiers via the codegen helpers (table()/column()) so typos fail at compile time. See docs/references/backup/contributor-spec.md.'
         }
       ]
     }

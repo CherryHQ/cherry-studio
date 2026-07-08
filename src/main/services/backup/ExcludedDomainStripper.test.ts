@@ -6,24 +6,24 @@
 // junction referrers cascade-pruned, included rows preserved. A control test proves
 // `PRAGMA foreign_keys = ON` is load-bearing — without it cascade never fires and
 // junction referrers are left dangling.
-import Database from 'better-sqlite3'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import type { DbTableName } from '@main/data/db/backup/dbSchemaRefs'
 import { appStateTable } from '@main/data/db/schemas/appState'
-import { assistantKnowledgeBaseTable } from '@main/data/db/schemas/assistantRelations'
 import { assistantTable } from '@main/data/db/schemas/assistant'
-import { chatMessageFileRefTable, paintingFileRefTable } from '@main/data/db/schemas/fileRelations'
+import { assistantKnowledgeBaseTable } from '@main/data/db/schemas/assistantRelations'
 import { fileEntryTable } from '@main/data/db/schemas/file'
+import { chatMessageFileRefTable, paintingFileRefTable } from '@main/data/db/schemas/fileRelations'
 import { knowledgeBaseTable, knowledgeItemTable } from '@main/data/db/schemas/knowledge'
 import { messageTable } from '@main/data/db/schemas/message'
 import { paintingTable } from '@main/data/db/schemas/painting'
 import { topicTable } from '@main/data/db/schemas/topic'
-import { translateLanguageTable } from '@main/data/db/schemas/translateLanguage'
 import { translateHistoryTable } from '@main/data/db/schemas/translateHistory'
+import { translateLanguageTable } from '@main/data/db/schemas/translateLanguage'
 import { setupTestDatabase } from '@test-helpers/db'
+import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
 
 import { SqliteBackupStripper } from './ExcludedDomainStripper'
@@ -58,13 +58,28 @@ async function seedAll(dbh: ReturnType<typeof setupTestDatabase>): Promise<void>
   await dbh.db.insert(topicTable).values([{ id: 'tpc1', name: 'T', isNameManuallyEdited: false, orderKey: 'a' }])
   await dbh.db
     .insert(messageTable)
-    .values([{ id: 'msg1', topicId: 'tpc1', role: 'root', parentId: null, data: { parts: [] }, searchableText: '', status: 'success', siblingsGroupId: 0 }])
+    .values([
+      {
+        id: 'msg1',
+        topicId: 'tpc1',
+        role: 'root',
+        parentId: null,
+        data: { parts: [] },
+        searchableText: '',
+        status: 'success',
+        siblingsGroupId: 0
+      }
+    ])
   await dbh.db
     .insert(assistantTable)
-    .values([{ id: 'ast1', name: 'A', prompt: '', emoji: '🤖', description: '', settings: ASSISTANT_SETTINGS, orderKey: 'a' }])
+    .values([
+      { id: 'ast1', name: 'A', prompt: '', emoji: '🤖', description: '', settings: ASSISTANT_SETTINGS, orderKey: 'a' }
+    ])
   // FILE_STORAGE (excluded) + TOPICS junction referrer (cross-domain cascade-prune target).
   await dbh.db.insert(fileEntryTable).values([{ id: 'f1', origin: 'internal', name: 'test', ext: 'txt', size: 5 }])
-  await dbh.db.insert(chatMessageFileRefTable).values([{ id: 'cmfr1', fileEntryId: 'f1', sourceId: 'msg1', role: 'attachment' }])
+  await dbh.db
+    .insert(chatMessageFileRefTable)
+    .values([{ id: 'cmfr1', fileEntryId: 'f1', sourceId: 'msg1', role: 'attachment' }])
   // KNOWLEDGE (excluded) + member + ASSISTANTS junction referrer (cross-domain cascade-prune target).
   await dbh.db
     .insert(knowledgeBaseTable)

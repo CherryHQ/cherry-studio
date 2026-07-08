@@ -77,10 +77,10 @@ describe('coverage — exhaustiveness (strict: all 14 domains landed)', () => {
     for (const c of CONTRIBUTORS) counts.set(c.domain, (counts.get(c.domain) ?? 0) + 1)
     const missing = BACKUP_DOMAINS.filter((d) => !counts.has(d))
     const duplicated = [...counts.entries()].filter(([, n]) => n > 1).map(([d]) => d)
-    expect(
-      { missing, duplicated },
-      `missing: ${missing.join(', ')} | duplicated: ${duplicated.join(', ')}`
-    ).toEqual({ missing: [], duplicated: [] })
+    expect({ missing, duplicated }, `missing: ${missing.join(', ')} | duplicated: ${duplicated.join(', ')}`).toEqual({
+      missing: [],
+      duplicated: []
+    })
   })
 
   it('every user table is owned or excluded (no unowned drift)', () => {
