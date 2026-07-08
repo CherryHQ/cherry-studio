@@ -2,6 +2,7 @@ import { cacheService } from '@renderer/data/CacheService'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { ipcApi } from '@renderer/ipc'
 import type { McpTool } from '@renderer/types/tool'
+import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import { claudeRegistrySdkDescriptors } from '@shared/ai/claudecode/toolRegistry'
 import {
   buildClaudeMcpToolName,
@@ -105,18 +106,18 @@ export const useAgentTools = (source: AgentToolSource | null | undefined) => {
   }, [mcpIds, mcpServers, toolsByServer])
 
   const tools = useMemo<Tool[]>(() => {
-    const type = source?.type ?? 'claude-code'
-    // MCP-origin tools are bridged for both claude-code and pi; the Claude built-in registry tools
-    // are claude-only (pi's built-ins come from its runtime descriptor, not this hook). Other
-    // runtimes contribute nothing here.
-    if (type !== 'claude-code' && type !== 'pi') return []
-
-    const selectedServers = new Map(mcpServers.map((server) => [server.id, server]))
-    const descriptors: ClaudeToolDescriptor[] = type === 'claude-code' ? [...claudeRegistrySdkDescriptors()] : []
-    for (const id of mcpIds) {
-      const server = selectedServers.get(id)
-      if (!server) continue
-      descriptors.push(...mcpDescriptors(server, toolsByServer[id] ?? []))
+    const caps = AGENT_RUNTIME_CAPABILITIES[source?.type ?? 'claude-code']
+    // Descriptor-driven, so a new runtime needs no edit here: built-in registry tools come from the
+    // Claude tool-registry pipeline (claudeRegistryTools runtimes only); MCP-origin tools are bridged
+    // for any runtime that supports MCP. A runtime with neither contributes nothing.
+    const descriptors: ClaudeToolDescriptor[] = caps.claudeRegistryTools ? [...claudeRegistrySdkDescriptors()] : []
+    if (caps.mcp) {
+      const selectedServers = new Map(mcpServers.map((server) => [server.id, server]))
+      for (const id of mcpIds) {
+        const server = selectedServers.get(id)
+        if (!server) continue
+        descriptors.push(...mcpDescriptors(server, toolsByServer[id] ?? []))
+      }
     }
     return descriptors.map((descriptor) => toTool(descriptor, source ?? {}))
   }, [mcpIds, mcpServers, source, toolsByServer])

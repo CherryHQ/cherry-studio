@@ -24,6 +24,10 @@ export interface AgentRuntimeCapabilities {
   heartbeat: boolean
   mcp: boolean
   skills: boolean
+  /** Runtime's built-in tools are surfaced in the agent-tools access list (`useAgentTools`) through
+   *  the Claude tool-registry pipeline. claude-only today — pi's built-ins come from `builtinTools`
+   *  and are not access-controlled ClaudeToolDescriptors, so pi sets this false. */
+  claudeRegistryTools: boolean
   slashCommands: readonly SlashCommand[]
   createDefaults: { permissionMode: AgentPermissionMode }
   /** Extra restriction on top of the base agent-friendly filter; null = none. `provider` is
@@ -72,6 +76,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     heartbeat: true,
     mcp: true,
     skills: true,
+    claudeRegistryTools: true,
     slashCommands: CLAUDE_CODE_BUILTIN_COMMANDS,
     createDefaults: { permissionMode: 'bypassPermissions' },
     // Orphan models stay allowed: isAgentRuntimeSupportedModel skips the provider check when provider is undefined.
@@ -96,6 +101,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     // Selected MCP servers are bridged as approval-gated pi custom tools.
     mcp: true,
     skills: true,
+    claudeRegistryTools: false,
     slashCommands: PI_BUILTIN_COMMANDS,
     createDefaults: { permissionMode: 'default' },
     // Orphan models are rejected (pre-descriptor behavior): pi needs the provider's endpoint
