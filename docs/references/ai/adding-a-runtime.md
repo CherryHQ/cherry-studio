@@ -141,9 +141,14 @@ These are the choices nothing enforces:
   interpolates its config (env expansion, `$VAR` syntax), write a placeholder
   and inject the real key at runtime through the SDK's auth API. Rotate keys
   per connection, not per validation.
-- **Fail-closed resource discovery.** Do not let the runtime auto-import
-  user-global or workspace resources (extensions, skills, prompt files,
-  context files) until Cherry has an explicit trust flow. See
+- **Fail-closed resource discovery, by trust class.** Do not let the runtime
+  auto-import user-global resources or workspace **executable/code** resources
+  (extensions, skills, prompt files) until Cherry has an explicit trust flow.
+  Workspace **text** the user already vouched for by hand-picking the workspace
+  (context files like `AGENTS.md`/`CLAUDE.md`) may load — pi does, matching the
+  claude driver's `project` source. Draw the line at the trust class, not at
+  "all workspace resources": widening the runtime's `no*` flags wholesale is the
+  regression to guard against. See
   [pi driver resource boundary](./agent-session-runtime.md#pi-driver-resource-boundary)
   for the concrete enforcement pattern.
 - **Permission posture matches the sandbox.** `claude-code` defaults to

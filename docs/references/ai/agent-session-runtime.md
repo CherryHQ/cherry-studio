@@ -219,6 +219,13 @@ Allowed in v1:
   `additionalSkillPaths` (their canonical `{dataPath}/Skills/<folderName>` dirs).
   These load even under `noSkills` because the paths are Cherry-owned and
   resolved from the `agent_skill` join, not discovered from disk.
+- Workspace context files discovered from the cwd ancestry (`AGENTS.md`,
+  `AGENTS.MD`, `CLAUDE.md`, `CLAUDE.MD`). The workspace is trusted because the
+  user picked it by hand in Cherry — there is no separate "do you trust this
+  project?" prompt, matching the claude driver's `project` context source.
+  Context files are workspace **text**, a different trust class than executable
+  extensions (which stay off). This is the only project-discovered resource pi
+  loads; everything else below is still disabled.
 
 Disallowed in v1 unless Cherry adds an explicit trust/import flow:
 
@@ -228,22 +235,28 @@ Disallowed in v1 unless Cherry adds an explicit trust/import flow:
   `APPEND_SYSTEM.md`; the agent record is the only persona source in v1.
 - Workspace project resources: `.pi/extensions`, `.pi/skills`, `.pi/prompts`,
   `.pi/themes`, `.pi/SYSTEM.md`, `.pi/APPEND_SYSTEM.md`.
-- Workspace context files discovered from the cwd ancestry, including
-  `AGENTS.md`, `AGENTS.MD`, `CLAUDE.md`, and `CLAUDE.MD`.
 - Project `.agents/skills` discovered from the cwd ancestry.
 
 The implementation enforces this by creating pi `SettingsManager` with
-`projectTrusted: false`, passing empty `systemPrompt` / `appendSystemPrompt` so
-pi does not discover prompt files from disk, and constructing
-`DefaultResourceLoader` with `noExtensions`, `noSkills`, `noPromptTemplates`,
-`noThemes`, and `noContextFiles`. Inline extension factories still load because
-they are passed by Cherry code, not discovered from disk; likewise the agent's
-enabled managed skills load via `additionalSkillPaths`, which pi honors even
-under `noSkills` because the paths are supplied by Cherry, not disk-discovered.
+`projectTrusted: true` (the user-selected workspace is trusted, so its context
+files load — parity with the claude driver) and passing empty `systemPrompt` /
+`appendSystemPrompt` so pi does not discover **prompt** files from disk, then
+constructing `DefaultResourceLoader` with `noExtensions`, `noSkills`,
+`noPromptTemplates`, and `noThemes` — but `noContextFiles: false`, the one
+project-discovered surface pi is allowed. Inline extension factories still load
+because they are passed by Cherry code, not discovered from disk; likewise the
+agent's enabled managed skills load via `additionalSkillPaths`, which pi honors
+even under `noSkills` because the paths are supplied by Cherry, not
+disk-discovered.
 
-If future work enables workspace pi resources, it must add a Cherry-owned trust
-prompt and persisted decision first, then selectively pass that decision into
-pi resource loading. Do not rely on pi's default `projectTrusted=true` behavior.
+The trust boundary is therefore **executable/prompt resources off, workspace
+text on**: `noExtensions`/`noSkills`/`noPromptTemplates`/`noThemes` keep arbitrary
+code and Cherry-managed resources from being disk-discovered, while
+`projectTrusted: true` + `noContextFiles: false` load only the workspace's own
+`AGENTS.md`/`CLAUDE.md` text. If future work enables the still-disabled workspace
+resources (extensions, project skills/prompts/themes), it must add a Cherry-owned
+trust prompt and persisted decision first, then selectively pass that decision
+into pi resource loading rather than widening the `no*` flags wholesale.
 
 ## Idle and shutdown
 
