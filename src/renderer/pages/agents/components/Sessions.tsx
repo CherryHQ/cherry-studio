@@ -692,7 +692,9 @@ const Sessions = ({
         if (seed?.agentId && onCreateSession) {
           createdSession = await onCreateSession({
             agentId: seed.agentId,
-            workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+            workspace: seed.workspace ?? { type: AGENT_WORKSPACE_TYPE.SYSTEM },
+            // Never let the fresh replacement reuse the session we just deleted (stale candidate list).
+            excludeReuseSessionId: id
           })
         }
       } catch (err) {

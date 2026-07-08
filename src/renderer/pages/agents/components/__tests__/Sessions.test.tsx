@@ -2044,8 +2044,12 @@ describe('Sessions', () => {
     })
 
     await vi.waitFor(() => expect(sessionDataMocks.deleteSession).toHaveBeenCalledWith('session-a-only'))
+    // The fresh replacement must exclude the just-deleted session from reuse, so a stale candidate
+    // list can't reactivate the deleted id instead of creating a new session.
     await vi.waitFor(() =>
-      expect(onCreateSession).toHaveBeenCalledWith(expect.objectContaining({ agentId: 'agent-a' }))
+      expect(onCreateSession).toHaveBeenCalledWith(
+        expect.objectContaining({ agentId: 'agent-a', excludeReuseSessionId: 'session-a-only' })
+      )
     )
     expect(setActiveSessionId).not.toHaveBeenCalledWith('session-b-first', expect.anything())
   })
@@ -2103,7 +2107,9 @@ describe('Sessions', () => {
     await vi.waitFor(() =>
       expect(onCreateSession).toHaveBeenCalledWith({
         agentId: 'agent-a',
-        workspace: { type: 'user', workspaceId: 'ws-a' }
+        workspace: { type: 'user', workspaceId: 'ws-a' },
+        // Excluded from reuse so the fresh replacement can't reactivate the just-deleted session.
+        excludeReuseSessionId: 'session-a-only'
       })
     )
     expect(setActiveSessionId).not.toHaveBeenCalledWith('session-b-first', expect.anything())

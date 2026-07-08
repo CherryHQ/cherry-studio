@@ -895,7 +895,11 @@ describe('Topics', () => {
     })
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a'))
-    await vi.waitFor(() => expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' }))
+    // The fresh replacement must exclude the just-deleted topic from reuse, so a stale candidate list
+    // can't reactivate the deleted id instead of creating a new topic.
+    await vi.waitFor(() =>
+      expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1', excludeReuseTopicId: 'topic-a' })
+    )
   })
 
   it('requests and auto-paginates full topic pages with the ResourceList bulk page size', async () => {
@@ -1568,7 +1572,9 @@ describe('Topics', () => {
     })
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1'))
-    await vi.waitFor(() => expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' }))
+    await vi.waitFor(() =>
+      expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1', excludeReuseTopicId: 'topic-a1' })
+    )
     expect(setActiveTopic).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-b1' }))
   })
 
@@ -1623,7 +1629,7 @@ describe('Topics', () => {
 
     await vi.waitFor(() => expect(topicDataMocks.deleteTopic).toHaveBeenCalledWith('topic-a1-only'))
     expect(setActiveTopic).not.toHaveBeenCalled()
-    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1' })
+    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: 'assistant-1', excludeReuseTopicId: 'topic-a1-only' })
   })
 
   it('keeps topic rows compact and only renders the title field in the sidebar list', () => {

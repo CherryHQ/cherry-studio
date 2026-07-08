@@ -389,7 +389,7 @@ vi.mock('../Chat', () => ({
     locateMessageId?: string
     resourcePaneCount?: { label: string; count: number }
     onCreateEmptyTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
-    onNewTopic?: (payload?: { assistantId?: string | null }) => void | Promise<void>
+    onNewTopic?: (payload?: { assistantId?: string | null; excludeReuseTopicId?: string }) => void | Promise<void>
     onLocateMessageHandled?: () => void
     onPaneCollapse?: () => void
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
@@ -419,6 +419,13 @@ vi.mock('../Chat', () => ({
       {onNewTopic && (
         <button type="button" onClick={() => onNewTopic({ assistantId: 'missing-assistant' })}>
           New topic with missing assistant
+        </button>
+      )}
+      {onNewTopic && (
+        <button
+          type="button"
+          onClick={() => onNewTopic({ assistantId: 'assistant-2', excludeReuseTopicId: 'topic-empty-modern' })}>
+          Replace deleted topic for assistant 2
         </button>
       )}
       {onCreateEmptyTopic && (
@@ -1718,6 +1725,31 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-empty-modern'))
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('excludes the just-deleted topic from reuse so the post-delete replacement creates a fresh one', async () => {
+    // Regression: after deleting the last topic of an assistant, the stale candidate list still holds
+    // the deleted empty topic. Without the exclusion the fallback would reactivate the deleted id
+    // instead of creating a replacement, stranding the view on a non-existent topic.
+    homeMocks.assistants = [{ id: 'assistant-default' }, { id: 'assistant-2' }]
+    homeMocks.classicLayoutTopics = [
+      {
+        id: 'topic-empty-modern',
+        assistantId: 'assistant-2',
+        name: '',
+        createdAt: '2026-01-04T00:00:00.000Z',
+        updatedAt: '2026-01-04T00:00:00.000Z'
+      }
+    ]
+    homeMocks.createTopic.mockResolvedValue({ ...createdTopic, assistantId: 'assistant-2' })
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Replace deleted topic for assistant 2' }))
+
+    await waitFor(() => expect(homeMocks.createTopic).toHaveBeenCalledWith({ assistantId: 'assistant-2' }))
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-created'))
+    expect(screen.getByTestId('active-topic')).not.toHaveTextContent('topic-empty-modern')
   })
 
   it('reuses the current modern-layout empty topic even before the topic source refreshes', async () => {

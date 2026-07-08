@@ -517,6 +517,17 @@ vi.mock('../AgentSidePanel', () => ({
           onClick={() => onCreateSession?.({ agentId: 'agent-a', workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } })}>
           Create panel session
         </button>
+        <button
+          type="button"
+          onClick={() =>
+            onCreateSession?.({
+              agentId: 'agent-a',
+              workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM },
+              excludeReuseSessionId: 'session-empty-system-a'
+            })
+          }>
+          Replace deleted panel session
+        </button>
         {resourceMenuItems?.map((item: { id: string; label: ReactNode; onSelect: () => void | Promise<void> }) => (
           <button key={item.id} type="button" onClick={() => void item.onSelect()}>
             {item.id === 'agent-resource-view' ? 'agent.manage.title' : item.label}
@@ -1324,6 +1335,35 @@ describe('AgentPage', () => {
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-empty-latest'))
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
     expect(agentPageMocks.invalidateCache).not.toHaveBeenCalled()
+  })
+
+  it('excludes the just-deleted session from reuse so the post-delete replacement creates a fresh one', async () => {
+    // Regression: after deleting the last session of an agent, the stale candidate list still holds
+    // the deleted empty (untouched) session — reused without a DB re-check. Without the exclusion the
+    // fallback would reactivate the deleted id instead of creating a replacement.
+    agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
+    agentPageMocks.classicLayoutSessions = [
+      {
+        id: 'session-empty-system-a',
+        agentId: 'agent-a',
+        name: '',
+        isNameManuallyEdited: false,
+        createdAt: '2026-01-03T03:00:00.000Z',
+        updatedAt: '2026-01-03T03:00:00.000Z',
+        workspace: { type: 'system' }
+      }
+    ]
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Replace deleted panel session' }))
+
+    await waitFor(() =>
+      expect(agentPageMocks.dataApiPost).toHaveBeenCalledWith('/agent-sessions', {
+        body: { agentId: 'agent-a', name: '', workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } }
+      })
+    )
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-created'))
   })
 
   it('reuses the latest empty system session and deletes duplicate empty system sessions from the composer button', async () => {

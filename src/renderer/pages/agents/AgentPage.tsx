@@ -494,7 +494,11 @@ const AgentPage = () => {
         }
 
         const workspaceSource = await resolveCreateWorkspaceSource(defaults, visibleSession)
-        const reuseCandidates = getSessionReuseCandidates()
+        // Drop the session being replaced (post-delete): a stale candidate list still holds it, and
+        // reusing it would reactivate the just-deleted session instead of opening a fresh one.
+        const reuseCandidates = getSessionReuseCandidates().filter(
+          (candidate) => candidate.id !== defaults.excludeReuseSessionId
+        )
         const reusableSessions = await findReusableEmptySessions(
           reuseCandidates,
           (candidate) => candidate.agentId === agentId && sessionMatchesWorkspaceSource(candidate, workspaceSource)

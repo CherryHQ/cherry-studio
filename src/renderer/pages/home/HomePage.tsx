@@ -471,7 +471,12 @@ const HomePage: FC = () => {
       isCreatingTopicRef.current = true
       try {
         const selection = resolveNewTopicAssistantTarget(payload?.assistantId, options)
-        const reusableTopic = findReusableEmptyTopic(topicReuseCandidates, selection.assistantId)
+        // Drop the topic being replaced (post-delete): a stale candidate list still holds it, and
+        // reusing it would reactivate the just-deleted topic instead of opening a fresh one.
+        const reuseCandidates = payload?.excludeReuseTopicId
+          ? topicReuseCandidates.filter((topic) => topic.id !== payload.excludeReuseTopicId)
+          : topicReuseCandidates
+        const reusableTopic = findReusableEmptyTopic(reuseCandidates, selection.assistantId)
         const rendererTopic =
           reusableTopic ??
           mapApiTopicToRendererTopic(

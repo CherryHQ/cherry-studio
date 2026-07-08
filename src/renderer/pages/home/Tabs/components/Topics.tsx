@@ -524,7 +524,8 @@ export function Topics({
         return
       }
 
-      await onNewTopic?.({ assistantId: topic.assistantId ?? null })
+      // Never let the fresh replacement reuse the topic we just deleted (stale candidate list).
+      await onNewTopic?.({ assistantId: topic.assistantId ?? null, excludeReuseTopicId: topic.id })
     },
     [activeTopic?.id, onNewTopic, removeTopic, setActiveTopic, t, topics]
   )

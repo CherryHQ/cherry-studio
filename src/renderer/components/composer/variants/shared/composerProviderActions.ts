@@ -7,6 +7,10 @@ import type { ComposerSurfaceActions } from '@renderer/components/composer/Compo
  */
 export interface AddNewTopicPayload {
   assistantId?: string | null
+  // Id of a topic being replaced (post-delete): excluded from empty-topic reuse so a stale candidate
+  // list can't reactivate the just-deleted topic instead of creating a fresh one. Composer callers
+  // leave this unset.
+  excludeReuseTopicId?: string
 }
 
 /**
