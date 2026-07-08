@@ -45,6 +45,7 @@ vi.mock('@cherrystudio/ui', () => ({
       {label}
     </button>
   ),
+  Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
   MenuDivider: () => <hr />,
   MenuList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Popover: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -184,6 +185,7 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
                   </button>
                 ))}
               </div>
+              {item.trailingAction}
             </section>
           )
         })}
@@ -385,6 +387,22 @@ describe('classic layout entity resource list actions', () => {
     expect(onCreateTopic).not.toHaveBeenCalled()
   })
 
+  it('creates a new topic for the hovered assistant row', () => {
+    const onCreateTopic = vi.fn()
+
+    render(
+      <TestAssistantResourceList
+        activeAssistantId="assistant-1"
+        onSelectTopic={vi.fn()}
+        onCreateTopic={onCreateTopic}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'chat.conversation.new' })[0])
+
+    expect(onCreateTopic).toHaveBeenCalledWith('assistant-1')
+  })
+
   it('clears assistant topics from the classic layout assistant context menu', async () => {
     const onSelectTopic = vi.fn()
     const onCreateTopicAfterClear = vi.fn()
@@ -467,8 +485,9 @@ describe('classic layout entity resource list actions', () => {
       { id: 'topic-default', name: 'Default topic' },
       { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }
     ]
+    const onCreateTopic = vi.fn()
 
-    render(<TestAssistantResourceList activeAssistantId={null} onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />)
+    render(<TestAssistantResourceList activeAssistantId={null} onSelectTopic={vi.fn()} onCreateTopic={onCreateTopic} />)
 
     const defaultAssistantRegion = screen.getByRole('region', { name: 'chat.default.name' })
     const assistantRegion = screen.getByRole('region', { name: 'Assistant 1' })
@@ -483,6 +502,9 @@ describe('classic layout entity resource list actions', () => {
     expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent(
       'assistants.clear.menu_title'
     )
+
+    fireEvent.click(within(defaultAssistantRegion).getByRole('button', { name: 'chat.conversation.new' }))
+    expect(onCreateTopic).toHaveBeenCalledWith(null)
   })
 
   it('creates a fresh topic after clearing the only classic assistant topics', async () => {
@@ -658,6 +680,24 @@ describe('classic layout entity resource list actions', () => {
     // Classic layout resets via the dedicated callback, never the draft compose.
     await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1'))
     expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
+  })
+
+  it('creates a new session for the hovered agent row', () => {
+    const onCreateSession = vi.fn()
+
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={onCreateSession}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.session.new' }))
+
+    expect(onCreateSession).toHaveBeenCalledWith('agent-1')
   })
 
   it('lets the classic agent rail switch icon display mode from the context menu', () => {
