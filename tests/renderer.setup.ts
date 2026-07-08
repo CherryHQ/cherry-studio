@@ -775,11 +775,24 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('div', { ...props, 'data-testid': 'avatar-fallback' }, children),
     EmojiAvatar: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'emoji-avatar' }, children),
-    EmojiIcon: ({ emoji, className, fluid, fontSize }) =>
+    EmojiIcon: ({ emoji, className, fluid, fontSize, size }) =>
       React.createElement(
         'div',
         {
-          className,
+          className: [
+            'relative flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full',
+            fluid ? 'h-full w-full' : 'mr-1',
+            className
+          ]
+            .filter(Boolean)
+            .join(' '),
+          style: fluid
+            ? { fontSize: fontSize === undefined ? undefined : `${fontSize}px` }
+            : {
+                fontSize: `${fontSize ?? 15}px`,
+                height: `${size ?? 26}px`,
+                width: `${size ?? 26}px`
+              },
           'data-testid': 'emoji-icon',
           ...(fluid !== undefined ? { 'data-fluid': String(fluid) } : {}),
           ...(fontSize !== undefined ? { 'data-font-size': String(fontSize) } : {})
@@ -787,6 +800,7 @@ vi.mock('@cherrystudio/ui', () => {
         React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
         emoji
       ),
+    EmojiGlyph: ({ emoji }) => React.createElement('svg', { 'data-fluent-emoji': emoji }),
     Switch: ({ isSelected, onValueChange, ...props }) =>
       React.createElement('input', {
         ...props,

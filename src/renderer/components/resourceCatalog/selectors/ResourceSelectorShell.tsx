@@ -1,4 +1,4 @@
-import { Checkbox, CustomTag, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
+import { Checkbox, CustomTag, EmojiGlyph, EmptyState, type EmptyStatePreset } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import {
   MODEL_SELECTOR_ROW_CHECKBOX_CLASS,
@@ -597,7 +597,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     const pinAction = renderPinAction(item)
 
     const leading = item.emoji ? (
-      <span className="flex size-5 shrink-0 items-center justify-center text-base leading-none">{item.emoji}</span>
+      <span className="flex size-5 shrink-0 items-center justify-center text-base leading-none">
+        <EmojiGlyph emoji={item.emoji} />
+      </span>
     ) : fallbackIcon ? (
       <span className="flex size-5 shrink-0 items-center justify-center">{fallbackIcon}</span>
     ) : null

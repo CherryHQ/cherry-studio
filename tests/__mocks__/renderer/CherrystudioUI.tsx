@@ -96,6 +96,34 @@ export const MockCherrystudioUI = {
       {description && <p>{description}</p>}
     </div>
   ),
+  EmojiIcon: ({ emoji, className, fluid, fontSize, size }: any) => (
+    <div
+      className={[
+        'relative flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full',
+        fluid ? 'h-full w-full' : 'mr-1',
+        className
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      data-fluid={fluid === undefined ? undefined : String(fluid)}
+      data-font-size={fontSize === undefined ? undefined : String(fontSize)}
+      data-testid="emoji-icon"
+      style={
+        fluid
+          ? { fontSize: fontSize === undefined ? undefined : `${fontSize}px` }
+          : {
+              fontSize: `${fontSize ?? 15}px`,
+              height: `${size ?? 26}px`,
+              width: `${size ?? 26}px`
+            }
+      }>
+      <span aria-hidden="true" data-testid="emoji-icon-background">
+        {emoji || '⭐️'}
+      </span>
+      {emoji}
+    </div>
+  ),
+  EmojiGlyph: ({ emoji }: { emoji: string }) => <svg data-fluent-emoji={emoji} />,
   FieldError: ({ children, ...props }: { children?: ReactNode }) => <p {...props}>{children}</p>,
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   Label: ({ children, ...props }: { children?: ReactNode }) => <label {...props}>{children}</label>,

@@ -1,5 +1,8 @@
 // Original path: src/renderer/components/EmojiIcon.tsx
+import { cn } from '@cherrystudio/ui/lib/utils'
 import type { CSSProperties, FC } from 'react'
+
+import EmojiGlyph from './emoji-glyph'
 
 interface EmojiIconProps {
   emoji: string
@@ -24,7 +27,11 @@ const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className = '', size = 26, fontS
 
   return (
     <div
-      className={`flex items-center justify-center flex-shrink-0 relative overflow-hidden rounded-full ${fluid ? 'h-full w-full' : 'mr-1'} ${className}`}
+      className={cn(
+        'relative flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full',
+        fluid ? 'h-full w-full' : 'mr-1',
+        className
+      )}
       style={wrapperStyle}>
       <div
         aria-hidden="true"
@@ -33,9 +40,9 @@ const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className = '', size = 26, fontS
           fontSize: '200%',
           transform: 'scale(1.5)'
         }}>
-        {emoji || '⭐️'}
+        <EmojiGlyph emoji={emoji || '⭐️'} decorative />
       </div>
-      {emoji}
+      {emoji ? <EmojiGlyph emoji={emoji} /> : null}
     </div>
   )
 }

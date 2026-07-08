@@ -18,6 +18,7 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "icons:generate": "tsx scripts/generate-icons.ts --type=icons",
+    "emojis:generate": "tsx scripts/generate-fluent-emojis.ts",
     "providers:pipeline": "tsx scripts/pipeline.ts --dir=providers",
     "providers:vectorize": "tsx scripts/vectorize-logo.ts --dir=providers",
     "providers:validate": "tsx scripts/validate-svgs.ts --dir=providers",
@@ -110,6 +111,7 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@iconify-json/fluent-emoji-flat": "^1.2.5",
     "@neplex/vectorizer": "^0.0.5",
     "@storybook/addon-docs": "^10.0.5",
     "@storybook/addon-themes": "^10.0.5",
@@ -126,6 +128,7 @@
     "@uiw/codemirror-extensions-langs": "^4.25.1",
     "@uiw/codemirror-themes-all": "^4.25.1",
     "@uiw/react-codemirror": "^4.25.1",
+    "emoji-picker-element-data": "^1.8.0",
     "eslint-plugin-storybook": "10.0.5",
     "motion": "^12.42.0",
     "linguist-languages": "^9.0.0",

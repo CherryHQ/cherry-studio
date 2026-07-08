@@ -1,5 +1,8 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 import { UserAvatar } from '../primitives'
 
@@ -16,11 +19,9 @@ describe('UserAvatar', () => {
   it('renders emoji avatars via EmojiIcon (no gradient initials fallback)', () => {
     const { container } = render(<UserAvatar user={{ name: 'User', avatar: '🌈' }} />)
 
-    const emojiIcon = screen.getByTestId('emoji-icon')
-    expect(emojiIcon).toHaveTextContent('🌈')
-    expect(emojiIcon).toHaveAttribute('data-fluid', 'true')
-    expect(emojiIcon).toHaveAttribute('data-font-size', '10')
-    expect(screen.getByTestId('emoji-icon-background')).toHaveTextContent('🌈')
+    const emojiIcon = container.firstElementChild?.firstElementChild as HTMLElement
+    expect(emojiIcon).toHaveStyle({ fontSize: '14px' })
+    expect(emojiIcon.querySelectorAll('svg[data-fluent-emoji="🌈"]')).toHaveLength(2)
     // Emoji avatars must not fall through to the gradient-initial branch.
     // The gradient classes live on the inner fallback div, so query that element directly.
     expect(container.querySelector('.from-blue-400')).not.toBeInTheDocument()

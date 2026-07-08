@@ -169,6 +169,15 @@ vi.mock('@cherrystudio/ui', async () => {
     Input: (props: React.ComponentProps<'input'>) => <input {...props} />,
     Kbd: ({ children }: React.ComponentProps<'kbd'>) => <kbd>{children}</kbd>,
     KbdGroup: ({ children }: React.ComponentProps<'div'>) => <div>{children}</div>,
+    EmojiIcon: ({ emoji, className }: { emoji?: string; className?: string }) => (
+      <div
+        className={['relative flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full', className]
+          .filter(Boolean)
+          .join(' ')}
+        data-testid="emoji-icon">
+        {emoji}
+      </div>
+    ),
     SegmentedControl: ({
       options,
       value,

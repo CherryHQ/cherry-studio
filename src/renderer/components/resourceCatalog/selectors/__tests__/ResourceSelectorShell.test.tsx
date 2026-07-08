@@ -167,6 +167,24 @@ describe('ResourceSelectorShell', () => {
       )
     })
 
+    it('renders item emoji with the stable Fluent glyph renderer', () => {
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={[{ id: 'emoji', name: 'Emoji assistant', emoji: '😀' }]}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+        />
+      )
+      openPopover()
+
+      const row = screen.getByRole('option', { name: /Emoji assistant/ })
+      expect(row.querySelector('svg[data-fluent-emoji="😀"]')).toBeInTheDocument()
+    })
+
     it('fills the unified popover content height when available space is unconstrained', async () => {
       render(
         <ResourceSelectorShell

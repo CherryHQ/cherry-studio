@@ -1344,6 +1344,37 @@ describe('ResourceList', () => {
     expect(screen.getByTestId('session-icon')).toHaveAttribute('data-collapsed', 'true')
   })
 
+  it('does not force stroke styles onto group header emoji icons', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderIcon={() => (
+          <svg data-fluent-emoji="😀" viewBox="0 0 32 32">
+            <path fill="#FFB02E" d="M2 16a14 14 0 1 0 28 0a14 14 0 0 0-28 0" />
+          </svg>
+        )}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const emojiSvg = screen.getByRole('button', { name: 'session' }).querySelector('svg[data-fluent-emoji]')
+    const leadingSlot = emojiSvg?.closest('[data-resource-list-leading-slot="true"]')
+
+    expect(leadingSlot).toHaveClass('[&_svg]:size-4')
+    expect(leadingSlot).not.toHaveClass('[&_svg]:stroke-current')
+  })
+
   it('omits the group header icon slot when no icon is provided', () => {
     const Provider = ResourceList.Provider<TestItem>
 

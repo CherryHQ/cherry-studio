@@ -53,4 +53,26 @@ describe('loadEmojiData', () => {
     await expect(loadEmojiData('en-US')).resolves.toEqual([{ emoji: '🙂', annotation: 'smile', group: 0, order: 1 }])
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
+
+  it('keeps loaded avatar emoji data even when Fluent artwork is unavailable', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const loadEmojiData = await loadFreshEmojiData()
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: vi.fn().mockResolvedValue([
+        { emoji: '😀', annotation: 'grinning face', group: 0, order: 1, version: 1 },
+        { emoji: '👨‍👩‍👧‍👦', annotation: 'family', group: 0, order: 2, version: 2 },
+        { emoji: '🫠', annotation: 'melting face', group: 0, order: 3, version: 14 },
+        { emoji: '🏳️', annotation: 'white flag', group: 9, order: 4, version: 1 }
+      ])
+    })
+
+    await expect(loadEmojiData('en-US')).resolves.toEqual([
+      { emoji: '😀', annotation: 'grinning face', group: 0, order: 1, version: 1 },
+      { emoji: '👨‍👩‍👧‍👦', annotation: 'family', group: 0, order: 2, version: 2 },
+      { emoji: '🫠', annotation: 'melting face', group: 0, order: 3, version: 14 }
+    ])
+  })
 })
