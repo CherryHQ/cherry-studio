@@ -98,7 +98,7 @@ const OpenClawPage: FC = () => {
 
   /**
    * Drop models whose owning provider has no usable credentials. Credential-free
-   * local runtimes (registry `authOptional` — ollama / lmstudio / gpustack)
+   * local runtimes (registry `authOptional` — ollama / lmstudio / gpustack / ovms)
    * bypass the check since they accept any placeholder. The new ModelSelector
    * already filters out disabled providers, so we only need the credential check here.
    */

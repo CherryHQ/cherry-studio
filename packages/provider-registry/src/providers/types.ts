@@ -66,6 +66,7 @@ export function openaiCompatible(
     website: ProviderWebsite
     apiFeatures?: Partial<ApiFeatures>
     presetProviderId?: string
+    authOptional?: ProviderConfig['authOptional']
   } & GenFields
 ): Provider {
   const endpointConfigs: ProviderConnection['endpointConfigs'] = {
@@ -79,6 +80,7 @@ export function openaiCompatible(
     endpointConfigs,
     metadata: { website: p.website },
     ...(p.apiFeatures ? { apiFeatures: p.apiFeatures } : {}),
+    ...(p.authOptional ? { authOptional: p.authOptional } : {}),
     ...(p.presetProviderId ? { presetProviderId: p.presetProviderId } : {}),
     ...(p.modelsDevProvider ? { modelsDevProvider: p.modelsDevProvider } : {}),
     ...(p.fetchModels ? { fetchModels: p.fetchModels } : {}),

@@ -1,3 +1,4 @@
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
@@ -30,6 +31,14 @@ describe('providerNeedsApiKeyForModelSync', () => {
   it('exempts copilot (OAuth), matched by preset so duplicates are covered too', () => {
     expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'copilot' }))).toBe(false)
     expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'cp-2', presetProviderId: 'copilot' }))).toBe(false)
+  })
+
+  it('exempts a self-hosted Ollama gateway identified only by its endpoint (no authOptional / preset)', () => {
+    // A fully custom provider (no preset link) never receives the registry
+    // `authOptional` flag, so the ollama-chat endpoint is the only signal left.
+    expect(
+      providerNeedsApiKeyForModelSync(makeProvider({ id: 'my-ollama', defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT }))
+    ).toBe(false)
   })
 
   it('exempts IAM-authenticated providers', () => {
