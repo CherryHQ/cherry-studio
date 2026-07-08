@@ -14,6 +14,7 @@ function createRuntimeProvider(isEnabled = true) {
     name: 'Zhipu',
     apiHost: 'https://example.com',
     isEnabled,
+    authOptional: false,
     getApiKey: vi.fn(async () => 'token')
   }
 }
@@ -123,6 +124,7 @@ describe('usePaintingGenerationGuard', () => {
         name: 'OpenVINO Model Server',
         apiHost: 'http://localhost:8000',
         isEnabled: false,
+        authOptional: true,
         getApiKey: vi.fn(async () => '')
       },
       isLoading: false

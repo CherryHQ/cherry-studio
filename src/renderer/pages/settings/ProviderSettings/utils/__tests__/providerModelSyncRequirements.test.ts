@@ -1,4 +1,3 @@
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
@@ -17,22 +16,20 @@ const makeProvider = (overrides: Partial<Provider>): Provider =>
   }) as Provider
 
 describe('providerNeedsApiKeyForModelSync', () => {
-  it('exempts canonical local providers matched by id', () => {
-    expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'ollama' }))).toBe(false)
-    expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'lmstudio' }))).toBe(false)
-    expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'copilot' }))).toBe(false)
-  })
-
-  it('exempts duplicated local providers that keep presetProviderId but get a new id', () => {
-    expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'ollama-copy', presetProviderId: 'ollama' }))).toBe(false)
-    expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'lm-2', presetProviderId: 'lmstudio' }))).toBe(false)
-    expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'cp-2', presetProviderId: 'copilot' }))).toBe(false)
-  })
-
-  it('exempts an Ollama provider identified only by its endpoint', () => {
+  it('exempts credential-free local providers via the authOptional registry flag', () => {
+    // ollama / lmstudio / gpustack / ovms carry authOptional from the registry;
+    // a duplicate inherits it through the preset merge, so it holds regardless of id.
+    expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'ollama', authOptional: true }))).toBe(false)
+    expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'lmstudio', authOptional: true }))).toBe(false)
+    expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'gpustack', authOptional: true }))).toBe(false)
     expect(
-      providerNeedsApiKeyForModelSync(makeProvider({ id: 'local', defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT }))
+      providerNeedsApiKeyForModelSync(makeProvider({ id: 'ollama-2', presetProviderId: 'ollama', authOptional: true }))
     ).toBe(false)
+  })
+
+  it('exempts copilot (OAuth), matched by preset so duplicates are covered too', () => {
+    expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'copilot' }))).toBe(false)
+    expect(providerNeedsApiKeyForModelSync(makeProvider({ id: 'cp-2', presetProviderId: 'copilot' }))).toBe(false)
   })
 
   it('exempts IAM-authenticated providers', () => {

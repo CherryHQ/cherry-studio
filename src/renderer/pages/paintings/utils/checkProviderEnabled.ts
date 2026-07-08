@@ -5,20 +5,15 @@ import i18next from 'i18next'
 
 import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
 
-/**
- * Providers that run without an API key (local servers). Short-circuits the
- * apiKey check so canonicalGenerate's unconditional `checkProviderEnabled`
- * call doesn't trip on OVMS's local OpenVINO Model Server. Vendor adapter
- * knows not to attach an Authorization header.
- */
-export const NO_AUTH_PROVIDER_IDS: ReadonlySet<string> = new Set(['ovms'])
-
 function navigateToProviderSettings(providerId: string) {
   openSettingsTab(`/settings/provider?id=${encodeURIComponent(providerId)}`)
 }
 
 export async function checkProviderEnabled(provider: PaintingProviderRuntime): Promise<string> {
-  if (NO_AUTH_PROVIDER_IDS.has(provider.id)) {
+  // Credential-free local servers (registry `authOptional`, e.g. OVMS) short-circuit
+  // the apiKey check so canonicalGenerate's unconditional `checkProviderEnabled` call
+  // doesn't trip on them. The vendor adapter knows not to attach an Authorization header.
+  if (provider.authOptional) {
     return ''
   }
 

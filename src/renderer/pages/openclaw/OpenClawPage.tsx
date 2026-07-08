@@ -26,7 +26,6 @@ import UpdateButton from './components/UpdateButton'
 const logger = loggerService.withContext('OpenClawPage')
 
 const DEFAULT_DOCS_URL = 'https://docs.openclaw.ai/'
-const NO_API_KEY_PROVIDERS = new Set(['ollama', 'lmstudio', 'gpustack'])
 
 interface TitleSectionProps {
   title: string
@@ -98,17 +97,17 @@ const OpenClawPage: FC = () => {
   const { model: selectedModel } = useModelById((selectedUniqueModelId ?? '') as UniqueModelId)
 
   /**
-   * Drop models whose owning provider has no usable credentials. Local
-   * runtimes (ollama / lmstudio / gpustack) bypass the check since they
-   * accept any placeholder. The new ModelSelector already filters out
-   * disabled providers, so we only need the credential check here.
+   * Drop models whose owning provider has no usable credentials. Credential-free
+   * local runtimes (registry `authOptional` — ollama / lmstudio / gpustack)
+   * bypass the check since they accept any placeholder. The new ModelSelector
+   * already filters out disabled providers, so we only need the credential check here.
    */
   const modelFilter = useCallback(
     (model: SharedModel) => {
       if (isNonChatModel(model)) return false
       const provider = providers.find((p) => p.id === model.providerId)
       if (!provider) return false
-      if (NO_API_KEY_PROVIDERS.has(provider.id)) return true
+      if (provider.authOptional) return true
       return provider.apiKeys.some((k) => k.isEnabled)
     },
     [providers]

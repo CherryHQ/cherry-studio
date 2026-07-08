@@ -18,12 +18,14 @@ import type { ProviderModelOverride } from '../schemas/provider-models'
  */
 type ProviderConnection = Omit<
   ProviderConfig,
-  'description' | 'endpointConfigs' | 'defaultChatEndpoint' | 'apiFeatures' | 'modelListSource'
+  'description' | 'endpointConfigs' | 'defaultChatEndpoint' | 'apiFeatures' | 'modelListSource' | 'authOptional'
 > & {
   endpointConfigs: Partial<ProviderConfig['endpointConfigs']>
   defaultChatEndpoint?: ProviderConfig['defaultChatEndpoint']
   /** Defaults to `api`; only registry-backed providers need to declare it. */
   modelListSource?: ProviderConfig['modelListSource']
+  /** Defaults to `false`; only credential-free local providers declare it. */
+  authOptional?: ProviderConfig['authOptional']
   /** Only the non-default flags are declared; the schema fills the rest at load time. */
   apiFeatures?: Partial<ApiFeatures>
 }
