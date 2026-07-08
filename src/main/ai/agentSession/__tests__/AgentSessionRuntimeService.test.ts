@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   startRuntimeTurn: vi.fn(),
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
+  terminateHeldTopicStream: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
   getSessionById: vi.fn(),
@@ -142,7 +143,8 @@ describe('AgentSessionRuntimeService', () => {
         return {
           startRuntimeTurn: mocks.startRuntimeTurn,
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
-          broadcastTopicError: mocks.broadcastTopicError
+          broadcastTopicError: mocks.broadcastTopicError,
+          terminateHeldTopicStream: mocks.terminateHeldTopicStream
         }
       }
       if (name === 'CacheService') return { setShared: mocks.cacheSetShared, deleteShared: mocks.cacheDeleteShared }
@@ -2075,11 +2077,15 @@ describe('AgentSessionRuntimeService', () => {
     // follow-up can't run, and the queue is drained (its user rows stay resendable).
     expect(mocks.saveMessage).not.toHaveBeenCalled()
     expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
-    expect(mocks.broadcastTopicError).toHaveBeenCalledWith(
+    // The prior turn kept this topic's stream alive for the continuation (willContinueTopic), skipping
+    // its terminal lifecycle — so the held stream must be terminalized/evicted, not merely error-broadcast
+    // (a bare broadcast would leave its status cache stuck `streaming` and the stream re-attachable).
+    expect(mocks.terminateHeldTopicStream).toHaveBeenCalledWith(
       'agent-session:session-1',
       baseTurnInput.modelId,
       expect.anything()
     )
+    expect(mocks.broadcastTopicError).not.toHaveBeenCalled()
     expect(getEntry(service).pendingTurns).toEqual([])
   })
 

@@ -1014,11 +1014,14 @@ export class AgentSessionRuntimeService extends BaseService {
     // `entry.modelId` still caches the deleted model. Re-read the live model before draining — starting the
     // turn here would stamp an assistant row with the stale deleted model and then fail to connect. If the
     // model is gone, surface the failure to the renderer, drop the queue (its rows stay resendable) and
-    // settle instead of starting a doomed turn.
+    // settle instead of starting a doomed turn. Use `terminateHeldTopicStream` (not `broadcastTopicError`):
+    // the prior turn kept this topic's stream alive for the continuation (`willContinueTopic`), skipping its
+    // terminal lifecycle — a bare error broadcast would leave that stream in `activeStreams` with its status
+    // cache stuck `streaming` and still re-attachable, so it must be terminalized/evicted here.
     if (!agentService.getAgent(entry.agentId)?.model) {
       application
         .get('AiStreamManager')
-        .broadcastTopicError(
+        .terminateHeldTopicStream(
           entry.topicId,
           entry.modelId,
           serializeError(new Error(`Agent ${entry.agentId} has no model configured`))
